@@ -4,6 +4,10 @@
   "description": "Sogni.ai API wrapper",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist/"
+  ],
   "scripts": {
     "clean": "rimraf ./dist",
     "prepublish": "npm run build",
