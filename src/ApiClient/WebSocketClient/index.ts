@@ -148,14 +148,11 @@ class WebSocketClient extends RestClient<SocketEventMap> {
         if (data.data) {
           payload = JSON.parse(base64Decode(data.data));
         }
-
-        console.log('WebSocket event:', data.type, payload);
         this.emit(data.type, payload);
       })
       .catch((err: any) => {
         console.error('Failed to parse WebSocket message:', err);
       });
-    console.log('WebSocket message:', e);
   }
 
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]) {

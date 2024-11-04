@@ -1,5 +1,11 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
 
+export interface AvailableModel {
+  id: string;
+  name: string;
+  workerCount: number;
+}
+
 export interface AiModel {
   isSD3: boolean;
   modelShortName: string;

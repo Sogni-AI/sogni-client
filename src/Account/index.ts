@@ -5,7 +5,7 @@ import { ApiError, ApiReponse } from '../ApiClient/ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 
-class Account extends ApiGroup {
+class AccountApi extends ApiGroup {
   readonly currentAccount = new CurrentAccount();
 
   constructor(config: ApiConfig) {
@@ -132,4 +132,4 @@ class Account extends ApiGroup {
   }
 }
 
-export default Account;
+export default AccountApi;

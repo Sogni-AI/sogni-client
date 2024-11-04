@@ -1,11 +1,11 @@
 import { cloneDeep } from 'lodash';
 import TypedEventEmitter from './TypedEventEmitter';
 
-type EntityEvents<D> = {
-  updated: Partial<D>;
-};
+export interface EntityEvents {
+  updated: string[];
+}
 
-abstract class Entity<D> extends TypedEventEmitter<EntityEvents<D>> {
+abstract class Entity<D, E extends EntityEvents = EntityEvents> extends TypedEventEmitter<E> {
   protected data: D;
 
   constructor(data: D) {
@@ -13,11 +13,20 @@ abstract class Entity<D> extends TypedEventEmitter<EntityEvents<D>> {
     this.data = data;
   }
 
+  /**
+   * @internal
+   * @param delta
+   */
   _update(delta: Partial<D>) {
+    //@ts-ignore
+    const changedKeys = Object.keys(delta).filter((key) => this.data[key] !== delta[key]);
     this.data = { ...this.data, ...delta };
-    this.emit('updated', delta);
+    this.emit('updated', changedKeys);
   }
 
+  /**
+   * Get a copy of the entity's data
+   */
   toJSON(): D {
     return cloneDeep(this.data);
   }

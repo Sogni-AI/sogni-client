@@ -1,6 +1,6 @@
-export type EventMap = {
-  [key: string]: unknown;
-};
+export interface EventMap {
+  [event: string]: any;
+}
 
 export type EventListener<D> = (data: D) => void;
 
@@ -20,6 +20,19 @@ abstract class TypedEventEmitter<E extends EventMap> {
     return () => {
       this.off(event, listener);
     };
+  }
+
+  /**
+   * Add an event listener that will be called only once
+   * @param event
+   * @param listener
+   */
+  once<T extends keyof E>(event: T, listener: EventListener<E[T]>) {
+    const remove = this.on(event, (data) => {
+      remove();
+      listener(data);
+    });
+    return remove;
   }
 
   /**

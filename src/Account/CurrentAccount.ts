@@ -42,6 +42,7 @@ class CurrentAccount extends Entity<AccountData> {
 
   _update<K extends keyof AccountData>(delta: Partial<AccountData>) {
     this.data = { ...this.data, ...(delta as Partial<AccountData>) };
+    const keys = Object.keys(delta);
     if (delta.hasOwnProperty('token')) {
       if (delta.token) {
         Object.assign(this.data, decodeToken(delta.token));
@@ -49,8 +50,9 @@ class CurrentAccount extends Entity<AccountData> {
         delete this.data.walletAddress;
         delete this.data.expiresAt;
       }
+      keys.push('walletAddress', 'expiresAt');
     }
-    this.emit('updated', delta);
+    this.emit('updated', keys);
   }
 
   _clear() {

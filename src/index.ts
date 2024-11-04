@@ -1,9 +1,9 @@
 import { AbstractProvider, JsonRpcProvider, getDefaultProvider } from 'ethers';
-import Account from './Account';
+import AccountApi from './Account';
 import ApiClient from './ApiClient/ApiClient';
 import { ApiConfig } from './ApiGroup';
 import EIP712Helper from './lib/EIP712Helper';
-import Projects from './Projects';
+import ProjectsApi from './Projects';
 
 export interface BaseConfig {
   appId: string;
@@ -22,12 +22,12 @@ export interface FullConfig extends BaseConfig {
 export type SogniClientConfig = SimpleConfig | FullConfig;
 
 export class SogniClient {
-  account: Account;
-  projects: Projects;
+  account: AccountApi;
+  projects: ProjectsApi;
 
   private constructor(config: ApiConfig) {
-    this.account = new Account(config);
-    this.projects = new Projects(config);
+    this.account = new AccountApi(config);
+    this.projects = new ProjectsApi(config);
   }
 
   get currentAccount() {

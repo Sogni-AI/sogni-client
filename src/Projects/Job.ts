@@ -1,6 +1,6 @@
-import Entity from '../lib/Entity';
+import Entity, { EntityEvents } from '../lib/Entity';
 
-export type JobStatus = 'creating' | 'initiating' | 'started' | 'queued' | 'completed' | 'failed';
+export type JobStatus = 'pending' | 'initiating' | 'processing' | 'completed' | 'failed';
 
 export interface JobData {
   id: string;
@@ -15,9 +15,16 @@ export interface JobData {
   };
 }
 
-class Job extends Entity<JobData> {
+interface JobEvents extends EntityEvents {
+  progress: number;
+  completed: string;
+  failed: JobData['error'];
+}
+
+class Job extends Entity<JobData, JobEvents> {
   constructor(data: JobData) {
     super(data);
+    this.on('updated', this.handleUpdated.bind(this));
   }
 
   get id() {
@@ -54,6 +61,18 @@ class Job extends Entity<JobData> {
 
   get error() {
     return this.data.error;
+  }
+
+  private handleUpdated(keys: string[]) {
+    if (keys.includes('step') || keys.includes('stepCount')) {
+      this.emit('progress', this.progress);
+    }
+    if (keys.includes('status') && this.status === 'completed') {
+      this.emit('completed', this.resultUrl!);
+    }
+    if (keys.includes('status') && this.status === 'failed') {
+      this.emit('failed', this.data.error);
+    }
   }
 }
 
