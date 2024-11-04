@@ -1,4 +1,5 @@
 import { AvailableModel } from './index';
+import ErrorData from '../../types/ErrorData';
 
 export interface ProjectEventBase {
   projectId: string;
@@ -15,7 +16,7 @@ export interface ProjectCompleted extends ProjectEventBase {
 
 export interface ProjectError extends ProjectEventBase {
   type: 'error';
-  error: { code: number; message: string };
+  error: ErrorData;
 }
 
 export type ProjectEvent = ProjectQueued | ProjectCompleted | ProjectError;
@@ -52,7 +53,7 @@ export interface JobCompleted extends JobEventBase {
 
 export interface JobError extends JobEventBase {
   type: 'error';
-  error: { code: number; message: string };
+  error: ErrorData;
 }
 
 export type JobEvent =

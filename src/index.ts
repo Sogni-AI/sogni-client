@@ -1,9 +1,32 @@
 import { AbstractProvider, JsonRpcProvider, getDefaultProvider } from 'ethers';
 import AccountApi from './Account';
-import ApiClient from './ApiClient/ApiClient';
+import ApiClient, { ApiError } from './ApiClient/ApiClient';
 import { ApiConfig } from './ApiGroup';
 import EIP712Helper from './lib/EIP712Helper';
 import ProjectsApi from './Projects';
+import { AvailableModel } from './Projects/types';
+import CurrentAccount from './Account/CurrentAccount';
+import DataEntity from './lib/DataEntity';
+import Project, { ProjectStatus } from './Projects/Project';
+import Job, { JobStatus } from './Projects/Job';
+import { SupernetType } from './ApiClient/WebSocketClient/types';
+import ErrorData from './types/ErrorData';
+import * as ProjectApiEvents from './Projects/types/events';
+
+export type {
+  AvailableModel,
+  CurrentAccount,
+  DataEntity,
+  ErrorData,
+  Job,
+  JobStatus,
+  ProjectApiEvents,
+  ProjectStatus,
+  Project,
+  SupernetType
+};
+
+export { ApiError };
 
 export interface BaseConfig {
   appId: string;

@@ -1,4 +1,5 @@
-import Entity, { EntityEvents } from '../lib/Entity';
+import DataEntity, { EntityEvents } from '../lib/DataEntity';
+import ErrorData from '../types/ErrorData';
 
 export type JobStatus = 'pending' | 'initiating' | 'processing' | 'completed' | 'failed';
 
@@ -9,10 +10,7 @@ export interface JobData {
   stepCount: number;
   previewUrl?: string;
   resultUrl?: string;
-  error?: {
-    message: string;
-    code: number;
-  };
+  error?: ErrorData;
 }
 
 interface JobEvents extends EntityEvents {
@@ -21,7 +19,7 @@ interface JobEvents extends EntityEvents {
   failed: JobData['error'];
 }
 
-class Job extends Entity<JobData, JobEvents> {
+class Job extends DataEntity<JobData, JobEvents> {
   constructor(data: JobData) {
     super(data);
     this.on('updated', this.handleUpdated.bind(this));

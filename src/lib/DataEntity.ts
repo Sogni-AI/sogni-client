@@ -5,7 +5,7 @@ export interface EntityEvents {
   updated: string[];
 }
 
-abstract class Entity<D, E extends EntityEvents = EntityEvents> extends TypedEventEmitter<E> {
+abstract class DataEntity<D, E extends EntityEvents = EntityEvents> extends TypedEventEmitter<E> {
   protected data: D;
 
   constructor(data: D) {
@@ -32,4 +32,4 @@ abstract class Entity<D, E extends EntityEvents = EntityEvents> extends TypedEve
   }
 }
 
-export default Entity;
+export default DataEntity;

@@ -1,4 +1,4 @@
-import Entity from '../lib/Entity';
+import DataEntity from '../lib/DataEntity';
 import { GetBalanceData } from './types';
 import { jwtDecode } from 'jwt-decode';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
@@ -35,7 +35,7 @@ function decodeToken(token: string) {
   };
 }
 
-class CurrentAccount extends Entity<AccountData> {
+class CurrentAccount extends DataEntity<AccountData> {
   constructor(data?: AccountData) {
     super(data || getDefaults());
   }
@@ -85,6 +85,10 @@ class CurrentAccount extends Entity<AccountData> {
 
   get username() {
     return this.data.username;
+  }
+
+  get token() {
+    return this.data.token;
   }
 }
 

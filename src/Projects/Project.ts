@@ -1,8 +1,9 @@
 import Job, { JobData } from './Job';
-import Entity, { EntityEvents } from '../lib/Entity';
+import DataEntity, { EntityEvents } from '../lib/DataEntity';
 import { ProjectParams } from './types';
 import cloneDeep from 'lodash/cloneDeep';
 import { v4 as uuidV4 } from '@lukeed/uuid';
+import ErrorData from '../types/ErrorData';
 
 export type ProjectStatus = 'pending' | 'queued' | 'processing' | 'completed' | 'failed';
 
@@ -12,10 +13,7 @@ interface ProjectData {
   params: ProjectParams;
   queuePosition: number;
   status: ProjectStatus;
-  error?: {
-    message: string;
-    code: number;
-  };
+  error?: ErrorData;
 }
 
 interface SerializedProject extends ProjectData {
@@ -28,7 +26,7 @@ interface ProjectEvents extends EntityEvents {
   failed: ProjectData['error'];
 }
 
-class Project extends Entity<ProjectData, ProjectEvents> {
+class Project extends DataEntity<ProjectData, ProjectEvents> {
   private _jobs: Job[] = [];
   private _lastEmitedProgress = -1;
 
