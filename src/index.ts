@@ -5,23 +5,23 @@ import { ApiConfig } from './ApiGroup';
 import EIP712Helper from './lib/EIP712Helper';
 import Projects from './Projects';
 
-interface BaseConfig {
+export interface BaseConfig {
   appId: string;
   restEndpoint: string;
   socketEndpoint: string;
 }
 
-interface SimpleConfig extends BaseConfig {
+export interface SimpleConfig extends BaseConfig {
   testnet: boolean;
 }
 
-interface FullConfig extends BaseConfig {
+export interface FullConfig extends BaseConfig {
   jsonRpcUrl: string;
 }
 
-type SogniClientConfig = SimpleConfig | FullConfig;
+export type SogniClientConfig = SimpleConfig | FullConfig;
 
-class SogniClient {
+export class SogniClient {
   account: Account;
   projects: Projects;
 

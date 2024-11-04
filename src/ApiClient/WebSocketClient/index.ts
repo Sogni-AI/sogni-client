@@ -133,9 +133,15 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   }
 
   private handleMessage(e: MessageEvent) {
-    const data = e.data as unknown as Blob;
-    data
-      .text()
+    let dataPromise: Promise<string>;
+    // In Node.js, e.data is a Buffer, while in browser it's a Blob
+    if (isNodejs) {
+      dataPromise = Promise.resolve(e.data.toString());
+    } else {
+      const data = e.data as unknown as Blob;
+      dataPromise = data.text();
+    }
+    dataPromise
       .then((str: string) => {
         const data = JSON.parse(str);
         let payload = null;

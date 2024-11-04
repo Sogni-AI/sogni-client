@@ -1,4 +1,5 @@
-import SogniClient from '@sogni-ai/sogni-client';
+import { SogniClient } from '@sogni-ai/sogni-client';
+console.log('SogniClient:', SogniClient);
 
 const client = await SogniClient.createInstance({
   appId: 'this-is-my-app-id',
@@ -7,8 +8,8 @@ const client = await SogniClient.createInstance({
   testnet: true
 });
 
-const loginData = client.account.login('', '');
+const loginData = await client.account.login('', '');
 
-const balance = await client.account.getBalance();
+const balance = await client.account.refreshBalance();
 
 console.log('Balance:', balance);

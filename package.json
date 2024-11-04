@@ -1,6 +1,9 @@
 {
   "name": "@sogni-ai/sogni-client",
-  "version": "0.0.1",
+  "publishConfig": {
+    "access": "public"
+  },
+  "version": "0.0.2",
   "description": "Sogni.ai API wrapper",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -18,14 +21,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Sogni-AI/sogni-js.git"
+    "url": "git+https://github.com/Sogni-AI/sogni-client.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/Sogni-AI/sogni-js/issues"
+    "url": "https://github.com/Sogni-AI/sogni-client/issues"
   },
-  "homepage": "https://github.com/Sogni-AI/sogni-js#readme",
+  "homepage": "https://github.com/Sogni-AI/sogni-client#readme",
   "dependencies": {
     "@lukeed/uuid": "^2.0.1",
     "ethers": "^6.13.4",
