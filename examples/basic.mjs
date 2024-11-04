@@ -26,6 +26,7 @@ client.projects.once('availableModels', async () => {
   project.on('completed', async (images) => {
     console.log('project completed');
     console.log('images:', images);
+    client.account.logout();
   });
 });
 
