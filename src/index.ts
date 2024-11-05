@@ -4,6 +4,7 @@ import ApiClient, { ApiError } from './ApiClient/ApiClient';
 import { ApiConfig } from './ApiGroup';
 import EIP712Helper from './lib/EIP712Helper';
 import ProjectsApi from './Projects';
+import StatsApi from './Stats';
 import { AvailableModel } from './Projects/types';
 import CurrentAccount from './Account/CurrentAccount';
 import DataEntity from './lib/DataEntity';
@@ -47,10 +48,12 @@ export type SogniClientConfig = SimpleConfig | FullConfig;
 export class SogniClient {
   account: AccountApi;
   projects: ProjectsApi;
+  stats: StatsApi;
 
   private constructor(config: ApiConfig) {
     this.account = new AccountApi(config);
     this.projects = new ProjectsApi(config);
+    this.stats = new StatsApi(config);
   }
 
   get currentAccount() {

@@ -55,7 +55,7 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     return responseData as JSONValue;
   }
 
-  get<T = JSONValue>(path: string, query: Record<string, string> = {}): Promise<T> {
+  get<T = JSONValue>(path: string, query: Record<string, any> = {}): Promise<T> {
     return this.request<T>(this.formatUrl(path, query), query);
   }
 
