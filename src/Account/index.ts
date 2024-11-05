@@ -1,4 +1,12 @@
-import { AccountCreateData, GetBalanceData, LoginData, Nonce } from './types';
+import {
+  AccountCreateData,
+  BalanceData,
+  LoginData,
+  Nonce,
+  TxHistoryData,
+  TxHistoryEntry,
+  TxHistoryParams
+} from './types';
 import ApiGroup, { ApiConfig } from '../ApiGroup';
 import { Wallet, pbkdf2, toUtf8Bytes } from 'ethers';
 import { ApiError, ApiReponse } from '../ApiClient/ApiClient';
@@ -15,7 +23,7 @@ class AccountApi extends ApiGroup {
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
   }
 
-  private handleBalanceUpdate(data: GetBalanceData) {
+  private handleBalanceUpdate(data: BalanceData) {
     this.currentAccount._update({ balance: data });
   }
 
@@ -101,8 +109,8 @@ class AccountApi extends ApiGroup {
     this.currentAccount._clear();
   }
 
-  async refreshBalance(): Promise<GetBalanceData> {
-    const res = await this.client.rest.get<ApiReponse<GetBalanceData>>('/v1/account/balance');
+  async refreshBalance(): Promise<BalanceData> {
+    const res = await this.client.rest.get<ApiReponse<BalanceData>>('/v1/account/balance');
     this.currentAccount._update({ balance: res.data });
     return res.data;
   }
@@ -129,6 +137,38 @@ class AccountApi extends ApiGroup {
       network: null
     });
     this.client.socket.switchNetwork(network);
+  }
+
+  async transactionHistory(
+    params: TxHistoryParams
+  ): Promise<{ entries: TxHistoryEntry[]; next: TxHistoryParams }> {
+    const res = await this.client.rest.get<ApiReponse<TxHistoryData>>('/v1/transactions/list', {
+      status: params.status,
+      address: params.address,
+      limit: params.limit.toString()
+    });
+
+    return {
+      entries: res.data.transactions.map(
+        (tx): TxHistoryEntry => ({
+          id: tx.id,
+          address: tx.address,
+          createTime: new Date(tx.createTime),
+          updateTime: new Date(tx.updateTime),
+          status: tx.status,
+          role: tx.role,
+          amount: tx.amount,
+          description: tx.description,
+          source: tx.source,
+          endTime: new Date(tx.endTime),
+          type: tx.type
+        })
+      ),
+      next: {
+        ...params,
+        offset: res.data.next
+      }
+    };
   }
 }
 

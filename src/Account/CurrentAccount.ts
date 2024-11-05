@@ -1,5 +1,5 @@
 import DataEntity from '../lib/DataEntity';
-import { GetBalanceData } from './types';
+import { BalanceData } from './types';
 import { jwtDecode } from 'jwt-decode';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 
@@ -7,7 +7,7 @@ interface AccountData {
   token: string | null;
   networkStatus: 'connected' | 'disconnected' | 'connecting';
   network: SupernetType | null;
-  balance: GetBalanceData;
+  balance: BalanceData;
   walletAddress?: string;
   expiresAt?: Date;
   username?: string;

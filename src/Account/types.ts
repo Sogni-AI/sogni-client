@@ -11,9 +11,54 @@ export interface LoginData {
   username: string;
 }
 
-export interface GetBalanceData {
+export interface BalanceData {
   settled: string;
   credit: string;
   debit: string;
   net: string;
+}
+
+export interface TxHistoryParams {
+  status: 'completed';
+  address: string;
+  limit: number;
+  offset?: number;
+}
+
+export interface TxHistoryData {
+  transactions: TxRaw[];
+  next: number;
+}
+
+export interface TxRaw {
+  _id: string;
+  id: string;
+  SID: number;
+  address: string;
+  createTime: number;
+  updateTime: number;
+  status: 'completed';
+  role: 'artist' | 'worker';
+  clientSID: number;
+  addressSID: number;
+  amount: number;
+  description: string;
+  source: 'project' | string;
+  sourceSID: string;
+  endTime: number;
+  type: 'debit' | string;
+}
+
+export interface TxHistoryEntry {
+  id: string;
+  address: string;
+  createTime: Date;
+  updateTime: Date;
+  status: 'completed';
+  role: 'artist' | 'worker';
+  amount: number;
+  description: string;
+  source: 'project' | string;
+  endTime: Date;
+  type: 'debit' | string;
 }

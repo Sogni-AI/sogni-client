@@ -16,6 +16,7 @@
     "prepublish": "npm run build",
     "build": "npm run clean && tsc --project tsconfig.json",
     "watch": "npm run clean && tsc --watch --project tsconfig.json",
+    "watch:esm": "npm run clean && tsc --watch --project tsconfig.esm.json",
     "prettier": "prettier --check ./src",
     "prettier:fix": "prettier --write ./src"
   },
