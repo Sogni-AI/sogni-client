@@ -115,6 +115,16 @@ class AccountApi extends ApiGroup {
     return res.data;
   }
 
+  async walletBalance(walletAddress: string) {
+    const res = await this.client.rest.get<ApiReponse<{ token: string; ether: string }>>(
+      '/v1/balance',
+      {
+        walletAddress
+      }
+    );
+    return res.data;
+  }
+
   async validateUsername(username: string) {
     try {
       return await this.client.rest.post<ApiReponse<undefined>>('/v1/account/username/validate', {
