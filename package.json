@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Sogni.ai API wrapper",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "clean": "rimraf ./dist",
-    "prepublish": "npm run build",
+    "prepublishOnly": "npm run build",
     "build": "npm run clean && tsc --project tsconfig.json",
     "watch": "npm run clean && tsc --watch --project tsconfig.json",
     "watch:esm": "npm run clean && tsc --watch --project tsconfig.esm.json",

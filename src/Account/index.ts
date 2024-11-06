@@ -117,7 +117,7 @@ class AccountApi extends ApiGroup {
 
   async walletBalance(walletAddress: string) {
     const res = await this.client.rest.get<ApiReponse<{ token: string; ether: string }>>(
-      '/v1/balance',
+      '/v1/wallet/balance',
       {
         walletAddress
       }
