@@ -4,7 +4,7 @@ import { jwtDecode } from 'jwt-decode';
 import TypedEventEmitter from '../lib/TypedEventEmitter';
 import { ApiClientEvents } from './events';
 import { ServerConnectData, ServerDisconnectData } from './WebSocketClient/events';
-import { isAuthProblem } from './WebSocketClient/ErrorCode';
+import { isNotRecoverable } from './WebSocketClient/ErrorCode';
 import { JSONValue } from '../types/json';
 
 const WS_RECONNECT_ATTEMPTS = 5;
@@ -91,9 +91,10 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }
 
   handleSocketDisconnect(data: ServerDisconnectData) {
-    if (!data.code || isAuthProblem(data.code)) {
+    if (!data.code || isNotRecoverable(data.code)) {
       this.removeAuth();
       this.emit('disconnected', data);
+      console.error('Not recoverable socket error', data);
       return;
     }
     if (this._reconnectAttempts <= 0) {

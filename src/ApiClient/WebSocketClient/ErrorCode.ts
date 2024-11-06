@@ -7,10 +7,9 @@ export enum ErrorCode {
   AUTH_ERROR = 4021
 }
 
-export function isAuthProblem(code: ErrorCode) {
-  return [ErrorCode.AUTH_ERROR, ErrorCode.SWITCH_CONNECTION, ErrorCode.APP_ID_BLOCKED].includes(
-    code
-  );
+export function isNotRecoverable(code: ErrorCode) {
+  //check if code is in 4xxx
+  return code >= 4000 && code < 5000;
 }
 
 export default ErrorCode;
