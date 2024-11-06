@@ -6,6 +6,7 @@ import WebSocket, { CloseEvent, ErrorEvent, MessageEvent } from 'isomorphic-ws';
 import { base64Decode, base64Encode } from '../../lib/base64';
 import isNodejs from '../../lib/isNodejs';
 import Cookie from 'js-cookie';
+import { LIB_VERSION } from '../../version';
 
 class WebSocketClient extends RestClient<SocketEventMap> {
   appId: string;
@@ -46,9 +47,10 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   }
 
   connect() {
+    const userAgent = `Sogni/${LIB_VERSION} (sogni-client)`;
     const url = new URL(this.baseUrl);
     url.searchParams.set('appId', this.appId);
-    url.searchParams.set('clientName', 'Sogni/3.1.1');
+    url.searchParams.set('clientName', userAgent);
     url.searchParams.set('clientType', 'artist');
     url.searchParams.set('forceWorkerId', this._supernetType);
     let params;
@@ -56,7 +58,8 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     if (isNodejs) {
       params = {
         headers: {
-          Authorization: this._auth?.token
+          Authorization: this._auth?.token,
+          'User-Agent': userAgent
         }
       };
     }
