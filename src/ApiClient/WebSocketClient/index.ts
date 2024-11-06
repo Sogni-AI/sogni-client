@@ -48,7 +48,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   connect() {
     const url = new URL(this.baseUrl);
     url.searchParams.set('appId', this.appId);
-    url.searchParams.set('clientName', 'Sogni/3.0.22042');
+    url.searchParams.set('clientName', 'Sogni/3.1.1');
     url.searchParams.set('clientType', 'artist');
     url.searchParams.set('forceWorkerId', this._supernetType);
     let params;
