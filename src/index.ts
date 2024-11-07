@@ -50,10 +50,14 @@ export class SogniClient {
   projects: ProjectsApi;
   stats: StatsApi;
 
+  apiClient: ApiClient;
+
   private constructor(config: ApiConfig) {
     this.account = new AccountApi(config);
     this.projects = new ProjectsApi(config);
     this.stats = new StatsApi(config);
+
+    this.apiClient = config.client;
   }
 
   get currentAccount() {
