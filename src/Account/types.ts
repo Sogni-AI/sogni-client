@@ -62,3 +62,29 @@ export interface TxHistoryEntry {
   endTime: Date;
   type: 'debit' | string;
 }
+
+export type RewardType = 'instant' | 'conditioned';
+
+export interface RewardRaw {
+  id: string;
+  type: RewardType;
+  title: string;
+  description: string;
+  amount: string;
+  claimed: number;
+  canClaim: number;
+  lastClaimTimestamp: number;
+  claimResetFrequencySec: number;
+}
+
+export interface Reward {
+  id: string;
+  type: RewardType;
+  title: string;
+  description: string;
+  amount: string;
+  claimed: boolean;
+  canClaim: boolean;
+  lastClaim: Date;
+  nextClaim: Date | null;
+}

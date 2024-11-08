@@ -3,6 +3,8 @@ import {
   BalanceData,
   LoginData,
   Nonce,
+  Reward,
+  RewardRaw,
   TxHistoryData,
   TxHistoryEntry,
   TxHistoryParams
@@ -179,6 +181,34 @@ class AccountApi extends ApiGroup {
         offset: res.data.next
       }
     };
+  }
+
+  async rewards(): Promise<Reward[]> {
+    const r =
+      await this.client.rest.get<ApiReponse<{ rewards: RewardRaw[] }>>('/v2/account/rewards');
+
+    return r.data.rewards.map(
+      (raw: RewardRaw): Reward => ({
+        id: raw.id,
+        type: raw.type,
+        title: raw.title,
+        description: raw.description,
+        amount: raw.amount,
+        claimed: !!raw.claimed,
+        canClaim: !!raw.canClaim,
+        lastClaim: new Date(raw.lastClaimTimestamp * 1000),
+        nextClaim:
+          raw.lastClaimTimestamp && raw.claimResetFrequencySec > -1
+            ? new Date(raw.lastClaimTimestamp * 1000 + raw.claimResetFrequencySec * 1000)
+            : null
+      })
+    );
+  }
+
+  async claimRewards(rewardIds: string[]): Promise<void> {
+    await this.client.rest.post('/v2/account/reward/claim', {
+      claims: rewardIds
+    });
   }
 }
 
