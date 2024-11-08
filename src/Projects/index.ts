@@ -14,6 +14,8 @@ import { ApiReponse } from '../ApiClient/ApiClient';
 import { EstimationResponse } from './types/EstimationResponse';
 import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
 
+const GARBAGE_COLLECT_TIMEOUT = 10000;
+
 class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
   private projects: Project[] = [];
@@ -159,6 +161,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           status: 'failed',
           error: event.error
         });
+    }
+    if (project.status === 'completed' || project.status === 'failed') {
+      setTimeout(() => {
+        this.projects = this.projects.filter((p) => p.id !== event.projectId);
+      }, GARBAGE_COLLECT_TIMEOUT);
     }
   }
 
