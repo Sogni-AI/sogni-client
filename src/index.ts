@@ -33,6 +33,7 @@ export interface BaseConfig {
   appId: string;
   restEndpoint: string;
   socketEndpoint: string;
+  network: SupernetType;
 }
 
 export interface SimpleConfig extends BaseConfig {
@@ -69,7 +70,12 @@ export class SogniClient {
    * @param config
    */
   static async createInstance(config: SogniClientConfig): Promise<SogniClient> {
-    const client = new ApiClient(config.restEndpoint, config.socketEndpoint, config.appId);
+    const client = new ApiClient(
+      config.restEndpoint,
+      config.socketEndpoint,
+      config.appId,
+      config.network
+    );
     let provider: AbstractProvider;
     if ('jsonRpcUrl' in config) {
       provider = new JsonRpcProvider(config.jsonRpcUrl);

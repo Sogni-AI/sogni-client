@@ -10,9 +10,10 @@ import {
 } from '../ApiClient/WebSocketClient/events';
 import Project from './Project';
 import createJobRequestMessage from './createJobRequestMessage';
-import { ApiReponse } from '../ApiClient/ApiClient';
+import { ApiError, ApiReponse } from '../ApiClient/ApiClient';
 import { EstimationResponse } from './types/EstimationResponse';
 import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
+import { v4 as uuidV4 } from '@lukeed/uuid';
 
 const GARBAGE_COLLECT_TIMEOUT = 10000;
 
@@ -40,16 +41,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private handleSwarmModels(data: SocketEventMap['swarmModels']) {
-    this._availableModels = models.reduce((acc: AvailableModel[], model) => {
-      if (data[model.modelId]) {
-        acc.push({
-          id: model.modelId,
-          name: model.modelShortName,
-          workerCount: data[model.modelId]
-        });
-      }
+    const modelIndex = models.reduce((acc: Record<string, any>, model) => {
+      acc[model.modelId] = model;
       return acc;
-    }, []);
+    }, {});
+    this._availableModels = Object.entries(data).map(([id, workerCount]) => ({
+      id,
+      name: modelIndex[id].modelShortName || id.replace(/-/g, ' '),
+      workerCount
+    }));
     this.emit('availableModels', this._availableModels);
   }
 
@@ -224,10 +224,38 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   async create(data: ProjectParams): Promise<Project> {
     const project = new Project({ ...data });
+    if (data.startingImage) {
+      await this.uploadGuideImage(project.id, data.startingImage);
+    }
     const request = createJobRequestMessage(project.id, data);
     await this.client.socket.send('jobRequest', request);
     this.projects.push(project);
     return project;
+  }
+
+  private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
+    const imageId = uuidV4();
+    const presignedUrl = await this.uploadUrl({
+      imageId: imageId,
+      jobId: projectId,
+      type: 'startingImage'
+    });
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: file
+    });
+    if (!res.ok) {
+      console.log(res);
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: 'Failed to upload guide image'
+      });
+    }
+    console.log(
+      'Uploaded guide image',
+      await this.downloadUrl({ imageId, jobId: projectId, type: 'startingImage' })
+    );
   }
 
   /**

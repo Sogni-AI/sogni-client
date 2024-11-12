@@ -6,6 +6,7 @@ import { ApiClientEvents } from './events';
 import { ServerConnectData, ServerDisconnectData } from './WebSocketClient/events';
 import { isNotRecoverable } from './WebSocketClient/ErrorCode';
 import { JSONValue } from '../types/json';
+import { SupernetType } from './WebSocketClient/types';
 
 const WS_RECONNECT_ATTEMPTS = 5;
 
@@ -43,11 +44,11 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   private _auth: AuthData | null = null;
   private _reconnectAttempts = WS_RECONNECT_ATTEMPTS;
 
-  constructor(baseUrl: string, socketUrl: string, appId: string) {
+  constructor(baseUrl: string, socketUrl: string, appId: string, networkType: SupernetType) {
     super();
     this.appId = appId;
     this._rest = new RestClient(baseUrl);
-    this._socket = new WebSocketClient(socketUrl, appId);
+    this._socket = new WebSocketClient(socketUrl, appId, networkType);
     this._socket.on('connected', this.handleSocketConnect.bind(this));
     this._socket.on('disconnected', this.handleSocketDisconnect.bind(this));
   }

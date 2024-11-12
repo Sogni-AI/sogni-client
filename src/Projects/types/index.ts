@@ -34,6 +34,15 @@ export interface AiModel {
   customSize?: number[];
 }
 
+export type Scheduler =
+  | 'DPM Solver Multistep (DPM-Solver++)'
+  | 'PNDM (Pseudo-linear multi-step)'
+  | 'LCM (Latent Consistency Model)'
+  | 'Discrete Flow Scheduler (SD3)'
+  | 'Euler'; // Used by Flux
+
+export type TimeStepSpacing = 'Karras' | 'Leading' | 'Linear';
+
 export interface ProjectParams {
   /* AI model ID */
   modelId: string;
@@ -48,9 +57,16 @@ export interface ProjectParams {
   /* Guidance scale */
   guidance: number;
   /* Seed for one of images in project. Other will get random seed*/
-  seed: string;
+  seed?: string;
   /* Number of images to generate */
   numberOfImages: number;
+  /* Generate images based on starting image */
+  startingImage?: File | Buffer | Blob;
+  /* How strong effect of starting image should be. From 0 to 1, default 0.5 */
+  startingImageStrength?: number;
+  numberOfPreviews?: number;
+  scheduler?: Scheduler;
+  timeStepSpacing?: TimeStepSpacing;
 }
 
 export type ImageUrlParams = {
