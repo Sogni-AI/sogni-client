@@ -47,6 +47,9 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   }
 
   connect() {
+    if (this.socket) {
+      this.disconnect();
+    }
     const userAgent = `Sogni/${LIB_VERSION} (sogni-client)`;
     const url = new URL(this.baseUrl);
     url.searchParams.set('appId', this.appId);
