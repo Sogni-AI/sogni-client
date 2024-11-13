@@ -162,7 +162,6 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           error: event.error
         });
     }
-    console.log('Project event', event, project.status);
     if (project.status === 'completed' || project.status === 'failed') {
       setTimeout(() => {
         this.projects = this.projects.filter((p) => p.id !== event.projectId);
@@ -246,17 +245,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       body: file
     });
     if (!res.ok) {
-      console.log(res);
       throw new ApiError(res.status, {
         status: 'error',
         errorCode: 0,
         message: 'Failed to upload guide image'
       });
     }
-    console.log(
-      'Uploaded guide image',
-      await this.downloadUrl({ imageId, jobId: projectId, type: 'startingImage' })
-    );
     return imageId;
   }
 
