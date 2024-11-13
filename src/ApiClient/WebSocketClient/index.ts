@@ -55,7 +55,8 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     url.searchParams.set('appId', this.appId);
     url.searchParams.set('clientName', userAgent);
     url.searchParams.set('clientType', 'artist');
-    url.searchParams.set('forceWorkerId', this._supernetType);
+    //At this point 'relaxed' does not work as expected, so we use 'fast' or empty
+    url.searchParams.set('forceWorkerId', this._supernetType === 'fast' ? 'fast' : '');
     let params;
     // In Node.js, ws package is used, so we need to set the auth header
     if (isNodejs) {
@@ -154,6 +155,12 @@ class WebSocketClient extends RestClient<SocketEventMap> {
         if (data.data) {
           payload = JSON.parse(base64Decode(data.data));
         }
+        // Convert jobID and imgID to uppercase for consistency
+        ['jobID', 'imgID'].forEach((idKey) => {
+          if (payload[idKey]) {
+            payload[idKey] = payload[idKey].toUpperCase();
+          }
+        });
         this.emit(data.type, payload);
       })
       .catch((err: any) => {

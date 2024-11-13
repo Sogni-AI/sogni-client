@@ -2,8 +2,8 @@ import Job, { JobData } from './Job';
 import DataEntity, { EntityEvents } from '../lib/DataEntity';
 import { ProjectParams } from './types';
 import cloneDeep from 'lodash/cloneDeep';
-import { v4 as uuidV4 } from '@lukeed/uuid';
 import ErrorData from '../types/ErrorData';
+import getUUID from '../lib/getUUID';
 
 export type ProjectStatus = 'pending' | 'queued' | 'processing' | 'completed' | 'failed';
 
@@ -32,7 +32,7 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
 
   constructor(data: ProjectParams) {
     super({
-      id: uuidV4(),
+      id: getUUID(),
       startedAt: new Date(),
       params: data,
       queuePosition: -1,

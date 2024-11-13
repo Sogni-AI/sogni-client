@@ -13,7 +13,7 @@ import createJobRequestMessage from './createJobRequestMessage';
 import { ApiError, ApiReponse } from '../ApiClient/ApiClient';
 import { EstimationResponse } from './types/EstimationResponse';
 import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
-import { v4 as uuidV4 } from '@lukeed/uuid';
+import getUUID from '../lib/getUUID';
 
 const GARBAGE_COLLECT_TIMEOUT = 10000;
 
@@ -162,6 +162,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           error: event.error
         });
     }
+    console.log('Project event', event, project.status);
     if (project.status === 'completed' || project.status === 'failed') {
       setTimeout(() => {
         this.projects = this.projects.filter((p) => p.id !== event.projectId);
@@ -234,7 +235,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
-    const imageId = uuidV4();
+    const imageId = getUUID();
     const presignedUrl = await this.uploadUrl({
       imageId: imageId,
       jobId: projectId,
@@ -256,6 +257,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       'Uploaded guide image',
       await this.downloadUrl({ imageId, jobId: projectId, type: 'startingImage' })
     );
+    return imageId;
   }
 
   /**
