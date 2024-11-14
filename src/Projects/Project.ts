@@ -29,6 +29,7 @@ interface ProjectEvents extends EntityEvents {
 class Project extends DataEntity<ProjectData, ProjectEvents> {
   private _jobs: Job[] = [];
   private _lastEmitedProgress = -1;
+  private _completionPromise: Promise<string[]>;
 
   constructor(data: ProjectParams) {
     super({
@@ -37,6 +38,14 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
       params: data,
       queuePosition: -1,
       status: 'pending'
+    });
+    this._completionPromise = new Promise((resolve, reject) => {
+      this.on('completed', (images) => {
+        resolve(images);
+      });
+      this.on('failed', (error) => {
+        reject(error);
+      });
     });
     this.on('updated', this.handleUpdated.bind(this));
   }
@@ -75,6 +84,15 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
 
   get resultUrls() {
     return this.jobs.map((job) => job.resultUrl).filter((r) => !!r) as string[];
+  }
+
+  /**
+   * Wait for the project to complete, then return the result URLs, or throw an error if the project fails.
+   * @returns Promise<string[]>
+   * @throws ErrorData
+   */
+  waitForCompletion() {
+    return this._completionPromise;
   }
 
   /**
