@@ -8,11 +8,14 @@ import isNodejs from '../../lib/isNodejs';
 import Cookie from 'js-cookie';
 import { LIB_VERSION } from '../../version';
 
+const PING_INTERVAL = 15000;
+
 class WebSocketClient extends RestClient<SocketEventMap> {
   appId: string;
   baseUrl: string;
   private socket: WebSocket | null = null;
   private _supernetType: SupernetType;
+  private _pingInterval: NodeJS.Timeout | null = null;
 
   constructor(baseUrl: string, appId: string, supernetType: SupernetType = 'fast') {
     super(baseUrl);
@@ -72,6 +75,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     this.socket.onmessage = this.handleMessage.bind(this);
     this.socket.onopen = this.handleOpen.bind(this);
     this.socket.onclose = this.handleClose.bind(this);
+    this.startPing(this.socket);
   }
 
   disconnect() {
@@ -83,7 +87,24 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     socket.onerror = null;
     socket.onmessage = null;
     socket.onopen = null;
+    this.stopPing();
     socket.close();
+  }
+
+  private startPing(socket: WebSocket) {
+    if (!isNodejs) {
+      return;
+    }
+    this._pingInterval = setInterval(() => {
+      socket.ping();
+    }, PING_INTERVAL);
+  }
+
+  private stopPing() {
+    if (this._pingInterval) {
+      clearInterval(this._pingInterval);
+      this._pingInterval = null;
+    }
   }
 
   switchNetwork(supernetType: SupernetType) {
@@ -161,6 +182,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
             payload[idKey] = payload[idKey].toUpperCase();
           }
         });
+        console.log('WebSocket message:', data.type, payload);
         this.emit(data.type, payload);
       })
       .catch((err: any) => {
