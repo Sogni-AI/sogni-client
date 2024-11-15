@@ -182,7 +182,6 @@ class WebSocketClient extends RestClient<SocketEventMap> {
             payload[idKey] = payload[idKey].toUpperCase();
           }
         });
-        console.log('WebSocket message:', data.type, payload);
         this.emit(data.type, payload);
       })
       .catch((err: any) => {
