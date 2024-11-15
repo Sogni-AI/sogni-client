@@ -215,6 +215,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private handleServerDisconnected() {
     this._availableModels = [];
     this.emit('availableModels', this._availableModels);
+    this.projects.forEach((p) => {
+      p._update({ status: 'failed', error: { code: 0, message: 'Server disconnected' } });
+    });
   }
 
   /**
