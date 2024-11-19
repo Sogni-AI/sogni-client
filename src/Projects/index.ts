@@ -10,7 +10,7 @@ import {
 } from '../ApiClient/WebSocketClient/events';
 import Project from './Project';
 import createJobRequestMessage from './createJobRequestMessage';
-import { ApiError, ApiReponse } from '../ApiClient/ApiClient';
+import { ApiError, ApiReponse } from '../ApiClient';
 import { EstimationResponse } from './types/EstimationResponse';
 import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
 import getUUID from '../lib/getUUID';
@@ -101,18 +101,27 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private async handleJobResult(data: JobResultData) {
-    const downloadUrl = await this.downloadUrl({
-      jobId: data.jobID,
-      imageId: data.imgID,
-      type: 'complete'
-    });
+    const project = this.projects.find((p) => p.id === data.jobID);
+    const passNSFWCheck = !data.triggeredNSFWFilter || !project || project.params.disableNSFWFilter;
+    let downloadUrl = null;
+    // If NSFW filter is triggered, image will be only available for download if user explicitly
+    // disabled the filter for this project
+    if (passNSFWCheck && !data.userCanceled) {
+      downloadUrl = await this.downloadUrl({
+        jobId: data.jobID,
+        imageId: data.imgID,
+        type: 'complete'
+      });
+    }
 
     this.emit('job', {
       type: 'completed',
       projectId: data.jobID,
       jobId: data.imgID,
       steps: data.performedStepCount,
-      resultUrl: downloadUrl
+      resultUrl: downloadUrl,
+      isNSFW: data.triggeredNSFWFilter,
+      userCanceled: data.userCanceled
     });
   }
 
@@ -203,9 +212,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       case 'preview':
         job._update({ previewUrl: event.url });
         break;
-      case 'completed':
-        job._update({ status: 'completed', step: event.steps, resultUrl: event.resultUrl });
+      case 'completed': {
+        job._update({
+          status: event.userCanceled ? 'canceled' : 'completed',
+          step: event.steps,
+          resultUrl: event.resultUrl,
+          isNSFW: event.isNSFW,
+          userCanceled: event.userCanceled
+        });
         break;
+      }
       case 'error':
         job._update({ status: 'failed', error: event.error });
         break;

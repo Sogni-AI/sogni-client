@@ -48,7 +48,13 @@ export interface JobPreview extends JobEventBase {
 export interface JobCompleted extends JobEventBase {
   type: 'completed';
   steps: number;
-  resultUrl: string;
+  /**
+   * URL to the result image, could be null if the job was canceled or triggered NSFW filter while
+   * it was not disabled by the user
+   */
+  resultUrl: string | null;
+  isNSFW: boolean;
+  userCanceled: boolean;
 }
 
 export interface JobError extends JobEventBase {

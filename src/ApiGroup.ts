@@ -1,5 +1,5 @@
 import { AbstractProvider } from 'ethers';
-import ApiClient from './ApiClient/ApiClient';
+import ApiClient from './ApiClient';
 import EIP712Helper from './lib/EIP712Helper';
 import TypedEventEmitter, { EventMap } from './lib/TypedEventEmitter';
 

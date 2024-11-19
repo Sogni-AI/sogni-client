@@ -57,7 +57,7 @@ export interface ProjectParams {
   /* Guidance scale */
   guidance: number;
   /* Seed for one of images in project. Other will get random seed*/
-  seed?: string;
+  seed?: number;
   /* Number of images to generate */
   numberOfImages: number;
   /* Generate images based on starting image */

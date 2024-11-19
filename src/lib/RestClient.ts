@@ -1,4 +1,4 @@
-import { ApiError, ApiErrorResponse } from '../ApiClient/ApiClient';
+import { ApiError, ApiErrorResponse } from '../ApiClient';
 import TypedEventEmitter, { EventMap } from './TypedEventEmitter';
 import { JSONValue } from '../types/json';
 

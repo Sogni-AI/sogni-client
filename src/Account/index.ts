@@ -11,7 +11,7 @@ import {
 } from './types';
 import ApiGroup, { ApiConfig } from '../ApiGroup';
 import { Wallet, pbkdf2, toUtf8Bytes } from 'ethers';
-import { ApiError, ApiReponse } from '../ApiClient/ApiClient';
+import { ApiError, ApiReponse } from '../ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 

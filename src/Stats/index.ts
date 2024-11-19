@@ -1,5 +1,5 @@
 import ApiGroup from '../ApiGroup';
-import { ApiReponse } from '../ApiClient/ApiClient';
+import { ApiReponse } from '../ApiClient';
 import { LeaderboardItem, LeaderboardParams } from './types';
 
 class StatsApi extends ApiGroup {

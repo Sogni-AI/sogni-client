@@ -182,6 +182,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
             payload[idKey] = payload[idKey].toUpperCase();
           }
         });
+        console.debug('WebSocket:', data.type, payload);
         this.emit(data.type, payload);
       })
       .catch((err: any) => {
@@ -191,6 +192,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
 
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]) {
     await this.waitForConnection();
+    console.debug('WebSocket send:', messageType, data);
     this.socket!.send(
       JSON.stringify({ type: messageType, data: base64Encode(JSON.stringify(data)) })
     );

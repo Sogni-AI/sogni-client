@@ -110,8 +110,8 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
       this._lastEmitedProgress = progress;
     }
     if (keys.includes('status') || keys.includes('jobs')) {
-      const allJobsDone = this.jobs.every(
-        (job) => job.status === 'completed' || job.status === 'failed'
+      const allJobsDone = this.jobs.every((job) =>
+        ['completed', 'failed', 'canceled'].includes(job.status)
       );
       if (this.data.status === 'completed' && allJobsDone) {
         return this.emit('completed', this.resultUrls);

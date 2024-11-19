@@ -1,6 +1,6 @@
 import { AbstractProvider, JsonRpcProvider, getDefaultProvider } from 'ethers';
 import AccountApi from './Account';
-import ApiClient, { ApiError } from './ApiClient/ApiClient';
+import ApiClient, { ApiError } from './ApiClient';
 import { ApiConfig } from './ApiGroup';
 import EIP712Helper from './lib/EIP712Helper';
 import ProjectsApi from './Projects';

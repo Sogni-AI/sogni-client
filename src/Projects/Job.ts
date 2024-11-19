@@ -1,15 +1,23 @@
 import DataEntity, { EntityEvents } from '../lib/DataEntity';
 import ErrorData from '../types/ErrorData';
 
-export type JobStatus = 'pending' | 'initiating' | 'processing' | 'completed' | 'failed';
+export type JobStatus =
+  | 'pending'
+  | 'initiating'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'canceled';
 
 export interface JobData {
   id: string;
   status: JobStatus;
   step: number;
   stepCount: number;
+  isNSFW?: boolean;
+  userCanceled?: boolean;
   previewUrl?: string;
-  resultUrl?: string;
+  resultUrl?: string | null;
   error?: ErrorData;
 }
 
@@ -59,6 +67,10 @@ class Job extends DataEntity<JobData, JobEvents> {
 
   get error() {
     return this.data.error;
+  }
+
+  get isNSFW() {
+    return !!this.data.isNSFW;
   }
 
   private handleUpdated(keys: string[]) {
