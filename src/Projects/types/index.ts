@@ -67,6 +67,7 @@ export interface ProjectParams {
   numberOfPreviews?: number;
   scheduler?: Scheduler;
   timeStepSpacing?: TimeStepSpacing;
+  disableNSFWFilter?: boolean;
 }
 
 export type ImageUrlParams = {

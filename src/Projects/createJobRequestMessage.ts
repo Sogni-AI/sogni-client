@@ -89,7 +89,8 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
     ],
     previews: params.numberOfPreviews || 0,
     numberOfImages: params.numberOfImages,
-    jobID: id
+    jobID: id,
+    disableSafety: !!params.disableNSFWFilter
   };
 }
 

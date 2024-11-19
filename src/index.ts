@@ -91,5 +91,3 @@ export class SogniClient {
     return new SogniClient({ client, provider, eip712 });
   }
 }
-
-export default SogniClient;
