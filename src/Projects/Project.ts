@@ -63,15 +63,11 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
   }
 
   get progress() {
-    const { steps, stepCount } = this._jobs.reduce(
-      (acc, job) => {
-        acc.steps += job.step;
-        acc.stepCount += job.stepCount;
-        return acc;
-      },
-      { steps: 0, stepCount: 0 }
-    );
-    return Math.round((steps / stepCount) * 100);
+    // Worker can reduce the number of steps in the job, so we need to calculate the progress based on the actual number of steps
+    const stepsPerJob = this.jobs.length ? this.jobs[0].stepCount : this.data.params.steps;
+    const jobCount = this.data.params.numberOfImages;
+    const stepsDone = this._jobs.reduce((acc, job) => acc + job.step, 0);
+    return Math.round((stepsDone / (stepsPerJob * jobCount)) * 100);
   }
 
   get queuePosition() {
