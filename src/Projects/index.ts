@@ -119,6 +119,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       projectId: data.jobID,
       jobId: data.imgID,
       steps: data.performedStepCount,
+      seed: Number(data.lastSeed),
       resultUrl: downloadUrl,
       isNSFW: data.triggeredNSFWFilter,
       userCanceled: data.userCanceled
@@ -216,6 +217,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         job._update({
           status: event.userCanceled ? 'canceled' : 'completed',
           step: event.steps,
+          seed: event.seed,
           resultUrl: event.resultUrl,
           isNSFW: event.isNSFW,
           userCanceled: event.userCanceled

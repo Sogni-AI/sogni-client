@@ -62,6 +62,9 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
     return this.data.status;
   }
 
+  /**
+   * Progress of the project in percentage (0-100).
+   */
   get progress() {
     // Worker can reduce the number of steps in the job, so we need to calculate the progress based on the actual number of steps
     const stepsPerJob = this.jobs.length ? this.jobs[0].stepCount : this.data.params.steps;
@@ -74,17 +77,31 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
     return this.data.queuePosition;
   }
 
+  /**
+   * List of jobs in the project. Note that jobs will be added to this list as
+   * workers start processing them. So initially this list will be empty.
+   * Subscribe to project `updated` event to get notified about any update, including new jobs.
+   * @example
+   * project.on('updated', (keys) => {
+   *  if (keys.includes('jobs')) {
+   *    // Project jobs have been updated
+   *  }
+   * });
+   */
   get jobs() {
     return this._jobs.slice(0);
   }
 
+  /**
+   * List of result URLs for all completed jobs in the project.
+   */
   get resultUrls() {
     return this.jobs.map((job) => job.resultUrl).filter((r) => !!r) as string[];
   }
 
   /**
    * Wait for the project to complete, then return the result URLs, or throw an error if the project fails.
-   * @returns Promise<string[]>
+   * @returns Promise<string[]> - Promise that resolves to the list of result URLs
    * @throws ErrorData
    */
   waitForCompletion() {

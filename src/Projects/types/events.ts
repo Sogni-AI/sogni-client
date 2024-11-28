@@ -48,6 +48,7 @@ export interface JobPreview extends JobEventBase {
 export interface JobCompleted extends JobEventBase {
   type: 'completed';
   steps: number;
+  seed: number;
   /**
    * URL to the result image, could be null if the job was canceled or triggered NSFW filter while
    * it was not disabled by the user
