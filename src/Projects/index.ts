@@ -132,7 +132,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         type: 'error',
         projectId: data.jobID,
         error: {
-          code: data.error,
+          code: Number(data.error),
           message: data.error_message
         }
       });
@@ -143,7 +143,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       projectId: data.jobID,
       jobId: data.imgID,
       error: {
-        code: data.error,
+        code: Number(data.error),
         message: data.error_message
       }
     });
