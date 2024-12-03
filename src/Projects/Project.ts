@@ -62,6 +62,10 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
     return this.data.status;
   }
 
+  get error() {
+    return this.data.error;
+  }
+
   /**
    * Progress of the project in percentage (0-100).
    */
