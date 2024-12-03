@@ -29,7 +29,6 @@ interface ProjectEvents extends EntityEvents {
 class Project extends DataEntity<ProjectData, ProjectEvents> {
   private _jobs: Job[] = [];
   private _lastEmitedProgress = -1;
-  private _completionPromise: Promise<string[]>;
 
   constructor(data: ProjectParams) {
     super({
@@ -39,14 +38,7 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
       queuePosition: -1,
       status: 'pending'
     });
-    this._completionPromise = new Promise((resolve, reject) => {
-      this.on('completed', (images) => {
-        resolve(images);
-      });
-      this.on('failed', (error) => {
-        reject(error);
-      });
-    });
+
     this.on('updated', this.handleUpdated.bind(this));
   }
 
@@ -108,8 +100,22 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
    * @returns Promise<string[]> - Promise that resolves to the list of result URLs
    * @throws ErrorData
    */
-  waitForCompletion() {
-    return this._completionPromise;
+  waitForCompletion(): Promise<string[]> {
+    if (this.status === 'completed') {
+      return Promise.resolve(this.resultUrls);
+    }
+    if (this.status === 'failed') {
+      return Promise.reject(this.error);
+    }
+
+    return new Promise((resolve, reject) => {
+      this.on('completed', (images) => {
+        resolve(images);
+      });
+      this.on('failed', (error) => {
+        reject(error);
+      });
+    });
   }
 
   /**
