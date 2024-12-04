@@ -63,7 +63,7 @@ await client.login(USERNAME, PASSWORD);
 const models = await client.waitForModels();
 // You can get list of available models any time from `client.projects.availableModels`
 ```
-**IMPORTANT NOTES:** 
+**Important Note:** 
 - This sample assume you are using ESM modules, if not you need to wrap `await` calls in async function.
 - Sogni is currently in Testnet phase, so you need to provide Base Sepolia network URL.
 - `appId` must be unique string, UUID is recommended. It is used to identify your application.
@@ -91,12 +91,12 @@ const project = await client.projects.create({
   numberOfImages: 1
 });
 ```
+**Note:** Full project parameter list can be found in [ProjectParams](https://sogni-ai.github.io/sogni-client/interfaces/ProjectParams.html) docs.
 
 ### Getting project status and results
 In general there are 3 ways to work with API:
 1. Using promises or `async/await` syntax.
 2. Listening events on `Project` and `Job` class instances.
-3. Listening events on `client.projects` directly.
 
 #### Using promises
 ```javascript
@@ -160,3 +160,5 @@ project.on('failed', async (errorData) => {
   console.log('Project failed:', errorData);
 });
 ```
+## Code examples
+You can find more code examples in the [examples](./examples) directory.
