@@ -7,7 +7,10 @@ import getUUID from '../lib/getUUID';
 
 export type ProjectStatus = 'pending' | 'queued' | 'processing' | 'completed' | 'failed';
 
-interface ProjectData {
+/**
+ * @inline
+ */
+export interface ProjectData {
   id: string;
   startedAt: Date;
   params: ProjectParams;
@@ -15,18 +18,20 @@ interface ProjectData {
   status: ProjectStatus;
   error?: ErrorData;
 }
-
-interface SerializedProject extends ProjectData {
+/** @inline */
+export interface SerializedProject extends ProjectData {
   jobs: JobData[];
 }
 
-interface ProjectEvents extends EntityEvents {
+export interface ProjectEventMap extends EntityEvents {
   progress: number;
   completed: string[];
-  failed: ProjectData['error'];
+  failed: ErrorData;
+  jobCompleted: Job;
+  jobFailed: Job;
 }
 
-class Project extends DataEntity<ProjectData, ProjectEvents> {
+class Project extends DataEntity<ProjectData, ProjectEventMap> {
   private _jobs: Job[] = [];
   private _lastEmitedProgress = -1;
 
@@ -155,6 +160,12 @@ class Project extends DataEntity<ProjectData, ProjectEvents> {
     this._jobs.push(job);
     job.on('updated', () => {
       this.emit('updated', ['jobs']);
+    });
+    job.on('completed', () => {
+      this.emit('jobCompleted', job);
+    });
+    job.on('failed', () => {
+      this.emit('jobFailed', job);
     });
     return job;
   }

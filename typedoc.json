@@ -1,0 +1,6 @@
+{
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "entryPoints": ["src/index.ts"],
+  "plugin": ["typedoc-plugin-missing-exports"]
+}

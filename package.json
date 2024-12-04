@@ -19,7 +19,8 @@
     "watch": "npm run clean && tsc --watch --project tsconfig.json",
     "watch:esm": "npm run clean && tsc --watch --project tsconfig.esm.json",
     "prettier": "prettier --check ./src",
-    "prettier:fix": "prettier --write ./src"
+    "prettier:fix": "prettier --write ./src",
+    "docs:build": "npx typedoc"
   },
   "repository": {
     "type": "git",
@@ -46,6 +47,8 @@
     "@types/ws": "^8.5.13",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
+    "typedoc": "^0.27.3",
+    "typedoc-plugin-missing-exports": "^3.1.0",
     "typescript": "^5.6.3"
   }
 }

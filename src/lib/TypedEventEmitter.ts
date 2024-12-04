@@ -1,7 +1,9 @@
 export interface EventMap {
   [event: string]: any;
 }
-
+/**
+ * @inline
+ */
 export type EventListener<D> = (data: D) => void;
 
 abstract class TypedEventEmitter<E extends EventMap> {
@@ -52,7 +54,7 @@ abstract class TypedEventEmitter<E extends EventMap> {
    * @param event
    * @param data
    */
-  emit<T extends keyof E>(event: T, data: E[T]) {
+  protected emit<T extends keyof E>(event: T, data: E[T]) {
     const listeners = this.listeners[event];
     if (!listeners) {
       return;

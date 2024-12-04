@@ -1,50 +1,76 @@
 import { AbstractProvider, JsonRpcProvider, getDefaultProvider } from 'ethers';
+// Account API
 import AccountApi from './Account';
-import ApiClient, { ApiError } from './ApiClient';
-import { ApiConfig } from './ApiGroup';
-import EIP712Helper from './lib/EIP712Helper';
-import ProjectsApi from './Projects';
-import StatsApi from './Stats';
-import { AvailableModel } from './Projects/types';
 import CurrentAccount from './Account/CurrentAccount';
-import DataEntity from './lib/DataEntity';
-import Project, { ProjectStatus } from './Projects/Project';
-import Job, { JobStatus } from './Projects/Job';
+// ApiClient
+import ApiClient, { ApiError } from './ApiClient';
 import { SupernetType } from './ApiClient/WebSocketClient/types';
+import { ApiConfig } from './ApiGroup';
+// Utils
+import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger';
+import EIP712Helper from './lib/EIP712Helper';
+// Projects API
+import ProjectsApi from './Projects';
+import Job, { JobStatus } from './Projects/Job';
+import Project, { ProjectStatus } from './Projects/Project';
+import { AvailableModel, ProjectParams, Scheduler, TimeStepSpacing } from './Projects/types';
+// Stats API
+import StatsApi from './Stats';
+// Base Types
 import ErrorData from './types/ErrorData';
-import * as ProjectApiEvents from './Projects/types/events';
 
 export type {
   AvailableModel,
-  CurrentAccount,
-  DataEntity,
   ErrorData,
-  Job,
   JobStatus,
-  ProjectApiEvents,
+  Logger,
+  LogLevel,
+  ProjectParams,
   ProjectStatus,
-  Project,
-  SupernetType
+  Scheduler,
+  SupernetType,
+  TimeStepSpacing
 };
 
-export { ApiError };
+export { ApiError, CurrentAccount, Job, Project };
 
-export interface BaseConfig {
+export interface SogniClientConfig {
+  /**
+   * The application ID string. Must be unique, multiple connections with the same ID will be rejected.
+   */
   appId: string;
-  restEndpoint: string;
-  socketEndpoint: string;
+  /**
+   * Override the default REST API endpoint
+   * @internal
+   */
+  restEndpoint?: string;
+  /**
+   * Override the default WebSocket API endpoint
+   * @internal
+   */
+  socketEndpoint?: string;
+  /**
+   * Which network to use after logging in. Can be 'fast' or 'relaxed'
+   */
   network: SupernetType;
+  /**
+   * Logger to use. If not provided, a default console logger will be used
+   */
+  logger?: Logger;
+  /**
+   * Log level to use. This option is ignored if a logger is provided
+   * @default 'warn'
+   **/
+  logLevel?: LogLevel;
+  /**
+   * If provided, the client will connect to this JSON-RPC endpoint to interact with the blockchain
+   */
+  jsonRpcUrl?: string;
+  /**
+   * If true, the client will connect to the testnet. Ignored if jsonRpcUrl is provided
+   */
+  testnet?: boolean;
 }
-
-export interface SimpleConfig extends BaseConfig {
-  testnet: boolean;
-}
-
-export interface FullConfig extends BaseConfig {
-  jsonRpcUrl: string;
-}
-
-export type SogniClientConfig = SimpleConfig | FullConfig;
 
 export class SogniClient {
   account: AccountApi;
@@ -70,17 +96,18 @@ export class SogniClient {
    * @param config
    */
   static async createInstance(config: SogniClientConfig): Promise<SogniClient> {
-    const client = new ApiClient(
-      config.restEndpoint,
-      config.socketEndpoint,
-      config.appId,
-      config.network
-    );
+    const restEndpoint = config.restEndpoint || 'https://api.sogni.ai';
+    const socketEndpoint = config.socketEndpoint || 'wss://socket.sogni.ai';
+    const network = config.network || 'fast';
+    const logger = config.logger || new DefaultLogger(config.logLevel || 'warn');
+    const isTestnet = config.testnet !== undefined ? config.testnet : true;
+
+    const client = new ApiClient(restEndpoint, socketEndpoint, config.appId, network, logger);
     let provider: AbstractProvider;
     if ('jsonRpcUrl' in config) {
       provider = new JsonRpcProvider(config.jsonRpcUrl);
     } else {
-      provider = getDefaultProvider(config.testnet ? 84532 : 8453);
+      provider = getDefaultProvider(isTestnet ? 84532 : 8453);
     }
     const chainId = await provider.getNetwork().then((network) => network.chainId);
     const eip712 = new EIP712Helper({

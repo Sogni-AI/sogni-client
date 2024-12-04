@@ -239,6 +239,30 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
+   * Wait for available models to be received from the network. Useful for scripts that need to
+   * run after the models are loaded.
+   * @param timeout - timeout in milliseconds until the promise is rejected
+   */
+  waitForModels(timeout = 10000): Promise<AvailableModel[]> {
+    if (this._availableModels.length) {
+      return Promise.resolve(this._availableModels);
+    }
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Timeout waiting for models'));
+      }, timeout);
+      this.once('availableModels', (models) => {
+        clearTimeout(timeoutId);
+        if (models.length) {
+          resolve(models);
+        } else {
+          reject(new Error('No models available'));
+        }
+      });
+    });
+  }
+
+  /**
    * Send new project request to the network. Returns project instance which can be used to track
    * progress and get resulting images.
    * @param data
@@ -277,13 +301,6 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   /**
    * Estimate project cost
-   * @param network - either 'fast' or 'relaxed' network
-   * @param model - model id
-   * @param imageCount - number of images to generate
-   * @param stepCount - number of steps
-   * @param previewCount - number of preview images to request
-   * @param cnEnabled - control network enabled
-   * @param denoiseStrength - denoise strength
    */
   async estimateCost({
     network,
@@ -292,10 +309,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     stepCount,
     previewCount,
     cnEnabled,
-    denoiseStrength
+    startingImageStrength
   }: EstimateRequest) {
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v1/job/estimate/${network}/${model}/${imageCount}/${stepCount}/${previewCount}/${cnEnabled ? 1 : 0}/${denoiseStrength || 0}`
+      `/api/v1/job/estimate/${network}/${model}/${imageCount}/${stepCount}/${previewCount}/${cnEnabled ? 1 : 0}/${startingImageStrength ? 1 - startingImageStrength : 0}`
     );
     return {
       token: r.quote.project.costInToken,

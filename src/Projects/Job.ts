@@ -9,6 +9,9 @@ export type JobStatus =
   | 'failed'
   | 'canceled';
 
+/**
+ * @inline
+ */
 export interface JobData {
   id: string;
   status: JobStatus;
@@ -22,13 +25,13 @@ export interface JobData {
   error?: ErrorData;
 }
 
-interface JobEvents extends EntityEvents {
+export interface JobEventMap extends EntityEvents {
   progress: number;
   completed: string;
-  failed: JobData['error'];
+  failed: ErrorData;
 }
 
-class Job extends DataEntity<JobData, JobEvents> {
+class Job extends DataEntity<JobData, JobEventMap> {
   constructor(data: JobData) {
     super(data);
     this.on('updated', this.handleUpdated.bind(this));
@@ -113,7 +116,7 @@ class Job extends DataEntity<JobData, JobEvents> {
       this.emit('completed', this.resultUrl!);
     }
     if (keys.includes('status') && this.status === 'failed') {
-      this.emit('failed', this.data.error);
+      this.emit('failed', this.data.error!);
     }
   }
 }

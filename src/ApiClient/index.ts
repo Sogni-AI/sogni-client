@@ -7,6 +7,7 @@ import { ServerConnectData, ServerDisconnectData } from './WebSocketClient/event
 import { isNotRecoverable } from './WebSocketClient/ErrorCode';
 import { JSONValue } from '../types/json';
 import { SupernetType } from './WebSocketClient/types';
+import { Logger } from '../lib/DefaultLogger';
 
 const WS_RECONNECT_ATTEMPTS = 5;
 
@@ -15,6 +16,7 @@ export interface ApiReponse<D = JSONValue> {
   data: D;
 }
 
+/** @inline */
 export interface ApiErrorResponse {
   status: 'error';
   message: string;
@@ -31,6 +33,9 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * @inline
+ */
 interface AuthData {
   token: string;
   walletAddress: string;
@@ -39,16 +44,24 @@ interface AuthData {
 
 class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   readonly appId: string;
+  readonly logger: Logger;
   private _rest: RestClient;
   private _socket: WebSocketClient;
   private _auth: AuthData | null = null;
   private _reconnectAttempts = WS_RECONNECT_ATTEMPTS;
 
-  constructor(baseUrl: string, socketUrl: string, appId: string, networkType: SupernetType) {
+  constructor(
+    baseUrl: string,
+    socketUrl: string,
+    appId: string,
+    networkType: SupernetType,
+    logger: Logger
+  ) {
     super();
     this.appId = appId;
-    this._rest = new RestClient(baseUrl);
-    this._socket = new WebSocketClient(socketUrl, appId, networkType);
+    this.logger = logger;
+    this._rest = new RestClient(baseUrl, logger);
+    this._socket = new WebSocketClient(socketUrl, appId, networkType, logger);
     this._socket.on('connected', this.handleSocketConnect.bind(this));
     this._socket.on('disconnected', this.handleSocketDisconnect.bind(this));
   }
@@ -95,7 +108,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     if (!data.code || isNotRecoverable(data.code)) {
       this.removeAuth();
       this.emit('disconnected', data);
-      console.error('Not recoverable socket error', data);
+      this.logger.error('Not recoverable socket error', data);
       return;
     }
     if (this._reconnectAttempts <= 0) {

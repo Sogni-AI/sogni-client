@@ -7,6 +7,7 @@ import { base64Decode, base64Encode } from '../../lib/base64';
 import isNodejs from '../../lib/isNodejs';
 import Cookie from 'js-cookie';
 import { LIB_VERSION } from '../../version';
+import { Logger } from '../../lib/DefaultLogger';
 
 const PING_INTERVAL = 15000;
 
@@ -17,8 +18,8 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   private _supernetType: SupernetType;
   private _pingInterval: NodeJS.Timeout | null = null;
 
-  constructor(baseUrl: string, appId: string, supernetType: SupernetType = 'fast') {
-    super(baseUrl);
+  constructor(baseUrl: string, appId: string, supernetType: SupernetType, logger: Logger) {
+    super(baseUrl, logger);
     this.appId = appId;
     this.baseUrl = baseUrl;
     this._supernetType = supernetType;
@@ -126,7 +127,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     }
     let attempts = 10;
     while (this.socket?.readyState === WebSocket.CONNECTING) {
-      console.info('Waiting for WebSocket connection...');
+      this._logger.info('Waiting for WebSocket connection...');
       await new Promise((resolve) => setTimeout(resolve, 1000));
       attempts--;
       if (attempts === 0) {
@@ -147,7 +148,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
 
   private handleClose(e: CloseEvent) {
     if (e.target === this.socket) {
-      console.info('WebSocket disconnected, cleanup', e);
+      this._logger.info('WebSocket disconnected, cleanup', e);
       this.disconnect();
       this.emit('disconnected', {
         code: e.code,
@@ -157,7 +158,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   }
 
   private handleError(e: ErrorEvent) {
-    console.error('WebSocket error:', e);
+    this._logger.error('WebSocket error:', e);
   }
 
   private handleMessage(e: MessageEvent) {
@@ -182,17 +183,17 @@ class WebSocketClient extends RestClient<SocketEventMap> {
             payload[idKey] = payload[idKey].toUpperCase();
           }
         });
-        console.debug('WebSocket:', data.type, payload);
+        this._logger.debug('WebSocket:', data.type, payload);
         this.emit(data.type, payload);
       })
       .catch((err: any) => {
-        console.error('Failed to parse WebSocket message:', err);
+        this._logger.error('Failed to parse WebSocket message:', err);
       });
   }
 
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]) {
     await this.waitForConnection();
-    console.debug('WebSocket send:', messageType, data);
+    this._logger.debug('WebSocket send:', messageType, data);
     this.socket!.send(
       JSON.stringify({ type: messageType, data: base64Encode(JSON.stringify(data)) })
     );

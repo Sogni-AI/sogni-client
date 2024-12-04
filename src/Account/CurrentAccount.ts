@@ -2,8 +2,10 @@ import DataEntity from '../lib/DataEntity';
 import { BalanceData } from './types';
 import { jwtDecode } from 'jwt-decode';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
-
-interface AccountData {
+/**
+ * @inline
+ */
+export interface AccountData {
   token: string | null;
   networkStatus: 'connected' | 'disconnected' | 'connecting';
   network: SupernetType | null;
@@ -35,6 +37,10 @@ function decodeToken(token: string) {
   };
 }
 
+/**
+ * Current account data.
+ * @expand
+ */
 class CurrentAccount extends DataEntity<AccountData> {
   constructor(data?: AccountData) {
     super(data || getDefaults());

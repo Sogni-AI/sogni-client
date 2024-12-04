@@ -1,6 +1,7 @@
 import { ApiError, ApiErrorResponse } from '../ApiClient';
 import TypedEventEmitter, { EventMap } from './TypedEventEmitter';
 import { JSONValue } from '../types/json';
+import { Logger } from './DefaultLogger';
 
 export interface AuthData {
   token: string;
@@ -8,11 +9,13 @@ export interface AuthData {
 
 class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   readonly baseUrl: string;
-  _auth: AuthData | null = null;
+  protected _auth: AuthData | null = null;
+  protected _logger: Logger;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, logger: Logger) {
     super();
     this.baseUrl = baseUrl;
+    this._logger = logger;
   }
 
   get auth(): AuthData | null {
@@ -46,7 +49,7 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     try {
       responseData = await response.json();
     } catch (e) {
-      console.error('Failed to parse response:', e);
+      this._logger.error('Failed to parse response:', e);
       throw new Error('Failed to parse response');
     }
     if (!response.ok) {

@@ -1,6 +1,9 @@
 import { cloneDeep } from 'lodash';
 import TypedEventEmitter from './TypedEventEmitter';
 
+/**
+ * @inline
+ */
 export interface EntityEvents {
   updated: string[];
 }

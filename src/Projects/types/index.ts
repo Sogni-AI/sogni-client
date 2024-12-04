@@ -44,30 +44,66 @@ export type Scheduler =
 export type TimeStepSpacing = 'Karras' | 'Leading' | 'Linear';
 
 export interface ProjectParams {
-  /* AI model ID */
+  /**
+   * ID of the model to use, available models are available in the `availableModels` property of the `ProjectsApi` instance.
+   */
   modelId: string;
-  /* Text prompt */
+  /**
+   * Prompt for what to be created
+   */
   positivePrompt: string;
-  /* Prompt for what to be avoided */
+  /**
+   * Prompt for what to be avoided
+   */
   negativePrompt: string;
-  /* Image style prompt */
+  /**
+   * Image style prompt
+   */
   stylePrompt: string;
-  /* Number of steps */
+  /**
+   * Number of steps. For most Stable Diffusion models, optimal value is 20
+   */
   steps: number;
-  /* Guidance scale */
+  /**
+   * Guidance scale. For most Stable Diffusion models, optimal value is 7.5
+   */
   guidance: number;
-  /* Seed for one of images in project. Other will get random seed*/
-  seed?: number;
-  /* Number of images to generate */
-  numberOfImages: number;
-  /* Generate images based on starting image */
-  startingImage?: File | Buffer | Blob;
-  /* How strong effect of starting image should be. From 0 to 1, default 0.5 */
-  startingImageStrength?: number;
-  numberOfPreviews?: number;
-  scheduler?: Scheduler;
-  timeStepSpacing?: TimeStepSpacing;
+  /**
+   * Disable NSFW filter for Project. Default is false, meaning NSFW filter is enabled.
+   * If image triggers NSFW filter, it will not be available for download.
+   */
   disableNSFWFilter?: boolean;
+  /**
+   * Seed for one of images in project. Other will get random seed. Must be Uint32
+   */
+  seed?: number;
+  /**
+   * Number of images to generate
+   */
+  numberOfImages: number;
+  /**
+   * Generate images based on starting image.
+   * `File` - file object from input[type=file]
+   * `Buffer` - buffer object with image data
+   * `Blob` - blob object with image data
+   */
+  startingImage?: File | Buffer | Blob;
+  /**
+   * How strong effect of starting image should be. From 0 to 1, default 0.5
+   */
+  startingImageStrength?: number;
+  /**
+   * Number of previews to generate. Note that previews affect project cost\
+   */
+  numberOfPreviews?: number;
+  /**
+   * Scheduler to use
+   */
+  scheduler?: Scheduler;
+  /**
+   * Time step spacing method
+   */
+  timeStepSpacing?: TimeStepSpacing;
 }
 
 export type ImageUrlParams = {
@@ -79,11 +115,32 @@ export type ImageUrlParams = {
 };
 
 export interface EstimateRequest {
+  /**
+   * Network to use. Can be 'fast' or 'relaxed'
+   */
   network: SupernetType;
+  /**
+   * Model ID
+   */
   model: string;
+  /**
+   * Number of images to generate
+   */
   imageCount: number;
+  /**
+   * Number of steps
+   */
   stepCount: number;
+  /**
+   * Number of preview images to generate
+   */
   previewCount: number;
+  /**
+   * Control network enabled
+   */
   cnEnabled?: boolean;
-  denoiseStrength?: number;
+  /**
+   * How strong effect of starting image should be. From 0 to 1, default 0.5
+   */
+  startingImageStrength?: number;
 }

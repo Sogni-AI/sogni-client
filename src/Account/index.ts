@@ -15,6 +15,9 @@ import { ApiError, ApiReponse } from '../ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 
+/**
+ * Account API methods that let you interact with the user's account.
+ */
 class AccountApi extends ApiGroup {
   readonly currentAccount = new CurrentAccount();
 
@@ -88,6 +91,11 @@ class AccountApi extends ApiGroup {
     });
   }
 
+  /**
+   * Login with username and password. WebSocket connection is established after successful login.
+   * @param username
+   * @param password
+   */
   async login(username: string, password: string): Promise<LoginData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
@@ -103,20 +111,30 @@ class AccountApi extends ApiGroup {
     return res.data;
   }
 
+  /**
+   * Logout the user and close the WebSocket connection.
+   */
   async logout(): Promise<void> {
     this.client.rest.post('/v1/account/logout').catch((e) => {
-      console.error('Failed to logout', e);
+      this.client.logger.error('Failed to logout', e);
     });
     this.client.removeAuth();
     this.currentAccount._clear();
   }
 
+  /**
+   * Refresh the balance of the current account.
+   */
   async refreshBalance(): Promise<BalanceData> {
     const res = await this.client.rest.get<ApiReponse<BalanceData>>('/v1/account/balance');
     this.currentAccount._update({ balance: res.data });
     return res.data;
   }
 
+  /**
+   * Get the balance of a account wallet.
+   * @param walletAddress
+   */
   async walletBalance(walletAddress: string) {
     const res = await this.client.rest.get<ApiReponse<{ token: string; ether: string }>>(
       '/v1/wallet/balance',
@@ -143,6 +161,12 @@ class AccountApi extends ApiGroup {
     }
   }
 
+  /**
+   * Switch between fast and relaxed networks.
+   * Note: This method will close the current WebSocket connection and establish a new one.
+   * Do not call this method if you have any active projects.
+   * @param network
+   */
   async switchNetwork(network: SupernetType) {
     this.currentAccount._update({
       networkStatus: 'connecting',
@@ -151,6 +175,10 @@ class AccountApi extends ApiGroup {
     this.client.socket.switchNetwork(network);
   }
 
+  /**
+   * Get the transaction history of the current account.
+   * @param params
+   */
   async transactionHistory(
     params: TxHistoryParams
   ): Promise<{ entries: TxHistoryEntry[]; next: TxHistoryParams }> {
