@@ -20,7 +20,8 @@
     "watch:esm": "npm run clean && tsc --watch --project tsconfig.esm.json",
     "prettier": "prettier --check ./src",
     "prettier:fix": "prettier --write ./src",
-    "docs:build": "npx typedoc"
+    "docs": "npx typedoc",
+    "postdocs": "node -p \"'sdk-docs.sogni.ai'\" > docs/CNAME"
   },
   "repository": {
     "type": "git",
