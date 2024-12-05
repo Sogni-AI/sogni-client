@@ -1,9 +1,8 @@
-# JavaScript Client for Sogni AI API
-This library provides a simple way to interact with the Sogni AI Supernet. It is written in TypeScript and can be used 
-in both TypeScript and JavaScript projects. Library can be used in both Node.js and browser environments.
+# Sogni SDK for JavaScript & Node.js
+This library provides an easy way to interact with the [Sogni AI Supernet](https://www.sogni.ai/supernet) - a DePIN protocol for creative AI. It is written in TypeScript and can be used 
+in both TypeScript and JavaScript projects such as backend Node.js and browser environments.
 
-Sogni Supernet uses WebSocket connection for communication between clients, server and workers. Because of this library
-uses event-based API to interact with Supernet.
+Behind the scenes this SDK uses WebSocket connection for communication between clients, server, and workers. It harnesses an event-based API to interact with Supernet to make things super efficient.
 
 ## Installation
 Add library to your project using npm or yarn:
@@ -15,25 +14,26 @@ or
 yarn add @sogni-ai/sogni-client
 ```
 ## Core concepts
-In order to use Sogni Supernet you need active Sogni account with positive balance. 
-You can create one in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio).
+In order to use Sogni Supernet you need an active Sogni account (in the form of a username and password) with a positive $tSOGNI balance. 
+You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio) which will give you tokens just for signing up and confirming your email. You can get daily bonus tokens by claiming them (under rewards) each 24-hours.
 
-Your account is tied to [Base](https://www.base.org/) Wallet that is created during signup process. 
-Because of this client also need access to [Base](https://chainlist.org/chain/8453) or [Base Sepolia](https://chainlist.org/chain/84532) network in order to work.
+Your account is tied to a [Base](https://www.base.org/) Wallet that is created during signup. The current network is [Base Sepolia](https://chainlist.org/chain/84532) and will be [Base Mainnet](https://chainlist.org/chain/8453) after mainnet launch.
 
-Library will use default provider if none is provided, but note that it is not guaranteed to be always available.
+The Library will use a default provider if none is provided, but note that it is not guaranteed to be always available. It is recommended to use your own Node endpoint such as alchemy.com (free and paid plans). You can specify your own node in `jsonRpcUrl` settings below.
 
 ### Supernet Types
 There are 2 worker network types available:
-- `fast` - this network runs on high-end GPUs and is optimized for speed. It is more expensive than `relaxed` network.
-- `relaxed` - this network runs on Apple Mac devices and is optimized for cost. It is cheaper than `fast` network.
+- `fast` - this network runs on high-end GPUs and is optimized for speed. It is more expensive than `relaxed` network at roughly 1 $tSOGNI token per render.
+- `relaxed` - this network runs on Apple Mac devices and is optimized for cost. It is cheaper than `fast` network at roughly 0.5 $tSOGNI token per render.
 
-### Projects and Jobs
+In both options the more complex your query is (the more steps) the higher the cost in tokens.
+
+### Inference definitions: Projects and Jobs
 One request for image generation is called a **Project**. Project can generate one or more images. 
 Each image is represented by a **Job**.
 
-When you send a project to Supernet, it will be processed by one or more workers. Resulting images will be 
-uploaded to Sogni servers and stored there for 24 hours. After this period images will be deleted.
+When you send a project to Supernet, it will be processed by one or more workers. The resulting images will be encrypted and 
+uploaded to Sogni servers where it will be  stored for 24 hours. After this period images will be auto-deleted.
 
 ## Client initialization
 To initialize client you need to provide `appId`, and account credentials.
@@ -64,14 +64,14 @@ const models = await client.waitForModels();
 // You can get list of available models any time from `client.projects.availableModels`
 ```
 **Important Note:** 
-- This sample assume you are using ESM modules, if not you need to wrap `await` calls in async function.
+- This sample assume you are using ESM modules, if you are using plain JavaScript you will need to wrap `await` calls in an async function.
 - Sogni is currently in Testnet phase, so you need to provide Base Sepolia network URL.
 - `appId` must be unique string, UUID is recommended. It is used to identify your application.
 - Only one connection per `appId` is allowed. If you try to connect with the same `appId` multiple times, the previous connection will be closed.
 
 ## Usage
-After calling `login` method, client will establish WebSocket connection to Sogni Supernet. Within short period of time
-client will receive current balance and list of available models. After this you can start using client to generate images.
+After calling `login` method, the client will establish a WebSocket connection to Sogni Supernet. Within a short period of time the
+client will receive current balance and list of available models. After this you can start using the client to generate images.
 
 ### Creating project
 ```javascript
@@ -94,7 +94,7 @@ const project = await client.projects.create({
 **Note:** Full project parameter list can be found in [ProjectParams](https://sogni-ai.github.io/sogni-client/interfaces/ProjectParams.html) docs.
 
 ### Getting project status and results
-In general there are 3 ways to work with API:
+In general there are 2 ways to work with API:
 1. Using promises or `async/await` syntax.
 2. Listening events on `Project` and `Job` class instances.
 
