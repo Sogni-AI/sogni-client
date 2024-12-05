@@ -91,7 +91,7 @@ const project = await client.projects.create({
   numberOfImages: 1
 });
 ```
-**Note:** Full project parameter list can be found in [ProjectParams](https://sogni-ai.github.io/sogni-client/interfaces/ProjectParams.html) docs.
+**Note:** Full project parameter list can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 
 ### Getting project status and results
 In general there are 2 ways to work with API:
