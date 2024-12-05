@@ -64,7 +64,7 @@ const models = await client.waitForModels();
 // You can get list of available models any time from `client.projects.availableModels`
 ```
 **Important Note:** 
-- This sample assume you are using ESM modules, if you are using plain JavaScript you will need to wrap `await` calls in an async function.
+- This sample assume you are using ES modules, which allow `await` on the top level, if you are CommomJS you will need to wrap `await` calls in an async function.
 - Sogni is currently in Testnet phase, so you need to provide Base Sepolia network URL.
 - `appId` must be unique string, UUID is recommended. It is used to identify your application.
 - Only one connection per `appId` is allowed. If you try to connect with the same `appId` multiple times, the previous connection will be closed.
