@@ -3,13 +3,14 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Sogni Supernet Client",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "README.md",
-    "dist/"
+    "dist/",
+    "src/"
   ],
   "scripts": {
     "clean": "rimraf ./dist",
