@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Sogni Demo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <style>
+    #spinner {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.5);
+      justify-content: center;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1 class="mt-5">Sogni Demo</h1>
+  <div class="row">
+    <div class="col-md-6">
+      <form class="card">
+        <div class="card-body">
+          <div class="mb-3">
+            <label for="exampleFormControlTextarea1" class="form-label">What you would like to imagine?</label>
+            <textarea class="form-control" id="exampleFormControlTextarea1" rows="3"></textarea>
+          </div>
+          <div class="mb-3">
+            <label for="exampleFormControlTextarea1" class="form-label">Select Image Style:</label>
+            <select id="style-select" class="form-select" aria-label="Default select example">
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Imagine!</button>
+        </div>
+      </form>
+    </div>
+    <div class="col-md-6">
+      <div id="preview-container" class="card ratio ratio-1x1">
+
+      </div>
+    </div>
+  </div>
+
+</div>
+<div id="spinner">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+</div>
+<script>
+  (function () {
+    const presets = [
+      {
+        "title": "Anime",
+        "value": "amazing, award-winning, anime"
+      },
+      {
+        "title": "Cartoon",
+        "value": "cartoon, stylized, exaggerated features, vibrant colors, playful"
+      },
+      {
+        "title": "Comic Book",
+        "value": "comic book style, dynamic, vibrant, action-packed"
+      },
+      {
+        "title": "Cyberpunk",
+        "value": "high-tech, neon colors, futuristic cityscapes"
+      },
+      {
+        "title": "Fantasy",
+        "value": "magical, mythical creatures, enchanting environments"
+      },
+      {
+        "title": "Realistic",
+        "value": "photorealistic, highly detailed, real-world, realistic lighting"
+      }
+    ]
+    const select = document.querySelector('#style-select');
+    presets.forEach((preset) => {
+      const option = document.createElement('option');
+      option.value = preset.value;
+      option.textContent = preset.title;
+      select.appendChild(option);
+    });
+
+    document.querySelector('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const spinner = document.querySelector('#spinner');
+      spinner.style.display = 'flex';
+      const prompt = document.querySelector('#exampleFormControlTextarea1').value;
+      const style = document.querySelector('#style-select').value || presets[0].value;
+      fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ prompt, style })
+      })
+        .then((r)=> r.json())
+        .then((data) => {
+          document.querySelector('#preview-container').innerHTML = `<img src="${data.url}" class="rounded-1" alt="">`;
+          spinner.style.display = 'none';
+        })
+        .catch((e) => {
+          alert('Whoops! Something went wrong. Please try again later.');
+          console.error(e);
+          spinner.style.display = 'none';
+        });
+    });
+  })();
+</script>
+</body>
+</html>
