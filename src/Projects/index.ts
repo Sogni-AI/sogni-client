@@ -149,7 +149,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
   }
 
-  handleProjectEvent(event: ProjectEvent) {
+  private handleProjectEvent(event: ProjectEvent) {
     let project = this.projects.find((p) => p.id === event.projectId);
     if (!project) {
       return;
@@ -179,7 +179,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
   }
 
-  handleJobEvent(event: JobEvent) {
+  private handleJobEvent(event: JobEvent) {
     let project = this.projects.find((p) => p.id === event.projectId);
     if (!project) {
       return;
@@ -320,7 +320,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     };
   }
 
-  async uploadUrl(params: ImageUrlParams) {
+  private async uploadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiReponse<{ uploadUrl: string }>>(
       `/v1/image/uploadUrl`,
       params
@@ -328,7 +328,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return r.data.uploadUrl;
   }
 
-  async downloadUrl(params: ImageUrlParams) {
+  private async downloadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiReponse<{ downloadUrl: string }>>(
       `/v1/image/downloadUrl`,
       params

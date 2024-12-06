@@ -57,10 +57,10 @@ const options ={
 }
 const client = await SogniClient.createInstance(options);
 // Login to Sogni account and establish WebSocket connection to Supernet
-await client.login(USERNAME, PASSWORD);
+await client.account.login(USERNAME, PASSWORD);
 // Now wait until list of available models is received.
 // This step is only needed if you want to create project immediately.
-const models = await client.waitForModels();
+const models = await client.projects.waitForModels();
 // You can get list of available models any time from `client.projects.availableModels`
 ```
 **Important Note:** 
@@ -160,5 +160,6 @@ project.on('failed', async (errorData) => {
   console.log('Project failed:', errorData);
 });
 ```
+
 ## Code examples
 You can find more code examples in the [examples](./examples) directory.
