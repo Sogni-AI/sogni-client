@@ -66,10 +66,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this.emit('project', { type: 'completed', projectId: data.jobID });
         return;
       case 'initiatingModel':
-        this.emit('job', { type: 'initiating', projectId: data.jobID, jobId: data.imgID });
+        this.emit('job', {
+          type: 'initiating',
+          projectId: data.jobID,
+          jobId: data.imgID,
+          workerName: data.workerName
+        });
         return;
       case 'jobStarted': {
-        this.emit('job', { type: 'started', projectId: data.jobID, jobId: data.imgID });
+        this.emit('job', {
+          type: 'started',
+          projectId: data.jobID,
+          jobId: data.imgID,
+          workerName: data.workerName
+        });
         return;
       }
     }
@@ -195,10 +205,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     switch (event.type) {
       case 'initiating':
-        job._update({ status: 'initiating' });
+        job._update({ status: 'initiating', workerName: event.workerName });
         break;
       case 'started':
-        job._update({ status: 'processing' });
+        job._update({ status: 'processing', workerName: event.workerName });
         break;
       case 'progress':
         job._update({

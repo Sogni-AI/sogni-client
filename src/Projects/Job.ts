@@ -17,6 +17,7 @@ export interface JobData {
   status: JobStatus;
   step: number;
   stepCount: number;
+  workerName?: string;
   seed?: number;
   isNSFW?: boolean;
   userCanceled?: boolean;
@@ -106,6 +107,13 @@ class Job extends DataEntity<JobData, JobEventMap> {
    */
   get isNSFW() {
     return !!this.data.isNSFW;
+  }
+
+  /**
+   * Name of the worker that is processing this job.
+   */
+  get workerName() {
+    return this.data.workerName;
   }
 
   private handleUpdated(keys: string[]) {

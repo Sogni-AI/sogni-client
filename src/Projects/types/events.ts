@@ -28,10 +28,12 @@ export interface JobEventBase {
 
 export interface JobInitiating extends JobEventBase {
   type: 'initiating';
+  workerName: string;
 }
 
 export interface JobStarted extends JobEventBase {
   type: 'started';
+  workerName: string;
 }
 
 export interface JobProgress extends JobEventBase {
