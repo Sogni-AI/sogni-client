@@ -28,6 +28,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   constructor(config: ApiConfig) {
     super(config);
     // Listen to server events and emit them as project and job events
+    this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
     this.client.socket.on('swarmModels', this.handleSwarmModels.bind(this));
     this.client.socket.on('jobState', this.handleJobState.bind(this));
     this.client.socket.on('jobProgress', this.handleJobProgress.bind(this));
@@ -38,6 +39,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // Listen to project and job events and update project and job instances
     this.on('project', this.handleProjectEvent.bind(this));
     this.on('job', this.handleJobEvent.bind(this));
+  }
+
+  private handleChangeNetwork() {
+    this._availableModels = [];
+    this.emit('availableModels', this._availableModels);
   }
 
   private handleSwarmModels(data: SocketEventMap['swarmModels']) {

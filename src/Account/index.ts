@@ -259,24 +259,28 @@ class AccountApi extends ApiGroup {
 
   /**
    * Switch between fast and relaxed networks.
-   * Note: This method will close the current WebSocket connection and establish a new one.
-   * Do not call this method if you have any active projects.
+   * This will change default network used to process projects. After switching, you will updated
+   * list of AI models available for on selected network.
    *
    * @example Switch to the fast network
    * ```typescript
-   * client.apiClient.once('connected', ({ network }) => {
-   *  console.log('Switched to the network:', network);
-   * });
    * await client.account.switchNetwork('fast');
+   * console.log('Switched to the fast network, now lets wait until we get list of models');
+   * await client.projects.waitForModels();
    * ```
-   * @param network
+   * @param network - Network type to switch to
    */
-  async switchNetwork(network: SupernetType) {
+  async switchNetwork(network: SupernetType): Promise<SupernetType> {
     this.currentAccount._update({
-      networkStatus: 'connecting',
+      networkStatus: 'switching',
       network: null
     });
-    this.client.socket.switchNetwork(network);
+    const newNetwork = await this.client.socket.switchNetwork(network);
+    this.currentAccount._update({
+      networkStatus: 'connected',
+      network: newNetwork
+    });
+    return newNetwork;
   }
 
   /**

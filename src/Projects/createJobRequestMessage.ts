@@ -67,7 +67,7 @@ function getTemplate() {
 
 function createJobRequestMessage(id: string, params: ProjectParams) {
   const template = getTemplate();
-  return {
+  const jobRequest: Record<string, any> = {
     ...template,
     keyFrames: [
       {
@@ -92,6 +92,10 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
     jobID: id,
     disableSafety: !!params.disableNSFWFilter
   };
+  if (params.network) {
+    jobRequest.network = params.network;
+  }
+  return jobRequest;
 }
 
 export type JobRequestRaw = ReturnType<typeof createJobRequestMessage>;

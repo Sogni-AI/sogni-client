@@ -113,10 +113,14 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     }
   }
 
-  switchNetwork(supernetType: SupernetType) {
-    this._supernetType = supernetType;
-    this.disconnect();
-    this.connect();
+  switchNetwork(supernetType: SupernetType): Promise<SupernetType> {
+    return new Promise<SupernetType>(async (resolve, reject) => {
+      this.once('changeNetwork', ({ network }) => {
+        this._supernetType = network;
+        resolve(network);
+      });
+      await this.send('changeNetwork', supernetType);
+    });
   }
 
   /**

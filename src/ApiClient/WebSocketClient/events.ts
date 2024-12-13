@@ -64,6 +64,10 @@ export type SocketEventMap = {
    */
   balanceUpdate: BalanceData;
   /**
+   * @event WebSocketClient#changeNetwork - Default network changed
+   */
+  changeNetwork: { network: SupernetType };
+  /**
    * @event WebSocketClient#jobError - Job error occurred
    */
   jobError: JobErrorData;
