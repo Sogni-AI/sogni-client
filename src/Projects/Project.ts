@@ -1,4 +1,4 @@
-import Job, { JobData } from './Job';
+import Job, { JobData, JobStatus } from './Job';
 import DataEntity, { EntityEvents } from '../lib/DataEntity';
 import { ProjectParams } from './types';
 import cloneDeep from 'lodash/cloneDeep';
@@ -163,11 +163,27 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     });
     job.on('completed', () => {
       this.emit('jobCompleted', job);
+      this._handleJobFinished(job);
     });
     job.on('failed', () => {
       this.emit('jobFailed', job);
+      this._handleJobFinished(job);
     });
     return job;
+  }
+
+  private _handleJobFinished() {
+    const finalStatus: JobStatus[] = ['completed', 'failed', 'canceled'];
+    const allJobsDone = this.jobs.every((job) => finalStatus.includes(job.status));
+    // If all jobs are done and project is not already failed or completed, update the project status
+    if (allJobsDone && this.status !== 'failed' && this.status !== 'completed') {
+      const allJobsFailed = this.jobs.every((job) => job.status === 'failed');
+      if (allJobsFailed) {
+        this._update({ status: 'failed' });
+      } else {
+        this._update({ status: 'completed' });
+      }
+    }
   }
 
   /**

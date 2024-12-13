@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.4.0-aplha.3",
+  "version": "0.4.0-aplha.4",
   "description": "Sogni Supernet Client",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
