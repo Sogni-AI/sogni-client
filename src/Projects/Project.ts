@@ -172,7 +172,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     return job;
   }
 
-  private _handleJobFinished() {
+  private _handleJobFinished(job: Job) {
     const finalStatus: JobStatus[] = ['completed', 'failed', 'canceled'];
     const allJobsDone = this.jobs.every((job) => finalStatus.includes(job.status));
     // If all jobs are done and project is not already failed or completed, update the project status
