@@ -288,14 +288,6 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return project;
   }
 
-  async fetchCompletedProject(projectId: string) {
-    const data = await this.client.socket.get(
-      `/api/v1/status/projects/completed/address/${this.client.auth?.walletAddress}/client/${this.client.appId}`
-    );
-    console.log(data);
-    return data;
-  }
-
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
     const presignedUrl = await this.uploadUrl({
