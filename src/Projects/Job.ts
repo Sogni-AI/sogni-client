@@ -1,5 +1,9 @@
 import DataEntity, { EntityEvents } from '../lib/DataEntity';
 import ErrorData from '../types/ErrorData';
+import { RawJob, RawProject } from './types/RawProject';
+import ProjectsApi from './index';
+import { Logger } from '../lib/DefaultLogger';
+import getUUID from '../lib/getUUID';
 
 export type JobStatus =
   | 'pending'
@@ -9,11 +13,23 @@ export type JobStatus =
   | 'failed'
   | 'canceled';
 
+const JOB_STATUS_MAP: Record<RawJob['status'], JobStatus> = {
+  created: 'pending',
+  queued: 'pending',
+  assigned: 'initiating',
+  initiatingModel: 'initiating',
+  jobStarted: 'processing',
+  jobProgress: 'processing',
+  jobCompleted: 'completed',
+  jobError: 'failed'
+};
+
 /**
  * @inline
  */
 export interface JobData {
   id: string;
+  projectId: string;
   status: JobStatus;
   step: number;
   stepCount: number;
@@ -32,9 +48,37 @@ export interface JobEventMap extends EntityEvents {
   failed: ErrorData;
 }
 
+export interface JobOptions {
+  api: ProjectsApi;
+  logger: Logger;
+}
+
 class Job extends DataEntity<JobData, JobEventMap> {
-  constructor(data: JobData) {
+  static fromRaw(rawProject: RawProject, rawJob: RawJob, options: JobOptions) {
+    return new Job(
+      {
+        id: rawJob.imgID || getUUID(),
+        projectId: rawProject.id,
+        status: JOB_STATUS_MAP[rawJob.status],
+        step: rawJob.performedSteps,
+        stepCount: rawProject.stepCount,
+        workerName: rawJob.worker.name,
+        seed: rawJob.seedUsed,
+        isNSFW: rawJob.triggeredNSFWFilter
+      },
+      options
+    );
+  }
+
+  private readonly _api: ProjectsApi;
+  private readonly _logger: Logger;
+
+  constructor(data: JobData, options: JobOptions) {
     super(data);
+
+    this._api = options.api;
+    this._logger = options.logger;
+
     this.on('updated', this.handleUpdated.bind(this));
   }
 
@@ -42,11 +86,19 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.data.id;
   }
 
+  get projectId() {
+    return this.data.projectId;
+  }
+
   /**
    * Current status of the job.
    */
   get status() {
     return this.data.status;
+  }
+
+  get finished() {
+    return ['completed', 'failed', 'canceled'].includes(this.status);
   }
 
   /**
@@ -114,6 +166,35 @@ class Job extends DataEntity<JobData, JobEventMap> {
    */
   get workerName() {
     return this.data.workerName;
+  }
+
+  /**
+   * Syncs the job data with the data received from the REST API.
+   * @internal
+   * @param data
+   */
+  async _syncWithRestData(data: RawJob) {
+    const delta: Partial<JobData> = {
+      step: data.performedSteps,
+      workerName: data.worker.name,
+      seed: data.seedUsed,
+      isNSFW: data.triggeredNSFWFilter
+    };
+    if (JOB_STATUS_MAP[data.status]) {
+      delta.status = JOB_STATUS_MAP[data.status];
+    }
+    if (!this.data.resultUrl && delta.status === 'completed' && !data.triggeredNSFWFilter) {
+      try {
+        delta.resultUrl = await this._api.downloadUrl({
+          jobId: this.projectId,
+          imageId: this.id,
+          type: 'complete'
+        });
+      } catch (error) {
+        this._logger.error(error);
+      }
+    }
+    this._update(delta);
   }
 
   private handleUpdated(keys: string[]) {

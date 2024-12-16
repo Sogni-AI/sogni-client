@@ -14,6 +14,7 @@ import { ApiError, ApiReponse } from '../ApiClient';
 import { EstimationResponse } from './types/EstimationResponse';
 import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
 import getUUID from '../lib/getUUID';
+import { RawProject } from './types/RawProject';
 
 const GARBAGE_COLLECT_TIMEOUT = 10000;
 
@@ -188,7 +189,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           error: event.error
         });
     }
-    if (project.status === 'completed' || project.status === 'failed') {
+    if (project.finished) {
+      // Sync project data with the server and remove it from the list after some time
+      project._syncToServer().catch((e) => {
+        this.client.logger.error(e);
+      });
       setTimeout(() => {
         this.projects = this.projects.filter((p) => p.id !== event.projectId);
       }, GARBAGE_COLLECT_TIMEOUT);
@@ -204,6 +209,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (!job) {
       job = project._addJob({
         id: event.jobId,
+        projectId: event.projectId,
         status: 'pending',
         step: 0,
         stepCount: project.params.steps
@@ -284,7 +290,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param data
    */
   async create(data: ProjectParams): Promise<Project> {
-    const project = new Project({ ...data });
+    const project = new Project({ ...data }, { api: this, logger: this.client.logger });
     if (data.startingImage) {
       await this.uploadGuideImage(project.id, data.startingImage);
     }
@@ -292,6 +298,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     await this.client.socket.send('jobRequest', request);
     this.projects.push(project);
     return project;
+  }
+
+  /**
+   * Get project by id, this API returns project data from the server only if the project is
+   * completed or failed. If the project is still processing, it will throw 404 error.
+   * @internal
+   * @param projectId
+   */
+  async get(projectId: string) {
+    const { data } = await this.client.rest.get<ApiReponse<RawProject>>(
+      `/v1/projects/${projectId}`
+    );
+    return data;
   }
 
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
@@ -336,7 +355,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     };
   }
 
-  private async uploadUrl(params: ImageUrlParams) {
+  /**
+   * Get upload URL for image
+   * @internal
+   * @param params
+   */
+  async uploadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiReponse<{ uploadUrl: string }>>(
       `/v1/image/uploadUrl`,
       params
@@ -344,7 +368,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return r.data.uploadUrl;
   }
 
-  private async downloadUrl(params: ImageUrlParams) {
+  /**
+   * Get download URL for image
+   * @internal
+   * @param params
+   */
+  async downloadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiReponse<{ downloadUrl: string }>>(
       `/v1/image/downloadUrl`,
       params
