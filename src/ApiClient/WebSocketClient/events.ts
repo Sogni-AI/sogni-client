@@ -12,7 +12,7 @@ export type JobErrorData = {
   imgID?: string;
   isFromWorker: boolean;
   error_message: string;
-  error: number;
+  error: number | string;
 };
 
 export type JobProgressData = {

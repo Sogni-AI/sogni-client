@@ -15,8 +15,24 @@ import { EstimationResponse } from './types/EstimationResponse';
 import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
 import getUUID from '../lib/getUUID';
 import { RawProject } from './types/RawProject';
+import ErrorData from '../types/ErrorData';
 
 const GARBAGE_COLLECT_TIMEOUT = 10000;
+
+function mapErrorCodes(code: string): number {
+  switch (code) {
+    case 'serverRestarting':
+      return 5001;
+    case 'workerDisconnected':
+      return 5002;
+    case 'jobTimedOut':
+      return 5003;
+    case 'artistCanceled':
+      return 5004;
+    default:
+      return 5000;
+  }
+}
 
 class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
@@ -144,14 +160,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private handleJobError(data: JobErrorData) {
+    const errorCode = Number(data.error);
+    let error: ErrorData;
+    if (isNaN(errorCode)) {
+      error = {
+        code: errorCode,
+        message: data.error_message
+      };
+    } else {
+      error = {
+        code: mapErrorCodes(data.error as string),
+        originalCode: data.error.toString(),
+        message: data.error_message
+      };
+    }
     if (!data.imgID) {
       this.emit('project', {
         type: 'error',
         projectId: data.jobID,
-        error: {
-          code: Number(data.error),
-          message: data.error_message
-        }
+        error
       });
       return;
     }
