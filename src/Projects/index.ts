@@ -162,7 +162,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private handleJobError(data: JobErrorData) {
     const errorCode = Number(data.error);
     let error: ErrorData;
-    if (isNaN(errorCode)) {
+    if (!isNaN(errorCode)) {
       error = {
         code: errorCode,
         message: data.error_message
@@ -170,7 +170,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     } else {
       error = {
         code: mapErrorCodes(data.error as string),
-        originalCode: data.error.toString(),
+        originalCode: data.error?.toString(),
         message: data.error_message
       };
     }
