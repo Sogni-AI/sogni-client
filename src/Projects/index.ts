@@ -29,6 +29,8 @@ function mapErrorCodes(code: string): number {
       return 5003;
     case 'artistCanceled':
       return 5004;
+    case 'ç':
+      return 5005;
     default:
       return 5000;
   }
