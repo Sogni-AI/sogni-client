@@ -10,7 +10,7 @@ import {
   TxHistoryParams
 } from './types';
 import ApiGroup, { ApiConfig } from '../ApiGroup';
-import { Wallet, pbkdf2, toUtf8Bytes } from 'ethers';
+import { Wallet, pbkdf2, toUtf8Bytes, Signature, parseEther } from 'ethers';
 import { ApiError, ApiReponse } from '../ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
@@ -364,6 +364,73 @@ class AccountApi extends ApiGroup {
   async claimRewards(rewardIds: string[]): Promise<void> {
     await this.client.rest.post('/v2/account/reward/claim', {
       claims: rewardIds
+    });
+  }
+
+  /**
+   * Withdraw funds from the current account to wallet.
+   * @example withdraw to current wallet address
+   * ```typescript
+   * await client.account.withdraw('your-account-password', 100);
+   * ```
+   *
+   * @param password - account password
+   * @param amount - amount of tokens to withdraw from account to wallet
+   */
+  async withdraw(password: string, amount: number): Promise<void> {
+    const wallet = this.getWallet(this.currentAccount.username!, password);
+    const walletAddress = wallet.address;
+    const nonce = await this.getNonce(walletAddress);
+    const payload = {
+      walletAddress: walletAddress,
+      amount: parseEther(amount.toString()).toString()
+    };
+    const signature = await this.eip712.signTypedData(wallet, 'withdraw', { ...payload, nonce });
+    await this.client.rest.post('/v1/account/token/withdraw', {
+      ...payload,
+      signature: signature
+    });
+  }
+
+  /**
+   * Deposit tokens from wallet to account
+   * @example withdraw to current wallet address
+   * ```typescript
+   * await client.account.deposit('your-account-password', 100);
+   * ```
+   *
+   * @param password - account password
+   * @param amount - amount to transfer
+   */
+  async deposit(password: string, amount: number): Promise<void> {
+    const wallet = this.getWallet(this.currentAccount.username!, password);
+    const walletAddress = wallet.address;
+    const nonce = await this.getNonce(walletAddress);
+    const payload = {
+      walletAddress,
+      amount: parseEther(amount.toString()).toString()
+    };
+    const { data } = await this.client.rest.post<ApiReponse<any>>(
+      '/v1/account/token/deposit/permit',
+      payload
+    );
+    const { deadline } = data.message;
+    const permitSig = await wallet.signTypedData(data.domain, data.types, data.message);
+    const permitSignature = Signature.from(permitSig);
+    const depositPayload = {
+      ...payload,
+      deadline,
+      v: permitSignature.v,
+      r: permitSignature.r,
+      s: permitSignature.s
+    };
+    const depositSignature = await this.eip712.signTypedData(wallet, 'deposit', {
+      ...depositPayload,
+      nonce
+    });
+    await this.client.rest.post('/v1/account/token/deposit', {
+      ...depositPayload,
+      signature: depositSignature
     });
   }
 }

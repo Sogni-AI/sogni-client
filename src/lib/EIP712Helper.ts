@@ -1,7 +1,7 @@
 import { AbstractSigner, TypedDataDomain, TypedDataField } from 'ethers';
 
 type EIP712Types = Record<string, TypedDataField[]>;
-type SupportedTypes = 'authentication' | 'signup';
+type SupportedTypes = 'authentication' | 'signup' | 'withdraw' | 'deposit';
 
 const EIP712_TYPES: Record<SupportedTypes, EIP712Types> = {
   authentication: {
@@ -17,6 +17,24 @@ const EIP712_TYPES: Record<SupportedTypes, EIP712Types> = {
       { name: 'email', type: 'string' },
       { name: 'subscribe', type: 'uint256' },
       { name: 'walletAddress', type: 'address' },
+      { name: 'nonce', type: 'string' }
+    ]
+  },
+  withdraw: {
+    WithdrawToken: [
+      { name: 'walletAddress', type: 'address' },
+      { name: 'amount', type: 'string' },
+      { name: 'nonce', type: 'string' }
+    ]
+  },
+  deposit: {
+    DepositToken: [
+      { name: 'walletAddress', type: 'address' },
+      { name: 'amount', type: 'string' },
+      { name: 'deadline', type: 'uint256' },
+      { name: 'v', type: 'uint8' },
+      { name: 'r', type: 'bytes32' },
+      { name: 's', type: 'bytes32' },
       { name: 'nonce', type: 'string' }
     ]
   }
