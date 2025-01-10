@@ -259,7 +259,7 @@ class AccountApi extends ApiGroup {
 
   /**
    * Switch between fast and relaxed networks.
-   * This will change default network used to process projects. After switching, you will updated
+   * This will change default network used to process projects. After switching, client will receive
    * list of AI models available for on selected network.
    *
    * @example Switch to the fast network
