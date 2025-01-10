@@ -19,9 +19,13 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   private _pingInterval: NodeJS.Timeout | null = null;
 
   constructor(baseUrl: string, appId: string, supernetType: SupernetType, logger: Logger) {
-    super(baseUrl, logger);
+    const _baseUrl = new URL(baseUrl);
+    if (_baseUrl.protocol === 'wss:') {
+      _baseUrl.protocol = 'https:';
+    }
+    super(_baseUrl.toString(), logger);
     this.appId = appId;
-    this.baseUrl = baseUrl;
+    this.baseUrl = _baseUrl.toString();
     this._supernetType = supernetType;
   }
 
@@ -56,6 +60,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     }
     const userAgent = `Sogni/${LIB_VERSION} (sogni-client)`;
     const url = new URL(this.baseUrl);
+    url.protocol = 'wss:';
     url.searchParams.set('appId', this.appId);
     url.searchParams.set('clientName', userAgent);
     url.searchParams.set('clientType', 'artist');
@@ -108,10 +113,14 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     }
   }
 
-  switchNetwork(supernetType: SupernetType) {
-    this._supernetType = supernetType;
-    this.disconnect();
-    this.connect();
+  switchNetwork(supernetType: SupernetType): Promise<SupernetType> {
+    return new Promise<SupernetType>(async (resolve, reject) => {
+      this.once('changeNetwork', ({ network }) => {
+        this._supernetType = network;
+        resolve(network);
+      });
+      await this.send('changeNetwork', supernetType);
+    });
   }
 
   /**

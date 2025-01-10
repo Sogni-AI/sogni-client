@@ -12,7 +12,7 @@ export type JobErrorData = {
   imgID?: string;
   isFromWorker: boolean;
   error_message: string;
-  error: number;
+  error: number | string;
 };
 
 export type JobProgressData = {
@@ -63,6 +63,10 @@ export type SocketEventMap = {
    * @event WebSocketClient#balanceUpdate - Received balance update
    */
   balanceUpdate: BalanceData;
+  /**
+   * @event WebSocketClient#changeNetwork - Default network changed
+   */
+  changeNetwork: { network: SupernetType };
   /**
    * @event WebSocketClient#jobError - Job error occurred
    */

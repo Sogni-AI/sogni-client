@@ -1,11 +1,34 @@
-import Job, { JobData } from './Job';
+import Job, { JobData, JobStatus } from './Job';
 import DataEntity, { EntityEvents } from '../lib/DataEntity';
 import { ProjectParams } from './types';
 import cloneDeep from 'lodash/cloneDeep';
 import ErrorData from '../types/ErrorData';
 import getUUID from '../lib/getUUID';
+import { RawJob, RawProject } from './types/RawProject';
+import ProjectsApi from './index';
+import { Logger } from '../lib/DefaultLogger';
 
-export type ProjectStatus = 'pending' | 'queued' | 'processing' | 'completed' | 'failed';
+// If project is not finished and had no updates for 1 minute, force refresh
+const PROJECT_TIMEOUT = 60 * 1000;
+const MAX_FAILED_SYNC_ATTEMPTS = 3;
+
+export type ProjectStatus =
+  | 'pending'
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'canceled';
+
+const PROJECT_STATUS_MAP: Record<RawProject['status'], ProjectStatus> = {
+  pending: 'pending',
+  active: 'queued',
+  assigned: 'processing',
+  progress: 'processing',
+  completed: 'completed',
+  errored: 'failed',
+  cancelled: 'canceled'
+};
 
 /**
  * @inline
@@ -31,11 +54,20 @@ export interface ProjectEventMap extends EntityEvents {
   jobFailed: Job;
 }
 
+export interface ProjectOptions {
+  api: ProjectsApi;
+  logger: Logger;
+}
+
 class Project extends DataEntity<ProjectData, ProjectEventMap> {
   private _jobs: Job[] = [];
   private _lastEmitedProgress = -1;
+  private readonly _api: ProjectsApi;
+  private readonly _logger: Logger;
+  private _timeout: NodeJS.Timeout | null = null;
+  private _failedSyncAttempts = 0;
 
-  constructor(data: ProjectParams) {
+  constructor(data: ProjectParams, options: ProjectOptions) {
     super({
       id: getUUID(),
       startedAt: new Date(),
@@ -43,6 +75,11 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       queuePosition: -1,
       status: 'pending'
     });
+
+    this._api = options.api;
+    this._logger = options.logger;
+
+    this._timeout = setInterval(this._checkForTimeout.bind(this), PROJECT_TIMEOUT);
 
     this.on('updated', this.handleUpdated.bind(this));
   }
@@ -57,6 +94,10 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
 
   get status() {
     return this.data.status;
+  }
+
+  get finished() {
+    return ['completed', 'failed', 'canceled'].includes(this.status);
   }
 
   get error() {
@@ -137,6 +178,11 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       this.emit('progress', progress);
       this._lastEmitedProgress = progress;
     }
+    // If project is finished stop watching for timeout
+    if (this._timeout && this.finished) {
+      clearInterval(this._timeout!);
+      this._timeout = null;
+    }
     if (keys.includes('status') || keys.includes('jobs')) {
       const allJobsDone = this.jobs.every((job) =>
         ['completed', 'failed', 'canceled'].includes(job.status)
@@ -155,19 +201,102 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    * @internal
    * @param data
    */
-  _addJob(data: JobData) {
-    const job = new Job(data);
+  _addJob(data: JobData | Job) {
+    const job =
+      data instanceof Job ? data : new Job(data, { api: this._api, logger: this._logger });
     this._jobs.push(job);
     job.on('updated', () => {
+      this.lastUpdated = new Date();
       this.emit('updated', ['jobs']);
     });
     job.on('completed', () => {
       this.emit('jobCompleted', job);
+      this._handleJobFinished(job);
     });
     job.on('failed', () => {
       this.emit('jobFailed', job);
+      this._handleJobFinished(job);
     });
     return job;
+  }
+
+  private _handleJobFinished(job: Job) {
+    const finalStatus: JobStatus[] = ['completed', 'failed', 'canceled'];
+    const allJobsDone = this.jobs.every((job) => finalStatus.includes(job.status));
+    // If all jobs are done and project is not already failed or completed, update the project status
+    if (allJobsDone && this.status !== 'failed' && this.status !== 'completed') {
+      const allJobsFailed = this.jobs.every((job) => job.status === 'failed');
+      if (allJobsFailed) {
+        this._update({ status: 'failed' });
+      } else {
+        this._update({ status: 'completed' });
+      }
+    }
+  }
+
+  private _checkForTimeout() {
+    if (this.lastUpdated.getTime() + PROJECT_TIMEOUT < Date.now()) {
+      this._syncToServer().catch((error) => {
+        this._logger.error(error);
+        this._failedSyncAttempts++;
+        if (this._failedSyncAttempts > MAX_FAILED_SYNC_ATTEMPTS) {
+          this._logger.error(
+            `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
+          );
+          clearInterval(this._timeout!);
+          this._timeout = null;
+        }
+      });
+    }
+  }
+
+  /**
+   * Sync project data with the data received from the REST API.
+   * @internal
+   */
+  async _syncToServer() {
+    const data = await this._api.get(this.id);
+    const jobData = data.completedWorkerJobs.reduce((acc: Record<string, RawJob>, job) => {
+      const jobId = job.imgID || getUUID();
+      acc[jobId] = job;
+      return acc;
+    }, {});
+    for (const job of this._jobs) {
+      const restJob = jobData[job.id];
+      // This should never happen, but just in case we log a warning
+      if (!restJob) {
+        this._logger.warn(`Job with id ${job.id} not found in the REST project data`);
+        return;
+      }
+      try {
+        await job._syncWithRestData(restJob);
+      } catch (error) {
+        this._logger.error(error);
+        this._logger.error(`Failed to sync job ${job.id}`);
+      }
+      delete jobData[job.id];
+    }
+
+    // If there are any jobs left in jobData, it means they are new jobs that are not in the project yet
+    if (Object.keys(jobData).length) {
+      for (const job of Object.values(jobData)) {
+        const jobInstance = Job.fromRaw(data, job, { api: this._api, logger: this._logger });
+        this._addJob(jobInstance);
+      }
+    }
+
+    const delta: Partial<ProjectData> = {
+      params: {
+        ...this.data.params,
+        numberOfImages: data.imageCount,
+        steps: data.stepCount,
+        numberOfPreviews: data.previewCount
+      }
+    };
+    if (PROJECT_STATUS_MAP[data.status]) {
+      delta.status = PROJECT_STATUS_MAP[data.status];
+    }
+    this._update(delta);
   }
 
   /**

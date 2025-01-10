@@ -14,8 +14,27 @@ import { ApiError, ApiReponse } from '../ApiClient';
 import { EstimationResponse } from './types/EstimationResponse';
 import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
 import getUUID from '../lib/getUUID';
+import { RawProject } from './types/RawProject';
+import ErrorData from '../types/ErrorData';
 
 const GARBAGE_COLLECT_TIMEOUT = 10000;
+
+function mapErrorCodes(code: string): number {
+  switch (code) {
+    case 'serverRestarting':
+      return 5001;
+    case 'workerDisconnected':
+      return 5002;
+    case 'jobTimedOut':
+      return 5003;
+    case 'artistCanceled':
+      return 5004;
+    case 'workerCancelled':
+      return 5005;
+    default:
+      return 5000;
+  }
+}
 
 class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
@@ -28,6 +47,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   constructor(config: ApiConfig) {
     super(config);
     // Listen to server events and emit them as project and job events
+    this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
     this.client.socket.on('swarmModels', this.handleSwarmModels.bind(this));
     this.client.socket.on('jobState', this.handleJobState.bind(this));
     this.client.socket.on('jobProgress', this.handleJobProgress.bind(this));
@@ -38,6 +58,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // Listen to project and job events and update project and job instances
     this.on('project', this.handleProjectEvent.bind(this));
     this.on('job', this.handleJobEvent.bind(this));
+  }
+
+  private handleChangeNetwork() {
+    this._availableModels = [];
+    this.emit('availableModels', this._availableModels);
   }
 
   private handleSwarmModels(data: SocketEventMap['swarmModels']) {
@@ -66,10 +91,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this.emit('project', { type: 'completed', projectId: data.jobID });
         return;
       case 'initiatingModel':
-        this.emit('job', { type: 'initiating', projectId: data.jobID, jobId: data.imgID });
+        this.emit('job', {
+          type: 'initiating',
+          projectId: data.jobID,
+          jobId: data.imgID,
+          workerName: data.workerName
+        });
         return;
       case 'jobStarted': {
-        this.emit('job', { type: 'started', projectId: data.jobID, jobId: data.imgID });
+        this.emit('job', {
+          type: 'started',
+          projectId: data.jobID,
+          jobId: data.imgID,
+          workerName: data.workerName
+        });
         return;
       }
     }
@@ -127,14 +162,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private handleJobError(data: JobErrorData) {
+    const errorCode = Number(data.error);
+    let error: ErrorData;
+    if (!isNaN(errorCode)) {
+      error = {
+        code: errorCode,
+        message: data.error_message
+      };
+    } else {
+      error = {
+        code: mapErrorCodes(data.error as string),
+        originalCode: data.error?.toString(),
+        message: data.error_message
+      };
+    }
     if (!data.imgID) {
       this.emit('project', {
         type: 'error',
         projectId: data.jobID,
-        error: {
-          code: Number(data.error),
-          message: data.error_message
-        }
+        error
       });
       return;
     }
@@ -142,10 +188,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       type: 'error',
       projectId: data.jobID,
       jobId: data.imgID,
-      error: {
-        code: Number(data.error),
-        message: data.error_message
-      }
+      error: error
     });
   }
 
@@ -172,7 +215,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           error: event.error
         });
     }
-    if (project.status === 'completed' || project.status === 'failed') {
+    if (project.finished) {
+      // Sync project data with the server and remove it from the list after some time
+      project._syncToServer().catch((e) => {
+        this.client.logger.error(e);
+      });
       setTimeout(() => {
         this.projects = this.projects.filter((p) => p.id !== event.projectId);
       }, GARBAGE_COLLECT_TIMEOUT);
@@ -188,6 +235,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (!job) {
       job = project._addJob({
         id: event.jobId,
+        projectId: event.projectId,
         status: 'pending',
         step: 0,
         stepCount: project.params.steps
@@ -195,10 +243,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     switch (event.type) {
       case 'initiating':
-        job._update({ status: 'initiating' });
+        job._update({ status: 'initiating', workerName: event.workerName });
         break;
       case 'started':
-        job._update({ status: 'processing' });
+        job._update({ status: 'processing', workerName: event.workerName });
         break;
       case 'progress':
         job._update({
@@ -268,7 +316,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param data
    */
   async create(data: ProjectParams): Promise<Project> {
-    const project = new Project({ ...data });
+    const project = new Project({ ...data }, { api: this, logger: this.client.logger });
     if (data.startingImage) {
       await this.uploadGuideImage(project.id, data.startingImage);
     }
@@ -276,6 +324,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     await this.client.socket.send('jobRequest', request);
     this.projects.push(project);
     return project;
+  }
+
+  /**
+   * Get project by id, this API returns project data from the server only if the project is
+   * completed or failed. If the project is still processing, it will throw 404 error.
+   * @internal
+   * @param projectId
+   */
+  async get(projectId: string) {
+    const { data } = await this.client.rest.get<ApiReponse<RawProject>>(
+      `/v1/projects/${projectId}`
+    );
+    return data;
   }
 
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
@@ -320,7 +381,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     };
   }
 
-  private async uploadUrl(params: ImageUrlParams) {
+  /**
+   * Get upload URL for image
+   * @internal
+   * @param params
+   */
+  async uploadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiReponse<{ uploadUrl: string }>>(
       `/v1/image/uploadUrl`,
       params
@@ -328,7 +394,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return r.data.uploadUrl;
   }
 
-  private async downloadUrl(params: ImageUrlParams) {
+  /**
+   * Get download URL for image
+   * @internal
+   * @param params
+   */
+  async downloadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiReponse<{ downloadUrl: string }>>(
       `/v1/image/downloadUrl`,
       params

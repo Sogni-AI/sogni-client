@@ -69,6 +69,10 @@ export interface ProjectParams {
    */
   guidance: number;
   /**
+   * Override current network type. Default value can be read from `client.account.currentAccount.network`
+   */
+  network?: SupernetType;
+  /**
    * Disable NSFW filter for Project. Default is false, meaning NSFW filter is enabled.
    * If image triggers NSFW filter, it will not be available for download.
    */

@@ -1,5 +1,6 @@
 interface ErrorData {
   code: number;
+  originalCode?: string;
   message: string;
 }
 

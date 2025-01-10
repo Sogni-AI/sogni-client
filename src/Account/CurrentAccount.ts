@@ -7,7 +7,17 @@ import { SupernetType } from '../ApiClient/WebSocketClient/types';
  */
 export interface AccountData {
   token: string | null;
-  networkStatus: 'connected' | 'disconnected' | 'connecting';
+  /**
+   * Current network status:\
+   * - `connected` - connected to the socket
+   * - `disconnected` - disconnected from the socket
+   * - `connecting` - connecting to the socket
+   * - `switching` - switching network type (fast/relaxed)
+   * @enum
+   * @values 'connected', 'disconnected', 'connecting', 'switching'
+   * @default 'disconnected'
+   */
+  networkStatus: 'connected' | 'disconnected' | 'connecting' | 'switching';
   network: SupernetType | null;
   balance: BalanceData;
   walletAddress?: string;
