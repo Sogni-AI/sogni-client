@@ -162,4 +162,4 @@ project.on('failed', async (errorData) => {
 ```
 
 ## Code examples
-You can find more code examples in the [examples](./examples) directory.
+You can find more code examples in the [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) directory.
