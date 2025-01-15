@@ -333,10 +333,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param projectId
    */
   async get(projectId: string) {
-    const { data } = await this.client.rest.get<ApiReponse<RawProject>>(
+    const { data } = await this.client.rest.get<ApiReponse<{ project: RawProject }>>(
       `/v1/projects/${projectId}`
     );
-    return data;
+    return data.project;
   }
 
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
