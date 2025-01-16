@@ -72,7 +72,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }, {});
     this._availableModels = Object.entries(data).map(([id, workerCount]) => ({
       id,
-      name: modelIndex[id].modelShortName || id.replace(/-/g, ' '),
+      name: modelIndex[id]?.modelShortName || id.replace(/-/g, ' '),
       workerCount
     }));
     this.emit('availableModels', this._availableModels);
