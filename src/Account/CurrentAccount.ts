@@ -33,7 +33,11 @@ function getDefaults(): AccountData {
       debit: '0',
       net: '0',
       settled: '0'
-    }
+    },
+    walletAddress: undefined,
+    username: undefined,
+    token: undefined,
+    refreshToken: undefined
   };
 }
 
