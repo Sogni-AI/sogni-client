@@ -1,13 +1,13 @@
 import { MessageType, SocketMessageMap } from './messages';
 import { SocketEventMap } from './events';
-import RestClient, { AuthData } from '../../lib/RestClient';
+import RestClient from '../../lib/RestClient';
 import { SupernetType } from './types';
 import WebSocket, { CloseEvent, ErrorEvent, MessageEvent } from 'isomorphic-ws';
 import { base64Decode, base64Encode } from '../../lib/base64';
 import isNodejs from '../../lib/isNodejs';
-import Cookie from 'js-cookie';
 import { LIB_VERSION } from '../../version';
 import { Logger } from '../../lib/DefaultLogger';
+import AuthManager from '../../lib/AuthManager';
 
 const PING_INTERVAL = 15000;
 
@@ -18,32 +18,21 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   private _supernetType: SupernetType;
   private _pingInterval: NodeJS.Timeout | null = null;
 
-  constructor(baseUrl: string, appId: string, supernetType: SupernetType, logger: Logger) {
+  constructor(
+    baseUrl: string,
+    auth: AuthManager,
+    appId: string,
+    supernetType: SupernetType,
+    logger: Logger
+  ) {
     const _baseUrl = new URL(baseUrl);
     if (_baseUrl.protocol === 'wss:') {
       _baseUrl.protocol = 'https:';
     }
-    super(_baseUrl.toString(), logger);
+    super(_baseUrl.toString(), auth, logger);
     this.appId = appId;
     this.baseUrl = _baseUrl.toString();
     this._supernetType = supernetType;
-  }
-
-  set auth(auth: AuthData | null) {
-    //In browser, set the cookie
-    if (!isNodejs) {
-      if (auth) {
-        Cookie.set('authorization', auth.token, {
-          domain: '.sogni.ai',
-          expires: 1
-        });
-      } else {
-        Cookie.remove('authorization', {
-          domain: '.sogni.ai'
-        });
-      }
-    }
-    this._auth = auth;
   }
 
   get supernetType(): SupernetType {
@@ -54,7 +43,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     return !!this.socket;
   }
 
-  connect() {
+  async connect() {
     if (this.socket) {
       this.disconnect();
     }
@@ -71,7 +60,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     if (isNodejs) {
       params = {
         headers: {
-          Authorization: this._auth?.token,
+          Authorization: await this.auth.getToken(),
           'User-Agent': userAgent
         }
       };
@@ -114,7 +103,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   }
 
   switchNetwork(supernetType: SupernetType): Promise<SupernetType> {
-    return new Promise<SupernetType>(async (resolve, reject) => {
+    return new Promise<SupernetType>(async (resolve) => {
       this.once('changeNetwork', ({ network }) => {
         this._supernetType = network;
         resolve(network);

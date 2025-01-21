@@ -14,6 +14,7 @@ import { Wallet, pbkdf2, toUtf8Bytes, Signature, parseEther } from 'ethers';
 import { ApiError, ApiReponse } from '../ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
+import { AuthUpdatedEvent, Tokens } from '../lib/AuthManager';
 
 /**
  * Account API methods that let you interact with the user's account.
@@ -34,6 +35,7 @@ class AccountApi extends ApiGroup {
     this.client.socket.on('balanceUpdate', this.handleBalanceUpdate.bind(this));
     this.client.on('connected', this.handleServerConnected.bind(this));
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
+    this.client.auth.on('updated', this.handleAuthUpdated.bind(this));
   }
 
   private handleBalanceUpdate(data: BalanceData) {
@@ -49,6 +51,14 @@ class AccountApi extends ApiGroup {
 
   private handleServerDisconnected() {
     this.currentAccount._clear();
+  }
+
+  private handleAuthUpdated({ refreshToken, token, walletAddress }: AuthUpdatedEvent) {
+    if (!refreshToken) {
+      this.currentAccount._clear();
+    } else {
+      this.currentAccount._update({ walletAddress, token, refreshToken });
+    }
   }
 
   private async getNonce(walletAddress: string): Promise<string> {
@@ -111,12 +121,12 @@ class AccountApi extends ApiGroup {
       referralCode,
       signature
     });
-    this.setToken(username, res.data.token);
+    await this.setToken(username, { refreshToken: res.data.refreshToken, token: res.data.token });
     return res.data;
   }
 
   /**
-   * Restore session with username and access token.
+   * Restore session with username and refresh token.
    *
    * You can save access token that you get from the login method and restore the session with this method.
    *
@@ -138,13 +148,13 @@ class AccountApi extends ApiGroup {
    * ```
    *
    * @param username
-   * @param token
+   * @param tokens - Refresh token, access token pair { refreshToken: string, token: string }
    */
-  setToken(username: string, token: string): void {
-    this.client.authenticate(token);
+  async setToken(username: string, tokens: Tokens): Promise<void> {
+    await this.client.authenticate(tokens);
     this.currentAccount._update({
-      token,
-      username
+      username,
+      walletAddress: this.client.auth.walletAddress
     });
   }
 
@@ -171,7 +181,7 @@ class AccountApi extends ApiGroup {
       walletAddress: wallet.address,
       signature
     });
-    this.setToken(username, res.data.token);
+    await this.setToken(username, { refreshToken: res.data.refreshToken, token: res.data.token });
     return res.data;
   }
 

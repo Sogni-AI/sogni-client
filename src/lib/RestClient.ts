@@ -2,28 +2,22 @@ import { ApiError, ApiErrorResponse } from '../ApiClient';
 import TypedEventEmitter, { EventMap } from './TypedEventEmitter';
 import { JSONValue } from '../types/json';
 import { Logger } from './DefaultLogger';
-
-export interface AuthData {
-  token: string;
-}
+import AuthManager from './AuthManager';
 
 class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   readonly baseUrl: string;
-  protected _auth: AuthData | null = null;
+  protected _auth: AuthManager;
   protected _logger: Logger;
 
-  constructor(baseUrl: string, logger: Logger) {
+  constructor(baseUrl: string, auth: AuthManager, logger: Logger) {
     super();
     this.baseUrl = baseUrl;
+    this._auth = auth;
     this._logger = logger;
   }
 
-  get auth(): AuthData | null {
+  get auth(): AuthManager {
     return this._auth;
-  }
-
-  set auth(auth: AuthData | null) {
-    this._auth = auth;
   }
 
   private formatUrl(relativeUrl: string, query: Record<string, string> = {}): string {
@@ -34,12 +28,13 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     return url.toString();
   }
 
-  private request<T = JSONValue>(url: string, options: RequestInit = {}): Promise<T> {
+  private async request<T = JSONValue>(url: string, options: RequestInit = {}): Promise<T> {
+    const token = await this.auth.getToken();
     return fetch(url, {
       ...options,
       headers: {
         ...(options.headers || {}),
-        ...(this.auth ? { Authorization: this.auth.token } : {})
+        ...(token ? { Authorization: token } : {})
       }
     }).then((r) => this.processResponse(r) as T);
   }
