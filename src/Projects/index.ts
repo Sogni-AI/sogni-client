@@ -1,6 +1,11 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup';
-import models from './models.json';
-import { AvailableModel, EstimateRequest, ImageUrlParams, ProjectParams } from './types';
+import {
+  AvailableModel,
+  EstimateRequest,
+  ImageUrlParams,
+  ProjectParams,
+  SupportedModel
+} from './types';
 import {
   JobErrorData,
   JobProgressData,
@@ -18,6 +23,7 @@ import { RawProject } from './types/RawProject';
 import ErrorData from '../types/ErrorData';
 
 const GARBAGE_COLLECT_TIMEOUT = 10000;
+const MODELS_REFRESH_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
 
 function mapErrorCodes(code: string): number {
   switch (code) {
@@ -39,6 +45,10 @@ function mapErrorCodes(code: string): number {
 class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
   private projects: Project[] = [];
+  private _supportedModels: { data: SupportedModel[] | null; updatedAt: Date } = {
+    data: null,
+    updatedAt: new Date(0)
+  };
 
   get availableModels() {
     return this._availableModels;
@@ -65,14 +75,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.emit('availableModels', this._availableModels);
   }
 
-  private handleSwarmModels(data: SocketEventMap['swarmModels']) {
-    const modelIndex = models.reduce((acc: Record<string, any>, model) => {
-      acc[model.modelId] = model;
+  private async handleSwarmModels(data: SocketEventMap['swarmModels']) {
+    let models: SupportedModel[] = [];
+    try {
+      models = await this.getSupportedModels();
+    } catch (e) {
+      this.client.logger.error(e);
+    }
+    const modelIndex = models.reduce((acc: Record<string, SupportedModel>, model) => {
+      acc[model.id] = model;
       return acc;
     }, {});
     this._availableModels = Object.entries(data).map(([id, workerCount]) => ({
       id,
-      name: modelIndex[id]?.modelShortName || id.replace(/-/g, ' '),
+      name: modelIndex[id]?.name || id.replace(/-/g, ' '),
       workerCount
     }));
     this.emit('availableModels', this._availableModels);
@@ -405,6 +421,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       params
     );
     return r.data.downloadUrl;
+  }
+
+  async getSupportedModels(forceRefresh = false) {
+    if (
+      this._supportedModels.data &&
+      !forceRefresh &&
+      Date.now() - this._supportedModels.updatedAt.getTime() < MODELS_REFRESH_INTERVAL
+    ) {
+      return this._supportedModels.data;
+    }
+    const models = await this.client.socket.get<SupportedModel[]>(`/api/v1/models/list`);
+    this._supportedModels = { data: models, updatedAt: new Date() };
+    return models;
   }
 }
 

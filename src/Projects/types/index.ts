@@ -1,5 +1,11 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
 
+export interface SupportedModel {
+  id: string;
+  name: string;
+  SID: number;
+}
+
 export interface AvailableModel {
   id: string;
   name: string;
