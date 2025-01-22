@@ -54,6 +54,10 @@ class CurrentAccount extends DataEntity<AccountData> {
     this._update(getDefaults());
   }
 
+  get isAuthenicated() {
+    return !!this.data.refreshToken;
+  }
+
   get networkStatus() {
     return this.data.networkStatus;
   }
