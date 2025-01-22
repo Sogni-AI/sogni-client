@@ -9,6 +9,8 @@ import { LIB_VERSION } from '../../version';
 import { Logger } from '../../lib/DefaultLogger';
 import AuthManager from '../../lib/AuthManager';
 
+const PROTOCOL_VERSION = '0.4.3';
+
 const PING_INTERVAL = 15000;
 
 class WebSocketClient extends RestClient<SocketEventMap> {
@@ -47,7 +49,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     if (this.socket) {
       this.disconnect();
     }
-    const userAgent = `Sogni/${LIB_VERSION} (sogni-client)`;
+    const userAgent = `Sogni/${PROTOCOL_VERSION} (sogni-client) ${LIB_VERSION}`;
     const url = new URL(this.baseUrl);
     url.protocol = 'wss:';
     url.searchParams.set('appId', this.appId);

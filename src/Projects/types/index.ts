@@ -12,6 +12,15 @@ export interface AvailableModel {
   workerCount: number;
 }
 
+export interface SizePreset {
+  label: string;
+  id: string;
+  width: number;
+  height: number;
+  ratio: string;
+  aspect: string;
+}
+
 export interface AiModel {
   isSD3: boolean;
   modelShortName: string;
@@ -114,6 +123,10 @@ export interface ProjectParams {
    * Time step spacing method
    */
   timeStepSpacing?: TimeStepSpacing;
+  /**
+   * Aspect ratio of the generated image
+   */
+  sizePreset?: string;
 }
 
 export type ImageUrlParams = {

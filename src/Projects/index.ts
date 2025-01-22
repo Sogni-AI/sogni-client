@@ -4,6 +4,7 @@ import {
   EstimateRequest,
   ImageUrlParams,
   ProjectParams,
+  SizePreset,
   SupportedModel
 } from './types';
 import {
@@ -46,6 +47,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
   private projects: Project[] = [];
   private _supportedModels: { data: SupportedModel[] | null; updatedAt: Date } = {
+    data: null,
+    updatedAt: new Date(0)
+  };
+  private _sizePresets: { data: SizePreset[] | null; updatedAt: Date } = {
     data: null,
     updatedAt: new Date(0)
   };
@@ -434,6 +439,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const models = await this.client.socket.get<SupportedModel[]>(`/api/v1/models/list`);
     this._supportedModels = { data: models, updatedAt: new Date() };
     return models;
+  }
+
+  async getSizePresets(forceRefresh = false) {
+    if (
+      this._sizePresets.data &&
+      !forceRefresh &&
+      Date.now() - this._sizePresets.updatedAt.getTime() < MODELS_REFRESH_INTERVAL
+    ) {
+      return this._sizePresets.data;
+    }
+    const data = await this.client.socket.get<SizePreset[]>(`/api/v1/aspect-ratios`);
+    this._sizePresets = { data, updatedAt: new Date() };
+    return data;
   }
 }
 
