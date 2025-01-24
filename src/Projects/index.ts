@@ -22,7 +22,10 @@ import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
 import getUUID from '../lib/getUUID';
 import { RawProject } from './types/RawProject';
 import ErrorData from '../types/ErrorData';
+import { SupernetType } from '../ApiClient/WebSocketClient/types';
+import Cache from '../lib/Cache';
 
+const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 const GARBAGE_COLLECT_TIMEOUT = 10000;
 const MODELS_REFRESH_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
 
@@ -47,10 +50,6 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
   private projects: Project[] = [];
   private _supportedModels: { data: SupportedModel[] | null; updatedAt: Date } = {
-    data: null,
-    updatedAt: new Date(0)
-  };
-  private _sizePresets: { data: SizePreset[] | null; updatedAt: Date } = {
     data: null,
     updatedAt: new Date(0)
   };
@@ -391,10 +390,32 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     stepCount,
     previewCount,
     cnEnabled,
-    startingImageStrength
+    startingImageStrength,
+    width,
+    height,
+    sizePreset
   }: EstimateRequest) {
+    const pathParams = [
+      network,
+      model,
+      imageCount,
+      stepCount,
+      previewCount,
+      cnEnabled ? 1 : 0,
+      startingImageStrength ? 1 - startingImageStrength : 0
+    ];
+    if (sizePreset) {
+      const presets = await this.getSizePresets(network, model);
+      const preset = presets.find((p) => p.id === sizePreset);
+      if (!preset) {
+        throw new Error('Invalid size preset');
+      }
+      pathParams.push(preset.width, preset.height);
+    } else if (width && height) {
+      pathParams.push(width, height);
+    }
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v1/job/estimate/${network}/${model}/${imageCount}/${stepCount}/${previewCount}/${cnEnabled ? 1 : 0}/${startingImageStrength ? 1 - startingImageStrength : 0}`
+      `/api/v1/job/estimate/${pathParams.join('/')}`
     );
     return {
       token: r.quote.project.costInToken,
@@ -441,16 +462,37 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return models;
   }
 
-  async getSizePresets(forceRefresh = false) {
-    if (
-      this._sizePresets.data &&
-      !forceRefresh &&
-      Date.now() - this._sizePresets.updatedAt.getTime() < MODELS_REFRESH_INTERVAL
-    ) {
-      return this._sizePresets.data;
+  /**
+   * Get supported size presets for the model and network. Size presets are cached for 10 minutes.
+   *
+   * @example
+   * ```ts
+   * const presets = await client.projects.getSizePresets('fast', 'flux1-schnell-fp8');
+   * console.log(presets);
+   * ```
+   *
+   * @param network - 'fast' or 'relaxed'
+   * @param modelId - model id (e.g. 'flux1-schnell-fp8')
+   * @param forceRefresh - force refresh cache
+   * @returns {Promise<{
+   *   label: string;
+   *   id: string;
+   *   width: number;
+   *   height: number;
+   *   ratio: string;
+   *   aspect: string;
+   * }[]>}
+   */
+  async getSizePresets(network: SupernetType, modelId: string, forceRefresh = false) {
+    const key = `${network}-${modelId}`;
+    const cached = sizePresetCache.read(key);
+    if (cached && !forceRefresh) {
+      return cached;
     }
-    const data = await this.client.socket.get<SizePreset[]>(`/api/v1/aspect-ratios`);
-    this._sizePresets = { data, updatedAt: new Date() };
+    const data = await this.client.socket.get<SizePreset[]>(
+      `/api/v1/size-presets/network/${network}/model/${modelId}`
+    );
+    sizePresetCache.write(key, data);
     return data;
   }
 }

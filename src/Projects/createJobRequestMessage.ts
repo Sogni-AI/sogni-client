@@ -85,7 +85,7 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
         strength: !!params.startingImage
           ? 1 - (Number(params.startingImageStrength) || 0.5)
           : undefined,
-        aspectRatio: params.sizePreset
+        sizePreset: params.sizePreset
       }
     ],
     previews: params.numberOfPreviews || 0,
