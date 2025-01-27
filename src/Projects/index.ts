@@ -495,6 +495,27 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     sizePresetCache.write(key, data);
     return data;
   }
+
+  /**
+   * Get available models and their worker counts. Normally, you would get list once you connect
+   * to the server, but you can also call this method to get the list of available models manually.
+   * @param network
+   */
+  async getAvailableModels(network: SupernetType): Promise<AvailableModel[]> {
+    const workersByModelSid = await this.client.socket.get<Record<string, number>>(
+      `/api/v1/status/network/${network}/models`
+    );
+    const supportedModels = await this.getSupportedModels();
+    return Object.entries(workersByModelSid).map(([sid, workerCount]) => {
+      const SID = Number(sid);
+      const model = supportedModels.find((m) => m.SID === SID);
+      return {
+        id: model?.id || sid,
+        name: model?.name || sid.replace(/-/g, ' '),
+        workerCount
+      };
+    });
+  }
 }
 
 export default ProjectsApi;
