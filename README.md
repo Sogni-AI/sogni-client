@@ -161,5 +161,119 @@ project.on('failed', async (errorData) => {
 });
 ```
 
+### Project parameters
+Here is full list of project parameters that you can use:
+- `modelId` - ID of the model to use for image generation.
+- `positivePrompt` - text prompt that describes what you want to see in the image. Can be empty string.
+- `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be empty string.
+- `stylePrompt` - text prompt that describes the style of the image. Can be empty string.
+- `numberOfImages` - number of images to generate.
+- `sizePreset` - ID of size preset to use. See **Detecting available output presets** section below.
+- `steps` - number of steps. For most Stable Diffusion models, optimal value is 20. Flux models usually require 5-7 steps ([More info](https://docs.sogni.ai/learn/basics/inference-steps)).
+- `guidance` - guidance scale. For most Stable Diffusion models, optimal value is 7.5 ([More info](https://docs.sogni.ai/learn/basics/guidance-scale)).
+- `network` - network type to use, 'fast' or 'relaxed'. This parameter allow to override default network type for this project.
+- `disableNSFWFilter` - disable NSFW filter for this project. NSFW filter is enabled by default and workers won't upload resulting images if they are detected as NSFW.
+- `seed` - uint32 number to use as seed. If not provided, random seed will be used. If `numberOfImages` is greater than 1, provided seed will be user only for one of them. ([More info](https://docs.sogni.ai/learn/basics/generation-seed)).
+- `numberOfPreviews` - number of preview images to generate. If not provided, no preview images will be generated.
+- `scheduler` - scheduler to use ([More info](https://docs.sogni.ai/learn/advanced/schedulers)). For available options see type definition.
+- `timeStepSpacing` - time step spacing algorithm ([More info](https://docs.sogni.ai/learn/advanced/schedulers)). For available options see type definition.
+- `startingImage` - guide image in PNG format. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
+- `startingImageStrength` - strong effect of starting image should be. From 0 to 1, default 0.5. 
+
+TypeScript type definitions for project parameters can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
+
+### Detecting available output presets
+You can get list of available output presets for a specific network and model using `client.projects.getOutputPresets` method.
+```javascript
+const presets = await client.projects.getSizePresets('fast', 'flux1-schnell-fp8');
+console.log('Available output presets:', presets);
+```
+Sample response:
+```json
+[
+    {
+        "label": "Square",
+        "id": "square",
+        "width": 512,
+        "height": 512,
+        "ratio": "1:1",
+        "aspect": "1"
+    },
+    {
+        "label": "Square HD",
+        "id": "square_hd",
+        "width": 1024,
+        "height": 1024,
+        "ratio": "1:1",
+        "aspect": "1"
+    },
+    {
+        "label": "Portrait: Standard",
+        "id": "portrait_7_9",
+        "width": 896,
+        "height": 1152,
+        "ratio": "7:9",
+        "aspect": "0.78"
+    },
+    {
+        "label": "Portrait: 35mm",
+        "id": "portrait_13_19",
+        "width": 832,
+        "height": 1216,
+        "ratio": "13:19",
+        "aspect": "0.68"
+    },
+    {
+        "label": "Portrait: Mobile",
+        "id": "portrait_4_7",
+        "width": 768,
+        "height": 1344,
+        "ratio": "4:7",
+        "aspect": "0.57"
+    },
+    {
+        "label": "Portrait: Extended",
+        "id": "portrait_5_12",
+        "width": 640,
+        "height": 1536,
+        "ratio": "5:12",
+        "aspect": "0.42"
+    },
+    {
+        "label": "Landscape: Standard",
+        "id": "landscape_9_7",
+        "width": 1152,
+        "height": 896,
+        "ratio": "9:7",
+        "aspect": "1.28"
+    },
+    {
+        "label": "Landscape: 35mm",
+        "id": "landscape_19_13",
+        "width": 1216,
+        "height": 832,
+        "ratio": "19:13",
+        "aspect": "1.46"
+    },
+    {
+        "label": "Landscape: Widescreen",
+        "id": "landscape_7_4",
+        "width": 1344,
+        "height": 768,
+        "ratio": "7:4",
+        "aspect": "1.75"
+    },
+    {
+        "label": "Landscape: Ultrawide",
+        "id": "landscape_12_5",
+        "width": 1536,
+        "height": 640,
+        "ratio": "12:5",
+        "aspect": "2.4"
+    }
+]
+```
+
+
 ## Code examples
 You can find more code examples in the [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) directory.
