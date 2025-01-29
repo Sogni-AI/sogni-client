@@ -8,6 +8,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
+    "CHANGELOG.md",
     "README.md",
     "dist/",
     "src/"
@@ -21,6 +22,7 @@
     "watch:esm": "npm run clean && tsc --watch --project tsconfig.esm.json",
     "prettier": "prettier --check ./src",
     "prettier:fix": "prettier --write ./src",
+    "release": "semantic-release",
     "docs": "rimraf ./docs && npx typedoc",
     "postdocs": "node -p \"'sdk-docs.sogni.ai'\" > docs/CNAME"
   },
@@ -44,11 +46,14 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@types/js-cookie": "^3.0.6",
     "@types/lodash": "^4.17.13",
     "@types/ws": "^8.5.13",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
+    "semantic-release": "^24.2.1",
     "typedoc": "^0.27.3",
     "typedoc-plugin-missing-exports": "^3.1.0",
     "typescript": "^5.6.3"
