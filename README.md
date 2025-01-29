@@ -168,8 +168,20 @@ Here is full list of project parameters that you can use:
 - `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be empty string.
 - `stylePrompt` - text prompt that describes the style of the image. Can be empty string.
 - `numberOfImages` - number of images to generate.
-- `sizePreset` - ID of size preset to use. See **Detecting available output presets** section below.
-- `steps` - number of steps. For most Stable Diffusion models, optimal value is 20. Flux models usually require 5-7 steps ([More info](https://docs.sogni.ai/learn/basics/inference-steps)).
+- `sizePreset` - optionally pass the ID of a size preset to use. If not passed, the default output is a square at 
+either 512x512, 768x768 or 1024x1024 (SDXL and Flux) based on the default resolution of the selected model. 
+See **Detecting available output presets** section below for available presets for your model. The token cost and 
+render time of the job is heavily influenced by total pixel count where a 2048x2048 image is 4x the cost and render 
+time of a 1024x1024 image as it is 4x the generated pixel count. You may also pass `custom` along with `width` and 
+`height` project parameters to request a custom dimension. Note that not all size presets and custom aspect ratios 
+produce consistently good results with all models. If your output features skewed anatomy or doubling of features 
+you should experiment with a different model or output size.
+- `width` - if 'sizePreset' is set to 'custom' you may pass a custom pixel width between 256 and 2048
+- `height` - if 'sizePreset' is set to 'custom' you may pass a custom pixel height between 256 and 2048
+- `steps` - number of inference steps between random pixels to final image. Higher steps generally lead to higher 
+quality images and more details but varies by model, prompt, guidance, and desired look. For most Stable Diffusion 
+models 20-40 steps is ideal with 20 being 2x faster to render than 40. For Flux 4 steps is optimal. Lightning, 
+Turbo and LCM models are designed for quality output in as little as 1 step. ([More info](https://docs.sogni.ai/learn/basics/inference-steps)).
 - `guidance` - guidance scale. For most Stable Diffusion models, optimal value is 7.5 ([More info](https://docs.sogni.ai/learn/basics/guidance-scale)).
 - `network` - network type to use, 'fast' or 'relaxed'. This parameter allow to override default network type for this project.
 - `disableNSFWFilter` - disable NSFW filter for this project. NSFW filter is enabled by default and workers won't upload resulting images if they are detected as NSFW.

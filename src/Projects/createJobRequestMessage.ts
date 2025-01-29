@@ -65,6 +65,14 @@ function getTemplate() {
   };
 }
 
+function validateSize(value: any): number {
+  const size = Number(value);
+  if (isNaN(size) || size < 256 || size > 2048) {
+    throw new Error('Width and height must be numbers between 256 and 2048');
+  }
+  return size;
+}
+
 function createJobRequestMessage(id: string, params: ProjectParams) {
   const template = getTemplate();
   const jobRequest: Record<string, any> = {
@@ -95,6 +103,10 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
   };
   if (params.network) {
     jobRequest.network = params.network;
+  }
+  if (params.sizePreset === 'custom') {
+    jobRequest.keyFrames[0].width = validateSize(params.width);
+    jobRequest.keyFrames[0].height = validateSize(params.height);
   }
   return jobRequest;
 }

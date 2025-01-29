@@ -127,7 +127,15 @@ export interface ProjectParams {
    * Size preset ID to use. You can query available size presets
    * from `client.projects.sizePresets(network, modelId)`
    */
-  sizePreset?: string;
+  sizePreset?: 'custom' | string;
+  /**
+   * Output image width. Only used if `sizePreset` is "custom"
+   */
+  width?: number;
+  /**
+   * Output image height. Only used if `sizePreset` is "custom"
+   */
+  height?: number;
 }
 
 export type ImageUrlParams = {
