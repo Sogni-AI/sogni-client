@@ -165,6 +165,13 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   }
 
   /**
+   * Cancel the project. This will cancel all jobs in the project.
+   */
+  async cancel() {
+    await this._api.cancel(this.id);
+  }
+
+  /**
    * Find a job by id
    * @param id
    */

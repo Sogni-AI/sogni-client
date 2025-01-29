@@ -359,6 +359,38 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return data.project;
   }
 
+  /**
+   * Cancel project by id. This will cancel all jobs in the project and mark project as canceled.
+   * Client may still receive job events for the canceled jobs as it takes some time, but they will
+   * be ignored
+   * @param projectId
+   **/
+  async cancel(projectId: string) {
+    await this.client.socket.send('jobError', {
+      jobID: projectId,
+      error: 'artistCanceled',
+      error_message: 'artistCanceled',
+      isFromWorker: false
+    });
+    const project = this.projects.find((p) => p.id === projectId);
+    if (!project) {
+      return;
+    }
+    // Remove project from the list to stop tracking it
+    this.projects = this.projects.filter((p) => p.id !== projectId);
+
+    // Cancel all jobs in the project
+    project.jobs.forEach((job) => {
+      if (!job.finished) {
+        job._update({ status: 'canceled' });
+      }
+    });
+    // If project is still in processing, mark it as canceled
+    if (!project.finished) {
+      project._update({ status: 'canceled' });
+    }
+  }
+
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
     const presignedUrl = await this.uploadUrl({
