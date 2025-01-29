@@ -30,9 +30,7 @@
     [
       "@semantic-release/github",
       {
-        "assets": [
-          "dist/**"
-        ]
+        "assets": []
       }
     ],
     [

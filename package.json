@@ -16,7 +16,6 @@
   "scripts": {
     "clean": "rimraf ./dist",
     "prepublishOnly": "npm run build",
-    "prebuild": "node -p \"'export const LIB_VERSION = ' + JSON.stringify(require('./package.json').version) + ';'\" > src/version.ts",
     "build": "npm run clean && tsc --project tsconfig.json",
     "watch": "npm run clean && tsc --watch --project tsconfig.json",
     "watch:esm": "npm run clean && tsc --watch --project tsconfig.esm.json",
