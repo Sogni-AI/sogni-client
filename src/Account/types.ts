@@ -4,10 +4,12 @@ export interface Nonce {
 
 export interface AccountCreateData {
   token: string;
+  refreshToken: string;
 }
 
 export interface LoginData {
   token: string;
+  refreshToken: string;
   username: string;
 }
 

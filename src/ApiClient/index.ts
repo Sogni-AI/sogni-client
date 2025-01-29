@@ -1,6 +1,5 @@
 import RestClient from '../lib/RestClient';
 import WebSocketClient from './WebSocketClient';
-import { jwtDecode } from 'jwt-decode';
 import TypedEventEmitter from '../lib/TypedEventEmitter';
 import { ApiClientEvents } from './events';
 import { ServerConnectData, ServerDisconnectData } from './WebSocketClient/events';
@@ -8,6 +7,7 @@ import { isNotRecoverable } from './WebSocketClient/ErrorCode';
 import { JSONValue } from '../types/json';
 import { SupernetType } from './WebSocketClient/types';
 import { Logger } from '../lib/DefaultLogger';
+import AuthManager, { Tokens } from '../lib/AuthManager';
 
 const WS_RECONNECT_ATTEMPTS = 5;
 
@@ -33,21 +33,12 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * @inline
- */
-interface AuthData {
-  token: string;
-  walletAddress: string;
-  expiresAt: Date;
-}
-
 class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   readonly appId: string;
   readonly logger: Logger;
   private _rest: RestClient;
   private _socket: WebSocketClient;
-  private _auth: AuthData | null = null;
+  private _auth: AuthManager;
   private _reconnectAttempts = WS_RECONNECT_ATTEMPTS;
 
   constructor(
@@ -60,18 +51,21 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     super();
     this.appId = appId;
     this.logger = logger;
-    this._rest = new RestClient(baseUrl, logger);
-    this._socket = new WebSocketClient(socketUrl, appId, networkType, logger);
+    this._auth = new AuthManager(baseUrl, logger);
+    this._rest = new RestClient(baseUrl, this._auth, logger);
+    this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+
+    this._auth.on('refreshFailed', this.handleRefreshFailed.bind(this));
     this._socket.on('connected', this.handleSocketConnect.bind(this));
     this._socket.on('disconnected', this.handleSocketDisconnect.bind(this));
   }
 
   get isAuthenticated(): boolean {
-    return !!this._auth && this._auth.expiresAt > new Date();
+    return this.auth.isAuthenticated;
   }
 
-  get auth(): AuthData | null {
-    return this._auth && this._auth.expiresAt > new Date() ? this._auth : null;
+  get auth(): AuthManager {
+    return this._auth;
   }
 
   get socket(): WebSocketClient {
@@ -82,20 +76,13 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     return this._rest;
   }
 
-  authenticate(token: string) {
-    const decoded = jwtDecode<{ addr: string; env: string; iat: number; exp: number }>(token);
-    this._auth = {
-      token,
-      walletAddress: decoded.addr,
-      expiresAt: new Date(decoded.exp * 1000)
-    };
-    this.rest.auth = { token };
-    this.socket.auth = { token };
-    this.socket.connect();
+  async authenticate(tokens: Tokens) {
+    await this.auth.setTokens(tokens);
+    await this.socket.connect();
   }
 
   removeAuth() {
-    this._auth = null;
+    this.auth.clear();
     this.socket.disconnect();
   }
 
@@ -112,12 +99,17 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
       return;
     }
     if (this._reconnectAttempts <= 0) {
+      this.removeAuth();
       this.emit('disconnected', data);
       this._reconnectAttempts = WS_RECONNECT_ATTEMPTS;
       return;
     }
     this._reconnectAttempts--;
     setTimeout(() => this.socket.connect(), 1000);
+  }
+
+  handleRefreshFailed() {
+    this.removeAuth();
   }
 }
 

@@ -1,9 +1,24 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
 
+export interface SupportedModel {
+  id: string;
+  name: string;
+  SID: number;
+}
+
 export interface AvailableModel {
   id: string;
   name: string;
   workerCount: number;
+}
+
+export interface SizePreset {
+  label: string;
+  id: string;
+  width: number;
+  height: number;
+  ratio: string;
+  aspect: string;
 }
 
 export interface AiModel {
@@ -108,6 +123,19 @@ export interface ProjectParams {
    * Time step spacing method
    */
   timeStepSpacing?: TimeStepSpacing;
+  /**
+   * Size preset ID to use. You can query available size presets
+   * from `client.projects.sizePresets(network, modelId)`
+   */
+  sizePreset?: 'custom' | string;
+  /**
+   * Output image width. Only used if `sizePreset` is "custom"
+   */
+  width?: number;
+  /**
+   * Output image height. Only used if `sizePreset` is "custom"
+   */
+  height?: number;
 }
 
 export type ImageUrlParams = {
@@ -147,4 +175,18 @@ export interface EstimateRequest {
    * How strong effect of starting image should be. From 0 to 1, default 0.5
    */
   startingImageStrength?: number;
+  /**
+   * Size preset ID
+   */
+  sizePreset?: string;
+  /**
+   * Size preset image width, if not using size preset
+   * @internal
+   */
+  width?: number;
+  /**
+   * Size preset image height, if not using size preset
+   * @internal
+   */
+  height?: number;
 }
