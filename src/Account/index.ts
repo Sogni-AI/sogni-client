@@ -132,17 +132,19 @@ class AccountApi extends ApiGroup {
    *
    * @example Store access token to local storage
    * ```typescript
-   * const { username, token } = await client.account.login('username', 'password');
+   * const { username, token, refreshToken } = await client.account.login('username', 'password');
    * localStorage.setItem('sogni-username', username);
    * localStorage.setItem('sogni-token', token);
+   * localStorage.setItem('sogni-refresh-token', refreshToken);
    * ```
    *
    * @example Restore session from local storage
    * ```typescript
    * const username = localStorage.getItem('sogni-username');
    * const token = localStorage.getItem('sogni-token');
-   * if (username && token) {
-   *  client.account.setToken(username, token);
+   * const refreshToken = localStorage.getItem('sogni-refresh-token');
+   * if (username && refreshToken) {
+   *  client.account.setToken(username, {token, refreshToken});
    *  console.log('Session restored');
    * }
    * ```

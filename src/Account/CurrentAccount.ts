@@ -6,13 +6,12 @@ import { SupernetType } from '../ApiClient/WebSocketClient/types';
  */
 export interface AccountData {
   /**
-   * Current network status:\
+   * Current network status:
    * - `connected` - connected to the socket
    * - `disconnected` - disconnected from the socket
    * - `connecting` - connecting to the socket
    * - `switching` - switching network type (fast/relaxed)
-   * @enum
-   * @values 'connected', 'disconnected', 'connecting', 'switching'
+   *
    * @default 'disconnected'
    */
   networkStatus: 'connected' | 'disconnected' | 'connecting' | 'switching';
