@@ -31,11 +31,7 @@
       "@semantic-release/github",
       {
         "assets": [
-          "package.json",
-          "CHANGELOG.md",
-          "README.md",
-          "dist/",
-          "src/"
+          "dist/**"
         ]
       }
     ],
