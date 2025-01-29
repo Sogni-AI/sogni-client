@@ -1,3 +1,19 @@
+# [2.0.0](https://github.com/Sogni-AI/sogni-client/compare/v1.1.0...v2.0.0) (2025-01-29)
+
+
+### Features
+
+* Refresh token, output image size, project cancellation ([0a308c7](https://github.com/Sogni-AI/sogni-client/commit/0a308c759293a9a7a7efc3e4075434a316424c00))
+
+
+### BREAKING CHANGES
+
+* Changed signature for `client.account.setToken`
+Before:
+`client.account.setToken(username, token);`
+Now:
+`client.account.setToken(username, {token, refreshToken});`
+
 # [1.1.0](https://github.com/Sogni-AI/sogni-client/compare/v1.0.2...v1.1.0) (2025-01-29)
 
 
