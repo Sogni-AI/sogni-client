@@ -191,10 +191,9 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       this._timeout = null;
     }
     if (keys.includes('status') || keys.includes('jobs')) {
-      const allJobsDone = this.jobs.every((job) =>
-        ['completed', 'failed', 'canceled'].includes(job.status)
-      );
-      if (this.data.status === 'completed' && allJobsDone) {
+      const allJobsStarted = this.jobs.length >= this.params.numberOfImages;
+      const allJobsDone = this.jobs.every((job) => job.finished);
+      if (this.data.status === 'completed' && allJobsStarted && allJobsDone) {
         return this.emit('completed', this.resultUrls);
       }
       if (this.data.status === 'failed') {
