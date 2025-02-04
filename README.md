@@ -191,6 +191,7 @@ Turbo and LCM models are designed for quality output in as little as 1 step. ([M
 - `timeStepSpacing` - time step spacing algorithm ([More info](https://docs.sogni.ai/learn/advanced/schedulers)). For available options see type definition.
 - `startingImage` - guide image in PNG format. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
 - `startingImageStrength` - strong effect of starting image should be. From 0 to 1, default 0.5. 
+- `controlNet` - Stable Diffusion ControlNet parameters. See **ControlNets** section below for more info.
 
 TypeScript type definitions for project parameters can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 
@@ -284,6 +285,81 @@ Sample response:
         "aspect": "2.4"
     }
 ]
+```
+### ControlNets
+**EXPERIMENTAL FEATURE:** This feature is still in development and may not work as expected. Use at your own risk.
+
+ControlNet is a neural network that controls image generation in Stable Diffusion by adding extra conditions. See more 
+info and usage samples in [ControlNets](https://docs.sogni.ai/learn/basics/controlnet) docs for Sogni Studio.
+
+To use ControlNet in your project you need to provide `controlNet` object with the following properties:
+- `name` - name of the ControlNet to use. Currently supported:
+  - `canny`
+  - `depth`
+  - `inpaint`
+  - `instrp2p`
+  - `lineart`
+  - `lineartanime`
+  - `mlsd`
+  - `normalbae`
+  - `openpose`
+  - `scribble`
+  - `segmentation`
+  - `shuffle`
+  - `softedge`
+  - `tile`
+- `image` - input image. Image size should match the size of the generated image. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
+- `strength` - ControlNet strength 0 to 1. 0 full control to prompt, 1 full control to ControlNet
+- `mode` - How control and prompt should be weighted. Can be:
+  - `balanced` - (default) balanced, no preference between prompt and control model
+  - `prompt_priority` - the prompt has more impact than the model
+  - `cn_priority` - the controlnet model has more impact than the prompt
+- `guidanceStart` - step when ControlNet first applied, 0 means first step, 1 means last step. Must be less than guidanceEnd
+- `guidanceEnd` - step when ControlNet last applied, 0 means first step, 1 means last step. Must be greater than guidanceStart
+
+Example:
+```javascript
+const cnImage = fs.readFileSync('./cn.jpg');
+const project = await client.projects.create({
+  network: 'fast',
+  modelId: 'coreml-cyberrealistic_v70_768',
+  numberOfImages: 1,
+  positivePrompt: 'make men look older',
+  steps: 20,
+  guidance: 7.5,
+  controlNet: {
+    name: 'instrp2p',
+    image: cnImage
+  }
+});
+```
+Full ControlNet type definition:
+```typescript
+export type ControlNetName =
+  | 'canny'
+  | 'depth'
+  | 'inpaint'
+  | 'instrp2p'
+  | 'lineart'
+  | 'lineartanime'
+  | 'mlsd'
+  | 'normalbae'
+  | 'openpose'
+  | 'scribble'
+  | 'segmentation'
+  | 'shuffle'
+  | 'softedge'
+  | 'tile';
+
+export type ControlNetMode = 'balanced' | 'prompt_priority' | 'cn_priority';
+export interface ControlNetParams {
+  name: ControlNetName;
+  image?: File | Buffer | Blob;
+  strength?: number;
+  mode?: ControlNetMode;
+  guidanceStart?: number;
+  guidanceEnd?: number;
+}
 ```
 
 

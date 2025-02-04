@@ -340,6 +340,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (data.startingImage) {
       await this.uploadGuideImage(project.id, data.startingImage);
     }
+    if (data.controlNet?.image) {
+      await this.uploadCNImage(project.id, data.controlNet.image);
+    }
     const request = createJobRequestMessage(project.id, data);
     await this.client.socket.send('jobRequest', request);
     this.projects.push(project);
@@ -407,6 +410,27 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         status: 'error',
         errorCode: 0,
         message: 'Failed to upload guide image'
+      });
+    }
+    return imageId;
+  }
+
+  private async uploadCNImage(projectId: string, file: File | Buffer | Blob) {
+    const imageId = getUUID();
+    const presignedUrl = await this.uploadUrl({
+      imageId: imageId,
+      jobId: projectId,
+      type: 'cnImage'
+    });
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: file
+    });
+    if (!res.ok) {
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: 'Failed to upload ControlNet image'
       });
     }
     return imageId;

@@ -1,4 +1,5 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
+import { ControlNetParams } from './ControlNetParams';
 
 export interface SupportedModel {
   id: string;
@@ -136,6 +137,10 @@ export interface ProjectParams {
    * Output image height. Only used if `sizePreset` is "custom"
    */
   height?: number;
+  /**
+   * ControlNet model parameters
+   */
+  controlNet?: ControlNetParams;
 }
 
 export type ImageUrlParams = {
