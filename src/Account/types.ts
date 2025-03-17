@@ -2,6 +2,15 @@ export interface Nonce {
   nonce: string;
 }
 
+export interface AccountCreateParams {
+  username: string;
+  email: string;
+  password: string;
+  subscribe: boolean;
+  turnstileToken: string;
+  referralCode?: string;
+}
+
 export interface AccountCreateData {
   token: string;
   refreshToken: string;

@@ -1,5 +1,6 @@
 import {
   AccountCreateData,
+  AccountCreateParams,
   BalanceData,
   LoginData,
   Nonce,
@@ -92,20 +93,15 @@ class AccountApi extends ApiGroup {
   /**
    * Create a new account with the given username, email, and password.
    * @internal
-   *
-   * @param username
-   * @param email
-   * @param password
-   * @param subscribe
-   * @param referralCode
    */
-  async create(
-    username: string,
-    email: string,
-    password: string,
-    subscribe = false,
-    referralCode?: string
-  ): Promise<AccountCreateData> {
+  async create({
+    username,
+    email,
+    password,
+    subscribe,
+    turnstileToken,
+    referralCode
+  }: AccountCreateParams): Promise<AccountCreateData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
     const payload = {
@@ -113,7 +109,8 @@ class AccountApi extends ApiGroup {
       username,
       email,
       subscribe: subscribe ? 1 : 0,
-      walletAddress: wallet.address
+      walletAddress: wallet.address,
+      turnstileToken
     };
     const signature = await this.eip712.signTypedData(wallet, 'signup', { ...payload, nonce });
     const res = await this.client.rest.post<ApiReponse<AccountCreateData>>('/v1/account/create', {
