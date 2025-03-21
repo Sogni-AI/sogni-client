@@ -153,6 +153,23 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
+   * Get the result URL of the job. This method will make a request to the API to get signed URL.
+   * IMPORTANT: URL expires after 30 minutes, so make sure to download the image as soon as possible.
+   */
+  async getResultUrl(): Promise<string> {
+    if (this.data.status === 'completed') {
+      throw new Error('Job is not completed yet');
+    }
+    const url = await this._api.downloadUrl({
+      jobId: this.projectId,
+      imageId: this.id,
+      type: 'complete'
+    });
+    this._update({ resultUrl: url });
+    return url;
+  }
+
+  /**
    * Whether the image is NSFW or not. Only makes sense if job is completed.
    * If NSFW filter is disabled, this property will always be false.
    * If NSFW filter is enabled and the image is NSFW, image will not be available for download.
