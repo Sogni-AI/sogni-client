@@ -157,7 +157,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
    * IMPORTANT: URL expires after 30 minutes, so make sure to download the image as soon as possible.
    */
   async getResultUrl(): Promise<string> {
-    if (this.data.status === 'completed') {
+    if (this.data.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
     const url = await this._api.downloadUrl({
