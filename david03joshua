@@ -1,0 +1,91 @@
+
+// Import the required libraries
+const { SogniClient } = require('@sogni-ai/sogni-client'); // For interacting with the Sogni API
+const fs = require('fs'); // For file operations
+const path = require('path'); // For handling file paths
+const readline = require('readline'); // For reading user input
+
+// Replace with your username and password
+const USERNAME = 'username';
+const PASSWORD = 'lol';
+
+// Configuration for SogniClient
+const config = {
+  appId: `app-id-123456` // Unique application ID
+};
+
+// Create a readline interface for user input
+const rl = readline.createInterface({
+  input: process.stdin, // Input from the terminal
+  output: process.stdout // Output to the terminal
+});
+
+// Function to get an instance of SogniClient
+async function getClient() {
+  const client = await SogniClient.createInstance(config); // Create an instance of SogniClient
+  await client.account.login(USERNAME, PASSWORD); // Log in to the Sogni account
+  await client.projects.waitForModels(); // Wait until models are available
+  return client; // Return the client instance
+}
+
+// Function to create a project based on user prompt
+async function createProject(client, prompt) {
+  // Find the most popular model based on the number of workers
+  const mostPopularModel = client.projects.availableModels.reduce((a, b) =>
+    a.workerCount > b.workerCount ? a : b
+  );
+
+  // Create a project with the specified parameters
+  const project = await client.projects.create({
+    modelId: mostPopularModel.id, // ID of the model used
+    steps: 20, // Number of steps for image generation
+    guidance: 7.5, // Guidance for image generation
+    positivePrompt: prompt, // Positive prompt from the user
+    negativePrompt: 'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark', // Negative prompt
+    stylePrompt: 'anime', // Image style
+    numberOfImages: 1 // Generate one image
+  });
+
+  // Show project progress
+  project.on('progress', (progress) => {
+    console.log('Project progress:', progress); // Print project progress
+  });
+
+  // When the project is completed
+  project.on('completed', async (images) => {
+    for (const image of images) {
+      //const imageUrl = image.resultUrl; // Get the image URL
+      const imagePath = path.join(process.cwd(), `image_${Date.now()}.png`); // Define path to save the image
+      const response = await fetch(image); // Fetch the image from the URL
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      fs.writeFileSync(imagePath, buffer); // Save the image to a file
+      console.log(`Image saved to: ${imagePath}`); // Print the location where the image is saved
+    }
+    await client.account.logout(); // Log out from the Sogni account
+    rl.close(); // Close the readline interface
+  });
+
+  // When the project fails
+  project.on('failed', async (errorData) => {
+    console.log('Project failed:', errorData); // Print error message
+    await client.account.logout(); // Log out from the Sogni account
+    rl.close(); // Close the readline interface
+  });
+}
+
+// Main function to run the program
+async function main() {
+  const client = await getClient(); // Get an instance of SogniClient
+
+  // Ask the user to enter a prompt
+  rl.question('Enter your prompt: ', (prompt) => {
+    createProject(client, prompt); // Call the function to create a project with the user prompt
+  });
+}
+
+// Run the main function and handle any errors
+main().catch((error) => {
+  console.error('Error initializing Sogni API client', error); // Print error message
+  process.exit(1); // Exit the process
+});
