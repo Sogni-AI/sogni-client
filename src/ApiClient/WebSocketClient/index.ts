@@ -28,8 +28,17 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     logger: Logger
   ) {
     const _baseUrl = new URL(baseUrl);
-    if (_baseUrl.protocol === 'wss:') {
-      _baseUrl.protocol = 'https:';
+    switch (_baseUrl.protocol) {
+      case 'http:':
+      case 'ws:':
+        _baseUrl.protocol = 'http:';
+        break;
+      case 'https:':
+      case 'wss:':
+        _baseUrl.protocol = 'https:';
+        break;
+      default:
+        _baseUrl.protocol = 'https:';
     }
     super(_baseUrl.toString(), auth, logger);
     this.appId = appId;
@@ -51,7 +60,8 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     }
     const userAgent = `Sogni/${PROTOCOL_VERSION} (sogni-client) ${LIB_VERSION}`;
     const url = new URL(this.baseUrl);
-    url.protocol = 'wss:';
+    const isNotSecure = url.protocol === 'http:' || url.protocol === 'ws:';
+    url.protocol = isNotSecure ? 'ws:' : 'wss:';
     url.searchParams.set('appId', this.appId);
     url.searchParams.set('clientName', userAgent);
     url.searchParams.set('clientType', 'artist');
