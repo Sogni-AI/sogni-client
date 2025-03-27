@@ -369,10 +369,12 @@ class AccountApi extends ApiGroup {
    * Claim rewards by reward IDs.
    * @internal
    * @param rewardIds
+   * @param turnstileToken - Turnstile token, required to claim rewards
    */
-  async claimRewards(rewardIds: string[]): Promise<void> {
+  async claimRewards(rewardIds: string[], turnstileToken?: string): Promise<void> {
     await this.client.rest.post('/v2/account/reward/claim', {
-      claims: rewardIds
+      claims: rewardIds,
+      turnstileToken
     });
   }
 
