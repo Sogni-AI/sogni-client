@@ -245,7 +245,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       this._syncToServer().catch((error) => {
         this._logger.error(error);
         this._failedSyncAttempts++;
-        if (this._failedSyncAttempts > MAX_FAILED_SYNC_ATTEMPTS) {
+        if (this._failedSyncAttempts >= MAX_FAILED_SYNC_ATTEMPTS) {
           this._logger.error(
             `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
           );
