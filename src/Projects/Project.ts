@@ -251,6 +251,18 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
           );
           clearInterval(this._timeout!);
           this._timeout = null;
+          this.jobs.forEach((job) => {
+            if (!job.finished) {
+              job._update({
+                status: 'failed',
+                error: { code: 0, message: 'Job timed out' }
+              });
+            }
+          });
+          this._update({
+            status: 'failed',
+            error: { code: 0, message: 'Project timed out. Please try again or contact support.' }
+          });
         }
       });
     }

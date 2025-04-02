@@ -26,7 +26,7 @@ import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import Cache from '../lib/Cache';
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
-const GARBAGE_COLLECT_TIMEOUT = 10000;
+const GARBAGE_COLLECT_TIMEOUT = 30000;
 const MODELS_REFRESH_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
 
 function mapErrorCodes(code: string): number {
@@ -241,7 +241,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this.client.logger.error(e);
       });
       setTimeout(() => {
-        this.projects = this.projects.filter((p) => p.id !== event.projectId);
+        this.projects = this.projects.filter((p) => !p.finished);
       }, GARBAGE_COLLECT_TIMEOUT);
     }
   }
