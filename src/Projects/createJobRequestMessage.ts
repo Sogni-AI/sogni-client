@@ -119,7 +119,8 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
     keyFrames: [
       {
         ...template.keyFrames[0],
-        scheduler: params.scheduler,
+        scheduler: params.scheduler || null,
+        timeStepSpacing: params.timeStepSpacing || null,
         steps: params.steps,
         guidanceScale: params.guidance,
         modelID: params.modelId,
