@@ -58,6 +58,14 @@ export type ServerDisconnectData = {
   reason: string;
 };
 
+export type ToastMessage = {
+  type: 'info' | 'success' | 'warning' | 'error';
+  message: string;
+  // Number of milliseconds to show the toast
+  autoClose: number;
+  stickyID: string;
+};
+
 export type SocketEventMap = {
   /**
    * @event WebSocketClient#balanceUpdate - Received balance update
@@ -95,4 +103,8 @@ export type SocketEventMap = {
    * @event WebSocketClient#disconnected - WebSocket connection was closed
    */
   disconnected: ServerDisconnectData;
+  /**
+   * @event WebSocketClient#toastMessage - Toast message received
+   */
+  toastMessage: ToastMessage;
 };
