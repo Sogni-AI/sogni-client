@@ -308,6 +308,7 @@ To use ControlNet in your project you need to provide `controlNet` object with t
   - `shuffle`
   - `softedge`
   - `tile`
+  - `instantid`
 - `image` - input image. Image size should match the size of the generated image. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
 - `strength` - ControlNet strength 0 to 1. 0 full control to prompt, 1 full control to ControlNet
 - `mode` - How control and prompt should be weighted. Can be:
@@ -349,7 +350,8 @@ export type ControlNetName =
   | 'segmentation'
   | 'shuffle'
   | 'softedge'
-  | 'tile';
+  | 'tile'
+  | 'instantid';
 
 export type ControlNetMode = 'balanced' | 'prompt_priority' | 'cn_priority';
 export interface ControlNetParams {

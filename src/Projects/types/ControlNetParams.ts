@@ -16,7 +16,8 @@ export type ControlNetName =
   | 'segmentation'
   | 'shuffle'
   | 'softedge'
-  | 'tile';
+  | 'tile'
+  | 'instantid';
 
 /**
  * Raw ControlNet parameters passed to the API
