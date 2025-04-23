@@ -281,6 +281,11 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return response.blob();
   }
 
+  /**
+   * Enhance the image using the Flux model. This method will create a new project with the
+   * enhancement parameters and use the result image of the current job as the starting image.
+   * @param strength
+   */
   async enhance(strength: EnhancementStrength) {
     if (this.status !== 'completed') {
       throw new Error('Job is not completed yet');
@@ -295,7 +300,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
       stylePrompt: this._project.params.stylePrompt,
       seed: this.seed || this._project.params.seed,
       startingImage: imageData,
-      startingImageStrength: 1 - getEnhacementStrength(strength)
+      startingImageStrength: 1 - getEnhacementStrength(strength),
+      sizePreset: this._project.params.sizePreset
     });
     this._enhancementProject = project;
     const images = await project.waitForCompletion();
