@@ -195,3 +195,5 @@ export interface EstimateRequest {
    */
   height?: number;
 }
+
+export type EnhancementStrength = 'light' | 'medium' | 'heavy';

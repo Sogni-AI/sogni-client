@@ -4,6 +4,23 @@ import { RawJob, RawProject } from './types/RawProject';
 import ProjectsApi from './index';
 import { Logger } from '../lib/DefaultLogger';
 import getUUID from '../lib/getUUID';
+import { EnhancementStrength } from './types';
+import Project from './Project';
+import { SupernetType } from '../ApiClient/WebSocketClient/types';
+import { getEnhacementStrength } from './utils';
+
+export const enhancementDefaults = {
+  network: 'fast' as SupernetType,
+  modelId: 'flux1-schnell-fp8',
+  positivePrompt: '',
+  negativePrompt: '',
+  stylePrompt: '',
+  startingImageStrength: 0.5,
+  steps: 5,
+  guidance: 1,
+  numberOfImages: 1,
+  numberOfPreviews: 0
+};
 
 export type JobStatus =
   | 'pending'
@@ -51,6 +68,7 @@ export interface JobEventMap extends EntityEvents {
 export interface JobOptions {
   api: ProjectsApi;
   logger: Logger;
+  project: Project;
 }
 
 class Job extends DataEntity<JobData, JobEventMap> {
@@ -72,12 +90,15 @@ class Job extends DataEntity<JobData, JobEventMap> {
 
   private readonly _api: ProjectsApi;
   private readonly _logger: Logger;
+  private readonly _project: Project;
+  private _enhancementProject: Project | null = null;
 
   constructor(data: JobData, options: JobOptions) {
     super(data);
 
     this._api = options.api;
     this._logger = options.logger;
+    this._project = options.project;
 
     this.on('updated', this.handleUpdated.bind(this));
   }
@@ -148,8 +169,20 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.data.resultUrl || this.data.previewUrl;
   }
 
+  get enhancedImageUrl() {
+    return this._enhancementProject?.jobs[0].resultUrl || null;
+  }
+
   get error() {
     return this.data.error;
+  }
+
+  get hasResultImage() {
+    return this.status === 'completed' && !this.isNSFW;
+  }
+
+  get enhancementStatus() {
+    return !!this._enhancementProject && this._enhancementProject.status;
   }
 
   /**
@@ -167,6 +200,16 @@ class Job extends DataEntity<JobData, JobEventMap> {
     });
     this._update({ resultUrl: url });
     return url;
+  }
+
+  async getEnhancedImageUrl(): Promise<string> {
+    if (!this._enhancementProject) {
+      throw new Error('Call enhance() method first');
+    }
+    if (this._enhancementProject.status !== 'completed') {
+      throw new Error('Enhancement job is not completed yet');
+    }
+    return this._enhancementProject.jobs[0].getResultUrl();
   }
 
   /**
@@ -224,6 +267,39 @@ class Job extends DataEntity<JobData, JobEventMap> {
     if (keys.includes('status') && this.status === 'failed') {
       this.emit('failed', this.data.error!);
     }
+  }
+
+  async getResultData() {
+    if (!this.hasResultImage) {
+      throw new Error('No result image available');
+    }
+    const url = await this.getResultUrl();
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    return response.blob();
+  }
+
+  async enhance(strength: EnhancementStrength) {
+    if (this.status !== 'completed') {
+      throw new Error('Job is not completed yet');
+    }
+    if (this.isNSFW) {
+      throw new Error('Job did not pass NSFW filter');
+    }
+    const imageData = await this.getResultData();
+    const project = await this._api.create({
+      ...enhancementDefaults,
+      positivePrompt: this._project.params.positivePrompt,
+      stylePrompt: this._project.params.stylePrompt,
+      seed: this.seed || this._project.params.seed,
+      startingImage: imageData,
+      startingImageStrength: 1 - getEnhacementStrength(strength)
+    });
+    this._enhancementProject = project;
+    const images = await project.waitForCompletion();
+    return images[0];
   }
 }
 

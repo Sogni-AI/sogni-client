@@ -209,7 +209,9 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    */
   _addJob(data: JobData | Job) {
     const job =
-      data instanceof Job ? data : new Job(data, { api: this._api, logger: this._logger });
+      data instanceof Job
+        ? data
+        : new Job(data, { api: this._api, logger: this._logger, project: this });
     this._jobs.push(job);
     job.on('updated', () => {
       this.lastUpdated = new Date();
@@ -298,7 +300,11 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     // If there are any jobs left in jobData, it means they are new jobs that are not in the project yet
     if (Object.keys(jobData).length) {
       for (const job of Object.values(jobData)) {
-        const jobInstance = Job.fromRaw(data, job, { api: this._api, logger: this._logger });
+        const jobInstance = Job.fromRaw(data, job, {
+          api: this._api,
+          logger: this._logger,
+          project: this
+        });
         this._addJob(jobInstance);
       }
     }

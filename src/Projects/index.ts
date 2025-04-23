@@ -1,6 +1,7 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup';
 import {
   AvailableModel,
+  EnhancementStrength,
   EstimateRequest,
   ImageUrlParams,
   ProjectParams,
@@ -24,6 +25,8 @@ import { RawProject } from './types/RawProject';
 import ErrorData from '../types/ErrorData';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import Cache from '../lib/Cache';
+import { enhancementDefaults } from './Job';
+import { getEnhacementStrength } from './utils';
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 const GARBAGE_COLLECT_TIMEOUT = 30000;
@@ -477,6 +480,18 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       token: r.quote.project.costInToken,
       usd: r.quote.project.costInUSD
     };
+  }
+
+  async estimateEnhancementCost(strength: EnhancementStrength) {
+    return this.estimateCost({
+      network: enhancementDefaults.network,
+      model: enhancementDefaults.modelId,
+      imageCount: 1,
+      stepCount: enhancementDefaults.steps,
+      previewCount: 0,
+      cnEnabled: false,
+      startingImageStrength: getEnhacementStrength(strength)
+    });
   }
 
   /**
