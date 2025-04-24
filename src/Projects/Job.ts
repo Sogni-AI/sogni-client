@@ -101,6 +101,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
     this._project = options.project;
 
     this.on('updated', this.handleUpdated.bind(this));
+    this.handleEnhancementUpdate = this.handleEnhancementUpdate.bind(this);
   }
 
   get id() {
@@ -169,10 +170,6 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.data.resultUrl || this.data.previewUrl;
   }
 
-  get enhancedImageUrl() {
-    return this._enhancementProject?.jobs[0].resultUrl || null;
-  }
-
   get error() {
     return this.data.error;
   }
@@ -181,8 +178,19 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.status === 'completed' && !this.isNSFW;
   }
 
-  get enhancementStatus() {
-    return !!this._enhancementProject && this._enhancementProject.status;
+  get enhancedImage() {
+    if (!this._enhancementProject) {
+      return null;
+    }
+    const project = this._enhancementProject;
+    const job = project.jobs[0];
+    return {
+      status: project.status,
+      progress: project.progress,
+      result: job?.resultUrl || null,
+      error: project.error,
+      getResultUrl: () => job?.getResultUrl()
+    };
   }
 
   /**
@@ -200,16 +208,6 @@ class Job extends DataEntity<JobData, JobEventMap> {
     });
     this._update({ resultUrl: url });
     return url;
-  }
-
-  async getEnhancedImageUrl(): Promise<string> {
-    if (!this._enhancementProject) {
-      throw new Error('Call enhance() method first');
-    }
-    if (this._enhancementProject.status !== 'completed') {
-      throw new Error('Enhancement job is not completed yet');
-    }
-    return this._enhancementProject.jobs[0].getResultUrl();
   }
 
   /**
@@ -269,6 +267,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
   }
 
+  private handleEnhancementUpdate() {
+    this.emit('updated', ['enhancedImage']);
+  }
+
   async getResultData() {
     if (!this.hasResultImage) {
       throw new Error('No result image available');
@@ -307,7 +309,11 @@ class Job extends DataEntity<JobData, JobEventMap> {
       startingImageStrength: 1 - getEnhacementStrength(strength),
       sizePreset: this._project.params.sizePreset
     });
+    if (this._enhancementProject) {
+      this._enhancementProject.off('updated', this.handleEnhancementUpdate);
+    }
     this._enhancementProject = project;
+    this._enhancementProject.on('updated', this.handleEnhancementUpdate);
     const images = await project.waitForCompletion();
     return images[0];
   }
