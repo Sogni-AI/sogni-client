@@ -284,9 +284,13 @@ class Job extends DataEntity<JobData, JobEventMap> {
   /**
    * Enhance the image using the Flux model. This method will create a new project with the
    * enhancement parameters and use the result image of the current job as the starting image.
-   * @param strength
+   * @param strength - how much freedom the model has to change the image.
+   * @param overrides - optional parameters to override original prompt or style.
    */
-  async enhance(strength: EnhancementStrength) {
+  async enhance(
+    strength: EnhancementStrength,
+    overrides: { positivePrompt?: string; stylePrompt?: string } = {}
+  ) {
     if (this.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
@@ -296,8 +300,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
     const imageData = await this.getResultData();
     const project = await this._api.create({
       ...enhancementDefaults,
-      positivePrompt: this._project.params.positivePrompt,
-      stylePrompt: this._project.params.stylePrompt,
+      positivePrompt: overrides.positivePrompt || this._project.params.positivePrompt,
+      stylePrompt: overrides.stylePrompt || this._project.params.stylePrompt,
       seed: this.seed || this._project.params.seed,
       startingImage: imageData,
       startingImageStrength: 1 - getEnhacementStrength(strength),
