@@ -299,6 +299,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
     if (this.isNSFW) {
       throw new Error('Job did not pass NSFW filter');
     }
+    if (this._enhancementProject) {
+      this._enhancementProject.off('updated', this.handleEnhancementUpdate);
+      this._enhancementProject = null;
+    }
     const imageData = await this.getResultData();
     const project = await this._api.create({
       ...enhancementDefaults,
@@ -309,9 +313,6 @@ class Job extends DataEntity<JobData, JobEventMap> {
       startingImageStrength: 1 - getEnhacementStrength(strength),
       sizePreset: this._project.params.sizePreset
     });
-    if (this._enhancementProject) {
-      this._enhancementProject.off('updated', this.handleEnhancementUpdate);
-    }
     this._enhancementProject = project;
     this._enhancementProject.on('updated', this.handleEnhancementUpdate);
     const images = await project.waitForCompletion();
