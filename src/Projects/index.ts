@@ -274,7 +274,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       case 'progress':
         job._update({
           status: 'processing',
-          step: event.step,
+          // Jus in case event comes out of order
+          step: Math.max(event.step, job.step),
           stepCount: event.stepCount
         });
         if (project.status !== 'processing') {
