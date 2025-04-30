@@ -70,7 +70,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.client.socket.on('jobProgress', this.handleJobProgress.bind(this));
     this.client.socket.on('jobError', this.handleJobError.bind(this));
     this.client.socket.on('jobResult', this.handleJobResult.bind(this));
-    // Listen to server disconnect event
+    // Listen to the server disconnect event
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     // Listen to project and job events and update project and job instances
     this.on('project', this.handleProjectEvent.bind(this));

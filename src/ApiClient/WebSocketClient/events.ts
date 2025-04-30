@@ -66,6 +66,12 @@ export type ToastMessage = {
   stickyID: string;
 };
 
+export type ArtistCancelConfirmation = {
+  didCancel: boolean;
+  error_message: string;
+  jobID: string;
+};
+
 export type SocketEventMap = {
   /**
    * @event WebSocketClient#balanceUpdate - Received balance update
@@ -107,4 +113,6 @@ export type SocketEventMap = {
    * @event WebSocketClient#toastMessage - Toast message received
    */
   toastMessage: ToastMessage;
+
+  artistCancelConfirmation: ArtistCancelConfirmation;
 };
