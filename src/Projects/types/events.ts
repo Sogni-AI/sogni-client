@@ -29,11 +29,17 @@ export interface JobEventBase {
 export interface JobInitiating extends JobEventBase {
   type: 'initiating';
   workerName: string;
+  positivePrompt?: string;
+  negativePrompt?: string;
+  jobIndex?: number;
 }
 
 export interface JobStarted extends JobEventBase {
   type: 'started';
   workerName: string;
+  positivePrompt?: string;
+  negativePrompt?: string;
+  jobIndex?: number;
 }
 
 export interface JobProgress extends JobEventBase {

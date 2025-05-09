@@ -38,6 +38,9 @@ export type JobStateData =
       jobID: string;
       imgID: string;
       workerName: string;
+      positivePrompt?: string;
+      negativePrompt?: string;
+      jobIndex?: number;
     }
   | {
       jobID: string;

@@ -118,7 +118,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           type: 'initiating',
           projectId: data.jobID,
           jobId: data.imgID,
-          workerName: data.workerName
+          workerName: data.workerName,
+          positivePrompt: data.positivePrompt,
+          negativePrompt: data.negativePrompt,
+          jobIndex: data.jobIndex
         });
         return;
       case 'jobStarted': {
@@ -126,7 +129,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           type: 'started',
           projectId: data.jobID,
           jobId: data.imgID,
-          workerName: data.workerName
+          workerName: data.workerName,
+          positivePrompt: data.positivePrompt,
+          negativePrompt: data.negativePrompt,
+          jobIndex: data.jobIndex
         });
         return;
       }
@@ -266,10 +272,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     switch (event.type) {
       case 'initiating':
-        job._update({ status: 'initiating', workerName: event.workerName });
+        job._update({ status: 'initiating', workerName: event.workerName, positivePrompt: event.positivePrompt, negativePrompt: event.negativePrompt, jobIndex: event.jobIndex });
         break;
       case 'started':
-        job._update({ status: 'processing', workerName: event.workerName });
+        job._update({ status: 'processing', workerName: event.workerName, positivePrompt: event.positivePrompt, negativePrompt: event.negativePrompt, jobIndex: event.jobIndex });
         break;
       case 'progress':
         job._update({

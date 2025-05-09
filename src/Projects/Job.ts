@@ -57,6 +57,9 @@ export interface JobData {
   previewUrl?: string;
   resultUrl?: string | null;
   error?: ErrorData;
+  positivePrompt?: string;
+  negativePrompt?: string;
+  jobIndex?: number;
 }
 
 export interface JobEventMap extends EntityEvents {
