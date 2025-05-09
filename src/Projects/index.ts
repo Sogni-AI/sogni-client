@@ -272,9 +272,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     switch (event.type) {
       case 'initiating':
+        // positivePrompt and negativePrompt are only received if a Dynamic Prompt was used for the project creating a different prompt for each job
         job._update({ status: 'initiating', workerName: event.workerName, positivePrompt: event.positivePrompt, negativePrompt: event.negativePrompt, jobIndex: event.jobIndex });
         break;
       case 'started':
+        // positivePrompt and negativePrompt are only received if a Dynamic Prompt was used for the project creating a different prompt for each job
         job._update({ status: 'processing', workerName: event.workerName, positivePrompt: event.positivePrompt, negativePrompt: event.negativePrompt, jobIndex: event.jobIndex });
         break;
       case 'progress':
