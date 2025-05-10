@@ -1,4 +1,5 @@
-const { SogniClient } = require('@sogni-ai/sogni-client');
+// be sure to run `npm install` then `npm run build` to use this example with your target version of the SDK
+const { SogniClient } = require('../dist');
 
 const USERNAME = 'your-username';
 const PASSWORD = 'your-password';
@@ -20,6 +21,7 @@ getClient()
     const mostPopularModel = client.projects.availableModels.reduce((a, b) =>
       a.workerCount > b.workerCount ? a : b
     );
+    console.log('Most popular model:', mostPopularModel);
     // Create a project using the most popular model
     const project = await client.projects.create({
       modelId: mostPopularModel.id,
@@ -29,35 +31,28 @@ getClient()
       negativePrompt:
         'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
       stylePrompt: 'anime',
-      numberOfImages: 4
-    });
-
-    // Fired when one of project jobs completed, you can get the resultUrl from the job
-    // without waiting for the project to complete
-    project.on('jobCompleted', (job) => {
-      console.log('Job completed:', job.id, job.resultUrl);
-    });
-
-    // Fired when one of project jobs failed
-    project.on('jobFailed', (job) => {
-      console.log('Job failed:', job.id, job.error);
+      numberOfPreviews: 2,
+      numberOfImages: 2,
     });
 
     // Receive project completion percentage in real-time
     project.on('progress', (progress) => {
-      // console.log('Project progress:', progress);
+      console.log('Project progress:', progress);
+    });
+  
+    // Listen for individual project events: queued, completed, failed, error
+    client.projects.on('project', (event) => {
+      console.log(`Project event: "${event.type}" payload:`, event);
+      if (['completed', 'failed', 'error'].includes(event.type)) {
+        console.log('Project completed or failed, exiting...');
+        // await client.account.logout();
+        process.exit(0);
+      }
     });
 
-    // Fired when the project is fully completed
-    project.on('completed', async (images) => {
-      console.log('Project completed');
-      await client.account.logout();
-    });
-
-    // Fired when the project failed
-    project.on('failed', async (errorData) => {
-      console.log('Project failed:', errorData);
-      await client.account.logout();
+    // Listen for individual job events: initiating, started, progress, preview, completed, failed, error
+    client.projects.on('job', (event) => {
+      console.log(`Job event: "${event.type}" payload:`, event);
     });
   })
   .catch((error) => {
