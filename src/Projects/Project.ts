@@ -50,6 +50,7 @@ export interface ProjectEventMap extends EntityEvents {
   progress: number;
   completed: string[];
   failed: ErrorData;
+  jobStarted: Job;
   jobCompleted: Job;
   jobFailed: Job;
 }
@@ -216,6 +217,13 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     job.on('updated', () => {
       this.lastUpdated = new Date();
       this.emit('updated', ['jobs']);
+    });
+    this.emit('jobStarted', job);
+    job.on('completed', () => {
+      this.emit('jobCompleted', job);
+    });
+    job.on('failed', () => {
+      this.emit('jobFailed', job);
     });
     return job;
   }
