@@ -18,6 +18,7 @@ import { AvailableModel, ProjectParams, Scheduler, TimeStepSpacing } from './Pro
 import StatsApi from './Stats';
 // Base Types
 import ErrorData from './types/ErrorData';
+import { TokenType } from './types/token';
 
 export type {
   AvailableModel,
@@ -29,7 +30,8 @@ export type {
   ProjectStatus,
   Scheduler,
   SupernetType,
-  TimeStepSpacing
+  TimeStepSpacing,
+  TokenType
 };
 
 export { ApiError, CurrentAccount, Job, Project };

@@ -1,1 +1,2 @@
-export const LIB_VERSION = '1.0.0-alpha.4';
+import { version } from '../package.json';
+export const LIB_VERSION = version;
