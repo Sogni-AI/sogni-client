@@ -9,7 +9,7 @@ import { LIB_VERSION } from '../../version';
 import { Logger } from '../../lib/DefaultLogger';
 import AuthManager from '../../lib/AuthManager';
 
-const PROTOCOL_VERSION = '0.4.3';
+const PROTOCOL_VERSION = '3.0.0';
 
 const PING_INTERVAL = 15000;
 
