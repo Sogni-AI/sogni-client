@@ -1,5 +1,5 @@
 import DataEntity from '../lib/DataEntity';
-import { BalanceData } from './types';
+import { Balances } from './types';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 /**
  * @inline
@@ -16,7 +16,7 @@ export interface AccountData {
    */
   networkStatus: 'connected' | 'disconnected' | 'connecting' | 'switching';
   network: SupernetType | null;
-  balance: BalanceData;
+  balance: Balances;
   walletAddress?: string;
   username?: string;
   token?: string;
@@ -28,10 +28,20 @@ function getDefaults(): AccountData {
     networkStatus: 'disconnected',
     network: null,
     balance: {
-      credit: '0',
-      debit: '0',
-      net: '0',
-      settled: '0'
+      sogni: {
+        credit: '0',
+        debit: '0',
+        net: '0',
+        settled: '0',
+        unclaimed: '0'
+      },
+      spark: {
+        credit: '0',
+        debit: '0',
+        net: '0',
+        settled: '0',
+        unclaimed: '0'
+      }
     },
     walletAddress: undefined,
     username: undefined,

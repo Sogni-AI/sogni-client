@@ -1,5 +1,6 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
 import { ControlNetParams } from './ControlNetParams';
+import { TokenType } from '../../types/token';
 
 export interface SupportedModel {
   id: string;
@@ -141,6 +142,11 @@ export interface ProjectParams {
    * ControlNet model parameters
    */
   controlNet?: ControlNetParams;
+  /**
+   * Select which tokens to use for the project.
+   * If not specified, the Sogni token will be used.
+   */
+  tokenType?: TokenType;
 }
 
 export type ImageUrlParams = {

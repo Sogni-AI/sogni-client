@@ -1,11 +1,5 @@
 import { SupernetType } from './types';
-
-export type BalanceData = {
-  settled: string;
-  credit: string;
-  debit: string;
-  net: string;
-};
+import { Balances } from '../../Account/types';
 
 export type JobErrorData = {
   jobID: string;
@@ -79,7 +73,7 @@ export type SocketEventMap = {
   /**
    * @event WebSocketClient#balanceUpdate - Received balance update
    */
-  balanceUpdate: BalanceData;
+  balanceUpdate: Balances;
   /**
    * @event WebSocketClient#changeNetwork - Default network changed
    */

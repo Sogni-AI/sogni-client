@@ -1,7 +1,7 @@
 import {
   AccountCreateData,
   AccountCreateParams,
-  BalanceData,
+  Balances,
   LoginData,
   Nonce,
   Reward,
@@ -39,7 +39,7 @@ class AccountApi extends ApiGroup {
     this.client.auth.on('updated', this.handleAuthUpdated.bind(this));
   }
 
-  private handleBalanceUpdate(data: BalanceData) {
+  private handleBalanceUpdate(data: Balances) {
     this.currentAccount._update({ balance: data });
   }
 
@@ -214,8 +214,8 @@ class AccountApi extends ApiGroup {
    * // { net: '100.000000', settled: '100.000000', credit: '0.000000', debit: '0.000000' }
    * ```
    */
-  async refreshBalance(): Promise<BalanceData> {
-    const res = await this.client.rest.get<ApiReponse<BalanceData>>('/v1/account/balance');
+  async refreshBalance(): Promise<Balances> {
+    const res = await this.client.rest.get<ApiReponse<Balances>>('/v3/account/balance');
     this.currentAccount._update({ balance: res.data });
     return res.data;
   }
@@ -236,12 +236,11 @@ class AccountApi extends ApiGroup {
    * @param walletAddress
    */
   async walletBalance(walletAddress: string) {
-    const res = await this.client.rest.get<ApiReponse<{ token: string; ether: string }>>(
-      '/v1/wallet/balance',
-      {
-        walletAddress
-      }
-    );
+    const res = await this.client.rest.get<
+      ApiReponse<{ sogni: string; spark: string; ether: string }>
+    >('/v2/wallet/balance', {
+      walletAddress
+    });
     return res.data;
   }
 
@@ -345,7 +344,7 @@ class AccountApi extends ApiGroup {
    */
   async rewards(): Promise<Reward[]> {
     const r =
-      await this.client.rest.get<ApiReponse<{ rewards: RewardRaw[] }>>('/v2/account/rewards');
+      await this.client.rest.get<ApiReponse<{ rewards: RewardRaw[] }>>('/v3/account/rewards');
 
     return r.data.rewards.map(
       (raw: RewardRaw): Reward => ({
@@ -354,6 +353,7 @@ class AccountApi extends ApiGroup {
         title: raw.title,
         description: raw.description,
         amount: raw.amount,
+        tokenType: raw.tokenType,
         claimed: !!raw.claimed,
         canClaim: !!raw.canClaim,
         lastClaim: new Date(raw.lastClaimTimestamp * 1000),

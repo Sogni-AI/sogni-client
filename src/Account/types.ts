@@ -1,3 +1,5 @@
+import { TokenType } from '../types/token';
+
 export interface Nonce {
   nonce: string;
 }
@@ -27,7 +29,10 @@ export interface BalanceData {
   credit: string;
   debit: string;
   net: string;
+  unclaimed: string;
 }
+
+export type Balances = Record<TokenType, BalanceData>;
 
 export interface TxHistoryParams {
   status: 'completed';
@@ -82,6 +87,7 @@ export interface RewardRaw {
   title: string;
   description: string;
   amount: string;
+  tokenType: TokenType;
   claimed: number;
   canClaim: number;
   lastClaimTimestamp: number;
@@ -94,6 +100,7 @@ export interface Reward {
   title: string;
   description: string;
   amount: string;
+  tokenType: TokenType;
   claimed: boolean;
   canClaim: boolean;
   lastClaim: Date;
