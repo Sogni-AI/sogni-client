@@ -63,6 +63,7 @@ export interface TxRaw {
   sourceSID: string;
   endTime: number;
   type: 'debit' | string;
+  tokenType: TokenType;
 }
 
 export interface TxHistoryEntry {
@@ -73,6 +74,7 @@ export interface TxHistoryEntry {
   status: 'completed';
   role: 'artist' | 'worker';
   amount: number;
+  tokenType: TokenType;
   description: string;
   source: 'project' | string;
   endTime: Date;

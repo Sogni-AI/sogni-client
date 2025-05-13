@@ -325,6 +325,7 @@ class AccountApi extends ApiGroup {
           status: tx.status,
           role: tx.role,
           amount: tx.amount,
+          tokenType: tx.tokenType,
           description: tx.description,
           source: tx.source,
           endTime: new Date(tx.endTime),
