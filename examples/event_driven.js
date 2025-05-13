@@ -32,14 +32,14 @@ getClient()
         'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
       stylePrompt: 'anime',
       numberOfPreviews: 2,
-      numberOfImages: 2,
+      numberOfImages: 2
     });
 
     // Receive project completion percentage in real-time
     project.on('progress', (progress) => {
       console.log('Project progress:', progress);
     });
-  
+
     // Listen for individual project events: queued, completed, failed, error
     client.projects.on('project', (event) => {
       console.log(`Project event: "${event.type}" payload:`, event);
