@@ -163,6 +163,10 @@ export interface EstimateRequest {
    */
   network: SupernetType;
   /**
+   * Token type
+   */
+  tokenType: TokenType;
+  /**
    * Model ID
    */
   model: string;

@@ -27,6 +27,7 @@ import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import Cache from '../lib/Cache';
 import { enhancementDefaults } from './Job';
 import { getEnhacementStrength } from './utils';
+import { TokenType } from '../types/token';
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 const GARBAGE_COLLECT_TIMEOUT = 30000;
@@ -465,6 +466,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   async estimateCost({
     network,
+    tokenType,
     model,
     imageCount,
     stepCount,
@@ -476,6 +478,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     sizePreset
   }: EstimateRequest) {
     const pathParams = [
+      tokenType,
       network,
       model,
       imageCount,
@@ -495,7 +498,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       pathParams.push(width, height);
     }
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v1/job/estimate/${pathParams.join('/')}`
+      `/api/v2/job/estimate/${pathParams.join('/')}`
     );
     return {
       token: r.quote.project.costInToken,
@@ -503,9 +506,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     };
   }
 
-  async estimateEnhancementCost(strength: EnhancementStrength) {
+  async estimateEnhancementCost(strength: EnhancementStrength, tokenType: TokenType = 'sogni') {
     return this.estimateCost({
       network: enhancementDefaults.network,
+      tokenType,
       model: enhancementDefaults.modelId,
       imageCount: 1,
       stepCount: enhancementDefaults.steps,
