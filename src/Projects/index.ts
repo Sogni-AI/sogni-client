@@ -478,7 +478,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     sizePreset
   }: EstimateRequest) {
     const pathParams = [
-      tokenType,
+      tokenType || 'sogni',
       network,
       model,
       imageCount,

@@ -165,7 +165,7 @@ export interface EstimateRequest {
   /**
    * Token type
    */
-  tokenType: TokenType;
+  tokenType?: TokenType;
   /**
    * Model ID
    */
