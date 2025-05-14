@@ -8,6 +8,7 @@ import { EnhancementStrength } from './types';
 import Project from './Project';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import { getEnhacementStrength } from './utils';
+import { TokenType } from '../types/token';
 
 export const enhancementDefaults = {
   network: 'fast' as SupernetType,
@@ -290,11 +291,11 @@ class Job extends DataEntity<JobData, JobEventMap> {
    * Enhance the image using the Flux model. This method will create a new project with the
    * enhancement parameters and use the result image of the current job as the starting image.
    * @param strength - how much freedom the model has to change the image.
-   * @param overrides - optional parameters to override original prompt or style.
+   * @param overrides - optional parameters to override original prompt, style or token type.
    */
   async enhance(
     strength: EnhancementStrength,
-    overrides: { positivePrompt?: string; stylePrompt?: string } = {}
+    overrides: { positivePrompt?: string; stylePrompt?: string; tokenType?: TokenType } = {}
   ) {
     if (this.status !== 'completed') {
       throw new Error('Job is not completed yet');
@@ -311,6 +312,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       ...enhancementDefaults,
       positivePrompt: overrides.positivePrompt || this._project.params.positivePrompt,
       stylePrompt: overrides.stylePrompt || this._project.params.stylePrompt,
+      tokenType: overrides.tokenType || this._project.params.tokenType,
       seed: this.seed || this._project.params.seed,
       startingImage: imageData,
       startingImageStrength: 1 - getEnhacementStrength(strength),
