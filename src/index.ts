@@ -1,4 +1,3 @@
-import { AbstractProvider, JsonRpcProvider, getDefaultProvider } from 'ethers';
 // Account API
 import AccountApi from './Account';
 import CurrentAccount from './Account/CurrentAccount';
@@ -64,6 +63,7 @@ export interface SogniClientConfig {
   logLevel?: LogLevel;
   /**
    * If provided, the client will connect to this JSON-RPC endpoint to interact with the blockchain
+   * @deprecated This option is deprecated and is not used internally. Left for backward compatibility
    */
   jsonRpcUrl?: string;
   /**
@@ -103,18 +103,11 @@ export class SogniClient {
     const isTestnet = config.testnet !== undefined ? config.testnet : true;
 
     const client = new ApiClient(restEndpoint, socketEndpoint, config.appId, network, logger);
-    let provider: AbstractProvider;
-    if ('jsonRpcUrl' in config) {
-      provider = new JsonRpcProvider(config.jsonRpcUrl);
-    } else {
-      provider = getDefaultProvider(isTestnet ? 84532 : 8453);
-    }
-    const chainId = await provider.getNetwork().then((network) => network.chainId);
     const eip712 = new EIP712Helper({
       name: 'Sogni-testnet',
       version: '1',
-      chainId: chainId.toString()
+      chainId: isTestnet ? '84532' : '8453'
     });
-    return new SogniClient({ client, provider, eip712 });
+    return new SogniClient({ client, eip712 });
   }
 }

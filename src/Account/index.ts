@@ -86,7 +86,7 @@ class AccountApi extends ApiGroup {
     const pwd = toUtf8Bytes(username.toLowerCase() + password);
     const salt = toUtf8Bytes('sogni-salt-value');
     const pkey = pbkdf2(pwd, salt, 10000, 32, 'sha256');
-    return new Wallet(pkey, this.provider);
+    return new Wallet(pkey);
   }
 
   /**
