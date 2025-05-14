@@ -67,7 +67,7 @@ export interface SogniClientConfig {
    */
   jsonRpcUrl?: string;
   /**
-   * If true, the client will connect to the testnet. Ignored if jsonRpcUrl is provided
+   * If true, the client will connect to the testnet. While Sogni is on Testnet, do not set to `false`
    */
   testnet?: boolean;
 }
