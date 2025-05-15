@@ -362,10 +362,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   async create(data: ProjectParams): Promise<Project> {
     const project = new Project({ ...data }, { api: this, logger: this.client.logger });
-    if (data.startingImage) {
+    if (data.startingImage && data.startingImage !== true) {
       await this.uploadGuideImage(project.id, data.startingImage);
     }
-    if (data.controlNet?.image) {
+    if (data.controlNet?.image && data.controlNet.image !== true) {
       await this.uploadCNImage(project.id, data.controlNet.image);
     }
     const request = createJobRequestMessage(project.id, data);

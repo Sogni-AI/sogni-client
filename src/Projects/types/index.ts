@@ -103,12 +103,14 @@ export interface ProjectParams {
    */
   numberOfImages: number;
   /**
-   * Generate images based on starting image.
+   * Generate images based on the starting image.
+   * Supported types:
    * `File` - file object from input[type=file]
-   * `Buffer` - buffer object with image data
+   * `Buffer` - Node.js buffer object with image data
    * `Blob` - blob object with image data
+   * `true` - indicates that the image is already uploaded to the server
    */
-  startingImage?: File | Buffer | Blob;
+  startingImage?: File | Buffer | Blob | boolean;
   /**
    * How strong effect of starting image should be. From 0 to 1, default 0.5
    */

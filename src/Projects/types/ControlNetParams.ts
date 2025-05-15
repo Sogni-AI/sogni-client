@@ -54,8 +54,13 @@ export interface ControlNetParams {
   name: ControlNetName;
   /**
    * ControlNet input image
+   * Supported types:
+   * `File` - file object from input[type=file]
+   * `Buffer` - Node.js buffer object with image data
+   * `Blob` - blob object with image data
+   * `true` - indicates that the image is already uploaded to the server
    */
-  image?: File | Buffer | Blob;
+  image?: File | Buffer | Blob | boolean;
   /**
    * ControlNet strength 0 to 1. 0 full control to prompt, 1 full control to ControlNet
    */
