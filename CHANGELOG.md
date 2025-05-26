@@ -1,3 +1,10 @@
+# [3.0.0-alpha.29](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.28...v3.0.0-alpha.29) (2025-05-26)
+
+
+### Features
+
+* Support rewards v4 API to query rewards scoped to ([ff0a713](https://github.com/Sogni-AI/sogni-client/commit/ff0a71387f602faba7da9a2e494f886a98881d95))
+
 # [3.0.0-alpha.28](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.27...v3.0.0-alpha.28) (2025-05-15)
 
 
