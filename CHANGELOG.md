@@ -1,3 +1,15 @@
+# [3.0.0-alpha.30](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.29...v3.0.0-alpha.30) (2025-05-26)
+
+
+### Features
+
+* Support passing `provider` parameter when claiming reward ([71a045e](https://github.com/Sogni-AI/sogni-client/commit/71a045e60dbda63efe9f513bc9ffe8328f5e3dd2))
+
+
+### BREAKING CHANGES
+
+* `client.account.claimRewards` signature changed
+
 # [3.0.0-alpha.29](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.28...v3.0.0-alpha.29) (2025-05-26)
 
 
