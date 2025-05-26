@@ -96,6 +96,10 @@ export interface RewardRaw {
   claimResetFrequencySec: number;
 }
 
+export interface RewardsQuery {
+  provider?: string;
+}
+
 export interface Reward {
   id: string;
   type: RewardType;

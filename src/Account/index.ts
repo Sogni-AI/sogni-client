@@ -6,6 +6,7 @@ import {
   Nonce,
   Reward,
   RewardRaw,
+  RewardsQuery,
   TxHistoryData,
   TxHistoryEntry,
   TxHistoryParams
@@ -343,9 +344,11 @@ class AccountApi extends ApiGroup {
    * Get the rewards of the current account.
    * @internal
    */
-  async rewards(): Promise<Reward[]> {
-    const r =
-      await this.client.rest.get<ApiReponse<{ rewards: RewardRaw[] }>>('/v3/account/rewards');
+  async rewards(query: RewardsQuery = {}): Promise<Reward[]> {
+    const r = await this.client.rest.get<ApiReponse<{ rewards: RewardRaw[] }>>(
+      '/v4/account/rewards',
+      query
+    );
 
     return r.data.rewards.map(
       (raw: RewardRaw): Reward => ({
