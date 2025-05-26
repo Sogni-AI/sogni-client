@@ -362,6 +362,7 @@ class AccountApi extends ApiGroup {
         claimed: !!raw.claimed,
         canClaim: !!raw.canClaim,
         lastClaim: new Date(raw.lastClaimTimestamp * 1000),
+        provider: query.provider || 'base',
         nextClaim:
           raw.lastClaimTimestamp && raw.claimResetFrequencySec > -1
             ? new Date(raw.lastClaimTimestamp * 1000 + raw.claimResetFrequencySec * 1000)
@@ -383,15 +384,13 @@ class AccountApi extends ApiGroup {
     { turnstileToken, provider }: ClaimOptions = {}
   ): Promise<void> {
     const payload: Record<string, any> = {
-      claims: rewardIds
+      claims: rewardIds,
+      provider: provider || 'base'
     };
     if (turnstileToken) {
       payload.turnstileToken = turnstileToken;
     }
-    if (provider) {
-      payload.provider = provider;
-    }
-    await this.client.rest.post('/v2/account/reward/claim', payload);
+    await this.client.rest.post('/v3/account/reward/claim', payload);
   }
 
   /**

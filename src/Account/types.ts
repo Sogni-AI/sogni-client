@@ -111,6 +111,7 @@ export interface Reward {
   canClaim: boolean;
   lastClaim: Date;
   nextClaim: Date | null;
+  provider?: string;
 }
 
 export interface ClaimOptions {
