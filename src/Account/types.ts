@@ -112,3 +112,8 @@ export interface Reward {
   lastClaim: Date;
   nextClaim: Date | null;
 }
+
+export interface ClaimOptions {
+  turnstileToken?: string;
+  provider?: string;
+}

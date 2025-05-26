@@ -2,6 +2,7 @@ import {
   AccountCreateData,
   AccountCreateParams,
   Balances,
+  ClaimOptions,
   LoginData,
   Nonce,
   Reward,
@@ -373,13 +374,24 @@ class AccountApi extends ApiGroup {
    * Claim rewards by reward IDs.
    * @internal
    * @param rewardIds
-   * @param turnstileToken - Turnstile token, required to claim rewards
+   * @param options - Options for claiming rewards
+   * @param options.turnstileToken - Turnstile token for anti-bot protection
+   * @param options.provider - Provider name for the rewards
    */
-  async claimRewards(rewardIds: string[], turnstileToken?: string): Promise<void> {
-    await this.client.rest.post('/v2/account/reward/claim', {
-      claims: rewardIds,
-      turnstileToken
-    });
+  async claimRewards(
+    rewardIds: string[],
+    { turnstileToken, provider }: ClaimOptions = {}
+  ): Promise<void> {
+    const payload: Record<string, any> = {
+      claims: rewardIds
+    };
+    if (turnstileToken) {
+      payload.turnstileToken = turnstileToken;
+    }
+    if (provider) {
+      payload.provider = provider;
+    }
+    await this.client.rest.post('/v2/account/reward/claim', payload);
   }
 
   /**
