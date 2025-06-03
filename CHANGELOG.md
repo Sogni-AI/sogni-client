@@ -1,3 +1,10 @@
+# [3.0.0-alpha.32](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.31...v3.0.0-alpha.32) (2025-06-03)
+
+
+### Features
+
+* Add `provider` parameter to `client.account.transactionHistory` ([9de208a](https://github.com/Sogni-AI/sogni-client/commit/9de208aa478d745a0706d8960e033e4cc9e25d35))
+
 # [3.0.0-alpha.31](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.30...v3.0.0-alpha.31) (2025-05-26)
 
 
