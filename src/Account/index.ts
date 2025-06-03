@@ -311,11 +311,21 @@ class AccountApi extends ApiGroup {
   async transactionHistory(
     params: TxHistoryParams
   ): Promise<{ entries: TxHistoryEntry[]; next: TxHistoryParams }> {
-    const res = await this.client.rest.get<ApiReponse<TxHistoryData>>('/v1/transactions/list', {
+    const query: Record<string, string> = {
       status: params.status,
       address: params.address,
       limit: params.limit.toString()
-    });
+    };
+    if (params.offset) {
+      query.offset = params.offset.toString();
+    }
+    if (params.provider) {
+      query.provider = params.provider;
+    }
+    const res = await this.client.rest.get<ApiReponse<TxHistoryData>>(
+      '/v1/transactions/list',
+      query
+    );
 
     return {
       entries: res.data.transactions.map(

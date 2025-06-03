@@ -38,6 +38,7 @@ export interface TxHistoryParams {
   status: 'completed';
   address: string;
   limit: number;
+  provider?: string;
   offset?: number;
 }
 
