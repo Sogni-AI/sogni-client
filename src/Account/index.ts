@@ -3,6 +3,7 @@ import {
   AccountCreateParams,
   Balances,
   ClaimOptions,
+  FullBalances,
   LoginData,
   Nonce,
   Reward,
@@ -217,7 +218,7 @@ class AccountApi extends ApiGroup {
    * ```
    */
   async refreshBalance(): Promise<Balances> {
-    const res = await this.client.rest.get<ApiReponse<Balances>>('/v3/account/balance');
+    const res = await this.client.rest.get<ApiReponse<FullBalances>>('/v3/account/balance');
     this.currentAccount._update({ balance: res.data });
     return res.data;
   }

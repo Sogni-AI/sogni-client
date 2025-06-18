@@ -32,15 +32,13 @@ function getDefaults(): AccountData {
         credit: '0',
         debit: '0',
         net: '0',
-        settled: '0',
-        unclaimed: '0'
+        settled: '0'
       },
       spark: {
         credit: '0',
         debit: '0',
         net: '0',
-        settled: '0',
-        unclaimed: '0'
+        settled: '0'
       }
     },
     walletAddress: undefined,

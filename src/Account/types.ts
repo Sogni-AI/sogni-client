@@ -29,10 +29,16 @@ export interface BalanceData {
   credit: string;
   debit: string;
   net: string;
-  unclaimed: string;
+  /**
+   * Unclaimed worker earnings amount
+   * @experimental Socket messages do not provide this field yet, so it may not be available in all cases.
+   */
+  unclaimed?: string;
 }
 
 export type Balances = Record<TokenType, BalanceData>;
+
+export type FullBalances = Record<TokenType, Required<BalanceData>>;
 
 export interface TxHistoryParams {
   status: 'completed';
