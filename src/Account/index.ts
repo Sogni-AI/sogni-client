@@ -208,18 +208,33 @@ class AccountApi extends ApiGroup {
    * Refresh the balance of the current account.
    *
    * Usually, you don't need to call this method manually. Balance is updated automatically
-   * through WebSocket events. But you can call this method to force a balance refresh.
+   * through WebSocket events. But you can call this method to force a balance refresh. Note that
+   * will also trigger updated event on the current account.
    *
    * @example Refresh user account balance
    * ```typescript
    * const balance = await client.account.refreshBalance();
    * console.log(balance);
-   * // { net: '100.000000', settled: '100.000000', credit: '0.000000', debit: '0.000000' }
    * ```
    */
   async refreshBalance(): Promise<Balances> {
+    const balance = await this.accountBalance();
+    this.currentAccount._update({ balance: balance });
+    return balance;
+  }
+
+  /**
+   * Get the account balance of the current account.
+   * This method returns the account balance of the current user, including settled, credit, debit, and unclaimed earnings amounts.
+   *
+   * @example Get the account balance of the current user
+   * ```typescript
+   * const balance = await client.account.accountBalance();
+   * console.log(balance);
+   * ```
+   */
+  async accountBalance(): Promise<FullBalances> {
     const res = await this.client.rest.get<ApiReponse<FullBalances>>('/v3/account/balance');
-    this.currentAccount._update({ balance: res.data });
     return res.data;
   }
 
