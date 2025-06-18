@@ -1,3 +1,10 @@
+# [3.0.0-alpha.34](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.33...v3.0.0-alpha.34) (2025-06-18)
+
+
+### Features
+
+* Decouple fetching balance from the refresh method ([a7d4f62](https://github.com/Sogni-AI/sogni-client/commit/a7d4f625fc29831fdd72fda65af622d303ef1d32))
+
 # [3.0.0-alpha.33](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.32...v3.0.0-alpha.33) (2025-06-18)
 
 
