@@ -65,7 +65,12 @@ class AccountApi extends ApiGroup {
     }
   }
 
-  private async getNonce(walletAddress: string): Promise<string> {
+  /**
+   * Get the nonce for the given wallet address.
+   * @param walletAddress
+   * @internal
+   */
+  async getNonce(walletAddress: string): Promise<string> {
     const res = await this.client.rest.post<ApiReponse<Nonce>>('/v1/account/nonce', {
       walletAddress
     });
