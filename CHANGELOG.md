@@ -1,3 +1,10 @@
+# [3.0.0-alpha.35](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.34...v3.0.0-alpha.35) (2025-06-25)
+
+
+### Features
+
+* Expose getNonce method as public ([694c041](https://github.com/Sogni-AI/sogni-client/commit/694c041431b99c4bae2d5dc8f22d327fed45771d))
+
 # [3.0.0-alpha.34](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.33...v3.0.0-alpha.34) (2025-06-18)
 
 
