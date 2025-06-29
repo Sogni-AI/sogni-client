@@ -1,3 +1,10 @@
+# [3.0.0-alpha.36](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.35...v3.0.0-alpha.36) (2025-06-29)
+
+
+### Features
+
+* Expose option to disable socket connection (Experimental) ([048adcf](https://github.com/Sogni-AI/sogni-client/commit/048adcfad99acd8ffb8197ad55f7d54679aacde8))
+
 # [3.0.0-alpha.35](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.34...v3.0.0-alpha.35) (2025-06-25)
 
 
