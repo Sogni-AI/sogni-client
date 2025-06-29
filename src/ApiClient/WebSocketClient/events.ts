@@ -1,6 +1,37 @@
 import { SupernetType } from './types';
 import { Balances } from '../../Account/types';
 
+export interface AuthenticatedData {
+  id: string;
+  clientType: 'artist' | 'worker';
+  username: string;
+  address: string;
+  SID: number;
+  clientSID: number;
+  addressSID: number;
+  balanceVersion: 2;
+  tokens: {
+    sogni: {
+      settled: string;
+      credit: string;
+      debit: string;
+      net: string;
+    };
+    spark: {
+      settled: string;
+      credit: string;
+      debit: string;
+      net: string;
+    };
+  };
+  activeProjects: [];
+  unclaimedCompletedProjects: [];
+  isMainnet: boolean;
+  accountWasMigrated: boolean;
+  hasUnclaimedAirdrop: boolean;
+  firstLoginAfterMigration: boolean;
+}
+
 export type JobErrorData = {
   jobID: string;
   imgID?: string;
@@ -70,6 +101,10 @@ export type ArtistCancelConfirmation = {
 };
 
 export type SocketEventMap = {
+  /**
+   * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
+   */
+  authenticated: AuthenticatedData;
   /**
    * @event WebSocketClient#balanceUpdate - Received balance update
    */
