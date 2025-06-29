@@ -1,3 +1,10 @@
+# [3.0.0-alpha.37](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.36...v3.0.0-alpha.37) (2025-06-29)
+
+
+### Features
+
+* Add support for `authenticated` socket event ([bc3d345](https://github.com/Sogni-AI/sogni-client/commit/bc3d3451e7640eb15f1368144bbc112298f640fa))
+
 # [3.0.0-alpha.36](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.35...v3.0.0-alpha.36) (2025-06-29)
 
 
