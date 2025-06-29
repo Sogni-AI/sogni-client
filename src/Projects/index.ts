@@ -17,7 +17,7 @@ import {
 } from '../ApiClient/WebSocketClient/events';
 import Project from './Project';
 import createJobRequestMessage from './createJobRequestMessage';
-import { ApiError, ApiReponse } from '../ApiClient';
+import { ApiError, ApiResponse } from '../ApiClient';
 import { EstimationResponse } from './types/EstimationResponse';
 import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
 import getUUID from '../lib/getUUID';
@@ -381,7 +381,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param projectId
    */
   async get(projectId: string) {
-    const { data } = await this.client.rest.get<ApiReponse<{ project: RawProject }>>(
+    const { data } = await this.client.rest.get<ApiResponse<{ project: RawProject }>>(
       `/v1/projects/${projectId}`
     );
     return data.project;
@@ -525,7 +525,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param params
    */
   async uploadUrl(params: ImageUrlParams) {
-    const r = await this.client.rest.get<ApiReponse<{ uploadUrl: string }>>(
+    const r = await this.client.rest.get<ApiResponse<{ uploadUrl: string }>>(
       `/v1/image/uploadUrl`,
       params
     );
@@ -538,7 +538,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param params
    */
   async downloadUrl(params: ImageUrlParams) {
-    const r = await this.client.rest.get<ApiReponse<{ downloadUrl: string }>>(
+    const r = await this.client.rest.get<ApiResponse<{ downloadUrl: string }>>(
       `/v1/image/downloadUrl`,
       params
     );

@@ -51,6 +51,13 @@ export interface SogniClientConfig {
    */
   socketEndpoint?: string;
   /**
+   * Disable WebSocket connection. Useful for testing or when WebSocket is not needed.
+   * Note that many may not work without WebSocket connection.
+   * @experimental
+   * @internal
+   */
+  disableSocket?: boolean;
+  /**
    * Which network to use after logging in. Can be 'fast' or 'relaxed'
    */
   network: SupernetType;
@@ -99,7 +106,14 @@ export class SogniClient {
     const logger = config.logger || new DefaultLogger(config.logLevel || 'warn');
     const isTestnet = config.testnet !== undefined ? config.testnet : true;
 
-    const client = new ApiClient(restEndpoint, socketEndpoint, config.appId, network, logger);
+    const client = new ApiClient(
+      restEndpoint,
+      socketEndpoint,
+      config.appId,
+      network,
+      logger,
+      config.disableSocket
+    );
     const eip712 = new EIP712Helper({
       name: 'Sogni-testnet',
       version: '1',

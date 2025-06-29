@@ -15,7 +15,7 @@ import {
 } from './types';
 import ApiGroup, { ApiConfig } from '../ApiGroup';
 import { Wallet, pbkdf2, toUtf8Bytes, Signature, parseEther } from 'ethers';
-import { ApiError, ApiReponse } from '../ApiClient';
+import { ApiError, ApiResponse } from '../ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import { AuthUpdatedEvent, Tokens } from '../lib/AuthManager';
@@ -71,7 +71,7 @@ class AccountApi extends ApiGroup {
    * @internal
    */
   async getNonce(walletAddress: string): Promise<string> {
-    const res = await this.client.rest.post<ApiReponse<Nonce>>('/v1/account/nonce', {
+    const res = await this.client.rest.post<ApiResponse<Nonce>>('/v1/account/nonce', {
       walletAddress
     });
     return res.data.nonce;
@@ -121,7 +121,7 @@ class AccountApi extends ApiGroup {
       turnstileToken
     };
     const signature = await this.eip712.signTypedData(wallet, 'signup', { ...payload, nonce });
-    const res = await this.client.rest.post<ApiReponse<AccountCreateData>>('/v1/account/create', {
+    const res = await this.client.rest.post<ApiResponse<AccountCreateData>>('/v1/account/create', {
       ...payload,
       referralCode,
       signature
@@ -184,7 +184,7 @@ class AccountApi extends ApiGroup {
       walletAddress: wallet.address,
       nonce
     });
-    const res = await this.client.rest.post<ApiReponse<LoginData>>('/v1/account/login', {
+    const res = await this.client.rest.post<ApiResponse<LoginData>>('/v1/account/login', {
       walletAddress: wallet.address,
       signature
     });
@@ -239,7 +239,7 @@ class AccountApi extends ApiGroup {
    * ```
    */
   async accountBalance(): Promise<FullBalances> {
-    const res = await this.client.rest.get<ApiReponse<FullBalances>>('/v3/account/balance');
+    const res = await this.client.rest.get<ApiResponse<FullBalances>>('/v3/account/balance');
     return res.data;
   }
 
@@ -260,7 +260,7 @@ class AccountApi extends ApiGroup {
    */
   async walletBalance(walletAddress: string) {
     const res = await this.client.rest.get<
-      ApiReponse<{ sogni: string; spark: string; ether: string }>
+      ApiResponse<{ sogni: string; spark: string; ether: string }>
     >('/v2/wallet/balance', {
       walletAddress
     });
@@ -274,7 +274,7 @@ class AccountApi extends ApiGroup {
    */
   async validateUsername(username: string) {
     try {
-      return await this.client.rest.post<ApiReponse<undefined>>('/v1/account/username/validate', {
+      return await this.client.rest.post<ApiResponse<undefined>>('/v1/account/username/validate', {
         username
       });
     } catch (e) {
@@ -343,7 +343,7 @@ class AccountApi extends ApiGroup {
     if (params.provider) {
       query.provider = params.provider;
     }
-    const res = await this.client.rest.get<ApiReponse<TxHistoryData>>(
+    const res = await this.client.rest.get<ApiResponse<TxHistoryData>>(
       '/v1/transactions/list',
       query
     );
@@ -377,7 +377,7 @@ class AccountApi extends ApiGroup {
    * @internal
    */
   async rewards(query: RewardsQuery = {}): Promise<Reward[]> {
-    const r = await this.client.rest.get<ApiReponse<{ rewards: RewardRaw[] }>>(
+    const r = await this.client.rest.get<ApiResponse<{ rewards: RewardRaw[] }>>(
       '/v4/account/rewards',
       query
     );
@@ -467,7 +467,7 @@ class AccountApi extends ApiGroup {
       walletAddress,
       amount: parseEther(amount.toString()).toString()
     };
-    const { data } = await this.client.rest.post<ApiReponse<any>>(
+    const { data } = await this.client.rest.post<ApiResponse<any>>(
       '/v1/account/token/deposit/permit',
       payload
     );
