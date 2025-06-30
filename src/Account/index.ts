@@ -14,12 +14,18 @@ import {
   TxHistoryParams
 } from './types';
 import ApiGroup, { ApiConfig } from '../ApiGroup';
-import { Wallet, pbkdf2, toUtf8Bytes, Signature, parseEther } from 'ethers';
+import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
 import { ApiError, ApiResponse } from '../ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import { AuthUpdatedEvent, Tokens } from '../lib/AuthManager';
+import { delay } from '../lib/utils';
 
+const MAX_DEPOSIT_ATTEMPTS = 4;
+enum ErrorCode {
+  INSUFFICIENT_BALANCE = 123,
+  INSUFFICIENT_ALLOWANCE = 149
+}
 /**
  * Account API methods that let you interact with the user's account.
  * Can be accessed via `client.account`. Look for more samples below.
@@ -442,6 +448,13 @@ class AccountApi extends ApiGroup {
       walletAddress: walletAddress,
       amount: parseEther(amount.toString()).toString()
     };
+    if (walletAddress !== this.currentAccount.walletAddress) {
+      throw new ApiError(400, {
+        status: 'error',
+        message: 'Incorrect password',
+        errorCode: 0
+      });
+    }
     const signature = await this.eip712.signTypedData(wallet, 'withdraw', { ...payload, nonce });
     await this.client.rest.post('/v1/account/token/withdraw', {
       ...payload,
@@ -460,34 +473,79 @@ class AccountApi extends ApiGroup {
    * @param amount - amount to transfer
    */
   async deposit(password: string, amount: number): Promise<void> {
+    return this._deposit(password, amount, 1);
+  }
+
+  private async _deposit(
+    password: string,
+    amount: number,
+    attemptCount: number = 1
+  ): Promise<void> {
     const wallet = this.getWallet(this.currentAccount.username!, password);
-    const walletAddress = wallet.address;
-    const nonce = await this.getNonce(walletAddress);
-    const payload = {
-      walletAddress,
-      amount: parseEther(amount.toString()).toString()
-    };
-    const { data } = await this.client.rest.post<ApiResponse<any>>(
-      '/v1/account/token/deposit/permit',
-      payload
+    if (wallet.address !== this.currentAccount.walletAddress) {
+      throw new ApiError(400, {
+        status: 'error',
+        message: 'Incorrect password',
+        errorCode: 0
+      });
+    }
+    try {
+      await this.client.rest.post('/v3/account/token/deposit', {
+        walletAddress: wallet.address,
+        amount: parseEther(amount.toString()).toString(),
+        provider: 'base'
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.payload.errorCode === ErrorCode.INSUFFICIENT_ALLOWANCE) {
+          // If this is the first attempt, we need to approve the token usage,
+          // otherwise we can retry the deposit directly.
+          if (attemptCount === 1) {
+            await this.approveTokenUsage(password, 'account');
+          }
+          if (attemptCount >= MAX_DEPOSIT_ATTEMPTS) {
+            throw error;
+          }
+          await delay(10000); // Wait for the approval transaction to be processed
+          await this._deposit(password, amount, attemptCount + 1);
+          return;
+        }
+        throw error;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Approve SOGNI token usage for the specified spender.
+   * @internal
+   *
+   * @param password - user account password
+   * @param spender - Spender type, either 'account' for deposit or 'staker' for staking contract
+   * @param provider - Provider name, defaults to 'base', can be 'base', 'etherlink', etc.
+   */
+  async approveTokenUsage(
+    password: string,
+    spender: 'account' | 'staker',
+    provider: string = 'base'
+  ): Promise<void> {
+    const wallet = this.getWallet(this.currentAccount.username!, password);
+    const permitR = await this.client.rest.post<{ data: Record<string, any> }>(
+      '/v1/contract/token/approve/permit',
+      {
+        walletAddress: wallet.address,
+        spender: spender,
+        provider: provider
+      }
     );
-    const { deadline } = data.message;
-    const permitSig = await wallet.signTypedData(data.domain, data.types, data.message);
-    const permitSignature = Signature.from(permitSig);
-    const depositPayload = {
-      ...payload,
-      deadline,
-      v: permitSignature.v,
-      r: permitSignature.r,
-      s: permitSignature.s
-    };
-    const depositSignature = await this.eip712.signTypedData(wallet, 'deposit', {
-      ...depositPayload,
-      nonce
-    });
-    await this.client.rest.post('/v1/account/token/deposit', {
-      ...depositPayload,
-      signature: depositSignature
+    const { domain, types, message } = permitR.data;
+    const signature = await wallet.signTypedData(domain, types, message);
+    await this.client.rest.post('/v1/contract/token/approve', {
+      walletAddress: wallet.address,
+      spender: spender,
+      provider: provider,
+      deadline: message.deadline,
+      approveSignature: signature
     });
   }
 }
