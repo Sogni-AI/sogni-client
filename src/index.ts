@@ -104,7 +104,7 @@ export class SogniClient {
     const socketEndpoint = config.socketEndpoint || 'wss://socket.sogni.ai';
     const network = config.network || 'fast';
     const logger = config.logger || new DefaultLogger(config.logLevel || 'warn');
-    const isTestnet = config.testnet !== undefined ? config.testnet : true;
+    const isTestnet = config.testnet !== undefined ? config.testnet : false;
 
     const client = new ApiClient(
       restEndpoint,
