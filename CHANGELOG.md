@@ -1,3 +1,10 @@
+# [3.0.0-alpha.39](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.38...v3.0.0-alpha.39) (2025-07-02)
+
+
+### Features
+
+* Support for EIP712 on mainnet ([5e04e81](https://github.com/Sogni-AI/sogni-client/commit/5e04e8129f59bfac0ed6d65cc7c847ad622111b2))
+
 # [3.0.0-alpha.38](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.37...v3.0.0-alpha.38) (2025-06-30)
 
 
