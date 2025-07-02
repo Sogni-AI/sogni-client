@@ -115,7 +115,7 @@ export class SogniClient {
       config.disableSocket
     );
     const eip712 = new EIP712Helper({
-      name: 'Sogni-testnet',
+      name: isTestnet ? 'Sogni-testnet' : 'Sogni AI',
       version: '1',
       chainId: isTestnet ? '84532' : '8453'
     });
