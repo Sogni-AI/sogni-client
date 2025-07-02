@@ -1,3 +1,10 @@
+# [3.0.0-alpha.40](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.39...v3.0.0-alpha.40) (2025-07-02)
+
+
+### Features
+
+* Default client to mainnet ([5f9e44f](https://github.com/Sogni-AI/sogni-client/commit/5f9e44f462cd1b6f5bddc30e523567fa8b671736))
+
 # [3.0.0-alpha.39](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.38...v3.0.0-alpha.39) (2025-07-02)
 
 
