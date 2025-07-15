@@ -1,3 +1,11 @@
+# [3.0.0-alpha.42](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.41...v3.0.0-alpha.42) (2025-07-15)
+
+
+### Bug Fixes
+
+* remove provider instance as it is not actually used ([62f384e](https://github.com/Sogni-AI/sogni-client/commit/62f384e82c4e5ae453bbec567ce58aa5ae1e7c72))
+* update documentation ([5d09f39](https://github.com/Sogni-AI/sogni-client/commit/5d09f39181e058bd6d5706d8d919d7855bb6dd81))
+
 # [3.0.0-alpha.41](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.40...v3.0.0-alpha.41) (2025-07-15)
 
 
