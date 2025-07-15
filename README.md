@@ -19,8 +19,6 @@ You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App
 
 Your account is tied to a [Base](https://www.base.org/) Wallet that is created during signup. The current network is [Base Sepolia](https://chainlist.org/chain/84532) and will be [Base Mainnet](https://chainlist.org/chain/8453) after mainnet launch.
 
-The Library will use a default provider if none is provided, but note that it is not guaranteed to be always available. It is recommended to use your own Node endpoint such as alchemy.com (free and paid plans). You can specify your own node in `jsonRpcUrl` settings below.
-
 ### Supernet Types
 There are 2 worker network types available:
 - `fast` - this network runs on high-end GPUs and is optimized for speed. It is more expensive than `relaxed` network at roughly 1 $tSOGNI token per render.
@@ -44,17 +42,11 @@ import { SogniClient } from '@sogni-ai/sogni-client';
 const USERNAME = 'your-username';
 const PASSWORD = 'your-password';
 
-// If using default provider
 const options = {
   appId: 'your-app-id', // Required, must be unique string, UUID is recommended
   network: 'fast', // Network to use, 'fast' or 'relaxed'
 }
-// If using custom provider
-const options ={
-  appId: 'your-app-id', // Required, must be unique string, UUID is recommended
-  jsonRpcUrl: 'https://sepolia.base.org', // Put your custom JSON-RPC URL here
-  network: 'fast', // Network to use, 'fast' or 'relaxed'
-}
+
 const client = await SogniClient.createInstance(options);
 // Login to Sogni account and establish WebSocket connection to Supernet
 await client.account.login(USERNAME, PASSWORD);
@@ -65,7 +57,6 @@ const models = await client.projects.waitForModels();
 ```
 **Important Note:** 
 - This sample assume you are using ES modules, which allow `await` on the top level, if you are CommomJS you will need to wrap `await` calls in an async function.
-- Sogni is currently in Testnet phase, so you need to provide Base Sepolia network URL.
 - `appId` must be unique string, UUID is recommended. It is used to identify your application.
 - Only one connection per `appId` is allowed. If you try to connect with the same `appId` multiple times, the previous connection will be closed.
 

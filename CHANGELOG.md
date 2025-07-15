@@ -319,6 +319,20 @@
 
 * Add basic ControlNet support ([220991d](https://github.com/Sogni-AI/sogni-client/commit/220991db5b16740b159d2cb0c3e746141fa4906f))
 
+## [2.0.4](https://github.com/Sogni-AI/sogni-client/compare/v2.0.3...v2.0.4) (2025-05-14)
+
+
+### Bug Fixes
+
+* update documentation ([5d09f39](https://github.com/Sogni-AI/sogni-client/commit/5d09f39181e058bd6d5706d8d919d7855bb6dd81))
+
+## [2.0.3](https://github.com/Sogni-AI/sogni-client/compare/v2.0.2...v2.0.3) (2025-05-14)
+
+
+### Bug Fixes
+
+* remove provider instance as it is not actually used ([62f384e](https://github.com/Sogni-AI/sogni-client/commit/62f384e82c4e5ae453bbec567ce58aa5ae1e7c72))
+
 ## [2.0.2](https://github.com/Sogni-AI/sogni-client/compare/v2.0.1...v2.0.2) (2025-02-04)
 
 
