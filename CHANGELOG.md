@@ -1,3 +1,11 @@
+## [3.0.1](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0...v3.0.1) (2025-07-15)
+
+
+### Bug Fixes
+
+* Bring back package-lock.json ([28d21e1](https://github.com/Sogni-AI/sogni-client/commit/28d21e192c15fca5b76254572d6fcbd1e8140b29))
+* Update README.md ([3348834](https://github.com/Sogni-AI/sogni-client/commit/3348834163d438ce99c3dfa9d466649544e9b777))
+
 # [3.0.0](https://github.com/Sogni-AI/sogni-client/compare/v2.0.4...v3.0.0) (2025-07-15)
 
 
