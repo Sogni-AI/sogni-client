@@ -14,27 +14,27 @@ or
 yarn add @sogni-ai/sogni-client
 ```
 ## Core concepts
-In order to use Sogni Supernet you need an active Sogni account (in the form of a username and password) with a positive $tSOGNI balance. 
+In order to use Sogni Supernet, you need an active Sogni account (in the form of a username and password) with a positive SOGNI balance. 
 You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio) which will give you tokens just for signing up and confirming your email. You can get daily bonus tokens by claiming them (under rewards) each 24-hours.
 
-Your account is tied to a [Base](https://www.base.org/) Wallet that is created during signup. The current network is [Base Sepolia](https://chainlist.org/chain/84532) and will be [Base Mainnet](https://chainlist.org/chain/8453) after mainnet launch.
+Your account is tied to a [Base](https://www.base.org/) Wallet that is created during signup.
 
 ### Supernet Types
 There are 2 worker network types available:
-- `fast` - this network runs on high-end GPUs and is optimized for speed. It is more expensive than `relaxed` network at roughly 1 $tSOGNI token per render.
-- `relaxed` - this network runs on Apple Mac devices and is optimized for cost. It is cheaper than `fast` network at roughly 0.5 $tSOGNI token per render.
+- `fast` - this network runs on high-end GPUs and is optimized for speed. It is more expensive than `relaxed` network.
+- `relaxed` - this network runs on Apple Mac devices and is optimized for cost. It is cheaper than `fast` network.
 
-In both options the more complex your query is (the more steps) the higher the cost in tokens.
+In both options, the more complex your query is (the more steps), the higher the cost in tokens.
 
 ### Inference definitions: Projects and Jobs
 One request for image generation is called a **Project**. Project can generate one or more images. 
 Each image is represented by a **Job**.
 
 When you send a project to Supernet, it will be processed by one or more workers. The resulting images will be encrypted and 
-uploaded to Sogni servers where it will be  stored for 24 hours. After this period images will be auto-deleted.
+uploaded to Sogni servers where it will be stored for 24 hours. After this period images will be auto-deleted.
 
 ## Client initialization
-To initialize client you need to provide `appId`, and account credentials.
+To initialize a client, you need to provide `appId`, and account credentials.
 
 ```javascript
 import { SogniClient } from '@sogni-ai/sogni-client';
@@ -62,7 +62,7 @@ const models = await client.projects.waitForModels();
 
 ## Usage
 After calling `login` method, the client will establish a WebSocket connection to Sogni Supernet. Within a short period of time the
-client will receive current balance and list of available models. After this you can start using the client to generate images.
+client will receive the current balance and list of available models. After this you can start using the client to generate images.
 
 ### Creating project
 ```javascript
@@ -85,9 +85,9 @@ const project = await client.projects.create({
 **Note:** Full project parameter list can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 
 ### Getting project status and results
-In general there are 2 ways to work with API:
+In general, there are 2 ways to work with API:
 1. Using promises or `async/await` syntax.
-2. Listening events on `Project` and `Job` class instances.
+2. Listening to events on `Project` and `Job` class instances.
 
 #### Using promises
 ```javascript
@@ -153,12 +153,13 @@ project.on('failed', async (errorData) => {
 ```
 
 ### Project parameters
-Here is full list of project parameters that you can use:
+Here is a full list of project parameters that you can use:
 - `modelId` - ID of the model to use for image generation.
-- `positivePrompt` - text prompt that describes what you want to see in the image. Can be empty string.
-- `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be empty string.
-- `stylePrompt` - text prompt that describes the style of the image. Can be empty string.
+- `positivePrompt` - text prompt that describes what you want to see in the image. Can be an empty string.
+- `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be an empty string.
+- `stylePrompt` - text prompt that describes the style of the image. Can be an empty string.
 - `numberOfImages` - number of images to generate.
+- `tokenType` - select token type to pay for render. Can be either `sogni` or `spark`.
 - `sizePreset` - optionally pass the ID of a size preset to use. If not passed, the default output is a square at 
 either 512x512, 768x768 or 1024x1024 (SDXL and Flux) based on the default resolution of the selected model. 
 See **Detecting available output presets** section below for available presets for your model. The token cost and 
@@ -174,7 +175,7 @@ quality images and more details but varies by model, prompt, guidance, and desir
 models 20-40 steps is ideal with 20 being 2x faster to render than 40. For Flux 4 steps is optimal. Lightning, 
 Turbo and LCM models are designed for quality output in as little as 1 step. ([More info](https://docs.sogni.ai/learn/basics/inference-steps)).
 - `guidance` - guidance scale. For most Stable Diffusion models, optimal value is 7.5 ([More info](https://docs.sogni.ai/learn/basics/guidance-scale)).
-- `network` - network type to use, 'fast' or 'relaxed'. This parameter allow to override default network type for this project.
+- `network` - network type to use, `fast` or `relaxed`. This parameter allows to override default network type for this project.
 - `disableNSFWFilter` - disable NSFW filter for this project. NSFW filter is enabled by default and workers won't upload resulting images if they are detected as NSFW.
 - `seed` - uint32 number to use as seed. If not provided, random seed will be used. If `numberOfImages` is greater than 1, provided seed will be user only for one of them. ([More info](https://docs.sogni.ai/learn/basics/generation-seed)).
 - `numberOfPreviews` - number of preview images to generate. If not provided, no preview images will be generated.
@@ -187,7 +188,7 @@ Turbo and LCM models are designed for quality output in as little as 1 step. ([M
 TypeScript type definitions for project parameters can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 
 ### Detecting available output presets
-You can get list of available output presets for a specific network and model using `client.projects.getOutputPresets` method.
+You can get a list of available output presets for a specific network and model using `client.projects.getOutputPresets` method.
 ```javascript
 const presets = await client.projects.getSizePresets('fast', 'flux1-schnell-fp8');
 console.log('Available output presets:', presets);
@@ -283,7 +284,7 @@ Sample response:
 ControlNet is a neural network that controls image generation in Stable Diffusion by adding extra conditions. See more 
 info and usage samples in [ControlNets](https://docs.sogni.ai/learn/basics/controlnet) docs for Sogni Studio.
 
-To use ControlNet in your project you need to provide `controlNet` object with the following properties:
+To use ControlNet in your project, you need to provide `controlNet` object with the following properties:
 - `name` - name of the ControlNet to use. Currently supported:
   - `canny`
   - `depth`
