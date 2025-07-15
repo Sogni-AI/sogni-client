@@ -15,3 +15,7 @@ export function decodeRefreshToken(token: string) {
     expiresAt: new Date(data.exp * 1000)
   };
 }
+
+export async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

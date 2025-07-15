@@ -1,4 +1,6 @@
 import { ProjectParams } from './types';
+import { ControlNetParams, ControlNetParamsRaw } from './types/ControlNetParams';
+import { validateNumber, validateCustomImageSize } from '../lib/validation';
 // Mac worker can't process the data if some of the fields are missing, so we need to provide a default template
 function getTemplate() {
   return {
@@ -65,12 +67,49 @@ function getTemplate() {
   };
 }
 
-function validateSize(value: any): number {
-  const size = Number(value);
-  if (isNaN(size) || size < 256 || size > 2048) {
-    throw new Error('Width and height must be numbers between 256 and 2048');
+function getControlNet(params: ControlNetParams): ControlNetParamsRaw[] {
+  const cn: ControlNetParamsRaw = {
+    name: params.name,
+    cnImageState: 'original',
+    hasImage: !!params.image
+  };
+  if (params.strength !== undefined) {
+    cn.controlStrength = validateNumber(params.strength, {
+      min: 0,
+      max: 1,
+      propertyName: 'strength'
+    });
   }
-  return size;
+  if (params.mode) {
+    switch (params.mode) {
+      case 'balanced':
+        cn.controlMode = 0;
+        break;
+      case 'prompt_priority':
+        cn.controlMode = 1;
+        break;
+      case 'cn_priority':
+        cn.controlMode = 2;
+        break;
+      default:
+        throw new Error(`Invalid control mode ${params.mode}`);
+    }
+  }
+  if (params.guidanceStart !== undefined) {
+    cn.controlGuidanceStart = validateNumber(params.guidanceStart, {
+      min: 0,
+      max: 1,
+      propertyName: 'guidanceStart'
+    });
+  }
+  if (params.guidanceEnd !== undefined) {
+    cn.controlGuidanceEnd = validateNumber(params.guidanceEnd, {
+      min: 0,
+      max: 1,
+      propertyName: 'guidanceEnd'
+    });
+  }
+  return [cn];
 }
 
 function createJobRequestMessage(id: string, params: ProjectParams) {
@@ -80,7 +119,8 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
     keyFrames: [
       {
         ...template.keyFrames[0],
-        scheduler: params.scheduler,
+        scheduler: params.scheduler || null,
+        timeStepSpacing: params.timeStepSpacing || null,
         steps: params.steps,
         guidanceScale: params.guidance,
         modelID: params.modelId,
@@ -99,14 +139,18 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
     previews: params.numberOfPreviews || 0,
     numberOfImages: params.numberOfImages,
     jobID: id,
-    disableSafety: !!params.disableNSFWFilter
+    disableSafety: !!params.disableNSFWFilter,
+    tokenType: params.tokenType
   };
   if (params.network) {
     jobRequest.network = params.network;
   }
+  if (params.controlNet) {
+    jobRequest.keyFrames[0].currentControlNetsJob = getControlNet(params.controlNet);
+  }
   if (params.sizePreset === 'custom') {
-    jobRequest.keyFrames[0].width = validateSize(params.width);
-    jobRequest.keyFrames[0].height = validateSize(params.height);
+    jobRequest.keyFrames[0].width = validateCustomImageSize(params.width);
+    jobRequest.keyFrames[0].height = validateCustomImageSize(params.height);
   }
   return jobRequest;
 }

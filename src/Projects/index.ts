@@ -1,6 +1,7 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup';
 import {
   AvailableModel,
+  EnhancementStrength,
   EstimateRequest,
   ImageUrlParams,
   ProjectParams,
@@ -16,7 +17,7 @@ import {
 } from '../ApiClient/WebSocketClient/events';
 import Project from './Project';
 import createJobRequestMessage from './createJobRequestMessage';
-import { ApiError, ApiReponse } from '../ApiClient';
+import { ApiError, ApiResponse } from '../ApiClient';
 import { EstimationResponse } from './types/EstimationResponse';
 import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
 import getUUID from '../lib/getUUID';
@@ -24,9 +25,12 @@ import { RawProject } from './types/RawProject';
 import ErrorData from '../types/ErrorData';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import Cache from '../lib/Cache';
+import { enhancementDefaults } from './Job';
+import { getEnhacementStrength } from './utils';
+import { TokenType } from '../types/token';
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
-const GARBAGE_COLLECT_TIMEOUT = 10000;
+const GARBAGE_COLLECT_TIMEOUT = 30000;
 const MODELS_REFRESH_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
 
 function mapErrorCodes(code: string): number {
@@ -67,7 +71,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.client.socket.on('jobProgress', this.handleJobProgress.bind(this));
     this.client.socket.on('jobError', this.handleJobError.bind(this));
     this.client.socket.on('jobResult', this.handleJobResult.bind(this));
-    // Listen to server disconnect event
+    // Listen to the server disconnect event
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     // Listen to project and job events and update project and job instances
     this.on('project', this.handleProjectEvent.bind(this));
@@ -115,7 +119,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           type: 'initiating',
           projectId: data.jobID,
           jobId: data.imgID,
-          workerName: data.workerName
+          workerName: data.workerName,
+          positivePrompt: data.positivePrompt,
+          negativePrompt: data.negativePrompt,
+          jobIndex: data.jobIndex
         });
         return;
       case 'jobStarted': {
@@ -123,7 +130,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           type: 'started',
           projectId: data.jobID,
           jobId: data.imgID,
-          workerName: data.workerName
+          workerName: data.workerName,
+          positivePrompt: data.positivePrompt,
+          negativePrompt: data.negativePrompt,
+          jobIndex: data.jobIndex
         });
         return;
       }
@@ -241,7 +251,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this.client.logger.error(e);
       });
       setTimeout(() => {
-        this.projects = this.projects.filter((p) => p.id !== event.projectId);
+        this.projects = this.projects.filter((p) => !p.finished);
       }, GARBAGE_COLLECT_TIMEOUT);
     }
   }
@@ -263,15 +273,30 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     switch (event.type) {
       case 'initiating':
-        job._update({ status: 'initiating', workerName: event.workerName });
+        // positivePrompt and negativePrompt are only received if a Dynamic Prompt was used for the project creating a different prompt for each job
+        job._update({
+          status: 'initiating',
+          workerName: event.workerName,
+          positivePrompt: event.positivePrompt,
+          negativePrompt: event.negativePrompt,
+          jobIndex: event.jobIndex
+        });
         break;
       case 'started':
-        job._update({ status: 'processing', workerName: event.workerName });
+        // positivePrompt and negativePrompt are only received if a Dynamic Prompt was used for the project creating a different prompt for each job
+        job._update({
+          status: 'processing',
+          workerName: event.workerName,
+          positivePrompt: event.positivePrompt,
+          negativePrompt: event.negativePrompt,
+          jobIndex: event.jobIndex
+        });
         break;
       case 'progress':
         job._update({
           status: 'processing',
-          step: event.step,
+          // Jus in case event comes out of order
+          step: Math.max(event.step, job.step),
           stepCount: event.stepCount
         });
         if (project.status !== 'processing') {
@@ -337,8 +362,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   async create(data: ProjectParams): Promise<Project> {
     const project = new Project({ ...data }, { api: this, logger: this.client.logger });
-    if (data.startingImage) {
+    if (data.startingImage && data.startingImage !== true) {
       await this.uploadGuideImage(project.id, data.startingImage);
+    }
+    if (data.controlNet?.image && data.controlNet.image !== true) {
+      await this.uploadCNImage(project.id, data.controlNet.image);
     }
     const request = createJobRequestMessage(project.id, data);
     await this.client.socket.send('jobRequest', request);
@@ -353,7 +381,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param projectId
    */
   async get(projectId: string) {
-    const { data } = await this.client.rest.get<ApiReponse<{ project: RawProject }>>(
+    const { data } = await this.client.rest.get<ApiResponse<{ project: RawProject }>>(
       `/v1/projects/${projectId}`
     );
     return data.project;
@@ -412,11 +440,33 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return imageId;
   }
 
+  private async uploadCNImage(projectId: string, file: File | Buffer | Blob) {
+    const imageId = getUUID();
+    const presignedUrl = await this.uploadUrl({
+      imageId: imageId,
+      jobId: projectId,
+      type: 'cnImage'
+    });
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: file
+    });
+    if (!res.ok) {
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: 'Failed to upload ControlNet image'
+      });
+    }
+    return imageId;
+  }
+
   /**
    * Estimate project cost
    */
   async estimateCost({
     network,
+    tokenType,
     model,
     imageCount,
     stepCount,
@@ -428,6 +478,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     sizePreset
   }: EstimateRequest) {
     const pathParams = [
+      tokenType || 'sogni',
       network,
       model,
       imageCount,
@@ -447,12 +498,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       pathParams.push(width, height);
     }
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v1/job/estimate/${pathParams.join('/')}`
+      `/api/v2/job/estimate/${pathParams.join('/')}`
     );
     return {
       token: r.quote.project.costInToken,
       usd: r.quote.project.costInUSD
     };
+  }
+
+  async estimateEnhancementCost(strength: EnhancementStrength, tokenType: TokenType = 'sogni') {
+    return this.estimateCost({
+      network: enhancementDefaults.network,
+      tokenType,
+      model: enhancementDefaults.modelId,
+      imageCount: 1,
+      stepCount: enhancementDefaults.steps,
+      previewCount: 0,
+      cnEnabled: false,
+      startingImageStrength: getEnhacementStrength(strength)
+    });
   }
 
   /**
@@ -461,7 +525,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param params
    */
   async uploadUrl(params: ImageUrlParams) {
-    const r = await this.client.rest.get<ApiReponse<{ uploadUrl: string }>>(
+    const r = await this.client.rest.get<ApiResponse<{ uploadUrl: string }>>(
       `/v1/image/uploadUrl`,
       params
     );
@@ -474,7 +538,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param params
    */
   async downloadUrl(params: ImageUrlParams) {
-    const r = await this.client.rest.get<ApiReponse<{ downloadUrl: string }>>(
+    const r = await this.client.rest.get<ApiResponse<{ downloadUrl: string }>>(
       `/v1/image/downloadUrl`,
       params
     );

@@ -1,5 +1,16 @@
+import { TokenType } from '../types/token';
+
 export interface Nonce {
   nonce: string;
+}
+
+export interface AccountCreateParams {
+  username: string;
+  email: string;
+  password: string;
+  subscribe: boolean;
+  turnstileToken: string;
+  referralCode?: string;
 }
 
 export interface AccountCreateData {
@@ -18,12 +29,22 @@ export interface BalanceData {
   credit: string;
   debit: string;
   net: string;
+  /**
+   * Unclaimed worker earnings amount
+   * @experimental Socket messages do not provide this field yet, so it may not be available in all cases.
+   */
+  unclaimed?: string;
 }
+
+export type Balances = Record<TokenType, BalanceData>;
+
+export type FullBalances = Record<TokenType, Required<BalanceData>>;
 
 export interface TxHistoryParams {
   status: 'completed';
   address: string;
   limit: number;
+  provider?: string;
   offset?: number;
 }
 
@@ -49,6 +70,7 @@ export interface TxRaw {
   sourceSID: string;
   endTime: number;
   type: 'debit' | string;
+  tokenType: TokenType;
 }
 
 export interface TxHistoryEntry {
@@ -59,6 +81,7 @@ export interface TxHistoryEntry {
   status: 'completed';
   role: 'artist' | 'worker';
   amount: number;
+  tokenType: TokenType;
   description: string;
   source: 'project' | string;
   endTime: Date;
@@ -73,10 +96,15 @@ export interface RewardRaw {
   title: string;
   description: string;
   amount: string;
+  tokenType: TokenType;
   claimed: number;
   canClaim: number;
   lastClaimTimestamp: number;
   claimResetFrequencySec: number;
+}
+
+export interface RewardsQuery {
+  provider?: string;
 }
 
 export interface Reward {
@@ -85,8 +113,15 @@ export interface Reward {
   title: string;
   description: string;
   amount: string;
+  tokenType: TokenType;
   claimed: boolean;
   canClaim: boolean;
   lastClaim: Date;
   nextClaim: Date | null;
+  provider?: string;
+}
+
+export interface ClaimOptions {
+  turnstileToken?: string;
+  provider?: string;
 }

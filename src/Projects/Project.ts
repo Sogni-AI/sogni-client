@@ -1,4 +1,4 @@
-import Job, { JobData, JobStatus } from './Job';
+import Job, { JobData } from './Job';
 import DataEntity, { EntityEvents } from '../lib/DataEntity';
 import { ProjectParams } from './types';
 import cloneDeep from 'lodash/cloneDeep';
@@ -50,6 +50,7 @@ export interface ProjectEventMap extends EntityEvents {
   progress: number;
   completed: string[];
   failed: ErrorData;
+  jobStarted: Job;
   jobCompleted: Job;
   jobFailed: Job;
 }
@@ -209,35 +210,22 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    */
   _addJob(data: JobData | Job) {
     const job =
-      data instanceof Job ? data : new Job(data, { api: this._api, logger: this._logger });
+      data instanceof Job
+        ? data
+        : new Job(data, { api: this._api, logger: this._logger, project: this });
     this._jobs.push(job);
     job.on('updated', () => {
       this.lastUpdated = new Date();
       this.emit('updated', ['jobs']);
     });
+    this.emit('jobStarted', job);
     job.on('completed', () => {
       this.emit('jobCompleted', job);
-      this._handleJobFinished(job);
     });
     job.on('failed', () => {
       this.emit('jobFailed', job);
-      this._handleJobFinished(job);
     });
     return job;
-  }
-
-  private _handleJobFinished(job: Job) {
-    const finalStatus: JobStatus[] = ['completed', 'failed', 'canceled'];
-    const allJobsDone = this.jobs.every((job) => finalStatus.includes(job.status));
-    // If all jobs are done and project is not already failed or completed, update the project status
-    if (allJobsDone && this.status !== 'failed' && this.status !== 'completed') {
-      const allJobsFailed = this.jobs.every((job) => job.status === 'failed');
-      if (allJobsFailed) {
-        this._update({ status: 'failed' });
-      } else {
-        this._update({ status: 'completed' });
-      }
-    }
   }
 
   private _checkForTimeout() {
@@ -245,12 +233,24 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       this._syncToServer().catch((error) => {
         this._logger.error(error);
         this._failedSyncAttempts++;
-        if (this._failedSyncAttempts > MAX_FAILED_SYNC_ATTEMPTS) {
+        if (this._failedSyncAttempts >= MAX_FAILED_SYNC_ATTEMPTS) {
           this._logger.error(
             `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
           );
           clearInterval(this._timeout!);
           this._timeout = null;
+          this.jobs.forEach((job) => {
+            if (!job.finished) {
+              job._update({
+                status: 'failed',
+                error: { code: 0, message: 'Job timed out' }
+              });
+            }
+          });
+          this._update({
+            status: 'failed',
+            error: { code: 0, message: 'Project timed out. Please try again or contact support.' }
+          });
         }
       });
     }
@@ -286,7 +286,11 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     // If there are any jobs left in jobData, it means they are new jobs that are not in the project yet
     if (Object.keys(jobData).length) {
       for (const job of Object.values(jobData)) {
-        const jobInstance = Job.fromRaw(data, job, { api: this._api, logger: this._logger });
+        const jobInstance = Job.fromRaw(data, job, {
+          api: this._api,
+          logger: this._logger,
+          project: this
+        });
         this._addJob(jobInstance);
       }
     }

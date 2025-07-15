@@ -17,6 +17,7 @@ import { AvailableModel, ProjectParams, Scheduler, TimeStepSpacing } from './Pro
 import StatsApi from './Stats';
 // Base Types
 import ErrorData from './types/ErrorData';
+import { TokenType } from './types/token';
 
 export type {
   AvailableModel,
@@ -28,7 +29,8 @@ export type {
   ProjectStatus,
   Scheduler,
   SupernetType,
-  TimeStepSpacing
+  TimeStepSpacing,
+  TokenType
 };
 
 export { ApiError, CurrentAccount, Job, Project };
@@ -49,6 +51,13 @@ export interface SogniClientConfig {
    */
   socketEndpoint?: string;
   /**
+   * Disable WebSocket connection. Useful for testing or when WebSocket is not needed.
+   * Note that many may not work without WebSocket connection.
+   * @experimental
+   * @internal
+   */
+  disableSocket?: boolean;
+  /**
    * Which network to use after logging in. Can be 'fast' or 'relaxed'
    */
   network: SupernetType;
@@ -62,12 +71,7 @@ export interface SogniClientConfig {
    **/
   logLevel?: LogLevel;
   /**
-   * If provided, the client will connect to this JSON-RPC endpoint to interact with the blockchain
-   * @deprecated This option is deprecated and is not used internally. Left for backward compatibility
-   */
-  jsonRpcUrl?: string;
-  /**
-   * If true, the client will connect to the testnet. While Sogni is on Testnet, do not set to `false`
+   * If true, the client will connect to the testnet. Ignored if jsonRpcUrl is provided
    */
   testnet?: boolean;
 }
@@ -92,7 +96,7 @@ export class SogniClient {
   }
 
   /**
-   * Instance creation may involve async operations, so we use a static method
+   * Create client instance, with default configuration
    * @param config
    */
   static async createInstance(config: SogniClientConfig): Promise<SogniClient> {
@@ -100,11 +104,18 @@ export class SogniClient {
     const socketEndpoint = config.socketEndpoint || 'wss://socket.sogni.ai';
     const network = config.network || 'fast';
     const logger = config.logger || new DefaultLogger(config.logLevel || 'warn');
-    const isTestnet = config.testnet !== undefined ? config.testnet : true;
+    const isTestnet = config.testnet !== undefined ? config.testnet : false;
 
-    const client = new ApiClient(restEndpoint, socketEndpoint, config.appId, network, logger);
+    const client = new ApiClient(
+      restEndpoint,
+      socketEndpoint,
+      config.appId,
+      network,
+      logger,
+      config.disableSocket
+    );
     const eip712 = new EIP712Helper({
-      name: 'Sogni-testnet',
+      name: isTestnet ? 'Sogni-testnet' : 'Sogni AI',
       version: '1',
       chainId: isTestnet ? '84532' : '8453'
     });

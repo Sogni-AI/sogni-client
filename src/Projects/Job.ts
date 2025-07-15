@@ -4,6 +4,24 @@ import { RawJob, RawProject } from './types/RawProject';
 import ProjectsApi from './index';
 import { Logger } from '../lib/DefaultLogger';
 import getUUID from '../lib/getUUID';
+import { EnhancementStrength } from './types';
+import Project from './Project';
+import { SupernetType } from '../ApiClient/WebSocketClient/types';
+import { getEnhacementStrength } from './utils';
+import { TokenType } from '../types/token';
+
+export const enhancementDefaults = {
+  network: 'fast' as SupernetType,
+  modelId: 'flux1-schnell-fp8',
+  positivePrompt: '',
+  negativePrompt: '',
+  stylePrompt: '',
+  startingImageStrength: 0.5,
+  steps: 5,
+  guidance: 1,
+  numberOfImages: 1,
+  numberOfPreviews: 0
+};
 
 export type JobStatus =
   | 'pending'
@@ -40,6 +58,9 @@ export interface JobData {
   previewUrl?: string;
   resultUrl?: string | null;
   error?: ErrorData;
+  positivePrompt?: string;
+  negativePrompt?: string;
+  jobIndex?: number;
 }
 
 export interface JobEventMap extends EntityEvents {
@@ -51,6 +72,7 @@ export interface JobEventMap extends EntityEvents {
 export interface JobOptions {
   api: ProjectsApi;
   logger: Logger;
+  project: Project;
 }
 
 class Job extends DataEntity<JobData, JobEventMap> {
@@ -72,14 +94,18 @@ class Job extends DataEntity<JobData, JobEventMap> {
 
   private readonly _api: ProjectsApi;
   private readonly _logger: Logger;
+  private readonly _project: Project;
+  private _enhancementProject: Project | null = null;
 
   constructor(data: JobData, options: JobOptions) {
     super(data);
 
     this._api = options.api;
     this._logger = options.logger;
+    this._project = options.project;
 
     this.on('updated', this.handleUpdated.bind(this));
+    this.handleEnhancementUpdate = this.handleEnhancementUpdate.bind(this);
   }
 
   get id() {
@@ -152,6 +178,42 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.data.error;
   }
 
+  get hasResultImage() {
+    return this.status === 'completed' && !this.isNSFW;
+  }
+
+  get enhancedImage() {
+    if (!this._enhancementProject) {
+      return null;
+    }
+    const project = this._enhancementProject;
+    const job = project.jobs[0];
+    return {
+      status: project.status,
+      progress: project.progress,
+      result: job?.resultUrl || null,
+      error: project.error,
+      getResultUrl: () => job?.getResultUrl()
+    };
+  }
+
+  /**
+   * Get the result URL of the job. This method will make a request to the API to get signed URL.
+   * IMPORTANT: URL expires after 30 minutes, so make sure to download the image as soon as possible.
+   */
+  async getResultUrl(): Promise<string> {
+    if (this.data.status !== 'completed') {
+      throw new Error('Job is not completed yet');
+    }
+    const url = await this._api.downloadUrl({
+      jobId: this.projectId,
+      imageId: this.id,
+      type: 'complete'
+    });
+    this._update({ resultUrl: url });
+    return url;
+  }
+
   /**
    * Whether the image is NSFW or not. Only makes sense if job is completed.
    * If NSFW filter is disabled, this property will always be false.
@@ -207,6 +269,59 @@ class Job extends DataEntity<JobData, JobEventMap> {
     if (keys.includes('status') && this.status === 'failed') {
       this.emit('failed', this.data.error!);
     }
+  }
+
+  private handleEnhancementUpdate() {
+    this.emit('updated', ['enhancedImage']);
+  }
+
+  async getResultData() {
+    if (!this.hasResultImage) {
+      throw new Error('No result image available');
+    }
+    const url = await this.getResultUrl();
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    return response.blob();
+  }
+
+  /**
+   * Enhance the image using the Flux model. This method will create a new project with the
+   * enhancement parameters and use the result image of the current job as the starting image.
+   * @param strength - how much freedom the model has to change the image.
+   * @param overrides - optional parameters to override original prompt, style or token type.
+   */
+  async enhance(
+    strength: EnhancementStrength,
+    overrides: { positivePrompt?: string; stylePrompt?: string; tokenType?: TokenType } = {}
+  ) {
+    if (this.status !== 'completed') {
+      throw new Error('Job is not completed yet');
+    }
+    if (this.isNSFW) {
+      throw new Error('Job did not pass NSFW filter');
+    }
+    if (this._enhancementProject) {
+      this._enhancementProject.off('updated', this.handleEnhancementUpdate);
+      this._enhancementProject = null;
+    }
+    const imageData = await this.getResultData();
+    const project = await this._api.create({
+      ...enhancementDefaults,
+      positivePrompt: overrides.positivePrompt || this._project.params.positivePrompt,
+      stylePrompt: overrides.stylePrompt || this._project.params.stylePrompt,
+      tokenType: overrides.tokenType || this._project.params.tokenType,
+      seed: this.seed || this._project.params.seed,
+      startingImage: imageData,
+      startingImageStrength: 1 - getEnhacementStrength(strength),
+      sizePreset: this._project.params.sizePreset
+    });
+    this._enhancementProject = project;
+    this._enhancementProject.on('updated', this.handleEnhancementUpdate);
+    const images = await project.waitForCompletion();
+    return images[0];
   }
 }
 

@@ -11,7 +11,7 @@ import AuthManager, { Tokens } from '../lib/AuthManager';
 
 const WS_RECONNECT_ATTEMPTS = 5;
 
-export interface ApiReponse<D = JSONValue> {
+export interface ApiResponse<D = JSONValue> {
   status: 'success';
   data: D;
 }
@@ -40,13 +40,15 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   private _socket: WebSocketClient;
   private _auth: AuthManager;
   private _reconnectAttempts = WS_RECONNECT_ATTEMPTS;
+  private _disableSocket: boolean = false;
 
   constructor(
     baseUrl: string,
     socketUrl: string,
     appId: string,
     networkType: SupernetType,
-    logger: Logger
+    logger: Logger,
+    disableSocket: boolean = false
   ) {
     super();
     this.appId = appId;
@@ -54,6 +56,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     this._auth = new AuthManager(baseUrl, logger);
     this._rest = new RestClient(baseUrl, this._auth, logger);
     this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+    this._disableSocket = disableSocket;
 
     this._auth.on('refreshFailed', this.handleRefreshFailed.bind(this));
     this._socket.on('connected', this.handleSocketConnect.bind(this));
@@ -76,14 +79,22 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     return this._rest;
   }
 
+  get socketEnabled(): boolean {
+    return !this._disableSocket;
+  }
+
   async authenticate(tokens: Tokens) {
     await this.auth.setTokens(tokens);
-    await this.socket.connect();
+    if (!this._disableSocket) {
+      await this.socket.connect();
+    }
   }
 
   removeAuth() {
     this.auth.clear();
-    this.socket.disconnect();
+    if (this.socket.isConnected) {
+      this.socket.disconnect();
+    }
   }
 
   handleSocketConnect({ network }: ServerConnectData) {

@@ -1,21 +1,31 @@
 import {
   AccountCreateData,
-  BalanceData,
+  AccountCreateParams,
+  Balances,
+  ClaimOptions,
+  FullBalances,
   LoginData,
   Nonce,
   Reward,
   RewardRaw,
+  RewardsQuery,
   TxHistoryData,
   TxHistoryEntry,
   TxHistoryParams
 } from './types';
 import ApiGroup, { ApiConfig } from '../ApiGroup';
-import { Wallet, pbkdf2, toUtf8Bytes, Signature, parseEther } from 'ethers';
-import { ApiError, ApiReponse } from '../ApiClient';
+import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
+import { ApiError, ApiResponse } from '../ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import { AuthUpdatedEvent, Tokens } from '../lib/AuthManager';
+import { delay } from '../lib/utils';
 
+const MAX_DEPOSIT_ATTEMPTS = 4;
+enum ErrorCode {
+  INSUFFICIENT_BALANCE = 123,
+  INSUFFICIENT_ALLOWANCE = 149
+}
 /**
  * Account API methods that let you interact with the user's account.
  * Can be accessed via `client.account`. Look for more samples below.
@@ -38,7 +48,7 @@ class AccountApi extends ApiGroup {
     this.client.auth.on('updated', this.handleAuthUpdated.bind(this));
   }
 
-  private handleBalanceUpdate(data: BalanceData) {
+  private handleBalanceUpdate(data: Balances) {
     this.currentAccount._update({ balance: data });
   }
 
@@ -61,8 +71,13 @@ class AccountApi extends ApiGroup {
     }
   }
 
-  private async getNonce(walletAddress: string): Promise<string> {
-    const res = await this.client.rest.post<ApiReponse<Nonce>>('/v1/account/nonce', {
+  /**
+   * Get the nonce for the given wallet address.
+   * @param walletAddress
+   * @internal
+   */
+  async getNonce(walletAddress: string): Promise<string> {
+    const res = await this.client.rest.post<ApiResponse<Nonce>>('/v1/account/nonce', {
       walletAddress
     });
     return res.data.nonce;
@@ -92,20 +107,15 @@ class AccountApi extends ApiGroup {
   /**
    * Create a new account with the given username, email, and password.
    * @internal
-   *
-   * @param username
-   * @param email
-   * @param password
-   * @param subscribe
-   * @param referralCode
    */
-  async create(
-    username: string,
-    email: string,
-    password: string,
-    subscribe = false,
-    referralCode?: string
-  ): Promise<AccountCreateData> {
+  async create({
+    username,
+    email,
+    password,
+    subscribe,
+    turnstileToken,
+    referralCode
+  }: AccountCreateParams): Promise<AccountCreateData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
     const payload = {
@@ -113,10 +123,11 @@ class AccountApi extends ApiGroup {
       username,
       email,
       subscribe: subscribe ? 1 : 0,
-      walletAddress: wallet.address
+      walletAddress: wallet.address,
+      turnstileToken
     };
     const signature = await this.eip712.signTypedData(wallet, 'signup', { ...payload, nonce });
-    const res = await this.client.rest.post<ApiReponse<AccountCreateData>>('/v1/account/create', {
+    const res = await this.client.rest.post<ApiResponse<AccountCreateData>>('/v1/account/create', {
       ...payload,
       referralCode,
       signature
@@ -179,7 +190,7 @@ class AccountApi extends ApiGroup {
       walletAddress: wallet.address,
       nonce
     });
-    const res = await this.client.rest.post<ApiReponse<LoginData>>('/v1/account/login', {
+    const res = await this.client.rest.post<ApiResponse<LoginData>>('/v1/account/login', {
       walletAddress: wallet.address,
       signature
     });
@@ -208,18 +219,33 @@ class AccountApi extends ApiGroup {
    * Refresh the balance of the current account.
    *
    * Usually, you don't need to call this method manually. Balance is updated automatically
-   * through WebSocket events. But you can call this method to force a balance refresh.
+   * through WebSocket events. But you can call this method to force a balance refresh. Note that
+   * will also trigger updated event on the current account.
    *
    * @example Refresh user account balance
    * ```typescript
    * const balance = await client.account.refreshBalance();
    * console.log(balance);
-   * // { net: '100.000000', settled: '100.000000', credit: '0.000000', debit: '0.000000' }
    * ```
    */
-  async refreshBalance(): Promise<BalanceData> {
-    const res = await this.client.rest.get<ApiReponse<BalanceData>>('/v1/account/balance');
-    this.currentAccount._update({ balance: res.data });
+  async refreshBalance(): Promise<Balances> {
+    const balance = await this.accountBalance();
+    this.currentAccount._update({ balance: balance });
+    return balance;
+  }
+
+  /**
+   * Get the account balance of the current account.
+   * This method returns the account balance of the current user, including settled, credit, debit, and unclaimed earnings amounts.
+   *
+   * @example Get the account balance of the current user
+   * ```typescript
+   * const balance = await client.account.accountBalance();
+   * console.log(balance);
+   * ```
+   */
+  async accountBalance(): Promise<FullBalances> {
+    const res = await this.client.rest.get<ApiResponse<FullBalances>>('/v3/account/balance');
     return res.data;
   }
 
@@ -239,12 +265,11 @@ class AccountApi extends ApiGroup {
    * @param walletAddress
    */
   async walletBalance(walletAddress: string) {
-    const res = await this.client.rest.get<ApiReponse<{ token: string; ether: string }>>(
-      '/v1/wallet/balance',
-      {
-        walletAddress
-      }
-    );
+    const res = await this.client.rest.get<
+      ApiResponse<{ sogni: string; spark: string; ether: string }>
+    >('/v2/wallet/balance', {
+      walletAddress
+    });
     return res.data;
   }
 
@@ -255,7 +280,7 @@ class AccountApi extends ApiGroup {
    */
   async validateUsername(username: string) {
     try {
-      return await this.client.rest.post<ApiReponse<undefined>>('/v1/account/username/validate', {
+      return await this.client.rest.post<ApiResponse<undefined>>('/v1/account/username/validate', {
         username
       });
     } catch (e) {
@@ -313,11 +338,21 @@ class AccountApi extends ApiGroup {
   async transactionHistory(
     params: TxHistoryParams
   ): Promise<{ entries: TxHistoryEntry[]; next: TxHistoryParams }> {
-    const res = await this.client.rest.get<ApiReponse<TxHistoryData>>('/v1/transactions/list', {
+    const query: Record<string, string> = {
       status: params.status,
       address: params.address,
       limit: params.limit.toString()
-    });
+    };
+    if (params.offset) {
+      query.offset = params.offset.toString();
+    }
+    if (params.provider) {
+      query.provider = params.provider;
+    }
+    const res = await this.client.rest.get<ApiResponse<TxHistoryData>>(
+      '/v1/transactions/list',
+      query
+    );
 
     return {
       entries: res.data.transactions.map(
@@ -329,6 +364,7 @@ class AccountApi extends ApiGroup {
           status: tx.status,
           role: tx.role,
           amount: tx.amount,
+          tokenType: tx.tokenType,
           description: tx.description,
           source: tx.source,
           endTime: new Date(tx.endTime),
@@ -346,9 +382,11 @@ class AccountApi extends ApiGroup {
    * Get the rewards of the current account.
    * @internal
    */
-  async rewards(): Promise<Reward[]> {
-    const r =
-      await this.client.rest.get<ApiReponse<{ rewards: RewardRaw[] }>>('/v2/account/rewards');
+  async rewards(query: RewardsQuery = {}): Promise<Reward[]> {
+    const r = await this.client.rest.get<ApiResponse<{ rewards: RewardRaw[] }>>(
+      '/v4/account/rewards',
+      query
+    );
 
     return r.data.rewards.map(
       (raw: RewardRaw): Reward => ({
@@ -357,9 +395,11 @@ class AccountApi extends ApiGroup {
         title: raw.title,
         description: raw.description,
         amount: raw.amount,
+        tokenType: raw.tokenType,
         claimed: !!raw.claimed,
         canClaim: !!raw.canClaim,
         lastClaim: new Date(raw.lastClaimTimestamp * 1000),
+        provider: query.provider || 'base',
         nextClaim:
           raw.lastClaimTimestamp && raw.claimResetFrequencySec > -1
             ? new Date(raw.lastClaimTimestamp * 1000 + raw.claimResetFrequencySec * 1000)
@@ -372,11 +412,22 @@ class AccountApi extends ApiGroup {
    * Claim rewards by reward IDs.
    * @internal
    * @param rewardIds
+   * @param options - Options for claiming rewards
+   * @param options.turnstileToken - Turnstile token for anti-bot protection
+   * @param options.provider - Provider name for the rewards
    */
-  async claimRewards(rewardIds: string[]): Promise<void> {
-    await this.client.rest.post('/v2/account/reward/claim', {
-      claims: rewardIds
-    });
+  async claimRewards(
+    rewardIds: string[],
+    { turnstileToken, provider }: ClaimOptions = {}
+  ): Promise<void> {
+    const payload: Record<string, any> = {
+      claims: rewardIds,
+      provider: provider || 'base'
+    };
+    if (turnstileToken) {
+      payload.turnstileToken = turnstileToken;
+    }
+    await this.client.rest.post('/v3/account/reward/claim', payload);
   }
 
   /**
@@ -389,7 +440,7 @@ class AccountApi extends ApiGroup {
    * @param password - account password
    * @param amount - amount of tokens to withdraw from account to wallet
    */
-  async withdraw(password: string, amount: number): Promise<void> {
+  async withdraw(password: string, amount: number | string): Promise<void> {
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const walletAddress = wallet.address;
     const nonce = await this.getNonce(walletAddress);
@@ -397,6 +448,13 @@ class AccountApi extends ApiGroup {
       walletAddress: walletAddress,
       amount: parseEther(amount.toString()).toString()
     };
+    if (walletAddress !== this.currentAccount.walletAddress) {
+      throw new ApiError(400, {
+        status: 'error',
+        message: 'Incorrect password',
+        errorCode: 0
+      });
+    }
     const signature = await this.eip712.signTypedData(wallet, 'withdraw', { ...payload, nonce });
     await this.client.rest.post('/v1/account/token/withdraw', {
       ...payload,
@@ -414,35 +472,80 @@ class AccountApi extends ApiGroup {
    * @param password - account password
    * @param amount - amount to transfer
    */
-  async deposit(password: string, amount: number): Promise<void> {
+  async deposit(password: string, amount: number | string): Promise<void> {
+    return this._deposit(password, amount, 1);
+  }
+
+  private async _deposit(
+    password: string,
+    amount: number | string,
+    attemptCount: number = 1
+  ): Promise<void> {
     const wallet = this.getWallet(this.currentAccount.username!, password);
-    const walletAddress = wallet.address;
-    const nonce = await this.getNonce(walletAddress);
-    const payload = {
-      walletAddress,
-      amount: parseEther(amount.toString()).toString()
-    };
-    const { data } = await this.client.rest.post<ApiReponse<any>>(
-      '/v1/account/token/deposit/permit',
-      payload
+    if (wallet.address !== this.currentAccount.walletAddress) {
+      throw new ApiError(400, {
+        status: 'error',
+        message: 'Incorrect password',
+        errorCode: 0
+      });
+    }
+    try {
+      await this.client.rest.post('/v3/account/token/deposit', {
+        walletAddress: wallet.address,
+        amount: parseEther(amount.toString()).toString(),
+        provider: 'base'
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.payload.errorCode === ErrorCode.INSUFFICIENT_ALLOWANCE) {
+          // If this is the first attempt, we need to approve the token usage,
+          // otherwise we can retry the deposit directly.
+          if (attemptCount === 1) {
+            await this.approveTokenUsage(password, 'account');
+          }
+          if (attemptCount >= MAX_DEPOSIT_ATTEMPTS) {
+            throw error;
+          }
+          await delay(10000); // Wait for the approval transaction to be processed
+          await this._deposit(password, amount, attemptCount + 1);
+          return;
+        }
+        throw error;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Approve SOGNI token usage for the specified spender.
+   * @internal
+   *
+   * @param password - user account password
+   * @param spender - Spender type, either 'account' for deposit or 'staker' for staking contract
+   * @param provider - Provider name, defaults to 'base', can be 'base', 'etherlink', etc.
+   */
+  async approveTokenUsage(
+    password: string,
+    spender: 'account' | 'staker',
+    provider: string = 'base'
+  ): Promise<void> {
+    const wallet = this.getWallet(this.currentAccount.username!, password);
+    const permitR = await this.client.rest.post<{ data: Record<string, any> }>(
+      '/v1/contract/token/approve/permit',
+      {
+        walletAddress: wallet.address,
+        spender: spender,
+        provider: provider
+      }
     );
-    const { deadline } = data.message;
-    const permitSig = await wallet.signTypedData(data.domain, data.types, data.message);
-    const permitSignature = Signature.from(permitSig);
-    const depositPayload = {
-      ...payload,
-      deadline,
-      v: permitSignature.v,
-      r: permitSignature.r,
-      s: permitSignature.s
-    };
-    const depositSignature = await this.eip712.signTypedData(wallet, 'deposit', {
-      ...depositPayload,
-      nonce
-    });
-    await this.client.rest.post('/v1/account/token/deposit', {
-      ...depositPayload,
-      signature: depositSignature
+    const { domain, types, message } = permitR.data;
+    const signature = await wallet.signTypedData(domain, types, message);
+    await this.client.rest.post('/v1/contract/token/approve', {
+      walletAddress: wallet.address,
+      spender: spender,
+      provider: provider,
+      deadline: message.deadline,
+      approveSignature: signature
     });
   }
 }

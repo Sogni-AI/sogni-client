@@ -1,4 +1,6 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
+import { ControlNetParams } from './ControlNetParams';
+import { TokenType } from '../../types/token';
 
 export interface SupportedModel {
   id: string;
@@ -101,12 +103,14 @@ export interface ProjectParams {
    */
   numberOfImages: number;
   /**
-   * Generate images based on starting image.
+   * Generate images based on the starting image.
+   * Supported types:
    * `File` - file object from input[type=file]
-   * `Buffer` - buffer object with image data
+   * `Buffer` - Node.js buffer object with image data
    * `Blob` - blob object with image data
+   * `true` - indicates that the image is already uploaded to the server
    */
-  startingImage?: File | Buffer | Blob;
+  startingImage?: File | Buffer | Blob | boolean;
   /**
    * How strong effect of starting image should be. From 0 to 1, default 0.5
    */
@@ -136,6 +140,15 @@ export interface ProjectParams {
    * Output image height. Only used if `sizePreset` is "custom"
    */
   height?: number;
+  /**
+   * ControlNet model parameters
+   */
+  controlNet?: ControlNetParams;
+  /**
+   * Select which tokens to use for the project.
+   * If not specified, the Sogni token will be used.
+   */
+  tokenType?: TokenType;
 }
 
 export type ImageUrlParams = {
@@ -151,6 +164,10 @@ export interface EstimateRequest {
    * Network to use. Can be 'fast' or 'relaxed'
    */
   network: SupernetType;
+  /**
+   * Token type
+   */
+  tokenType?: TokenType;
   /**
    * Model ID
    */
@@ -190,3 +207,5 @@ export interface EstimateRequest {
    */
   height?: number;
 }
+
+export type EnhancementStrength = 'light' | 'medium' | 'heavy';

@@ -1,11 +1,36 @@
 import { SupernetType } from './types';
+import { Balances } from '../../Account/types';
 
-export type BalanceData = {
-  settled: string;
-  credit: string;
-  debit: string;
-  net: string;
-};
+export interface AuthenticatedData {
+  id: string;
+  clientType: 'artist' | 'worker';
+  username: string;
+  address: string;
+  SID: number;
+  clientSID: number;
+  addressSID: number;
+  balanceVersion: 2;
+  tokens: {
+    sogni: {
+      settled: string;
+      credit: string;
+      debit: string;
+      net: string;
+    };
+    spark: {
+      settled: string;
+      credit: string;
+      debit: string;
+      net: string;
+    };
+  };
+  activeProjects: [];
+  unclaimedCompletedProjects: [];
+  isMainnet: boolean;
+  accountWasMigrated: boolean;
+  hasUnclaimedAirdrop: boolean;
+  firstLoginAfterMigration: boolean;
+}
 
 export type JobErrorData = {
   jobID: string;
@@ -38,6 +63,9 @@ export type JobStateData =
       jobID: string;
       imgID: string;
       workerName: string;
+      positivePrompt?: string;
+      negativePrompt?: string;
+      jobIndex?: number;
     }
   | {
       jobID: string;
@@ -58,11 +86,29 @@ export type ServerDisconnectData = {
   reason: string;
 };
 
+export type ToastMessage = {
+  type: 'info' | 'success' | 'warning' | 'error';
+  message: string;
+  // Number of milliseconds to show the toast
+  autoClose: number;
+  stickyID: string;
+};
+
+export type ArtistCancelConfirmation = {
+  didCancel: boolean;
+  error_message: string;
+  jobID: string;
+};
+
 export type SocketEventMap = {
+  /**
+   * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
+   */
+  authenticated: AuthenticatedData;
   /**
    * @event WebSocketClient#balanceUpdate - Received balance update
    */
-  balanceUpdate: BalanceData;
+  balanceUpdate: Balances;
   /**
    * @event WebSocketClient#changeNetwork - Default network changed
    */
@@ -95,4 +141,10 @@ export type SocketEventMap = {
    * @event WebSocketClient#disconnected - WebSocket connection was closed
    */
   disconnected: ServerDisconnectData;
+  /**
+   * @event WebSocketClient#toastMessage - Toast message received
+   */
+  toastMessage: ToastMessage;
+
+  artistCancelConfirmation: ArtistCancelConfirmation;
 };
