@@ -440,7 +440,7 @@ class AccountApi extends ApiGroup {
    * @param password - account password
    * @param amount - amount of tokens to withdraw from account to wallet
    */
-  async withdraw(password: string, amount: number): Promise<void> {
+  async withdraw(password: string, amount: number | string): Promise<void> {
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const walletAddress = wallet.address;
     const nonce = await this.getNonce(walletAddress);
@@ -472,13 +472,13 @@ class AccountApi extends ApiGroup {
    * @param password - account password
    * @param amount - amount to transfer
    */
-  async deposit(password: string, amount: number): Promise<void> {
+  async deposit(password: string, amount: number | string): Promise<void> {
     return this._deposit(password, amount, 1);
   }
 
   private async _deposit(
     password: string,
-    amount: number,
+    amount: number | string,
     attemptCount: number = 1
   ): Promise<void> {
     const wallet = this.getWallet(this.currentAccount.username!, password);
