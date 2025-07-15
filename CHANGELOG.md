@@ -1,3 +1,63 @@
+# [3.0.0](https://github.com/Sogni-AI/sogni-client/compare/v2.0.4...v3.0.0) (2025-07-15)
+
+
+### Bug Fixes
+
+* Copy size preset when enhancing image ([06ab629](https://github.com/Sogni-AI/sogni-client/commit/06ab629a9b10377c87406817d1e72a0cd35bd025))
+* Discard enhancement project before starting new one ([4293b2b](https://github.com/Sogni-AI/sogni-client/commit/4293b2b535ed8cfe76ce307de71c99bec799bd79))
+* Do not mark project as completed if not all jobs started yet ([812e5ac](https://github.com/Sogni-AI/sogni-client/commit/812e5accd8605a6a742beb16a53bca2be50b9a81))
+* Fix job.getResultUrl() bug ([ea90083](https://github.com/Sogni-AI/sogni-client/commit/ea900831cd578c5962236b70564cab0da4f2f7a8))
+* Fix project sync attempt counter ([b112c06](https://github.com/Sogni-AI/sogni-client/commit/b112c064b443186b1992a80da5612af001919107))
+* Pass tokenType to jobRequest message. Make tokenType optional for project estimation ([9550d76](https://github.com/Sogni-AI/sogni-client/commit/9550d76ee3d40fb4321a157d0a5feb0fb680f183))
+* Prevent job progress going down ([5cf69d3](https://github.com/Sogni-AI/sogni-client/commit/5cf69d375d3a284964ba423c4287d592538cd273))
+* Set scheduler and timeStepSpacing to null by default ([ccc1fc8](https://github.com/Sogni-AI/sogni-client/commit/ccc1fc842b408f905fd786807be5b5df8895690b))
+* Update typings to indicate that `unclaimed` field may be absent from balance ([a661e17](https://github.com/Sogni-AI/sogni-client/commit/a661e17f549c3a51003557acb5e3ee5e34877f9d))
+
+
+### Features
+
+* Add `provider` parameter to `client.account.transactionHistory` ([9de208a](https://github.com/Sogni-AI/sogni-client/commit/9de208aa478d745a0706d8960e033e4cc9e25d35))
+* Add basic ControlNet support ([220991d](https://github.com/Sogni-AI/sogni-client/commit/220991db5b16740b159d2cb0c3e746141fa4906f))
+* Add job.getResultUrl() method to retrieve fresh download URL for a job ([82ce8d3](https://github.com/Sogni-AI/sogni-client/commit/82ce8d3cc9681800616185aac50e8f2102314ed4))
+* Add new leaderboard types ([d6d3fb8](https://github.com/Sogni-AI/sogni-client/commit/d6d3fb8a7c5a84ff089d6b51bc448da26821174a))
+* Add prompt and style overrides for image enhancer ([35cd4a0](https://github.com/Sogni-AI/sogni-client/commit/35cd4a017361f919d42a2568fff6e2e7b4367949))
+* Add support for `authenticated` socket event ([bc3d345](https://github.com/Sogni-AI/sogni-client/commit/bc3d3451e7640eb15f1368144bbc112298f640fa))
+* add support for receiving positivePrompt, negativePrompt, and jobIndex from jobInitiating and jobStarted events, these are useful for dynamic prompt result mapping ([d9873fa](https://github.com/Sogni-AI/sogni-client/commit/d9873fad77709afb72a02eb52ee5fd95e72244be))
+* Add support for toast message events ([2b032a8](https://github.com/Sogni-AI/sogni-client/commit/2b032a83b3c28798a4df692c1cb6f090915191a6))
+* add TokenType export and update LIB_VERSION from package.json ([f6110b5](https://github.com/Sogni-AI/sogni-client/commit/f6110b521715a076a7abb3010c68fbde8ea64b71))
+* add tokenType to estimateCost and estimateEnhancementCost methods ([1c97258](https://github.com/Sogni-AI/sogni-client/commit/1c97258facb2ddd687361a5172d5318329a70c43))
+* add tokenType to transaction list ([ee5951e](https://github.com/Sogni-AI/sogni-client/commit/ee5951ef9014ec6eed6a5b52acb5b8b1c5d1227d))
+* Add turnstile token parameter to claimReward ([a96f5e2](https://github.com/Sogni-AI/sogni-client/commit/a96f5e2b22fd879a717aae1c3fe6f60ad675d031))
+* Allow insecure socket connections ([5da2b0a](https://github.com/Sogni-AI/sogni-client/commit/5da2b0abb57e0e8ab7c7c5de449ea7a04183b753))
+* Allow passing string to `account.deposit` and `account.withdraw` ([c9397f1](https://github.com/Sogni-AI/sogni-client/commit/c9397f1436b7c198ba4be860414815c6fc637bf6))
+* Allow setting token type for image enhancement ([7420274](https://github.com/Sogni-AI/sogni-client/commit/7420274caf852b078d47e008b6065da70a456714))
+* Bump PROTOCOL_VERSION ([6e5f6b9](https://github.com/Sogni-AI/sogni-client/commit/6e5f6b91870fbd557ce235d0508216c1b4e93cad))
+* Cloudflare Turnstile token is required during signup ([768b9c8](https://github.com/Sogni-AI/sogni-client/commit/768b9c8a46f05f7b196976d3a7aa8a1e512ca172))
+* Decouple fetching balance from the refresh method ([a7d4f62](https://github.com/Sogni-AI/sogni-client/commit/a7d4f625fc29831fdd72fda65af622d303ef1d32))
+* Default client to mainnet ([5f9e44f](https://github.com/Sogni-AI/sogni-client/commit/5f9e44f462cd1b6f5bddc30e523567fa8b671736))
+* Default rewards provider to `base`, add provider param to queried rewards ([d84dcff](https://github.com/Sogni-AI/sogni-client/commit/d84dcff1d3e01b7154e62724d078cfd158d12317))
+* emit jobStarted, jobCompleted, and jobFailed events for better job tracking ([0e3bb33](https://github.com/Sogni-AI/sogni-client/commit/0e3bb33703868a3491edfac2c9f08325db0eb278))
+* Expose getNonce method as public ([694c041](https://github.com/Sogni-AI/sogni-client/commit/694c041431b99c4bae2d5dc8f22d327fed45771d))
+* Expose option to disable socket connection (Experimental) ([048adcf](https://github.com/Sogni-AI/sogni-client/commit/048adcfad99acd8ffb8197ad55f7d54679aacde8))
+* Image enhancement with Flux model ([82488e7](https://github.com/Sogni-AI/sogni-client/commit/82488e7658b56902cee25e58bc1763c1392c5d46))
+* Migrate account deposit to v3 ([71bfaac](https://github.com/Sogni-AI/sogni-client/commit/71bfaacca89c3a7f721b91ca39226650a2eb4ff5))
+* Refactor image enhancement logic ([6728875](https://github.com/Sogni-AI/sogni-client/commit/67288759637c4b22266455ce1f1220d2590d7592))
+* Remove blockchain provider since SDK does not need to call Base ([d5f8609](https://github.com/Sogni-AI/sogni-client/commit/d5f8609f29b9f9843913ecaf514516f490a60c61))
+* Set project to error state if failed to sync it to server after not receiving any socket updates ([7ac63c4](https://github.com/Sogni-AI/sogni-client/commit/7ac63c40c5441578cc7beca4363a5301e6450fc3))
+* Support for EIP712 on mainnet ([5e04e81](https://github.com/Sogni-AI/sogni-client/commit/5e04e8129f59bfac0ed6d65cc7c847ad622111b2))
+* Support passing `provider` parameter when claiming reward ([71a045e](https://github.com/Sogni-AI/sogni-client/commit/71a045e60dbda63efe9f513bc9ffe8328f5e3dd2))
+* Support rewards v4 API to query rewards scoped to ([ff0a713](https://github.com/Sogni-AI/sogni-client/commit/ff0a71387f602faba7da9a2e494f886a98881d95))
+* Support uploading starting image and ControlNet input image before creating a project ([4fd8a5a](https://github.com/Sogni-AI/sogni-client/commit/4fd8a5a3597e7b3bb85c4a8c94cd2df798ca6bfe))
+* update balance API and data format to support multiple token types. Support passing token type in Project request ([f227467](https://github.com/Sogni-AI/sogni-client/commit/f22746748f7da3df8dfd9f8fd0cb90a8f7269cac))
+
+
+### BREAKING CHANGES
+
+* `client.account.claimRewards` signature changed
+* client.projects.estimateCost and client.projects.estimateEnhancementCost signature changed
+* Balance data format has changed
+* Signup signature is changed.Turnstile token is required for Signup
+
 # [3.0.0-alpha.42](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0-alpha.41...v3.0.0-alpha.42) (2025-07-15)
 
 
