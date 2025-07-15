@@ -14,8 +14,10 @@ or
 yarn add @sogni-ai/sogni-client
 ```
 ## Core concepts
-In order to use Sogni Supernet, you need an active Sogni account (in the form of a username and password) with a positive SOGNI balance. 
+In order to use Sogni Supernet, you need an active Sogni account (in the form of a username and password) with a positive SOGNI or Spark token balance. 
 You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio) which will give you tokens just for signing up and confirming your email. You can get daily bonus tokens by claiming them (under rewards) each 24-hours.
+
+Spark tokens can be purchased with a credit card in a Mac or Web app.
 
 Your account is tied to a [Base](https://www.base.org/) Wallet that is created during signup.
 
