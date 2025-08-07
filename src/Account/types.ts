@@ -36,9 +36,19 @@ export interface BalanceData {
   unclaimed?: string;
 }
 
-export type Balances = Record<TokenType, BalanceData>;
+export interface SparkBalanceData extends BalanceData {
+  premiumCredit: string;
+}
 
-export type FullBalances = Record<TokenType, Required<BalanceData>>;
+export interface Balances {
+  sogni: BalanceData;
+  spark: SparkBalanceData;
+}
+
+export interface FullBalances {
+  sogni: Required<BalanceData>;
+  spark: Required<SparkBalanceData>;
+}
 
 export interface TxHistoryParams {
   status: 'completed';

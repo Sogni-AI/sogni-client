@@ -38,7 +38,8 @@ function getDefaults(): AccountData {
         credit: '0',
         debit: '0',
         net: '0',
-        settled: '0'
+        settled: '0',
+        premiumCredit: '0'
       }
     },
     walletAddress: undefined,
