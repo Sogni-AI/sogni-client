@@ -1,3 +1,10 @@
+# [3.1.0](https://github.com/Sogni-AI/sogni-client/compare/v3.0.1...v3.1.0) (2025-08-07)
+
+
+### Features
+
+* Expose `premiumCredit` Spark amount in account balance ([57e568c](https://github.com/Sogni-AI/sogni-client/commit/57e568cdff0bb29ce61489dab6280f735f497bb8))
+
 ## [3.0.1](https://github.com/Sogni-AI/sogni-client/compare/v3.0.0...v3.0.1) (2025-07-15)
 
 
