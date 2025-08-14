@@ -1,3 +1,10 @@
+## [3.1.1](https://github.com/Sogni-AI/sogni-client/compare/v3.1.0...v3.1.1) (2025-08-14)
+
+
+### Bug Fixes
+
+* Add new schedulers and time step spacing values ([fe5e79e](https://github.com/Sogni-AI/sogni-client/commit/fe5e79eff117c9bfc4b9ef0afdaf4eb9eb759755))
+
 # [3.1.0](https://github.com/Sogni-AI/sogni-client/compare/v3.0.1...v3.1.0) (2025-08-07)
 
 
