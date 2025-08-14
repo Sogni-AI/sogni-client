@@ -23,42 +23,15 @@ export interface SizePreset {
   aspect: string;
 }
 
-export interface AiModel {
-  isSD3: boolean;
-  modelShortName: string;
-  isIOSslowest: boolean;
-  hasOriginalVersionOnly: boolean;
-  isUserModel: boolean;
-  isTurboXL: boolean;
-  isRealistic: boolean;
-  isArtistic: boolean;
-  tier: string;
-  splitAttentionSuffix: string;
-  isSD3XL: boolean;
-  originalAttentionSuffix: string;
-  isLCM: boolean;
-  zipWeight: number;
-  modelId: string;
-  modelVersion: string;
-  parentId: string;
-  quantized: boolean;
-  isXL: boolean;
-  splitAttentionV2Suffix: string;
-  supportsAttentionV2: boolean;
-  supportsControlNet: boolean;
-  supportsEncoder: boolean;
-  onlySplitEinsumV2available: boolean;
-  customSize?: number[];
-}
-
 export type Scheduler =
   | 'DPM Solver Multistep (DPM-Solver++)'
   | 'PNDM (Pseudo-linear multi-step)'
   | 'LCM (Latent Consistency Model)'
   | 'Discrete Flow Scheduler (SD3)'
-  | 'Euler'; // Used by Flux
+  | 'Euler' // Used by Flux
+  | 'Euler a'; // Used by Flux
 
-export type TimeStepSpacing = 'Karras' | 'Leading' | 'Linear';
+export type TimeStepSpacing = 'Leading' | 'Linear' | 'Karras' | 'Simple' | 'SGM Uniform';
 
 export interface ProjectParams {
   /**
