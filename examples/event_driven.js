@@ -32,7 +32,8 @@ getClient()
         'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
       stylePrompt: 'anime',
       numberOfPreviews: 2,
-      numberOfImages: 2
+      numberOfImages: 2,
+      outputFormat: 'png' // Can be 'png' or 'jpg', defaults to 'png'
     });
 
     // Receive project completion percentage in real-time

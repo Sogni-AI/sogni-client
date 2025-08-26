@@ -33,6 +33,8 @@ export type Scheduler =
 
 export type TimeStepSpacing = 'Leading' | 'Linear' | 'Karras' | 'Simple' | 'SGM Uniform';
 
+export type OutputFormat = 'png' | 'jpg';
+
 export interface ProjectParams {
   /**
    * ID of the model to use, available models are available in the `availableModels` property of the `ProjectsApi` instance.
@@ -122,6 +124,11 @@ export interface ProjectParams {
    * If not specified, the Sogni token will be used.
    */
   tokenType?: TokenType;
+  /**
+   * Output image format. Can be 'png' or 'jpg'.
+   * If not specified, 'png' will be used.
+   */
+  outputFormat?: OutputFormat;
 }
 
 export type ImageUrlParams = {

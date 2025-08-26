@@ -81,7 +81,8 @@ const project = await client.projects.create({
   stylePrompt: 'anime',
   steps: 20, 
   guidance: 7.5, 
-  numberOfImages: 1
+  numberOfImages: 1,
+  outputFormat: 'jpg' // Can be 'png' or 'jpg', defaults to 'png'
 });
 ```
 **Note:** Full project parameter list can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
@@ -186,6 +187,7 @@ Turbo and LCM models are designed for quality output in as little as 1 step. ([M
 - `startingImage` - guide image in PNG format. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
 - `startingImageStrength` - strong effect of starting image should be. From 0 to 1, default 0.5. 
 - `controlNet` - Stable Diffusion ControlNet parameters. See **ControlNets** section below for more info.
+- `outputFormat` - output image format. Can be `png` or `jpg`. If not specified, `png` will be used. JPG format results in smaller file sizes but may have slightly lower quality due to compression.
 
 TypeScript type definitions for project parameters can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 

@@ -140,7 +140,8 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
     numberOfImages: params.numberOfImages,
     jobID: id,
     disableSafety: !!params.disableNSFWFilter,
-    tokenType: params.tokenType
+    tokenType: params.tokenType,
+    outputFormat: params.outputFormat || 'png'
   };
   if (params.network) {
     jobRequest.network = params.network;

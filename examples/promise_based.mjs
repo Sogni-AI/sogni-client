@@ -45,7 +45,8 @@ const project = await client.projects.create({
   negativePrompt:
     'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
   stylePrompt: 'anime',
-  numberOfImages: 4
+  numberOfImages: 4,
+  outputFormat: 'jpg' // Can be 'png' or 'jpg', defaults to 'png'
 });
 
 project.on('progress', (progress) => {
