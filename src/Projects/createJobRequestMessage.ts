@@ -129,6 +129,8 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
         positivePrompt: params.positivePrompt,
         stylePrompt: params.stylePrompt,
         hasStartingImage: !!params.startingImage,
+        hasContextImage1: !!params.contextImages?.[0],
+        hasContextImage2: !!params.contextImages?.[1],
         strengthIsEnabled: !!params.startingImage,
         strength: !!params.startingImage
           ? 1 - (Number(params.startingImageStrength) || 0.5)

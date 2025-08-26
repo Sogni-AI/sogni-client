@@ -368,6 +368,22 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (data.controlNet?.image && data.controlNet.image !== true) {
       await this.uploadCNImage(project.id, data.controlNet.image);
     }
+    if (data.contextImages?.length) {
+      if (data.contextImages.length > 2) {
+        throw new ApiError(500, {
+          status: 'error',
+          errorCode: 0,
+          message: `Up to 2 context images are supported`
+        });
+      }
+      await Promise.all(
+        data.contextImages.map((image, index) => {
+          if (image && image !== true) {
+            return this.uploadContextImage(project.id, index as 0 | 1, image);
+          }
+        })
+      );
+    }
     const request = createJobRequestMessage(project.id, data);
     await this.client.socket.send('jobRequest', request);
     this.projects.push(project);
@@ -461,6 +477,28 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return imageId;
   }
 
+  private async uploadContextImage(projectId: string, index: 0 | 1, file: File | Buffer | Blob) {
+    const imageId = getUUID();
+    const imageIndex = (index + 1) as 1 | 2;
+    const presignedUrl = await this.uploadUrl({
+      imageId,
+      jobId: projectId,
+      type: `contextImage${imageIndex}`
+    });
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: file
+    });
+    if (!res.ok) {
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: `Failed to upload context image ${index}`
+      });
+    }
+    return imageId;
+  }
+
   /**
    * Estimate project cost
    */
@@ -475,8 +513,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     startingImageStrength,
     width,
     height,
-    sizePreset
+    sizePreset,
+    guidance,
+    scheduler,
+    contextImages
   }: EstimateRequest) {
+    let apiVersion = 2;
     const pathParams = [
       tokenType || 'sogni',
       network,
@@ -496,9 +538,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       pathParams.push(preset.width, preset.height);
     } else if (width && height) {
       pathParams.push(width, height);
+    } else {
+      pathParams.push(0, 0);
+    }
+    if (scheduler) {
+      apiVersion = 3;
+      pathParams.push(guidance || 0);
+      pathParams.push(scheduler || '');
+      pathParams.push(contextImages || 0);
     }
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v2/job/estimate/${pathParams.join('/')}`
+      `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}`
     );
     return {
       token: r.quote.project.costInToken,

@@ -35,6 +35,8 @@ export type TimeStepSpacing = 'Leading' | 'Linear' | 'Karras' | 'Simple' | 'SGM 
 
 export type OutputFormat = 'png' | 'jpg';
 
+export type InputImage = File | Buffer | Blob | boolean;
+
 export interface ProjectParams {
   /**
    * ID of the model to use, available models are available in the `availableModels` property of the `ProjectsApi` instance.
@@ -85,11 +87,20 @@ export interface ProjectParams {
    * `Blob` - blob object with image data
    * `true` - indicates that the image is already uploaded to the server
    */
-  startingImage?: File | Buffer | Blob | boolean;
+  startingImage?: InputImage;
   /**
    * How strong effect of starting image should be. From 0 to 1, default 0.5
    */
   startingImageStrength?: number;
+  /**
+   * Context images for Flux Kontext model. Flux Kontext support up to 2 context images.
+   * Supported types:
+   * `File` - file object from input[type=file]
+   * `Buffer` - Node.js buffer object with image data
+   * `Blob` - blob object with image data
+   * `true` - indicates that the image is already uploaded to the server
+   */
+  contextImages?: InputImage[];
   /**
    * Number of previews to generate. Note that previews affect project cost\
    */
@@ -134,7 +145,7 @@ export interface ProjectParams {
 export type ImageUrlParams = {
   imageId: string;
   jobId: string;
-  type: 'preview' | 'complete' | 'startingImage' | 'cnImage';
+  type: 'preview' | 'complete' | 'startingImage' | 'cnImage' | 'contextImage1' | 'contextImage2';
   // This seems to be unused currently
   startContentType?: string;
 };
@@ -186,6 +197,19 @@ export interface EstimateRequest {
    * @internal
    */
   height?: number;
+  /**
+   * Guidance, note that this parameter is ignored if `scheduler` is not provided
+   */
+  guidance?: number;
+  /**
+   * Scheduler
+   */
+  scheduler?: Scheduler;
+  /**
+   * Number of context images to use (for Flux Kontext).
+   * Note that this parameter is ignored if `scheduler` is not provided
+   */
+  contextImages?: number;
 }
 
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
