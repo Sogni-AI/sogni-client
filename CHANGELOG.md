@@ -1,3 +1,10 @@
+# [3.2.0](https://github.com/Sogni-AI/sogni-client/compare/v3.1.1...v3.2.0) (2025-08-26)
+
+
+### Features
+
+* Expose new project option  png or jpg ([e3c1c8d](https://github.com/Sogni-AI/sogni-client/commit/e3c1c8d851779a8006e5b8e7023212bd65950297))
+
 ## [3.1.1](https://github.com/Sogni-AI/sogni-client/compare/v3.1.0...v3.1.1) (2025-08-14)
 
 
