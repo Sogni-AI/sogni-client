@@ -1,3 +1,10 @@
+# [3.3.0](https://github.com/Sogni-AI/sogni-client/compare/v3.2.0...v3.3.0) (2025-08-26)
+
+
+### Features
+
+* Add context image support for Flux Kontext ([667c445](https://github.com/Sogni-AI/sogni-client/commit/667c44539288f78b01c7d15ff2a88bbd1f81b7bc))
+
 # [3.2.0](https://github.com/Sogni-AI/sogni-client/compare/v3.1.1...v3.2.0) (2025-08-26)
 
 
