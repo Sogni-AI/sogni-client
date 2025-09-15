@@ -1,3 +1,10 @@
+# [3.4.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v3.3.0...v3.4.0-alpha.1) (2025-09-15)
+
+
+### Features
+
+* include credentials in REST API wrapper ([5ccdbab](https://github.com/Sogni-AI/sogni-client/commit/5ccdbabd66f9ad6fb1cb07682c3b8975ceb45fca))
+
 # [3.3.0](https://github.com/Sogni-AI/sogni-client/compare/v3.2.0...v3.3.0) (2025-08-26)
 
 
