@@ -32,6 +32,7 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     const token = await this.auth.getToken();
     return fetch(url, {
       ...options,
+      credentials: 'include',
       headers: {
         ...(options.headers || {}),
         ...(token ? { Authorization: token } : {})
