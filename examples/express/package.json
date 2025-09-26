@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@sogni-ai/sogni-client": "^0.4.0",
+    "@sogni-ai/sogni-client": "^3.3.0",
     "body-parser": "^1.20.3",
     "express": "^4.21.1"
   }
