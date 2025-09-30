@@ -19,8 +19,7 @@ export interface AccountData {
   balance: Balances;
   walletAddress?: string;
   username?: string;
-  token?: string;
-  refreshToken?: string;
+  email?: string;
 }
 
 function getDefaults(): AccountData {
@@ -43,9 +42,7 @@ function getDefaults(): AccountData {
       }
     },
     walletAddress: undefined,
-    username: undefined,
-    token: undefined,
-    refreshToken: undefined
+    username: undefined
   };
 }
 
@@ -63,7 +60,7 @@ class CurrentAccount extends DataEntity<AccountData> {
   }
 
   get isAuthenicated() {
-    return !!this.data.refreshToken;
+    return !!this.data.walletAddress;
   }
 
   get networkStatus() {
@@ -86,12 +83,8 @@ class CurrentAccount extends DataEntity<AccountData> {
     return this.data.username;
   }
 
-  get token() {
-    return this.data.token;
-  }
-
-  get refreshToken() {
-    return this.data.refreshToken;
+  get email() {
+    return this.data.email;
   }
 }
 

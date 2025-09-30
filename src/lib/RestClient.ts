@@ -2,7 +2,7 @@ import { ApiError, ApiErrorResponse } from '../ApiClient';
 import TypedEventEmitter, { EventMap } from './TypedEventEmitter';
 import { JSONValue } from '../types/json';
 import { Logger } from './DefaultLogger';
-import AuthManager from './AuthManager';
+import { AuthManager } from './AuthManager';
 
 class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   readonly baseUrl: string;
@@ -29,15 +29,8 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   }
 
   private async request<T = JSONValue>(url: string, options: RequestInit = {}): Promise<T> {
-    const token = await this.auth.getToken();
-    return fetch(url, {
-      ...options,
-      credentials: 'include',
-      headers: {
-        ...(options.headers || {}),
-        ...(token ? { Authorization: token } : {})
-      }
-    }).then((r) => this.processResponse(r) as T);
+    const init = await this.auth.authenticateRequest(options);
+    return fetch(url, init).then((r) => this.processResponse(r) as T);
   }
 
   private async processResponse(response: Response): Promise<JSONValue> {
@@ -47,6 +40,10 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     } catch (e) {
       this._logger.error('Failed to parse response:', e);
       throw new Error('Failed to parse response');
+    }
+    // 401 means that the client instance is not authenticated, so we clear the authentication
+    if (response.status === 401 && this.auth.isAuthenticated) {
+      this.auth.clear();
     }
     if (!response.ok) {
       throw new ApiError(response.status, responseData as ApiErrorResponse);

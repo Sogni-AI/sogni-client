@@ -5,6 +5,7 @@ import {
   ClaimOptions,
   FullBalances,
   LoginData,
+  MeData,
   Nonce,
   Reward,
   RewardRaw,
@@ -18,8 +19,8 @@ import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
 import { ApiError, ApiResponse } from '../ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
-import { AuthUpdatedEvent, Tokens } from '../lib/AuthManager';
 import { delay } from '../lib/utils';
+import { TokenAuthManager } from '../lib/AuthManager';
 
 const MAX_DEPOSIT_ATTEMPTS = 4;
 enum ErrorCode {
@@ -60,14 +61,15 @@ class AccountApi extends ApiGroup {
   }
 
   private handleServerDisconnected() {
-    this.currentAccount._clear();
+    this.currentAccount._update({
+      networkStatus: 'disconnected',
+      network: null
+    });
   }
 
-  private handleAuthUpdated({ refreshToken, token, walletAddress }: AuthUpdatedEvent) {
-    if (!refreshToken) {
+  private handleAuthUpdated(isAuthenticated: boolean) {
+    if (!isAuthenticated) {
       this.currentAccount._clear();
-    } else {
-      this.currentAccount._update({ walletAddress, token, refreshToken });
     }
   }
 
@@ -132,43 +134,14 @@ class AccountApi extends ApiGroup {
       referralCode,
       signature
     });
-    await this.setToken(username, { refreshToken: res.data.refreshToken, token: res.data.token });
+    const auth = this.client.auth;
+    if (auth instanceof TokenAuthManager) {
+      await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
+    } else {
+      await auth.authenticate();
+    }
+    await this.me();
     return res.data;
-  }
-
-  /**
-   * Restore session with username and refresh token.
-   *
-   * You can save access token that you get from the login method and restore the session with this method.
-   *
-   * @example Store access token to local storage
-   * ```typescript
-   * const { username, token, refreshToken } = await client.account.login('username', 'password');
-   * localStorage.setItem('sogni-username', username);
-   * localStorage.setItem('sogni-token', token);
-   * localStorage.setItem('sogni-refresh-token', refreshToken);
-   * ```
-   *
-   * @example Restore session from local storage
-   * ```typescript
-   * const username = localStorage.getItem('sogni-username');
-   * const token = localStorage.getItem('sogni-token');
-   * const refreshToken = localStorage.getItem('sogni-refresh-token');
-   * if (username && refreshToken) {
-   *  client.account.setToken(username, {token, refreshToken});
-   *  console.log('Session restored');
-   * }
-   * ```
-   *
-   * @param username
-   * @param tokens - Refresh token, access token pair { refreshToken: string, token: string }
-   */
-  async setToken(username: string, tokens: Tokens): Promise<void> {
-    await this.client.authenticate(tokens);
-    this.currentAccount._update({
-      username,
-      walletAddress: this.client.auth.walletAddress
-    });
   }
 
   /**
@@ -194,7 +167,13 @@ class AccountApi extends ApiGroup {
       walletAddress: wallet.address,
       signature
     });
-    await this.setToken(username, { refreshToken: res.data.refreshToken, token: res.data.token });
+    const auth = this.client.auth;
+    if (auth instanceof TokenAuthManager) {
+      await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
+    } else {
+      await auth.authenticate();
+    }
+    await this.me();
     return res.data;
   }
 
@@ -211,8 +190,7 @@ class AccountApi extends ApiGroup {
     this.client.rest.post('/v1/account/logout').catch((e) => {
       this.client.logger.error('Failed to logout', e);
     });
-    this.client.removeAuth();
-    this.currentAccount._clear();
+    this.client.auth.clear();
   }
 
   /**
@@ -269,6 +247,16 @@ class AccountApi extends ApiGroup {
       ApiResponse<{ sogni: string; spark: string; ether: string }>
     >('/v2/wallet/balance', {
       walletAddress
+    });
+    return res.data;
+  }
+
+  async me() {
+    const res = await this.client.rest.get<ApiResponse<MeData>>('/v1/account/me');
+    this.currentAccount._update({
+      username: res.data.username,
+      email: res.data.currentEmail,
+      walletAddress: res.data.walletAddress
     });
     return res.data;
   }

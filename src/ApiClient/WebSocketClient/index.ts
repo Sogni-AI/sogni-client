@@ -7,7 +7,7 @@ import { base64Decode, base64Encode } from '../../lib/base64';
 import isNodejs from '../../lib/isNodejs';
 import { LIB_VERSION } from '../../version';
 import { Logger } from '../../lib/DefaultLogger';
-import AuthManager from '../../lib/AuthManager';
+import { AuthManager } from '../../lib/AuthManager';
 
 const PROTOCOL_VERSION = '3.0.0';
 
@@ -67,16 +67,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     url.searchParams.set('clientType', 'artist');
     //At this point 'relaxed' does not work as expected, so we use 'fast' or empty
     url.searchParams.set('forceWorkerId', this._supernetType === 'fast' ? 'fast' : '');
-    let params;
-    // In Node.js, ws package is used, so we need to set the auth header
-    if (isNodejs) {
-      params = {
-        headers: {
-          Authorization: await this.auth.getToken(),
-          'User-Agent': userAgent
-        }
-      };
-    }
+    const params = await this.auth.socketOptions();
     this.socket = new WebSocket(url.toString(), params);
     this.socket.onerror = this.handleError.bind(this);
     this.socket.onmessage = this.handleMessage.bind(this);

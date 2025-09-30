@@ -7,7 +7,8 @@ import { isNotRecoverable } from './WebSocketClient/ErrorCode';
 import { JSONValue } from '../types/json';
 import { SupernetType } from './WebSocketClient/types';
 import { Logger } from '../lib/DefaultLogger';
-import AuthManager, { Tokens } from '../lib/AuthManager';
+import CookieAuthManager from '../lib/AuthManager/CookieAuthManager';
+import { AuthManager, TokenAuthManager } from '../lib/AuthManager';
 
 const WS_RECONNECT_ATTEMPTS = 5;
 
@@ -33,6 +34,16 @@ export class ApiError extends Error {
   }
 }
 
+export interface ApiClientOptions {
+  baseUrl: string;
+  socketUrl: string;
+  appId: string;
+  networkType: SupernetType;
+  logger: Logger;
+  authType: 'token' | 'cookies';
+  disableSocket?: boolean;
+}
+
 class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   readonly appId: string;
   readonly logger: Logger;
@@ -42,23 +53,24 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   private _reconnectAttempts = WS_RECONNECT_ATTEMPTS;
   private _disableSocket: boolean = false;
 
-  constructor(
-    baseUrl: string,
-    socketUrl: string,
-    appId: string,
-    networkType: SupernetType,
-    logger: Logger,
-    disableSocket: boolean = false
-  ) {
+  constructor({
+    baseUrl,
+    socketUrl,
+    appId,
+    networkType,
+    authType,
+    logger,
+    disableSocket = false
+  }: ApiClientOptions) {
     super();
     this.appId = appId;
     this.logger = logger;
-    this._auth = new AuthManager(baseUrl, logger);
+    this._auth =
+      authType === 'token' ? new TokenAuthManager(baseUrl, logger) : new CookieAuthManager(logger);
     this._rest = new RestClient(baseUrl, this._auth, logger);
     this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
     this._disableSocket = disableSocket;
-
-    this._auth.on('refreshFailed', this.handleRefreshFailed.bind(this));
+    this._auth.on('updated', this.handleAuthUpdated.bind(this));
     this._socket.on('connected', this.handleSocketConnect.bind(this));
     this._socket.on('disconnected', this.handleSocketDisconnect.bind(this));
   }
@@ -67,7 +79,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     return this.auth.isAuthenticated;
   }
 
-  get auth(): AuthManager {
+  get auth() {
     return this._auth;
   }
 
@@ -83,20 +95,6 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     return !this._disableSocket;
   }
 
-  async authenticate(tokens: Tokens) {
-    await this.auth.setTokens(tokens);
-    if (!this._disableSocket) {
-      await this.socket.connect();
-    }
-  }
-
-  removeAuth() {
-    this.auth.clear();
-    if (this.socket.isConnected) {
-      this.socket.disconnect();
-    }
-  }
-
   handleSocketConnect({ network }: ServerConnectData) {
     this._reconnectAttempts = WS_RECONNECT_ATTEMPTS;
     this.emit('connected', { network });
@@ -104,13 +102,13 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
 
   handleSocketDisconnect(data: ServerDisconnectData) {
     if (!data.code || isNotRecoverable(data.code)) {
-      this.removeAuth();
+      this.auth.clear();
       this.emit('disconnected', data);
       this.logger.error('Not recoverable socket error', data);
       return;
     }
     if (this._reconnectAttempts <= 0) {
-      this.removeAuth();
+      this.auth.clear();
       this.emit('disconnected', data);
       this._reconnectAttempts = WS_RECONNECT_ATTEMPTS;
       return;
@@ -119,8 +117,14 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     setTimeout(() => this.socket.connect(), 1000);
   }
 
-  handleRefreshFailed() {
-    this.removeAuth();
+  handleAuthUpdated(isAuthenticated: boolean) {
+    if (!isAuthenticated) {
+      if (this.socket.isConnected) {
+        this.socket.disconnect();
+      }
+    } else if (!this._disableSocket) {
+      this.socket.connect();
+    }
   }
 }
 

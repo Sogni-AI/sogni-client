@@ -24,6 +24,18 @@ export interface LoginData {
   username: string;
 }
 
+export interface MeData {
+  currentEmail: string;
+  discord2FA: boolean;
+  discordLinked: boolean;
+  discordServerMember: boolean;
+  discordUsername: string;
+  emailVerified: boolean;
+  requestedUpdatedEmail: string;
+  username: string;
+  walletAddress: string;
+}
+
 export interface BalanceData {
   settled: string;
   credit: string;
