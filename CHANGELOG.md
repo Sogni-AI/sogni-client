@@ -1,3 +1,23 @@
+# [4.0.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v3.4.0-alpha.1...v4.0.0-alpha.1) (2025-09-30)
+
+
+### Features
+
+* Add support for token and cookie authentication with updated AuthManager and REST client enhancements ([a5a2bd2](https://github.com/Sogni-AI/sogni-client/commit/a5a2bd2f005ea298e07773f0954b99ea2c43bc5d))
+
+
+### BREAKING CHANGES
+
+* Various changes in ApiClient, AuthManager and CurrentAccount.
+
+Most notable:
+1. `client.apiClient.authenticate` replaced with `client.setTokens`
+2. Added `client.checkAuth` to check if client is authenticated when using cookie authentication
+3. Added `authType` to `SogniClient.createInstance` to switch between token and cookie authentication
+4. Removed `token` and `refreshToken` keys from `client.account.currentAccount`
+5. Added `email` to `client.account.currentAccount`
+6. Added `client.account.me()` method to refresh current account data
+
 # [3.4.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v3.3.0...v3.4.0-alpha.1) (2025-09-15)
 
 
