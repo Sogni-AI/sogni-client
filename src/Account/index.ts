@@ -187,9 +187,7 @@ class AccountApi extends ApiGroup {
    * ```
    */
   async logout(): Promise<void> {
-    this.client.rest.post('/v1/account/logout').catch((e) => {
-      this.client.logger.error('Failed to logout', e);
-    });
+    await this.client.rest.post('/v1/account/logout');
     this.client.auth.clear();
   }
 
