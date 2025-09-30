@@ -1,3 +1,10 @@
+# [4.0.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.1...v4.0.0-alpha.2) (2025-09-30)
+
+
+### Features
+
+* Make logout synchronous. That is important for cookie auth ([5c39cd1](https://github.com/Sogni-AI/sogni-client/commit/5c39cd1589b25fe95eb77ace716f78d9933b303d))
+
 # [4.0.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v3.4.0-alpha.1...v4.0.0-alpha.1) (2025-09-30)
 
 
