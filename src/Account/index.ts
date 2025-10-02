@@ -110,14 +110,10 @@ class AccountApi extends ApiGroup {
    * Create a new account with the given username, email, and password.
    * @internal
    */
-  async create({
-    username,
-    email,
-    password,
-    subscribe,
-    turnstileToken,
-    referralCode
-  }: AccountCreateParams): Promise<AccountCreateData> {
+  async create(
+    { username, email, password, subscribe, turnstileToken, referralCode }: AccountCreateParams,
+    rememberMe = false
+  ): Promise<AccountCreateData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
     const payload = {
@@ -132,7 +128,8 @@ class AccountApi extends ApiGroup {
     const res = await this.client.rest.post<ApiResponse<AccountCreateData>>('/v1/account/create', {
       ...payload,
       referralCode,
-      signature
+      signature,
+      rememberMe
     });
     const auth = this.client.auth;
     if (auth instanceof TokenAuthManager) {
@@ -155,8 +152,10 @@ class AccountApi extends ApiGroup {
    *
    * @param username
    * @param password
+   * @param rememberMe - Whether to establish a long-lived session. Default is false. Only
+   * applicable for cookie-based authentication.
    */
-  async login(username: string, password: string): Promise<LoginData> {
+  async login(username: string, password: string, rememberMe = false): Promise<LoginData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
     const signature = await this.eip712.signTypedData(wallet, 'authentication', {
@@ -165,7 +164,8 @@ class AccountApi extends ApiGroup {
     });
     const res = await this.client.rest.post<ApiResponse<LoginData>>('/v1/account/login', {
       walletAddress: wallet.address,
-      signature
+      signature,
+      rememberMe
     });
     const auth = this.client.auth;
     if (auth instanceof TokenAuthManager) {
