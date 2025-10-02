@@ -1,3 +1,10 @@
+# [4.0.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.2...v4.0.0-alpha.3) (2025-10-02)
+
+
+### Features
+
+* Add rememberMe parameter for login and signup API to allow long lived cookie-based session ([e0c1395](https://github.com/Sogni-AI/sogni-client/commit/e0c13957c3ff8d548e40453f9c57d72390fdd9d7))
+
 # [4.0.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.1...v4.0.0-alpha.2) (2025-09-30)
 
 
