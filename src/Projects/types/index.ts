@@ -133,6 +133,7 @@ export interface ProjectParams {
   /**
    * Select which tokens to use for the project.
    * If not specified, the Sogni token will be used.
+   * @default 'sogni'
    */
   tokenType?: TokenType;
   /**
@@ -153,10 +154,12 @@ export type ImageUrlParams = {
 export interface EstimateRequest {
   /**
    * Network to use. Can be 'fast' or 'relaxed'
+   * @default 'fast'
    */
-  network: SupernetType;
+  network?: SupernetType;
   /**
    * Token type
+   * @default 'sogni'
    */
   tokenType?: TokenType;
   /**

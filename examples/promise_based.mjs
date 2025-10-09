@@ -27,7 +27,7 @@ async function downloadImage(url) {
 
 const client = await SogniClient.createInstance({
   appId: `${USERNAME}-image-generator`,
-  network: 'relaxed' // or 'fast' for faster but more expensive processing
+  network: 'fast' // or 'relaxed' for slower but cheaper processing
 });
 
 await client.account.login(USERNAME, PASSWORD);
@@ -46,7 +46,9 @@ const project = await client.projects.create({
     'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
   stylePrompt: 'anime',
   numberOfImages: 4,
-  outputFormat: 'jpg' // Can be 'png' or 'jpg', defaults to 'png'
+  outputFormat: 'jpg', // Can be 'png' or 'jpg', defaults to 'png'
+  tokenType: 'spark', // 'sogni' or 'spark'
+  network: 'fast' // 'fast' or 'relaxed'
 });
 
 project.on('progress', (progress) => {

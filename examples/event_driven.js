@@ -33,7 +33,9 @@ getClient()
       stylePrompt: 'anime',
       numberOfPreviews: 2,
       numberOfImages: 2,
-      outputFormat: 'png' // Can be 'png' or 'jpg', defaults to 'png'
+      outputFormat: 'png', // Can be 'png' or 'jpg', defaults to 'png'
+      tokenType: 'spark', // 'sogni' or 'spark'
+      network: 'fast' // 'fast' or 'relaxed'
     });
 
     // Receive project completion percentage in real-time
