@@ -8,7 +8,8 @@ const APP_ID = 'your-app-id';
 
 let client;
 SogniClient.createInstance({
-  appId: APP_ID
+  appId: APP_ID,
+  network: 'fast' // 'fast' or 'relaxed'
 })
   .then(async (clientInstance) => {
     client = clientInstance;
@@ -42,7 +43,9 @@ app.post('/api/generate', async function (req, res) {
       stylePrompt: style,
       steps: 4,
       guidance: 1,
-      numberOfImages: 1
+      numberOfImages: 1,
+      tokenType: 'spark', // 'sogni' or 'spark'
+      network: 'fast' // 'fast' or 'relaxed'
     });
     const imageUrls = await project.waitForCompletion();
     res.send({ url: imageUrls[0] });

@@ -503,7 +503,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * Estimate project cost
    */
   async estimateCost({
-    network,
+    network = 'fast',
     tokenType,
     model,
     imageCount,
