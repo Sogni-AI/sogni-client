@@ -1,3 +1,10 @@
+## [3.3.1](https://github.com/Sogni-AI/sogni-client/compare/v3.3.0...v3.3.1) (2025-10-09)
+
+
+### Bug Fixes
+
+* Update docs ([e12a18b](https://github.com/Sogni-AI/sogni-client/commit/e12a18bf6c9353010be0c28132cd639d8bebb257))
+
 # [3.3.0](https://github.com/Sogni-AI/sogni-client/compare/v3.2.0...v3.3.0) (2025-08-26)
 
 
