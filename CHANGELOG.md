@@ -1,3 +1,10 @@
+# [4.0.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.7...v4.0.0-alpha.8) (2025-10-17)
+
+
+### Bug Fixes
+
+* Fix cost estimation call ([920981c](https://github.com/Sogni-AI/sogni-client/commit/920981c86a3b1217c8dc6437e0fcdc26f50fe4ec))
+
 # [4.0.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.6...v4.0.0-alpha.7) (2025-10-17)
 
 
