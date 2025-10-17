@@ -515,7 +515,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     height,
     sizePreset,
     guidance,
-    scheduler,
+    sampler,
     contextImages
   }: EstimateRequest) {
     let apiVersion = 2;
@@ -541,10 +541,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     } else {
       pathParams.push(0, 0);
     }
-    if (scheduler) {
+    if (sampler) {
       apiVersion = 3;
       pathParams.push(guidance || 0);
-      pathParams.push(scheduler || '');
+      pathParams.push(sampler || '');
       pathParams.push(contextImages || 0);
     }
     const r = await this.client.socket.get<EstimationResponse>(

@@ -196,9 +196,9 @@ export interface EstimateRequest {
    */
   guidance?: number;
   /**
-   * Scheduler
+   * Sampler
    */
-  scheduler?: Sampler;
+  sampler?: Sampler;
   /**
    * Number of context images to use (for Flux Kontext).
    * Note that this parameter is ignored if `scheduler` is not provided
