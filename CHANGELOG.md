@@ -1,3 +1,10 @@
+# [4.0.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.5...v4.0.0-alpha.6) (2025-10-17)
+
+
+### Bug Fixes
+
+* Update docs ([7f28fe7](https://github.com/Sogni-AI/sogni-client/commit/7f28fe7f651937f244a3b5f56a92aac5d3b637a5))
+
 # [4.0.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.4...v4.0.0-alpha.5) (2025-10-17)
 
 
