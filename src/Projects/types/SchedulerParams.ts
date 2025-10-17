@@ -3,8 +3,8 @@ export const SchedulerMap = {
   ddim: 'DDIM',
   karras: 'Karras',
   kl_optimal: 'KL Optimal',
-  leading: 'Automatic',
-  linear: 'Automatic',
+  leading: 'Leading',
+  linear: 'Linear',
   normal: 'Normal',
   sgm_uniform: 'SGM Uniform',
   simple: 'Simple'
