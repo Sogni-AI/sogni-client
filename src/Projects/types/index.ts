@@ -1,6 +1,8 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
 import { ControlNetParams } from './ControlNetParams';
 import { TokenType } from '../../types/token';
+import { Sampler } from './SamplerParams';
+import { Scheduler } from './SchedulerParams';
 
 export interface SupportedModel {
   id: string;
@@ -23,15 +25,7 @@ export interface SizePreset {
   aspect: string;
 }
 
-export type Scheduler =
-  | 'DPM Solver Multistep (DPM-Solver++)'
-  | 'PNDM (Pseudo-linear multi-step)'
-  | 'LCM (Latent Consistency Model)'
-  | 'Discrete Flow Scheduler (SD3)'
-  | 'Euler' // Used by Flux
-  | 'Euler a'; // Used by Flux
-
-export type TimeStepSpacing = 'Leading' | 'Linear' | 'Karras' | 'Simple' | 'SGM Uniform';
+export type { Sampler, Scheduler };
 
 export type OutputFormat = 'png' | 'jpg';
 
@@ -108,11 +102,11 @@ export interface ProjectParams {
   /**
    * Scheduler to use
    */
-  scheduler?: Scheduler;
+  sampler?: Sampler;
   /**
    * Time step spacing method
    */
-  timeStepSpacing?: TimeStepSpacing;
+  scheduler?: Scheduler;
   /**
    * Size preset ID to use. You can query available size presets
    * from `client.projects.sizePresets(network, modelId)`
@@ -204,7 +198,7 @@ export interface EstimateRequest {
   /**
    * Scheduler
    */
-  scheduler?: Scheduler;
+  scheduler?: Sampler;
   /**
    * Number of context images to use (for Flux Kontext).
    * Note that this parameter is ignored if `scheduler` is not provided

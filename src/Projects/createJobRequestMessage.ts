@@ -1,6 +1,12 @@
 import { ProjectParams } from './types';
 import { ControlNetParams, ControlNetParamsRaw } from './types/ControlNetParams';
-import { validateNumber, validateCustomImageSize } from '../lib/validation';
+import {
+  validateNumber,
+  validateCustomImageSize,
+  validateScheduler,
+  validateTimeStepSpacing
+} from '../lib/validation';
+
 // Mac worker can't process the data if some of the fields are missing, so we need to provide a default template
 function getTemplate() {
   return {
@@ -119,8 +125,8 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
     keyFrames: [
       {
         ...template.keyFrames[0],
-        scheduler: params.scheduler || null,
-        timeStepSpacing: params.timeStepSpacing || null,
+        scheduler: validateScheduler(params.sampler),
+        timeStepSpacing: validateTimeStepSpacing(params.scheduler),
         steps: params.steps,
         guidanceScale: params.guidance,
         modelID: params.modelId,

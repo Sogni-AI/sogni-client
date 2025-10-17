@@ -1,3 +1,6 @@
+import { isSampler, SamplerMap } from '../Projects/types/SamplerParams';
+import { isScheduler, SchedulerMap } from '../Projects/types/SchedulerParams';
+
 export function validateCustomImageSize(value: any): number {
   return validateNumber(value, { min: 256, max: 2048, propertyName: 'Width and height' });
 }
@@ -37,4 +40,28 @@ export function validateNumber(
     throw new Error(`${propertyName} must be less or equal ${max}, got ${number}`);
   }
   return number;
+}
+
+export function validateScheduler(value?: string) {
+  if (!value) {
+    return null;
+  }
+  if (!isSampler(value)) {
+    throw new Error(
+      `Invalid scheduler: ${value}. Supported options: ${Object.keys(SamplerMap).join(', ')}`
+    );
+  }
+  return SamplerMap[value];
+}
+
+export function validateTimeStepSpacing(value?: string) {
+  if (!value) {
+    return null;
+  }
+  if (!isScheduler(value)) {
+    throw new Error(
+      `Invalid timeStepSpacing: ${value}. Supported options: ${Object.keys(SchedulerMap).join(', ')}`
+    );
+  }
+  return SchedulerMap[value];
 }

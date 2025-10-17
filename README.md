@@ -182,8 +182,8 @@ Turbo and LCM models are designed for quality output in as little as 1 step. ([M
 - `disableNSFWFilter` - disable NSFW filter for this project. NSFW filter is enabled by default and workers won't upload resulting images if they are detected as NSFW.
 - `seed` - uint32 number to use as seed. If not provided, random seed will be used. If `numberOfImages` is greater than 1, provided seed will be user only for one of them. ([More info](https://docs.sogni.ai/learn/basics/generation-seed)).
 - `numberOfPreviews` - number of preview images to generate. If not provided, no preview images will be generated.
-- `scheduler` - scheduler to use ([More info](https://docs.sogni.ai/learn/advanced/schedulers)). For available options see type definition.
-- `timeStepSpacing` - time step spacing algorithm ([More info](https://docs.sogni.ai/learn/advanced/schedulers)). For available options see type definition.
+- `sampler` - time step spacing algorithm ([More info](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers)). For available options, see the **"Samplers"** section below.
+- `scheduler` - scheduler to use ([More info](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers)). For available options, see the **"Schedulers"** section below.
 - `startingImage` - guide image in PNG format. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
 - `startingImageStrength` - strong effect of starting image should be. From 0 to 1, default 0.5. 
 - `controlNet` - Stable Diffusion ControlNet parameters. See **ControlNets** section below for more info.
@@ -282,6 +282,45 @@ Sample response:
     }
 ]
 ```
+
+### Samplers
+Samplers control the denoising process — the sequence of steps that transforms random noise into your final image.
+
+Available sampler options:
+
+| Option          | Description                         |
+|-----------------|-------------------------------------|
+| `dfs_sd3`       | Discrete Flow Scheduler (SD3)       |
+| `dpm_pp`        | DPM Solver Multistep (DPM-Solver++) |
+| `dpm_pp_sde`    | DPM++ SDE                           |
+| `dpm_pp_2m`     | DPM++ 2M                            |
+| `dpm_pp_2m_sde` | DPM++ 2M SDE                        |
+| `euler`         | Euler                               |
+| `euler_a`       | Euler a                             |
+| `heun`          | Heun                                |
+| `lcm`           | LCM (Latent Consistency Model)      |
+| `pndm_plms`     | PNDM (Pseudo-linear multi-step)     |
+| `uni_pc`        | UniPC                               |
+
+**IMPORTANT:** Sampler compatibility depends on model and network. See [Samplers and Schedulers](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers) docs for more info.
+
+### Schedulers
+Control how steps are distributed. For more info see [Schedulers and Samplers](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers#schedulers) docs.
+
+Available scheduler options:
+
+| Option        | Description |
+|---------------|-------------|
+| `beta`        | Beta        |
+| `ddim`        | DDIM        |
+| `karras`      | Karras      | 
+| `kl_optimal`  | KL Optimal  | 
+| `leading`     | Automatic   |
+| `linear`      | Automatic   |
+| `normal`      | Normal      |
+| `sgm_uniform` | SGM Uniform | 
+| `simple`      | Simple      |
+
 ### ControlNets
 **EXPERIMENTAL FEATURE:** This feature is still in development and may not work as expected. Use at your own risk.
 

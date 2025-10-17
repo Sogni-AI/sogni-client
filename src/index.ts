@@ -12,13 +12,7 @@ import EIP712Helper from './lib/EIP712Helper';
 import ProjectsApi from './Projects';
 import Job, { JobStatus } from './Projects/Job';
 import Project, { ProjectStatus } from './Projects/Project';
-import {
-  AvailableModel,
-  OutputFormat,
-  ProjectParams,
-  Scheduler,
-  TimeStepSpacing
-} from './Projects/types';
+import { AvailableModel, OutputFormat, ProjectParams, Sampler, Scheduler } from './Projects/types';
 // Stats API
 import StatsApi from './Stats';
 // Base Types
@@ -36,9 +30,9 @@ export type {
   OutputFormat,
   ProjectParams,
   ProjectStatus,
-  Scheduler,
+  Sampler,
   SupernetType,
-  TimeStepSpacing,
+  Scheduler,
   TokenType
 };
 
