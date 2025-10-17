@@ -1,3 +1,19 @@
+# [4.0.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.3...v4.0.0-alpha.4) (2025-10-17)
+
+
+### Features
+
+* Update schedulers and samplers options. ([7971cdc](https://github.com/Sogni-AI/sogni-client/commit/7971cdc7b1114840196fdada5adbf22cf867053e))
+
+
+### BREAKING CHANGES
+
+* `scheduler` and `timeStepSpacing` options renamed
+
+ - `scheduler` option renamed to `sampler`
+ - `timeStepSpacing` is now `scheduler`
+ - Options are now referenced by short aliases
+
 # [4.0.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.2...v4.0.0-alpha.3) (2025-10-02)
 
 
