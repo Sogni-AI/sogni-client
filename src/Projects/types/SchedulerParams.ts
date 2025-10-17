@@ -10,8 +10,8 @@ export const SchedulerMap = {
   simple: 'Simple'
 };
 
-export function isScheduler(timeStepSpacing: string): timeStepSpacing is Scheduler {
-  return timeStepSpacing in SchedulerMap;
+export function isScheduler(scheduler: string): scheduler is Scheduler {
+  return scheduler in SchedulerMap;
 }
 
 export type Scheduler = keyof typeof SchedulerMap;

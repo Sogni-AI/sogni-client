@@ -42,25 +42,25 @@ export function validateNumber(
   return number;
 }
 
-export function validateScheduler(value?: string) {
+export function validateSampler(value?: string) {
   if (!value) {
     return null;
   }
   if (!isSampler(value)) {
     throw new Error(
-      `Invalid scheduler: ${value}. Supported options: ${Object.keys(SamplerMap).join(', ')}`
+      `Invalid sampler: ${value}. Supported options: ${Object.keys(SamplerMap).join(', ')}`
     );
   }
   return SamplerMap[value];
 }
 
-export function validateTimeStepSpacing(value?: string) {
+export function validateScheduler(value?: string) {
   if (!value) {
     return null;
   }
   if (!isScheduler(value)) {
     throw new Error(
-      `Invalid timeStepSpacing: ${value}. Supported options: ${Object.keys(SchedulerMap).join(', ')}`
+      `Invalid scheduler: ${value}. Supported options: ${Object.keys(SchedulerMap).join(', ')}`
     );
   }
   return SchedulerMap[value];

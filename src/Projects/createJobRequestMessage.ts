@@ -3,8 +3,8 @@ import { ControlNetParams, ControlNetParamsRaw } from './types/ControlNetParams'
 import {
   validateNumber,
   validateCustomImageSize,
-  validateScheduler,
-  validateTimeStepSpacing
+  validateSampler,
+  validateScheduler
 } from '../lib/validation';
 
 // Mac worker can't process the data if some of the fields are missing, so we need to provide a default template
@@ -31,8 +31,8 @@ function getTemplate() {
         guidanceScaleIsEnabled: true,
         siImageBackgroundColor: 'black',
         cnDragOffset: [0, 0],
-        scheduler: 'DPM Solver Multistep (DPM-Solver++)',
-        timeStepSpacing: 'Linear',
+        scheduler: null,
+        timeStepSpacing: null,
         steps: 20,
         cnRotation: 0,
         guidanceScale: 7.5,
@@ -125,8 +125,8 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
     keyFrames: [
       {
         ...template.keyFrames[0],
-        scheduler: validateScheduler(params.sampler),
-        timeStepSpacing: validateTimeStepSpacing(params.scheduler),
+        scheduler: validateSampler(params.sampler),
+        timeStepSpacing: validateScheduler(params.scheduler),
         steps: params.steps,
         guidanceScale: params.guidance,
         modelID: params.modelId,
