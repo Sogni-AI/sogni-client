@@ -290,17 +290,14 @@ Available sampler options:
 
 | Option          | Description                         |
 |-----------------|-------------------------------------|
-| `dfs_sd3`       | Discrete Flow Scheduler (SD3)       |
+| `dfs_sd3`       | Discrete Flow Sampler (SD3)         |
 | `dpm_pp`        | DPM Solver Multistep (DPM-Solver++) |
 | `dpm_pp_sde`    | DPM++ SDE                           |
 | `dpm_pp_2m`     | DPM++ 2M                            |
-| `dpm_pp_2m_sde` | DPM++ 2M SDE                        |
 | `euler`         | Euler                               |
 | `euler_a`       | Euler a                             |
-| `heun`          | Heun                                |
 | `lcm`           | LCM (Latent Consistency Model)      |
 | `pndm_plms`     | PNDM (Pseudo-linear multi-step)     |
-| `uni_pc`        | UniPC                               |
 
 **IMPORTANT:** Sampler compatibility depends on model and network. See [Samplers and Schedulers](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers) docs for more info.
 
