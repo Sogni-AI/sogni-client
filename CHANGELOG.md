@@ -1,3 +1,10 @@
+# [4.0.0-alpha.9](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.8...v4.0.0-alpha.9) (2025-10-17)
+
+
+### Bug Fixes
+
+* Hide samplers that are not well tested ([0522bed](https://github.com/Sogni-AI/sogni-client/commit/0522bed6cfad5f8bc9c37d65c30b63b31aa0168a))
+
 # [4.0.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.7...v4.0.0-alpha.8) (2025-10-17)
 
 
