@@ -1,5 +1,5 @@
-import { isSampler, SamplerMap } from '../Projects/types/SamplerParams';
-import { isScheduler, SchedulerMap } from '../Projects/types/SchedulerParams';
+import { isSampler, SupportedSamplers } from '../Projects/types/SamplerParams';
+import { isScheduler, SupportedSchedulers } from '../Projects/types/SchedulerParams';
 
 export function validateCustomImageSize(value: any): number {
   return validateNumber(value, { min: 256, max: 2048, propertyName: 'Width and height' });
@@ -48,10 +48,10 @@ export function validateSampler(value?: string) {
   }
   if (!isSampler(value)) {
     throw new Error(
-      `Invalid sampler: ${value}. Supported options: ${Object.keys(SamplerMap).join(', ')}`
+      `Invalid sampler: ${value}. Supported options: ${Object.keys(SupportedSamplers).join(', ')}`
     );
   }
-  return SamplerMap[value];
+  return SupportedSamplers[value];
 }
 
 export function validateScheduler(value?: string) {
@@ -60,8 +60,8 @@ export function validateScheduler(value?: string) {
   }
   if (!isScheduler(value)) {
     throw new Error(
-      `Invalid scheduler: ${value}. Supported options: ${Object.keys(SchedulerMap).join(', ')}`
+      `Invalid scheduler: ${value}. Supported options: ${Object.keys(SupportedSchedulers).join(', ')}`
     );
   }
-  return SchedulerMap[value];
+  return SupportedSchedulers[value];
 }

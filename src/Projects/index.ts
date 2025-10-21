@@ -28,6 +28,7 @@ import Cache from '../lib/Cache';
 import { enhancementDefaults } from './Job';
 import { getEnhacementStrength } from './utils';
 import { TokenType } from '../types/token';
+import { validateSampler } from '../lib/validation';
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 const GARBAGE_COLLECT_TIMEOUT = 30000;
@@ -544,7 +545,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (sampler) {
       apiVersion = 3;
       pathParams.push(guidance || 0);
-      pathParams.push(sampler || '');
+      pathParams.push(validateSampler(sampler)!);
       pathParams.push(contextImages || 0);
     }
     const r = await this.client.socket.get<EstimationResponse>(

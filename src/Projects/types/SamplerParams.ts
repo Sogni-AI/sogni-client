@@ -1,4 +1,4 @@
-export const SamplerMap = {
+export const SupportedSamplers = {
   dfs_sd3: 'Discrete Flow Scheduler (SD3)',
   dpm_pp: 'DPM Solver Multistep (DPM-Solver++)',
   dpm_pp_sde: 'DPM++ SDE',
@@ -13,7 +13,7 @@ export const SamplerMap = {
 };
 
 export function isSampler(sampler: string): sampler is Sampler {
-  return sampler in SamplerMap;
+  return sampler in SupportedSamplers;
 }
 
-export type Sampler = keyof typeof SamplerMap;
+export type Sampler = keyof typeof SupportedSamplers;

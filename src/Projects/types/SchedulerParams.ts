@@ -1,4 +1,4 @@
-export const SchedulerMap = {
+export const SupportedSchedulers = {
   beta: 'Beta',
   ddim: 'DDIM',
   karras: 'Karras',
@@ -11,7 +11,7 @@ export const SchedulerMap = {
 };
 
 export function isScheduler(scheduler: string): scheduler is Scheduler {
-  return scheduler in SchedulerMap;
+  return scheduler in SupportedSchedulers;
 }
 
-export type Scheduler = keyof typeof SchedulerMap;
+export type Scheduler = keyof typeof SupportedSchedulers;

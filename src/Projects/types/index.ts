@@ -1,8 +1,8 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
 import { ControlNetParams } from './ControlNetParams';
 import { TokenType } from '../../types/token';
-import { Sampler } from './SamplerParams';
-import { Scheduler } from './SchedulerParams';
+import { Sampler, SupportedSamplers } from './SamplerParams';
+import { Scheduler, SupportedSchedulers } from './SchedulerParams';
 
 export interface SupportedModel {
   id: string;
@@ -26,6 +26,8 @@ export interface SizePreset {
 }
 
 export type { Sampler, Scheduler };
+
+export { SupportedSamplers, SupportedSchedulers };
 
 export type OutputFormat = 'png' | 'jpg';
 
