@@ -1,3 +1,10 @@
+# [4.0.0-alpha.10](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.9...v4.0.0-alpha.10) (2025-10-21)
+
+
+### Bug Fixes
+
+* Fix project estimation. Export supported samplers and schedulers list ([502d4d1](https://github.com/Sogni-AI/sogni-client/commit/502d4d19529883b5272466a122720f2c6fd01e2e))
+
 # [4.0.0-alpha.9](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.8...v4.0.0-alpha.9) (2025-10-17)
 
 
