@@ -1,4 +1,4 @@
-import { isSampler, SupportedSamplers } from '../Projects/types/SamplerParams';
+import { isRawSampler, isSampler, SupportedSamplers } from '../Projects/types/SamplerParams';
 import { isScheduler, SupportedSchedulers } from '../Projects/types/SchedulerParams';
 
 export function validateCustomImageSize(value: any): number {
@@ -46,22 +46,28 @@ export function validateSampler(value?: string) {
   if (!value) {
     return null;
   }
-  if (!isSampler(value)) {
-    throw new Error(
-      `Invalid sampler: ${value}. Supported options: ${Object.keys(SupportedSamplers).join(', ')}`
-    );
+  if (isRawSampler(value)) {
+    return value;
   }
-  return SupportedSamplers[value];
+  if (isSampler(value)) {
+    return SupportedSamplers[value];
+  }
+  throw new Error(
+    `Invalid sampler: ${value}. Supported options: ${Object.keys(SupportedSamplers).join(', ')}`
+  );
 }
 
 export function validateScheduler(value?: string) {
   if (!value) {
     return null;
   }
-  if (!isScheduler(value)) {
-    throw new Error(
-      `Invalid scheduler: ${value}. Supported options: ${Object.keys(SupportedSchedulers).join(', ')}`
-    );
+  if (isRawSampler(value)) {
+    return value;
   }
-  return SupportedSchedulers[value];
+  if (isScheduler(value)) {
+    return SupportedSchedulers[value];
+  }
+  throw new Error(
+    `Invalid scheduler: ${value}. Supported options: ${Object.keys(SupportedSchedulers).join(', ')}`
+  );
 }

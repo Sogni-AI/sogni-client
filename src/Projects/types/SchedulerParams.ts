@@ -14,4 +14,9 @@ export function isScheduler(scheduler: string): scheduler is Scheduler {
   return scheduler in SupportedSchedulers;
 }
 
+export function isRawScheduler(scheduler: string): boolean {
+  const schedulers = Object.values(SupportedSchedulers);
+  return schedulers.includes(scheduler);
+}
+
 export type Scheduler = keyof typeof SupportedSchedulers;

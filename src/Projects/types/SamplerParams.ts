@@ -16,4 +16,9 @@ export function isSampler(sampler: string): sampler is Sampler {
   return sampler in SupportedSamplers;
 }
 
+export function isRawSampler(sampler: string): boolean {
+  const samplers = Object.values(SupportedSamplers);
+  return samplers.includes(sampler);
+}
+
 export type Sampler = keyof typeof SupportedSamplers;
