@@ -1,3 +1,10 @@
+# [4.0.0-alpha.11](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.10...v4.0.0-alpha.11) (2025-10-23)
+
+
+### Bug Fixes
+
+* Accept raw samplers and schedulers for backward compatibility ([8c04552](https://github.com/Sogni-AI/sogni-client/commit/8c04552667fe054e9a330a3aab8fd776060a0ed6))
+
 # [4.0.0-alpha.10](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.9...v4.0.0-alpha.10) (2025-10-21)
 
 
