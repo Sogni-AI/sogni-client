@@ -4,6 +4,7 @@ import {
   EnhancementStrength,
   EstimateRequest,
   ImageUrlParams,
+  CostEstimation,
   ProjectParams,
   SizePreset,
   SupportedModel
@@ -518,7 +519,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     guidance,
     sampler,
     contextImages
-  }: EstimateRequest) {
+  }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const pathParams = [
       tokenType || 'sogni',
@@ -553,7 +554,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     );
     return {
       token: r.quote.project.costInToken,
-      usd: r.quote.project.costInUSD
+      usd: r.quote.project.costInUSD,
+      spark: r.quote.project.costInSpark,
+      sogni: r.quote.project.costInSogni
     };
   }
 

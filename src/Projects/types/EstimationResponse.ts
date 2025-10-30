@@ -14,6 +14,8 @@ export interface Job {
   costInRenderSec: string;
   costInUSD: string;
   costInToken: string;
+  costInSpark: string;
+  costInSogni: string;
   calculatedStepCount?: number;
 }
 

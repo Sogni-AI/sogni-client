@@ -208,4 +208,18 @@ export interface EstimateRequest {
   contextImages?: number;
 }
 
+/**
+ * Represents estimation of project cost in different currency formats
+ */
+export interface CostEstimation {
+  /** Cost in selected token type */
+  token: string;
+  /** Cost in USD */
+  usd: string;
+  /** Cost in Spark Points */
+  spark: string;
+  /** Cost in Sogni tokens */
+  sogni: string;
+}
+
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
