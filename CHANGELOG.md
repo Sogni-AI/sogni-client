@@ -1,3 +1,10 @@
+# [4.0.0-alpha.12](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.11...v4.0.0-alpha.12) (2025-10-30)
+
+
+### Features
+
+* Expose project cost in both Spark Points and Sogni tokens when estimating ([9d5f556](https://github.com/Sogni-AI/sogni-client/commit/9d5f556154013ae15e49e93e9941533e730502c5))
+
 # [4.0.0-alpha.11](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.10...v4.0.0-alpha.11) (2025-10-23)
 
 
