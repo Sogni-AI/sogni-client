@@ -1,3 +1,10 @@
+# [4.0.0-alpha.13](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.12...v4.0.0-alpha.13) (2025-12-01)
+
+
+### Features
+
+* When using cookies auth in browser environment allow sharing one socket connection between multiple tabs ([794d6e1](https://github.com/Sogni-AI/sogni-client/commit/794d6e18d960c8758094f09b2bc516b8b08175d0))
+
 # [4.0.0-alpha.12](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.11...v4.0.0-alpha.12) (2025-10-30)
 
 
