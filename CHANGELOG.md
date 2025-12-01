@@ -1,3 +1,10 @@
+# [4.0.0-alpha.14](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.13...v4.0.0-alpha.14) (2025-12-01)
+
+
+### Bug Fixes
+
+* Move type definitions to dependencies from devDependencies ([95b5201](https://github.com/Sogni-AI/sogni-client/commit/95b520191593913bd0b74cd8cf41241eac16dd8e))
+
 # [4.0.0-alpha.13](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.12...v4.0.0-alpha.13) (2025-12-01)
 
 
