@@ -1,7 +1,7 @@
 import { MessageType, SocketMessageMap } from './messages';
 import { SocketEventMap } from './events';
 import RestClient from '../../lib/RestClient';
-import { SupernetType } from './types';
+import { IWebSocketClient, SupernetType } from './types';
 import WebSocket, { CloseEvent, ErrorEvent, MessageEvent } from 'isomorphic-ws';
 import { base64Decode, base64Encode } from '../../lib/base64';
 import isNodejs from '../../lib/isNodejs';
@@ -13,7 +13,7 @@ const PROTOCOL_VERSION = '3.0.0';
 
 const PING_INTERVAL = 15000;
 
-class WebSocketClient extends RestClient<SocketEventMap> {
+class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketClient {
   appId: string;
   baseUrl: string;
   private socket: WebSocket | null = null;

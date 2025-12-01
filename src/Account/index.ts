@@ -43,7 +43,12 @@ class AccountApi extends ApiGroup {
 
   constructor(config: ApiConfig) {
     super(config);
+    this.currentAccount._update({
+      networkStatus: this.client.socket.isConnected ? 'connected' : 'disconnected',
+      network: this.client.socket.supernetType
+    });
     this.client.socket.on('balanceUpdate', this.handleBalanceUpdate.bind(this));
+    this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
     this.client.on('connected', this.handleServerConnected.bind(this));
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     this.client.auth.on('updated', this.handleAuthUpdated.bind(this));
@@ -51,6 +56,10 @@ class AccountApi extends ApiGroup {
 
   private handleBalanceUpdate(data: Balances) {
     this.currentAccount._update({ balance: data });
+  }
+
+  private handleChangeNetwork({ network }: { network: SupernetType }) {
+    this.currentAccount._update({ network, networkStatus: 'connected' });
   }
 
   private handleServerConnected({ network }: { network: SupernetType }) {
@@ -70,6 +79,8 @@ class AccountApi extends ApiGroup {
   private handleAuthUpdated(isAuthenticated: boolean) {
     if (!isAuthenticated) {
       this.currentAccount._clear();
+    } else {
+      this.me();
     }
   }
 
@@ -137,7 +148,6 @@ class AccountApi extends ApiGroup {
     } else {
       await auth.authenticate();
     }
-    await this.me();
     return res.data;
   }
 
@@ -173,7 +183,6 @@ class AccountApi extends ApiGroup {
     } else {
       await auth.authenticate();
     }
-    await this.me();
     return res.data;
   }
 

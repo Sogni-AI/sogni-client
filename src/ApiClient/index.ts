@@ -3,12 +3,14 @@ import WebSocketClient from './WebSocketClient';
 import TypedEventEmitter from '../lib/TypedEventEmitter';
 import { ApiClientEvents } from './events';
 import { ServerConnectData, ServerDisconnectData } from './WebSocketClient/events';
-import { isNotRecoverable } from './WebSocketClient/ErrorCode';
+import { ErrorCode, isNotRecoverable } from './WebSocketClient/ErrorCode';
 import { JSONValue } from '../types/json';
-import { SupernetType } from './WebSocketClient/types';
+import { IWebSocketClient, SupernetType } from './WebSocketClient/types';
 import { Logger } from '../lib/DefaultLogger';
 import CookieAuthManager from '../lib/AuthManager/CookieAuthManager';
 import { AuthManager, TokenAuthManager } from '../lib/AuthManager';
+import isNodejs from '../lib/isNodejs';
+import BrowserWebSocketClient from './WebSocketClient/BrowserWebSocketClient/BrowserWebSocketClient';
 
 const WS_RECONNECT_ATTEMPTS = 5;
 
@@ -48,7 +50,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   readonly appId: string;
   readonly logger: Logger;
   private _rest: RestClient;
-  private _socket: WebSocketClient;
+  private _socket: IWebSocketClient;
   private _auth: AuthManager;
   private _reconnectAttempts = WS_RECONNECT_ATTEMPTS;
   private _disableSocket: boolean = false;
@@ -68,7 +70,12 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     this._auth =
       authType === 'token' ? new TokenAuthManager(baseUrl, logger) : new CookieAuthManager(logger);
     this._rest = new RestClient(baseUrl, this._auth, logger);
-    this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+    // Use coordinated WebSocket client in browser, regular in Node.js
+    if (this._auth instanceof TokenAuthManager || isNodejs) {
+      this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+    } else {
+      this._socket = new BrowserWebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+    }
     this._disableSocket = disableSocket;
     this._auth.on('updated', this.handleAuthUpdated.bind(this));
     this._socket.on('connected', this.handleSocketConnect.bind(this));
@@ -83,7 +90,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     return this._auth;
   }
 
-  get socket(): WebSocketClient {
+  get socket(): IWebSocketClient {
     return this._socket;
   }
 
@@ -101,14 +108,26 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }
 
   handleSocketDisconnect(data: ServerDisconnectData) {
+    // If user is not authenticated, we don't need to reconnect
+    if (!this.auth.isAuthenticated) {
+      this.emit('disconnected', data);
+      return;
+    }
     if (!data.code || isNotRecoverable(data.code)) {
+      // If this is browser, another tab is probably claiming the connection, so we don't need to reconnect
+      if (
+        this._socket instanceof BrowserWebSocketClient &&
+        data.code === ErrorCode.SWITCH_CONNECTION
+      ) {
+        this.logger.debug('Switching network connection, not reconnecting');
+        return;
+      }
       this.auth.clear();
       this.emit('disconnected', data);
       this.logger.error('Not recoverable socket error', data);
       return;
     }
     if (this._reconnectAttempts <= 0) {
-      this.auth.clear();
       this.emit('disconnected', data);
       this._reconnectAttempts = WS_RECONNECT_ATTEMPTS;
       return;

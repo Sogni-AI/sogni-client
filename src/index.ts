@@ -63,7 +63,7 @@ export interface SogniClientConfig {
   socketEndpoint?: string;
   /**
    * Disable WebSocket connection. Useful for testing or when WebSocket is not needed.
-   * Note that many may not work without WebSocket connection.
+   * Note that many APIs may not work without WebSocket connection.
    * @experimental
    * @internal
    */
@@ -141,9 +141,13 @@ export class SogniClient {
       throw Error('This method should only be called when using cookie auth');
     }
     try {
-      await this.apiClient.rest.get<ApiResponse<MeData>>('/v1/account/me');
+      const res = await this.apiClient.rest.get<ApiResponse<MeData>>('/v1/account/me');
       await auth.authenticate();
-      await this.account.me();
+      this.currentAccount._update({
+        username: res.data.username,
+        email: res.data.currentEmail,
+        walletAddress: res.data.walletAddress
+      });
       return true;
     } catch (e) {
       this.apiClient.logger.info('Client is not authenticated');

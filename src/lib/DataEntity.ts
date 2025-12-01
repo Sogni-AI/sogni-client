@@ -25,9 +25,11 @@ abstract class DataEntity<D, E extends EntityEvents = EntityEvents> extends Type
   _update(delta: Partial<D>) {
     //@ts-ignore
     const changedKeys = Object.keys(delta).filter((key) => this.data[key] !== delta[key]);
-    this.data = { ...this.data, ...delta };
     this.lastUpdated = new Date();
-    this.emit('updated', changedKeys);
+    if (changedKeys.length > 0) {
+      this.data = { ...this.data, ...delta };
+      this.emit('updated', changedKeys);
+    }
   }
 
   /**

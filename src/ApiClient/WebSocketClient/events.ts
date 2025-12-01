@@ -148,3 +148,5 @@ export type SocketEventMap = {
 
   artistCancelConfirmation: ArtistCancelConfirmation;
 };
+
+export type SocketEventName = keyof SocketEventMap;
