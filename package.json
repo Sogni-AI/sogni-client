@@ -37,6 +37,9 @@
   "homepage": "https://github.com/Sogni-AI/sogni-client#readme",
   "dependencies": {
     "@lukeed/uuid": "^2.0.1",
+    "@types/js-cookie": "^3.0.6",
+    "@types/lodash": "^4.17.13",
+    "@types/ws": "^8.5.13",
     "ethers": "^6.13.4",
     "isomorphic-ws": "^5.0.0",
     "js-cookie": "^3.0.5",
@@ -47,9 +50,6 @@
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
-    "@types/js-cookie": "^3.0.6",
-    "@types/lodash": "^4.17.13",
-    "@types/ws": "^8.5.13",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
     "semantic-release": "^24.2.1",

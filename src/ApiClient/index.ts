@@ -10,7 +10,7 @@ import { Logger } from '../lib/DefaultLogger';
 import CookieAuthManager from '../lib/AuthManager/CookieAuthManager';
 import { AuthManager, TokenAuthManager } from '../lib/AuthManager';
 import isNodejs from '../lib/isNodejs';
-import BrowserWebSocketClient from './WebSocketClient/BrowserWebSocketClient/BrowserWebSocketClient';
+import BrowserWebSocketClient from './WebSocketClient/BrowserWebSocketClient';
 
 const WS_RECONNECT_ATTEMPTS = 5;
 
