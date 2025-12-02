@@ -62,6 +62,7 @@ class WSCoordinator {
   private primaryCheckInterval: NodeJS.Timeout | null = null;
   private startingEvents: StartingEvents = {};
   private ackCallbacks: Record<string, (error?: any) => void> = {};
+  private initialized = false;
 
   constructor(callbacks: WSCoordinatorCallbacks, logger: Logger) {
     this.id = getUUID();
@@ -81,8 +82,10 @@ class WSCoordinator {
    * Initialize tab coordination and determine role
    */
   async initialize(): Promise<boolean> {
+    if (this.initialized) {
+      return this._isPrimary;
+    }
     this.logger.info(`WSCoordinator ${this.id} initializing...`);
-
     // Announce our presence
     this.broadcast({
       type: 'announce'
