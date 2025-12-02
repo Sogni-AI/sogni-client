@@ -1,3 +1,10 @@
+# [4.0.0-alpha.18](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.17...v4.0.0-alpha.18) (2025-12-02)
+
+
+### Bug Fixes
+
+* Pass error iin message ack ([7b73d87](https://github.com/Sogni-AI/sogni-client/commit/7b73d87fdd27634b75fe5aa0bbba43415d6e7dce))
+
 # [4.0.0-alpha.17](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.16...v4.0.0-alpha.17) (2025-12-02)
 
 
