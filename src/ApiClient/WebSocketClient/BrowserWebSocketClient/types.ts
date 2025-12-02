@@ -26,7 +26,7 @@ export interface SendSocketMessage<T extends MessageType = MessageType> {
  */
 export interface SocketMessageAck {
   type: 'socket-ack';
-  payload: { envelopeId: string };
+  payload: { envelopeId: string; error?: any };
 }
 
 /**

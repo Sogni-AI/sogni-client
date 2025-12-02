@@ -313,22 +313,34 @@ class WSCoordinator {
       }
       case 'socket-send': {
         if (this._isPrimary) {
-          this.callbacks.onSendRequest(message).then(() => {
-            //Acknowledge the request
-            this.broadcast({
-              type: 'socket-ack',
-              payload: {
-                envelopeId: envelope.id
-              }
+          this.callbacks
+            .onSendRequest(message)
+            .then(() => {
+              //Acknowledge the request
+              this.broadcast({
+                type: 'socket-ack',
+                payload: {
+                  envelopeId: envelope.id
+                }
+              });
+            })
+            .catch((e) => {
+              this.logger.error(`Error sending socket message: ${e}`);
+              this.broadcast({
+                type: 'socket-ack',
+                payload: {
+                  envelopeId: envelope.id,
+                  error: e.message
+                }
+              });
             });
-          });
         }
         return;
       }
       case 'socket-ack': {
         if (!this._isPrimary) {
           if (this.ackCallbacks[message.payload.envelopeId]) {
-            this.ackCallbacks[message.payload.envelopeId]();
+            this.ackCallbacks[message.payload.envelopeId](message.payload.error);
           }
         }
       }
