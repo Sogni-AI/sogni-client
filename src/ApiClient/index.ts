@@ -44,6 +44,7 @@ export interface ApiClientOptions {
   logger: Logger;
   authType: 'token' | 'cookies';
   disableSocket?: boolean;
+  multiInstance?: boolean;
 }
 
 class ApiClient extends TypedEventEmitter<ApiClientEvents> {
@@ -62,7 +63,8 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     networkType,
     authType,
     logger,
-    disableSocket = false
+    disableSocket = false,
+    multiInstance = false
   }: ApiClientOptions) {
     super();
     this.appId = appId;
@@ -70,11 +72,12 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     this._auth =
       authType === 'token' ? new TokenAuthManager(baseUrl, logger) : new CookieAuthManager(logger);
     this._rest = new RestClient(baseUrl, this._auth, logger);
-    // Use coordinated WebSocket client in browser, regular in Node.js
-    if (this._auth instanceof TokenAuthManager || isNodejs) {
-      this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
-    } else {
+    const supportMultiInstance = !isNodejs && this._auth instanceof CookieAuthManager;
+    if (supportMultiInstance && multiInstance) {
+      // Use coordinated WebSocket client to share single connection between tabs
       this._socket = new BrowserWebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+    } else {
+      this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
     }
     this._disableSocket = disableSocket;
     this._auth.on('updated', this.handleAuthUpdated.bind(this));

@@ -95,6 +95,14 @@ export interface SogniClientConfig {
    * @experimental
    */
   authType?: 'token' | 'cookies';
+  /**
+   * Browser only. If true, the client will use a single WebSocket connection shared across multiple
+   * tabs. This is useful for browser apps that need to process multiple projects at the same time.
+   * Only works in browser environment and with cookie authentication.
+   * @default false
+   * @experimental
+   */
+  multiInstance?: boolean;
 }
 
 export class SogniClient {
@@ -173,7 +181,8 @@ export class SogniClient {
       networkType: network,
       logger,
       authType: config.authType || 'token',
-      disableSocket: config.disableSocket
+      disableSocket: config.disableSocket,
+      multiInstance: config.multiInstance
     });
     const eip712 = new EIP712Helper({
       name: isTestnet ? 'Sogni-testnet' : 'Sogni AI',
