@@ -1,3 +1,10 @@
+# [4.0.0-alpha.15](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.14...v4.0.0-alpha.15) (2025-12-02)
+
+
+### Bug Fixes
+
+* Avoid double initialization for WSCoordinator.ts ([1b7e973](https://github.com/Sogni-AI/sogni-client/commit/1b7e973cebd6b35667fa248656127b60125dd4f9))
+
 # [4.0.0-alpha.14](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.13...v4.0.0-alpha.14) (2025-12-01)
 
 
