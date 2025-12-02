@@ -1,3 +1,10 @@
+# [4.0.0-alpha.16](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.15...v4.0.0-alpha.16) (2025-12-02)
+
+
+### Bug Fixes
+
+* Make shared socket connection optional ([7ee2311](https://github.com/Sogni-AI/sogni-client/commit/7ee2311354071bbcc3087cad0a8c321cea28cd25))
+
 # [4.0.0-alpha.15](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.14...v4.0.0-alpha.15) (2025-12-02)
 
 
