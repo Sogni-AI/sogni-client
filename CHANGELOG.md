@@ -1,3 +1,10 @@
+# [4.0.0-alpha.17](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.16...v4.0.0-alpha.17) (2025-12-02)
+
+
+### Bug Fixes
+
+* Initialization bug ([42b4e26](https://github.com/Sogni-AI/sogni-client/commit/42b4e26dad8f634eb6c17d172081d6c3d03a3d41))
+
 # [4.0.0-alpha.16](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.15...v4.0.0-alpha.16) (2025-12-02)
 
 
