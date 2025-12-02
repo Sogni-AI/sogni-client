@@ -47,7 +47,7 @@ interface WSCoordinatorCallbacks {
 
 class WSCoordinator {
   private static readonly HEARTBEAT_INTERVAL = 2000;
-  private static readonly PRIMARY_TIMEOUT = 3000;
+  private static readonly PRIMARY_TIMEOUT = 5000;
   private static readonly CHANNEL_NAME = 'sogni-websocket-clients';
   private static readonly ACK_TIMEOUT = 5000;
 
@@ -85,6 +85,7 @@ class WSCoordinator {
     if (this.initialized) {
       return this._isPrimary;
     }
+    this.initialized = true;
     this.logger.info(`WSCoordinator ${this.id} initializing...`);
     // Announce our presence
     this.broadcast({
@@ -98,6 +99,7 @@ class WSCoordinator {
       this.startPrimaryCheck();
     } else {
       this.logger.info(`Client ${this.id} becoming primary`);
+      this.stopPrimaryCheck();
       this.becomePrimary();
     }
 
@@ -191,8 +193,9 @@ class WSCoordinator {
    * Start sending heartbeat messages as primary
    */
   private startHeartbeat() {
-    if (this.heartbeatInterval)
+    if (this.heartbeatInterval) {
       throw new Error('Heartbeat interval already started. This should never happen.');
+    }
     this.heartbeatInterval = setInterval(() => {
       this.broadcast({
         type: 'primary-present',
