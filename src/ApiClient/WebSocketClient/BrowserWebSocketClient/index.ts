@@ -103,6 +103,9 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
 
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]): Promise<void> {
     if (this.isPrimary) {
+      if (!this.socketClient.isConnected) {
+        await this.socketClient.connect();
+      }
       return this.socketClient.send(messageType, data);
     }
     return this.coordinator.sendToSocket(messageType, data);
@@ -194,10 +197,13 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     }
   }
 
-  private handleSendRequest(message: SendSocketMessage) {
+  private async handleSendRequest(message: SendSocketMessage) {
     if (!this.isPrimary) {
       // Should never happen, but just in case
       return Promise.resolve();
+    }
+    if (!this.socketClient.isConnected) {
+      await this.socketClient.connect();
     }
     return this.socketClient.send(message.payload.messageType, message.payload.data);
   }
