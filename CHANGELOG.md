@@ -1,3 +1,10 @@
+# [4.0.0-alpha.19](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.18...v4.0.0-alpha.19) (2025-12-03)
+
+
+### Bug Fixes
+
+* Connect socket if client tries to send the message ([b5fa7bc](https://github.com/Sogni-AI/sogni-client/commit/b5fa7bc9599f30ff575521e76d76d42f031769fc))
+
 # [4.0.0-alpha.18](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.17...v4.0.0-alpha.18) (2025-12-02)
 
 
