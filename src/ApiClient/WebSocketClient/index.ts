@@ -86,7 +86,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     socket.onmessage = null;
     socket.onopen = null;
     this.stopPing();
-    socket.close();
+    socket.close(1000, 'Client disconnected');
   }
 
   private startPing(socket: WebSocket) {
@@ -148,7 +148,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   private handleClose(e: CloseEvent) {
-    if (e.target === this.socket) {
+    if (e.target === this.socket || !this.socket) {
       this._logger.info('WebSocket disconnected, cleanup', e);
       this.disconnect();
       this.emit('disconnected', {

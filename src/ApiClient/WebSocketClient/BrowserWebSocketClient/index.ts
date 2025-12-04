@@ -3,10 +3,41 @@ import { AuthManager, TokenAuthManager } from '../../../lib/AuthManager';
 import { Logger } from '../../../lib/DefaultLogger';
 import WebSocketClient from '../index';
 import RestClient from '../../../lib/RestClient';
-import { ServerDisconnectData, SocketEventMap } from '../events';
-import WSCoordinator from './WSCoordinator';
+import { SocketEventMap } from '../events';
 import { MessageType, SocketMessageMap } from '../messages';
-import { Heartbeat, SocketEventReceived, SendSocketMessage } from './types';
+import ChannelCoordinator from './ChannelCoordinator';
+
+interface SocketSend<T extends MessageType = MessageType> {
+  type: 'socket-send';
+  payload: { type: T; data: SocketMessageMap[T] };
+}
+
+interface SocketConnect {
+  type: 'connect';
+}
+
+interface SocketDisconnect {
+  type: 'disconnect';
+}
+
+interface SwitchNetwork {
+  type: 'switchNetwork';
+  payload: SupernetType;
+}
+
+type Message = SocketConnect | SocketDisconnect | SocketSend | SwitchNetwork;
+
+interface EventNotification<T extends keyof SocketEventMap = keyof SocketEventMap> {
+  type: 'socket-event';
+  payload: { type: T; data: SocketEventMap[T] };
+}
+
+interface AuthStateChanged {
+  type: 'auth-state-changed';
+  payload: boolean;
+}
+
+type Notification = EventNotification | AuthStateChanged;
 
 type EventInterceptor<T extends keyof SocketEventMap = keyof SocketEventMap> = (
   eventType: T,
@@ -30,8 +61,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   appId: string;
   baseUrl: string;
   private socketClient: WrappedClient;
-  private coordinator: WSCoordinator;
-  private isPrimary = false;
+  private coordinator: ChannelCoordinator<Message, Notification>;
   private _isConnected = false;
   private _supernetType: SupernetType;
 
@@ -48,67 +78,125 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     this.appId = appId;
     this.baseUrl = socketClient.baseUrl;
     this._supernetType = supernetType;
-    this.coordinator = new WSCoordinator(
-      {
-        onAuthChanged: this.handleAuthChanged.bind(this),
+    this.coordinator = new ChannelCoordinator({
+      callbacks: {
         onRoleChange: this.handleRoleChange.bind(this),
-        onConnectionToggle: this.handleConnectionToggle.bind(this),
-        onMessageFromPrimary: this.handleMessageFromPrimary.bind(this),
-        onSendRequest: this.handleSendRequest.bind(this)
+        onMessage: this.handleMessage.bind(this),
+        onNotification: this.handleNotification.bind(this)
       },
       logger
-    );
+    });
     this.auth.on('updated', this.handleAuthUpdated.bind(this));
     this.socketClient.intercept(this.handleSocketEvent.bind(this));
+    //@ts-expect-error window is defined in browser
+    window.DISCONNECT = () => {
+      this.disconnect();
+    };
   }
 
   get isConnected() {
-    return this.isPrimary ? this.socketClient.isConnected : this._isConnected;
+    return this.coordinator.isPrimary ? this.socketClient.isConnected : this._isConnected;
   }
 
   get supernetType() {
-    return this.isPrimary ? this.socketClient.supernetType : this._supernetType;
+    return this.coordinator.isPrimary ? this.socketClient.supernetType : this._supernetType;
   }
 
   async connect(): Promise<void> {
-    const isPrimary = await this.coordinator.initialize();
-    this.isPrimary = isPrimary;
-    if (isPrimary) {
+    await this.coordinator.isReady();
+    if (this.coordinator.isPrimary) {
       await this.socketClient.connect();
     } else {
-      this.coordinator.connect();
+      return this.coordinator.sendMessage({
+        type: 'connect'
+      });
     }
   }
 
-  disconnect() {
-    if (this.isPrimary) {
+  async disconnect() {
+    await this.coordinator.isReady();
+    if (this.coordinator.isPrimary) {
       this.socketClient.disconnect();
     } else {
-      this.coordinator.disconnect();
+      this.coordinator.sendMessage({
+        type: 'disconnect'
+      });
     }
   }
 
   async switchNetwork(supernetType: SupernetType): Promise<SupernetType> {
-    if (this.isPrimary) {
+    await this.coordinator.isReady();
+    if (this.coordinator.isPrimary) {
       return this.socketClient.switchNetwork(supernetType);
     }
-    return new Promise<SupernetType>(async (resolve) => {
-      this.once('changeNetwork', ({ network }) => {
-        this._supernetType = network;
-        resolve(network);
-      });
-      await this.send('changeNetwork', supernetType);
+    await this.coordinator.sendMessage({
+      type: 'switchNetwork',
+      payload: supernetType
     });
+    this._supernetType = supernetType;
+    return supernetType;
   }
 
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]): Promise<void> {
-    if (this.isPrimary) {
+    await this.coordinator.isReady();
+    if (this.coordinator.isPrimary) {
       if (!this.socketClient.isConnected) {
         await this.socketClient.connect();
       }
       return this.socketClient.send(messageType, data);
     }
-    return this.coordinator.sendToSocket(messageType, data);
+    return this.coordinator.sendMessage({
+      type: 'socket-send',
+      payload: { type: messageType, data }
+    });
+  }
+
+  private async handleMessage(message: Message) {
+    this._logger.debug('Received control message', message);
+    switch (message.type) {
+      case 'socket-send': {
+        if (!this.socketClient.isConnected) {
+          await this.socketClient.connect();
+        }
+        return this.socketClient.send(message.payload.type, message.payload.data);
+      }
+      case 'connect': {
+        if (!this.socketClient.isConnected) {
+          await this.socketClient.connect();
+        }
+        return;
+      }
+      case 'disconnect': {
+        if (this.socketClient.isConnected) {
+          this.socketClient.disconnect();
+        }
+        return;
+      }
+      case 'switchNetwork': {
+        await this.switchNetwork(message.payload);
+        return;
+      }
+      default: {
+        this._logger.error('Received unknown message type:', message);
+      }
+    }
+  }
+
+  private async handleNotification(notification: Notification) {
+    this._logger.debug('Received notification', notification.type, notification.payload);
+    switch (notification.type) {
+      case 'socket-event': {
+        this.emit(notification.payload.type, notification.payload.data);
+        return;
+      }
+      case 'auth-state-changed': {
+        this.handleAuthChanged(notification.payload);
+        return;
+      }
+      default: {
+        this._logger.error('Received unknown notification type:', notification);
+      }
+    }
   }
 
   private handleAuthChanged(isAuthenticated: boolean) {
@@ -125,87 +213,28 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   private handleSocketEvent(eventType: keyof SocketEventMap, payload: any) {
-    if (this.isPrimary) {
-      this.coordinator.broadcastSocketEvent(eventType, payload);
+    if (this.coordinator.isPrimary) {
+      this.coordinator.notify({
+        type: 'socket-event',
+        payload: { type: eventType, data: payload }
+      });
       this.emit(eventType, payload);
     }
   }
 
   private handleAuthUpdated(isAuthenticated: boolean) {
-    this.coordinator.changeAuthState(isAuthenticated);
+    this.coordinator.notify({
+      type: 'auth-state-changed',
+      payload: isAuthenticated
+    });
   }
 
   private handleRoleChange(isPrimary: boolean) {
-    this.isPrimary = isPrimary;
     if (isPrimary && !this.socketClient.isConnected && this.isConnected) {
       this.socketClient.connect();
     } else if (!isPrimary && this.socketClient.isConnected) {
       this.socketClient.disconnect();
     }
-  }
-
-  private handleConnectionToggle(isConnected: boolean) {
-    if (this.isPrimary) {
-      if (isConnected && !this.socketClient.isConnected) {
-        this.socketClient.connect();
-      } else if (!isConnected && this.socketClient.isConnected) {
-        this.socketClient.disconnect();
-      }
-    }
-  }
-
-  /**
-   * Emit events from socket to listeners
-   * @param message
-   */
-  private handleMessageFromPrimary(message: SocketEventReceived | Heartbeat) {
-    if (this.isPrimary) {
-      throw new Error('Received message from primary socket, but it is primary');
-    }
-    this._logger.debug('Received message from primary client:', message.type, message.payload);
-    if (message.type === 'primary-present') {
-      const shouldUpdateStatus = message.payload.connected !== this._isConnected;
-      if (shouldUpdateStatus) {
-        this._isConnected = message.payload.connected;
-        if (message.payload.connected) {
-          this._logger.debug('Primary socket is active emitting connected event');
-          this.emit('connected', { network: this._supernetType });
-        } else {
-          this._logger.debug('Primary socket is inactive emitting disconnected event');
-          this.emit('disconnected', { code: 5000, reason: 'Primary socket disconnected' });
-        }
-      }
-      return;
-    }
-    const event = message.payload;
-    switch (event.eventType) {
-      case 'connected': {
-        if (!this._isConnected) {
-          this._isConnected = true;
-          this.emit('connected', { network: this._supernetType });
-        }
-        return;
-      }
-      case 'disconnected': {
-        this._isConnected = false;
-        this.emit('disconnected', event.payload as ServerDisconnectData);
-        return;
-      }
-      default: {
-        this.emit(event.eventType, event.payload as any);
-      }
-    }
-  }
-
-  private async handleSendRequest(message: SendSocketMessage) {
-    if (!this.isPrimary) {
-      // Should never happen, but just in case
-      return Promise.resolve();
-    }
-    if (!this.socketClient.isConnected) {
-      await this.socketClient.connect();
-    }
-    return this.socketClient.send(message.payload.messageType, message.payload.data);
   }
 }
 

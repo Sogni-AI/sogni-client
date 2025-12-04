@@ -112,7 +112,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
 
   handleSocketDisconnect(data: ServerDisconnectData) {
     // If user is not authenticated, we don't need to reconnect
-    if (!this.auth.isAuthenticated) {
+    if (!this.auth.isAuthenticated || data.code === 1000) {
       this.emit('disconnected', data);
       return;
     }
