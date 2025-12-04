@@ -272,7 +272,7 @@ class ChannelCoordinator<M, N> {
       case MessageType.PRIMARY_ANNOUNCE:
         return this.handlePrimaryAnnounce(message);
       case MessageType.PRIMARY_HEARTBEAT:
-        return this.handlePrimaryHeartbeat(message);
+        return this.handlePrimaryHeartbeat();
       case MessageType.BROADCAST:
         return this.handleBroadcast(message);
       case MessageType.REQUEST:
@@ -316,7 +316,7 @@ class ChannelCoordinator<M, N> {
     this.readyCallback();
   }
 
-  private handlePrimaryHeartbeat(message: PrimaryHeartbeat) {
+  private handlePrimaryHeartbeat() {
     this.lastPrimaryHeartbeat = Date.now();
   }
 
