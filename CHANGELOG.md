@@ -1,3 +1,10 @@
+# [4.0.0-alpha.21](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.20...v4.0.0-alpha.21) (2025-12-04)
+
+
+### Bug Fixes
+
+* Fix TypeScript error ([30ff62a](https://github.com/Sogni-AI/sogni-client/commit/30ff62ad5ccb3624bf8a26b70f65b4c0daa9c6ff))
+
 # [4.0.0-alpha.20](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.19...v4.0.0-alpha.20) (2025-12-04)
 
 
