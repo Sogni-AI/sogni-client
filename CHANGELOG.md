@@ -1,3 +1,10 @@
+# [4.0.0-alpha.20](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.19...v4.0.0-alpha.20) (2025-12-04)
+
+
+### Bug Fixes
+
+* Better socket coordinator implementation. Handle socket disconnection properly ([2a1a922](https://github.com/Sogni-AI/sogni-client/commit/2a1a922a0dd41446c1dcf6ffeaccfe54556af5bb))
+
 # [4.0.0-alpha.19](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.18...v4.0.0-alpha.19) (2025-12-03)
 
 
