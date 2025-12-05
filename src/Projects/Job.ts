@@ -226,10 +226,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
       });
     } else {
       url = await this._api.downloadUrl({
-      jobId: this.projectId,
-      imageId: this.id,
-      type: 'complete'
-    });
+        jobId: this.projectId,
+        imageId: this.id,
+        type: 'complete'
+      });
     }
     this._update({ resultUrl: url });
     return url;
@@ -275,11 +275,11 @@ class Job extends DataEntity<JobData, JobEventMap> {
             type: 'complete'
           });
         } else {
-        delta.resultUrl = await this._api.downloadUrl({
-          jobId: this.projectId,
-          imageId: this.id,
-          type: 'complete'
-        });
+          delta.resultUrl = await this._api.downloadUrl({
+            jobId: this.projectId,
+            imageId: this.id,
+            type: 'complete'
+          });
         }
       } catch (error) {
         this._logger.error(error);

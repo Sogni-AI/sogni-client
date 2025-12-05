@@ -28,7 +28,7 @@ function validateVideoWorkflowAssets(params: ProjectParams, workflowType: VideoW
     referenceImage: !!video?.referenceImage,
     referenceImageEnd: !!video?.referenceImageEnd,
     referenceAudio: !!video?.referenceAudio,
-    referenceVideo: !!video?.referenceVideo,
+    referenceVideo: !!video?.referenceVideo
   };
 
   // Check for missing required assets

@@ -373,34 +373,34 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceVideo: 'required' | 'optional' | 'forbidden';
   }
 > = {
-  't2v': {
+  t2v: {
     referenceImage: 'forbidden',
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
-    referenceVideo: 'forbidden',
+    referenceVideo: 'forbidden'
   },
-  'i2v': {
+  i2v: {
     referenceImage: 'required',
     referenceImageEnd: 'optional',
     referenceAudio: 'forbidden',
-    referenceVideo: 'forbidden',
+    referenceVideo: 'forbidden'
   },
-  's2v': {
+  s2v: {
     referenceImage: 'required',
     referenceAudio: 'required',
     referenceImageEnd: 'forbidden',
-    referenceVideo: 'forbidden',
+    referenceVideo: 'forbidden'
   },
   'animate-move': {
     referenceImage: 'required',
     referenceVideo: 'required',
     referenceImageEnd: 'forbidden',
-    referenceAudio: 'forbidden',
+    referenceAudio: 'forbidden'
   },
   'animate-replace': {
     referenceImage: 'required',
     referenceVideo: 'required',
     referenceImageEnd: 'forbidden',
-    referenceAudio: 'forbidden',
-  },
+    referenceAudio: 'forbidden'
+  }
 };
