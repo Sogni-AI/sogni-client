@@ -1,4 +1,10 @@
-import { ProjectParams } from './types';
+import {
+  ProjectParams,
+  isVideoModel,
+  getVideoWorkflowType,
+  VIDEO_WORKFLOW_ASSETS,
+  VideoWorkflowType
+} from './types';
 import { ControlNetParams, ControlNetParamsRaw } from './types/ControlNetParams';
 import {
   validateNumber,
@@ -6,6 +12,43 @@ import {
   validateSampler,
   validateScheduler
 } from '../lib/validation';
+
+/**
+ * Validate that the provided assets match the workflow requirements.
+ * Throws an error if required assets are missing or forbidden assets are provided.
+ */
+function validateVideoWorkflowAssets(params: ProjectParams, workflowType: VideoWorkflowType): void {
+  if (!workflowType) return;
+
+  const requirements = VIDEO_WORKFLOW_ASSETS[workflowType];
+  if (!requirements) return;
+
+  const video = params.video;
+  const assets = {
+    referenceImage: !!video?.referenceImage,
+    referenceImageEnd: !!video?.referenceImageEnd,
+    referenceAudio: !!video?.referenceAudio,
+    referenceVideo: !!video?.referenceVideo,
+  };
+
+  // Check for missing required assets
+  for (const [asset, requirement] of Object.entries(requirements)) {
+    const assetKey = asset as keyof typeof assets;
+    const hasAsset = assets[assetKey];
+
+    if (requirement === 'required' && !hasAsset) {
+      throw new Error(
+        `${workflowType} workflow requires video.${assetKey}. Please provide this asset.`
+      );
+    }
+
+    if (requirement === 'forbidden' && hasAsset) {
+      throw new Error(
+        `${workflowType} workflow does not support video.${assetKey}. Please remove this asset.`
+      );
+    }
+  }
+}
 
 // Mac worker can't process the data if some of the fields are missing, so we need to provide a default template
 function getTemplate() {
@@ -120,37 +163,79 @@ function getControlNet(params: ControlNetParams): ControlNetParamsRaw[] {
 
 function createJobRequestMessage(id: string, params: ProjectParams) {
   const template = getTemplate();
+  const isVideo = isVideoModel(params.modelId);
+  const workflowType = getVideoWorkflowType(params.modelId);
+
+  // Validate video workflow assets if this is a video model
+  if (isVideo && workflowType) {
+    validateVideoWorkflowAssets(params, workflowType);
+  }
+
+  // Base keyFrame with common params
+  const keyFrame: Record<string, any> = {
+    ...template.keyFrames[0],
+    scheduler: validateSampler(params.sampler),
+    timeStepSpacing: validateScheduler(params.scheduler),
+    steps: params.steps,
+    guidanceScale: params.guidance,
+    modelID: params.modelId,
+    negativePrompt: params.negativePrompt,
+    seed: params.seed,
+    positivePrompt: params.positivePrompt,
+    stylePrompt: params.stylePrompt,
+    sizePreset: params.sizePreset,
+    hasContextImage1: !!params.contextImages?.[0],
+    hasContextImage2: !!params.contextImages?.[1]
+  };
+
+  if (params.startingImage) {
+    keyFrame.hasStartingImage = true;
+    keyFrame.strengthIsEnabled = true;
+    keyFrame.strength = 1 - (Number(params.startingImageStrength) || 0.5);
+  }
+
+  // VIDEO WORKFLOW FLAGS (WAN 2.2)
+  // These are completely separate from startingImage
+  if (isVideo && params.video) {
+    const video = params.video;
+
+    // Reference assets
+    if (video.referenceImage) {
+      keyFrame.hasReferenceImage = true;
+    }
+    if (video.referenceImageEnd) {
+      keyFrame.hasReferenceImageEnd = true;
+    }
+    if (video.referenceAudio) {
+      keyFrame.hasReferenceAudio = true;
+    }
+    if (video.referenceVideo) {
+      keyFrame.hasReferenceVideo = true;
+    }
+
+    // Video generation parameters
+    if (video.frames !== undefined) {
+      keyFrame.frames = video.frames;
+    }
+    if (video.fps !== undefined) {
+      keyFrame.fps = video.fps;
+    }
+    if (video.shift !== undefined) {
+      keyFrame.shift = video.shift;
+    }
+  }
+
   const jobRequest: Record<string, any> = {
     ...template,
-    keyFrames: [
-      {
-        ...template.keyFrames[0],
-        scheduler: validateSampler(params.sampler),
-        timeStepSpacing: validateScheduler(params.scheduler),
-        steps: params.steps,
-        guidanceScale: params.guidance,
-        modelID: params.modelId,
-        negativePrompt: params.negativePrompt,
-        seed: params.seed,
-        positivePrompt: params.positivePrompt,
-        stylePrompt: params.stylePrompt,
-        hasStartingImage: !!params.startingImage,
-        hasContextImage1: !!params.contextImages?.[0],
-        hasContextImage2: !!params.contextImages?.[1],
-        strengthIsEnabled: !!params.startingImage,
-        strength: !!params.startingImage
-          ? 1 - (Number(params.startingImageStrength) || 0.5)
-          : undefined,
-        sizePreset: params.sizePreset
-      }
-    ],
+    keyFrames: [keyFrame],
     previews: params.numberOfPreviews || 0,
     numberOfImages: params.numberOfImages,
     jobID: id,
     disableSafety: !!params.disableNSFWFilter,
     tokenType: params.tokenType,
-    outputFormat: params.outputFormat || 'png'
+    outputFormat: params.outputFormat || (isVideo ? 'mp4' : 'png')
   };
+
   if (params.network) {
     jobRequest.network = params.network;
   }
@@ -160,7 +245,12 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
   if (params.sizePreset === 'custom') {
     jobRequest.keyFrames[0].width = validateCustomImageSize(params.width);
     jobRequest.keyFrames[0].height = validateCustomImageSize(params.height);
+  } else if (isVideo && params.width !== undefined && params.height !== undefined) {
+    // For video models, allow width/height without requiring sizePreset='custom'
+    jobRequest.keyFrames[0].width = params.width;
+    jobRequest.keyFrames[0].height = params.height;
   }
+
   return jobRequest;
 }
 

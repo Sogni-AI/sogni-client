@@ -8,12 +8,20 @@ export interface SupportedModel {
   id: string;
   name: string;
   SID: number;
+  /**
+   * Media type produced by this model: 'image' or 'video'
+   */
+  media: 'image' | 'video';
 }
 
 export interface AvailableModel {
   id: string;
   name: string;
   workerCount: number;
+  /**
+   * Media type produced by this model: 'image' or 'video'
+   */
+  media: 'image' | 'video';
 }
 
 export interface SizePreset {
@@ -29,9 +37,53 @@ export type { Sampler, Scheduler };
 
 export { SupportedSamplers, SupportedSchedulers };
 
-export type OutputFormat = 'png' | 'jpg';
+export type OutputFormat = 'png' | 'jpg' | 'mp4';
 
 export type InputImage = File | Buffer | Blob | boolean;
+
+export type InputMedia = File | Buffer | Blob | boolean;
+
+/**
+ * Media type for job results
+ */
+export type MediaType = 'image' | 'video';
+
+/**
+ * Video-specific parameters for video workflows (t2v, i2v, s2v, animate)
+ */
+export interface VideoParams {
+  /**
+   * Number of frames to generate
+   */
+  frames?: number;
+  /**
+   * Frames per second for output video
+   */
+  fps?: number;
+  /**
+   * Shift parameter for video diffusion models
+   */
+  shift?: number;
+  /**
+   * Reference image for WAN video workflows.
+   * Maps to: startImage (i2v), characterImage (animate), referenceImage (s2v)
+   */
+  referenceImage?: InputImage;
+  /**
+   * Optional end image for i2v interpolation workflows.
+   * When provided with referenceImage, the video will interpolate between the two images.
+   */
+  referenceImageEnd?: InputImage;
+  /**
+   * Reference audio for s2v (sound-to-video) workflows.
+   */
+  referenceAudio?: InputMedia;
+  /**
+   * Reference video for animate workflows.
+   * Maps to: drivingVideo (animate-move), sourceVideo (animate-replace)
+   */
+  referenceVideo?: InputMedia;
+}
 
 export interface ProjectParams {
   /**
@@ -75,8 +127,13 @@ export interface ProjectParams {
    * Number of images to generate
    */
   numberOfImages: number;
+
+  // ============================================
+  // IMAGE WORKFLOW PARAMS (SD, Flux, etc.)
+  // ============================================
+
   /**
-   * Generate images based on the starting image.
+   * Starting image for img2img workflows.
    * Supported types:
    * `File` - file object from input[type=file]
    * `Buffer` - Node.js buffer object with image data
@@ -90,15 +147,26 @@ export interface ProjectParams {
   startingImageStrength?: number;
   /**
    * Context images for Flux Kontext model. Flux Kontext support up to 2 context images.
-   * Supported types:
-   * `File` - file object from input[type=file]
-   * `Buffer` - Node.js buffer object with image data
-   * `Blob` - blob object with image data
-   * `true` - indicates that the image is already uploaded to the server
    */
   contextImages?: InputImage[];
+
+  // ============================================
+  // VIDEO WORKFLOW PARAMS
+  // ============================================
+
   /**
-   * Number of previews to generate. Note that previews affect project cost\
+   * Video-specific parameters for video workflows (t2v, i2v, s2v, animate).
+   * Only applicable when using video models like wan_v2.2-14b-fp8_t2v.
+   * Includes frame count, fps, shift, and reference assets (image, audio, video).
+   */
+  video?: VideoParams;
+
+  // ============================================
+  // OTHER PARAMS
+  // ============================================
+
+  /**
+   * Number of previews to generate. Note that previews affect project cost
    */
   numberOfPreviews?: number;
   /**
@@ -132,18 +200,56 @@ export interface ProjectParams {
    */
   tokenType?: TokenType;
   /**
-   * Output image format. Can be 'png' or 'jpg'.
-   * If not specified, 'png' will be used.
+   * Output format. Can be 'png', 'jpg', or 'mp4'.
+   * Defaults to 'png' for image models, 'mp4' for video models.
    */
   outputFormat?: OutputFormat;
 }
 
+/**
+ * Supported image formats
+ */
+export type ImageFormat = 'png' | 'jpg' | 'jpeg' | 'webp';
+
+/**
+ * Supported audio formats
+ */
+export type AudioFormat = 'm4a' | 'mp3' | 'wav';
+
+/**
+ * Supported video formats
+ */
+export type VideoFormat = 'mp4' | 'mov';
+
+/**
+ * Parameters for image asset URL requests (upload/download)
+ */
 export type ImageUrlParams = {
   imageId: string;
   jobId: string;
-  type: 'preview' | 'complete' | 'startingImage' | 'cnImage' | 'contextImage1' | 'contextImage2';
-  // This seems to be unused currently
+  type:
+    | 'preview'
+    | 'complete'
+    | 'startingImage'
+    | 'cnImage'
+    | 'contextImage1'
+    | 'contextImage2'
+    | 'referenceImage'
+    | 'referenceImageEnd';
+  /** Format hint (png, jpg, jpeg, webp) */
+  format?: ImageFormat;
   startContentType?: string;
+};
+
+/**
+ * Parameters for media asset URL requests (video/audio upload/download)
+ */
+export type MediaUrlParams = {
+  id?: string;
+  jobId: string;
+  type: 'complete' | 'preview' | 'referenceAudio' | 'referenceVideo';
+  /** Format hint for audio (m4a, mp3, wav) or video (mp4, mov) */
+  format?: AudioFormat | VideoFormat;
 };
 
 export interface EstimateRequest {
@@ -223,3 +329,78 @@ export interface CostEstimation {
 }
 
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
+
+/**
+ * Check if a model ID is for a video workflow.
+ * This is consistent with the `media` property returned by the models list API.
+ * Video models produce MP4 output; image models produce PNG/JPG output.
+ */
+export function isVideoModel(modelId: string): boolean {
+  return modelId.startsWith('wan_');
+}
+
+/**
+ * Video workflow types for WAN models
+ */
+export type VideoWorkflowType = 't2v' | 'i2v' | 's2v' | 'animate-move' | 'animate-replace' | null;
+
+/**
+ * Get the video workflow type from a model ID.
+ * Returns null for non-video models.
+ */
+export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
+  if (!modelId || !modelId.startsWith('wan_')) return null;
+  if (modelId.includes('_i2v')) return 'i2v';
+  if (modelId.includes('_s2v')) return 's2v';
+  if (modelId.includes('_animate-move')) return 'animate-move';
+  if (modelId.includes('_animate-replace')) return 'animate-replace';
+  if (modelId.includes('_t2v')) return 't2v';
+  return null;
+}
+
+/**
+ * Asset requirements for each video workflow type.
+ * - required: Must be provided
+ * - optional: Can be provided
+ * - forbidden: Must NOT be provided
+ */
+export const VIDEO_WORKFLOW_ASSETS: Record<
+  NonNullable<VideoWorkflowType>,
+  {
+    referenceImage: 'required' | 'optional' | 'forbidden';
+    referenceImageEnd: 'required' | 'optional' | 'forbidden';
+    referenceAudio: 'required' | 'optional' | 'forbidden';
+    referenceVideo: 'required' | 'optional' | 'forbidden';
+  }
+> = {
+  't2v': {
+    referenceImage: 'forbidden',
+    referenceImageEnd: 'forbidden',
+    referenceAudio: 'forbidden',
+    referenceVideo: 'forbidden',
+  },
+  'i2v': {
+    referenceImage: 'required',
+    referenceImageEnd: 'optional',
+    referenceAudio: 'forbidden',
+    referenceVideo: 'forbidden',
+  },
+  's2v': {
+    referenceImage: 'required',
+    referenceAudio: 'required',
+    referenceImageEnd: 'forbidden',
+    referenceVideo: 'forbidden',
+  },
+  'animate-move': {
+    referenceImage: 'required',
+    referenceVideo: 'required',
+    referenceImageEnd: 'forbidden',
+    referenceAudio: 'forbidden',
+  },
+  'animate-replace': {
+    referenceImage: 'required',
+    referenceVideo: 'required',
+    referenceImageEnd: 'forbidden',
+    referenceAudio: 'forbidden',
+  },
+};

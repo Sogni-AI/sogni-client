@@ -19,7 +19,16 @@ import {
   Sampler,
   Scheduler,
   SupportedSamplers,
-  SupportedSchedulers
+  SupportedSchedulers,
+  VideoParams,
+  MediaType,
+  ImageFormat,
+  AudioFormat,
+  VideoFormat,
+  VideoWorkflowType,
+  isVideoModel,
+  getVideoWorkflowType,
+  VIDEO_WORKFLOW_ASSETS
 } from './Projects/types';
 // Stats API
 import StatsApi from './Stats';
@@ -30,21 +39,37 @@ import { CookieAuthManager, TokenAuthData, TokenAuthManager } from './lib/AuthMa
 import { MeData } from './Account/types';
 
 export type {
+  AudioFormat,
   AvailableModel,
   ErrorData,
+  ImageFormat,
   JobStatus,
   Logger,
   LogLevel,
+  MediaType,
   OutputFormat,
   ProjectParams,
   ProjectStatus,
   Sampler,
   SupernetType,
   Scheduler,
-  TokenType
+  TokenType,
+  VideoFormat,
+  VideoParams,
+  VideoWorkflowType
 };
 
-export { ApiError, CurrentAccount, Job, Project, SupportedSamplers, SupportedSchedulers };
+export {
+  ApiError,
+  CurrentAccount,
+  Job,
+  Project,
+  SupportedSamplers,
+  SupportedSchedulers,
+  isVideoModel,
+  getVideoWorkflowType,
+  VIDEO_WORKFLOW_ASSETS
+};
 
 export interface SogniClientConfig {
   /**

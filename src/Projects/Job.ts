@@ -178,8 +178,19 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.data.error;
   }
 
+  /**
+   * Whether this job has a result image available for download.
+   * Returns true if completed and not NSFW filtered.
+   */
   get hasResultImage() {
     return this.status === 'completed' && !this.isNSFW;
+  }
+
+  /**
+   * Whether this job produces video output (based on the model used)
+   */
+  get isVideoJob() {
+    return this._api.isVideoModelId(this._project.params.modelId);
   }
 
   get enhancedImage() {
@@ -199,17 +210,27 @@ class Job extends DataEntity<JobData, JobEventMap> {
 
   /**
    * Get the result URL of the job. This method will make a request to the API to get signed URL.
-   * IMPORTANT: URL expires after 30 minutes, so make sure to download the image as soon as possible.
+   * IMPORTANT: URL expires after 30 minutes, so make sure to download the result as soon as possible.
+   * For video jobs, this returns a video URL. For image jobs, this returns an image URL.
    */
   async getResultUrl(): Promise<string> {
     if (this.data.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
-    const url = await this._api.downloadUrl({
+    let url: string;
+    if (this.isVideoJob) {
+      url = await this._api.mediaDownloadUrl({
+        jobId: this.projectId,
+        id: this.id,
+        type: 'complete'
+      });
+    } else {
+      url = await this._api.downloadUrl({
       jobId: this.projectId,
       imageId: this.id,
       type: 'complete'
     });
+    }
     this._update({ resultUrl: url });
     return url;
   }
@@ -247,11 +268,19 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
     if (!this.data.resultUrl && delta.status === 'completed' && !data.triggeredNSFWFilter) {
       try {
+        if (this.isVideoJob) {
+          delta.resultUrl = await this._api.mediaDownloadUrl({
+            jobId: this.projectId,
+            id: this.id,
+            type: 'complete'
+          });
+        } else {
         delta.resultUrl = await this._api.downloadUrl({
           jobId: this.projectId,
           imageId: this.id,
           type: 'complete'
         });
+        }
       } catch (error) {
         this._logger.error(error);
       }
