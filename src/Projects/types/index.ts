@@ -236,8 +236,6 @@ export type ImageUrlParams = {
     | 'contextImage2'
     | 'referenceImage'
     | 'referenceImageEnd';
-  /** Format hint (png, jpg, jpeg, webp) */
-  format?: ImageFormat;
   startContentType?: string;
 };
 
@@ -248,8 +246,6 @@ export type MediaUrlParams = {
   id?: string;
   jobId: string;
   type: 'complete' | 'preview' | 'referenceAudio' | 'referenceVideo';
-  /** Format hint for audio (m4a, mp3, wav) or video (mp4, mov) */
-  format?: AudioFormat | VideoFormat;
 };
 
 export interface EstimateRequest {
