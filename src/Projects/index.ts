@@ -59,7 +59,11 @@ function getFileContentType(file: File | Buffer | Blob): string | undefined {
  * Convert file to a format compatible with fetch body.
  * Converts Node.js Buffer to Blob for cross-platform compatibility.
  */
-function toFetchBody(file: File | Buffer | Blob): Blob {
+function toFetchBody(file: File | Buffer | Blob) {
+  // Node.js Buffer is not supported in browsers, so we can skip this conversion
+  if (typeof Buffer === 'undefined') {
+    return file;
+  }
   if (Buffer.isBuffer(file)) {
     // Copy Buffer data to a new ArrayBuffer to ensure type compatibility
     const arrayBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
