@@ -6,7 +6,7 @@
  * It displays your account balance and requires confirmation before spending tokens.
  *
  * Prerequisites:
- * - Edit USERNAME and PASSWORD in the script
+ * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
  * - You need access to the 'fast' network for video generation
  *
  * Usage:
@@ -32,6 +32,7 @@ import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
 import * as readline from 'node:readline';
+import { loadCredentials, loadTokenTypePreference, saveTokenTypePreference } from './credentials.mjs';
 
 const streamPipeline = promisify(pipeline);
 
@@ -128,9 +129,6 @@ const OPTIONS = parseArgs();
 // Configuration
 // ============================================
 
-const USERNAME = '';
-const PASSWORD = '';
-
 let VIDEO_MODEL_ID = OPTIONS.model; // May be set later by prompt
 const VIDEO_CONFIG = {
   frames: OPTIONS.frames,
@@ -159,7 +157,7 @@ async function askSpeedOrQuality() {
 
   console.log('\n⚡ Select generation mode:\n');
   console.log('  1. Speed   - Faster generation, good quality (LightX2V)');
-  console.log('  2. Quality - Slower generation, best quality');
+  console.log('  2. Quality - Slower generation, best quality - 2.5x cost');
   console.log();
 
   const rl = readline.createInterface({
@@ -259,17 +257,12 @@ async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fp
 async function main() {
   console.log();
   console.log('╔══════════════════════════════════════════════════════════╗');
-  console.log('║           Sogni Text-to-Video (with SDK)                ║');
+  console.log('║         Sogni Text-to-Video (via Wan 2.2 14B)            ║');
   console.log('╚══════════════════════════════════════════════════════════╝');
   console.log();
 
-  // Check for credentials
-  if (!USERNAME || !PASSWORD) {
-    console.error('❌ Error: USERNAME and PASSWORD must be configured');
-    console.error('   Edit the script and set your credentials at the top of the file.');
-    console.error();
-    process.exit(1);
-  }
+  // Load credentials from .env or prompt user
+  const { username: USERNAME, password: PASSWORD } = await loadCredentials();
 
   // Prompt for model if not specified
   if (!VIDEO_MODEL_ID) {
@@ -287,6 +280,7 @@ async function main() {
 
   let projectEventHandler;
   let jobEventHandler;
+  let project;
 
   try {
     // Login
@@ -295,17 +289,50 @@ async function main() {
     log('✓', `Logged in as: ${USERNAME}`);
     console.log();
 
-    // Display balance
+    // Get balance for token selection
     const balance = await sogni.account.refreshBalance();
-    console.log('💰 Account Balance:');
-    console.log(`   Sogni: ${parseFloat(balance.sogni.net || 0).toFixed(2)}`);
-    console.log(`   Spark: ${parseFloat(balance.spark.net || 0).toFixed(2)}`);
-    console.log();
+
+    // Check for token type preference
+    let tokenType = loadTokenTypePreference();
+    
+    if (!tokenType) {
+      // Ask user which token type to use
+      const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
+      const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
+      
+      console.log('💳 Select payment token type:\n');
+      console.log(`  1. Spark Points (Balance: ${sparkBalance})`);
+      console.log(`  2. Sogni Tokens (Balance: ${sogniBalance})`);
+      console.log();
+      
+      const tokenChoice = await askQuestion('Enter choice [1/2] (default: 1): ');
+      const choice = tokenChoice.trim() || '1';
+      
+      if (choice === '2' || choice.toLowerCase() === 'sogni') {
+        tokenType = 'sogni';
+        console.log('  → Using Sogni tokens\n');
+      } else {
+        tokenType = 'spark';
+        console.log('  → Using Spark tokens\n');
+      }
+
+      // Ask if they want to save the preference
+      const savePreference = await askQuestion('Save payment preference to .env file? [Y/n]: ');
+      if (savePreference.toLowerCase() !== 'n' && savePreference.toLowerCase() !== 'no') {
+        saveTokenTypePreference(tokenType);
+        console.log('✓ Payment preference saved\n');
+      } else {
+        console.log('⚠️  Payment preference not saved. You will be asked again next time.\n');
+      }
+    } else {
+      console.log(`💳 Using saved payment preference: ${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} tokens`);
+      console.log();
+    }
 
     // Get cost estimate
     log('💵', 'Fetching cost estimate...');
     const estimate = await getVideoJobEstimate(
-      'spark',
+      tokenType,
       VIDEO_MODEL_ID,
       WIDTH,
       HEIGHT,
@@ -315,8 +342,19 @@ async function main() {
 
     console.log();
     console.log('📊 Cost Estimate:');
-    console.log(`   Sogni: ${parseFloat(estimate.quote.project.costInSogni || 0).toFixed(2)}`);
-    console.log(`   Spark: ${parseFloat(estimate.quote.project.costInSpark || 0).toFixed(2)}`);
+    
+    // Show the cost in the selected token type and USD
+    if (tokenType === 'spark') {
+      const cost = parseFloat(estimate.quote.project.costInSpark || 0);
+      const currentBalance = parseFloat(balance.spark.net || 0);
+      const remaining = currentBalance - cost;
+      console.log(`   Spark: ${cost.toFixed(2)} (Balance remaining: ${remaining.toFixed(2)})`);
+    } else {
+      const cost = parseFloat(estimate.quote.project.costInSogni || 0);
+      const currentBalance = parseFloat(balance.sogni.net || 0);
+      const remaining = currentBalance - cost;
+      console.log(`   Sogni: ${cost.toFixed(2)} (Balance remaining: ${remaining.toFixed(2)})`);
+    }
     console.log(`   USD: $${parseFloat(estimate.quote.project.costInUSD || 0).toFixed(4)}`);
     console.log();
 
@@ -374,8 +412,8 @@ async function main() {
     log('⏳', '(This may take several minutes)');
     console.log();
 
-    const startTime = Date.now();
-    const project = await sogni.projects.create({
+    let startTime = null;
+    project = await sogni.projects.create({
       type: 'video',
       modelId: VIDEO_MODEL_ID,
       positivePrompt: POSITIVE_PROMPT,
@@ -387,7 +425,7 @@ async function main() {
       height: HEIGHT,
       frames: VIDEO_CONFIG.frames,
       fps: VIDEO_CONFIG.fps,
-      tokenType: 'spark'
+      tokenType: tokenType
     });
 
     projectEventHandler = (event) => {
@@ -401,6 +439,12 @@ async function main() {
           break;
         case 'error':
           log('❌', `Project failed: ${event.error.message}`);
+          if (event.error.code) {
+            console.log(`   Error code: ${event.error.code}`);
+          }
+          if (event.error.data) {
+            console.log(`   Error data:`, event.error.data);
+          }
           break;
       }
     };
@@ -412,31 +456,53 @@ async function main() {
           log('⚙️', `Model initiating on worker: ${event.workerName || 'Unknown'}`);
           break;
         case 'started':
+          // Start timing when job actually starts
+          if (!startTime) {
+            startTime = Date.now();
+            // Show progress and update every second throughout the entire job
+            const progressInterval = setInterval(() => {
+              if (startTime) {
+                const elapsed = (Date.now() - startTime) / 1000;
+                if (project._lastETA !== undefined) {
+                  // We have ETA info, show it
+                  process.stdout.write(
+                    `\r  Generating... ETA: ${formatDuration(project._lastETA)} (${formatDuration(elapsed)} elapsed)   `
+                  );
+                } else {
+                  // No ETA yet, just show elapsed
+                  process.stdout.write(`\r  Generating... (${formatDuration(elapsed)} elapsed)   `);
+                }
+              }
+            }, 1000);
+            // Store interval ID on the project so we can clear it later
+            project._progressInterval = progressInterval;
+            project._lastETA = undefined;
+          }
           log('🚀', `Job started on worker: ${event.workerName || 'Unknown'}`);
           break;
-        case 'progress': {
-          const elapsed = (Date.now() - startTime) / 1000;
-          const pct = Math.min(100, Math.max(0, Math.floor((event.step / event.stepCount) * 100)));
-          const filled = Math.floor(pct / 5);
-          const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
-          process.stdout.write(
-            `\r  Progress: [${bar}] ${pct}% - Step ${event.step}/${event.stepCount} (${formatDuration(elapsed)} elapsed)   `
-          );
-          break;
-        }
         case 'jobETA': {
-          const elapsed = (Date.now() - startTime) / 1000;
-          const etaFormatted = formatDuration(event.etaSeconds);
-          process.stdout.write(
-            `\r  Generating... ETA: ${etaFormatted} (${formatDuration(elapsed)} elapsed)   `
-          );
+          // Store the latest ETA so the interval can use it
+          project._lastETA = event.etaSeconds;
           break;
         }
         case 'completed':
+          // Clear the progress interval and show final message
+          if (project._progressInterval) {
+            clearInterval(project._progressInterval);
+            project._progressInterval = null;
+            // Clear the line
+            process.stdout.write('\r' + ' '.repeat(70) + '\r');
+          }
           log('✅', 'Job completed!');
           break;
         case 'error':
           log('❌', `Job failed: ${event.error.message}`);
+          if (event.error.code) {
+            console.log(`   Error code: ${event.error.code}`);
+          }
+          if (event.error.data) {
+            console.log(`   Error data:`, event.error.data);
+          }
           break;
       }
     };
@@ -460,8 +526,10 @@ async function main() {
     log('✅', 'Video generation complete!');
     log('📁', `Saved to: ${savePath}`);
 
-    const elapsed = (Date.now() - startTime) / 1000;
-    log('⏱️', `Total time: ${formatDuration(elapsed)}`);
+    if (startTime) {
+      const elapsed = (Date.now() - startTime) / 1000;
+      log('⏱️', `Total time: ${formatDuration(elapsed)}`);
+    }
 
     // Open the video
     log('🎬', 'Opening video...');
@@ -479,10 +547,14 @@ async function main() {
     if (jobEventHandler) {
       sogni.projects.off('job', jobEventHandler);
     }
+    // Clean up any remaining intervals
+    if (project && project._progressInterval) {
+      clearInterval(project._progressInterval);
+    }
     try {
       await sogni.account.logout();
     } catch {
-      // Ignore logout errors
+      // Ignore logout errors (including websocket disconnect messages)
     }
   }
 }
