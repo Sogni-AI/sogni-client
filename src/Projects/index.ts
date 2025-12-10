@@ -909,15 +909,18 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @example Returned object for a model that implements image to video workflow:
    * ```json
    * {
-   *   "referenceImage": "required",
-   *   "referenceImageEnd": "optional",
-   *   "referenceAudio": "forbidden",
-   *   "referenceVideo": "forbidden"
+   *   "workflowType": "i2v",
+   *   "assets": {
+   *     "referenceImage": "required",
+   *     "referenceImageEnd": "optional",
+   *     "referenceAudio": "forbidden",
+   *     "referenceVideo": "forbidden"
+   *   }
    * }
    * ```
    *
    * @param {string} modelId - The identifier of the video model to retrieve the configuration for.
-   * @return {Object|null} The video asset configuration object where key is asset field and value is
+   * @return {Object} The video asset configuration object where key is asset field and value is
    * either `required`, `forbidden` or `optional`. Returns `null` if no rules defined for the model.
    * @throws {ApiError} Throws an error if the provided model ID is not a video model.
    */
@@ -931,9 +934,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     const workflow = getVideoWorkflowType(modelId);
     if (!workflow) {
-      return null;
+      return {
+        workflowType: null
+      };
     }
-    return VIDEO_WORKFLOW_ASSETS[workflow];
+    return {
+      workflowType: workflow,
+      assets: VIDEO_WORKFLOW_ASSETS[workflow]
+    };
   }
 
   /**
