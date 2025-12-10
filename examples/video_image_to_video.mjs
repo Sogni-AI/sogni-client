@@ -380,7 +380,7 @@ async function main() {
     // Get cost estimate
     log('💵', 'Fetching cost estimate...');
     const estimate = await getVideoJobEstimate(
-      'sogni',
+      'spark',
       VIDEO_MODEL_ID,
       WIDTH,
       HEIGHT,
@@ -442,8 +442,11 @@ async function main() {
     log('⏳', '(This may take several minutes)');
     console.log();
 
+    let project;
+    let projectEventHandler;
+    let jobEventHandler;
     const startTime = Date.now();
-    const project = await client.projects.create({
+    project = await client.projects.create({
       modelId: VIDEO_MODEL_ID,
       positivePrompt: POSITIVE_PROMPT,
       negativePrompt: '',
@@ -459,33 +462,58 @@ async function main() {
         frames: VIDEO_CONFIG.frames,
         fps: VIDEO_CONFIG.fps,
       },
+      tokenType: 'spark',
     });
 
-    // Handle progress events
-    project.on('jobState', (event) => {
+    projectEventHandler = (event) => {
+      if (event.projectId !== project.id) return;
       switch (event.type) {
         case 'queued':
           log('📋', `Job queued at position: ${event.queuePosition}`);
           break;
-        case 'initiatingModel':
-          log('⚙️', `Model initiating on worker: ${event.workerName}`);
+        case 'completed':
+          log('✅', 'Project completed!');
           break;
-        case 'jobStarted':
-          log('🚀', `Job started on worker: ${event.workerName}`);
-          break;
-        case 'jobCompleted':
-          log('✅', 'Job completed!');
+        case 'error':
+          log('❌', `Project failed: ${event.error.message}`);
           break;
       }
-    });
+    };
 
-    project.on('jobProgress', (event) => {
-      const elapsed = (Date.now() - startTime) / 1000;
-      const pct = Math.min(100, Math.max(0, Math.floor((event.step / event.stepCount) * 100)));
-      const filled = Math.floor(pct / 5);
-      const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
-      process.stdout.write(`\r  Progress: [${bar}] ${pct}% - Step ${event.step}/${event.stepCount} (${formatDuration(elapsed)} elapsed)   `);
-    });
+    jobEventHandler = (event) => {
+      if (event.projectId !== project.id) return;
+      switch (event.type) {
+        case 'initiating':
+          log('⚙️', `Model initiating on worker: ${event.workerName || 'Unknown'}`);
+          break;
+        case 'started':
+          log('🚀', `Job started on worker: ${event.workerName || 'Unknown'}`);
+          break;
+        case 'progress': {
+          const elapsed = (Date.now() - startTime) / 1000;
+          const pct = Math.min(100, Math.max(0, Math.floor((event.step / event.stepCount) * 100)));
+          const filled = Math.floor(pct / 5);
+          const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
+          process.stdout.write(`\r  Progress: [${bar}] ${pct}% - Step ${event.step}/${event.stepCount} (${formatDuration(elapsed)} elapsed)   `);
+          break;
+        }
+        case 'jobETA': {
+          const elapsed = (Date.now() - startTime) / 1000;
+          const etaFormatted = formatDuration(event.etaSeconds);
+          process.stdout.write(`\r  Generating... ETA: ${etaFormatted} (${formatDuration(elapsed)} elapsed)   `);
+          break;
+        }
+        case 'completed':
+          log('✅', 'Job completed!');
+          break;
+        case 'error':
+          log('❌', `Job failed: ${event.error.message}`);
+          break;
+      }
+    };
+
+    client.projects.on('project', projectEventHandler);
+    client.projects.on('job', jobEventHandler);
 
     // Wait for completion
     const resultUrls = await project.waitForCompletion();
@@ -510,22 +538,30 @@ async function main() {
     log('🎬', 'Opening video...');
     openFile(savePath);
 
-    // Cleanup
-    await client.disconnect();
-
   } catch (error) {
     console.error();
     log('❌', `Error: ${error.message}`);
-    try {
-      await client.disconnect();
-    } catch {
-      // Ignore disconnect errors
-    }
     process.exit(1);
+  } finally {
+    if (projectEventHandler) {
+      client.projects.off('project', projectEventHandler);
+    }
+    if (jobEventHandler) {
+      client.projects.off('job', jobEventHandler);
+    }
+    try {
+      await client.account.logout();
+    } catch {
+      // Ignore logout errors
+    }
   }
 }
 
-main().catch((error) => {
-  console.error('Fatal error:', error);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
