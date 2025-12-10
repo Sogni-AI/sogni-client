@@ -1,3 +1,19 @@
+# [4.0.0-alpha.22](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.21...v4.0.0-alpha.22) (2025-12-10)
+
+
+### Features
+
+* Video support added ([e00e1e7](https://github.com/Sogni-AI/sogni-client/commit/e00e1e7879962047a6950013d53aa83748a66021))
+
+
+### BREAKING CHANGES
+
+* Project creation parameters changed
+- `type` is required when calling `sogni.projects.create(params)`, valid values are `image` and `video`. See code examples below.
+- `numberOfImages` renamed to `numberOfMedia`
+- `hasResultImage` in `Job` class is now `hasResultMedia`
+- `Job` and `Project` classes now have `type` property  that can be `image` or `video`
+
 # [4.0.0-alpha.21](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.20...v4.0.0-alpha.21) (2025-12-04)
 
 
