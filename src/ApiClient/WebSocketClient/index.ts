@@ -150,7 +150,13 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   private handleClose(e: CloseEvent) {
     if (e.target === this.socket || !this.socket) {
       this._logger.info('WebSocket disconnected, cleanup', e);
-      this.disconnect();
+      if (e.target === this.socket) {
+        this.stopPing();
+        this.socket.onerror = null;
+        this.socket.onmessage = null;
+        this.socket.onopen = null;
+        this.socket = null;
+      }
       this.emit('disconnected', {
         code: e.code,
         reason: e.reason
