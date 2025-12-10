@@ -19,7 +19,7 @@ export const enhancementDefaults = {
   startingImageStrength: 0.5,
   steps: 5,
   guidance: 1,
-  numberOfImages: 1,
+  numberOfMedia: 1,
   numberOfPreviews: 0
 };
 
@@ -179,18 +179,18 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
-   * Whether this job has a result image available for download.
+   * Whether this job has a result media file available for download.
    * Returns true if completed and not NSFW filtered.
    */
-  get hasResultImage() {
+  get hasResultMedia() {
     return this.status === 'completed' && !this.isNSFW;
   }
 
   /**
    * Whether this job produces video output (based on the model used)
    */
-  get isVideoJob() {
-    return this._api.isVideoModelId(this._project.params.modelId);
+  get type(): 'image' | 'video' {
+    return this._api.isVideoModelId(this._project.params.modelId) ? 'video' : 'image';
   }
 
   get enhancedImage() {
@@ -218,7 +218,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       throw new Error('Job is not completed yet');
     }
     let url: string;
-    if (this.isVideoJob) {
+    if (this.type === 'video') {
       url = await this._api.mediaDownloadUrl({
         jobId: this.projectId,
         id: this.id,
@@ -268,7 +268,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
     if (!this.data.resultUrl && delta.status === 'completed' && !data.triggeredNSFWFilter) {
       try {
-        if (this.isVideoJob) {
+        if (this.type === 'video') {
           delta.resultUrl = await this._api.mediaDownloadUrl({
             jobId: this.projectId,
             id: this.id,
@@ -305,7 +305,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   async getResultData() {
-    if (!this.hasResultImage) {
+    if (!this.hasResultMedia) {
       throw new Error('No result image available');
     }
     const url = await this.getResultUrl();
@@ -326,6 +326,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
     strength: EnhancementStrength,
     overrides: { positivePrompt?: string; stylePrompt?: string; tokenType?: TokenType } = {}
   ) {
+    const parentProjectParams = this._project.params;
+    if (parentProjectParams.type !== 'image') {
+      throw new Error('Enhancement is only available for images');
+    }
     if (this.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
@@ -338,6 +342,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
     const imageData = await this.getResultData();
     const project = await this._api.create({
+      type: 'image',
       ...enhancementDefaults,
       positivePrompt: overrides.positivePrompt || this._project.params.positivePrompt,
       stylePrompt: overrides.stylePrompt || this._project.params.stylePrompt,
@@ -345,7 +350,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       seed: this.seed || this._project.params.seed,
       startingImage: imageData,
       startingImageStrength: 1 - getEnhacementStrength(strength),
-      sizePreset: this._project.params.sizePreset
+      sizePreset: parentProjectParams.sizePreset
     });
     this._enhancementProject = project;
     this._enhancementProject.on('updated', this.handleEnhancementUpdate);

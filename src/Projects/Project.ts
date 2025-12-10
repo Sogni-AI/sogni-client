@@ -1,6 +1,6 @@
 import Job, { JobData } from './Job';
 import DataEntity, { EntityEvents } from '../lib/DataEntity';
-import { ProjectParams } from './types';
+import { isImageParams, ProjectParams } from './types';
 import cloneDeep from 'lodash/cloneDeep';
 import ErrorData from '../types/ErrorData';
 import getUUID from '../lib/getUUID';
@@ -93,6 +93,10 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     return this.data.params;
   }
 
+  get type() {
+    return this.params.type;
+  }
+
   get status() {
     return this.data.status;
   }
@@ -111,7 +115,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   get progress() {
     // Worker can reduce the number of steps in the job, so we need to calculate the progress based on the actual number of steps
     const stepsPerJob = this.jobs.length ? this.jobs[0].stepCount : this.data.params.steps;
-    const jobCount = this.data.params.numberOfImages;
+    const jobCount = this.data.params.numberOfMedia;
     const stepsDone = this._jobs.reduce((acc, job) => acc + job.step, 0);
     return Math.round((stepsDone / (stepsPerJob * jobCount)) * 100);
   }
@@ -192,7 +196,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       this._timeout = null;
     }
     if (keys.includes('status') || keys.includes('jobs')) {
-      const allJobsStarted = this.jobs.length >= this.params.numberOfImages;
+      const allJobsStarted = this.jobs.length >= this.params.numberOfMedia;
       const allJobsDone = this.jobs.every((job) => job.finished);
       if (this.data.status === 'completed' && allJobsStarted && allJobsDone) {
         return this.emit('completed', this.resultUrls);
@@ -298,11 +302,13 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     const delta: Partial<ProjectData> = {
       params: {
         ...this.data.params,
-        numberOfImages: data.imageCount,
-        steps: data.stepCount,
-        numberOfPreviews: data.previewCount
+        numberOfMedia: data.imageCount,
+        steps: data.stepCount
       }
     };
+    if (delta.params && isImageParams(delta.params)) {
+      delta.params.numberOfPreviews = data.previewCount;
+    }
     if (PROJECT_STATUS_MAP[data.status]) {
       delta.status = PROJECT_STATUS_MAP[data.status];
     }

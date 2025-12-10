@@ -37,59 +37,18 @@ export type { Sampler, Scheduler };
 
 export { SupportedSamplers, SupportedSchedulers };
 
-export type OutputFormat = 'png' | 'jpg' | 'mp4';
+export type ImageOutputFormat = 'png' | 'jpg';
+export type VideoOutputFormat = 'mp4';
 
-export type InputImage = File | Buffer | Blob | boolean;
-
-export type InputMedia = File | Buffer | Blob | boolean;
-
-/**
- * Media type for job results
- */
-export type MediaType = 'image' | 'video';
-
-/**
- * Video-specific parameters for video workflows (t2v, i2v, s2v, animate)
- */
-export interface VideoParams {
-  /**
-   * Number of frames to generate
-   */
-  frames?: number;
-  /**
-   * Frames per second for output video
-   */
-  fps?: number;
-  /**
-   * Shift parameter for video diffusion models
-   */
-  shift?: number;
-  /**
-   * Reference image for WAN video workflows.
-   * Maps to: startImage (i2v), characterImage (animate), referenceImage (s2v)
-   */
-  referenceImage?: InputImage;
-  /**
-   * Optional end image for i2v interpolation workflows.
-   * When provided with referenceImage, the video will interpolate between the two images.
-   */
-  referenceImageEnd?: InputImage;
-  /**
-   * Reference audio for s2v (sound-to-video) workflows.
-   */
-  referenceAudio?: InputMedia;
-  /**
-   * Reference video for animate workflows.
-   * Maps to: drivingVideo (animate-move), sourceVideo (animate-replace)
-   */
-  referenceVideo?: InputMedia;
-}
-
-export interface ProjectParams {
+export interface BaseProjectParams {
   /**
    * ID of the model to use, available models are available in the `availableModels` property of the `ProjectsApi` instance.
    */
   modelId: string;
+  /**
+   * Number of media files to generate. Depending on project type, this can be number of images or number of videos.
+   */
+  numberOfMedia: number;
   /**
    * Prompt for what to be created
    */
@@ -124,14 +83,72 @@ export interface ProjectParams {
    */
   seed?: number;
   /**
-   * Number of images to generate
+   * Select which tokens to use for the project.
+   * If not specified, the Sogni token will be used.
    */
-  numberOfImages: number;
+  tokenType?: TokenType;
+}
 
-  // ============================================
-  // IMAGE WORKFLOW PARAMS (SD, Flux, etc.)
-  // ============================================
+export type InputMedia = File | Buffer | Blob | boolean;
 
+/**
+ * Video-specific parameters for video workflows (t2v, i2v, s2v, animate).
+ * Only applicable when using video models like wan_v2.2-14b-fp8_t2v.
+ * Includes frame count, fps, shift, and reference assets (image, audio, video).
+ */
+export interface VideoProjectParams extends BaseProjectParams {
+  type: 'video';
+  /**
+   * Number of frames to generate
+   */
+  frames?: number;
+  /**
+   * Frames per second for output video
+   */
+  fps?: number;
+  /**
+   * Shift parameter for video diffusion models
+   */
+  shift?: number;
+  /**
+   * Reference image for WAN video workflows.
+   * Maps to: startImage (i2v), characterImage (animate), referenceImage (s2v)
+   */
+  referenceImage?: InputMedia;
+  /**
+   * Optional end image for i2v interpolation workflows.
+   * When provided with referenceImage, the video will interpolate between the two images.
+   */
+  referenceImageEnd?: InputMedia;
+  /**
+   * Reference audio for s2v (sound-to-video) workflows.
+   */
+  referenceAudio?: InputMedia;
+  /**
+   * Reference video for animate workflows.
+   * Maps to: drivingVideo (animate-move), sourceVideo (animate-replace)
+   */
+  referenceVideo?: InputMedia;
+  /**
+   * Output video width. Only used if `sizePreset` is "custom"
+   */
+  width?: number;
+  /**
+   * Output video height. Only used if `sizePreset` is "custom"
+   */
+  height?: number;
+  /**
+   * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
+   */
+  outputFormat?: VideoOutputFormat;
+}
+
+export interface ImageProjectParams extends BaseProjectParams {
+  type: 'image';
+  /**
+   * Number of previews to generate. Note that previews affect project cost
+   */
+  numberOfPreviews?: number;
   /**
    * Starting image for img2img workflows.
    * Supported types:
@@ -140,7 +157,7 @@ export interface ProjectParams {
    * `Blob` - blob object with image data
    * `true` - indicates that the image is already uploaded to the server
    */
-  startingImage?: InputImage;
+  startingImage?: InputMedia;
   /**
    * How strong effect of starting image should be. From 0 to 1, default 0.5
    */
@@ -148,27 +165,7 @@ export interface ProjectParams {
   /**
    * Context images for Flux Kontext model. Flux Kontext support up to 2 context images.
    */
-  contextImages?: InputImage[];
-
-  // ============================================
-  // VIDEO WORKFLOW PARAMS
-  // ============================================
-
-  /**
-   * Video-specific parameters for video workflows (t2v, i2v, s2v, animate).
-   * Only applicable when using video models like wan_v2.2-14b-fp8_t2v.
-   * Includes frame count, fps, shift, and reference assets (image, audio, video).
-   */
-  video?: VideoParams;
-
-  // ============================================
-  // OTHER PARAMS
-  // ============================================
-
-  /**
-   * Number of previews to generate. Note that previews affect project cost
-   */
-  numberOfPreviews?: number;
+  contextImages?: InputMedia[];
   /**
    * Scheduler to use
    */
@@ -195,21 +192,21 @@ export interface ProjectParams {
    */
   controlNet?: ControlNetParams;
   /**
-   * Select which tokens to use for the project.
-   * If not specified, the Sogni token will be used.
-   */
-  tokenType?: TokenType;
-  /**
    * Output format. Can be 'png', 'jpg', or 'mp4'.
    * Defaults to 'png' for image models, 'mp4' for video models.
    */
-  outputFormat?: OutputFormat;
+  outputFormat?: ImageOutputFormat;
 }
 
-/**
- * Supported image formats
- */
-export type ImageFormat = 'png' | 'jpg' | 'jpeg' | 'webp';
+export type ProjectParams = ImageProjectParams | VideoProjectParams;
+
+export function isVideoParams(params: ProjectParams): params is VideoProjectParams {
+  return params.type === 'video';
+}
+
+export function isImageParams(params: ProjectParams): params is ImageProjectParams {
+  return params.type === 'image';
+}
 
 /**
  * Supported audio formats
@@ -327,76 +324,14 @@ export interface CostEstimation {
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
 
 /**
- * Check if a model ID is for a video workflow.
- * This is consistent with the `media` property returned by the models list API.
- * Video models produce MP4 output; image models produce PNG/JPG output.
- */
-export function isVideoModel(modelId: string): boolean {
-  return modelId.startsWith('wan_');
-}
-
-/**
  * Video workflow types for WAN models
  */
 export type VideoWorkflowType = 't2v' | 'i2v' | 's2v' | 'animate-move' | 'animate-replace' | null;
 
-/**
- * Get the video workflow type from a model ID.
- * Returns null for non-video models.
- */
-export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
-  if (!modelId || !modelId.startsWith('wan_')) return null;
-  if (modelId.includes('_i2v')) return 'i2v';
-  if (modelId.includes('_s2v')) return 's2v';
-  if (modelId.includes('_animate-move')) return 'animate-move';
-  if (modelId.includes('_animate-replace')) return 'animate-replace';
-  if (modelId.includes('_t2v')) return 't2v';
-  return null;
-}
+export type AssetRequirement = 'required' | 'optional' | 'forbidden';
 
-/**
- * Asset requirements for each video workflow type.
- * - required: Must be provided
- * - optional: Can be provided
- * - forbidden: Must NOT be provided
- */
-export const VIDEO_WORKFLOW_ASSETS: Record<
-  NonNullable<VideoWorkflowType>,
-  {
-    referenceImage: 'required' | 'optional' | 'forbidden';
-    referenceImageEnd: 'required' | 'optional' | 'forbidden';
-    referenceAudio: 'required' | 'optional' | 'forbidden';
-    referenceVideo: 'required' | 'optional' | 'forbidden';
-  }
-> = {
-  t2v: {
-    referenceImage: 'forbidden',
-    referenceImageEnd: 'forbidden',
-    referenceAudio: 'forbidden',
-    referenceVideo: 'forbidden'
-  },
-  i2v: {
-    referenceImage: 'required',
-    referenceImageEnd: 'optional',
-    referenceAudio: 'forbidden',
-    referenceVideo: 'forbidden'
-  },
-  s2v: {
-    referenceImage: 'required',
-    referenceAudio: 'required',
-    referenceImageEnd: 'forbidden',
-    referenceVideo: 'forbidden'
-  },
-  'animate-move': {
-    referenceImage: 'required',
-    referenceVideo: 'required',
-    referenceImageEnd: 'forbidden',
-    referenceAudio: 'forbidden'
-  },
-  'animate-replace': {
-    referenceImage: 'required',
-    referenceVideo: 'required',
-    referenceImageEnd: 'forbidden',
-    referenceAudio: 'forbidden'
-  }
-};
+export type VideoAssetKey =
+  | 'referenceImage'
+  | 'referenceImageEnd'
+  | 'referenceAudio'
+  | 'referenceVideo';

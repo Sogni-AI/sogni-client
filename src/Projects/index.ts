@@ -9,7 +9,8 @@ import {
   ProjectParams,
   SizePreset,
   SupportedModel,
-  isVideoModel // Used as fallback in isVideoModelId when models not loaded
+  ImageProjectParams,
+  VideoProjectParams
 } from './types';
 import {
   JobErrorData,
@@ -29,7 +30,12 @@ import ErrorData from '../types/ErrorData';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import Cache from '../lib/Cache';
 import { enhancementDefaults } from './Job';
-import { getEnhacementStrength } from './utils';
+import {
+  getEnhacementStrength,
+  getVideoWorkflowType,
+  isVideoModel,
+  VIDEO_WORKFLOW_ASSETS
+} from './utils';
 import { TokenType } from '../types/token';
 import { validateSampler } from '../lib/validation';
 
@@ -375,9 +381,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         job._update({ status: 'failed', error: event.error });
         // Check if project should also fail when a job fails
         // For video jobs (single image) or when all jobs have failed, propagate to project
-        const allJobsStarted = project.jobs.length >= project.params.numberOfImages;
+        const allJobsStarted = project.jobs.length >= project.params.numberOfMedia;
         const allJobsFailed = allJobsStarted && project.jobs.every((j) => j.status === 'failed');
-        const isSingleJobProject = project.params.numberOfImages === 1;
+        const isSingleJobProject = project.params.numberOfMedia === 1;
         if (isSingleJobProject || allJobsFailed) {
           project._update({
             status: 'failed',
@@ -437,24 +443,24 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   async create(data: ProjectParams): Promise<Project> {
     const project = new Project({ ...data }, { api: this, logger: this.client.logger });
+    const request = createJobRequestMessage(project.id, data);
+    switch (data.type) {
+      case 'image':
+        await this._processImageAssets(project, data);
+        break;
+      case 'video':
+        await this._processVideoAssets(project, data);
+        break;
+    }
+    await this.client.socket.send('jobRequest', request);
+    this.projects.push(project);
+    return project;
+  }
 
-    // EXISTING IMAGE WORKFLOW: Upload starting image for img2img (SD, Flux)
+  private async _processImageAssets(project: Project, data: ImageProjectParams) {
+    //Guide image
     if (data.startingImage && data.startingImage !== true) {
       await this.uploadGuideImage(project.id, data.startingImage);
-    }
-
-    // VIDEO WORKFLOW: Upload reference assets for WAN video workflows
-    if (data.video?.referenceImage && data.video.referenceImage !== true) {
-      await this.uploadReferenceImage(project.id, data.video.referenceImage);
-    }
-    if (data.video?.referenceImageEnd && data.video.referenceImageEnd !== true) {
-      await this.uploadReferenceImageEnd(project.id, data.video.referenceImageEnd);
-    }
-    if (data.video?.referenceAudio && data.video.referenceAudio !== true) {
-      await this.uploadReferenceAudio(project.id, data.video.referenceAudio);
-    }
-    if (data.video?.referenceVideo && data.video.referenceVideo !== true) {
-      await this.uploadReferenceVideo(project.id, data.video.referenceVideo);
     }
 
     // ControlNet image
@@ -479,11 +485,21 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         })
       );
     }
+  }
 
-    const request = createJobRequestMessage(project.id, data);
-    await this.client.socket.send('jobRequest', request);
-    this.projects.push(project);
-    return project;
+  private async _processVideoAssets(project: Project, data: VideoProjectParams) {
+    if (data?.referenceImage && data.referenceImage !== true) {
+      await this.uploadReferenceImage(project.id, data.referenceImage);
+    }
+    if (data?.referenceImageEnd && data.referenceImageEnd !== true) {
+      await this.uploadReferenceImageEnd(project.id, data.referenceImageEnd);
+    }
+    if (data?.referenceAudio && data.referenceAudio !== true) {
+      await this.uploadReferenceAudio(project.id, data.referenceAudio);
+    }
+    if (data?.referenceVideo && data.referenceVideo !== true) {
+      await this.uploadReferenceVideo(project.id, data.referenceVideo);
+    }
   }
 
   /**
@@ -883,6 +899,41 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     );
     sizePresetCache.write(key, data);
     return data;
+  }
+
+  /**
+   * Retrieves the video asset configuration for a given video model identifier.
+   * Validates whether the provided model ID corresponds to a video model. If it does,
+   * returns the appropriate video asset configuration based on the workflow type.
+   *
+   * @example Returned object for a model that implements image to video workflow:
+   * ```json
+   * {
+   *   "referenceImage": "required",
+   *   "referenceImageEnd": "optional",
+   *   "referenceAudio": "forbidden",
+   *   "referenceVideo": "forbidden"
+   * }
+   * ```
+   *
+   * @param {string} modelId - The identifier of the video model to retrieve the configuration for.
+   * @return {Object|null} The video asset configuration object where key is asset field and value is
+   * either `required`, `forbidden` or `optional`. Returns `null` if no rules defined for the model.
+   * @throws {ApiError} Throws an error if the provided model ID is not a video model.
+   */
+  async getVideoAssetConfig(modelId: string) {
+    if (!this.isVideoModelId(modelId)) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `Model ${modelId} is not a video model`
+      });
+    }
+    const workflow = getVideoWorkflowType(modelId);
+    if (!workflow) {
+      return null;
+    }
+    return VIDEO_WORKFLOW_ASSETS[workflow];
   }
 
   /**

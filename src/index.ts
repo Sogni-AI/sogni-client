@@ -14,21 +14,18 @@ import Job, { JobStatus } from './Projects/Job';
 import Project, { ProjectStatus } from './Projects/Project';
 import {
   AvailableModel,
-  OutputFormat,
+  ImageProjectParams,
+  ImageOutputFormat,
   ProjectParams,
   Sampler,
   Scheduler,
   SupportedSamplers,
   SupportedSchedulers,
-  VideoParams,
-  MediaType,
-  ImageFormat,
+  VideoProjectParams,
   AudioFormat,
   VideoFormat,
-  VideoWorkflowType,
-  isVideoModel,
-  getVideoWorkflowType,
-  VIDEO_WORKFLOW_ASSETS
+  VideoOutputFormat,
+  VideoWorkflowType
 } from './Projects/types';
 // Stats API
 import StatsApi from './Stats';
@@ -42,12 +39,11 @@ export type {
   AudioFormat,
   AvailableModel,
   ErrorData,
-  ImageFormat,
+  ImageProjectParams,
+  ImageOutputFormat,
   JobStatus,
   Logger,
   LogLevel,
-  MediaType,
-  OutputFormat,
   ProjectParams,
   ProjectStatus,
   Sampler,
@@ -55,21 +51,12 @@ export type {
   Scheduler,
   TokenType,
   VideoFormat,
-  VideoParams,
+  VideoOutputFormat,
+  VideoProjectParams,
   VideoWorkflowType
 };
 
-export {
-  ApiError,
-  CurrentAccount,
-  Job,
-  Project,
-  SupportedSamplers,
-  SupportedSchedulers,
-  isVideoModel,
-  getVideoWorkflowType,
-  VIDEO_WORKFLOW_ASSETS
-};
+export { ApiError, CurrentAccount, Job, Project, SupportedSamplers, SupportedSchedulers };
 
 export interface SogniClientConfig {
   /**
