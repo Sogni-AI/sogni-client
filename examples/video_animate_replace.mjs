@@ -173,8 +173,16 @@ async function main() {
 
   const jobHandler = async (event) => {
     if (event.projectId !== project.id) return;
-    if (event.type === 'started') {
-      console.log(`\n  Job started on worker: ${event.workerName || 'Unknown'}`);
+    switch (event.type) {
+      case 'started':
+        console.log(`\n  Job started on worker: ${event.workerName || 'Unknown'}`);
+        break;
+      case 'jobETA': {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const etaFormatted = formatDuration(event.etaSeconds);
+        process.stdout.write(`\r  Generating... ETA: ${etaFormatted} (${formatDuration(elapsed)} elapsed)   `);
+        break;
+      }
     }
   };
   client.projects.on('job', jobHandler);
@@ -222,4 +230,6 @@ async function main() {
 main().catch((error) => {
   console.error('Fatal error:', error);
   process.exit(1);
+}).then(() => {
+  process.exit(0);
 });
