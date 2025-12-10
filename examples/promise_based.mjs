@@ -38,6 +38,7 @@ const mostPopularModel = models.reduce((a, b) => (a.workerCount > b.workerCount 
 
 console.log('Using model:', mostPopularModel.name);
 const project = await client.projects.create({
+  type: 'image',
   modelId: mostPopularModel.id,
   steps: 20,
   guidance: 7.5,
@@ -45,7 +46,7 @@ const project = await client.projects.create({
   negativePrompt:
     'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
   stylePrompt: 'anime',
-  numberOfImages: 4,
+  numberOfMedia: 4,
   outputFormat: 'jpg' // Can be 'png' or 'jpg', defaults to 'png'
 });
 

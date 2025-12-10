@@ -134,7 +134,7 @@ const PASSWORD = '';
 let VIDEO_MODEL_ID = OPTIONS.model; // May be set later by prompt
 const VIDEO_CONFIG = {
   frames: OPTIONS.frames,
-  fps: OPTIONS.fps,
+  fps: OPTIONS.fps
 };
 const WIDTH = OPTIONS.width;
 const HEIGHT = OPTIONS.height;
@@ -231,8 +231,8 @@ async function downloadFile(url, filename) {
 }
 
 function openFile(filePath) {
-  const command = process.platform === 'darwin' ? 'open' :
-                  process.platform === 'win32' ? 'start' : 'xdg-open';
+  const command =
+    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
   exec(`${command} "${filePath}"`, (error) => {
     if (error) {
       log('⚠️', `Could not auto-open file: ${error.message}`);
@@ -282,7 +282,7 @@ async function main() {
   const client = await SogniClient.createInstance({
     // add random suffix to avoid 4015 duplicate app-id boots
     appId: APP_ID,
-    network: 'fast',
+    network: 'fast'
   });
 
   try {
@@ -333,11 +333,21 @@ async function main() {
     console.log('┌─────────────────────────────────────────────────────────┐');
     console.log('│ Video Configuration                                     │');
     console.log('├─────────────────────────────────────────────────────────┤');
-    console.log(`│ ${'Model:'.padEnd(labelWidth)}${VIDEO_MODEL_ID.padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Resolution:'.padEnd(labelWidth)}${(WIDTH + 'x' + HEIGHT).padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Frames:'.padEnd(labelWidth)}${String(VIDEO_CONFIG.frames).padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Duration:'.padEnd(labelWidth)}${(Math.floor((VIDEO_CONFIG.frames - 1) / VIDEO_CONFIG.fps) + 's at ' + VIDEO_CONFIG.fps + 'fps').padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Seed:'.padEnd(labelWidth)}${String(SEED).padEnd(boxWidth - labelWidth - 2)} │`);
+    console.log(
+      `│ ${'Model:'.padEnd(labelWidth)}${VIDEO_MODEL_ID.padEnd(boxWidth - labelWidth - 2)} │`
+    );
+    console.log(
+      `│ ${'Resolution:'.padEnd(labelWidth)}${(WIDTH + 'x' + HEIGHT).padEnd(boxWidth - labelWidth - 2)} │`
+    );
+    console.log(
+      `│ ${'Frames:'.padEnd(labelWidth)}${String(VIDEO_CONFIG.frames).padEnd(boxWidth - labelWidth - 2)} │`
+    );
+    console.log(
+      `│ ${'Duration:'.padEnd(labelWidth)}${(Math.floor((VIDEO_CONFIG.frames - 1) / VIDEO_CONFIG.fps) + 's at ' + VIDEO_CONFIG.fps + 'fps').padEnd(boxWidth - labelWidth - 2)} │`
+    );
+    console.log(
+      `│ ${'Seed:'.padEnd(labelWidth)}${String(SEED).padEnd(boxWidth - labelWidth - 2)} │`
+    );
     console.log('└─────────────────────────────────────────────────────────┘');
     console.log();
     console.log('📝 Prompt:');
@@ -363,24 +373,21 @@ async function main() {
 
     const startTime = Date.now();
     const project = await client.projects.create({
+      type: 'video',
       modelId: VIDEO_MODEL_ID,
       positivePrompt: POSITIVE_PROMPT,
       negativePrompt: '',
       stylePrompt: '',
-      steps: 4, // Default for video models
-      guidance: 1, // Default for video models
-      numberOfImages: 1,
+      numberOfMedia: 1,
       seed: SEED,
       width: WIDTH,
       height: HEIGHT,
-      video: {
-        frames: VIDEO_CONFIG.frames,
-        fps: VIDEO_CONFIG.fps,
-      },
+      frames: VIDEO_CONFIG.frames,
+      fps: VIDEO_CONFIG.fps
     });
 
     // Handle progress events
-    project.on('jobState', (event) => {
+    client.apiClient.socket.on('jobState', (event) => {
       switch (event.type) {
         case 'queued':
           log('📋', `Job queued at position: ${event.queuePosition}`);
@@ -397,12 +404,14 @@ async function main() {
       }
     });
 
-    project.on('jobProgress', (event) => {
+    client.apiClient.socket.on('jobProgress', (event) => {
       const elapsed = (Date.now() - startTime) / 1000;
       const pct = Math.min(100, Math.max(0, Math.floor((event.step / event.stepCount) * 100)));
       const filled = Math.floor(pct / 5);
       const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
-      process.stdout.write(`\r  Progress: [${bar}] ${pct}% - Step ${event.step}/${event.stepCount} (${formatDuration(elapsed)} elapsed)   `);
+      process.stdout.write(
+        `\r  Progress: [${bar}] ${pct}% - Step ${event.step}/${event.stepCount} (${formatDuration(elapsed)} elapsed)   `
+      );
     });
 
     // Wait for completion
@@ -430,7 +439,6 @@ async function main() {
 
     // Cleanup
     await client.disconnect();
-
   } catch (error) {
     console.error();
     log('❌', `Error: ${error.message}`);

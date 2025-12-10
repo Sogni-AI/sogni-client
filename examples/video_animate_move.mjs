@@ -36,7 +36,7 @@ const REFERENCE_VIDEO = './examples/test-assets/placeholder.mp4'; // Motion sour
 
 const VIDEO_CONFIG = {
   frames: 81,
-  fps: 16,
+  fps: 16
 };
 
 const OUTPUT_DIR = './videos';
@@ -101,7 +101,7 @@ async function main() {
 
   const client = await SogniClient.createInstance({
     appId: `${USERNAME}-animate-move-${Date.now()}`,
-    network: 'fast',
+    network: 'fast'
   });
 
   console.log('Logging in...');
@@ -122,7 +122,9 @@ async function main() {
       console.log('Available video models:');
       videoModels.forEach((m) => console.log(`  - ${m.id} (${m.name})`));
     }
-    try { await client.account.logout(); } catch {}
+    try {
+      await client.account.logout();
+    } catch {}
     process.exit(1);
   }
 
@@ -131,7 +133,9 @@ async function main() {
 
   const outputDuration = (VIDEO_CONFIG.frames - 1) / VIDEO_CONFIG.fps;
   console.log('Video Configuration:');
-  console.log(`  - Frames: ${VIDEO_CONFIG.frames} (${outputDuration}s output at ${VIDEO_CONFIG.fps}fps)`);
+  console.log(
+    `  - Frames: ${VIDEO_CONFIG.frames} (${outputDuration}s output at ${VIDEO_CONFIG.fps}fps)`
+  );
   console.log(`  - FPS: ${VIDEO_CONFIG.fps}`);
   console.log();
 
@@ -143,19 +147,18 @@ async function main() {
   const referenceVideoBuffer = fs.readFileSync(REFERENCE_VIDEO);
 
   const project = await client.projects.create({
+    ...VIDEO_CONFIG,
+    type: 'video',
     modelId: VIDEO_MODEL_ID,
     positivePrompt: 'Smooth natural motion, high quality animation, realistic movement',
     negativePrompt: 'blurry, low quality, distorted, artifacts, watermark, text, jittery',
     stylePrompt: '',
-    numberOfImages: 1,
-    video: {
-      ...VIDEO_CONFIG,
-      referenceImage: referenceImageBuffer,
-      referenceVideo: referenceVideoBuffer,
-    },
+    numberOfMedia: 1,
+    referenceImage: referenceImageBuffer,
+    referenceVideo: referenceVideoBuffer,
     tokenType: 'spark',
     width: 480,
-    height: 832,
+    height: 832
   });
 
   console.log(`Project created: ${project.id}`);

@@ -24,6 +24,7 @@ getClient()
     console.log('Most popular model:', mostPopularModel);
     // Create a project using the most popular model
     const project = await client.projects.create({
+      type: 'image',
       modelId: mostPopularModel.id,
       steps: 20,
       guidance: 7.5,
@@ -32,7 +33,7 @@ getClient()
         'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
       stylePrompt: 'anime',
       numberOfPreviews: 2,
-      numberOfImages: 2,
+      numberOfMedia: 2,
       outputFormat: 'png' // Can be 'png' or 'jpg', defaults to 'png'
     });
 

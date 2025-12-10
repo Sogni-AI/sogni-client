@@ -3,6 +3,11 @@ This library provides an easy way to interact with the [Sogni AI Supernet](https
 in both TypeScript and JavaScript projects such as backend Node.js and browser environments.
 
 Behind the scenes this SDK uses WebSocket connection for communication between clients, server, and workers. It harnesses an event-based API to interact with Supernet to make things super efficient.
+## Migration notes
+### v3.x.x to v4.x.x
+Version 4 adds support of video generation. There are following breaking changes:
+- `type` is required when calling `client.projects.create(params)`, valid values are `image` and `video`. See code examples below.
+- `numberOfImages` renamed to `numberOfMedia`
 
 ## Installation
 Add library to your project using npm or yarn:
@@ -74,6 +79,7 @@ const mostPopularModel = client.projects.availableModels.reduce((a, b) =>
 );
 // Create a project using the most popular model
 const project = await client.projects.create({
+  type: 'image',
   modelId: mostPopularModel.id,
   positivePrompt: 'A cat wearing a hat',
   negativePrompt:
@@ -81,7 +87,7 @@ const project = await client.projects.create({
   stylePrompt: 'anime',
   steps: 20, 
   guidance: 7.5, 
-  numberOfImages: 1,
+  numberOfMedia: 1,
   outputFormat: 'jpg' // Can be 'png' or 'jpg', defaults to 'png'
 });
 ```
@@ -95,6 +101,7 @@ In general, there are 2 ways to work with API:
 #### Using promises
 ```javascript
 const project = await client.projects.create({
+  type: 'image',
   modelId: mostPopularModel.id,
   steps: 20,
   guidance: 7.5,
@@ -102,7 +109,7 @@ const project = await client.projects.create({
   negativePrompt:
     'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
   stylePrompt: 'anime',
-  numberOfImages: 4
+  numberOfMedia: 4
 });
 
 project.on('progress', (progress) => {
@@ -118,6 +125,7 @@ console.log('Image URLs:', imageUrls);
 #### Using events
 ```javascript
 const project = await client.projects.create({
+  type: 'image',
   modelId: mostPopularModel.id,
   steps: 20,
   guidance: 7.5,
@@ -125,7 +133,7 @@ const project = await client.projects.create({
   negativePrompt:
     'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
   stylePrompt: 'anime',
-  numberOfImages: 4
+  numberOfMedia: 4
 });
 
 // Fired when one of project jobs completed, you can get the resultUrl from the job
@@ -354,9 +362,10 @@ Example:
 ```javascript
 const cnImage = fs.readFileSync('./cn.jpg');
 const project = await client.projects.create({
+  type: 'image',
   network: 'fast',
   modelId: 'coreml-cyberrealistic_v70_768',
-  numberOfImages: 1,
+  numberOfMedia: 1,
   positivePrompt: 'make men look older',
   steps: 20,
   guidance: 7.5,

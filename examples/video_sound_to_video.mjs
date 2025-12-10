@@ -37,7 +37,7 @@ const REFERENCE_AUDIO = './examples/test-assets/placeholder.m4a';
 
 const VIDEO_CONFIG = {
   fps: 16,
-  frames: 81,  // 5 seconds (16 fps * 5 seconds = 80 frames + 1 frame WAN2.2 quirk)
+  frames: 81 // 5 seconds (16 fps * 5 seconds = 80 frames + 1 frame WAN2.2 quirk)
 };
 
 const OUTPUT_DIR = './videos';
@@ -102,7 +102,7 @@ async function main() {
 
   const client = await SogniClient.createInstance({
     appId: `${USERNAME}-s2v-generator-${Date.now()}`,
-    network: 'fast',
+    network: 'fast'
   });
 
   console.log('Logging in...');
@@ -123,7 +123,9 @@ async function main() {
       console.log('Available video models:');
       videoModels.forEach((m) => console.log(`  - ${m.id} (${m.name})`));
     }
-    try { await client.account.logout(); } catch {}
+    try {
+      await client.account.logout();
+    } catch {}
     process.exit(1);
   }
 
@@ -132,7 +134,9 @@ async function main() {
 
   const outputDuration = (VIDEO_CONFIG.frames - 1) / VIDEO_CONFIG.fps;
   console.log('Video Configuration:');
-  console.log(`  - Frames: ${VIDEO_CONFIG.frames} (${outputDuration}s output at ${VIDEO_CONFIG.fps}fps)`);
+  console.log(
+    `  - Frames: ${VIDEO_CONFIG.frames} (${outputDuration}s output at ${VIDEO_CONFIG.fps}fps)`
+  );
   console.log(`  - FPS: ${VIDEO_CONFIG.fps}`);
   console.log();
 
@@ -144,17 +148,18 @@ async function main() {
   const referenceAudioBuffer = fs.readFileSync(REFERENCE_AUDIO);
 
   const project = await client.projects.create({
+    ...VIDEO_CONFIG,
+    type: 'video',
     modelId: VIDEO_MODEL_ID,
-    positivePrompt: 'A person singing and dancing to music, expressive movements, synchronized to audio',
+    numberOfMedia: 1,
+    positivePrompt:
+      'A person singing and dancing to music, expressive movements, synchronized to audio',
     negativePrompt: 'blurry, low quality, distorted, artifacts, watermark, text',
-    video: {
-      ...VIDEO_CONFIG,
-      referenceImage: referenceImageBuffer,
-      referenceAudio: referenceAudioBuffer,
-    },
+    referenceImage: referenceImageBuffer,
+    referenceAudio: referenceAudioBuffer,
     tokenType: 'spark',
     width: 480,
-    height: 832,
+    height: 832
   });
 
   console.log(`Project created: ${project.id}`);

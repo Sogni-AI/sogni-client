@@ -37,12 +37,13 @@ app.post('/api/generate', async function (req, res) {
   const { prompt, style } = req.body;
   try {
     const project = await client.projects.create({
+      type: 'image',
       modelId: 'flux1-schnell-fp8',
       positivePrompt: prompt,
       stylePrompt: style,
       steps: 4,
       guidance: 1,
-      numberOfImages: 1
+      numberOfMedia: 1
     });
     const imageUrls = await project.waitForCompletion();
     res.send({ url: imageUrls[0] });
