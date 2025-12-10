@@ -70,7 +70,7 @@ export interface BaseProjectParams {
    */
   guidance: number;
   /**
-   * Override current network type. Default value can be read from `client.account.currentAccount.network`
+   * Override current network type. Default value can be read from `sogni.account.currentAccount.network`
    */
   network?: SupernetType;
   /**
@@ -176,7 +176,7 @@ export interface ImageProjectParams extends BaseProjectParams {
   scheduler?: Scheduler;
   /**
    * Size preset ID to use. You can query available size presets
-   * from `client.projects.sizePresets(network, modelId)`
+   * from `sogni.projects.sizePresets(network, modelId)`
    */
   sizePreset?: 'custom' | string;
   /**

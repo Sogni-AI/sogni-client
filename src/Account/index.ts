@@ -29,11 +29,11 @@ enum ErrorCode {
 }
 /**
  * Account API methods that let you interact with the user's account.
- * Can be accessed via `client.account`. Look for more samples below.
+ * Can be accessed via `sogni.account`. Look for more samples below.
  *
  * @example Retrieve the current account balance
  * ```typescript
- * const balance = await client.account.refreshBalance();
+ * const balance = await sogni.account.refreshBalance();
  * console.log(balance);
  * ```
  *
@@ -103,7 +103,7 @@ class AccountApi extends ApiGroup {
    *
    * @example Create a wallet from username and password
    * ```typescript
-   * const wallet = client.account.getWallet('username', 'password');
+   * const wallet = sogni.account.getWallet('username', 'password');
    * console.log(wallet.address);
    * ```
    *
@@ -156,7 +156,7 @@ class AccountApi extends ApiGroup {
    *
    * @example Login with username and password
    * ```typescript
-   * await client.account.login('username', 'password');
+   * await sogni.account.login('username', 'password');
    * console.log('Logged in');
    * ```
    *
@@ -191,7 +191,7 @@ class AccountApi extends ApiGroup {
    *
    * @example Logout the user
    * ```typescript
-   * await client.account.logout();
+   * await sogni.account.logout();
    * console.log('Logged out');
    * ```
    */
@@ -209,7 +209,7 @@ class AccountApi extends ApiGroup {
    *
    * @example Refresh user account balance
    * ```typescript
-   * const balance = await client.account.refreshBalance();
+   * const balance = await sogni.account.refreshBalance();
    * console.log(balance);
    * ```
    */
@@ -225,7 +225,7 @@ class AccountApi extends ApiGroup {
    *
    * @example Get the account balance of the current user
    * ```typescript
-   * const balance = await client.account.accountBalance();
+   * const balance = await sogni.account.accountBalance();
    * console.log(balance);
    * ```
    */
@@ -241,8 +241,8 @@ class AccountApi extends ApiGroup {
    *
    * @example Get the balance of the wallet address
    * ```typescript
-   * const address = client.account.currentAccount.walletAddress;
-   * const balance = await client.account.walletBalance(address);
+   * const address = sogni.account.currentAccount.walletAddress;
+   * const balance = await sogni.account.walletBalance(address);
    * console.log(balance);
    * // { token: '100.000000', ether: '0.000000' }
    * ```
@@ -296,9 +296,9 @@ class AccountApi extends ApiGroup {
    *
    * @example Switch to the fast network
    * ```typescript
-   * await client.account.switchNetwork('fast');
+   * await sogni.account.switchNetwork('fast');
    * console.log('Switched to the fast network, now lets wait until we get list of models');
-   * await client.projects.waitForModels();
+   * await sogni.projects.waitForModels();
    * ```
    * @param network - Network type to switch to
    */
@@ -320,10 +320,10 @@ class AccountApi extends ApiGroup {
    *
    * @example Get the transaction history
    * ```typescript
-   * const { entries, next } = await client.account.transactionHistory({
+   * const { entries, next } = await sogni.account.transactionHistory({
    *  status: 'completed',
    *  limit: 10,
-   *  address: client.account.currentAccount.walletAddress
+   *  address: sogni.account.currentAccount.walletAddress
    * });
    * ```
    *
@@ -429,7 +429,7 @@ class AccountApi extends ApiGroup {
    * Withdraw funds from the current account to wallet.
    * @example withdraw to current wallet address
    * ```typescript
-   * await client.account.withdraw('your-account-password', 100);
+   * await sogni.account.withdraw('your-account-password', 100);
    * ```
    *
    * @param password - account password
@@ -461,7 +461,7 @@ class AccountApi extends ApiGroup {
    * Deposit tokens from wallet to account
    * @example withdraw to current wallet address
    * ```typescript
-   * await client.account.deposit('your-account-password', 100);
+   * await sogni.account.deposit('your-account-password', 100);
    * ```
    *
    * @param password - account password

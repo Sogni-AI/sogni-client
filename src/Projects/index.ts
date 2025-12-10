@@ -891,7 +891,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *
    * @example
    * ```ts
-   * const presets = await client.projects.getSizePresets('fast', 'flux1-schnell-fp8');
+   * const presets = await sogni.projects.getSizePresets('fast', 'flux1-schnell-fp8');
    * console.log(presets);
    * ```
    *
