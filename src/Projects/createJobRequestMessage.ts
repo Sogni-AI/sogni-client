@@ -260,7 +260,7 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
     ...template,
     keyFrames: [keyFrame],
     previews: isImageParams(params) ? params.numberOfPreviews || 0 : 0,
-    numberOfImages: params.numberOfMedia,
+    numberOfImages: params.numberOfMedia || 1,
     jobID: id,
     disableSafety: !!params.disableNSFWFilter,
     tokenType: params.tokenType,
