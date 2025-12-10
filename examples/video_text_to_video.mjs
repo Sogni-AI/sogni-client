@@ -283,10 +283,6 @@ async function main() {
     // add random suffix to avoid 4015 duplicate app-id boots
     appId: APP_ID,
     network: 'fast',
-    restEndpoint: 'https://api-local.sogni.ai',
-    socketEndpoint: 'wss://socket-local.sogni.ai',
-    testnet: true,
-    logLevel: 'info'
   });
 
   try {
