@@ -8,6 +8,8 @@ Behind the scenes this SDK uses WebSocket connection for communication between c
 Version 4 adds support of video generation. There are following breaking changes:
 - `type` is required when calling `sogni.projects.create(params)`, valid values are `image` and `video`. See code examples below.
 - `numberOfImages` renamed to `numberOfMedia`
+- `hasResultImage` in `Job` class is now `hasResultMedia`
+- `Job` and `Project` classes now have `type` property  that can be `image` or `video`
 
 ## Installation
 Add library to your project using npm or yarn:
