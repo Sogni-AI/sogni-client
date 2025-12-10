@@ -144,7 +144,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
       if (this.socket.isConnected) {
         this.socket.disconnect();
       }
-    } else if (!this._disableSocket) {
+    } else if (!this._disableSocket && !this.socket.isConnected) {
       this.socket.connect();
     }
   }
