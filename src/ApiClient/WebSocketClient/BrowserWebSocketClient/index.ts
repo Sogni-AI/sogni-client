@@ -88,10 +88,6 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     });
     this.auth.on('updated', this.handleAuthUpdated.bind(this));
     this.socketClient.intercept(this.handleSocketEvent.bind(this));
-    //@ts-expect-error window is defined in browser
-    window.DISCONNECT = () => {
-      this.disconnect();
-    };
   }
 
   get isConnected() {
