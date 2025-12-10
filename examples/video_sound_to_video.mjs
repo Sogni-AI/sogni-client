@@ -182,7 +182,7 @@ async function main() {
     VIDEO_MODEL_ID = await askSpeedOrQuality();
   }
 
-  const client = await SogniClient.createInstance({
+  const sogni = await SogniClient.createInstance({
     appId: `${USERNAME}-s2v-generator-${Date.now()}`,
     network: 'fast'
   });
@@ -192,12 +192,12 @@ async function main() {
 
   try {
     log('🔓', 'Logging in...');
-    await client.account.login(USERNAME, PASSWORD);
+    await sogni.account.login(USERNAME, PASSWORD);
     log('✓', `Logged in as: ${USERNAME}`);
     console.log();
 
     // Display balance
-    const balance = await client.account.refreshBalance();
+    const balance = await sogni.account.refreshBalance();
     console.log('💰 Account Balance:');
     console.log(`   Sogni: ${parseFloat(balance.sogni.net || 0).toFixed(2)}`);
     console.log(`   Spark: ${parseFloat(balance.spark.net || 0).toFixed(2)}`);
@@ -225,14 +225,14 @@ async function main() {
     const proceed = await askQuestion('Proceed with generation? [Y/n]: ');
     if (proceed.toLowerCase() === 'n' || proceed.toLowerCase() === 'no') {
       log('❌', 'Job cancelled by user');
-      await client.account.logout();
+      await sogni.account.logout();
       process.exit(0);
     }
 
     console.log();
 
     console.log('Loading available models...');
-    const models = await client.projects.waitForModels();
+    const models = await sogni.projects.waitForModels();
 
     const videoModel = models.find((m) => m.id === VIDEO_MODEL_ID);
     if (!videoModel) {
@@ -244,7 +244,7 @@ async function main() {
         console.log('Available video models:');
         videoModels.forEach((m) => console.log(`  - ${m.id} (${m.name})`));
       }
-      await client.account.logout();
+      await sogni.account.logout();
       process.exit(1);
     }
 
@@ -253,7 +253,9 @@ async function main() {
 
     const outputDuration = (VIDEO_CONFIG.frames - 1) / VIDEO_CONFIG.fps;
     console.log('Video Configuration:');
-    console.log(`  - Frames: ${VIDEO_CONFIG.frames} (${outputDuration}s output at ${VIDEO_CONFIG.fps}fps)`);
+    console.log(
+      `  - Frames: ${VIDEO_CONFIG.frames} (${outputDuration}s output at ${VIDEO_CONFIG.fps}fps)`
+    );
     console.log(`  - FPS: ${VIDEO_CONFIG.fps}`);
     console.log();
 
@@ -262,104 +264,106 @@ async function main() {
     console.log();
 
     // Load the reference assets
-  const referenceImageBuffer = fs.readFileSync(REFERENCE_IMAGE);
-  const referenceAudioBuffer = fs.readFileSync(REFERENCE_AUDIO);
+    const referenceImageBuffer = fs.readFileSync(REFERENCE_IMAGE);
+    const referenceAudioBuffer = fs.readFileSync(REFERENCE_AUDIO);
 
-  const project = await client.projects.create({
-    ...VIDEO_CONFIG,
-    type: 'video',
-    modelId: VIDEO_MODEL_ID,
-    numberOfMedia: 1,
-    positivePrompt:
-      'A person singing and dancing to music, expressive movements, synchronized to audio',
-    negativePrompt: 'blurry, low quality, distorted, artifacts, watermark, text',
-    referenceImage: referenceImageBuffer,
-    referenceAudio: referenceAudioBuffer,
-    tokenType: 'spark',
-    width: 480,
-    height: 832
-  });
+    const project = await sogni.projects.create({
+      ...VIDEO_CONFIG,
+      type: 'video',
+      modelId: VIDEO_MODEL_ID,
+      numberOfMedia: 1,
+      positivePrompt:
+        'A person singing and dancing to music, expressive movements, synchronized to audio',
+      negativePrompt: 'blurry, low quality, distorted, artifacts, watermark, text',
+      referenceImage: referenceImageBuffer,
+      referenceAudio: referenceAudioBuffer,
+      tokenType: 'spark',
+      width: 480,
+      height: 832
+    });
 
-  console.log(`Project created: ${project.id}`);
-  console.log();
+    console.log(`Project created: ${project.id}`);
+    console.log();
 
-  let isComplete = false;
+    let isComplete = false;
 
-  const progressHandler = (progress) => {
-    if (isComplete) return;
-    const elapsed = (Date.now() - startTime) / 1000;
-    const pct = Math.min(100, Math.max(0, Number(progress) || 0));
-    const filled = Math.floor(pct / 5);
-    const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
-    process.stdout.write(`\r  Progress: [${bar}] ${pct}% (${formatDuration(elapsed)} elapsed)`);
-  };
-  project.on('progress', progressHandler);
+    const progressHandler = (progress) => {
+      if (isComplete) return;
+      const elapsed = (Date.now() - startTime) / 1000;
+      const pct = Math.min(100, Math.max(0, Number(progress) || 0));
+      const filled = Math.floor(pct / 5);
+      const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
+      process.stdout.write(`\r  Progress: [${bar}] ${pct}% (${formatDuration(elapsed)} elapsed)`);
+    };
+    project.on('progress', progressHandler);
 
-  projectEventHandler = (event) => {
-    if (event.projectId !== project.id) return;
-    switch (event.type) {
-      case 'queued':
-        log('📋', `Job queued at position: ${event.queuePosition}`);
-        break;
-      case 'completed':
-        log('✅', 'Project completed!');
-        break;
-      case 'error':
-        log('❌', `Project failed: ${event.error.message}`);
-        break;
-    }
-  };
-
-  jobEventHandler = (event) => {
-    if (event.projectId !== project.id) return;
-    switch (event.type) {
-      case 'initiating':
-        log('⚙️', `Model initiating on worker: ${event.workerName || 'Unknown'}`);
-        break;
-      case 'started':
-        console.log(`\n  Job started on worker: ${event.workerName || 'Unknown'}`);
-        break;
-      case 'jobETA': {
-        const elapsed = (Date.now() - startTime) / 1000;
-        const etaFormatted = formatDuration(event.etaSeconds);
-        process.stdout.write(`\r  Generating... ETA: ${etaFormatted} (${formatDuration(elapsed)} elapsed)   `);
-        break;
+    projectEventHandler = (event) => {
+      if (event.projectId !== project.id) return;
+      switch (event.type) {
+        case 'queued':
+          log('📋', `Job queued at position: ${event.queuePosition}`);
+          break;
+        case 'completed':
+          log('✅', 'Project completed!');
+          break;
+        case 'error':
+          log('❌', `Project failed: ${event.error.message}`);
+          break;
       }
-      case 'completed':
-        log('✅', 'Job completed!');
-        break;
-      case 'error':
-        log('❌', `Job failed: ${event.error.message}`);
-        break;
-    }
-  };
+    };
 
-  client.projects.on('project', projectEventHandler);
-  client.projects.on('job', jobEventHandler);
+    jobEventHandler = (event) => {
+      if (event.projectId !== project.id) return;
+      switch (event.type) {
+        case 'initiating':
+          log('⚙️', `Model initiating on worker: ${event.workerName || 'Unknown'}`);
+          break;
+        case 'started':
+          console.log(`\n  Job started on worker: ${event.workerName || 'Unknown'}`);
+          break;
+        case 'jobETA': {
+          const elapsed = (Date.now() - startTime) / 1000;
+          const etaFormatted = formatDuration(event.etaSeconds);
+          process.stdout.write(
+            `\r  Generating... ETA: ${etaFormatted} (${formatDuration(elapsed)} elapsed)   `
+          );
+          break;
+        }
+        case 'completed':
+          log('✅', 'Job completed!');
+          break;
+        case 'error':
+          log('❌', `Job failed: ${event.error.message}`);
+          break;
+      }
+    };
 
-  console.log('Generating video from sound...');
-  console.log('(This may take a few minutes)');
-  console.log();
+    sogni.projects.on('project', projectEventHandler);
+    sogni.projects.on('job', jobEventHandler);
 
-  try {
-    const videoUrls = await project.waitForCompletion();
-    isComplete = true;
-    const totalTime = (Date.now() - startTime) / 1000;
-
-    console.log('\n');
-    console.log('='.repeat(60));
-    console.log('Video generation complete!');
-    console.log('='.repeat(60));
-    console.log(`Total time: ${formatDuration(totalTime)}`);
+    console.log('Generating video from sound...');
+    console.log('(This may take a few minutes)');
     console.log();
 
-    for (let i = 0; i < videoUrls.length; i++) {
-      const path = await downloadVideo(videoUrls[i], project.id, i + 1);
-      console.log(`Video saved: ${path}`);
-    }
+    try {
+      const videoUrls = await project.waitForCompletion();
+      isComplete = true;
+      const totalTime = (Date.now() - startTime) / 1000;
 
-    console.log();
-    console.log('Done!');
+      console.log('\n');
+      console.log('='.repeat(60));
+      console.log('Video generation complete!');
+      console.log('='.repeat(60));
+      console.log(`Total time: ${formatDuration(totalTime)}`);
+      console.log();
+
+      for (let i = 0; i < videoUrls.length; i++) {
+        const path = await downloadVideo(videoUrls[i], project.id, i + 1);
+        console.log(`Video saved: ${path}`);
+      }
+
+      console.log();
+      console.log('Done!');
     } catch (error) {
       isComplete = true;
       console.error('\nError during video generation:', error.message);
@@ -370,13 +374,13 @@ async function main() {
     } finally {
       project.off('progress', progressHandler);
       if (projectEventHandler) {
-        client.projects.off('project', projectEventHandler);
+        sogni.projects.off('project', projectEventHandler);
       }
       if (jobEventHandler) {
-        client.projects.off('job', jobEventHandler);
+        sogni.projects.off('job', jobEventHandler);
       }
       try {
-        await client.account.logout();
+        await sogni.account.logout();
         console.log('Logged out.');
       } catch {}
     }

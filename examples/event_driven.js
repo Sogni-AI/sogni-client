@@ -9,21 +9,21 @@ const config = {
 };
 
 async function getClient() {
-  const client = await SogniClient.createInstance(config);
-  await client.account.login(USERNAME, PASSWORD);
-  await client.projects.waitForModels();
-  return client;
+  const sogni = await SogniClient.createInstance(config);
+  await sogni.account.login(USERNAME, PASSWORD);
+  await sogni.projects.waitForModels();
+  return sogni;
 }
 
 getClient()
-  .then(async (client) => {
+  .then(async (sogni) => {
     // Find model that has the most workers
-    const mostPopularModel = client.projects.availableModels.reduce((a, b) =>
+    const mostPopularModel = sogni.projects.availableModels.reduce((a, b) =>
       a.workerCount > b.workerCount ? a : b
     );
     console.log('Most popular model:', mostPopularModel);
     // Create a project using the most popular model
-    const project = await client.projects.create({
+    const project = await sogni.projects.create({
       type: 'image',
       modelId: mostPopularModel.id,
       steps: 20,
@@ -43,7 +43,7 @@ getClient()
     });
 
     // Listen for individual project events: queued, completed, failed, error
-    client.projects.on('project', (event) => {
+    sogni.projects.on('project', (event) => {
       console.log(`Project event: "${event.type}" payload:`, event);
       if (['completed', 'failed', 'error'].includes(event.type)) {
         console.log('Project completed or failed, exiting...');
@@ -53,7 +53,7 @@ getClient()
     });
 
     // Listen for individual job events: initiating, started, progress, preview, completed, failed, error
-    client.projects.on('job', (event) => {
+    sogni.projects.on('job', (event) => {
       console.log(`Job event: "${event.type}" payload:`, event);
     });
   })

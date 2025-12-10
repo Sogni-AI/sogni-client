@@ -279,7 +279,7 @@ async function main() {
   // Initialize client (point to local with testnet for debug logging)
   const APP_ID = `${USERNAME || 'user'}-t2v-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   console.log(`\n🔎 Using appId: ${APP_ID}\n`);
-  const client = await SogniClient.createInstance({
+  const sogni = await SogniClient.createInstance({
     // add random suffix to avoid 4015 duplicate app-id boots
     appId: APP_ID,
     network: 'fast'
@@ -291,12 +291,12 @@ async function main() {
   try {
     // Login
     log('🔓', 'Logging in...');
-    await client.account.login(USERNAME, PASSWORD);
+    await sogni.account.login(USERNAME, PASSWORD);
     log('✓', `Logged in as: ${USERNAME}`);
     console.log();
 
     // Display balance
-    const balance = await client.account.refreshBalance();
+    const balance = await sogni.account.refreshBalance();
     console.log('💰 Account Balance:');
     console.log(`   Sogni: ${parseFloat(balance.sogni.net || 0).toFixed(2)}`);
     console.log(`   Spark: ${parseFloat(balance.spark.net || 0).toFixed(2)}`);
@@ -324,7 +324,7 @@ async function main() {
     const proceed = await askQuestion('Proceed with generation? [Y/n]: ');
     if (proceed.toLowerCase() === 'n' || proceed.toLowerCase() === 'no') {
       log('❌', 'Job cancelled by user');
-      await client.account.logout();
+      await sogni.account.logout();
       process.exit(0);
     }
 
@@ -359,7 +359,7 @@ async function main() {
 
     // Wait for models
     log('🔄', 'Loading available models...');
-    const models = await client.projects.waitForModels();
+    const models = await sogni.projects.waitForModels();
     const videoModel = models.find((m) => m.id === VIDEO_MODEL_ID);
 
     if (!videoModel) {
@@ -375,7 +375,7 @@ async function main() {
     console.log();
 
     const startTime = Date.now();
-    const project = await client.projects.create({
+    const project = await sogni.projects.create({
       type: 'video',
       modelId: VIDEO_MODEL_ID,
       positivePrompt: POSITIVE_PROMPT,
@@ -419,13 +419,17 @@ async function main() {
           const pct = Math.min(100, Math.max(0, Math.floor((event.step / event.stepCount) * 100)));
           const filled = Math.floor(pct / 5);
           const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
-          process.stdout.write(`\r  Progress: [${bar}] ${pct}% - Step ${event.step}/${event.stepCount} (${formatDuration(elapsed)} elapsed)   `);
+          process.stdout.write(
+            `\r  Progress: [${bar}] ${pct}% - Step ${event.step}/${event.stepCount} (${formatDuration(elapsed)} elapsed)   `
+          );
           break;
         }
         case 'jobETA': {
           const elapsed = (Date.now() - startTime) / 1000;
           const etaFormatted = formatDuration(event.etaSeconds);
-          process.stdout.write(`\r  Generating... ETA: ${etaFormatted} (${formatDuration(elapsed)} elapsed)   `);
+          process.stdout.write(
+            `\r  Generating... ETA: ${etaFormatted} (${formatDuration(elapsed)} elapsed)   `
+          );
           break;
         }
         case 'completed':
@@ -437,8 +441,8 @@ async function main() {
       }
     };
 
-    client.projects.on('project', projectEventHandler);
-    client.projects.on('job', jobEventHandler);
+    sogni.projects.on('project', projectEventHandler);
+    sogni.projects.on('job', jobEventHandler);
 
     // Wait for completion
     const resultUrls = await project.waitForCompletion();
@@ -464,20 +468,19 @@ async function main() {
     openFile(savePath);
 
     // Cleanup handled in finally
-
   } catch (error) {
     console.error(error);
     log('❌', `Error: ${error.message}`);
     process.exit(1);
   } finally {
     if (projectEventHandler) {
-      client.projects.off('project', projectEventHandler);
+      sogni.projects.off('project', projectEventHandler);
     }
     if (jobEventHandler) {
-      client.projects.off('job', jobEventHandler);
+      sogni.projects.off('job', jobEventHandler);
     }
     try {
-      await client.account.logout();
+      await sogni.account.logout();
     } catch {
       // Ignore logout errors
     }

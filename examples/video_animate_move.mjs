@@ -128,7 +128,7 @@ async function main() {
   console.log(`Reference video (motion): ${REFERENCE_VIDEO}`);
   console.log();
 
-  const client = await SogniClient.createInstance({
+  const sogni = await SogniClient.createInstance({
     appId: `${USERNAME}-animate-move-${Date.now()}`,
     network: 'fast'
   });
@@ -138,12 +138,12 @@ async function main() {
 
   try {
     log('🔓', 'Logging in...');
-    await client.account.login(USERNAME, PASSWORD);
+    await sogni.account.login(USERNAME, PASSWORD);
     log('✓', `Logged in as: ${USERNAME}`);
     console.log();
 
     // Display balance
-    const balance = await client.account.refreshBalance();
+    const balance = await sogni.account.refreshBalance();
     console.log('💰 Account Balance:');
     console.log(`   Sogni: ${parseFloat(balance.sogni.net || 0).toFixed(2)}`);
     console.log(`   Spark: ${parseFloat(balance.spark.net || 0).toFixed(2)}`);
@@ -171,14 +171,14 @@ async function main() {
     const proceed = await askQuestion('Proceed with generation? [Y/n]: ');
     if (proceed.toLowerCase() === 'n' || proceed.toLowerCase() === 'no') {
       log('❌', 'Job cancelled by user');
-      await client.account.logout();
+      await sogni.account.logout();
       process.exit(0);
     }
 
     console.log();
 
     console.log('Loading available models...');
-    const models = await client.projects.waitForModels();
+    const models = await sogni.projects.waitForModels();
 
     const videoModel = models.find((m) => m.id === VIDEO_MODEL_ID);
     if (!videoModel) {
@@ -190,7 +190,7 @@ async function main() {
         console.log('Available video models:');
         videoModels.forEach((m) => console.log(`  - ${m.id} (${m.name})`));
       }
-      await client.account.logout();
+      await sogni.account.logout();
       process.exit(1);
     }
 
@@ -199,7 +199,9 @@ async function main() {
 
     const outputDuration = (VIDEO_CONFIG.frames - 1) / VIDEO_CONFIG.fps;
     console.log('Video Configuration:');
-    console.log(`  - Frames: ${VIDEO_CONFIG.frames} (${outputDuration}s output at ${VIDEO_CONFIG.fps}fps)`);
+    console.log(
+      `  - Frames: ${VIDEO_CONFIG.frames} (${outputDuration}s output at ${VIDEO_CONFIG.fps}fps)`
+    );
     console.log(`  - FPS: ${VIDEO_CONFIG.fps}`);
     console.log();
 
@@ -213,20 +215,20 @@ async function main() {
     const referenceImageBuffer = fs.readFileSync(REFERENCE_IMAGE);
     const referenceVideoBuffer = fs.readFileSync(REFERENCE_VIDEO);
 
-    const project = await client.projects.create({
-    ...VIDEO_CONFIG,
-    type: 'video',
-    modelId: VIDEO_MODEL_ID,
-    positivePrompt: 'Smooth natural motion, high quality animation, realistic movement',
-    negativePrompt: 'blurry, low quality, distorted, artifacts, watermark, text, jittery',
-    stylePrompt: '',
-    numberOfMedia: 1,
-    referenceImage: referenceImageBuffer,
-    referenceVideo: referenceVideoBuffer,
-    tokenType: 'spark',
-    width: 480,
-    height: 832
-  });
+    const project = await sogni.projects.create({
+      ...VIDEO_CONFIG,
+      type: 'video',
+      modelId: VIDEO_MODEL_ID,
+      positivePrompt: 'Smooth natural motion, high quality animation, realistic movement',
+      negativePrompt: 'blurry, low quality, distorted, artifacts, watermark, text, jittery',
+      stylePrompt: '',
+      numberOfMedia: 1,
+      referenceImage: referenceImageBuffer,
+      referenceVideo: referenceVideoBuffer,
+      tokenType: 'spark',
+      width: 480,
+      height: 832
+    });
 
     console.log(`Project created: ${project.id}`);
     console.log();
@@ -270,7 +272,9 @@ async function main() {
         case 'jobETA': {
           const elapsed = (Date.now() - startTime) / 1000;
           const etaFormatted = formatDuration(event.etaSeconds);
-          process.stdout.write(`\r  Generating... ETA: ${etaFormatted} (${formatDuration(elapsed)} elapsed)   `);
+          process.stdout.write(
+            `\r  Generating... ETA: ${etaFormatted} (${formatDuration(elapsed)} elapsed)   `
+          );
           break;
         }
         case 'completed':
@@ -282,8 +286,8 @@ async function main() {
       }
     };
 
-    client.projects.on('project', projectEventHandler);
-    client.projects.on('job', jobEventHandler);
+    sogni.projects.on('project', projectEventHandler);
+    sogni.projects.on('job', jobEventHandler);
 
     console.log('Generating animated video...');
     console.log('(This may take a few minutes)');
@@ -318,13 +322,13 @@ async function main() {
     } finally {
       project.off('progress', progressHandler);
       if (projectEventHandler) {
-        client.projects.off('project', projectEventHandler);
+        sogni.projects.off('project', projectEventHandler);
       }
       if (jobEventHandler) {
-        client.projects.off('job', jobEventHandler);
+        sogni.projects.off('job', jobEventHandler);
       }
       try {
-        await client.account.logout();
+        await sogni.account.logout();
         console.log('Logged out.');
       } catch {}
     }

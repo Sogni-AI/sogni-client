@@ -25,19 +25,19 @@ async function downloadImage(url) {
   await streamPipeline(response.body, fs.createWriteStream(savePath));
 }
 
-const client = await SogniClient.createInstance({
+const sogni = await SogniClient.createInstance({
   appId: `${USERNAME}-image-generator`,
   network: 'relaxed' // or 'fast' for faster but more expensive processing
 });
 
-await client.account.login(USERNAME, PASSWORD);
+await sogni.account.login(USERNAME, PASSWORD);
 
-const models = await client.projects.waitForModels();
+const models = await sogni.projects.waitForModels();
 
 const mostPopularModel = models.reduce((a, b) => (a.workerCount > b.workerCount ? a : b));
 
 console.log('Using model:', mostPopularModel.name);
-const project = await client.projects.create({
+const project = await sogni.projects.create({
   type: 'image',
   modelId: mostPopularModel.id,
   steps: 20,
@@ -62,4 +62,4 @@ for (const imageUrl of imageUrls) {
   await downloadImage(imageUrl);
 }
 
-await client.account.logout();
+await sogni.account.logout();
