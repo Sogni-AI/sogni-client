@@ -193,6 +193,9 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]) {
+    if (!this.isConnected) {
+      await this.connect();
+    }
     await this.waitForConnection();
     this._logger.debug('WebSocket send:', messageType, data);
     this.socket!.send(
