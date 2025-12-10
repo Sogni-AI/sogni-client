@@ -192,8 +192,7 @@ export interface ImageProjectParams extends BaseProjectParams {
    */
   controlNet?: ControlNetParams;
   /**
-   * Output format. Can be 'png', 'jpg', or 'mp4'.
-   * Defaults to 'png' for image models, 'mp4' for video models.
+   * Output format. Can be 'png' or 'jpg'. Defaults to 'png'.
    */
   outputFormat?: ImageOutputFormat;
 }
