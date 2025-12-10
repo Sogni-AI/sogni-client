@@ -6,7 +6,7 @@ Behind the scenes this SDK uses WebSocket connection for communication between c
 ## Migration notes
 ### v3.x.x to v4.x.x
 Version 4 adds support of video generation. There are following breaking changes:
-- `type` is required when calling `client.projects.create(params)`, valid values are `image` and `video`. See code examples below.
+- `type` is required when calling `sogni.projects.create(params)`, valid values are `image` and `video`. See code examples below.
 - `numberOfImages` renamed to `numberOfMedia`
 
 ## Installation
@@ -54,13 +54,13 @@ const options = {
   network: 'fast', // Network to use, 'fast' or 'relaxed'
 }
 
-const client = await SogniClient.createInstance(options);
+const sogni = await SogniClient.createInstance(options);
 // Login to Sogni account and establish WebSocket connection to Supernet
-await client.account.login(USERNAME, PASSWORD);
+await sogni.account.login(USERNAME, PASSWORD);
 // Now wait until list of available models is received.
 // This step is only needed if you want to create project immediately.
-const models = await client.projects.waitForModels();
-// You can get list of available models any time from `client.projects.availableModels`
+const models = await sogni.projects.waitForModels();
+// You can get list of available models any time from `sogni.projects.availableModels`
 ```
 **Important Note:** 
 - This sample assume you are using ES modules, which allow `await` on the top level, if you are CommomJS you will need to wrap `await` calls in an async function.
@@ -74,11 +74,11 @@ client will receive the current balance and list of available models. After this
 ### Creating project
 ```javascript
 // Find model that has the most workers
-const mostPopularModel = client.projects.availableModels.reduce((a, b) =>
+const mostPopularModel = sogni.projects.availableModels.reduce((a, b) =>
   a.workerCount > b.workerCount ? a : b
 );
 // Create a project using the most popular model
-const project = await client.projects.create({
+const project = await sogni.projects.create({
   type: 'image',
   modelId: mostPopularModel.id,
   positivePrompt: 'A cat wearing a hat',
@@ -100,7 +100,7 @@ In general, there are 2 ways to work with API:
 
 #### Using promises
 ```javascript
-const project = await client.projects.create({
+const project = await sogni.projects.create({
   type: 'image',
   modelId: mostPopularModel.id,
   steps: 20,
@@ -124,7 +124,7 @@ console.log('Image URLs:', imageUrls);
 
 #### Using events
 ```javascript
-const project = await client.projects.create({
+const project = await sogni.projects.create({
   type: 'image',
   modelId: mostPopularModel.id,
   steps: 20,
@@ -200,9 +200,9 @@ Turbo and LCM models are designed for quality output in as little as 1 step. ([M
 TypeScript type definitions for project parameters can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 
 ### Detecting available output presets
-You can get a list of available output presets for a specific network and model using `client.projects.getOutputPresets` method.
+You can get a list of available output presets for a specific network and model using `sogni.projects.getOutputPresets` method.
 ```javascript
-const presets = await client.projects.getSizePresets('fast', 'flux1-schnell-fp8');
+const presets = await sogni.projects.getSizePresets('fast', 'flux1-schnell-fp8');
 console.log('Available output presets:', presets);
 ```
 Sample response:
@@ -361,7 +361,7 @@ To use ControlNet in your project, you need to provide `controlNet` object with 
 Example:
 ```javascript
 const cnImage = fs.readFileSync('./cn.jpg');
-const project = await client.projects.create({
+const project = await sogni.projects.create({
   type: 'image',
   network: 'fast',
   modelId: 'coreml-cyberrealistic_v70_768',
