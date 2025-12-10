@@ -16,6 +16,7 @@
 import * as fs from 'node:fs';
 import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
+import * as readline from 'node:readline';
 // When running from the repo, import from local dist
 // When published to npm, users would import from '@sogni-ai/sogni-client'
 import { SogniClient } from '../dist/index.js';
@@ -75,6 +76,33 @@ function formatDuration(seconds) {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function log(emoji, message) {
+  console.log(`${emoji} ${message}`);
+}
+
+function askQuestion(question) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim() || '');
+    });
+  });
+}
+
+async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps) {
+  const url = `https://socket.sogni.ai/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to get cost estimate: ${response.statusText}`);
+  }
+  return response.json();
+}
+
 // ============================================
 // Main
 // ============================================
@@ -98,55 +126,94 @@ async function main() {
   }
   console.log(`Reference image (subject): ${REFERENCE_IMAGE}`);
   console.log(`Reference video (motion): ${REFERENCE_VIDEO}`);
+  console.log();
 
   const client = await SogniClient.createInstance({
     appId: `${USERNAME}-animate-move-${Date.now()}`,
     network: 'fast'
   });
 
-  console.log('Logging in...');
-  await client.account.login(USERNAME, PASSWORD);
-  console.log(`Logged in as: ${USERNAME}`);
-  console.log();
+  let projectEventHandler;
+  let jobEventHandler;
 
-  console.log('Loading available models...');
-  const models = await client.projects.waitForModels();
+  try {
+    log('🔓', 'Logging in...');
+    await client.account.login(USERNAME, PASSWORD);
+    log('✓', `Logged in as: ${USERNAME}`);
+    console.log();
 
-  const videoModel = models.find((m) => m.id === VIDEO_MODEL_ID);
-  if (!videoModel) {
-    const videoModels = models.filter((m) => m.media === 'video');
-    console.log(`Model ${VIDEO_MODEL_ID} not found.`);
-    if (videoModels.length === 0) {
-      console.log('No video models currently available on the fast network.');
-    } else {
-      console.log('Available video models:');
-      videoModels.forEach((m) => console.log(`  - ${m.id} (${m.name})`));
-    }
-    try {
+    // Display balance
+    const balance = await client.account.refreshBalance();
+    console.log('💰 Account Balance:');
+    console.log(`   Sogni: ${parseFloat(balance.sogni.net || 0).toFixed(2)}`);
+    console.log(`   Spark: ${parseFloat(balance.spark.net || 0).toFixed(2)}`);
+    console.log();
+
+    // Get cost estimate
+    log('💵', 'Fetching cost estimate...');
+    const estimate = await getVideoJobEstimate(
+      'spark',
+      VIDEO_MODEL_ID,
+      480,
+      832,
+      VIDEO_CONFIG.frames,
+      VIDEO_CONFIG.fps
+    );
+
+    console.log();
+    console.log('📊 Cost Estimate:');
+    console.log(`   Sogni: ${parseFloat(estimate.quote.project.costInSogni || 0).toFixed(2)}`);
+    console.log(`   Spark: ${parseFloat(estimate.quote.project.costInSpark || 0).toFixed(2)}`);
+    console.log(`   USD: $${parseFloat(estimate.quote.project.costInUSD || 0).toFixed(4)}`);
+    console.log();
+
+    // Ask for confirmation
+    const proceed = await askQuestion('Proceed with generation? [Y/n]: ');
+    if (proceed.toLowerCase() === 'n' || proceed.toLowerCase() === 'no') {
+      log('❌', 'Job cancelled by user');
       await client.account.logout();
-    } catch {}
-    process.exit(1);
-  }
+      process.exit(0);
+    }
 
-  console.log(`Using model: ${videoModel.name} (${videoModel.id})`);
-  console.log();
+    console.log();
 
-  const outputDuration = (VIDEO_CONFIG.frames - 1) / VIDEO_CONFIG.fps;
-  console.log('Video Configuration:');
-  console.log(
-    `  - Frames: ${VIDEO_CONFIG.frames} (${outputDuration}s output at ${VIDEO_CONFIG.fps}fps)`
-  );
-  console.log(`  - FPS: ${VIDEO_CONFIG.fps}`);
-  console.log();
+    console.log('Loading available models...');
+    const models = await client.projects.waitForModels();
 
-  console.log('Creating video project...');
-  const startTime = Date.now();
+    const videoModel = models.find((m) => m.id === VIDEO_MODEL_ID);
+    if (!videoModel) {
+      const videoModels = models.filter((m) => m.media === 'video');
+      log('❌', `Model ${VIDEO_MODEL_ID} not found.`);
+      if (videoModels.length === 0) {
+        console.log('No video models currently available on the fast network.');
+      } else {
+        console.log('Available video models:');
+        videoModels.forEach((m) => console.log(`  - ${m.id} (${m.name})`));
+      }
+      await client.account.logout();
+      process.exit(1);
+    }
 
-  // Load the reference assets
-  const referenceImageBuffer = fs.readFileSync(REFERENCE_IMAGE);
-  const referenceVideoBuffer = fs.readFileSync(REFERENCE_VIDEO);
+    log('✓', `Model ready: ${videoModel.name}`);
+    console.log();
 
-  const project = await client.projects.create({
+    const outputDuration = (VIDEO_CONFIG.frames - 1) / VIDEO_CONFIG.fps;
+    console.log('Video Configuration:');
+    console.log(`  - Frames: ${VIDEO_CONFIG.frames} (${outputDuration}s output at ${VIDEO_CONFIG.fps}fps)`);
+    console.log(`  - FPS: ${VIDEO_CONFIG.fps}`);
+    console.log();
+
+    log('📤', 'Submitting video generation job...');
+    log('⏳', '(This may take a few minutes)');
+    console.log();
+
+    const startTime = Date.now();
+
+    // Load the reference assets
+    const referenceImageBuffer = fs.readFileSync(REFERENCE_IMAGE);
+    const referenceVideoBuffer = fs.readFileSync(REFERENCE_VIDEO);
+
+    const project = await client.projects.create({
     ...VIDEO_CONFIG,
     type: 'video',
     modelId: VIDEO_MODEL_ID,
@@ -161,70 +228,117 @@ async function main() {
     height: 832
   });
 
-  console.log(`Project created: ${project.id}`);
-  console.log();
-
-  let isComplete = false;
-
-  const progressHandler = (progress) => {
-    if (isComplete) return;
-    const elapsed = (Date.now() - startTime) / 1000;
-    const pct = Math.min(100, Math.max(0, Number(progress) || 0));
-    const filled = Math.floor(pct / 5);
-    const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
-    process.stdout.write(`\r  Progress: [${bar}] ${pct}% (${formatDuration(elapsed)} elapsed)`);
-  };
-  project.on('progress', progressHandler);
-
-  const jobHandler = async (event) => {
-    if (event.projectId !== project.id) return;
-    if (event.type === 'started') {
-      console.log(`\n  Job started on worker: ${event.workerName || 'Unknown'}`);
-    }
-  };
-  client.projects.on('job', jobHandler);
-
-  console.log('Generating animated video...');
-  console.log('(This may take a few minutes)');
-  console.log();
-
-  try {
-    const videoUrls = await project.waitForCompletion();
-    isComplete = true;
-    const totalTime = (Date.now() - startTime) / 1000;
-
-    console.log('\n');
-    console.log('='.repeat(60));
-    console.log('Video generation complete!');
-    console.log('='.repeat(60));
-    console.log(`Total time: ${formatDuration(totalTime)}`);
+    console.log(`Project created: ${project.id}`);
     console.log();
 
-    for (let i = 0; i < videoUrls.length; i++) {
-      const path = await downloadVideo(videoUrls[i], project.id, i + 1);
-      console.log(`Video saved: ${path}`);
-    }
+    let isComplete = false;
 
+    const progressHandler = (progress) => {
+      if (isComplete) return;
+      const elapsed = (Date.now() - startTime) / 1000;
+      const pct = Math.min(100, Math.max(0, Number(progress) || 0));
+      const filled = Math.floor(pct / 5);
+      const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
+      process.stdout.write(`\r  Progress: [${bar}] ${pct}% (${formatDuration(elapsed)} elapsed)`);
+    };
+    project.on('progress', progressHandler);
+
+    projectEventHandler = (event) => {
+      if (event.projectId !== project.id) return;
+      switch (event.type) {
+        case 'queued':
+          log('📋', `Job queued at position: ${event.queuePosition}`);
+          break;
+        case 'completed':
+          log('✅', 'Project completed!');
+          break;
+        case 'error':
+          log('❌', `Project failed: ${event.error.message}`);
+          break;
+      }
+    };
+
+    jobEventHandler = (event) => {
+      if (event.projectId !== project.id) return;
+      switch (event.type) {
+        case 'initiating':
+          log('⚙️', `Model initiating on worker: ${event.workerName || 'Unknown'}`);
+          break;
+        case 'started':
+          console.log(`\n  Job started on worker: ${event.workerName || 'Unknown'}`);
+          break;
+        case 'jobETA': {
+          const elapsed = (Date.now() - startTime) / 1000;
+          const etaFormatted = formatDuration(event.etaSeconds);
+          process.stdout.write(`\r  Generating... ETA: ${etaFormatted} (${formatDuration(elapsed)} elapsed)   `);
+          break;
+        }
+        case 'completed':
+          log('✅', 'Job completed!');
+          break;
+        case 'error':
+          log('❌', `Job failed: ${event.error.message}`);
+          break;
+      }
+    };
+
+    client.projects.on('project', projectEventHandler);
+    client.projects.on('job', jobEventHandler);
+
+    console.log('Generating animated video...');
+    console.log('(This may take a few minutes)');
     console.log();
-    console.log('Done!');
+
+    try {
+      const videoUrls = await project.waitForCompletion();
+      isComplete = true;
+      const totalTime = (Date.now() - startTime) / 1000;
+
+      console.log('\n');
+      console.log('='.repeat(60));
+      console.log('Video generation complete!');
+      console.log('='.repeat(60));
+      console.log(`Total time: ${formatDuration(totalTime)}`);
+      console.log();
+
+      for (let i = 0; i < videoUrls.length; i++) {
+        const path = await downloadVideo(videoUrls[i], project.id, i + 1);
+        console.log(`Video saved: ${path}`);
+      }
+
+      console.log();
+      console.log('Done!');
+    } catch (error) {
+      isComplete = true;
+      console.error('\nError during video generation:', error.message);
+      if (error.data) {
+        console.error('Error details:', error.data);
+      }
+      throw error;
+    } finally {
+      project.off('progress', progressHandler);
+      if (projectEventHandler) {
+        client.projects.off('project', projectEventHandler);
+      }
+      if (jobEventHandler) {
+        client.projects.off('job', jobEventHandler);
+      }
+      try {
+        await client.account.logout();
+        console.log('Logged out.');
+      } catch {}
+    }
   } catch (error) {
-    isComplete = true;
-    console.error('\nError during video generation:', error.message);
-    if (error.data) {
-      console.error('Error details:', error.data);
-    }
+    console.error('Fatal error:', error.message || error);
+    process.exit(1);
   }
-
-  project.off('progress', progressHandler);
-  client.projects.off('job', jobHandler);
-
-  try {
-    await client.account.logout();
-    console.log('Logged out.');
-  } catch {}
 }
 
-main().catch((error) => {
-  console.error('Fatal error:', error);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
