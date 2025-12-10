@@ -306,7 +306,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
 
   async getResultData() {
     if (!this.hasResultMedia) {
-      throw new Error('No result image available');
+      throw new Error('No result media available');
     }
     const url = await this.getResultUrl();
     const response = await fetch(url);
