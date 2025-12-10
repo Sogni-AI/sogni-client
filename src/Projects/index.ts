@@ -14,6 +14,7 @@ import {
 } from './types';
 import {
   JobErrorData,
+  JobETAData,
   JobProgressData,
   JobResultData,
   JobStateData,
@@ -122,6 +123,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.client.socket.on('swarmModels', this.handleSwarmModels.bind(this));
     this.client.socket.on('jobState', this.handleJobState.bind(this));
     this.client.socket.on('jobProgress', this.handleJobProgress.bind(this));
+    this.client.socket.on('jobETA', this.handleJobETA.bind(this));
     this.client.socket.on('jobError', this.handleJobError.bind(this));
     this.client.socket.on('jobResult', this.handleJobResult.bind(this));
     // Listen to the server disconnect event
@@ -217,6 +219,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         });
       });
     }
+  }
+
+  private async handleJobETA(data: JobETAData) {
+    this.emit('job', {
+      type: 'jobETA',
+      projectId: data.jobID,
+      jobId: data.imgID || '',
+      etaSeconds: data.etaSeconds
+    });
   }
 
   private async handleJobResult(data: JobResultData) {
@@ -366,6 +377,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         if (project.status !== 'processing') {
           project._update({ status: 'processing' });
         }
+        break;
+      case 'jobETA':
+        // ETA updates don't change job state, just pass through to listeners
+        // The event is already emitted, no need to update job data
         break;
       case 'preview':
         job._update({ previewUrl: event.url });
@@ -751,7 +766,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const pathParams = [
-      tokenType || 'sogni',
+      tokenType || 'spark',
       network,
       model,
       imageCount,
@@ -789,7 +804,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     };
   }
 
-  async estimateEnhancementCost(strength: EnhancementStrength, tokenType: TokenType = 'sogni') {
+  async estimateEnhancementCost(strength: EnhancementStrength, tokenType: TokenType = 'spark') {
     return this.estimateCost({
       network: enhancementDefaults.network,
       tokenType,
