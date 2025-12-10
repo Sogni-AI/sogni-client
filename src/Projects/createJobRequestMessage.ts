@@ -230,7 +230,7 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
 function createJobRequestMessage(id: string, params: ProjectParams) {
   const template = getTemplate();
   // Base keyFrame with common params
-  const keyFrame: Record<string, any> = {
+  let keyFrame: Record<string, any> = {
     ...template.keyFrames[0],
     steps: params.steps,
     guidanceScale: params.guidance,
@@ -243,10 +243,10 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
 
   switch (params.type) {
     case 'image':
-      applyImageParams(keyFrame, params);
+      keyFrame = applyImageParams(keyFrame, params);
       break;
     case 'video':
-      applyVideoParams(keyFrame, params);
+      keyFrame = applyVideoParams(keyFrame, params);
       break;
     default:
       throw new ApiError(400, {
