@@ -46,7 +46,6 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
       const { expiresAt } = decodeToken(token);
       if (expiresAt > new Date()) {
         this._updateTokens({ token, refreshToken });
-        this.emit('updated', true);
         return;
       }
     }
@@ -55,7 +54,6 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
     const { expiresAt: refreshExpiresAt } = decodeRefreshToken(refreshToken);
     this._refreshTokenExpiresAt = refreshExpiresAt;
     await this._renewTokenSafe();
-    this.emit('updated', true);
   }
 
   clear() {

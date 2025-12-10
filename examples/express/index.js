@@ -6,14 +6,14 @@ const USERNAME = 'your-username';
 const PASSWORD = 'your-password';
 const APP_ID = 'your-app-id';
 
-let client;
+let sogni;
 SogniClient.createInstance({
   appId: APP_ID
 })
   .then(async (clientInstance) => {
-    client = clientInstance;
-    await client.account.login(USERNAME, PASSWORD);
-    await client.projects.waitForModels();
+    sogni = clientInstance;
+    await sogni.account.login(USERNAME, PASSWORD);
+    await sogni.projects.waitForModels();
     console.log('SogniClient instance created');
     app.listen(3000);
   })
@@ -36,13 +36,14 @@ app.get('/', function (req, res) {
 app.post('/api/generate', async function (req, res) {
   const { prompt, style } = req.body;
   try {
-    const project = await client.projects.create({
+    const project = await sogni.projects.create({
+      type: 'image',
       modelId: 'flux1-schnell-fp8',
       positivePrompt: prompt,
       stylePrompt: style,
       steps: 4,
       guidance: 1,
-      numberOfImages: 1
+      numberOfMedia: 1
     });
     const imageUrls = await project.waitForCompletion();
     res.send({ url: imageUrls[0] });

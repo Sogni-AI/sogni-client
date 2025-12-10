@@ -4,13 +4,17 @@ import {
   EnhancementStrength,
   EstimateRequest,
   ImageUrlParams,
+  MediaUrlParams,
   CostEstimation,
   ProjectParams,
   SizePreset,
-  SupportedModel
+  SupportedModel,
+  ImageProjectParams,
+  VideoProjectParams
 } from './types';
 import {
   JobErrorData,
+  JobETAData,
   JobProgressData,
   JobResultData,
   JobStateData,
@@ -27,13 +31,47 @@ import ErrorData from '../types/ErrorData';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import Cache from '../lib/Cache';
 import { enhancementDefaults } from './Job';
-import { getEnhacementStrength } from './utils';
+import {
+  getEnhacementStrength,
+  getVideoWorkflowType,
+  isVideoModel,
+  VIDEO_WORKFLOW_ASSETS
+} from './utils';
 import { TokenType } from '../types/token';
 import { validateSampler } from '../lib/validation';
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 const GARBAGE_COLLECT_TIMEOUT = 30000;
 const MODELS_REFRESH_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
+
+/**
+ * Detect content type from a file object.
+ * For File objects in browser, uses the type property.
+ * Returns undefined if content type cannot be detected.
+ */
+function getFileContentType(file: File | Buffer | Blob): string | undefined {
+  if (file instanceof Blob && 'type' in file && file.type) {
+    return file.type;
+  }
+  return undefined;
+}
+
+/**
+ * Convert file to a format compatible with fetch body.
+ * Converts Node.js Buffer to Blob for cross-platform compatibility.
+ */
+function toFetchBody(file: File | Buffer | Blob) {
+  // Node.js Buffer is not supported in browsers, so we can skip this conversion
+  if (typeof Buffer === 'undefined') {
+    return file;
+  }
+  if (Buffer.isBuffer(file)) {
+    // Copy Buffer data to a new ArrayBuffer to ensure type compatibility
+    const arrayBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
+    return new Blob([arrayBuffer as ArrayBuffer]);
+  }
+  return file;
+}
 
 function mapErrorCodes(code: string): number {
   switch (code) {
@@ -64,6 +102,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return this._availableModels;
   }
 
+  /**
+   * Check if a model produces video output using the cached models list.
+   * Uses the `media` property from the models API when available,
+   * falls back to model ID prefix check if models aren't loaded yet.
+   */
+  isVideoModelId(modelId: string): boolean {
+    const model = this._supportedModels.data?.find((m) => m.id === modelId);
+    if (model) {
+      return model.media === 'video';
+    }
+    // Fallback to prefix check if models not loaded
+    return isVideoModel(modelId);
+  }
+
   constructor(config: ApiConfig) {
     super(config);
     // Listen to server events and emit them as project and job events
@@ -71,6 +123,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.client.socket.on('swarmModels', this.handleSwarmModels.bind(this));
     this.client.socket.on('jobState', this.handleJobState.bind(this));
     this.client.socket.on('jobProgress', this.handleJobProgress.bind(this));
+    this.client.socket.on('jobETA', this.handleJobETA.bind(this));
     this.client.socket.on('jobError', this.handleJobError.bind(this));
     this.client.socket.on('jobResult', this.handleJobResult.bind(this));
     // Listen to the server disconnect event
@@ -99,7 +152,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this._availableModels = Object.entries(data).map(([id, workerCount]) => ({
       id,
       name: modelIndex[id]?.name || id.replace(/-/g, ' '),
-      workerCount
+      workerCount,
+      media: modelIndex[id]?.media || 'image'
     }));
     this.emit('availableModels', this._availableModels);
   }
@@ -167,6 +221,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
   }
 
+  private async handleJobETA(data: JobETAData) {
+    this.emit('job', {
+      type: 'jobETA',
+      projectId: data.jobID,
+      jobId: data.imgID || '',
+      etaSeconds: data.etaSeconds
+    });
+  }
+
   private async handleJobResult(data: JobResultData) {
     const project = this.projects.find((p) => p.id === data.jobID);
     const passNSFWCheck = !data.triggeredNSFWFilter || !project || project.params.disableNSFWFilter;
@@ -174,11 +237,21 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // If NSFW filter is triggered, image will be only available for download if user explicitly
     // disabled the filter for this project
     if (passNSFWCheck && !data.userCanceled) {
-      downloadUrl = await this.downloadUrl({
-        jobId: data.jobID,
-        imageId: data.imgID,
-        type: 'complete'
-      });
+      // Use media endpoint for video models, image endpoint for image models
+      const isVideo = project && this.isVideoModelId(project.params.modelId);
+      if (isVideo) {
+        downloadUrl = await this.mediaDownloadUrl({
+          jobId: data.jobID,
+          id: data.imgID,
+          type: 'complete'
+        });
+      } else {
+        downloadUrl = await this.downloadUrl({
+          jobId: data.jobID,
+          imageId: data.imgID,
+          type: 'complete'
+        });
+      }
     }
 
     this.emit('job', {
@@ -297,13 +370,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       case 'progress':
         job._update({
           status: 'processing',
-          // Jus in case event comes out of order
+          // Just in case event comes out of order
           step: Math.max(event.step, job.step),
           stepCount: event.stepCount
         });
         if (project.status !== 'processing') {
           project._update({ status: 'processing' });
         }
+        break;
+      case 'jobETA':
+        // ETA updates don't change job state, just pass through to listeners
+        // The event is already emitted, no need to update job data
         break;
       case 'preview':
         job._update({ previewUrl: event.url });
@@ -321,6 +398,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       }
       case 'error':
         job._update({ status: 'failed', error: event.error });
+        // Check if project should also fail when a job fails
+        // For video jobs (single image) or when all jobs have failed, propagate to project
+        const allJobsStarted = project.jobs.length >= project.params.numberOfMedia;
+        const allJobsFailed = allJobsStarted && project.jobs.every((j) => j.status === 'failed');
+        const isSingleJobProject = project.params.numberOfMedia === 1;
+        if (isSingleJobProject || allJobsFailed) {
+          project._update({
+            status: 'failed',
+            error: event.error
+          });
+        }
         break;
     }
   }
@@ -343,33 +431,63 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       return Promise.resolve(this._availableModels);
     }
     return new Promise((resolve, reject) => {
+      let settled = false;
       const timeoutId = setTimeout(() => {
-        reject(new Error('Timeout waiting for models'));
-      }, timeout);
-      this.once('availableModels', (models) => {
-        clearTimeout(timeoutId);
-        if (models.length) {
-          resolve(models);
-        } else {
-          reject(new Error('No models available'));
+        if (!settled) {
+          settled = true;
+          this.off('availableModels', handler);
+          reject(new Error('Timeout waiting for models'));
         }
-      });
+      }, timeout);
+
+      const handler = (models: AvailableModel[]) => {
+        // Only resolve when we get a non-empty models list
+        // Empty arrays may be emitted during disconnects/reconnects
+        if (models.length && !settled) {
+          settled = true;
+          clearTimeout(timeoutId);
+          this.off('availableModels', handler);
+          resolve(models);
+        }
+      };
+
+      this.on('availableModels', handler);
     });
   }
 
   /**
    * Send new project request to the network. Returns project instance which can be used to track
-   * progress and get resulting images.
+   * progress and get resulting images or videos.
    * @param data
    */
   async create(data: ProjectParams): Promise<Project> {
     const project = new Project({ ...data }, { api: this, logger: this.client.logger });
+    const request = createJobRequestMessage(project.id, data);
+    switch (data.type) {
+      case 'image':
+        await this._processImageAssets(project, data);
+        break;
+      case 'video':
+        await this._processVideoAssets(project, data);
+        break;
+    }
+    await this.client.socket.send('jobRequest', request);
+    this.projects.push(project);
+    return project;
+  }
+
+  private async _processImageAssets(project: Project, data: ImageProjectParams) {
+    //Guide image
     if (data.startingImage && data.startingImage !== true) {
       await this.uploadGuideImage(project.id, data.startingImage);
     }
+
+    // ControlNet image
     if (data.controlNet?.image && data.controlNet.image !== true) {
       await this.uploadCNImage(project.id, data.controlNet.image);
     }
+
+    // Context images (Flux Kontext)
     if (data.contextImages?.length) {
       if (data.contextImages.length > 2) {
         throw new ApiError(500, {
@@ -386,10 +504,21 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         })
       );
     }
-    const request = createJobRequestMessage(project.id, data);
-    await this.client.socket.send('jobRequest', request);
-    this.projects.push(project);
-    return project;
+  }
+
+  private async _processVideoAssets(project: Project, data: VideoProjectParams) {
+    if (data?.referenceImage && data.referenceImage !== true) {
+      await this.uploadReferenceImage(project.id, data.referenceImage);
+    }
+    if (data?.referenceImageEnd && data.referenceImageEnd !== true) {
+      await this.uploadReferenceImageEnd(project.id, data.referenceImageEnd);
+    }
+    if (data?.referenceAudio && data.referenceAudio !== true) {
+      await this.uploadReferenceAudio(project.id, data.referenceAudio);
+    }
+    if (data?.referenceVideo && data.referenceVideo !== true) {
+      await this.uploadReferenceVideo(project.id, data.referenceVideo);
+    }
   }
 
   /**
@@ -424,7 +553,6 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     // Remove project from the list to stop tracking it
     this.projects = this.projects.filter((p) => p.id !== projectId);
-
     // Cancel all jobs in the project
     project.jobs.forEach((job) => {
       if (!job.finished) {
@@ -440,13 +568,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
     const presignedUrl = await this.uploadUrl({
-      imageId: imageId,
+      imageId,
       jobId: projectId,
       type: 'startingImage'
     });
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: file
+      body: toFetchBody(file)
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -461,13 +589,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async uploadCNImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
     const presignedUrl = await this.uploadUrl({
-      imageId: imageId,
+      imageId,
       jobId: projectId,
       type: 'cnImage'
     });
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: file
+      body: toFetchBody(file)
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -489,7 +617,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: file
+      body: toFetchBody(file)
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -500,6 +628,122 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     return imageId;
   }
+
+  // ============================================
+  // VIDEO WORKFLOW UPLOADS (WAN 2.2)
+  // ============================================
+
+  /**
+   * Upload reference image for WAN video workflows
+   * @internal
+   */
+  private async uploadReferenceImage(projectId: string, file: File | Buffer | Blob) {
+    const imageId = getUUID();
+    const presignedUrl = await this.uploadUrl({
+      imageId,
+      jobId: projectId,
+      type: 'referenceImage'
+    });
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: toFetchBody(file)
+    });
+    if (!res.ok) {
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: 'Failed to upload reference image'
+      });
+    }
+    return imageId;
+  }
+
+  /**
+   * Upload reference image end for i2v interpolation
+   * @internal
+   */
+  private async uploadReferenceImageEnd(projectId: string, file: File | Buffer | Blob) {
+    const imageId = getUUID();
+    const presignedUrl = await this.uploadUrl({
+      imageId,
+      jobId: projectId,
+      type: 'referenceImageEnd'
+    });
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: toFetchBody(file)
+    });
+    if (!res.ok) {
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: 'Failed to upload reference image end'
+      });
+    }
+    return imageId;
+  }
+
+  /**
+   * Upload reference audio for s2v workflows
+   * Supported formats: mp3, m4a, wav
+   * @internal
+   */
+  private async uploadReferenceAudio(projectId: string, file: File | Buffer | Blob) {
+    const contentType = getFileContentType(file);
+    const presignedUrl = await this.mediaUploadUrl({
+      jobId: projectId,
+      type: 'referenceAudio'
+    });
+    const headers: Record<string, string> = {};
+    if (contentType) {
+      headers['Content-Type'] = contentType;
+    }
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: toFetchBody(file),
+      headers
+    });
+    if (!res.ok) {
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: 'Failed to upload reference audio'
+      });
+    }
+  }
+
+  /**
+   * Upload reference video for animate workflows
+   * Supported formats: mp4, mov
+   * @internal
+   */
+  private async uploadReferenceVideo(projectId: string, file: File | Buffer | Blob) {
+    const contentType = getFileContentType(file);
+    const presignedUrl = await this.mediaUploadUrl({
+      jobId: projectId,
+      type: 'referenceVideo'
+    });
+    const headers: Record<string, string> = {};
+    if (contentType) {
+      headers['Content-Type'] = contentType;
+    }
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: toFetchBody(file),
+      headers
+    });
+    if (!res.ok) {
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: 'Failed to upload reference video'
+      });
+    }
+  }
+
+  // ============================================
+  // COST ESTIMATION
+  // ============================================
 
   /**
    * Estimate project cost
@@ -522,7 +766,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const pathParams = [
-      tokenType || 'sogni',
+      tokenType || 'spark',
       network,
       model,
       imageCount,
@@ -560,7 +804,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     };
   }
 
-  async estimateEnhancementCost(strength: EnhancementStrength, tokenType: TokenType = 'sogni') {
+  async estimateEnhancementCost(strength: EnhancementStrength, tokenType: TokenType = 'spark') {
     return this.estimateCost({
       network: enhancementDefaults.network,
       tokenType,
@@ -573,10 +817,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
   }
 
+  // ============================================
+  // URL HELPERS
+  // ============================================
+
   /**
    * Get upload URL for image
    * @internal
-   * @param params
    */
   async uploadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiResponse<{ uploadUrl: string }>>(
@@ -589,7 +836,6 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   /**
    * Get download URL for image
    * @internal
-   * @param params
    */
   async downloadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiResponse<{ downloadUrl: string }>>(
@@ -598,6 +844,34 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     );
     return r.data.downloadUrl;
   }
+
+  /**
+   * Get upload URL for media (video/audio)
+   * @internal
+   */
+  async mediaUploadUrl(params: MediaUrlParams) {
+    const r = await this.client.rest.get<ApiResponse<{ uploadUrl: string }>>(
+      `/v1/media/uploadUrl`,
+      params
+    );
+    return r.data.uploadUrl;
+  }
+
+  /**
+   * Get download URL for media (video/audio)
+   * @internal
+   */
+  async mediaDownloadUrl(params: MediaUrlParams) {
+    const r = await this.client.rest.get<ApiResponse<{ downloadUrl: string }>>(
+      `/v1/media/downloadUrl`,
+      params
+    );
+    return r.data.downloadUrl;
+  }
+
+  // ============================================
+  // MODEL/PRESET HELPERS
+  // ============================================
 
   async getSupportedModels(forceRefresh = false) {
     if (
@@ -617,7 +891,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *
    * @example
    * ```ts
-   * const presets = await client.projects.getSizePresets('fast', 'flux1-schnell-fp8');
+   * const presets = await sogni.projects.getSizePresets('fast', 'flux1-schnell-fp8');
    * console.log(presets);
    * ```
    *
@@ -647,6 +921,49 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
+   * Retrieves the video asset configuration for a given video model identifier.
+   * Validates whether the provided model ID corresponds to a video model. If it does,
+   * returns the appropriate video asset configuration based on the workflow type.
+   *
+   * @example Returned object for a model that implements image to video workflow:
+   * ```json
+   * {
+   *   "workflowType": "i2v",
+   *   "assets": {
+   *     "referenceImage": "required",
+   *     "referenceImageEnd": "optional",
+   *     "referenceAudio": "forbidden",
+   *     "referenceVideo": "forbidden"
+   *   }
+   * }
+   * ```
+   *
+   * @param {string} modelId - The identifier of the video model to retrieve the configuration for.
+   * @return {Object} The video asset configuration object where key is asset field and value is
+   * either `required`, `forbidden` or `optional`. Returns `null` if no rules defined for the model.
+   * @throws {ApiError} Throws an error if the provided model ID is not a video model.
+   */
+  async getVideoAssetConfig(modelId: string) {
+    if (!this.isVideoModelId(modelId)) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `Model ${modelId} is not a video model`
+      });
+    }
+    const workflow = getVideoWorkflowType(modelId);
+    if (!workflow) {
+      return {
+        workflowType: null
+      };
+    }
+    return {
+      workflowType: workflow,
+      assets: VIDEO_WORKFLOW_ASSETS[workflow]
+    };
+  }
+
+  /**
    * Get available models and their worker counts. Normally, you would get list once you connect
    * to the server, but you can also call this method to get the list of available models manually.
    * @param network
@@ -662,7 +979,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       return {
         id: model?.id || sid,
         name: model?.name || sid.replace(/-/g, ' '),
-        workerCount
+        workerCount,
+        media: model?.media || 'image'
       };
     });
   }

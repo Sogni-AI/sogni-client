@@ -1,0 +1,17 @@
+{
+  "name": "sogni-examples",
+  "version": "1.0.0",
+  "description": "Examples for Sogni Client SDK",
+  "type": "module",
+  "scripts": {
+    "t2v": "node video_text_to_video.mjs",
+    "i2v": "node video_image_to_video.mjs"
+  },
+  "dependencies": {
+    "image-size": "^1.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+

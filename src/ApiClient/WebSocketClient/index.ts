@@ -148,9 +148,16 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   private handleClose(e: CloseEvent) {
-    if (e.target === this.socket || !this.socket) {
+    const socket = e.target;
+    socket.onerror = null;
+    socket.onmessage = null;
+    socket.onopen = null;
+    if (socket === this.socket || !this.socket) {
       this._logger.info('WebSocket disconnected, cleanup', e);
-      this.disconnect();
+      if (socket === this.socket) {
+        this.stopPing();
+        this.socket = null;
+      }
       this.emit('disconnected', {
         code: e.code,
         reason: e.reason
@@ -193,6 +200,9 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]) {
+    if (!this.isConnected) {
+      await this.connect();
+    }
     await this.waitForConnection();
     this._logger.debug('WebSocket send:', messageType, data);
     this.socket!.send(

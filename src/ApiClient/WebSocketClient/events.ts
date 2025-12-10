@@ -48,6 +48,12 @@ export type JobProgressData = {
   stepCount: number;
 };
 
+export type JobETAData = {
+  jobID: string;
+  imgID?: string;
+  etaSeconds: number;
+};
+
 export type JobResultData = {
   jobID: string;
   imgID: string;
@@ -121,6 +127,11 @@ export type SocketEventMap = {
    * @event WebSocketClient#jobProgress - Job progress update
    */
   jobProgress: JobProgressData;
+  /**
+   * @event WebSocketClient#jobETA - Job ETA update (sent every second during inference by ComfyUI workers)
+   * Note: Only available for ComfyUI-based workers during video generation
+   */
+  jobETA: JobETAData;
   /**
    * @event WebSocketClient#jobResult - Job result received
    */

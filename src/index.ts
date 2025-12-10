@@ -14,12 +14,18 @@ import Job, { JobStatus } from './Projects/Job';
 import Project, { ProjectStatus } from './Projects/Project';
 import {
   AvailableModel,
-  OutputFormat,
+  ImageProjectParams,
+  ImageOutputFormat,
   ProjectParams,
   Sampler,
   Scheduler,
   SupportedSamplers,
-  SupportedSchedulers
+  SupportedSchedulers,
+  VideoProjectParams,
+  AudioFormat,
+  VideoFormat,
+  VideoOutputFormat,
+  VideoWorkflowType
 } from './Projects/types';
 // Stats API
 import StatsApi from './Stats';
@@ -30,18 +36,24 @@ import { CookieAuthManager, TokenAuthData, TokenAuthManager } from './lib/AuthMa
 import { MeData } from './Account/types';
 
 export type {
+  AudioFormat,
   AvailableModel,
   ErrorData,
+  ImageProjectParams,
+  ImageOutputFormat,
   JobStatus,
   Logger,
   LogLevel,
-  OutputFormat,
   ProjectParams,
   ProjectStatus,
   Sampler,
   SupernetType,
   Scheduler,
-  TokenType
+  TokenType,
+  VideoFormat,
+  VideoOutputFormat,
+  VideoProjectParams,
+  VideoWorkflowType
 };
 
 export { ApiError, CurrentAccount, Job, Project, SupportedSamplers, SupportedSchedulers };

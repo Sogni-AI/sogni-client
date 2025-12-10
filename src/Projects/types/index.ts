@@ -8,12 +8,20 @@ export interface SupportedModel {
   id: string;
   name: string;
   SID: number;
+  /**
+   * Media type produced by this model: 'image' or 'video'
+   */
+  media: 'image' | 'video';
 }
 
 export interface AvailableModel {
   id: string;
   name: string;
   workerCount: number;
+  /**
+   * Media type produced by this model: 'image' or 'video'
+   */
+  media: 'image' | 'video';
 }
 
 export interface SizePreset {
@@ -29,15 +37,18 @@ export type { Sampler, Scheduler };
 
 export { SupportedSamplers, SupportedSchedulers };
 
-export type OutputFormat = 'png' | 'jpg';
+export type ImageOutputFormat = 'png' | 'jpg';
+export type VideoOutputFormat = 'mp4';
 
-export type InputImage = File | Buffer | Blob | boolean;
-
-export interface ProjectParams {
+export interface BaseProjectParams {
   /**
    * ID of the model to use, available models are available in the `availableModels` property of the `ProjectsApi` instance.
    */
   modelId: string;
+  /**
+   * Number of media files to generate. Depending on project type, this can be number of images or number of videos.
+   */
+  numberOfMedia: number;
   /**
    * Prompt for what to be created
    */
@@ -59,7 +70,7 @@ export interface ProjectParams {
    */
   guidance: number;
   /**
-   * Override current network type. Default value can be read from `client.account.currentAccount.network`
+   * Override current network type. Default value can be read from `sogni.account.currentAccount.network`
    */
   network?: SupernetType;
   /**
@@ -72,35 +83,89 @@ export interface ProjectParams {
    */
   seed?: number;
   /**
-   * Number of images to generate
+   * Select which tokens to use for the project.
+   * If not specified, the Sogni token will be used.
    */
-  numberOfImages: number;
+  tokenType?: TokenType;
+}
+
+export type InputMedia = File | Buffer | Blob | boolean;
+
+/**
+ * Video-specific parameters for video workflows (t2v, i2v, s2v, animate).
+ * Only applicable when using video models like wan_v2.2-14b-fp8_t2v.
+ * Includes frame count, fps, shift, and reference assets (image, audio, video).
+ */
+export interface VideoProjectParams extends BaseProjectParams {
+  type: 'video';
   /**
-   * Generate images based on the starting image.
+   * Number of frames to generate
+   */
+  frames?: number;
+  /**
+   * Frames per second for output video
+   */
+  fps?: number;
+  /**
+   * Shift parameter for video diffusion models
+   */
+  shift?: number;
+  /**
+   * Reference image for WAN video workflows.
+   * Maps to: startImage (i2v), characterImage (animate), referenceImage (s2v)
+   */
+  referenceImage?: InputMedia;
+  /**
+   * Optional end image for i2v interpolation workflows.
+   * When provided with referenceImage, the video will interpolate between the two images.
+   */
+  referenceImageEnd?: InputMedia;
+  /**
+   * Reference audio for s2v (sound-to-video) workflows.
+   */
+  referenceAudio?: InputMedia;
+  /**
+   * Reference video for animate workflows.
+   * Maps to: drivingVideo (animate-move), sourceVideo (animate-replace)
+   */
+  referenceVideo?: InputMedia;
+  /**
+   * Output video width. Only used if `sizePreset` is "custom"
+   */
+  width?: number;
+  /**
+   * Output video height. Only used if `sizePreset` is "custom"
+   */
+  height?: number;
+  /**
+   * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
+   */
+  outputFormat?: VideoOutputFormat;
+}
+
+export interface ImageProjectParams extends BaseProjectParams {
+  type: 'image';
+  /**
+   * Number of previews to generate. Note that previews affect project cost
+   */
+  numberOfPreviews?: number;
+  /**
+   * Starting image for img2img workflows.
    * Supported types:
    * `File` - file object from input[type=file]
    * `Buffer` - Node.js buffer object with image data
    * `Blob` - blob object with image data
    * `true` - indicates that the image is already uploaded to the server
    */
-  startingImage?: InputImage;
+  startingImage?: InputMedia;
   /**
    * How strong effect of starting image should be. From 0 to 1, default 0.5
    */
   startingImageStrength?: number;
   /**
    * Context images for Flux Kontext model. Flux Kontext support up to 2 context images.
-   * Supported types:
-   * `File` - file object from input[type=file]
-   * `Buffer` - Node.js buffer object with image data
-   * `Blob` - blob object with image data
-   * `true` - indicates that the image is already uploaded to the server
    */
-  contextImages?: InputImage[];
-  /**
-   * Number of previews to generate. Note that previews affect project cost\
-   */
-  numberOfPreviews?: number;
+  contextImages?: InputMedia[];
   /**
    * Scheduler to use
    */
@@ -111,7 +176,7 @@ export interface ProjectParams {
   scheduler?: Scheduler;
   /**
    * Size preset ID to use. You can query available size presets
-   * from `client.projects.sizePresets(network, modelId)`
+   * from `sogni.projects.sizePresets(network, modelId)`
    */
   sizePreset?: 'custom' | string;
   /**
@@ -127,23 +192,56 @@ export interface ProjectParams {
    */
   controlNet?: ControlNetParams;
   /**
-   * Select which tokens to use for the project.
-   * If not specified, the Sogni token will be used.
+   * Output format. Can be 'png' or 'jpg'. Defaults to 'png'.
    */
-  tokenType?: TokenType;
-  /**
-   * Output image format. Can be 'png' or 'jpg'.
-   * If not specified, 'png' will be used.
-   */
-  outputFormat?: OutputFormat;
+  outputFormat?: ImageOutputFormat;
 }
 
+export type ProjectParams = ImageProjectParams | VideoProjectParams;
+
+export function isVideoParams(params: ProjectParams): params is VideoProjectParams {
+  return params.type === 'video';
+}
+
+export function isImageParams(params: ProjectParams): params is ImageProjectParams {
+  return params.type === 'image';
+}
+
+/**
+ * Supported audio formats
+ */
+export type AudioFormat = 'm4a' | 'mp3' | 'wav';
+
+/**
+ * Supported video formats
+ */
+export type VideoFormat = 'mp4' | 'mov';
+
+/**
+ * Parameters for image asset URL requests (upload/download)
+ */
 export type ImageUrlParams = {
   imageId: string;
   jobId: string;
-  type: 'preview' | 'complete' | 'startingImage' | 'cnImage' | 'contextImage1' | 'contextImage2';
-  // This seems to be unused currently
+  type:
+    | 'preview'
+    | 'complete'
+    | 'startingImage'
+    | 'cnImage'
+    | 'contextImage1'
+    | 'contextImage2'
+    | 'referenceImage'
+    | 'referenceImageEnd';
   startContentType?: string;
+};
+
+/**
+ * Parameters for media asset URL requests (video/audio upload/download)
+ */
+export type MediaUrlParams = {
+  id?: string;
+  jobId: string;
+  type: 'complete' | 'preview' | 'referenceAudio' | 'referenceVideo';
 };
 
 export interface EstimateRequest {
@@ -223,3 +321,16 @@ export interface CostEstimation {
 }
 
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
+
+/**
+ * Video workflow types for WAN models
+ */
+export type VideoWorkflowType = 't2v' | 'i2v' | 's2v' | 'animate-move' | 'animate-replace' | null;
+
+export type AssetRequirement = 'required' | 'optional' | 'forbidden';
+
+export type VideoAssetKey =
+  | 'referenceImage'
+  | 'referenceImageEnd'
+  | 'referenceAudio'
+  | 'referenceVideo';
