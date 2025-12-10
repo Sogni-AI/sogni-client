@@ -8,6 +8,7 @@
     "i2v": "node video_image_to_video.mjs"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "image-size": "^1.1.1"
   },
   "engines": {
