@@ -404,7 +404,7 @@ async function main() {
     const proceed = await askQuestion('Proceed with generation? [Y/n]: ');
     if (proceed.toLowerCase() === 'n' || proceed.toLowerCase() === 'no') {
       log('❌', 'Job cancelled by user');
-      await client.disconnect();
+      await client.account.logout();
       process.exit(0);
     }
 
@@ -525,12 +525,12 @@ async function main() {
     openFile(savePath);
 
     // Cleanup
-    await client.disconnect();
+    await client.account.logout();
   } catch (error) {
     console.error();
     log('❌', `Error: ${error.message}`);
     try {
-      await client.disconnect();
+      await client.account.logout();
     } catch {
       // Ignore disconnect errors
     }
