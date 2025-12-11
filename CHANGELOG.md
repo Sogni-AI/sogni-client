@@ -1,3 +1,11 @@
+# [4.0.0-alpha.23](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.22...v4.0.0-alpha.23) (2025-12-10)
+
+
+### Features
+
+* Add credential management system for video examples ([e7fc1ab](https://github.com/Sogni-AI/sogni-client/commit/e7fc1abf85d32995c64c48a5f861cb3f99a4793b))
+* Enhance video example scripts with improved UX ([6a70c26](https://github.com/Sogni-AI/sogni-client/commit/6a70c26e2b30b5be7bcae88171bbd3956bbe91af))
+
 # [4.0.0-alpha.22](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.21...v4.0.0-alpha.22) (2025-12-10)
 
 
