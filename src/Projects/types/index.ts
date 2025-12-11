@@ -62,13 +62,13 @@ export interface BaseProjectParams {
    */
   stylePrompt: string;
   /**
-   * Number of steps. For most Stable Diffusion models, optimal value is 20
+   * Number of steps. For most Stable Diffusion models, optimal value is 20.
    */
-  steps: number;
+  steps?: number;
   /**
-   * Guidance scale. For most Stable Diffusion models, optimal value is 7.5
+   * Guidance scale. For most Stable Diffusion models, optimal value is 7.5.
    */
-  guidance: number;
+  guidance?: number;
   /**
    * Override current network type. Default value can be read from `sogni.account.currentAccount.network`
    */

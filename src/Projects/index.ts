@@ -343,7 +343,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         projectId: event.projectId,
         status: 'pending',
         step: 0,
-        stepCount: project.params.steps
+        stepCount: project.params.steps ?? 0
       });
     }
     switch (event.type) {

@@ -114,10 +114,10 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    */
   get progress() {
     // Worker can reduce the number of steps in the job, so we need to calculate the progress based on the actual number of steps
-    const stepsPerJob = this.jobs.length ? this.jobs[0].stepCount : this.data.params.steps;
+    const stepsPerJob = this.jobs.length ? this.jobs[0].stepCount : (this.data.params.steps ?? 0);
     const jobCount = this.data.params.numberOfMedia;
     const stepsDone = this._jobs.reduce((acc, job) => acc + job.step, 0);
-    return Math.round((stepsDone / (stepsPerJob * jobCount)) * 100);
+    return Math.round((stepsDone / ((stepsPerJob ?? 1) * jobCount)) * 100);
   }
 
   get queuePosition() {
