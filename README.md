@@ -85,9 +85,25 @@ const models = await sogni.projects.waitForModels();
 After calling `login` method, the client will establish a WebSocket connection to Sogni Supernet. Within a short period of time the
 client will receive the current balance and list of available models. After this you can start using the client to generate images or videos.
 
-### Image Generation
+It is advised to watch for `connected` and `disconnected` events on the client instance to be notified when the connection is established or lost:
+```typescript
+// Will be triggered when the client is connected to Supernet
+sogni.client.on('connected', ({network}) => {
+  console.log('Connected to Supernet:', network);
+});
 
-#### Creating an image project
+// Will be triggered when websocket connection is lost or the client is disconnected from Supernet
+sogni.client.on('disconnected', ({code, reason}) => {
+  console.log('Disconnected from Supernet:', code, reason);
+});
+```
+
+## Image Generation
+
+Sogni supports wide range of models for image generation. You can find a list of available models in 
+`sogni.projects.availableModels` property or query it using `sogni.projects.getAvailableModels()` method.
+
+### Creating an image project
 ```javascript
 // Find model that has the most workers
 const mostPopularModel = sogni.projects.availableModels.reduce((a, b) =>
