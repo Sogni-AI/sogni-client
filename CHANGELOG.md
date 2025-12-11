@@ -1,3 +1,10 @@
+# [4.0.0-alpha.24](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.23...v4.0.0-alpha.24) (2025-12-11)
+
+
+### Features
+
+* final round of doc / example enhancements with new steps support for Wan video models ([95d5dfb](https://github.com/Sogni-AI/sogni-client/commit/95d5dfb61d5ed2878c04cd6cf7a0d75d9d0754e1))
+
 # [4.0.0-alpha.23](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.22...v4.0.0-alpha.23) (2025-12-10)
 
 
