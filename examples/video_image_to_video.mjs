@@ -62,6 +62,7 @@ function parseArgs() {
     frames: 81,
     model: null, // Will prompt for speed/quality if not specified
     modelExplicit: false,
+    steps: null, // Will default based on model variant
     output: './videos',
     seed: Math.floor(Math.random() * 2147483647) // Random seed by default
   };
@@ -80,6 +81,7 @@ Options:
   --height <n>   Video height (default: auto-detect from image)
   --fps <n>      Frames per second: 16 or 32 (default: 16)
   --frames <n>   Number of frames, 17-161 (default: 81 = 5s at 16fps)
+  --steps <n>    Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
   --model <id>   Model ID (prompts for speed/quality if not specified)
   --output <dir> Output directory (default: ./videos)
   --seed <n>     Random seed for reproducibility (default: random)
@@ -92,7 +94,7 @@ Models:
 Examples:
   node video_image_to_video.mjs --image cat.jpg "camera pans left"
   node video_image_to_video.mjs --image landscape.png "zoom in" --width 768 --height 512
-  node video_image_to_video.mjs --image photo.jpg --fps 32 --frames 161
+  node video_image_to_video.mjs --image photo.jpg --fps 32 --frames 161 --steps 6
 `);
       process.exit(0);
     } else if (arg === '--image' && args[i + 1]) {
@@ -105,6 +107,8 @@ Examples:
       options.fps = parseInt(args[++i], 10);
     } else if (arg === '--frames' && args[i + 1]) {
       options.frames = parseInt(args[++i], 10);
+    } else if (arg === '--steps' && args[i + 1]) {
+      options.steps = parseInt(args[++i], 10);
     } else if (arg === '--model' && args[i + 1]) {
       options.model = args[++i];
       options.modelExplicit = true;
@@ -197,7 +201,7 @@ function askQuestion(question) {
 }
 
 /**
- * Interactively pick an image file from current directory
+ * Interactively pick an image file from test-assets directory
  */
 async function pickImageFile(defaultImage) {
   // If image was provided via CLI, use it
@@ -205,7 +209,14 @@ async function pickImageFile(defaultImage) {
     return defaultImage;
   }
 
-  // If input.png exists, use it
+  // Check test-assets directory first
+  const scanDir = './test-assets';
+  if (fs.existsSync(`${scanDir}/placeholder.jpg`)) {
+    log('🖼️', 'Found placeholder.jpg in test-assets, using as source image');
+    return `${scanDir}/placeholder.jpg`;
+  }
+
+  // If input.png exists in current directory, use it
   if (fs.existsSync('input.png')) {
     log('🖼️', 'Found input.png, using as source image');
     return 'input.png';
@@ -214,23 +225,38 @@ async function pickImageFile(defaultImage) {
   // If not TTY, error out
   if (!process.stdin.isTTY) {
     throw new Error(
-      'No input image specified. Use --image <path> or place input.png in current directory.'
+      'No input image specified. Use --image <path> or place an image in test-assets directory.'
     );
   }
 
-  // List available image files
-  const imageFiles = fs
-    .readdirSync('.')
-    .filter((f) => /\.(jpg|jpeg|png|webp|gif)$/i.test(f))
-    .sort();
+  // List available image files from test-assets directory (if it exists)
+  let imageFiles = [];
+  let selectedDir = '.';
+
+  if (fs.existsSync(scanDir)) {
+    imageFiles = fs
+      .readdirSync(scanDir)
+      .filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f))
+      .sort();
+    selectedDir = scanDir;
+  }
+
+  // If no files in test-assets, check current directory
+  if (imageFiles.length === 0) {
+    imageFiles = fs
+      .readdirSync('.')
+      .filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f))
+      .sort();
+    selectedDir = '.';
+  }
 
   if (imageFiles.length === 0) {
     throw new Error(
-      'No image files found in current directory. Use --image <path> to specify an image.'
+      'No image files found. Use --image <path> to specify an image.'
     );
   }
 
-  console.log('\n🖼️  Select an image file:\n');
+  console.log(`\n🖼️  Select an image file from ${selectedDir}:\n`);
   imageFiles.forEach((file, i) => {
     console.log(`  ${i + 1}. ${file}`);
   });
@@ -243,7 +269,7 @@ async function pickImageFile(defaultImage) {
     throw new Error('Invalid choice');
   }
 
-  const selectedFile = imageFiles[choice - 1];
+  const selectedFile = selectedDir === '.' ? imageFiles[choice - 1] : `${selectedDir}/${imageFiles[choice - 1]}`;
   console.log(`  → Using ${selectedFile}\n`);
   return selectedFile;
 }
@@ -320,6 +346,29 @@ async function main() {
     VIDEO_MODEL_ID = await askSpeedOrQuality();
   }
 
+  // Determine if using speed (LoRA) variant
+  const isSpeedVariant = VIDEO_MODEL_ID.includes('lightx2v');
+
+  // Set and validate steps based on model variant
+  let steps = OPTIONS.steps;
+  if (steps === null) {
+    // Apply defaults
+    steps = isSpeedVariant ? 4 : 25;
+  } else {
+    // Validate user-provided steps
+    if (isSpeedVariant) {
+      if (steps < 4 || steps > 8) {
+        console.error(`Error: For speed variant (LightX2V), steps must be between 4 and 8 (got ${steps})`);
+        process.exit(1);
+      }
+    } else {
+      if (steps < 20 || steps > 40) {
+        console.error(`Error: For quality variant, steps must be between 20 and 40 (got ${steps})`);
+        process.exit(1);
+      }
+    }
+  }
+
   // Pick image file
   const imagePath = await pickImageFile(INPUT_IMAGE);
   const resolvedImagePath = path.resolve(imagePath);
@@ -361,14 +410,31 @@ async function main() {
     }
   }
 
-  // Initialize client (point to local with testnet for debug logging)
+  // Initialize client
   const APP_ID = `${USERNAME || 'user'}-i2v-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   console.log(`\n🔎 Using appId: ${APP_ID}\n`);
-  const sogni = await SogniClient.createInstance({
-    // add random suffix to avoid 4015 duplicate app-id boots
+
+  // Load optional configuration from environment
+  const testnet = process.env.SOGNI_TESTNET === 'true';
+  const socketEndpoint = process.env.SOGNI_SOCKET_ENDPOINT;
+  const restEndpoint = process.env.SOGNI_REST_ENDPOINT;
+
+  // Only disable SSL verification if testnet is enabled
+  if (testnet) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  }
+
+  const clientConfig = {
     appId: APP_ID,
     network: 'fast'
-  });
+  };
+
+  // Only add optional configs if they're set in environment
+  if (testnet) clientConfig.testnet = testnet;
+  if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
+  if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
+
+  const sogni = await SogniClient.createInstance(clientConfig);
 
   let projectEventHandler;
   let jobEventHandler;
@@ -479,6 +545,9 @@ async function main() {
       `│ ${'Duration:'.padEnd(labelWidth)}${(Math.floor((VIDEO_CONFIG.frames - 1) / VIDEO_CONFIG.fps) + 's at ' + VIDEO_CONFIG.fps + 'fps').padEnd(boxWidth - labelWidth - 2)} │`
     );
     console.log(
+      `│ ${'Steps:'.padEnd(labelWidth)}${String(steps).padEnd(boxWidth - labelWidth - 2)} │`
+    );
+    console.log(
       `│ ${'Seed:'.padEnd(labelWidth)}${String(SEED).padEnd(boxWidth - labelWidth - 2)} │`
     );
     
@@ -533,6 +602,7 @@ async function main() {
       negativePrompt: '',
       stylePrompt: '',
       numberOfMedia: 1,
+      steps: steps,
       seed: SEED,
       width: WIDTH,
       height: HEIGHT,

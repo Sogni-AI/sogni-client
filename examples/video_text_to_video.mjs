@@ -58,6 +58,7 @@ function parseArgs() {
     frames: 81,
     model: null, // Will prompt for speed/quality if not specified
     modelExplicit: false,
+    steps: null, // Will default based on model variant
     output: './videos',
     seed: Math.floor(Math.random() * 2147483647) // Random seed by default
   };
@@ -75,6 +76,7 @@ Options:
   --height <n>   Video height (default: 512)
   --fps <n>      Frames per second: 16 or 32 (default: 16)
   --frames <n>   Number of frames, 17-161 (default: 81 = 5s at 16fps)
+  --steps <n>    Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
   --model <id>   Model ID (prompts for speed/quality if not specified)
   --output <dir> Output directory (default: ./videos)
   --seed <n>     Random seed for reproducibility (default: random)
@@ -87,7 +89,7 @@ Models:
 Examples:
   node video_text_to_video.mjs "A cat playing piano"
   node video_text_to_video.mjs "A sunset over mountains" --width 768 --height 512
-  node video_text_to_video.mjs "Ocean waves" --fps 32 --frames 161
+  node video_text_to_video.mjs "Ocean waves" --fps 32 --frames 161 --steps 4
   node video_text_to_video.mjs "A robot" --seed 12345
 `);
       process.exit(0);
@@ -99,6 +101,8 @@ Examples:
       options.fps = parseInt(args[++i], 10);
     } else if (arg === '--frames' && args[i + 1]) {
       options.frames = parseInt(args[++i], 10);
+    } else if (arg === '--steps' && args[i + 1]) {
+      options.steps = parseInt(args[++i], 10);
     } else if (arg === '--model' && args[i + 1]) {
       options.model = args[++i];
       options.modelExplicit = true;
@@ -269,14 +273,54 @@ async function main() {
     VIDEO_MODEL_ID = await askSpeedOrQuality();
   }
 
-  // Initialize client (point to local with testnet for debug logging)
+  // Determine if using speed (LoRA) variant
+  const isSpeedVariant = VIDEO_MODEL_ID.includes('lightx2v');
+
+  // Set and validate steps based on model variant
+  let steps = OPTIONS.steps;
+  if (steps === null) {
+    // Apply defaults
+    steps = isSpeedVariant ? 4 : 25;
+  } else {
+    // Validate user-provided steps
+    if (isSpeedVariant) {
+      if (steps < 4 || steps > 8) {
+        console.error(`Error: For speed variant (LightX2V), steps must be between 4 and 8 (got ${steps})`);
+        process.exit(1);
+      }
+    } else {
+      if (steps < 20 || steps > 40) {
+        console.error(`Error: For quality variant, steps must be between 20 and 40 (got ${steps})`);
+        process.exit(1);
+      }
+    }
+  }
+
+  // Initialize client
   const APP_ID = `${USERNAME || 'user'}-t2v-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   console.log(`\n🔎 Using appId: ${APP_ID}\n`);
-  const sogni = await SogniClient.createInstance({
-    // add random suffix to avoid 4015 duplicate app-id boots
+
+  // Load optional configuration from environment
+  const testnet = process.env.SOGNI_TESTNET === 'true';
+  const socketEndpoint = process.env.SOGNI_SOCKET_ENDPOINT;
+  const restEndpoint = process.env.SOGNI_REST_ENDPOINT;
+
+  // Only disable SSL verification if testnet is enabled
+  if (testnet) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  }
+
+  const clientConfig = {
     appId: APP_ID,
     network: 'fast'
-  });
+  };
+
+  // Only add optional configs if they're set in environment
+  if (testnet) clientConfig.testnet = testnet;
+  if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
+  if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
+
+  const sogni = await SogniClient.createInstance(clientConfig);
 
   let projectEventHandler;
   let jobEventHandler;
@@ -387,6 +431,9 @@ async function main() {
       `│ ${'Duration:'.padEnd(labelWidth)}${(Math.floor((VIDEO_CONFIG.frames - 1) / VIDEO_CONFIG.fps) + 's at ' + VIDEO_CONFIG.fps + 'fps').padEnd(boxWidth - labelWidth - 2)} │`
     );
     console.log(
+      `│ ${'Steps:'.padEnd(labelWidth)}${String(steps).padEnd(boxWidth - labelWidth - 2)} │`
+    );
+    console.log(
       `│ ${'Seed:'.padEnd(labelWidth)}${String(SEED).padEnd(boxWidth - labelWidth - 2)} │`
     );
     console.log('└─────────────────────────────────────────────────────────┘');
@@ -420,6 +467,7 @@ async function main() {
       negativePrompt: '',
       stylePrompt: '',
       numberOfMedia: 1,
+      steps: steps,
       seed: SEED,
       width: WIDTH,
       height: HEIGHT,
