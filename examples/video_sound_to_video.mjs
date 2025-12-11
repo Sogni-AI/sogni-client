@@ -13,12 +13,21 @@
  * Usage:
  *   node video_sound_to_video.mjs
  *   node video_sound_to_video.mjs --model wan_v2.2-14b-fp8_s2v_lightx2v
+ *   node video_sound_to_video.mjs --width 640 --height 480
+ *
+ * Options:
+ *   --model <id>   Model ID (prompts for speed/quality if not specified)
+ *   --steps <n>    Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
+ *   --width <n>    Video width (default: auto-detect from reference media)
+ *   --height <n>   Video height (default: auto-detect from reference media)
  */
 
 import * as fs from 'node:fs';
 import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
+import { exec } from 'node:child_process';
 import * as readline from 'node:readline';
+import imageSize from 'image-size';
 // When running from the repo, import from local dist
 // When published to npm, users would import from '@sogni-ai/sogni-client'
 import { SogniClient } from '../dist/index.js';
@@ -41,10 +50,16 @@ const args = process.argv.slice(2);
 const modelArg = args.find((arg, i) => arg === '--model' && args[i + 1]);
 const MODEL_EXPLICIT = !!modelArg;
 let VIDEO_MODEL_ID = modelArg ? args[args.indexOf(modelArg) + 1] : null;
+const stepsArg = args.find((arg, i) => arg === '--steps' && args[i + 1]);
+let STEPS_EXPLICIT = stepsArg ? parseInt(args[args.indexOf(stepsArg) + 1], 10) : null;
+const widthArg = args.find((arg, i) => arg === '--width' && args[i + 1]);
+let WIDTH = widthArg ? parseInt(args[args.indexOf(widthArg) + 1], 10) : null;
+const heightArg = args.find((arg, i) => arg === '--height' && args[i + 1]);
+let HEIGHT = heightArg ? parseInt(args[args.indexOf(heightArg) + 1], 10) : null;
 
 // Reference assets for s2v workflow
-const REFERENCE_IMAGE = './examples/test-assets/placeholder.jpg';
-const REFERENCE_AUDIO = './examples/test-assets/placeholder.m4a';
+const REFERENCE_IMAGE = './test-assets/placeholder.jpg';
+const REFERENCE_AUDIO = './test-assets/placeholder.m4a';
 
 const VIDEO_CONFIG = {
   fps: 16,
@@ -141,6 +156,141 @@ function log(emoji, message) {
   console.log(`${emoji} ${message}`);
 }
 
+/**
+ * Get image dimensions using image-size library
+ */
+function getImageDimensions(imagePath) {
+  try {
+    const dimensions = imageSize(imagePath);
+    if (dimensions.width && dimensions.height) {
+      return { width: dimensions.width, height: dimensions.height };
+    }
+    return null;
+  } catch (error) {
+    console.warn(`⚠️  Could not extract image dimensions: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Open a file with the default system application
+ */
+function openFile(filePath) {
+  const command =
+    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+  exec(`${command} "${filePath}"`, (error) => {
+    if (error) {
+      log('⚠️', `Could not auto-open file: ${error.message}`);
+    }
+  });
+}
+
+/**
+ * Interactively pick an image file from test-assets directory
+ */
+async function pickImageFile(defaultImage, label = 'reference image') {
+  // If image was provided and exists, use it
+  if (defaultImage && fs.existsSync(defaultImage)) {
+    return defaultImage;
+  }
+
+  // If not TTY, error out
+  if (!process.stdin.isTTY) {
+    throw new Error(
+      `No ${label} found at ${defaultImage}. Please ensure the file exists.`
+    );
+  }
+
+  // List available image files from test-assets directory
+  const scanDir = './test-assets';
+  if (!fs.existsSync(scanDir)) {
+    throw new Error(
+      `Directory ${scanDir} not found. Please ensure test-assets directory exists.`
+    );
+  }
+
+  const imageFiles = fs
+    .readdirSync(scanDir)
+    .filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f))
+    .sort();
+
+  if (imageFiles.length === 0) {
+    throw new Error(
+      `No image files found in ${scanDir}. Please place an image file in the test-assets directory.`
+    );
+  }
+
+  console.log(`\n🖼️  Select a ${label} from ${scanDir}:\n`);
+  imageFiles.forEach((file, i) => {
+    console.log(`  ${i + 1}. ${file}`);
+  });
+  console.log();
+
+  const answer = await askQuestion(`Enter choice [1-${imageFiles.length}]: `);
+  const choice = parseInt(answer, 10);
+
+  if (isNaN(choice) || choice < 1 || choice > imageFiles.length) {
+    throw new Error('Invalid choice');
+  }
+
+  const selectedFile = `${scanDir}/${imageFiles[choice - 1]}`;
+  console.log(`  → Using ${selectedFile}\n`);
+  return selectedFile;
+}
+
+/**
+ * Interactively pick an audio file from test-assets directory
+ */
+async function pickAudioFile(defaultAudio, label = 'reference audio') {
+  // If audio was provided and exists, use it
+  if (defaultAudio && fs.existsSync(defaultAudio)) {
+    return defaultAudio;
+  }
+
+  // If not TTY, error out
+  if (!process.stdin.isTTY) {
+    throw new Error(
+      `No ${label} found at ${defaultAudio}. Please ensure the file exists.`
+    );
+  }
+
+  // List available audio files from test-assets directory
+  const scanDir = './test-assets';
+  if (!fs.existsSync(scanDir)) {
+    throw new Error(
+      `Directory ${scanDir} not found. Please ensure test-assets directory exists.`
+    );
+  }
+
+  const audioFiles = fs
+    .readdirSync(scanDir)
+    .filter((f) => /\.(mp3|m4a|wav|ogg|aac|flac)$/i.test(f))
+    .sort();
+
+  if (audioFiles.length === 0) {
+    throw new Error(
+      `No audio files found in ${scanDir}. Please place an audio file in the test-assets directory.`
+    );
+  }
+
+  console.log(`\n🎵 Select a ${label} from ${scanDir}:\n`);
+  audioFiles.forEach((file, i) => {
+    console.log(`  ${i + 1}. ${file}`);
+  });
+  console.log();
+
+  const answer = await askQuestion(`Enter choice [1-${audioFiles.length}]: `);
+  const choice = parseInt(answer, 10);
+
+  if (isNaN(choice) || choice < 1 || choice > audioFiles.length) {
+    throw new Error('Invalid choice');
+  }
+
+  const selectedFile = `${scanDir}/${audioFiles[choice - 1]}`;
+  console.log(`  → Using ${selectedFile}\n`);
+  return selectedFile;
+}
+
 async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps) {
   const url = `https://socket.sogni.ai/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}`;
   const response = await fetch(url);
@@ -163,30 +313,81 @@ async function main() {
   // Load credentials from .env or prompt user
   const { username: USERNAME, password: PASSWORD } = await loadCredentials();
 
-  // Verify reference assets exist
-  if (!fs.existsSync(REFERENCE_IMAGE)) {
-    console.error(`Error: Reference image not found: ${REFERENCE_IMAGE}`);
-    console.error('Please provide a reference image file.');
-    process.exit(1);
-  }
-  if (!fs.existsSync(REFERENCE_AUDIO)) {
-    console.error(`Error: Reference audio not found: ${REFERENCE_AUDIO}`);
-    console.error('Please provide a reference audio file.');
-    process.exit(1);
-  }
-  console.log(`Reference image: ${REFERENCE_IMAGE}`);
-  console.log(`Reference audio: ${REFERENCE_AUDIO}`);
+  // Pick or verify reference assets
+  console.log('📂 Scanning for reference assets...\n');
+
+  const referenceImagePath = await pickImageFile(null, 'reference image');
+  const referenceAudioPath = await pickAudioFile(null, 'reference audio');
+
+  console.log(`✓ Reference image: ${referenceImagePath}`);
+  console.log(`✓ Reference audio: ${referenceAudioPath}`);
   console.log();
+
+  // Auto-detect dimensions from reference image if not specified
+  if (!WIDTH || !HEIGHT) {
+    log('📐', 'Detecting image dimensions...');
+    const dimensions = getImageDimensions(referenceImagePath);
+    if (dimensions) {
+      WIDTH = WIDTH || dimensions.width;
+      HEIGHT = HEIGHT || dimensions.height;
+      log('✓', `Auto-detected dimensions: ${WIDTH}x${HEIGHT}`);
+    } else {
+      log('⚠️', 'Could not auto-detect image dimensions, using defaults: 480x832');
+      WIDTH = WIDTH || 480;
+      HEIGHT = HEIGHT || 832;
+    }
+    console.log();
+  }
 
   // Prompt for model if not specified
   if (!VIDEO_MODEL_ID) {
     VIDEO_MODEL_ID = await askSpeedOrQuality();
   }
 
-  const sogni = await SogniClient.createInstance({
+  // Determine if using speed (LoRA) variant
+  const isSpeedVariant = VIDEO_MODEL_ID.includes('lightx2v');
+
+  // Set and validate steps based on model variant
+  let steps = STEPS_EXPLICIT;
+  if (steps === null) {
+    // Apply defaults
+    steps = isSpeedVariant ? 4 : 25;
+  } else {
+    // Validate user-provided steps
+    if (isSpeedVariant) {
+      if (steps < 4 || steps > 8) {
+        console.error(`Error: For speed variant (LightX2V), steps must be between 4 and 8 (got ${steps})`);
+        process.exit(1);
+      }
+    } else {
+      if (steps < 20 || steps > 40) {
+        console.error(`Error: For quality variant, steps must be between 20 and 40 (got ${steps})`);
+        process.exit(1);
+      }
+    }
+  }
+
+  // Load optional configuration from environment
+  const testnet = process.env.SOGNI_TESTNET === 'true';
+  const socketEndpoint = process.env.SOGNI_SOCKET_ENDPOINT;
+  const restEndpoint = process.env.SOGNI_REST_ENDPOINT;
+
+  // Only disable SSL verification if testnet is enabled
+  if (testnet) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  }
+
+  const clientConfig = {
     appId: `${USERNAME}-s2v-generator-${Date.now()}`,
     network: 'fast'
-  });
+  };
+
+  // Only add optional configs if they're set in environment
+  if (testnet) clientConfig.testnet = testnet;
+  if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
+  if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
+
+  const sogni = await SogniClient.createInstance(clientConfig);
 
   let projectEventHandler;
   let jobEventHandler;
@@ -243,8 +444,8 @@ async function main() {
     const estimate = await getVideoJobEstimate(
       tokenType,
       VIDEO_MODEL_ID,
-      480,
-      832,
+      WIDTH,
+      HEIGHT,
       VIDEO_CONFIG.frames,
       VIDEO_CONFIG.fps
     );
@@ -310,8 +511,8 @@ async function main() {
     console.log();
 
     // Load the reference assets
-    const referenceImageBuffer = fs.readFileSync(REFERENCE_IMAGE);
-    const referenceAudioBuffer = fs.readFileSync(REFERENCE_AUDIO);
+    const referenceImageBuffer = fs.readFileSync(referenceImagePath);
+    const referenceAudioBuffer = fs.readFileSync(referenceAudioPath);
 
     let startTime = null;
 
@@ -320,14 +521,15 @@ async function main() {
       type: 'video',
       modelId: VIDEO_MODEL_ID,
       numberOfMedia: 1,
+      steps: steps,
       positivePrompt:
         'A person singing and dancing to music, expressive movements, synchronized to audio',
       negativePrompt: 'blurry, low quality, distorted, artifacts, watermark, text',
       referenceImage: referenceImageBuffer,
       referenceAudio: referenceAudioBuffer,
       tokenType: tokenType,
-      width: 480,
-      height: 832
+      width: WIDTH,
+      height: HEIGHT
     });
 
     console.log(`Project created: ${project.id}`);
@@ -439,6 +641,13 @@ async function main() {
       for (let i = 0; i < videoUrls.length; i++) {
         const path = await downloadVideo(videoUrls[i], project.id, i + 1);
         console.log(`Video saved: ${path}`);
+        
+        // Auto-play the first video
+        if (i === 0) {
+          console.log();
+          log('🎬', 'Opening video...');
+          openFile(path);
+        }
       }
 
       console.log();
