@@ -291,8 +291,8 @@ function askQuestion(question) {
   });
 }
 
-async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps) {
-  const url = `https://socket.sogni.ai/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}`;
+async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps) {
+  const url = `https://socket.sogni.ai/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}/${steps}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to get cost estimate: ${response.statusText}`);
@@ -447,7 +447,8 @@ async function main() {
       WIDTH,
       HEIGHT,
       VIDEO_CONFIG.frames,
-      VIDEO_CONFIG.fps
+      VIDEO_CONFIG.fps,
+      steps
     );
 
     console.log();
