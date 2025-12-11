@@ -3,7 +3,7 @@
 
 ### Features
 
-* Video support added ([e00e1e7](https://github.com/Sogni-AI/sogni-client/commit/e00e1e7879962047a6950013d53aa83748a66021))
+* Video support added with Wan 2.2 14B FP8 models supporting five workflows: text-to-video (t2v), image-to-video (i2v), sound-to-video (s2v), animate-move, and animate-replace ([e00e1e7](https://github.com/Sogni-AI/sogni-client/commit/e00e1e7879962047a6950013d53aa83748a66021))
 
 
 ### BREAKING CHANGES

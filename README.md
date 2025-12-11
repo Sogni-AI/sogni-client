@@ -1,15 +1,27 @@
 # Sogni SDK for JavaScript & Node.js
-This library provides an easy way to interact with the [Sogni AI Supernet](https://www.sogni.ai/supernet) - a DePIN protocol for creative AI. It is written in TypeScript and can be used 
+This library provides an easy way to interact with the [Sogni AI Supernet](https://www.sogni.ai/supernet) - a DePIN protocol for creative AI. It is written in TypeScript and can be used
 in both TypeScript and JavaScript projects such as backend Node.js and browser environments.
 
 Behind the scenes this SDK uses WebSocket connection for communication between clients, server, and workers. It harnesses an event-based API to interact with Supernet to make things super efficient.
+
+## Features
+- 🎨 **Image Generation** - Create images with the latest frontier Open Source models like Stable Diffusion and Flux
+- 🎬 **Video Generation** - Generate videos using **Wan 2.2 14B FP8** models with five workflow types:
+  - Text-to-Video (t2v) - Generate videos from text prompts
+  - Image-to-Video (i2v) - Animate static images
+  - Sound-to-Video (s2v) - Generate videos synchronized with audio
+  - Animate-Move - Transfer motion from reference video to image subject
+  - Animate-Replace - Replace subjects in videos while preserving motion
+- ⚡ **Fast & Relaxed Networks** - Choose between high-speed GPU network or cost-effective Mac network
+- 🔄 **Real-time Progress** - Event-based API with progress tracking and live updates
+- 🎯 **Advanced Controls** - Fine-tune generation with samplers, schedulers, ControlNets, and more
 ## Migration notes
 ### v3.x.x to v4.x.x
-Version 4 adds support of video generation. There are following breaking changes:
+Version 4 adds support for video generation, including the new **Wan 2.2 14B FP8** model family with five workflow types (text-to-video, image-to-video, sound-to-video, animate-move, and animate-replace). There are the following breaking changes:
 - `type` is required when calling `sogni.projects.create(params)`, valid values are `image` and `video`. See code examples below.
 - `numberOfImages` renamed to `numberOfMedia`
 - `hasResultImage` in `Job` class is now `hasResultMedia`
-- `Job` and `Project` classes now have `type` property  that can be `image` or `video`
+- `Job` and `Project` classes now have `type` property that can be `image` or `video`
 
 ## Installation
 Add library to your project using npm or yarn:
@@ -30,17 +42,17 @@ Your account is tied to a [Base](https://www.base.org/) Wallet that is created d
 
 ### Supernet Types
 There are 2 worker network types available:
-- `fast` - this network runs on high-end GPUs and is optimized for speed. It is more expensive than `relaxed` network.
-- `relaxed` - this network runs on Apple Mac devices and is optimized for cost. It is cheaper than `fast` network.
+- `fast` - this network runs on high-end GPUs and is optimized for speed. It is more expensive than `relaxed` network. **Required for video generation**.
+- `relaxed` - this network runs on Apple Mac devices and is optimized for cost. It is cheaper than `fast` network. Supports image generation only.
 
 In both options, the more complex your query is (the more steps), the higher the cost in tokens.
 
 ### Inference definitions: Projects and Jobs
-One request for image generation is called a **Project**. Project can generate one or more images. 
-Each image is represented by a **Job**.
+One request for image or video generation is called a **Project**. A project can generate one or more images or videos.
+Each generated image or video is represented by a **Job**.
 
-When you send a project to Supernet, it will be processed by one or more workers. The resulting images will be encrypted and 
-uploaded to Sogni servers where it will be stored for 24 hours. After this period images will be auto-deleted.
+When you send a project to Supernet, it will be processed by one or more workers. The resulting media will be encrypted and
+uploaded to Sogni servers where it will be stored for 24 hours. After this period, media files will be auto-deleted.
 
 ## Client initialization
 To initialize a client, you need to provide `appId`, and account credentials.
@@ -71,9 +83,11 @@ const models = await sogni.projects.waitForModels();
 
 ## Usage
 After calling `login` method, the client will establish a WebSocket connection to Sogni Supernet. Within a short period of time the
-client will receive the current balance and list of available models. After this you can start using the client to generate images.
+client will receive the current balance and list of available models. After this you can start using the client to generate images or videos.
 
-### Creating project
+### Image Generation
+
+#### Creating an image project
 ```javascript
 // Find model that has the most workers
 const mostPopularModel = sogni.projects.availableModels.reduce((a, b) =>
@@ -408,5 +422,170 @@ export interface ControlNetParams {
 ```
 
 
-## Code examples
-You can find more code examples in the [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) directory.
+## Video Generation with Wan 2.2 Models
+
+The Sogni SDK supports advanced video generation workflows powered by **Wan 2.2 14B FP8** models. These models are available on the `fast` network and support various video generation workflows.
+
+### Available Wan 2.2 Workflows
+
+The Wan 2.2 model family supports five distinct video generation workflows:
+
+1. **Text-to-Video (t2v)** - Generate videos from text prompts
+2. **Image-to-Video (i2v)** - Animate a static image into a video (First and Last Frame supported)
+3. **Sound-to-Video (s2v)** - Bring a character in an image to life with video and audio synchronization including lip syncing
+4. **Animate-Move** - Transfer character motion and emotion from a reference video to a subject from an image into a new video
+5. **Animate-Replace** - Replace a subject in a video while preserving motion
+
+### Model Variants
+
+Each workflow has two model variants optimized for different use cases:
+
+- **Speed variant** (with `_lightx2v` suffix) - Faster inference (4-step), good quality
+- **Quality variant** (without `_lightx2v`) - Slower inference, best quality
+
+Example model IDs:
+- `wan_v2.2-14b-fp8_t2v_lightx2v` (Text-to-Video, speed)
+- `wan_v2.2-14b-fp8_t2v` (Text-to-Video, quality)
+- `wan_v2.2-14b-fp8_i2v_lightx2v` (Image-to-Video, speed)
+- `wan_v2.2-14b-fp8_i2v` (Image-to-Video, quality)
+- `wan_v2.2-14b-fp8_s2v_lightx2v` (Sound-to-Video, speed)
+- `wan_v2.2-14b-fp8_s2v` (Sound-to-Video, quality)
+- `wan_v2.2-14b-fp8_animate-move_lightx2v` (Animate-Move, speed)
+- `wan_v2.2-14b-fp8_animate-replace_lightx2v` (Animate-Replace, speed)
+
+### Video Parameters
+
+When creating video projects, you can specify:
+
+- `fps` - Frames per second: 16 or 32 (default: 16)
+- `frames` - Number of frames: 17-161 (default: 81, which is ~5 seconds at 16fps)
+- `width` - Video width in pixels
+- `height` - Video height in pixels
+- `steps` - Increase inference steps to increase quality
+- `seed` - Random seed for reproducibility
+- `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
+- `referenceVideo` - Reference video for animate workflows (animate-move, animate-replace)
+- `referenceAudio` - Reference audio for sound-to-video workflow
+
+### Text-to-Video Example
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_t2v_lightx2v',
+  positivePrompt: 'A serene ocean wave crashing on a beach at sunset',
+  fps: 16,
+  frames: 81,
+  width: 512,
+  height: 512
+});
+
+const videoUrls = await project.waitForCompletion();
+console.log('Video URL:', videoUrls[0]);
+```
+
+### Image-to-Video Example
+
+```javascript
+const referenceImage = fs.readFileSync('./input-image.png');
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_i2v_lightx2v',
+  positivePrompt: 'camera zooms in slowly',
+  referenceImage: referenceImage,
+  fps: 16,
+  frames: 81
+});
+
+const videoUrls = await project.waitForCompletion();
+```
+
+### Sound-to-Video Example
+
+```javascript
+const referenceImage = fs.readFileSync('./image.jpg');
+const referenceAudio = fs.readFileSync('./audio.m4a');
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_s2v_lightx2v',
+  referenceImage: referenceImage,
+  referenceAudio: referenceAudio,
+  fps: 16,
+  frames: 81
+});
+
+const videoUrls = await project.waitForCompletion();
+```
+
+### Animate-Move Example
+
+Transfer motion from a reference video to a subject in an image:
+
+```javascript
+const referenceImage = fs.readFileSync('./subject.jpg');
+const referenceVideo = fs.readFileSync('./motion-source.mp4');
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
+  referenceImage: referenceImage,
+  referenceVideo: referenceVideo,
+  fps: 16,
+  frames: 81
+});
+
+const videoUrls = await project.waitForCompletion();
+```
+
+### Animate-Replace Example
+
+Replace a subject in a video while preserving the original motion:
+
+```javascript
+const referenceImage = fs.readFileSync('./new-subject.jpg');
+const referenceVideo = fs.readFileSync('./original-video.mp4');
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_animate-replace_lightx2v',
+  referenceImage: referenceImage,
+  referenceVideo: referenceVideo,
+  fps: 16,
+  frames: 81
+});
+
+const videoUrls = await project.waitForCompletion();
+```
+
+## Code Examples
+
+The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) directory contains working examples for all workflows:
+
+### Video Workflow Examples
+- **`video_text_to_video.mjs`** - Text-to-video generation with interactive prompts
+- **`video_image_to_video.mjs`** - Image-to-video animation with motion prompts
+- **`video_sound_to_video.mjs`** - Audio-synchronized video generation
+- **`video_animate_move.mjs`** - Motion transfer from video to image subject
+- **`video_animate_replace.mjs`** - Subject replacement while preserving motion
+
+### Basic Examples
+- **`promise_based.mjs`** - Image generation using promises/async-await
+- **`event_driven.js`** - Image generation using event listeners
+
+All video examples include:
+- Balance checking and cost confirmation
+- Progress tracking with visual indicators
+- Error handling and retry logic
+- Automatic video download and saving
+
+Run any example with:
+```bash
+node examples/video_text_to_video.mjs
+```
