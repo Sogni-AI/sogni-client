@@ -100,8 +100,17 @@ sogni.client.on('disconnected', ({code, reason}) => {
 
 ## Image Generation
 
-Sogni supports wide range of models for image generation. You can find a list of available models in 
-`sogni.projects.availableModels` property or query it using `sogni.projects.getAvailableModels()` method.
+Sogni supports a wide range of models for image generation. You can find a list of available models in 
+`sogni.projects.availableModels` property during runtime or query it using `sogni.projects.getAvailableModels()` method.
+
+For a start, you can try FLUX.1 \[schnell\] with the following parameters:
+```javascript
+const fluxDefaults = {
+  modelId: 'flux1-schnell-fp8',
+  steps: 4,
+  guidance: 1
+}
+```
 
 ### Creating an image project
 ```javascript
