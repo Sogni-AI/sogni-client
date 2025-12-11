@@ -203,60 +203,39 @@ function askQuestion(question) {
 /**
  * Interactively pick an image file from test-assets directory
  */
-async function pickImageFile(defaultImage) {
-  // If image was provided via CLI, use it
+async function pickImageFile(defaultImage, label = 'input image') {
+  // If image was provided via CLI and exists, use it
   if (defaultImage && fs.existsSync(defaultImage)) {
     return defaultImage;
-  }
-
-  // Check test-assets directory first
-  const scanDir = './test-assets';
-  if (fs.existsSync(`${scanDir}/placeholder.jpg`)) {
-    log('🖼️', 'Found placeholder.jpg in test-assets, using as source image');
-    return `${scanDir}/placeholder.jpg`;
-  }
-
-  // If input.png exists in current directory, use it
-  if (fs.existsSync('input.png')) {
-    log('🖼️', 'Found input.png, using as source image');
-    return 'input.png';
   }
 
   // If not TTY, error out
   if (!process.stdin.isTTY) {
     throw new Error(
-      'No input image specified. Use --image <path> or place an image in test-assets directory.'
+      `No ${label} found. Use --image <path> to specify an image or run interactively.`
     );
   }
 
-  // List available image files from test-assets directory (if it exists)
-  let imageFiles = [];
-  let selectedDir = '.';
-
-  if (fs.existsSync(scanDir)) {
-    imageFiles = fs
-      .readdirSync(scanDir)
-      .filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f))
-      .sort();
-    selectedDir = scanDir;
+  // List available image files from test-assets directory
+  const scanDir = './test-assets';
+  if (!fs.existsSync(scanDir)) {
+    throw new Error(
+      `Directory ${scanDir} not found. Please ensure test-assets directory exists.`
+    );
   }
 
-  // If no files in test-assets, check current directory
-  if (imageFiles.length === 0) {
-    imageFiles = fs
-      .readdirSync('.')
-      .filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f))
-      .sort();
-    selectedDir = '.';
-  }
+  const imageFiles = fs
+    .readdirSync(scanDir)
+    .filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f))
+    .sort();
 
   if (imageFiles.length === 0) {
     throw new Error(
-      'No image files found. Use --image <path> to specify an image.'
+      `No image files found in ${scanDir}. Please place an image file in the test-assets directory.`
     );
   }
 
-  console.log(`\n🖼️  Select an image file from ${selectedDir}:\n`);
+  console.log(`\n🖼️  Select a ${label} from ${scanDir}:\n`);
   imageFiles.forEach((file, i) => {
     console.log(`  ${i + 1}. ${file}`);
   });
@@ -269,7 +248,7 @@ async function pickImageFile(defaultImage) {
     throw new Error('Invalid choice');
   }
 
-  const selectedFile = selectedDir === '.' ? imageFiles[choice - 1] : `${selectedDir}/${imageFiles[choice - 1]}`;
+  const selectedFile = `${scanDir}/${imageFiles[choice - 1]}`;
   console.log(`  → Using ${selectedFile}\n`);
   return selectedFile;
 }
@@ -341,43 +320,17 @@ async function main() {
   // Load credentials from .env or prompt user
   const { username: USERNAME, password: PASSWORD } = await loadCredentials();
 
-  // Prompt for model if not specified
-  if (!VIDEO_MODEL_ID) {
-    VIDEO_MODEL_ID = await askSpeedOrQuality();
-  }
+  // Pick or verify reference image
+  console.log('📂 Scanning for reference assets...\n');
 
-  // Determine if using speed (LoRA) variant
-  const isSpeedVariant = VIDEO_MODEL_ID.includes('lightx2v');
-
-  // Set and validate steps based on model variant
-  let steps = OPTIONS.steps;
-  if (steps === null) {
-    // Apply defaults
-    steps = isSpeedVariant ? 4 : 25;
-  } else {
-    // Validate user-provided steps
-    if (isSpeedVariant) {
-      if (steps < 4 || steps > 8) {
-        console.error(`Error: For speed variant (LightX2V), steps must be between 4 and 8 (got ${steps})`);
-        process.exit(1);
-      }
-    } else {
-      if (steps < 20 || steps > 40) {
-        console.error(`Error: For quality variant, steps must be between 20 and 40 (got ${steps})`);
-        process.exit(1);
-      }
-    }
-  }
-
-  // Pick image file
-  const imagePath = await pickImageFile(INPUT_IMAGE);
+  const imagePath = await pickImageFile(INPUT_IMAGE, 'input image');
   const resolvedImagePath = path.resolve(imagePath);
 
   if (!fs.existsSync(resolvedImagePath)) {
     throw new Error(`Image file not found: ${resolvedImagePath}`);
   }
 
-  log('🖼️', `Input image: ${resolvedImagePath}`);
+  console.log(`✓ Input image: ${resolvedImagePath}`);
   console.log();
 
   // Ask for prompt if not provided via CLI
@@ -407,6 +360,34 @@ async function main() {
       log('❌', `Error reading image dimensions: ${e.message}, using defaults.`);
       WIDTH = WIDTH || 512;
       HEIGHT = HEIGHT || 512;
+    }
+  }
+
+  // Prompt for model if not specified
+  if (!VIDEO_MODEL_ID) {
+    VIDEO_MODEL_ID = await askSpeedOrQuality();
+  }
+
+  // Determine if using speed (LoRA) variant
+  const isSpeedVariant = VIDEO_MODEL_ID.includes('lightx2v');
+
+  // Set and validate steps based on model variant
+  let steps = OPTIONS.steps;
+  if (steps === null) {
+    // Apply defaults
+    steps = isSpeedVariant ? 4 : 25;
+  } else {
+    // Validate user-provided steps
+    if (isSpeedVariant) {
+      if (steps < 4 || steps > 8) {
+        console.error(`Error: For speed variant (LightX2V), steps must be between 4 and 8 (got ${steps})`);
+        process.exit(1);
+      }
+    } else {
+      if (steps < 20 || steps > 40) {
+        console.error(`Error: For quality variant, steps must be between 20 and 40 (got ${steps})`);
+        process.exit(1);
+      }
     }
   }
 

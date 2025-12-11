@@ -235,7 +235,11 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   private _checkForTimeout() {
     if (this.lastUpdated.getTime() + PROJECT_TIMEOUT < Date.now()) {
       this._syncToServer().catch((error) => {
-        this._logger.error(error);
+        // 404 errors are expected when project is still initializing and not yet available via REST API
+        // Only log non-404 errors to avoid confusing users
+        if (error.status !== 404) {
+          this._logger.error(error);
+        }
         this._failedSyncAttempts++;
         if (this._failedSyncAttempts >= MAX_FAILED_SYNC_ATTEMPTS) {
           this._logger.error(

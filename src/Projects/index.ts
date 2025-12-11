@@ -323,7 +323,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (project.finished) {
       // Sync project data with the server and remove it from the list after some time
       project._syncToServer().catch((e) => {
-        this.client.logger.error(e);
+        // 404 errors are expected when project is still initializing
+        // Only log non-404 errors to avoid confusing users
+        if (e.status !== 404) {
+          this.client.logger.error(e);
+        }
       });
       setTimeout(() => {
         this.projects = this.projects.filter((p) => !p.finished);
