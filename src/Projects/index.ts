@@ -491,19 +491,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       await this.uploadCNImage(project.id, data.controlNet.image);
     }
 
-    // Context images (Flux Kontext)
+    // Context images (Flux.2 Dev, Qwen Image Edit Plus support up to 3; Flux Kontext supports up to 2)
     if (data.contextImages?.length) {
-      if (data.contextImages.length > 2) {
+      if (data.contextImages.length > 3) {
         throw new ApiError(500, {
           status: 'error',
           errorCode: 0,
-          message: `Up to 2 context images are supported`
+          message: `Up to 3 context images are supported`
         });
       }
       await Promise.all(
         data.contextImages.map((image, index) => {
           if (image && image !== true) {
-            return this.uploadContextImage(project.id, index as 0 | 1, image);
+            return this.uploadContextImage(project.id, index as 0 | 1 | 2, image);
           }
         })
       );
@@ -611,9 +611,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return imageId;
   }
 
-  private async uploadContextImage(projectId: string, index: 0 | 1, file: File | Buffer | Blob) {
+  private async uploadContextImage(projectId: string, index: 0 | 1 | 2, file: File | Buffer | Blob) {
     const imageId = getUUID();
-    const imageIndex = (index + 1) as 1 | 2;
+    const imageIndex = (index + 1) as 1 | 2 | 3;
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,

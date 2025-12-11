@@ -166,7 +166,8 @@ function applyImageParams(inputKeyframe: Record<string, any>, params: ImageProje
     timeStepSpacing: validateScheduler(params.scheduler),
     sizePreset: params.sizePreset,
     hasContextImage1: !!params.contextImages?.[0],
-    hasContextImage2: !!params.contextImages?.[1]
+    hasContextImage2: !!params.contextImages?.[1],
+    hasContextImage3: !!params.contextImages?.[2]
   };
 
   if (params.startingImage) {
