@@ -1,3 +1,10 @@
+# [4.0.0-alpha.25](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.24...v4.0.0-alpha.25) (2025-12-11)
+
+
+### Bug Fixes
+
+* Add sample parameters for Flux ([8e25924](https://github.com/Sogni-AI/sogni-client/commit/8e25924476a1faf1ac432a6490b4d52ac0cf4898))
+
 # [4.0.0-alpha.24](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.23...v4.0.0-alpha.24) (2025-12-11)
 
 
