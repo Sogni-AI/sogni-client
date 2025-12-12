@@ -5,6 +5,14 @@ export function validateCustomImageSize(value: any): number {
   return validateNumber(value, { min: 256, max: 2048, propertyName: 'Width and height' });
 }
 
+/**
+ * Validate video dimensions for Wan 2.2 models.
+ * Minimum dimension is 480px for both width and height.
+ */
+export function validateVideoSize(value: any, propertyName: 'width' | 'height'): number {
+  return validateNumber(value, { min: 480, propertyName: `Video ${propertyName}` });
+}
+
 interface NumberValidationOptions {
   min?: number;
   max?: number;

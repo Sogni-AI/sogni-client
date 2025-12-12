@@ -10,7 +10,8 @@ import {
   validateNumber,
   validateCustomImageSize,
   validateSampler,
-  validateScheduler
+  validateScheduler,
+  validateVideoSize
 } from '../lib/validation';
 import { getVideoWorkflowType, isVideoModel, VIDEO_WORKFLOW_ASSETS } from './utils';
 import { ApiError } from '../ApiClient';
@@ -220,9 +221,10 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
     keyFrame.shift = params.shift;
   }
 
+  // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
   if (params.width && params.height) {
-    keyFrame.width = params.width;
-    keyFrame.height = params.height;
+    keyFrame.width = validateVideoSize(params.width, 'width');
+    keyFrame.height = validateVideoSize(params.height, 'height');
   }
 
   return keyFrame;
