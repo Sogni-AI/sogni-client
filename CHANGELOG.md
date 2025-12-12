@@ -1,3 +1,10 @@
+# [4.0.0-alpha.27](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.26...v4.0.0-alpha.27) (2025-12-12)
+
+
+### Features
+
+* Add ability to query balance for Etherlink wallet ([60ef11b](https://github.com/Sogni-AI/sogni-client/commit/60ef11beec443837a044e24c11014bef8f804275))
+
 # [4.0.0-alpha.26](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.25...v4.0.0-alpha.26) (2025-12-12)
 
 
