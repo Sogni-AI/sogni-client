@@ -1,3 +1,15 @@
+# [4.0.0-alpha.26](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.25...v4.0.0-alpha.26) (2025-12-12)
+
+
+### Bug Fixes
+
+* Comfy / Video jobs leverage jobETA for lastUpdate to ensure jobs do not have a client-side timeout prematurely ([db5e2a6](https://github.com/Sogni-AI/sogni-client/commit/db5e2a62256ccb0f704a50fdf7e1e0556e2aecaa))
+
+
+### Features
+
+* ensure video model passed with and height are at least 480 ([d0156aa](https://github.com/Sogni-AI/sogni-client/commit/d0156aa84785f98c60ee09e7c733e62940eb0b9e))
+
 # [4.0.0-alpha.25](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.24...v4.0.0-alpha.25) (2025-12-11)
 
 
