@@ -383,8 +383,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         }
         break;
       case 'jobETA':
-        // ETA updates don't change job state, just pass through to listeners
-        // The event is already emitted, no need to update job data
+        // ETA updates keep the project alive (refreshes lastUpdated) and store the ETA value.
+        // This is critical for long-running jobs like video generation that can take several
+        // minutes and may not send frequent progress updates.
+        // We call _keepAlive() directly to ensure lastUpdated is refreshed even if the ETA
+        // value hasn't changed (job._update only emits 'updated' when values actually change).
+        project._keepAlive();
+        job._update({ etaSeconds: event.etaSeconds });
         break;
       case 'preview':
         job._update({ previewUrl: event.url });

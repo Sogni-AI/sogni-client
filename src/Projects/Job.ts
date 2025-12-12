@@ -61,6 +61,11 @@ export interface JobData {
   positivePrompt?: string;
   negativePrompt?: string;
   jobIndex?: number;
+  /**
+   * Estimated time remaining in seconds (for long-running jobs like video generation).
+   * Updated by ComfyUI workers during inference.
+   */
+  etaSeconds?: number;
 }
 
 export interface JobEventMap extends EntityEvents {
@@ -249,6 +254,15 @@ class Job extends DataEntity<JobData, JobEventMap> {
    */
   get workerName() {
     return this.data.workerName;
+  }
+
+  /**
+   * Estimated time remaining in seconds for long-running jobs (e.g., video generation).
+   * Only available for ComfyUI-based workers during inference.
+   * Returns undefined if no ETA has been received.
+   */
+  get etaSeconds() {
+    return this.data.etaSeconds;
   }
 
   /**

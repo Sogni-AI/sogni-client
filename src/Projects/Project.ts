@@ -208,6 +208,16 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   }
 
   /**
+   * Refresh the lastUpdated timestamp to prevent timeout.
+   * Used when receiving socket events that indicate the project is still active
+   * (e.g., jobETA events during long-running video generation).
+   * @internal
+   */
+  _keepAlive() {
+    this.lastUpdated = new Date();
+  }
+
+  /**
    * This is internal method to add a job to the project. Do not call this directly.
    * @internal
    * @param data
