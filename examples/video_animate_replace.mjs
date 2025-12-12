@@ -18,8 +18,8 @@
  * Options:
  *   --model <id>   Model ID (prompts for speed/quality if not specified)
  *   --steps <n>    Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
- *   --width <n>    Video width (default: auto-detect from reference video)
- *   --height <n>   Video height (default: auto-detect from reference video)
+ *   --width <n>    Video width (default: auto-detect from image, or 640; minimum: 480)
+ *   --height <n>   Video height (default: auto-detect from image, or 640; minimum: 480)
  */
 
 import * as fs from 'node:fs';
@@ -44,6 +44,9 @@ const MODELS = {
     quality: 'wan_v2.2-14b-fp8_animate-replace'
   }
 };
+
+// Minimum video dimensions for Wan 2.2 models
+const MIN_VIDEO_DIMENSION = 480;
 
 // Parse command line args
 const args = process.argv.slice(2);
@@ -332,11 +335,21 @@ async function main() {
       HEIGHT = HEIGHT || dimensions.height;
       log('✓', `Auto-detected dimensions: ${WIDTH}x${HEIGHT}`);
     } else {
-      log('⚠️', 'Could not auto-detect image dimensions, using defaults: 480x832');
-      WIDTH = WIDTH || 480;
-      HEIGHT = HEIGHT || 832;
+      log('⚠️', 'Could not auto-detect image dimensions, using defaults: 640x640');
+      WIDTH = WIDTH || 640;
+      HEIGHT = HEIGHT || 640;
     }
     console.log();
+  }
+
+  // Validate minimum video dimensions for Wan 2.2
+  if (WIDTH < MIN_VIDEO_DIMENSION) {
+    console.error(`Error: Video width must be at least ${MIN_VIDEO_DIMENSION}px for Wan 2.2 models (got ${WIDTH})`);
+    process.exit(1);
+  }
+  if (HEIGHT < MIN_VIDEO_DIMENSION) {
+    console.error(`Error: Video height must be at least ${MIN_VIDEO_DIMENSION}px for Wan 2.2 models (got ${HEIGHT})`);
+    process.exit(1);
   }
 
   // Prompt for model if not specified

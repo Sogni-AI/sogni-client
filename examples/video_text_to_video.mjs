@@ -16,8 +16,8 @@
  *   node video_text_to_video.mjs "your prompt" --seed 12345
  *
  * Options:
- *   --width   Video width (default: 512)
- *   --height  Video height (default: 512)
+ *   --width   Video width (default: 640, minimum: 480)
+ *   --height  Video height (default: 640, minimum: 480)
  *   --fps     Frames per second: 16 or 32 (default: 16)
  *   --frames  Number of frames, 17-161 (default: 81 = 5 seconds at 16fps)
  *   --model   Model ID (default: prompts for speed/quality)
@@ -44,6 +44,9 @@ const MODELS = {
   }
 };
 
+// Minimum video dimensions for Wan 2.2 models
+const MIN_VIDEO_DIMENSION = 480;
+
 // ============================================
 // Parse Command Line Arguments
 // ============================================
@@ -52,8 +55,8 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
     prompt: null,
-    width: 512,
-    height: 512,
+    width: 640,
+    height: 640,
     fps: 16,
     frames: 81,
     model: null, // Will prompt for speed/quality if not specified
@@ -72,8 +75,8 @@ function parseArgs() {
 Usage: node video_text_to_video.mjs "your prompt" [options]
 
 Options:
-  --width <n>    Video width (default: 512)
-  --height <n>   Video height (default: 512)
+  --width <n>    Video width (default: 640, minimum: 480)
+  --height <n>   Video height (default: 640, minimum: 480)
   --fps <n>      Frames per second: 16 or 32 (default: 16)
   --frames <n>   Number of frames, 17-161 (default: 81 = 5s at 16fps)
   --steps <n>    Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
@@ -121,6 +124,16 @@ Examples:
     console.error('Error: Prompt is required');
     console.error('Usage: node video_text_to_video.mjs "your prompt" [options]');
     console.error('Use --help for more information');
+    process.exit(1);
+  }
+
+  // Validate minimum video dimensions for Wan 2.2
+  if (options.width < MIN_VIDEO_DIMENSION) {
+    console.error(`Error: Video width must be at least ${MIN_VIDEO_DIMENSION}px for Wan 2.2 models (got ${options.width})`);
+    process.exit(1);
+  }
+  if (options.height < MIN_VIDEO_DIMENSION) {
+    console.error(`Error: Video height must be at least ${MIN_VIDEO_DIMENSION}px for Wan 2.2 models (got ${options.height})`);
     process.exit(1);
   }
 

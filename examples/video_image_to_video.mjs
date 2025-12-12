@@ -17,8 +17,8 @@
  *
  * Options:
  *   --image   Input image path (required, or will prompt to select)
- *   --width   Video width (default: auto-detect from image)
- *   --height  Video height (default: auto-detect from image)
+ *   --width   Video width (default: auto-detect from image, or 640; minimum: 480)
+ *   --height  Video height (default: auto-detect from image, or 640; minimum: 480)
  *   --fps     Frames per second: 16 or 32 (default: 16)
  *   --frames  Number of frames, 17-161 (default: 81 = 5 seconds at 16fps)
  *   --model   Model ID (default: prompts for speed/quality)
@@ -46,6 +46,9 @@ const MODELS = {
     quality: 'wan_v2.2-14b-fp8_i2v'
   }
 };
+
+// Minimum video dimensions for Wan 2.2 models
+const MIN_VIDEO_DIMENSION = 480;
 
 // ============================================
 // Parse Command Line Arguments
@@ -77,8 +80,8 @@ Usage: node video_image_to_video.mjs [prompt] [options]
 
 Options:
   --image <path> Input image path (required, or will prompt to select)
-  --width <n>    Video width (default: auto-detect from image)
-  --height <n>   Video height (default: auto-detect from image)
+  --width <n>    Video width (default: auto-detect from image, or 640; minimum: 480)
+  --height <n>   Video height (default: auto-detect from image, or 640; minimum: 480)
   --fps <n>      Frames per second: 16 or 32 (default: 16)
   --frames <n>   Number of frames, 17-161 (default: 81 = 5s at 16fps)
   --steps <n>    Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
@@ -352,15 +355,25 @@ async function main() {
         HEIGHT = OPTIONS.height || dimensions.height;
         log('📐', `Auto-detected dimensions: ${WIDTH}x${HEIGHT}`);
       } else {
-        log('⚠️', 'Could not auto-detect image dimensions, using defaults.');
-        WIDTH = WIDTH || 512;
-        HEIGHT = HEIGHT || 512;
+        log('⚠️', 'Could not auto-detect image dimensions, using defaults: 640x640');
+        WIDTH = WIDTH || 640;
+        HEIGHT = HEIGHT || 640;
       }
     } catch (e) {
-      log('❌', `Error reading image dimensions: ${e.message}, using defaults.`);
-      WIDTH = WIDTH || 512;
-      HEIGHT = HEIGHT || 512;
+      log('❌', `Error reading image dimensions: ${e.message}, using defaults: 640x640`);
+      WIDTH = WIDTH || 640;
+      HEIGHT = HEIGHT || 640;
     }
+  }
+
+  // Validate minimum video dimensions for Wan 2.2
+  if (WIDTH < MIN_VIDEO_DIMENSION) {
+    console.error(`Error: Video width must be at least ${MIN_VIDEO_DIMENSION}px for Wan 2.2 models (got ${WIDTH})`);
+    process.exit(1);
+  }
+  if (HEIGHT < MIN_VIDEO_DIMENSION) {
+    console.error(`Error: Video height must be at least ${MIN_VIDEO_DIMENSION}px for Wan 2.2 models (got ${HEIGHT})`);
+    process.exit(1);
   }
 
   // Prompt for model if not specified
