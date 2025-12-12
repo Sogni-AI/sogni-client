@@ -248,12 +248,14 @@ class AccountApi extends ApiGroup {
    * ```
    *
    * @param walletAddress
+   * @param provider - blockchain provider, 'base' or 'etherlink' defaults to 'base'
    */
-  async walletBalance(walletAddress: string) {
+  async walletBalance(walletAddress: string, provider: 'base' | 'etherlink' = 'base') {
     const res = await this.client.rest.get<
       ApiResponse<{ sogni: string; spark: string; ether: string }>
     >('/v2/wallet/balance', {
-      walletAddress
+      walletAddress,
+      provider
     });
     return res.data;
   }
