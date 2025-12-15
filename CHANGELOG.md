@@ -1,3 +1,10 @@
+# [4.0.0-alpha.28](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.27...v4.0.0-alpha.28) (2025-12-15)
+
+
+### Features
+
+* Expose array of projects that SogniClient instance is tracking currently ([38b6c0e](https://github.com/Sogni-AI/sogni-client/commit/38b6c0ec7ab3e6f621e42f9e512ede98f4b3a9da))
+
 # [4.0.0-alpha.27](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.26...v4.0.0-alpha.27) (2025-12-12)
 
 
