@@ -133,6 +133,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.on('job', this.handleJobEvent.bind(this));
   }
 
+  /**
+   * Retrieves a list of projects created and tracked by this SogniClient instance.
+   *
+   * Note: When a project is finished, it will be removed from this list after 30 seconds
+   *
+   * @return {Array} A copy of the array containing the tracked projects.
+   */
+  get trackedProjects() {
+    return this.projects.slice(0);
+  }
+
   private handleChangeNetwork() {
     this._availableModels = [];
     this.emit('availableModels', this._availableModels);
@@ -616,7 +627,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return imageId;
   }
 
-  private async uploadContextImage(projectId: string, index: 0 | 1 | 2, file: File | Buffer | Blob) {
+  private async uploadContextImage(
+    projectId: string,
+    index: 0 | 1 | 2,
+    file: File | Buffer | Blob
+  ) {
     const imageId = getUUID();
     const imageIndex = (index + 1) as 1 | 2 | 3;
     const presignedUrl = await this.uploadUrl({
