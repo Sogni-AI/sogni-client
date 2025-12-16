@@ -1,3 +1,10 @@
+# [4.0.0-alpha.29](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.28...v4.0.0-alpha.29) (2025-12-16)
+
+
+### Bug Fixes
+
+* wan sample scripts for s2v and animate should all support custom prompts ([5a2dbf9](https://github.com/Sogni-AI/sogni-client/commit/5a2dbf963c8ff411dece0dec87b52117a0baea23))
+
 # [4.0.0-alpha.28](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.27...v4.0.0-alpha.28) (2025-12-15)
 
 
