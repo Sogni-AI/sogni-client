@@ -12,14 +12,16 @@
  *
  * Usage:
  *   node video_sound_to_video.mjs
+ *   node video_sound_to_video.mjs --prompt "A musician playing guitar, synchronized to music"
  *   node video_sound_to_video.mjs --model wan_v2.2-14b-fp8_s2v_lightx2v
  *   node video_sound_to_video.mjs --width 640 --height 480
  *
  * Options:
- *   --model <id>   Model ID (prompts for speed/quality if not specified)
- *   --steps <n>    Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
- *   --width <n>    Video width (default: auto-detect from image, or 640; minimum: 480)
- *   --height <n>   Video height (default: auto-detect from image, or 640; minimum: 480)
+ *   --prompt <text> Custom prompt for the video (optional, has default)
+ *   --model <id>    Model ID (prompts for speed/quality if not specified)
+ *   --steps <n>     Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
+ *   --width <n>     Video width (default: auto-detect from image, or 640; minimum: 480)
+ *   --height <n>    Video height (default: auto-detect from image, or 640; minimum: 480)
  */
 
 import * as fs from 'node:fs';
@@ -59,6 +61,12 @@ const widthArg = args.find((arg, i) => arg === '--width' && args[i + 1]);
 let WIDTH = widthArg ? parseInt(args[args.indexOf(widthArg) + 1], 10) : null;
 const heightArg = args.find((arg, i) => arg === '--height' && args[i + 1]);
 let HEIGHT = heightArg ? parseInt(args[args.indexOf(heightArg) + 1], 10) : null;
+const promptArg = args.find((arg, i) => arg === '--prompt' && args[i + 1]);
+const CUSTOM_PROMPT = promptArg ? args[args.indexOf(promptArg) + 1] : null;
+
+// Default prompts (used if no --prompt is provided)
+const DEFAULT_POSITIVE_PROMPT = 'A person singing and dancing to music, expressive movements, synchronized to audio';
+const DEFAULT_NEGATIVE_PROMPT = 'blurry, low quality, distorted, artifacts, watermark, text';
 
 // Reference assets for s2v workflow
 const REFERENCE_IMAGE = './test-assets/placeholder.jpg';
@@ -530,15 +538,23 @@ async function main() {
 
     let startTime = null;
 
+    // Determine which prompts to use
+    const positivePrompt = CUSTOM_PROMPT || DEFAULT_POSITIVE_PROMPT;
+    const negativePrompt = DEFAULT_NEGATIVE_PROMPT;
+
+    if (CUSTOM_PROMPT) {
+      console.log(`📝 Using custom prompt: "${CUSTOM_PROMPT}"`);
+      console.log();
+    }
+
     project = await sogni.projects.create({
       ...VIDEO_CONFIG,
       type: 'video',
       modelId: VIDEO_MODEL_ID,
       numberOfMedia: 1,
       steps: steps,
-      positivePrompt:
-        'A person singing and dancing to music, expressive movements, synchronized to audio',
-      negativePrompt: 'blurry, low quality, distorted, artifacts, watermark, text',
+      positivePrompt: positivePrompt,
+      negativePrompt: negativePrompt,
       referenceImage: referenceImageBuffer,
       referenceAudio: referenceAudioBuffer,
       tokenType: tokenType,
