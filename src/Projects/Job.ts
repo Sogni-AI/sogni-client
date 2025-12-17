@@ -9,6 +9,7 @@ import Project from './Project';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import { getEnhacementStrength } from './utils';
 import { TokenType } from '../types/token';
+import { has } from 'lodash';
 
 export const enhancementDefaults = {
   network: 'fast' as SupernetType,
@@ -64,8 +65,14 @@ export interface JobData {
   /**
    * Estimated time remaining in seconds (for long-running jobs like video generation).
    * Updated by ComfyUI workers during inference.
+   * @deprecated Use `eta` instead.
    */
   etaSeconds?: number;
+  /**
+   * Estimate completion time of the job (for long-running jobs like video generation).
+   * Updated by ComfyUI workers during inference.
+   */
+  eta?: Date;
 }
 
 export interface JobEventMap extends EntityEvents {
@@ -260,9 +267,20 @@ class Job extends DataEntity<JobData, JobEventMap> {
    * Estimated time remaining in seconds for long-running jobs (e.g., video generation).
    * Only available for ComfyUI-based workers during inference.
    * Returns undefined if no ETA has been received.
+   * @deprecated Use `timeLeft` instead.
    */
   get etaSeconds() {
     return this.data.etaSeconds;
+  }
+
+  /**
+   * Estimate completion time of the job.
+   * Only available for ComfyUI-based workers during inference.
+   * Is useful when data is persisted
+   * Returns undefined if no ETA has been received.
+   */
+  get eta() {
+    return this.data.eta;
   }
 
   /**
@@ -300,6 +318,21 @@ class Job extends DataEntity<JobData, JobEventMap> {
       }
     }
     this._update(delta);
+  }
+
+  /**
+   * Updates the job data with the provided delta.
+   * @internal
+   * @param delta
+   */
+  _update(delta: Partial<JobData>) {
+    if (has(delta, 'eta')) {
+      // Keeping etaSeconds for backwards compatibility
+      if (delta.eta) {
+        delta.etaSeconds = Math.round((delta.eta.getTime() - Date.now()) / 1000);
+      }
+    }
+    super._update(delta);
   }
 
   private handleUpdated(keys: string[]) {

@@ -39,6 +39,11 @@ export interface ProjectData {
   params: ProjectParams;
   queuePosition: number;
   status: ProjectStatus;
+  /**
+   * Estimated completion time of the project (for long-running projects like video generation).
+   * Is equal to maximum job ETA
+   */
+  eta?: Date;
   error?: ErrorData;
 }
 /** @inline */
@@ -99,6 +104,14 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
 
   get status() {
     return this.data.status;
+  }
+
+  /**
+   * Estimated time of completion in seconds (for long-running projects like video generation).
+   * Updated by ComfyUI workers during inference.
+   */
+  get eta() {
+    return this.data.eta;
   }
 
   get finished() {
