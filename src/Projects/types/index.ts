@@ -309,6 +309,16 @@ export interface EstimateRequest {
   contextImages?: number;
 }
 
+export interface VideoEstimateRequest {
+  tokenType: TokenType;
+  model: string;
+  width: number;
+  height: number;
+  frames: number;
+  fps: number;
+  steps: number;
+}
+
 /**
  * Represents estimation of project cost in different currency formats
  */

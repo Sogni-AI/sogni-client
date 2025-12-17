@@ -10,7 +10,8 @@ import {
   SizePreset,
   SupportedModel,
   ImageProjectParams,
-  VideoProjectParams
+  VideoProjectParams,
+  VideoEstimateRequest
 } from './types';
 import {
   JobErrorData,
@@ -770,7 +771,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   // ============================================
 
   /**
-   * Estimate project cost
+   * Estimate image project cost
    */
   async estimateCost({
     network,
@@ -828,6 +829,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     };
   }
 
+  /**
+   * Estimate image enhancement cost
+   * @param strength
+   * @param tokenType
+   */
   async estimateEnhancementCost(strength: EnhancementStrength, tokenType: TokenType = 'spark') {
     return this.estimateCost({
       network: enhancementDefaults.network,
@@ -839,6 +845,45 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       cnEnabled: false,
       startingImageStrength: getEnhacementStrength(strength)
     });
+  }
+
+  /**
+   * Estimates the cost of generating a video based on the provided parameters.
+   *
+   * @param {VideoEstimateRequest} params - The parameters required for video cost estimation. This includes:
+   *   - tokenType: The type of token to be used for generation.
+   *   - model: The model to be used for video generation.
+   *   - width: The width of the video in pixels.
+   *   - height: The height of the video in pixels.
+   *   - frames: The total number of frames in the video.
+   *   - fps: The frames per second for the video.
+   *   - steps: Number of steps.
+   * @return {Promise<Object>} Returns an object containing the estimated costs for the video in different units:
+   *   - token: Cost in tokens.
+   *   - usd: Cost in USD.
+   *   - spark: Cost in Spark.
+   *   - sogni: Cost in Sogni.
+   */
+  async estimateVideoCost(params: VideoEstimateRequest) {
+    const pathParams = [
+      params.tokenType,
+      params.model,
+      params.width,
+      params.height,
+      params.frames,
+      params.fps,
+      params.steps
+    ];
+    const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
+    const r = await this.client.socket.get<EstimationResponse>(
+      `/api/v1/job-video/estimate/${path}`
+    );
+    return {
+      token: r.quote.project.costInToken,
+      usd: r.quote.project.costInUSD,
+      spark: r.quote.project.costInSpark,
+      sogni: r.quote.project.costInSogni
+    };
   }
 
   // ============================================
