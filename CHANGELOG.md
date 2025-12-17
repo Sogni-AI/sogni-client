@@ -1,3 +1,10 @@
+# [4.0.0-alpha.30](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.29...v4.0.0-alpha.30) (2025-12-17)
+
+
+### Features
+
+* Add video project cost estimation ([33c7533](https://github.com/Sogni-AI/sogni-client/commit/33c7533b90bfe7c23c465b38867d184b00561112))
+
 # [4.0.0-alpha.29](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.28...v4.0.0-alpha.29) (2025-12-16)
 
 
