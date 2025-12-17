@@ -1,3 +1,10 @@
+# [4.0.0-alpha.31](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.30...v4.0.0-alpha.31) (2025-12-17)
+
+
+### Features
+
+* Add project and job ETA properties ([66024cc](https://github.com/Sogni-AI/sogni-client/commit/66024cc26dac51bbd45dc5b4d7e68c5963f8c178))
+
 # [4.0.0-alpha.30](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.29...v4.0.0-alpha.30) (2025-12-17)
 
 
