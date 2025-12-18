@@ -173,10 +173,10 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     }
 
     return new Promise((resolve, reject) => {
-      this.on('completed', (images) => {
+      this.once('completed', (images) => {
         resolve(images);
       });
-      this.on('failed', (error) => {
+      this.once('failed', (error) => {
         reject(error);
       });
     });
