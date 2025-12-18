@@ -1,3 +1,10 @@
+# [4.0.0-alpha.32](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.31...v4.0.0-alpha.32) (2025-12-18)
+
+
+### Bug Fixes
+
+* Prevent potential memory leak in Project.waitForCompletion ([010a1de](https://github.com/Sogni-AI/sogni-client/commit/010a1decd1f5168275c34f95ccdb7ca8092ac3e5))
+
 # [4.0.0-alpha.31](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.30...v4.0.0-alpha.31) (2025-12-17)
 
 
