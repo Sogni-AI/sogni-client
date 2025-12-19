@@ -1,3 +1,10 @@
+# [4.0.0-alpha.33](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.32...v4.0.0-alpha.33) (2025-12-19)
+
+
+### Bug Fixes
+
+* Add numberOfMedia parameter to video project estimation request ([b762e61](https://github.com/Sogni-AI/sogni-client/commit/b762e6130c94a1aa192047c9b14f54dc1acb0191))
+
 # [4.0.0-alpha.32](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.31...v4.0.0-alpha.32) (2025-12-18)
 
 
