@@ -35,6 +35,7 @@ import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
 import * as readline from 'node:readline';
 import imageSize from 'image-size';
+import sharp from 'sharp';
 import { loadCredentials, loadTokenTypePreference, saveTokenTypePreference } from './credentials.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -47,8 +48,9 @@ const MODELS = {
   }
 };
 
-// Minimum video dimensions for Wan 2.2 models
+// Video dimension constraints for Wan 2.2 models
 const MIN_VIDEO_DIMENSION = 480;
+const MAX_VIDEO_DIMENSION = 1536;
 
 // ============================================
 // Parse Command Line Arguments
@@ -309,6 +311,82 @@ async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fp
   return response.json();
 }
 
+/**
+ * Resize image if it exceeds the maximum allowed dimensions
+ * Returns the processed image buffer and the new dimensions
+ */
+async function processImageForVideo(imagePath, originalWidth, originalHeight) {
+  let targetWidth = originalWidth;
+  let targetHeight = originalHeight;
+  let needsResize = false;
+
+  // Check if image exceeds maximum dimensions
+  if (originalWidth > MAX_VIDEO_DIMENSION || originalHeight > MAX_VIDEO_DIMENSION) {
+    needsResize = true;
+
+    // Calculate scaling factor to fit within max dimensions while maintaining aspect ratio
+    const scaleFactor = Math.min(
+      MAX_VIDEO_DIMENSION / originalWidth,
+      MAX_VIDEO_DIMENSION / originalHeight
+    );
+
+    targetWidth = Math.floor(originalWidth * scaleFactor);
+    targetHeight = Math.floor(originalHeight * scaleFactor);
+  }
+
+  // Check if image is below minimum dimensions
+  if (targetWidth < MIN_VIDEO_DIMENSION || targetHeight < MIN_VIDEO_DIMENSION) {
+    needsResize = true;
+
+    // Calculate scaling factor to meet minimum dimensions while maintaining aspect ratio
+    const scaleFactor = Math.max(
+      MIN_VIDEO_DIMENSION / targetWidth,
+      MIN_VIDEO_DIMENSION / targetHeight
+    );
+
+    targetWidth = Math.floor(targetWidth * scaleFactor);
+    targetHeight = Math.floor(targetHeight * scaleFactor);
+
+    // Ensure we don't exceed max dimensions after upscaling
+    if (targetWidth > MAX_VIDEO_DIMENSION || targetHeight > MAX_VIDEO_DIMENSION) {
+      const downscaleFactor = Math.min(
+        MAX_VIDEO_DIMENSION / targetWidth,
+        MAX_VIDEO_DIMENSION / targetHeight
+      );
+      targetWidth = Math.floor(targetWidth * downscaleFactor);
+      targetHeight = Math.floor(targetHeight * downscaleFactor);
+    }
+  }
+
+  // Ensure dimensions are even (some video codecs require this)
+  targetWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth - 1;
+  targetHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
+
+  let imageBuffer;
+
+  if (needsResize) {
+    log('🔄', `Resizing image from ${originalWidth}x${originalHeight} to ${targetWidth}x${targetHeight} to meet video requirements...`);
+
+    // Use sharp to resize the image
+    imageBuffer = await sharp(imagePath)
+      .resize(targetWidth, targetHeight, {
+        fit: 'inside',
+        withoutEnlargement: false // Allow enlargement if needed to meet minimum dimensions
+      })
+      .toBuffer();
+  } else {
+    // No resize needed, just read the original file
+    imageBuffer = fs.readFileSync(imagePath);
+  }
+
+  return {
+    buffer: imageBuffer,
+    width: targetWidth,
+    height: targetHeight,
+    wasResized: needsResize
+  };
+}
+
 // ============================================
 // Main
 // ============================================
@@ -347,34 +425,37 @@ async function main() {
   }
 
   // Auto-detect dimensions if not specified
+  let detectedWidth, detectedHeight;
   if (!WIDTH || !HEIGHT) {
     try {
       const dimensions = imageSize(resolvedImagePath);
       if (dimensions.width && dimensions.height) {
-        WIDTH = OPTIONS.width || dimensions.width;
-        HEIGHT = OPTIONS.height || dimensions.height;
-        log('📐', `Auto-detected dimensions: ${WIDTH}x${HEIGHT}`);
+        detectedWidth = OPTIONS.width || dimensions.width;
+        detectedHeight = OPTIONS.height || dimensions.height;
+        log('📐', `Auto-detected dimensions: ${detectedWidth}x${detectedHeight}`);
       } else {
         log('⚠️', 'Could not auto-detect image dimensions, using defaults: 640x640');
-        WIDTH = WIDTH || 640;
-        HEIGHT = HEIGHT || 640;
+        detectedWidth = WIDTH || 640;
+        detectedHeight = HEIGHT || 640;
       }
     } catch (e) {
       log('❌', `Error reading image dimensions: ${e.message}, using defaults: 640x640`);
-      WIDTH = WIDTH || 640;
-      HEIGHT = HEIGHT || 640;
+      detectedWidth = WIDTH || 640;
+      detectedHeight = HEIGHT || 640;
     }
+  } else {
+    detectedWidth = WIDTH;
+    detectedHeight = HEIGHT;
   }
 
-  // Validate minimum video dimensions for Wan 2.2
-  if (WIDTH < MIN_VIDEO_DIMENSION) {
-    console.error(`Error: Video width must be at least ${MIN_VIDEO_DIMENSION}px for Wan 2.2 models (got ${WIDTH})`);
-    process.exit(1);
-  }
-  if (HEIGHT < MIN_VIDEO_DIMENSION) {
-    console.error(`Error: Video height must be at least ${MIN_VIDEO_DIMENSION}px for Wan 2.2 models (got ${HEIGHT})`);
-    process.exit(1);
-  }
+  // Process the image (will resize if necessary)
+  const processedImage = await processImageForVideo(resolvedImagePath, detectedWidth, detectedHeight);
+  WIDTH = processedImage.width;
+  HEIGHT = processedImage.height;
+  const imageBuffer = processedImage.buffer;
+
+  // The dimensions are now guaranteed to be within the valid range
+  log('✓', `Final video dimensions: ${WIDTH}x${HEIGHT}`);
 
   // Prompt for model if not specified
   if (!VIDEO_MODEL_ID) {
@@ -581,8 +662,7 @@ async function main() {
     log('✓', `Model ready: ${videoModel.name}`);
     console.log();
 
-    // Read image buffer
-    const imageBuffer = fs.readFileSync(resolvedImagePath);
+    // Note: imageBuffer was already prepared by processImageForVideo() above
 
     // Create project
     log('📤', 'Submitting video generation job...');
