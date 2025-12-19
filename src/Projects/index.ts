@@ -882,7 +882,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       params.height,
       params.frames,
       params.fps,
-      params.steps
+      params.steps,
+      params.numberOfMedia
     ];
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
     const r = await this.client.socket.get<EstimationResponse>(

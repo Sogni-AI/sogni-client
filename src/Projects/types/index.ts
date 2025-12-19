@@ -317,6 +317,7 @@ export interface VideoEstimateRequest {
   frames: number;
   fps: number;
   steps: number;
+  numberOfMedia: number;
 }
 
 /**
