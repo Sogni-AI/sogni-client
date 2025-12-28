@@ -67,6 +67,8 @@ export interface BaseProjectParams {
   steps?: number;
   /**
    * Guidance scale. For most Stable Diffusion models, optimal value is 7.5.
+   * For video models: Regular models range 0.7-8.0, LoRA version (lightx2v) range 0.7-1.6, step 0.01.
+   * This maps to `guidanceScale` in the keyFrame for both image and video models.
    */
   guidance?: number;
   /**
@@ -107,9 +109,17 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   fps?: number;
   /**
-   * Shift parameter for video diffusion models
+   * Shift parameter for video diffusion models.
+   * Controls motion intensity. Range: 1.0-8.0, step 0.1.
+   * Default: 8.0 for regular models, 5.0 for speed lora (lightx2v) except s2v and animate which use 8.0
    */
   shift?: number;
+  /**
+   * TeaCache optimization threshold for T2V and I2V models.
+   * Range: 0.0-1.0. 0.0 = disabled.
+   * Recommended: 0.15 for T2V (~1.5x speedup), 0.2 for I2V (conservative quality-focused)
+   */
+  teacacheThreshold?: number;
   /**
    * Reference image for WAN video workflows.
    * Maps to: startImage (i2v), characterImage (animate), referenceImage (s2v)

@@ -79,3 +79,21 @@ export function validateScheduler(value?: string) {
     `Invalid scheduler: ${value}. Supported options: ${Object.keys(SupportedSchedulers).join(', ')}`
   );
 }
+
+/**
+ * Validate teacacheThreshold for T2V and I2V models.
+ * Range: 0.0-1.0. 0.0 = disabled.
+ */
+export function validateTeacacheThreshold(value?: number): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const num = Number(value);
+  if (isNaN(num)) {
+    throw new Error(`teacacheThreshold must be a number, got ${value}`);
+  }
+  if (num < 0.0 || num > 1.0) {
+    throw new Error(`teacacheThreshold must be between 0.0 and 1.0 (got ${num})`);
+  }
+  return num;
+}

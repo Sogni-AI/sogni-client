@@ -11,7 +11,8 @@ import {
   validateCustomImageSize,
   validateSampler,
   validateScheduler,
-  validateVideoSize
+  validateVideoSize,
+  validateTeacacheThreshold
 } from '../lib/validation';
 import { getVideoWorkflowType, isVideoModel, VIDEO_WORKFLOW_ASSETS } from './utils';
 import { ApiError } from '../ApiClient';
@@ -219,6 +220,12 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
   }
   if (params.shift !== undefined) {
     keyFrame.shift = params.shift;
+  }
+  if (params.teacacheThreshold !== undefined) {
+    const validatedThreshold = validateTeacacheThreshold(params.teacacheThreshold);
+    if (validatedThreshold !== undefined) {
+      keyFrame.teacacheThreshold = validatedThreshold;
+    }
   }
 
   // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
