@@ -61,6 +61,7 @@ export type JobResultData = {
   lastSeed: string;
   userCanceled: boolean;
   triggeredNSFWFilter: boolean;
+  resultUrl?: string;
 };
 
 export type JobStateData =

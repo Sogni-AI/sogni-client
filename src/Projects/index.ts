@@ -61,17 +61,17 @@ function getFileContentType(file: File | Buffer | Blob): string | undefined {
  * Convert file to a format compatible with fetch body.
  * Converts Node.js Buffer to Blob for cross-platform compatibility.
  */
-function toFetchBody(file: File | Buffer | Blob) {
+function toFetchBody(file: File | Buffer | Blob): BodyInit {
   // Node.js Buffer is not supported in browsers, so we can skip this conversion
   if (typeof Buffer === 'undefined') {
-    return file;
+    return file as BodyInit;
   }
   if (Buffer.isBuffer(file)) {
     // Copy Buffer data to a new ArrayBuffer to ensure type compatibility
     const arrayBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
     return new Blob([arrayBuffer as ArrayBuffer]);
   }
-  return file;
+  return file as BodyInit;
 }
 
 function mapErrorCodes(code: string): number {
@@ -126,7 +126,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.client.socket.on('jobProgress', this.handleJobProgress.bind(this));
     this.client.socket.on('jobETA', this.handleJobETA.bind(this));
     this.client.socket.on('jobError', this.handleJobError.bind(this));
-    this.client.socket.on('jobResult', this.handleJobResult.bind(this));
+    this.client.socket.on('jobResult', (data: any) => {
+      this.handleJobResult(data).catch((err) => {
+        this.client.logger.error('Error in handleJobResult:', err);
+      });
+    });
     // Listen to the server disconnect event
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     // Listen to project and job events and update project and job instances
@@ -245,27 +249,47 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async handleJobResult(data: JobResultData) {
     const project = this.projects.find((p) => p.id === data.jobID);
     const passNSFWCheck = !data.triggeredNSFWFilter || !project || project.params.disableNSFWFilter;
-    let downloadUrl = null;
-    // If NSFW filter is triggered, image will be only available for download if user explicitly
-    // disabled the filter for this project
-    if (passNSFWCheck && !data.userCanceled) {
+    let downloadUrl = data.resultUrl || null; // Use resultUrl from event if provided
+
+    // If no resultUrl provided and NSFW check passes, generate download URL
+    if (!downloadUrl && passNSFWCheck && !data.userCanceled) {
       // Use media endpoint for video models, image endpoint for image models
       const isVideo = project && this.isVideoModelId(project.params.modelId);
-      if (isVideo) {
-        downloadUrl = await this.mediaDownloadUrl({
-          jobId: data.jobID,
-          id: data.imgID,
-          type: 'complete'
-        });
-      } else {
-        downloadUrl = await this.downloadUrl({
-          jobId: data.jobID,
-          imageId: data.imgID,
-          type: 'complete'
+      try {
+        if (isVideo) {
+          downloadUrl = await this.mediaDownloadUrl({
+            jobId: data.jobID,
+            id: data.imgID,
+            type: 'complete'
+          });
+        } else {
+          downloadUrl = await this.downloadUrl({
+            jobId: data.jobID,
+            imageId: data.imgID,
+            type: 'complete'
+          });
+        }
+      } catch (error: any) {
+        // Continue with null downloadUrl - the event will indicate failure
+      }
+    }
+
+    // Update the job directly with the result URL to prevent duplicate API calls
+    if (project) {
+      const job = project.job(data.imgID);
+      if (job) {
+        job._update({
+          status: data.userCanceled ? 'canceled' : 'completed',
+          step: data.performedStepCount,
+          seed: Number(data.lastSeed),
+          resultUrl: downloadUrl,
+          isNSFW: data.triggeredNSFWFilter,
+          userCanceled: data.userCanceled
         });
       }
     }
 
+    // Emit job completion event with the generated download URL
     this.emit('job', {
       type: 'completed',
       projectId: data.jobID,
@@ -922,6 +946,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       `/v1/image/downloadUrl`,
       params
     );
+    if (!r?.data?.downloadUrl) {
+      throw new Error(`API returned no downloadUrl: ${JSON.stringify(r)}`);
+    }
     return r.data.downloadUrl;
   }
 
@@ -946,6 +973,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       `/v1/media/downloadUrl`,
       params
     );
+    if (!r?.data?.downloadUrl) {
+      throw new Error(`API returned no downloadUrl: ${JSON.stringify(r)}`);
+    }
     return r.data.downloadUrl;
   }
 
@@ -1064,6 +1094,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       };
     });
   }
+
 }
 
 export default ProjectsApi;

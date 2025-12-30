@@ -181,7 +181,15 @@ function applyImageParams(inputKeyframe: Record<string, any>, params: ImageProje
   if (params.controlNet) {
     keyFrame.currentControlNetsJob = getControlNet(params.controlNet);
   }
-  if (params.sizePreset === 'custom') {
+
+  // Set sizePreset to 'custom' if width/height are provided but sizePreset is not set
+  let effectiveSizePreset = params.sizePreset;
+  if (params.width && params.height && !params.sizePreset) {
+    effectiveSizePreset = 'custom';
+  }
+  keyFrame.sizePreset = effectiveSizePreset;
+
+  if (effectiveSizePreset === 'custom' && params.width && params.height) {
     keyFrame.width = validateCustomImageSize(params.width);
     keyFrame.height = validateCustomImageSize(params.height);
   }
