@@ -1,3 +1,10 @@
+# [4.0.0-alpha.34](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.33...v4.0.0-alpha.34) (2025-12-30)
+
+
+### Features
+
+* Add VideoProjectParams optional teacacheThreshold support ([7a68d4c](https://github.com/Sogni-AI/sogni-client/commit/7a68d4ccc8db8fa1ed410452321468d434927bd1))
+
 # [4.0.0-alpha.33](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.32...v4.0.0-alpha.33) (2025-12-19)
 
 
