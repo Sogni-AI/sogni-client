@@ -1,3 +1,10 @@
+# [4.0.0-alpha.35](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.34...v4.0.0-alpha.35) (2025-12-31)
+
+
+### Bug Fixes
+
+* allow i2v workflow to use either referenceImage or referenceImageEnd ([b9f08ef](https://github.com/Sogni-AI/sogni-client/commit/b9f08efa91e92f58280b923c5815c9b6645c5452))
+
 # [4.0.0-alpha.34](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.33...v4.0.0-alpha.34) (2025-12-30)
 
 
