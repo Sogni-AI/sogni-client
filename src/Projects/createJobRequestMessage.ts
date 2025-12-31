@@ -27,7 +27,19 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
 
   const requirements = VIDEO_WORKFLOW_ASSETS[workflowType];
   if (!requirements) return;
-  // Check for missing required assets
+
+  // Special case for i2v: at least ONE of referenceImage or referenceImageEnd required
+  if (workflowType === 'i2v') {
+    if (!params.referenceImage && !params.referenceImageEnd) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: 'i2v workflow requires at least one of referenceImage or referenceImageEnd. Please provide this asset.'
+      });
+    }
+  }
+
+  // Check for missing required assets and forbidden assets
   for (const [asset, requirement] of Object.entries(requirements)) {
     const assetKey = asset as keyof VideoProjectParams;
     const hasAsset = !!params[assetKey];

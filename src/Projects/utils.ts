@@ -51,7 +51,7 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceVideo: 'forbidden'
   },
   i2v: {
-    referenceImage: 'required',
+    referenceImage: 'optional',
     referenceImageEnd: 'optional',
     referenceAudio: 'forbidden',
     referenceVideo: 'forbidden'
