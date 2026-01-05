@@ -69,7 +69,7 @@ export const MODELS = {
       supportsContextImages: true,
       maxContextImages: 3,
       isComfyModel: true,
-      defaultComfySampler: 'euler',
+      defaultComfySampler: 'res_multistep',
       defaultComfyScheduler: 'simple'
     },
     'qwen': {
