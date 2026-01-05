@@ -329,7 +329,12 @@ export interface VideoEstimateRequest {
   model: string;
   width: number;
   height: number;
-  frames: number;
+  duration: number;
+  /**
+   * Number of frames to generate.
+   * @deprecated Use duration instead
+   */
+  frames?: number;
   fps: number;
   steps: number;
   numberOfMedia: number;
