@@ -29,4 +29,3 @@ export function isComfySampler(sampler: string): sampler is ComfySampler {
 }
 
 export type ComfySampler = keyof typeof SupportedComfySamplers;
-

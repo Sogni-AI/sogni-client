@@ -19,4 +19,3 @@ export function isComfyScheduler(scheduler: string): scheduler is ComfyScheduler
 }
 
 export type ComfyScheduler = keyof typeof SupportedComfySchedulers;
-
