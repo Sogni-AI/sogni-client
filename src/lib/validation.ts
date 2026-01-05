@@ -1,5 +1,13 @@
-import { isRawSampler, isSampler, SupportedSamplers } from '../Projects/types/SamplerParams';
-import { isScheduler, SupportedSchedulers } from '../Projects/types/SchedulerParams';
+import {
+  isRawForgeSampler,
+  isForgeSampler,
+  SupportedForgeSamplers
+} from '../Projects/types/ForgeSamplerParams';
+import {
+  isForgeScheduler,
+  isRawForgeScheduler,
+  SupportedForgeSchedulers
+} from '../Projects/types/ForgeSchedulerParams';
 import { isComfySampler, SupportedComfySamplers } from '../Projects/types/ComfySamplerParams';
 import { isComfyScheduler, SupportedComfySchedulers } from '../Projects/types/ComfySchedulerParams';
 
@@ -52,33 +60,33 @@ export function validateNumber(
   return number;
 }
 
-export function validateSampler(value?: string) {
+export function validateForgeSampler(value?: string) {
   if (!value) {
     return null;
   }
-  if (isRawSampler(value)) {
+  if (isRawForgeSampler(value)) {
     return value;
   }
-  if (isSampler(value)) {
-    return SupportedSamplers[value];
+  if (isForgeSampler(value)) {
+    return SupportedForgeSamplers[value];
   }
   throw new Error(
-    `Invalid sampler: ${value}. Supported options: ${Object.keys(SupportedSamplers).join(', ')}`
+    `Invalid sampler: ${value}. Supported options: ${Object.keys(SupportedForgeSamplers).join(', ')}`
   );
 }
 
-export function validateScheduler(value?: string) {
+export function validateForgeScheduler(value?: string) {
   if (!value) {
     return null;
   }
-  if (isRawSampler(value)) {
+  if (isRawForgeScheduler(value)) {
     return value;
   }
-  if (isScheduler(value)) {
-    return SupportedSchedulers[value];
+  if (isForgeScheduler(value)) {
+    return SupportedForgeSchedulers[value];
   }
   throw new Error(
-    `Invalid scheduler: ${value}. Supported options: ${Object.keys(SupportedSchedulers).join(', ')}`
+    `Invalid scheduler: ${value}. Supported options: ${Object.keys(SupportedForgeSchedulers).join(', ')}`
   );
 }
 
@@ -130,4 +138,23 @@ export function validateComfyScheduler(value?: string): string | undefined {
   throw new Error(
     `Invalid comfyScheduler: ${value}. Supported options: ${Object.keys(SupportedComfySchedulers).join(', ')}`
   );
+}
+
+export function isComfyModel(modelId: string): boolean {
+  const COMFY_PREFIXES = ['z_image_', 'qwen_image_', 'flux2_', 'wan_'];
+  return COMFY_PREFIXES.some((prefix) => modelId.startsWith(prefix));
+}
+
+export function validateSampler(modelId: string, sampler: string) {
+  if (isComfyModel(modelId)) {
+    return validateComfySampler(sampler);
+  }
+  return validateForgeSampler(sampler);
+}
+
+export function validateScheduler(modelId: string, scheduler: string) {
+  if (isComfyModel(modelId)) {
+    return validateComfyScheduler(scheduler);
+  }
+  return validateForgeScheduler(scheduler);
 }

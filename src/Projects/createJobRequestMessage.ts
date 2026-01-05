@@ -9,12 +9,13 @@ import { ControlNetParams, ControlNetParamsRaw } from './types/ControlNetParams'
 import {
   validateNumber,
   validateCustomImageSize,
-  validateSampler,
-  validateScheduler,
+  validateForgeSampler,
+  validateForgeScheduler,
   validateVideoSize,
   validateTeacacheThreshold,
   validateComfySampler,
-  validateComfyScheduler
+  validateComfyScheduler,
+  isComfyModel
 } from '../lib/validation';
 import { getVideoWorkflowType, isVideoModel, VIDEO_WORKFLOW_ASSETS } from './utils';
 import { ApiError } from '../ApiClient';
@@ -36,7 +37,8 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
       throw new ApiError(400, {
         status: 'error',
         errorCode: 0,
-        message: 'i2v workflow requires at least one of referenceImage or referenceImageEnd. Please provide this asset.'
+        message:
+          'i2v workflow requires at least one of referenceImage or referenceImageEnd. Please provide this asset.'
       });
     }
   }
@@ -186,18 +188,20 @@ function applyImageParams(inputKeyframe: Record<string, any>, params: ImageProje
 
   // Handle sampler/scheduler: ComfyUI models use comfySampler/comfyScheduler,
   // legacy models use sampler/scheduler (mapped to scheduler/timeStepSpacing)
-  if (params.comfySampler !== undefined) {
-    keyFrame.comfySampler = validateComfySampler(params.comfySampler);
-  }
-  if (params.comfyScheduler !== undefined) {
-    keyFrame.comfyScheduler = validateComfyScheduler(params.comfyScheduler);
-  }
-  // Legacy fields only used when comfy fields are NOT provided
-  if (params.comfySampler === undefined && params.sampler !== undefined) {
-    keyFrame.scheduler = validateSampler(params.sampler);
-  }
-  if (params.comfyScheduler === undefined && params.scheduler !== undefined) {
-    keyFrame.timeStepSpacing = validateScheduler(params.scheduler);
+  if (isComfyModel(params.modelId)) {
+    if (params.sampler !== undefined) {
+      keyFrame.comfySampler = validateComfySampler(params.sampler);
+    }
+    if (params.scheduler !== undefined) {
+      keyFrame.comfyScheduler = validateComfyScheduler(params.scheduler);
+    }
+  } else {
+    if (params.sampler !== undefined) {
+      keyFrame.scheduler = validateForgeSampler(params.sampler);
+    }
+    if (params.scheduler !== undefined) {
+      keyFrame.timeStepSpacing = validateForgeScheduler(params.scheduler);
+    }
   }
 
   if (params.startingImage) {
@@ -272,11 +276,11 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
 
   // Video models are ComfyUI models - only accept comfySampler/comfyScheduler
   // Legacy sampler/scheduler fields are NOT supported for video models
-  if (params.comfySampler !== undefined) {
-    keyFrame.comfySampler = validateComfySampler(params.comfySampler);
+  if (params.sampler !== undefined) {
+    keyFrame.comfySampler = validateComfySampler(params.sampler);
   }
-  if (params.comfyScheduler !== undefined) {
-    keyFrame.comfyScheduler = validateComfyScheduler(params.comfyScheduler);
+  if (params.scheduler !== undefined) {
+    keyFrame.comfyScheduler = validateComfyScheduler(params.scheduler);
   }
 
   return keyFrame;

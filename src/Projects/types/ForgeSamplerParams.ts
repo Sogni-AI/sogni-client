@@ -1,4 +1,4 @@
-export const SupportedSamplers = {
+export const SupportedForgeSamplers = {
   euler: 'Euler',
   euler_ancestral: 'Euler Ancestral',
   heun: 'Heun',
@@ -25,13 +25,13 @@ export const SupportedSamplers = {
   pndm_plms: 'PNDM (Pseudo-linear multi-step)'
 };
 
-export function isSampler(sampler: string): sampler is Sampler {
-  return sampler in SupportedSamplers;
+export function isForgeSampler(sampler: string): sampler is ForgeSampler {
+  return sampler in SupportedForgeSamplers;
 }
 
-export function isRawSampler(sampler: string): boolean {
-  const samplers = Object.values(SupportedSamplers);
+export function isRawForgeSampler(sampler: string): boolean {
+  const samplers = Object.values(SupportedForgeSamplers);
   return samplers.includes(sampler);
 }
 
-export type Sampler = keyof typeof SupportedSamplers;
+export type ForgeSampler = keyof typeof SupportedForgeSamplers;

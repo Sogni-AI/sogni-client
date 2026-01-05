@@ -1,8 +1,8 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
 import { ControlNetParams } from './ControlNetParams';
 import { TokenType } from '../../types/token';
-import { Sampler, SupportedSamplers } from './SamplerParams';
-import { Scheduler, SupportedSchedulers } from './SchedulerParams';
+import { ForgeSampler, SupportedForgeSamplers } from './ForgeSamplerParams';
+import { ForgeScheduler, SupportedForgeSchedulers } from './ForgeSchedulerParams';
 import { ComfySampler, SupportedComfySamplers } from './ComfySamplerParams';
 import { ComfyScheduler, SupportedComfySchedulers } from './ComfySchedulerParams';
 
@@ -35,9 +35,18 @@ export interface SizePreset {
   aspect: string;
 }
 
-export type { Sampler, Scheduler, ComfySampler, ComfyScheduler };
+export type Sampler = ForgeSampler | ComfySampler;
 
-export { SupportedSamplers, SupportedSchedulers, SupportedComfySamplers, SupportedComfySchedulers };
+export type Scheduler = ForgeScheduler | ComfyScheduler;
+
+export type { ForgeSampler, ForgeScheduler, ComfySampler, ComfyScheduler };
+
+export {
+  SupportedForgeSamplers,
+  SupportedForgeSchedulers,
+  SupportedComfySamplers,
+  SupportedComfySchedulers
+};
 
 export type ImageOutputFormat = 'png' | 'jpg';
 export type VideoOutputFormat = 'mp4';
@@ -154,13 +163,13 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Uses ComfyUI's native lowercase format: euler, euler_ancestral, dpmpp_2m, etc.
    * Default: euler (or uni_pc for s2v models)
    */
-  comfySampler?: ComfySampler;
+  sampler?: ComfySampler;
   /**
    * ComfyUI scheduler for video generation.
    * Uses ComfyUI's native lowercase format: simple, normal, karras, sgm_uniform, etc.
    * Default: simple
    */
-  comfyScheduler?: ComfyScheduler;
+  scheduler?: ComfyScheduler;
   /**
    * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
    */
@@ -192,16 +201,6 @@ export interface ImageProjectParams extends BaseProjectParams {
    * Flux Kontext supports up to 2 context images.
    */
   contextImages?: InputMedia[];
-  /**
-   * ComfyUI sampler for ComfyUI image models (z_image_turbo, qwen_image_edit, flux2_dev).
-   * Uses ComfyUI's native lowercase format: euler, euler_ancestral, dpmpp_2m, etc.
-   */
-  comfySampler?: ComfySampler;
-  /**
-   * ComfyUI scheduler for ComfyUI image models (z_image_turbo, qwen_image_edit, flux2_dev).
-   * Uses ComfyUI's native lowercase format: simple, normal, karras, sgm_uniform, etc.
-   */
-  comfyScheduler?: ComfyScheduler;
   /**
    * Legacy sampler for non-ComfyUI models (Automatic1111 workers).
    * Not supported for ComfyUI models - use comfySampler instead.

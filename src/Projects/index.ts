@@ -11,7 +11,15 @@ import {
   SupportedModel,
   ImageProjectParams,
   VideoProjectParams,
-  VideoEstimateRequest
+  VideoEstimateRequest,
+  SupportedComfySamplers,
+  SupportedForgeSamplers,
+  SupportedComfySchedulers,
+  SupportedForgeSchedulers,
+  ComfyScheduler,
+  ForgeScheduler,
+  ComfySampler,
+  ForgeSampler
 } from './types';
 import {
   JobErrorData,
@@ -39,7 +47,7 @@ import {
   VIDEO_WORKFLOW_ASSETS
 } from './utils';
 import { TokenType } from '../types/token';
-import { validateSampler } from '../lib/validation';
+import { isComfyModel, validateSampler } from '../lib/validation';
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 const GARBAGE_COLLECT_TIMEOUT = 30000;
@@ -518,7 +526,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   async create(data: ProjectParams): Promise<Project> {
     const project = new Project({ ...data }, { api: this, logger: this.client.logger });
     const request = createJobRequestMessage(project.id, data);
-    
+
     switch (data.type) {
       case 'image':
         await this._processImageAssets(project, data);
@@ -681,7 +689,6 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       body
     });
     if (!res.ok) {
-      const text = await res.text();
       throw new ApiError(res.status, {
         status: 'error',
         errorCode: 0,
@@ -852,7 +859,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (sampler) {
       apiVersion = 3;
       pathParams.push(guidance || 0);
-      pathParams.push(validateSampler(sampler)!);
+      pathParams.push(validateSampler(model, sampler)!);
       pathParams.push(contextImages || 0);
     }
     const r = await this.client.socket.get<EstimationResponse>(
@@ -1098,6 +1105,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
   }
 
+  async getSamplers(modelId: string) {
+    if (isComfyModel(modelId)) {
+      return Object.keys(SupportedComfySamplers) as ComfySampler[];
+    }
+    return Object.keys(SupportedForgeSamplers) as ForgeSampler[];
+  }
+
+  async getSchedulers(modelId: string) {
+    if (isComfyModel(modelId)) {
+      return Object.keys(SupportedComfySchedulers) as ComfyScheduler[];
+    }
+    return Object.keys(SupportedForgeSchedulers) as ForgeScheduler[];
+  }
 }
 
 export default ProjectsApi;
