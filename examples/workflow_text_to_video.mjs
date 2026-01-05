@@ -143,7 +143,7 @@ Usage:
   node workflow_text_to_video.mjs "Dancing" --model quality # With specific model
 
 Available Models:
-  lightx2v - WAN 2.2 14B T2V LightX2V (fast, 4-step)
+  lightx2v - WAN 2.2 14B T2V LightX2V (fast, 4-step, default)
   quality  - WAN 2.2 14B T2V (high quality, 20-step)
 
 Options:

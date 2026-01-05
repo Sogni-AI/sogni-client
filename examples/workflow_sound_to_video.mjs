@@ -165,7 +165,7 @@ Usage:
   node workflow_sound_to_video.mjs "A person speaking" --image face.jpg --audio voice.mp3
 
 Available Models:
-  lightx2v - WAN 2.2 14B S2V LightX2V (fast, 4-step)
+  lightx2v - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
   quality  - WAN 2.2 14B S2V (high quality, 20-step)
 
 Options:
@@ -484,26 +484,7 @@ async function main() {
       console.log();
     }
 
-    // Get cost estimate
-    log('💵', 'Fetching cost estimate...');
-    const estimate = await getVideoJobEstimate(tokenType, modelConfig.id, OPTIONS.width, OPTIONS.height, OPTIONS.frames, OPTIONS.fps, modelConfig.defaultSteps);
-
-    console.log();
-    console.log('📊 Cost Estimate:');
-
-    if (tokenType === 'spark') {
-      const cost = parseFloat(estimate.quote.project.costInSpark || 0);
-      const currentBalance = parseFloat(balance.spark.net || 0);
-      console.log(`   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
-      console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
-    } else {
-      const cost = parseFloat(estimate.quote.project.costInSogni || 0);
-      const currentBalance = parseFloat(balance.sogni.net || 0);
-      console.log(`   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
-      console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
-    }
-
-    // Show configuration
+    // Show configuration first
     const videoDuration = (OPTIONS.frames - 1) / OPTIONS.fps;
     const configDisplay = {
       'Model': modelConfig.name,
@@ -535,6 +516,25 @@ async function main() {
     }
     if (OPTIONS.style) {
       console.log(`   Style prompt: ${OPTIONS.style}`);
+    }
+
+    // Get cost estimate
+    log('💵', 'Fetching cost estimate...');
+    const estimate = await getVideoJobEstimate(tokenType, modelConfig.id, OPTIONS.width, OPTIONS.height, OPTIONS.frames, OPTIONS.fps, modelConfig.defaultSteps);
+
+    console.log();
+    console.log('📊 Cost Estimate:');
+
+    if (tokenType === 'spark') {
+      const cost = parseFloat(estimate.quote.project.costInSpark || 0);
+      const currentBalance = parseFloat(balance.spark.net || 0);
+      console.log(`   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
+    } else {
+      const cost = parseFloat(estimate.quote.project.costInSogni || 0);
+      const currentBalance = parseFloat(balance.sogni.net || 0);
+      console.log(`   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
     }
 
     console.log();

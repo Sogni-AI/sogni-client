@@ -518,6 +518,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   async create(data: ProjectParams): Promise<Project> {
     const project = new Project({ ...data }, { api: this, logger: this.client.logger });
     const request = createJobRequestMessage(project.id, data);
+    
     switch (data.type) {
       case 'image':
         await this._processImageAssets(project, data);
@@ -674,11 +675,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       jobId: projectId,
       type: `contextImage${imageIndex}`
     });
+    const body = toFetchBody(file);
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file)
+      body
     });
     if (!res.ok) {
+      const text = await res.text();
       throw new ApiError(res.status, {
         status: 'error',
         errorCode: 0,

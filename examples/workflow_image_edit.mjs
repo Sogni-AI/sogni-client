@@ -19,6 +19,8 @@
  *   --context2    Reference image 2 (optional)
  *   --context3    Reference image 3 (optional)
  *   --model       Model: qwen, qwen-lightning, or flux2 (default: prompts for selection)
+ *   --width       Output image width (default: context image width)
+ *   --height      Output image height (default: context image height)
  *   --batch       Number of images to generate (default: 1)
  *   --seed        Random seed for reproducibility (default: -1 for random)
  *   --guidance    Guidance scale for Flux2 (default: 4.0)
@@ -78,6 +80,8 @@ async function parseArgs() {
     steps: null,
     sampler: null,
     scheduler: null,
+    width: null,
+    height: null,
     output: './output',
     interactive: true
   };
@@ -115,6 +119,10 @@ async function parseArgs() {
       options.sampler = args[++i];
     } else if (arg === '--scheduler' && args[i + 1]) {
       options.scheduler = args[++i];
+    } else if (arg === '--width' && args[i + 1]) {
+      options.width = parseInt(args[++i], 10);
+    } else if (arg === '--height' && args[i + 1]) {
+      options.height = parseInt(args[++i], 10);
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -142,8 +150,8 @@ Usage:
   node workflow_image_edit.mjs "modern artwork" --context ref1.jpg --context2 ref2.jpg
 
 Available Models:
+  qwen-lightning - Qwen Image Edit 2511 Lightning (fast, 4-step, default)
   qwen           - Qwen Image Edit 2511 (high quality, 20-step)
-  qwen-lightning - Qwen Image Edit 2511 Lightning (fast, 4-step)
   flux2          - Flux.2 Dev (high quality with context images)
 
 Options:
@@ -151,6 +159,8 @@ Options:
   --context2    Reference image 2 (optional)
   --context3    Reference image 3 (optional)
   --model       Model: qwen, qwen-lightning, or flux2 (default: prompts for selection)
+  --width       Output image width (default: context image width)
+  --height      Output image height (default: context image height)
   --negative    Negative prompt (default: none)
   --style       Style prompt (default: none)
   --batch       Number of images to generate (default: 1)
@@ -207,14 +217,14 @@ async function main() {
   // Interactive mode: select model and options
   let modelConfig;
   if (OPTIONS.interactive && !OPTIONS.modelKey) {
-    const selection = await selectModel(MODELS.imageEdit, 'qwen');
+    const selection = await selectModel(MODELS.imageEdit, 'qwen-lightning');
     OPTIONS.modelKey = selection.key;
     modelConfig = selection.config;
   } else {
-    OPTIONS.modelKey = OPTIONS.modelKey || 'qwen';
+    OPTIONS.modelKey = OPTIONS.modelKey || 'qwen-lightning';
     modelConfig = MODELS.imageEdit[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'qwen', 'qwen-lightning', or 'flux2'.`);
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'qwen-lightning', 'qwen', or 'flux2'.`);
       process.exit(1);
     }
   }
@@ -233,7 +243,97 @@ async function main() {
       const firstContextImage = await pickImageFile(null, '1st reference image (required)');
       OPTIONS.contextImages.push(firstContextImage);
       log('✓', `Added reference image: ${firstContextImage}`);
+
+      // Re-detect dimensions from the selected context image
+      try {
+        const dimensions = imageSize(firstContextImage);
+        if (dimensions.width && dimensions.height) {
+          imageDimensions = { width: dimensions.width, height: dimensions.height };
+        }
+      } catch (error) {
+        // Keep existing dimensions if detection fails
+      }
     }
+
+    // Ask for additional context images (up to 2 more)
+    console.log('\n📸 Additional Reference Images\n');
+    console.log('  You can add up to 2 more reference images.');
+    console.log('  Enter the image number or 0 to skip.\n');
+
+    for (let i = 1; i < (modelConfig.maxContextImages || 3); i++) {
+      const ordinal = i === 1 ? '2nd' : '3rd';
+
+      try {
+        // Scan directories for image files
+        const scanDirs = ['./test-assets', './images'];
+        let allImages = [];
+
+        for (const scanDir of scanDirs) {
+          if (fs.existsSync(scanDir)) {
+            const files = fs.readdirSync(scanDir)
+              .filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f))
+              .map((f) => ({ file: f, dir: scanDir, path: `${scanDir}/${f}` }));
+            allImages = allImages.concat(files);
+          }
+        }
+
+        if (allImages.length === 0) {
+          log('⚠️', 'No image files found in test-assets or images directories.');
+          break;
+        }
+
+        console.log(`  ${ordinal} reference image:\n`);
+        console.log('    0. Skip (no additional image)');
+        allImages.forEach((img, idx) => {
+          console.log(`    ${idx + 1}. ${img.path}`);
+        });
+        console.log();
+
+        const answer = await askQuestion(`  Enter choice [0-${allImages.length}] (0 to skip): `);
+        const choice = parseInt(answer.trim(), 10);
+
+        if (isNaN(choice) || choice === 0) {
+          console.log('    → Skipping\n');
+          break;
+        } else if (choice >= 1 && choice <= allImages.length) {
+          const selectedPath = allImages[choice - 1].path;
+          OPTIONS.contextImages.push(selectedPath);
+          log('✓', `Added reference image ${i + 1}: ${selectedPath}\n`);
+        } else {
+          console.log('    → Invalid choice, skipping\n');
+          break;
+        }
+      } catch (error) {
+        log('⚠️', `Could not add reference image: ${error.message}`);
+        break;
+      }
+    }
+
+    // Prompt for width and height (right after context images, not in advanced)
+    console.log('📐 Output Dimensions\n');
+    console.log(`  Context image size: ${imageDimensions.width} x ${imageDimensions.height}`);
+
+    // Default to context image dimensions for all models
+    const defaultWidth = imageDimensions.width;
+    const widthInput = await askQuestion(`  Width (default: ${defaultWidth}): `);
+    if (widthInput.trim()) {
+      const w = parseInt(widthInput.trim(), 10);
+      if (!isNaN(w) && w > 0) {
+        OPTIONS.width = w;
+      }
+    }
+    if (!OPTIONS.width) OPTIONS.width = defaultWidth;
+
+    const defaultHeight = imageDimensions.height;
+    const heightInput = await askQuestion(`  Height (default: ${defaultHeight}): `);
+    if (heightInput.trim()) {
+      const h = parseInt(heightInput.trim(), 10);
+      if (!isNaN(h) && h > 0) {
+        OPTIONS.height = h;
+      }
+    }
+    if (!OPTIONS.height) OPTIONS.height = defaultHeight;
+
     // Prompt
     if (!OPTIONS.prompt) {
       console.log(`\nDefault prompt: "${DEFAULT_PROMPT}"`);
@@ -245,25 +345,6 @@ async function main() {
     const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: false });
-
-      // Ask for additional context images in advanced mode
-      for (let i = 1; i < (modelConfig.maxContextImages || 3); i++) {
-        const ordinal = i === 1 ? '2nd' : '3rd';
-        const addMore = await askQuestion(`\n  Add ${ordinal} reference image? [y/N]: `);
-
-        if (addMore.toLowerCase() === 'y' || addMore.toLowerCase() === 'yes') {
-          try {
-            const contextImage = await pickImageFile(null, `${ordinal} reference image`);
-            OPTIONS.contextImages.push(contextImage);
-            log('✓', `Added reference image ${i + 1}: ${contextImage}`);
-          } catch (error) {
-            log('⚠️', `Could not add reference image: ${error.message}`);
-            break;
-          }
-        } else {
-          break;
-        }
-      }
     }
 
     console.log('\n✅ Configuration complete!\n');
@@ -291,6 +372,7 @@ async function main() {
 
   // Apply defaults
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
+  if (!OPTIONS.outputFormat) OPTIONS.outputFormat = 'jpg'; // Default to JPG
 
   // Validate batch count
   if (OPTIONS.batch < 1 || OPTIONS.batch > 10) {
@@ -377,31 +459,26 @@ async function main() {
       console.log();
     }
 
-    // Get cost estimate
-    log('💵', 'Fetching cost estimate...');
-    const steps = OPTIONS.steps || modelConfig.defaultSteps;
-    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, OPTIONS.contextImages[0]);
-
-    console.log();
-    console.log('📊 Cost Estimate:');
-
-    if (tokenType === 'spark') {
-      const cost = parseFloat(estimate.quote.project.costInSpark || 0);
-      const currentBalance = parseFloat(balance.spark.net || 0);
-      console.log(`   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
-      console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
+    // Determine output dimensions:
+    // Default to context image dimensions for all models (user can customize)
+    let outputWidth, outputHeight;
+    if (OPTIONS.width && OPTIONS.height) {
+      // User specified both dimensions
+      outputWidth = OPTIONS.width;
+      outputHeight = OPTIONS.height;
     } else {
-      const cost = parseFloat(estimate.quote.project.costInSogni || 0);
-      const currentBalance = parseFloat(balance.sogni.net || 0);
-      console.log(`   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
-      console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
+      // Use context image dimensions as default for all models
+      outputWidth = OPTIONS.width || imageDimensions.width;
+      outputHeight = OPTIONS.height || imageDimensions.height;
     }
 
-    // Show configuration
+    // Show configuration first
+    const steps = OPTIONS.steps || modelConfig.defaultSteps;
     const configDisplay = {
       'Model': modelConfig.name,
       'Prompt': OPTIONS.prompt,
       'Reference Images': OPTIONS.contextImages.length,
+      'Dimensions': `${outputWidth} x ${outputHeight}`,
       'Batch': OPTIONS.batch,
       'Steps': steps,
       'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1
@@ -421,6 +498,25 @@ async function main() {
     }
     if (OPTIONS.style) {
       console.log(`   Style prompt: ${OPTIONS.style}`);
+    }
+
+    // Get cost estimate
+    log('💵', 'Fetching cost estimate...');
+    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, OPTIONS.contextImages[0]);
+
+    console.log();
+    console.log('📊 Cost Estimate:');
+
+    if (tokenType === 'spark') {
+      const cost = parseFloat(estimate.quote.project.costInSpark || 0);
+      const currentBalance = parseFloat(balance.spark.net || 0);
+      console.log(`   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
+    } else {
+      const cost = parseFloat(estimate.quote.project.costInSogni || 0);
+      const currentBalance = parseFloat(balance.sogni.net || 0);
+      console.log(`   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
     }
 
     console.log();
@@ -457,20 +553,6 @@ async function main() {
     // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
     const contextImageBuffers = readFilesAsBuffers(OPTIONS.contextImages);
 
-    // Determine output dimensions:
-    // - Flux2: uses model-specific defaults
-    // - Qwen/other image edit: use context image dimensions (already detected above)
-    let outputWidth, outputHeight;
-    if (modelConfig.supportsGuidance) {
-      // Flux2 uses its own dimension defaults
-      outputWidth = modelConfig.defaultWidth || 1248;
-      outputHeight = modelConfig.defaultHeight || 832;
-    } else {
-      // Qwen and other image edit workflows use context image dimensions
-      outputWidth = imageDimensions.width;
-      outputHeight = imageDimensions.height;
-    }
-
     const projectParams = {
       type: 'image',
       modelId: modelConfig.id,
@@ -483,7 +565,7 @@ async function main() {
       sizePreset: 'custom',
       width: outputWidth,
       height: outputHeight,
-      outputFormat: 'jpg'
+      outputFormat: OPTIONS.outputFormat
     };
 
     // Add guidance for Flux2
@@ -528,8 +610,11 @@ async function main() {
 
     // Listen for project-level progress (0-100 percentage)
     project.on('progress', (progressPercent) => {
-      process.stdout.write(`\r⏳ Progress: ${progressPercent}%`);
-      progressLineActive = true;
+      // Skip 0% progress to avoid clutter before job starts
+      if (progressPercent > 0) {
+        process.stdout.write(`\r⏳ Progress: ${progressPercent}%`);
+        progressLineActive = true;
+      }
     });
 
     const eventHandler = (event) => {
@@ -578,7 +663,8 @@ async function main() {
               return;
             }
             const imageId = event.jobId || `edited_${Date.now()}`;
-            const outputPath = `${OPTIONS.output}/${imageId}.jpg`;
+            const extension = OPTIONS.outputFormat || 'jpg';
+            const outputPath = `${OPTIONS.output}/${imageId}.${extension}`;
 
             downloadImage(event.resultUrl, outputPath)
               .then(() => {

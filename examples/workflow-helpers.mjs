@@ -27,13 +27,13 @@ export const MODELS = {
       defaultWidth: 1024,
       defaultHeight: 1024,
       minSteps: 4,
-      maxSteps: 20,
+      maxSteps: 16,
       defaultSteps: 9,
       supportsGuidance: false,
       supportsDenoise: true,
       defaultDenoise: 0.7,
       isComfyModel: true,
-      defaultComfySampler: 'euler',
+      defaultComfySampler: 'res_multistep',
       defaultComfyScheduler: 'simple'
     },
     'flux2': {
@@ -42,38 +42,27 @@ export const MODELS = {
       description: 'Highest quality, supports context images',
       defaultWidth: 1248,
       defaultHeight: 832,
-      minSteps: 10,
+      minSteps: 15,
       maxSteps: 50,
-      defaultSteps: 20,
+      defaultSteps: 25,
       supportsGuidance: true,
       defaultGuidance: 4.0,
+      minGuidance: 2.0,
+      maxGuidance: 10.0,
       supportsContextImages: true,
       maxContextImages: 3,
       isComfyModel: true,
       defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'normal'
+      defaultComfyScheduler: 'simple'
     }
   },
 
   // Image Edit Models (ComfyUI worker)
   imageEdit: {
-    'qwen': {
-      id: 'qwen_image_edit_2511_fp8',
-      name: 'Qwen Image Edit 2511',
-      description: 'High quality image editing, supports context images',
-      defaultSteps: 20,
-      minSteps: 10,
-      maxSteps: 40,
-      supportsContextImages: true,
-      maxContextImages: 3,
-      isComfyModel: true,
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'normal'
-    },
     'qwen-lightning': {
       id: 'qwen_image_edit_2511_fp8_lightning',
       name: 'Qwen Image Edit 2511 Lightning',
-      description: 'Fast 4-step image editing',
+      description: 'Fast 4-step image editing (recommended)',
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 8,
@@ -83,22 +72,40 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
     },
+    'qwen': {
+      id: 'qwen_image_edit_2511_fp8',
+      name: 'Qwen Image Edit 2511',
+      description: 'High quality image editing, supports context images',
+      defaultSteps: 20,
+      minSteps: 20,
+      maxSteps: 50,
+      supportsContextImages: true,
+      maxContextImages: 3,
+      isComfyModel: true,
+      defaultComfySampler: 'res_multistep',
+      defaultComfyScheduler: 'simple',
+      defaultGuidance: 3.0,
+      minGuidance: 1.0,
+      maxGuidance: 8.0
+    },
     'flux2': {
       id: 'flux2_dev_fp8',
       name: 'Flux.2 Dev',
       description: 'Highest quality, supports context images',
       defaultWidth: 1248,
       defaultHeight: 832,
-      defaultSteps: 20,
-      minSteps: 10,
+      defaultSteps: 25,
+      minSteps: 15,
       maxSteps: 50,
       supportsGuidance: true,
       defaultGuidance: 4.0,
+      minGuidance: 2.0,
+      maxGuidance: 10.0,
       supportsContextImages: true,
       maxContextImages: 3,
       isComfyModel: true,
       defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'normal'
+      defaultComfyScheduler: 'simple'
     }
   },
 
@@ -107,7 +114,7 @@ export const MODELS = {
     'lightx2v': {
       id: 'wan_v2.2-14b-fp8_t2v_lightx2v',
       name: 'WAN 2.2 14B FP8 T2V LightX2V',
-      description: 'Fast 4-step generation',
+      description: 'Fast 4-step generation (recommended)',
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 8,
@@ -147,7 +154,7 @@ export const MODELS = {
     'lightx2v': {
       id: 'wan_v2.2-14b-fp8_i2v_lightx2v',
       name: 'WAN 2.2 14B FP8 I2V LightX2V',
-      description: 'Fast 4-step generation',
+      description: 'Fast 4-step generation (recommended)',
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 8,
@@ -187,7 +194,7 @@ export const MODELS = {
     'lightx2v': {
       id: 'wan_v2.2-14b-fp8_s2v_lightx2v',
       name: 'WAN 2.2 14B FP8 S2V LightX2V',
-      description: 'Fast 4-step generation',
+      description: 'Fast 4-step generation (recommended)',
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 8,
@@ -227,7 +234,7 @@ export const MODELS = {
     'move-lightx2v': {
       id: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
       name: 'WAN 2.2 14B FP8 Animate-Move LightX2V',
-      description: 'Fast camera movement animation',
+      description: 'Fast camera movement animation (recommended)',
       workflowType: 'animate-move',
       defaultSteps: 6, // Animate Lightning uses 6 steps
       minSteps: 4,
@@ -265,7 +272,7 @@ export const MODELS = {
     'replace-lightx2v': {
       id: 'wan_v2.2-14b-fp8_animate-replace_lightx2v',
       name: 'WAN 2.2 14B FP8 Animate-Replace LightX2V',
-      description: 'Fast subject replacement',
+      description: 'Fast subject replacement (recommended)',
       workflowType: 'animate-replace',
       defaultSteps: 6, // Animate Lightning uses 6 steps
       minSteps: 4,
@@ -329,15 +336,17 @@ export const VIDEO_CONSTRAINTS = {
 // Sampler and Scheduler Options
 // ============================================
 
-// ComfyUI samplers for video models (lowercase format)
+// ComfyUI samplers (lowercase format)
 export const COMFY_SAMPLERS = [
   { id: 'euler', name: 'Euler', description: 'Default, fast and stable' },
   { id: 'euler_ancestral', name: 'Euler Ancestral', description: 'More creative variations' },
+  { id: 'res_multistep', name: 'Res Multistep', description: 'Optimized for Z-Image Turbo' },
   { id: 'dpmpp_2m', name: 'DPM++ 2M', description: 'Good quality, moderate speed' },
   { id: 'dpmpp_2m_sde', name: 'DPM++ 2M SDE', description: 'Higher quality, slower' },
   { id: 'dpmpp_sde', name: 'DPM++ SDE', description: 'High quality sampling' },
   { id: 'uni_pc', name: 'UniPC', description: 'Recommended for S2V workflows' },
-  { id: 'lcm', name: 'LCM', description: 'Latent Consistency Model - very fast' }
+  { id: 'lcm', name: 'LCM', description: 'Latent Consistency Model - very fast' },
+  { id: 'ddim', name: 'DDIM', description: 'Denoising Diffusion Implicit Models' }
 ];
 
 // ComfyUI schedulers for video models (lowercase format)
@@ -809,6 +818,19 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
   }
   if (!options.batch) options.batch = 1;
 
+  // Output format (image workflows only)
+  if (!isVideo) {
+    console.log('\n  Output Format:');
+    console.log('    1. JPG - smaller files, lossy (default)');
+    console.log('    2. PNG - larger files, lossless');
+    const formatInput = await askQuestion('  Select output format (default: 1 - JPG): ');
+    if (formatInput.trim() === '2' || formatInput.trim().toLowerCase() === 'png') {
+      options.outputFormat = 'png';
+    } else {
+      options.outputFormat = 'jpg';
+    }
+  }
+
   return options;
 }
 
@@ -944,16 +966,16 @@ export function displayConfig(title, config) {
       if (valueStr.length > valueWidth - 2) {
         // First line with label
         const firstChunk = valueStr.substring(0, valueWidth - 2);
-        console.log('│ ' + labelStr + firstChunk.padEnd(valueWidth - 2) + ' │');
+        console.log('│ ' + labelStr + ' ' + firstChunk.padEnd(valueWidth - 3) + ' │');
         // Continuation lines
         let remaining = valueStr.substring(valueWidth - 2);
         while (remaining.length > 0) {
           const chunk = remaining.substring(0, valueWidth - 2);
-          console.log('│ ' + ' '.repeat(labelWidth) + chunk.padEnd(valueWidth - 2) + ' │');
+          console.log('│ ' + ' '.repeat(labelWidth) + ' ' + chunk.padEnd(valueWidth - 3) + ' │');
           remaining = remaining.substring(valueWidth - 2);
         }
       } else {
-        console.log('│ ' + labelStr + valueStr.padEnd(valueWidth - 2) + ' │');
+        console.log('│ ' + labelStr + ' ' + valueStr.padEnd(valueWidth - 3) + ' │');
       }
     }
   }

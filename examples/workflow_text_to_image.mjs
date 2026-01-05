@@ -207,6 +207,7 @@ async function main() {
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
   if (!OPTIONS.width) OPTIONS.width = modelConfig.defaultWidth;
   if (!OPTIONS.height) OPTIONS.height = modelConfig.defaultHeight;
+  if (!OPTIONS.outputFormat) OPTIONS.outputFormat = 'jpg'; // Default to JPG
 
   // Validate dimensions
   if (OPTIONS.width % 16 !== 0) {
@@ -312,28 +313,11 @@ async function main() {
       console.log();
     }
 
-    // Get cost estimate
-    log('💵', 'Fetching cost estimate...');
-    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, guidance || 0, OPTIONS.width, OPTIONS.height);
-    console.log();
-    console.log('📊 Cost Estimate:');
-
-    if (tokenType === 'spark') {
-      const cost = parseFloat(estimate.quote.project.costInSpark || 0);
-      const currentBalance = parseFloat(balance.spark.net || 0);
-      console.log(`   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
-      console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
-    } else {
-      const cost = parseFloat(estimate.quote.project.costInSogni || 0);
-      const currentBalance = parseFloat(balance.sogni.net || 0);
-      console.log(`   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
-      console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
-    }
-
-    // Calculate seed value for display
+    // Show configuration first
+    const steps = OPTIONS.steps || modelConfig.defaultSteps;
+    const guidance = OPTIONS.guidance !== undefined ? OPTIONS.guidance : modelConfig.defaultGuidance;
     const displaySeed = OPTIONS.seed !== null ? OPTIONS.seed : -1;
 
-    // Show configuration
     displayConfig('Image Generation Configuration', {
       'Model': modelConfig.name,
       'Prompt': OPTIONS.prompt,
@@ -352,6 +336,24 @@ async function main() {
     }
     if (OPTIONS.style) {
       console.log(`   Style prompt: ${OPTIONS.style}`);
+    }
+
+    // Get cost estimate
+    log('💵', 'Fetching cost estimate...');
+    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, guidance || 0, OPTIONS.width, OPTIONS.height);
+    console.log();
+    console.log('📊 Cost Estimate:');
+
+    if (tokenType === 'spark') {
+      const cost = parseFloat(estimate.quote.project.costInSpark || 0);
+      const currentBalance = parseFloat(balance.spark.net || 0);
+      console.log(`   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
+    } else {
+      const cost = parseFloat(estimate.quote.project.costInSogni || 0);
+      const currentBalance = parseFloat(balance.sogni.net || 0);
+      console.log(`   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
     }
 
     console.log();
@@ -392,7 +394,7 @@ async function main() {
       seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
       numberOfPreviews: 5,
       disableNSFWFilter: OPTIONS.disableSafeContentFilter,
-      outputFormat: 'jpg',
+      outputFormat: OPTIONS.outputFormat,
       tokenType: tokenType,
       width: OPTIONS.width,
       height: OPTIONS.height
@@ -475,7 +477,8 @@ async function main() {
             const imageNumber = completedImages + failedImages + 1;
             const modelShortName = OPTIONS.modelKey.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
             const seedStr = projectParams.seed !== -1 ? `_seed${projectParams.seed}` : '';
-            const outputPath = `${OPTIONS.output}/${modelShortName}_${OPTIONS.width}x${OPTIONS.height}_steps${steps}${seedStr}_${imageNumber}.jpg`;
+            const extension = OPTIONS.outputFormat || 'jpg';
+            const outputPath = `${OPTIONS.output}/${modelShortName}_${OPTIONS.width}x${OPTIONS.height}_steps${steps}${seedStr}_${imageNumber}.${extension}`;
 
             downloadImage(event.resultUrl, outputPath)
               .then(() => {
@@ -519,7 +522,10 @@ async function main() {
 
     // Listen for project-level progress (0-100 percentage)
     project.on('progress', (progressPercent) => {
-      process.stdout.write(`\r⏳ Progress: ${progressPercent}%`);
+      // Skip 0% progress to avoid clutter before job starts
+      if (progressPercent > 0) {
+        process.stdout.write(`\r⏳ Progress: ${progressPercent}%`);
+      }
     });
 
     sogni.projects.on('project', (event) => {
