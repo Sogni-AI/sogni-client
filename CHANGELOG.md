@@ -1,3 +1,10 @@
+# [4.0.0-alpha.36](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.35...v4.0.0-alpha.36) (2026-01-05)
+
+
+### Features
+
+* Add support for video duration options with validation and deprecate frames property ([fa11d79](https://github.com/Sogni-AI/sogni-client/commit/fa11d7905ef249a2e75a6d96c8a2bedda24005df))
+
 # [4.0.0-alpha.35](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.34...v4.0.0-alpha.35) (2025-12-31)
 
 
