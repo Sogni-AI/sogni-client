@@ -1,3 +1,10 @@
+# [4.0.0-alpha.39](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.38...v4.0.0-alpha.39) (2026-01-05)
+
+
+### Bug Fixes
+
+* Add ForgeSampler, ComfySampler, ForgeScheduler, and ComfyScheduler to exports ([ad24b32](https://github.com/Sogni-AI/sogni-client/commit/ad24b326904f7ad67f43c34a0b758ce64e84a8f1))
+
 # [4.0.0-alpha.38](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.37...v4.0.0-alpha.38) (2026-01-05)
 
 
