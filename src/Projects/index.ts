@@ -914,7 +914,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       params.model,
       params.width,
       params.height,
-      params.frames,
+      params.frames ? params.frames : params.duration * 16 + 1,
       params.fps,
       params.steps,
       params.numberOfMedia

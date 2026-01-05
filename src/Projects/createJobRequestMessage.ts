@@ -15,7 +15,8 @@ import {
   validateTeacacheThreshold,
   validateComfySampler,
   validateComfyScheduler,
-  isComfyModel
+  isComfyModel,
+  validateVideoDuration
 } from '../lib/validation';
 import { getVideoWorkflowType, isVideoModel, VIDEO_WORKFLOW_ASSETS } from './utils';
 import { ApiError } from '../ApiClient';
@@ -254,6 +255,10 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
   // Video generation parameters
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
+  }
+  if (params.duration !== undefined) {
+    const duration = validateVideoDuration(params.duration);
+    keyFrame.frames = duration * 16 + 1;
   }
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;

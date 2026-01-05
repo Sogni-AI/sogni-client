@@ -113,8 +113,13 @@ export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
   /**
    * Number of frames to generate
+   * @deprecated Use duration instead
    */
   frames?: number;
+  /**
+   * Duration of the video in seconds. Supported range 1 to 10
+   */
+  duration?: number;
   /**
    * Frames per second for output video
    */
@@ -349,7 +354,12 @@ export interface VideoEstimateRequest {
   model: string;
   width: number;
   height: number;
-  frames: number;
+  duration: number;
+  /**
+   * Number of frames to generate.
+   * @deprecated Use duration instead
+   */
+  frames?: number;
   fps: number;
   steps: number;
   numberOfMedia: number;
