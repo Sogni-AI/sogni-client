@@ -70,7 +70,10 @@ export const MODELS = {
       maxContextImages: 3,
       isComfyModel: true,
       defaultComfySampler: 'res_multistep',
-      defaultComfyScheduler: 'simple'
+      defaultComfyScheduler: 'simple',
+      defaultGuidance: 1.0,
+      minGuidance: 0.7,
+      maxGuidance: 1.6
     },
     'qwen': {
       id: 'qwen_image_edit_2511_fp8',
