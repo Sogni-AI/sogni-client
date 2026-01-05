@@ -13,6 +13,10 @@ export function validateVideoSize(value: any, propertyName: 'width' | 'height'):
   return validateNumber(value, { min: 480, propertyName: `Video ${propertyName}` });
 }
 
+export function validateVideoDuration(value: any): number {
+  return validateNumber(value, { min: 1, max: 10, propertyName: 'Video duration' });
+}
+
 interface NumberValidationOptions {
   min?: number;
   max?: number;

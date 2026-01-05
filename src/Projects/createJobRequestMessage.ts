@@ -12,7 +12,8 @@ import {
   validateSampler,
   validateScheduler,
   validateVideoSize,
-  validateTeacacheThreshold
+  validateTeacacheThreshold,
+  validateVideoDuration
 } from '../lib/validation';
 import { getVideoWorkflowType, isVideoModel, VIDEO_WORKFLOW_ASSETS } from './utils';
 import { ApiError } from '../ApiClient';
@@ -34,7 +35,8 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
       throw new ApiError(400, {
         status: 'error',
         errorCode: 0,
-        message: 'i2v workflow requires at least one of referenceImage or referenceImageEnd. Please provide this asset.'
+        message:
+          'i2v workflow requires at least one of referenceImage or referenceImageEnd. Please provide this asset.'
       });
     }
   }
@@ -226,6 +228,10 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
   // Video generation parameters
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
+  }
+  if (params.duration !== undefined) {
+    const duration = validateVideoDuration(params.duration);
+    keyFrame.frames = duration * 16 + 1;
   }
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;
