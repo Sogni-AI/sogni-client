@@ -34,7 +34,8 @@ getClient()
       stylePrompt: 'anime',
       numberOfPreviews: 2,
       numberOfMedia: 2,
-      outputFormat: 'png' // Can be 'png' or 'jpg', defaults to 'png'
+      outputFormat: 'png', // Can be 'png' or 'jpg', defaults to 'png'
+      seed: -1 // Default to random seed
     });
 
     // Receive project completion percentage in real-time

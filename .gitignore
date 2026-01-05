@@ -7,4 +7,4 @@ dist
 .npmrc
 /package-lock.json
 .DS_Store
-examples/videos
+examples/output

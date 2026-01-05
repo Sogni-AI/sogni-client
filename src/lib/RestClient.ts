@@ -30,7 +30,21 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
 
   private async request<T = JSONValue>(url: string, options: RequestInit = {}): Promise<T> {
     const init = await this.auth.authenticateRequest(options);
-    return fetch(url, init).then((r) => this.processResponse(r) as T);
+
+    // Add a timeout to detect hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 30000);
+
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      clearTimeout(timeoutId);
+      return this.processResponse(response) as T;
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      throw fetchError;
+    }
   }
 
   private async processResponse(response: Response): Promise<JSONValue> {
@@ -52,7 +66,7 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   }
 
   get<T = JSONValue>(path: string, query: Record<string, any> = {}): Promise<T> {
-    return this.request<T>(this.formatUrl(path, query), query);
+    return this.request<T>(this.formatUrl(path, query));
   }
 
   post<T = JSONValue>(path: string, body: Record<string, unknown> = {}): Promise<T> {

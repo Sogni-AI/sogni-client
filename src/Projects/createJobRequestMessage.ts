@@ -9,10 +9,13 @@ import { ControlNetParams, ControlNetParamsRaw } from './types/ControlNetParams'
 import {
   validateNumber,
   validateCustomImageSize,
-  validateSampler,
-  validateScheduler,
+  validateForgeSampler,
+  validateForgeScheduler,
   validateVideoSize,
   validateTeacacheThreshold,
+  validateComfySampler,
+  validateComfyScheduler,
+  isComfyModel,
   validateVideoDuration
 } from '../lib/validation';
 import { getVideoWorkflowType, isVideoModel, VIDEO_WORKFLOW_ASSETS } from './utils';
@@ -178,13 +181,29 @@ function getControlNet(params: ControlNetParams): ControlNetParamsRaw[] {
 function applyImageParams(inputKeyframe: Record<string, any>, params: ImageProjectParams) {
   const keyFrame: Record<string, any> = {
     ...inputKeyframe,
-    scheduler: validateSampler(params.sampler),
-    timeStepSpacing: validateScheduler(params.scheduler),
     sizePreset: params.sizePreset,
     hasContextImage1: !!params.contextImages?.[0],
     hasContextImage2: !!params.contextImages?.[1],
     hasContextImage3: !!params.contextImages?.[2]
   };
+
+  // Handle sampler/scheduler: ComfyUI models use comfySampler/comfyScheduler,
+  // legacy models use sampler/scheduler (mapped to scheduler/timeStepSpacing)
+  if (isComfyModel(params.modelId)) {
+    if (params.sampler !== undefined) {
+      keyFrame.comfySampler = validateComfySampler(params.sampler);
+    }
+    if (params.scheduler !== undefined) {
+      keyFrame.comfyScheduler = validateComfyScheduler(params.scheduler);
+    }
+  } else {
+    if (params.sampler !== undefined) {
+      keyFrame.scheduler = validateForgeSampler(params.sampler);
+    }
+    if (params.scheduler !== undefined) {
+      keyFrame.timeStepSpacing = validateForgeScheduler(params.scheduler);
+    }
+  }
 
   if (params.startingImage) {
     keyFrame.hasStartingImage = true;
@@ -195,7 +214,15 @@ function applyImageParams(inputKeyframe: Record<string, any>, params: ImageProje
   if (params.controlNet) {
     keyFrame.currentControlNetsJob = getControlNet(params.controlNet);
   }
-  if (params.sizePreset === 'custom') {
+
+  // Set sizePreset to 'custom' if width/height are provided but sizePreset is not set
+  let effectiveSizePreset = params.sizePreset;
+  if (params.width && params.height && !params.sizePreset) {
+    effectiveSizePreset = 'custom';
+  }
+  keyFrame.sizePreset = effectiveSizePreset;
+
+  if (effectiveSizePreset === 'custom' && params.width && params.height) {
     keyFrame.width = validateCustomImageSize(params.width);
     keyFrame.height = validateCustomImageSize(params.height);
   }
@@ -250,6 +277,15 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
   if (params.width && params.height) {
     keyFrame.width = validateVideoSize(params.width, 'width');
     keyFrame.height = validateVideoSize(params.height, 'height');
+  }
+
+  // Video models are ComfyUI models - only accept comfySampler/comfyScheduler
+  // Legacy sampler/scheduler fields are NOT supported for video models
+  if (params.sampler !== undefined) {
+    keyFrame.comfySampler = validateComfySampler(params.sampler);
+  }
+  if (params.scheduler !== undefined) {
+    keyFrame.comfyScheduler = validateComfyScheduler(params.scheduler);
   }
 
   return keyFrame;

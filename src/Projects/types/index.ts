@@ -1,8 +1,10 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
 import { ControlNetParams } from './ControlNetParams';
 import { TokenType } from '../../types/token';
-import { Sampler, SupportedSamplers } from './SamplerParams';
-import { Scheduler, SupportedSchedulers } from './SchedulerParams';
+import { ForgeSampler, SupportedForgeSamplers } from './ForgeSamplerParams';
+import { ForgeScheduler, SupportedForgeSchedulers } from './ForgeSchedulerParams';
+import { ComfySampler, SupportedComfySamplers } from './ComfySamplerParams';
+import { ComfyScheduler, SupportedComfySchedulers } from './ComfySchedulerParams';
 
 export interface SupportedModel {
   id: string;
@@ -33,9 +35,18 @@ export interface SizePreset {
   aspect: string;
 }
 
-export type { Sampler, Scheduler };
+export type Sampler = ForgeSampler | ComfySampler;
 
-export { SupportedSamplers, SupportedSchedulers };
+export type Scheduler = ForgeScheduler | ComfyScheduler;
+
+export type { ForgeSampler, ForgeScheduler, ComfySampler, ComfyScheduler };
+
+export {
+  SupportedForgeSamplers,
+  SupportedForgeSchedulers,
+  SupportedComfySamplers,
+  SupportedComfySchedulers
+};
 
 export type ImageOutputFormat = 'png' | 'jpg';
 export type VideoOutputFormat = 'mp4';
@@ -153,6 +164,18 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   height?: number;
   /**
+   * ComfyUI sampler for video generation.
+   * Uses ComfyUI's native lowercase format: euler, euler_ancestral, dpmpp_2m, etc.
+   * Default: euler (or uni_pc for s2v models)
+   */
+  sampler?: ComfySampler;
+  /**
+   * ComfyUI scheduler for video generation.
+   * Uses ComfyUI's native lowercase format: simple, normal, karras, sgm_uniform, etc.
+   * Default: simple
+   */
+  scheduler?: ComfyScheduler;
+  /**
    * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
    */
   outputFormat?: VideoOutputFormat;
@@ -184,11 +207,13 @@ export interface ImageProjectParams extends BaseProjectParams {
    */
   contextImages?: InputMedia[];
   /**
-   * Scheduler to use
+   * Legacy sampler for non-ComfyUI models (Automatic1111 workers).
+   * Not supported for ComfyUI models - use comfySampler instead.
    */
   sampler?: Sampler;
   /**
-   * Time step spacing method
+   * Legacy scheduler for non-ComfyUI models (Automatic1111 workers).
+   * Not supported for ComfyUI models - use comfyScheduler instead.
    */
   scheduler?: Scheduler;
   /**
