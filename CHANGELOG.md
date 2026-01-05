@@ -1,3 +1,18 @@
+# [4.0.0-alpha.38](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.37...v4.0.0-alpha.38) (2026-01-05)
+
+
+### Features
+
+* Support Qwen, Z Image and Flux 2 models ([fd3acb7](https://github.com/Sogni-AI/sogni-client/commit/fd3acb7bdce5d7c81750e58fb79d14cf4f5f0b2f))
+
+
+### BREAKING CHANGES
+
+* `SupportedSamplers` and `SupportedSchedulers` removed
+`SupportedSamplers` and `SupportedSchedulers` are replaced with `SupportedComfySchedulers`, `SupportedComfySamplers`, `SupportedForgeSchedulers`, `SupportedForgeSamplers`
+
+* fix: Prettier formatting
+
 # [4.0.0-alpha.37](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.36...v4.0.0-alpha.37) (2026-01-05)
 
 
