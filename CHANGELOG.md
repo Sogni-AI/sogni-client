@@ -1,3 +1,10 @@
+# [4.0.0-alpha.37](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.36...v4.0.0-alpha.37) (2026-01-05)
+
+
+### Bug Fixes
+
+* Replace frames with duration in project cost estimation ([b6c576e](https://github.com/Sogni-AI/sogni-client/commit/b6c576e70b66d2604441e1bd8e013fa435c0c099))
+
 # [4.0.0-alpha.36](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.35...v4.0.0-alpha.36) (2026-01-05)
 
 
