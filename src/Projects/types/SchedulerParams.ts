@@ -1,13 +1,17 @@
 export const SupportedSchedulers = {
-  beta: 'Beta',
-  ddim: 'DDIM',
-  karras: 'Karras',
-  kl_optimal: 'KL Optimal',
-  leading: 'Leading',
-  linear: 'Linear',
+  simple: 'Simple',
   normal: 'Normal',
+  karras: 'Karras',
+  exponential: 'Exponential',
   sgm_uniform: 'SGM Uniform',
-  simple: 'Simple'
+  ddim_uniform: 'DDIM Uniform',
+  beta: 'Beta',
+  linear_quadratic: 'Linear Quadratic',
+  kl_optimal: 'KL Optimal',
+  // Legacy aliases
+  ddim: 'DDIM',
+  leading: 'Leading',
+  linear: 'Linear'
 };
 
 export function isScheduler(scheduler: string): scheduler is Scheduler {

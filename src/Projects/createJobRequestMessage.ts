@@ -254,6 +254,16 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
     keyFrame.height = validateVideoSize(params.height, 'height');
   }
 
+  // Add sampler and scheduler support for video models
+  // Note: In Sogni Socket, the "scheduler" field actually contains the sampler value,
+  // and "timeStepSpacing" field contains the scheduler value (legacy naming)
+  if (params.sampler !== undefined) {
+    keyFrame.scheduler = validateSampler(params.sampler);
+  }
+  if (params.scheduler !== undefined) {
+    keyFrame.timeStepSpacing = validateScheduler(params.scheduler);
+  }
+
   return keyFrame;
 }
 

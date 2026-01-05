@@ -10,22 +10,27 @@
  * - You need access to the 'fast' network for video generation
  *
  * Usage:
- *   node workflow_text_to_video.mjs "A beautiful sunset over mountains"
- *   node workflow_text_to_video.mjs "A futuristic city" --width 768 --height 768
- *   node workflow_text_to_video.mjs "Dancing robots" --fps 32 --frames 161
- *   node workflow_text_to_video.mjs "Ocean waves" --model quality --batch 2
- *   node workflow_text_to_video.mjs "Fireworks" --seed 12345
+ *   node workflow_text_to_video.mjs                           # Interactive mode
+ *   node workflow_text_to_video.mjs "A futuristic city"       # With prompt
+ *   node workflow_text_to_video.mjs "Dancing robots" --fps 32 # With options
  *
  * Options:
- *   --width   Video width (default: 640, minimum: 480)
- *   --height  Video height (default: 640, minimum: 480)
- *   --fps     Frames per second: 16 or 32 (default: 16)
- *   --frames  Number of frames, 17-161 (default: 81 = 5 seconds at 16fps)
- *   --model   Model variant: quality or speed (default: prompts for selection)
- *   --batch   Number of videos to generate (default: 1)
- *   --output  Output directory (default: ./videos)
- *   --seed    Random seed for reproducibility (default: random)
- *   --help    Show this help message
+ *   --model     Model: lightx2v or quality (default: prompts for selection)
+ *   --width     Video width (default: 640, min: 480)
+ *   --height    Video height (default: 640, min: 480)
+ *   --duration  Duration in seconds (default: 5, converts to frames)
+ *   --fps       Frames per second: 16 or 32 (default: 16)
+ *   --batch     Number of videos to generate (default: 1)
+ *   --seed      Random seed for reproducibility (default: -1 for random)
+ *   --guidance  Guidance scale (default: model-specific)
+ *   --shift     Motion intensity 1.0-8.0 (default: model-specific)
+ *   --sampler   Sampler name (default: euler)
+ *   --scheduler Scheduler name (default: simple)
+ *   --negative  Negative prompt (default: none)
+ *   --style     Style prompt (default: none)
+ *   --output    Output directory (default: ./output)
+ *   --no-interactive  Skip interactive prompts
+ *   --help      Show this help message
  */
 
 import { SogniClient } from '../dist/index.js';
@@ -33,29 +38,25 @@ import * as fs from 'node:fs';
 import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
-import * as readline from 'node:readline';
 import { loadCredentials, loadTokenTypePreference, saveTokenTypePreference } from './credentials.mjs';
+import {
+  MODELS,
+  VIDEO_CONSTRAINTS,
+  askQuestion,
+  selectModel,
+  promptCoreOptions,
+  promptVideoDuration,
+  promptAdvancedOptions,
+  log,
+  formatDuration,
+  displayConfig,
+  displayPrompts
+} from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
 
-// Model variants
-const MODELS = {
-  t2v: {
-    speed: {
-      id: 'wan_v2.2-14b-fp8_t2v_lightx2v',
-      name: 'WAN 2.2 T2V LightX2V (Speed)',
-      description: 'Fast generation with good quality'
-    },
-    quality: {
-      id: 'wan_v2.2-14b-fp8_t2v',
-      name: 'WAN 2.2 T2V (Quality)',
-      description: 'High quality generation, slower'
-    }
-  }
-};
-
-// Minimum video dimensions for Wan 2.2 models
-const MIN_VIDEO_DIMENSION = 480;
+// Default prompt for this workflow
+const DEFAULT_PROMPT = '**Shot in black and white.** A grainy, 16mm black and white archival film. An actor is dressed as an astronaut and is walking on the moon, back to the camera, looking at an American flag. The scene is framed like an iconic, high-contrast NASA photograph from the 1960s. The camera, maintaining its 1960s black and white film quality, begins a slow, deliberate zoom out and pan to the right. The motion is smooth, as if on a studio dolly. As the camera pulls back, the artificial edges of a film set, including scaffolding and large studio lights, start to enter the frame. The shot resolves into a wide-angle view of a massive film studio soundstage, all in grainy, high-contrast black and white. The moon landing is revealed to be a detailed set. Surrounding it, a busy 1960s-era film crew is at work: a director in a collared shirt watches intently, technicians in vests adjust large boom microphones, and crew members operate massive studio lights. The entire scene has the authentic look and feel of a behind-the-scenes documentary from that era. ';
 
 // ============================================
 // Parse Command Line Arguments
@@ -67,14 +68,19 @@ async function parseArgs() {
     prompt: null,
     negative: null,
     style: null,
-    width: 640,
-    height: 640,
-    fps: 16,
-    frames: 81,
-    model: 'speed', // Default to speed model
+    modelKey: null,
+    width: null,
+    height: null,
+    duration: null,
+    fps: null,
+    frames: null,
     batch: 1,
     seed: null,
-    output: './videos',
+    guidance: null,
+    shift: null,
+    sampler: null,
+    scheduler: null,
+    output: './output',
     interactive: true
   };
 
@@ -85,16 +91,18 @@ async function parseArgs() {
       process.exit(0);
     } else if (arg === '--no-interactive') {
       options.interactive = false;
+    } else if (arg === '--model' && args[i + 1]) {
+      options.modelKey = args[++i];
     } else if (arg === '--width' && args[i + 1]) {
       options.width = parseInt(args[++i], 10);
     } else if (arg === '--height' && args[i + 1]) {
       options.height = parseInt(args[++i], 10);
+    } else if (arg === '--duration' && args[i + 1]) {
+      options.duration = parseFloat(args[++i]);
     } else if (arg === '--fps' && args[i + 1]) {
       options.fps = parseInt(args[++i], 10);
     } else if (arg === '--frames' && args[i + 1]) {
       options.frames = parseInt(args[++i], 10);
-    } else if (arg === '--model' && args[i + 1]) {
-      options.model = args[++i];
     } else if (arg === '--batch' && args[i + 1]) {
       options.batch = parseInt(args[++i], 10);
     } else if (arg === '--negative' && args[i + 1]) {
@@ -103,6 +111,14 @@ async function parseArgs() {
       options.style = args[++i];
     } else if (arg === '--seed' && args[i + 1]) {
       options.seed = parseInt(args[++i], 10);
+    } else if (arg === '--guidance' && args[i + 1]) {
+      options.guidance = parseFloat(args[++i]);
+    } else if (arg === '--shift' && args[i + 1]) {
+      options.shift = parseFloat(args[++i]);
+    } else if (arg === '--sampler' && args[i + 1]) {
+      options.sampler = args[++i];
+    } else if (arg === '--scheduler' && args[i + 1]) {
+      options.scheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -114,78 +130,6 @@ async function parseArgs() {
     }
   }
 
-  // Provide defaults when interactive and no prompt provided
-  if (!options.prompt && options.interactive) {
-    console.log('\n🎬 Text-to-Video Workflow');
-    console.log('========================\n');
-
-    // Default prompt
-    const defaultPrompt = 'A beautiful timelapse of a sunset over the ocean';
-    const promptInput = await askQuestion(`Enter your prompt (default: "${defaultPrompt}"): `);
-    options.prompt = promptInput.trim() || defaultPrompt;
-
-    // Optional negative prompt
-    const negativeInput = await askQuestion('Enter negative prompt (optional, press Enter to skip): ');
-    if (negativeInput.trim()) {
-      options.negative = negativeInput.trim();
-    }
-
-    // Optional style prompt
-    const styleInput = await askQuestion('Enter style prompt (optional, press Enter to skip): ');
-    if (styleInput.trim()) {
-      options.style = styleInput.trim();
-    }
-
-    // Model selection (already defaults to speed)
-    if (options.model === 'speed') {
-      const modelChoice = await askQuestion('Use Speed (fast) or Quality (high quality)? [s/q] (default: s): ');
-      if (modelChoice.toLowerCase().startsWith('q')) {
-        options.model = 'quality';
-      }
-    }
-
-    // Video dimensions
-    const widthInput = await askQuestion(`Video width (default: ${options.width}): `);
-    if (widthInput.trim()) {
-      const widthNum = parseInt(widthInput.trim(), 10);
-      if (widthNum >= MIN_VIDEO_DIMENSION) {
-        options.width = widthNum;
-      }
-    }
-
-    const heightInput = await askQuestion(`Video height (default: ${options.height}): `);
-    if (heightInput.trim()) {
-      const heightNum = parseInt(heightInput.trim(), 10);
-      if (heightNum >= MIN_VIDEO_DIMENSION) {
-        options.height = heightNum;
-      }
-    }
-
-    // FPS selection
-    const fpsInput = await askQuestion(`Frames per second [16/32] (default: ${options.fps}): `);
-    if (fpsInput.trim()) {
-      const fpsNum = parseInt(fpsInput.trim(), 10);
-      if (fpsNum === 16 || fpsNum === 32) {
-        options.fps = fpsNum;
-      }
-    }
-
-    // Batch count
-    const batchInput = await askQuestion('Number of videos to generate (default: 1): ');
-    if (batchInput.trim()) {
-      const batchNum = parseInt(batchInput.trim(), 10);
-      if (batchNum > 0 && batchNum <= 5) {
-        options.batch = batchNum;
-      }
-    }
-
-    console.log('\n✅ Configuration complete!\n');
-  } else if (!options.prompt) {
-    console.error('Error: Prompt is required (use --help for options)');
-    showHelp();
-    process.exit(1);
-  }
-
   return options;
 }
 
@@ -194,75 +138,32 @@ function showHelp() {
 Text-to-Video Workflow
 
 Usage:
-  node workflow_text_to_video.mjs "your prompt here"
-  node workflow_text_to_video.mjs "Dancing robots" --fps 32 --frames 161
-  node workflow_text_to_video.mjs "Ocean waves" --model quality --batch 2
+  node workflow_text_to_video.mjs                           # Interactive mode
+  node workflow_text_to_video.mjs "your prompt here"        # With prompt
+  node workflow_text_to_video.mjs "Dancing" --model quality # With specific model
+
+Available Models:
+  lightx2v - WAN 2.2 14B T2V LightX2V (fast, 4-step)
+  quality  - WAN 2.2 14B T2V (high quality, 20-step)
 
 Options:
-  --negative Negative prompt (default: server default)
-  --style    Style prompt (default: server default)
-  --width    Video width (default: 640, minimum: 480)
-  --height   Video height (default: 640, minimum: 480)
-  --fps      Frames per second: 16 or 32 (default: 16)
-  --frames   Number of frames, 17-161 (default: 81 = 5 seconds at 16fps)
-  --model    Model variant: quality or speed (default: speed)
-  --batch    Number of videos to generate (default: 1)
-  --output   Output directory (default: ./videos)
-  --seed     Random seed for reproducibility (default: random)
-  --no-interactive  Skip interactive prompts (default: interactive mode)
-  --help     Show this help message
+  --model     Model: lightx2v or quality (default: prompts for selection)
+  --negative  Negative prompt (default: none)
+  --style     Style prompt (default: none)
+  --width     Video width (default: 640, min: 480, max: 1536)
+  --height    Video height (default: 640, min: 480, max: 1536)
+  --duration  Duration in seconds (default: 5)
+  --fps       Frames per second: 16 or 32 (default: 16)
+  --batch     Number of videos to generate (default: 1)
+  --seed      Random seed (default: -1 for random)
+  --guidance  Guidance scale (default: model-specific)
+  --shift     Motion intensity 1.0-8.0 (default: model-specific)
+  --sampler   Sampler name (default: euler)
+  --scheduler Scheduler name (default: simple)
+  --output    Output directory (default: ./output)
+  --no-interactive  Skip interactive prompts
+  --help      Show this help message
 `);
-}
-
-// ============================================
-// Interactive Prompts
-// ============================================
-
-async function askQuestion(question) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(typeof answer === 'string' ? answer : '');
-    });
-  });
-}
-
-async function selectModelVariant() {
-  console.log('\n🎬 Select WAN 2.2 Model Variant:');
-  console.log('  1. Quality - High quality, slower generation');
-  console.log('  2. Speed   - Fast generation, good quality');
-  console.log();
-
-  const choice = await askQuestion('Enter choice [1/2] (default: 2): ');
-  const selected = choice.trim() || '2';
-
-  if (selected === '1' || selected.toLowerCase() === 'quality') {
-    return 'quality';
-  } else if (selected === '2' || selected.toLowerCase() === 'speed') {
-    return 'speed';
-  } else {
-    console.log('Invalid choice, using Speed variant');
-    return 'speed';
-  }
-}
-
-// ============================================
-// Utility Functions
-// ============================================
-
-function log(icon, message) {
-  console.log(`${icon} ${message}`);
-}
-
-function formatDuration(seconds) {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 // ============================================
@@ -280,29 +181,68 @@ async function main() {
   // Load credentials
   const { username: USERNAME, password: PASSWORD } = await loadCredentials();
 
-  // Determine model variant
-  let modelVariant = OPTIONS.model;
-  if (!modelVariant) {
-    modelVariant = await selectModelVariant();
-  }
-
-  const modelConfig = MODELS.t2v[modelVariant];
-  if (!modelConfig) {
-    console.error(`Error: Unknown model variant '${modelVariant}'`);
-    process.exit(1);
+  // Interactive mode: select model and options
+  let modelConfig;
+  if (OPTIONS.interactive && !OPTIONS.modelKey) {
+    const selection = await selectModel(MODELS.t2v, 'lightx2v');
+    OPTIONS.modelKey = selection.key;
+    modelConfig = selection.config;
+  } else {
+    OPTIONS.modelKey = OPTIONS.modelKey || 'lightx2v';
+    modelConfig = MODELS.t2v[OPTIONS.modelKey];
+    if (!modelConfig) {
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'lightx2v' or 'quality'.`);
+      process.exit(1);
+    }
   }
 
   log('🎬', `Selected model: ${modelConfig.name}`);
+  console.log();
+
+  // Interactive mode: prompt for core options
+  if (OPTIONS.interactive) {
+    await promptCoreOptions(OPTIONS, modelConfig, {
+      defaultPrompt: DEFAULT_PROMPT,
+      isVideo: true
+    });
+
+    // Video-specific: duration
+    await promptVideoDuration(OPTIONS, modelConfig);
+
+    // Ask about advanced options
+    const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
+    if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
+      await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: true });
+    }
+
+    console.log('\n✅ Configuration complete!\n');
+  }
+
+  // Apply defaults for non-interactive mode
+  if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
+  if (!OPTIONS.width) OPTIONS.width = VIDEO_CONSTRAINTS.width.default;
+  if (!OPTIONS.height) OPTIONS.height = VIDEO_CONSTRAINTS.height.default;
+  if (!OPTIONS.fps) OPTIONS.fps = VIDEO_CONSTRAINTS.fps.default;
+  if (!OPTIONS.shift) OPTIONS.shift = modelConfig.defaultShift;
+  if (!OPTIONS.sampler) OPTIONS.sampler = modelConfig.defaultSampler || 'euler';
+  if (!OPTIONS.scheduler) OPTIONS.scheduler = modelConfig.defaultScheduler || 'simple';
+  if (OPTIONS.guidance === undefined || OPTIONS.guidance === null) {
+    OPTIONS.guidance = modelConfig.defaultGuidance;
+  }
+
+  // Use model-specific frame limits
+  const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
+
+  // Calculate frames from duration if not explicitly set
+  if (!OPTIONS.frames) {
+    const duration = OPTIONS.duration || 5;
+    OPTIONS.frames = Math.round(duration * OPTIONS.fps) + 1;
+    OPTIONS.frames = Math.max(VIDEO_CONSTRAINTS.frames.min, Math.min(maxFrames, OPTIONS.frames));
+  }
 
   // Validate dimensions
-  if (OPTIONS.width < MIN_VIDEO_DIMENSION) {
-    console.error(`Error: Video width must be at least ${MIN_VIDEO_DIMENSION}px for WAN 2.2 models (got ${OPTIONS.width})`);
-    process.exit(1);
-  }
-  if (OPTIONS.height < MIN_VIDEO_DIMENSION) {
-    console.error(`Error: Video height must be at least ${MIN_VIDEO_DIMENSION}px for WAN 2.2 models (got ${OPTIONS.height})`);
-    process.exit(1);
-  }
+  OPTIONS.width = Math.max(VIDEO_CONSTRAINTS.width.min, Math.min(VIDEO_CONSTRAINTS.width.max, OPTIONS.width));
+  OPTIONS.height = Math.max(VIDEO_CONSTRAINTS.height.min, Math.min(VIDEO_CONSTRAINTS.height.max, OPTIONS.height));
 
   // Validate FPS
   if (OPTIONS.fps !== 16 && OPTIONS.fps !== 32) {
@@ -311,8 +251,8 @@ async function main() {
   }
 
   // Validate frames
-  if (OPTIONS.frames < 17 || OPTIONS.frames > 161) {
-    console.error('Error: Frames must be between 17 and 161');
+  if (OPTIONS.frames < VIDEO_CONSTRAINTS.frames.min || OPTIONS.frames > maxFrames) {
+    console.error(`Error: Frames must be between ${VIDEO_CONSTRAINTS.frames.min} and ${maxFrames}`);
     process.exit(1);
   }
 
@@ -333,17 +273,14 @@ async function main() {
     network: 'fast'
   };
 
-  // Load optional configuration from environment
   const testnet = process.env.SOGNI_TESTNET === 'true';
   const socketEndpoint = process.env.SOGNI_SOCKET_ENDPOINT;
   const restEndpoint = process.env.SOGNI_REST_ENDPOINT;
 
-  // Only disable SSL verification if testnet is enabled
   if (testnet) {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }
 
-  // Only add optional configs if they're set in environment
   if (testnet) clientConfig.testnet = testnet;
   if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
   if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
@@ -368,7 +305,6 @@ async function main() {
     let tokenType = loadTokenTypePreference();
 
     if (!tokenType) {
-      // Ask user which token type to use
       const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
       const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
 
@@ -388,17 +324,40 @@ async function main() {
         console.log('  → Using Spark tokens\n');
       }
 
-      // Ask if they want to save the preference
       const savePreference = await askQuestion('Save payment preference to .env file? [Y/n]: ');
       if (savePreference.toLowerCase() !== 'n' && savePreference.toLowerCase() !== 'no') {
         saveTokenTypePreference(tokenType);
         console.log('✓ Payment preference saved\n');
       } else {
-        console.log('⚠️  Payment preference not saved. You will be asked again next time.\n');
+        console.log('⚠️  Payment preference not saved.\n');
       }
     } else {
       console.log(`💳 Using saved payment preference: ${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} tokens`);
       console.log();
+    }
+
+    // Show configuration
+    const videoDuration = (OPTIONS.frames - 1) / OPTIONS.fps;
+    displayConfig('Video Generation Configuration', {
+      'Model': modelConfig.name,
+      'Prompt': OPTIONS.prompt,
+      'Resolution': `${OPTIONS.width}x${OPTIONS.height}`,
+      'Duration': `${videoDuration.toFixed(1)}s`,
+      'FPS': OPTIONS.fps,
+      'Frames': OPTIONS.frames,
+      'Batch': OPTIONS.batch,
+      'Guidance': OPTIONS.guidance,
+      'Shift': OPTIONS.shift,
+      'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      'Sampler': OPTIONS.sampler,
+      'Scheduler': OPTIONS.scheduler
+    });
+
+    if (OPTIONS.negative) {
+      console.log(`   Negative prompt: ${OPTIONS.negative}`);
+    }
+    if (OPTIONS.style) {
+      console.log(`   Style prompt: ${OPTIONS.style}`);
     }
 
     // Get cost estimate
@@ -408,7 +367,6 @@ async function main() {
     console.log();
     console.log('📊 Cost Estimate:');
 
-    // Show the cost in the selected token type and USD
     if (tokenType === 'spark') {
       const cost = parseFloat(estimate.quote.project.costInSpark || 0);
       const currentBalance = parseFloat(balance.spark.net || 0);
@@ -426,41 +384,11 @@ async function main() {
       const proceed = await askQuestion('Proceed with generation? [Y/n]: ');
       if (proceed.toLowerCase() === 'n' || proceed.toLowerCase() === 'no') {
         log('❌', 'Generation cancelled');
-        return;
+        process.exit(0);
       }
     } else {
       console.log('✓ Proceeding with generation (non-interactive mode)');
     }
-
-    // Show configuration
-    console.log();
-    console.log('┌─────────────────────────────────────────────────────────┐');
-    console.log('│ Video Generation Configuration                          │');
-    console.log('├─────────────────────────────────────────────────────────┤');
-
-    const labelWidth = 12;
-    const boxWidth = 58;
-
-    console.log(`│ ${'Model:'.padEnd(labelWidth)}${modelConfig.name.padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Resolution:'.padEnd(labelWidth)}${(OPTIONS.width + 'x' + OPTIONS.height).padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Duration:'.padEnd(labelWidth)}${((OPTIONS.frames / OPTIONS.fps).toFixed(1) + 's').padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'FPS:'.padEnd(labelWidth)}${String(OPTIONS.fps).padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Frames:'.padEnd(labelWidth)}${String(OPTIONS.frames).padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Batch:'.padEnd(labelWidth)}${String(OPTIONS.batch).padEnd(boxWidth - labelWidth - 2)} │`);
-    if (OPTIONS.seed !== null) {
-      console.log(`│ ${'Seed:'.padEnd(labelWidth)}${String(OPTIONS.seed).padEnd(boxWidth - labelWidth - 2)} │`);
-    }
-    console.log('└─────────────────────────────────────────────────────────┘');
-    console.log();
-    console.log('📝 Prompts:');
-    console.log(`   Positive: ${OPTIONS.prompt}`);
-    if (OPTIONS.negative) {
-      console.log(`   Negative: ${OPTIONS.negative}`);
-    }
-    if (OPTIONS.style) {
-      console.log(`   Style: ${OPTIONS.style}`);
-    }
-    console.log();
 
     // Wait for models
     log('🔄', 'Loading available models...');
@@ -489,17 +417,24 @@ async function main() {
       height: OPTIONS.height,
       frames: OPTIONS.frames,
       fps: OPTIONS.fps,
-      shift: modelVariant === 'speed' ? 5.0 : 8.0,
-      seed: OPTIONS.seed,
+      shift: OPTIONS.shift,
+      seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      sampler: OPTIONS.sampler,
+      scheduler: OPTIONS.scheduler,
       tokenType: tokenType
     };
 
-    // Add optional prompts if provided
+    // Add optional prompts
     if (OPTIONS.negative) {
       projectParams.negativePrompt = OPTIONS.negative;
     }
     if (OPTIONS.style) {
       projectParams.stylePrompt = OPTIONS.style;
+    }
+
+    // Add guidance
+    if (OPTIONS.guidance !== undefined && OPTIONS.guidance !== null) {
+      projectParams.guidance = OPTIONS.guidance;
     }
 
     project = await sogni.projects.create(projectParams);
@@ -510,7 +445,7 @@ async function main() {
     const totalVideos = OPTIONS.batch;
     let projectFailed = false;
 
-    // Track ETA and progress interval (like in video_text_to_video.mjs)
+    // Track ETA and progress interval
     project._lastETA = undefined;
     project._progressInterval = null;
 
@@ -542,78 +477,69 @@ async function main() {
           break;
 
         case 'started':
-          // Start timing when job actually starts
           if (!project._progressInterval) {
             startTime = Date.now();
-            // Show progress and update every second throughout the entire job
             project._progressInterval = setInterval(() => {
               const elapsed = (Date.now() - startTime) / 1000;
-              if (project._lastETA !== undefined) {
-                // We have ETA info, show it
-                process.stdout.write(
-                  `\r  Generating... ETA: ${formatDuration(project._lastETA)} (${formatDuration(elapsed)} elapsed)   `
-                );
-              } else {
-                // No ETA yet, just show elapsed
-                process.stdout.write(`\r  Generating... (${formatDuration(elapsed)} elapsed)   `);
+              let progressStr = `\r  Generating...`;
+              if (project._lastStep !== undefined && project._lastStepCount !== undefined) {
+                const stepPercent = Math.round((project._lastStep / project._lastStepCount) * 100);
+                progressStr += ` Step ${project._lastStep}/${project._lastStepCount} (${stepPercent}%)`;
               }
+              if (project._lastETA !== undefined) {
+                progressStr += ` ETA: ${formatDuration(project._lastETA)}`;
+              }
+              progressStr += ` (${formatDuration(elapsed)} elapsed)   `;
+              process.stdout.write(progressStr);
             }, 1000);
           }
           log('🚀', `Job started on worker: ${event.workerName || 'Unknown'}`);
           break;
 
         case 'jobETA':
-          // Store the latest ETA so the interval can use it
           project._lastETA = event.etaSeconds;
           break;
 
         case 'progress':
-          // Progress events update step count (optional display)
+          // Store step progress for display
+          if (event.step !== undefined && event.stepCount !== undefined) {
+            project._lastStep = event.step;
+            project._lastStepCount = event.stepCount;
+          }
           break;
 
         case 'completed':
-          // Clear the progress interval and show final message
           if (project._progressInterval) {
             clearInterval(project._progressInterval);
             project._progressInterval = null;
-            // Clear the line
             process.stdout.write('\r' + ' '.repeat(70) + '\r');
           }
 
-          // Check if this completion event indicates failure
           if (!event.resultUrl || event.error) {
             failedVideos++;
             log('❌', `Job completed with error: ${event.error || 'No result URL'}`);
             checkWorkflowCompletion();
           } else {
-            // If project has already failed, ignore successful completions
             if (projectFailed) {
-              log('⚠️', `Ignoring completion event for already failed project`);
+              log('⚠️', 'Ignoring completion event for already failed project');
               return;
             }
             log('✅', 'Job completed!');
-            // Start download - defer success counting until download completes
             const videoId = event.jobId || `video_${Date.now()}`;
             const outputPath = `${OPTIONS.output}/${videoId}.mp4`;
 
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {
-                // Download succeeded - now count as completed
                 completedVideos++;
                 const elapsed = Math.round((Date.now() - startTime) / 1000);
                 log('✓', `Video ${completedVideos}/${totalVideos} completed (${elapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openVideo(outputPath);
-
-                // Check if workflow is complete
                 checkWorkflowCompletion();
               })
               .catch((error) => {
-                // Download failed - count as failed
                 failedVideos++;
                 log('❌', `Download failed for ${videoId}: ${error.message}`);
-
-                // Check if workflow is complete
                 checkWorkflowCompletion();
               });
           }
@@ -621,7 +547,6 @@ async function main() {
 
         case 'error':
         case 'failed':
-          // Clear the progress interval
           if (project._progressInterval) {
             clearInterval(project._progressInterval);
             project._progressInterval = null;
@@ -629,9 +554,12 @@ async function main() {
           }
           projectFailed = true;
           failedVideos++;
-          log('❌', `Job failed: ${event.error?.message || event.error || 'Unknown error'}`);
-          if (event.error?.code) {
-            console.log(`   Error code: ${event.error.code}`);
+          const errorMsg = event.error?.message || event.error || 'Unknown error';
+          const errorCode = event.error?.code;
+          if (errorCode !== undefined && errorCode !== null) {
+            log('❌', `Job failed: ${errorMsg} (Error code: ${errorCode})`);
+          } else {
+            log('❌', `Job failed: ${errorMsg}`);
           }
           checkWorkflowCompletion();
           break;
@@ -645,8 +573,13 @@ async function main() {
     function checkWorkflowCompletion() {
       if (completedVideos + failedVideos === totalVideos) {
         if (failedVideos === 0) {
-          log('🎉', `All ${totalVideos} video${totalVideos > 1 ? 's' : ''} generated successfully!`);
+          if (totalVideos === 1) {
+            log('🎉', 'Video generated successfully!');
+          } else {
+            log('🎉', `All ${totalVideos} videos generated successfully!`);
+          }
           console.log();
+          // Give a small delay for all video players to open
           process.exit(0);
         } else {
           log('❌', `${failedVideos} out of ${totalVideos} video${totalVideos > 1 ? 's' : ''} failed to generate`);
@@ -666,7 +599,6 @@ async function main() {
         }
       };
 
-      // Timeout after 60 minutes
       setTimeout(() => {
         reject(new Error('Generation timed out after 60 minutes'));
       }, 60 * 60 * 1000);
@@ -687,14 +619,12 @@ async function main() {
     log('❌', `Error: ${error.message}`);
     process.exit(1);
   } finally {
-    // Clean up event handlers
     if (projectEventHandler) {
       sogni.projects.off('project', projectEventHandler);
     }
     if (jobEventHandler) {
       sogni.projects.off('job', jobEventHandler);
     }
-    // Clean up any remaining intervals
     if (project && project._progressInterval) {
       clearInterval(project._progressInterval);
     }
@@ -710,7 +640,6 @@ async function main() {
  * Get video job cost estimate
  */
 async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps) {
-  // Use configured socket endpoint or default, convert wss to https for HTTP requests
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');
@@ -746,11 +675,11 @@ function openVideo(videoPath) {
   const { platform } = process;
   let command;
 
-  if (platform === 'darwin') { // macOS
+  if (platform === 'darwin') {
     command = `open "${videoPath}"`;
-  } else if (platform === 'win32') { // Windows
+  } else if (platform === 'win32') {
     command = `start "" "${videoPath}"`;
-  } else { // Linux and others
+  } else {
     command = `xdg-open "${videoPath}"`;
   }
 

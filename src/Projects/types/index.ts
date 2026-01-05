@@ -148,6 +148,18 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   height?: number;
   /**
+   * Sampler to use for video generation.
+   * Supported: euler, euler_ancestral, dpmpp_2m, dpmpp_2m_sde, dpmpp_sde, uni_pc, lcm, heun, etc.
+   * Default: euler (or uni_pc for s2v models)
+   */
+  sampler?: Sampler;
+  /**
+   * Scheduler to use for video generation.
+   * Supported: simple, normal, karras, sgm_uniform, beta, exponential, ddim_uniform, kl_optimal, etc.
+   * Default: simple
+   */
+  scheduler?: Scheduler;
+  /**
    * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
    */
   outputFormat?: VideoOutputFormat;

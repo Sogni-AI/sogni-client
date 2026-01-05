@@ -1,31 +1,37 @@
 #!/usr/bin/env node
 /**
- * Image Edit Workflow
+ * Image Generation Workflow (with Reference Images)
  *
- * This script generates edited versions of input images using Qwen Image Edit models.
- * Supports both quality and speed variants with configurable parameters.
+ * This script generates images using reference/context images to guide the generation.
+ * Works with Qwen Image Edit and Flux models that support context-based generation.
  *
  * Prerequisites:
  * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
- * - You need access to the 'fast' network for image editing
- * - Place input images in the test-assets folder
+ * - You need access to the 'fast' network for image generation
  *
  * Usage:
- *   node workflow_image_edit.mjs "add a sunset background" --image input.jpg
- *   node workflow_image_edit.mjs "convert to watercolor style" --image photo.jpg --model quality
- *   node workflow_image_edit.mjs "make it night time" --image landscape.jpg --batch 3
- *   node workflow_image_edit.mjs "add sunglasses" --image portrait.jpg --seed 12345
+ *   node workflow_image_edit.mjs                                    # Interactive mode
+ *   node workflow_image_edit.mjs "portrait in this style" --context ref.jpg
+ *   node workflow_image_edit.mjs "modern artwork" --context ref1.jpg --context2 ref2.jpg
  *
  * Options:
- *   --image        Input image path (required)
- *   --negative     Negative prompt (default: server default)
- *   --style        Style prompt (default: server default)
- *   --model        Model variant: quality or speed (default: quality)
- *   --batch        Number of edited images to generate (default: 1)
- *   --seed         Random seed for reproducibility (default: random)
- *   --output       Output directory (default: ./images)
- *   --no-interactive  Skip interactive prompts (default: interactive mode)
- *   --help         Show this help message
+ *   --context     Reference image 1 (required, at least 1 needed)
+ *   --context2    Reference image 2 (optional)
+ *   --context3    Reference image 3 (optional)
+ *   --model       Model: qwen, qwen-lightning, or flux2 (default: prompts for selection)
+ *   --batch       Number of images to generate (default: 1)
+ *   --seed        Random seed for reproducibility (default: -1 for random)
+ *   --guidance    Guidance scale for Flux2 (default: 4.0)
+ *   --steps       Inference steps (default: model-specific)
+ *   --sampler     Sampler name (default: euler)
+ *   --scheduler   Scheduler name (default: simple)
+ *   --negative    Negative prompt (default: none)
+ *   --style       Style prompt (default: none)
+ *   --output      Output directory (default: ./output)
+ *   --no-interactive  Skip interactive prompts
+ *   --help        Show this help message
+ *
+ * Note: For legacy compatibility, --image can be used and will be treated as --context
  */
 
 import { SogniClient } from '../dist/index.js';
@@ -33,27 +39,25 @@ import * as fs from 'node:fs';
 import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
-import * as readline from 'node:readline';
 import imageSize from 'image-size';
 import { loadCredentials, loadTokenTypePreference, saveTokenTypePreference } from './credentials.mjs';
+import {
+  MODELS,
+  askQuestion,
+  selectModel,
+  promptAdvancedOptions,
+  promptContextImages,
+  pickImageFile,
+  readFilesAsBuffers,
+  log,
+  displayConfig,
+  displayPrompts
+} from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
 
-// Model configurations
-const MODELS = {
-  quality: {
-    id: 'qwen_image_edit_2511_fp8',
-    name: 'Qwen Image Edit 2511 FP8 (Quality)',
-    description: 'High quality image editing with detailed results',
-    defaultSteps: 20
-  },
-  speed: {
-    id: 'qwen_image_edit_2511_fp8_lightning',
-    name: 'Qwen Image Edit 2511 FP8 Lightning (Speed)',
-    description: 'Fast image editing with good quality',
-    defaultSteps: 4
-  }
-};
+// Default prompt for this workflow
+const DEFAULT_PROMPT = 'Generate an image in this style';
 
 // ============================================
 // Parse Command Line Arguments
@@ -66,10 +70,15 @@ async function parseArgs() {
     negative: null,
     style: null,
     image: null,
-    model: 'quality', // Default to quality model for image editing
+    contextImages: [],
+    modelKey: null,
     batch: 1,
     seed: null,
-    output: './images',
+    guidance: null,
+    steps: null,
+    sampler: null,
+    scheduler: null,
+    output: './output',
     interactive: true
   };
 
@@ -82,16 +91,30 @@ async function parseArgs() {
       options.interactive = false;
     } else if (arg === '--image' && args[i + 1]) {
       options.image = args[++i];
+    } else if (arg === '--context' && args[i + 1]) {
+      options.contextImages[0] = args[++i];
+    } else if (arg === '--context2' && args[i + 1]) {
+      options.contextImages[1] = args[++i];
+    } else if (arg === '--context3' && args[i + 1]) {
+      options.contextImages[2] = args[++i];
+    } else if (arg === '--model' && args[i + 1]) {
+      options.modelKey = args[++i];
+    } else if (arg === '--batch' && args[i + 1]) {
+      options.batch = parseInt(args[++i], 10);
     } else if (arg === '--negative' && args[i + 1]) {
       options.negative = args[++i];
     } else if (arg === '--style' && args[i + 1]) {
       options.style = args[++i];
-    } else if (arg === '--model' && args[i + 1]) {
-      options.model = args[++i];
-    } else if (arg === '--batch' && args[i + 1]) {
-      options.batch = parseInt(args[++i], 10);
     } else if (arg === '--seed' && args[i + 1]) {
       options.seed = parseInt(args[++i], 10);
+    } else if (arg === '--guidance' && args[i + 1]) {
+      options.guidance = parseFloat(args[++i]);
+    } else if (arg === '--steps' && args[i + 1]) {
+      options.steps = parseInt(args[++i], 10);
+    } else if (arg === '--sampler' && args[i + 1]) {
+      options.sampler = args[++i];
+    } else if (arg === '--scheduler' && args[i + 1]) {
+      options.scheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -108,49 +131,43 @@ async function parseArgs() {
 
 function showHelp() {
   console.log(`
-Image Edit Workflow
+Image Generation Workflow (with Reference Images)
+
+This workflow generates new images using reference images to guide the style/content.
+Works with Qwen Image Edit and Flux models that support context-based generation.
 
 Usage:
-  node workflow_image_edit.mjs "add a sunset background" --image input.jpg
-  node workflow_image_edit.mjs "convert to watercolor style" --image photo.jpg --model quality
+  node workflow_image_edit.mjs                                    # Interactive mode
+  node workflow_image_edit.mjs "portrait in this style" --context ref.jpg
+  node workflow_image_edit.mjs "modern artwork" --context ref1.jpg --context2 ref2.jpg
+
+Available Models:
+  qwen           - Qwen Image Edit 2511 (high quality, 20-step)
+  qwen-lightning - Qwen Image Edit 2511 Lightning (fast, 4-step)
+  flux2          - Flux.2 Dev (high quality with context images)
 
 Options:
-  --image        Input image path (required)
-  --negative     Negative prompt (default: server default)
-  --style        Style prompt (default: server default)
-  --model        Model variant: quality or speed (default: quality)
-  --batch        Number of edited images to generate (default: 1)
-  --seed         Random seed for reproducibility (default: random)
-  --output       Output directory (default: ./images)
-  --no-interactive  Skip interactive prompts (default: interactive mode)
-  --help         Show this help message
+  --context     Reference image 1 (required, at least 1 needed)
+  --context2    Reference image 2 (optional)
+  --context3    Reference image 3 (optional)
+  --model       Model: qwen, qwen-lightning, or flux2 (default: prompts for selection)
+  --negative    Negative prompt (default: none)
+  --style       Style prompt (default: none)
+  --batch       Number of images to generate (default: 1)
+  --seed        Random seed (default: -1 for random)
+  --guidance    Guidance scale for Flux2 (default: 4.0)
+  --steps       Inference steps (default: model-specific)
+  --sampler     Sampler name (default: euler)
+  --scheduler   Scheduler name (default: simple)
+  --output      Output directory (default: ./output)
+  --no-interactive  Skip interactive prompts
+  --help        Show this help message
+
+Reference Images:
+  Qwen and Flux models use reference images to guide the generation (not img2img editing).
+  Provide 1-3 reference images that represent the style or content you want.
+  Example: portrait photo → generates new portraits in that style
 `);
-}
-
-// ============================================
-// Interactive Prompts
-// ============================================
-
-async function askQuestion(question) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(typeof answer === 'string' ? answer : '');
-    });
-  });
-}
-
-// ============================================
-// Utility Functions
-// ============================================
-
-function log(icon, message) {
-  console.log(`${icon} ${message}`);
 }
 
 // ============================================
@@ -161,26 +178,128 @@ async function main() {
   const OPTIONS = await parseArgs();
 
   console.log('╔══════════════════════════════════════════════════════════╗');
-  console.log('║                 Image Edit Workflow                      ║');
+  console.log('║           Image Generation (Reference-Based)             ║');
   console.log('╚══════════════════════════════════════════════════════════╝');
   console.log();
 
   // Load credentials
   const { username: USERNAME, password: PASSWORD } = await loadCredentials();
 
-  // Validate model
-  if (!MODELS[OPTIONS.model]) {
-    console.error(`Error: Unknown model variant '${OPTIONS.model}'. Use 'quality' or 'speed'.`);
+  // Legacy support: if --image was used, treat it as the first context image
+  if (OPTIONS.image && !OPTIONS.contextImages[0]) {
+    OPTIONS.contextImages[0] = OPTIONS.image;
+  }
+
+  // Get image dimensions for cost estimation (use first context image if available)
+  let imageDimensions = { width: 1024, height: 1024 };
+  const firstImage = OPTIONS.contextImages[0];
+  if (firstImage) {
+    try {
+      const dimensions = imageSize(firstImage);
+      if (dimensions.width && dimensions.height) {
+        imageDimensions = { width: dimensions.width, height: dimensions.height };
+      }
+    } catch (error) {
+      // Use defaults if detection fails
+    }
+  }
+
+  // Interactive mode: select model and options
+  let modelConfig;
+  if (OPTIONS.interactive && !OPTIONS.modelKey) {
+    const selection = await selectModel(MODELS.imageEdit, 'qwen');
+    OPTIONS.modelKey = selection.key;
+    modelConfig = selection.config;
+  } else {
+    OPTIONS.modelKey = OPTIONS.modelKey || 'qwen';
+    modelConfig = MODELS.imageEdit[OPTIONS.modelKey];
+    if (!modelConfig) {
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'qwen', 'qwen-lightning', or 'flux2'.`);
+      process.exit(1);
+    }
+  }
+
+  log('🎨', `Selected model: ${modelConfig.name}`);
+
+  // Interactive mode: prompt for options
+  if (OPTIONS.interactive) {
+    // Prompt for context images (at least 1 required)
+    if (OPTIONS.contextImages.length === 0) {
+      console.log('\n💡 This workflow uses reference images to guide the generation.');
+      console.log('   Provide 1-3 images that represent the style or content you want.');
+      console.log('   Example: portrait photo → generated portrait in that style\n');
+      
+      // Get first context image (required)
+      const firstContextImage = await pickImageFile(null, '1st reference image (required)');
+      OPTIONS.contextImages.push(firstContextImage);
+      log('✓', `Added reference image: ${firstContextImage}`);
+
+      // Ask for additional context images
+      for (let i = 1; i < (modelConfig.maxContextImages || 3); i++) {
+        const ordinal = i === 1 ? '2nd' : '3rd';
+        const addMore = await askQuestion(`\nAdd ${ordinal} reference image? [y/N]: `);
+        
+        if (addMore.toLowerCase() === 'y' || addMore.toLowerCase() === 'yes') {
+          try {
+            const contextImage = await pickImageFile(null, `${ordinal} reference image`);
+            OPTIONS.contextImages.push(contextImage);
+            log('✓', `Added reference image ${i + 1}: ${contextImage}`);
+          } catch (error) {
+            log('⚠️', `Could not add reference image: ${error.message}`);
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+    }
+    // Prompt
+    if (!OPTIONS.prompt) {
+      console.log(`\nDefault prompt: "${DEFAULT_PROMPT}"`);
+      const promptInput = await askQuestion('Enter your generation prompt (or press Enter for default): ');
+      OPTIONS.prompt = promptInput.trim() || DEFAULT_PROMPT;
+    }
+
+    // Batch count
+    const batchInput = await askQuestion('\nNumber of images to generate (1-10, default: 1): ');
+    if (batchInput.trim()) {
+      const b = parseInt(batchInput.trim(), 10);
+      if (b >= 1 && b <= 10) {
+        OPTIONS.batch = b;
+      }
+    }
+
+    // Ask about advanced options
+    const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
+    if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
+      await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: false });
+    }
+
+    console.log('\n✅ Configuration complete!\n');
+  }
+
+  // Validate that at least 1 context image is provided
+  if (OPTIONS.contextImages.length === 0) {
+    console.error('Error: At least one reference image is required (use --context option)');
     process.exit(1);
   }
 
-  const modelConfig = MODELS[OPTIONS.model];
-  log('🎨', `Selected model: ${modelConfig.name}`);
+  // Apply defaults
+  if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
 
   // Validate batch count
   if (OPTIONS.batch < 1 || OPTIONS.batch > 10) {
     console.error('Error: Batch count must be between 1 and 10');
     process.exit(1);
+  }
+
+  // Validate context images
+  for (let i = 0; i < OPTIONS.contextImages.length; i++) {
+    const contextPath = OPTIONS.contextImages[i];
+    if (contextPath && !fs.existsSync(contextPath)) {
+      console.error(`Error: Context image ${i + 1} '${contextPath}' does not exist`);
+      process.exit(1);
+    }
   }
 
   // Create output directory
@@ -194,109 +313,19 @@ async function main() {
     network: 'fast'
   };
 
-  // Load optional configuration from environment
   const testnet = process.env.SOGNI_TESTNET === 'true';
   const socketEndpoint = process.env.SOGNI_SOCKET_ENDPOINT;
   const restEndpoint = process.env.SOGNI_REST_ENDPOINT;
 
-  // Only disable SSL verification if testnet is enabled
   if (testnet) {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }
 
-  // Only add optional configs if they're set in environment
   if (testnet) clientConfig.testnet = testnet;
   if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
   if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
 
   const sogni = await SogniClient.createInstance(clientConfig);
-
-  // Provide defaults when interactive and missing required parameters
-  if (OPTIONS.interactive && (!OPTIONS.prompt || !OPTIONS.image)) {
-    console.log('\n🎨 Image Edit Workflow');
-    console.log('=====================\n');
-
-    // Required image input
-    if (!OPTIONS.image) {
-      const imageInput = await askQuestion('Enter input image path (required): ');
-      if (imageInput.trim()) {
-        OPTIONS.image = imageInput.trim();
-        if (!fs.existsSync(OPTIONS.image)) {
-          console.error(`Error: Image file '${OPTIONS.image}' does not exist`);
-          process.exit(1);
-        }
-      } else {
-        console.error('Error: Input image is required');
-        process.exit(1);
-      }
-    }
-
-    // Required prompt
-    if (!OPTIONS.prompt) {
-      const defaultPrompt = 'Enhance the image with better lighting and colors';
-      const promptInput = await askQuestion(`Enter edit prompt (default: "${defaultPrompt}"): `);
-      OPTIONS.prompt = promptInput.trim() || defaultPrompt;
-    }
-
-    // Optional negative prompt
-    const negativeInput = await askQuestion('Enter negative prompt (optional, press Enter to skip): ');
-    if (negativeInput.trim()) {
-      OPTIONS.negative = negativeInput.trim();
-    }
-
-    // Optional style prompt
-    const styleInput = await askQuestion('Enter style prompt (optional, press Enter to skip): ');
-    if (styleInput.trim()) {
-      OPTIONS.style = styleInput.trim();
-    }
-
-    // Model selection (already defaults to quality)
-    if (OPTIONS.model === 'quality') {
-      const modelChoice = await askQuestion('Use Quality (detailed) or Speed (fast)? [q/s] (default: q): ');
-      if (modelChoice.toLowerCase().startsWith('s')) {
-        OPTIONS.model = 'speed';
-      }
-    }
-
-    // Batch count
-    const batchInput = await askQuestion('Number of edited images to generate (default: 1): ');
-    if (batchInput.trim()) {
-      const batchNum = parseInt(batchInput.trim(), 10);
-      if (batchNum > 0 && batchNum <= 10) {
-        OPTIONS.batch = batchNum;
-      }
-    }
-
-    console.log('\n✅ Configuration complete!\n');
-  } else {
-    if (!OPTIONS.prompt) {
-      console.error('Error: Edit prompt is required (use --help for options)');
-      showHelp();
-      process.exit(1);
-    }
-    if (!OPTIONS.image) {
-      console.error('Error: Input image is required (use --help for options)');
-      showHelp();
-      process.exit(1);
-    }
-  }
-
-  // Validate input image
-  if (!fs.existsSync(OPTIONS.image)) {
-    console.error(`Error: Input image '${OPTIONS.image}' does not exist`);
-    process.exit(1);
-  }
-
-  // Get image dimensions for cost estimation
-  let imageDimensions = { width: 1024, height: 1024 };
-  try {
-    const dimensions = imageSize(OPTIONS.image);
-    if (dimensions.width && dimensions.height) {
-      imageDimensions = { width: dimensions.width, height: dimensions.height };
-    }
-  } catch (error) {
-    // Use defaults if detection fails
-  }
 
   try {
     // Login
@@ -312,7 +341,6 @@ async function main() {
     let tokenType = loadTokenTypePreference();
 
     if (!tokenType) {
-      // Ask user which token type to use
       const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
       const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
 
@@ -332,13 +360,12 @@ async function main() {
         console.log('  → Using Spark tokens\n');
       }
 
-      // Ask if they want to save the preference
       const savePreference = await askQuestion('Save payment preference to .env file? [Y/n]: ');
       if (savePreference.toLowerCase() !== 'n' && savePreference.toLowerCase() !== 'no') {
         saveTokenTypePreference(tokenType);
         console.log('✓ Payment preference saved\n');
       } else {
-        console.log('⚠️  Payment preference not saved. You will be asked again next time.\n');
+        console.log('⚠️  Payment preference not saved.\n');
       }
     } else {
       console.log(`💳 Using saved payment preference: ${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} tokens`);
@@ -347,12 +374,12 @@ async function main() {
 
     // Get cost estimate
     log('💵', 'Fetching cost estimate...');
-    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, modelConfig.defaultSteps, OPTIONS.image);
+    const steps = OPTIONS.steps || modelConfig.defaultSteps;
+    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, OPTIONS.contextImages[0]);
 
     console.log();
     console.log('📊 Cost Estimate:');
 
-    // Show the cost in the selected token type and USD
     if (tokenType === 'spark') {
       const cost = parseFloat(estimate.quote.project.costInSpark || 0);
       const currentBalance = parseFloat(balance.spark.net || 0);
@@ -365,43 +392,42 @@ async function main() {
       console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
     }
 
+    // Show configuration
+    const configDisplay = {
+      'Model': modelConfig.name,
+      'Prompt': OPTIONS.prompt,
+      'Reference Images': OPTIONS.contextImages.length,
+      'Batch': OPTIONS.batch,
+      'Steps': steps,
+      'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1
+    };
+
+    // Add reference images to display
+    OPTIONS.contextImages.forEach((img, i) => {
+      if (img) {
+        configDisplay[`Reference ${i + 1}`] = img;
+      }
+    });
+
+    displayConfig('Image Generation Configuration', configDisplay);
+
+    if (OPTIONS.negative) {
+      console.log(`   Negative prompt: ${OPTIONS.negative}`);
+    }
+    if (OPTIONS.style) {
+      console.log(`   Style prompt: ${OPTIONS.style}`);
+    }
+
     console.log();
     if (OPTIONS.interactive) {
-      const proceed = await askQuestion('Proceed with editing? [Y/n]: ');
+      const proceed = await askQuestion('Proceed with generation? [Y/n]: ');
       if (proceed.toLowerCase() === 'n' || proceed.toLowerCase() === 'no') {
         log('❌', 'Edit cancelled');
-        return;
+        process.exit(0);
       }
     } else {
       console.log('✓ Proceeding with editing (non-interactive mode)');
     }
-
-    // Show configuration
-    console.log();
-    console.log('┌─────────────────────────────────────────────────────────┐');
-    console.log('│ Image Edit Configuration                                 │');
-    console.log('├─────────────────────────────────────────────────────────┤');
-
-    const labelWidth = 12;
-    const boxWidth = 58;
-
-    console.log(`│ ${'Model:'.padEnd(labelWidth)}${modelConfig.name.padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Input:'.padEnd(labelWidth)}${OPTIONS.image.padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Batch:'.padEnd(labelWidth)}${String(OPTIONS.batch).padEnd(boxWidth - labelWidth - 2)} │`);
-    if (OPTIONS.seed !== null) {
-      console.log(`│ ${'Seed:'.padEnd(labelWidth)}${String(OPTIONS.seed).padEnd(boxWidth - labelWidth - 2)} │`);
-    }
-    console.log('└─────────────────────────────────────────────────────────┘');
-    console.log();
-    console.log('📝 Edit Prompts:');
-    console.log(`   Positive: ${OPTIONS.prompt}`);
-    if (OPTIONS.negative) {
-      console.log(`   Negative: ${OPTIONS.negative}`);
-    }
-    if (OPTIONS.style) {
-      console.log(`   Style: ${OPTIONS.style}`);
-    }
-    console.log();
 
     // Wait for models
     log('🔄', 'Loading available models...');
@@ -416,23 +442,44 @@ async function main() {
     console.log();
 
     // Create project
-    log('📤', 'Submitting image edit job...');
-    log('🎨', 'Editing image...');
+    log('📤', 'Submitting image generation job...');
+    log('🎨', 'Generating image from references...');
     console.log();
 
     let startTime = Date.now();
+
+    // CRITICAL: SDK requires Uint8Array/File/Blob objects for media uploads, NOT string paths.
+    // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
+    const contextImageBuffers = readFilesAsBuffers(OPTIONS.contextImages);
+
+    // Debug: Log the context images to verify they're Blobs
+    console.log('\n🔍 DEBUG: Context image upload info:');
+    contextImageBuffers.forEach((buf, i) => {
+      const size = buf.size || buf.byteLength || 'unknown';
+      console.log(`   Image ${i + 1}: ${buf.constructor.name}, ${size} bytes`);
+    });
+
     const projectParams = {
       type: 'image',
       modelId: modelConfig.id,
       positivePrompt: OPTIONS.prompt,
       numberOfMedia: OPTIONS.batch,
-      steps: modelConfig.defaultSteps,
-      seed: OPTIONS.seed,
-      startingImage: OPTIONS.image,
+      steps: steps,
+      seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      contextImages: contextImageBuffers,
       tokenType: tokenType
     };
 
-    // Add optional prompts if provided
+    // Add width/height for Flux2 (it uses custom dimensions)
+    if (modelConfig.supportsGuidance) {
+      projectParams.sizePreset = 'custom';
+      projectParams.width = modelConfig.defaultWidth || 1248;
+      projectParams.height = modelConfig.defaultHeight || 832;
+      // Flux2 always needs guidance
+      projectParams.guidance = OPTIONS.guidance || modelConfig.defaultGuidance || 4.0;
+    }
+
+    // Add optional prompts
     if (OPTIONS.negative) {
       projectParams.negativePrompt = OPTIONS.negative;
     }
@@ -440,14 +487,22 @@ async function main() {
       projectParams.stylePrompt = OPTIONS.style;
     }
 
+    // Debug: Log the full project params
+    console.log('\n🔍 DEBUG: Project params:');
+    console.log(`   modelId: ${projectParams.modelId}`);
+    console.log(`   sizePreset: ${projectParams.sizePreset}`);
+    console.log(`   width: ${projectParams.width}`);
+    console.log(`   height: ${projectParams.height}`);
+    console.log(`   steps: ${projectParams.steps}`);
+    console.log(`   guidance: ${projectParams.guidance}`);
+    console.log(`   contextImages count: ${projectParams.contextImages?.length}`);
+    console.log();
+
     const project = await sogni.projects.create(projectParams);
 
-    // Listen for progress events on the project instance
-    project.on('progress', (progress) => {
-      if (progress.step !== undefined && progress.stepCount !== undefined) {
-        const progressPercent = Math.round((progress.step / progress.stepCount) * 100);
-        process.stdout.write(`\r⏳ Progress: ${progressPercent}%`);
-      }
+    // Listen for project-level progress (0-100 percentage)
+    project.on('progress', (progressPercent) => {
+      process.stdout.write(`\r⏳ Progress: ${progressPercent}%`);
     });
 
     // Set up event handlers
@@ -457,59 +512,76 @@ async function main() {
     let projectFailed = false;
 
     const eventHandler = (event) => {
+      // Handle step-level progress from job events
+      if (event.type === 'progress' && event.step !== undefined && event.stepCount !== undefined) {
+        const percent = Math.round((event.step / event.stepCount) * 100);
+        process.stdout.write(`\r⏳ Step ${event.step}/${event.stepCount} (${percent}%)`);
+      }
+
       switch (event.type) {
-        case 'progress':
-          // Progress is handled by project.on('progress') above
+        case 'queued':
+          log('📋', `Job queued at position: ${event.queuePosition || 'unknown'}`);
+          break;
+
+        case 'initiating':
+          log('🔧', `Worker ${event.workerName || 'unknown'} initializing model...`);
+          break;
+
+        case 'started':
+          log('🚀', `Worker ${event.workerName || 'unknown'} started generation`);
           break;
 
         case 'completed':
-          // Check if this completion event indicates failure
+          // Debug: Log the full event (no truncation)
+          console.log('\n🔍 DEBUG: Completed event:');
+          console.log('   jobId:', event.jobId);
+          console.log('   resultUrl:', event.resultUrl);
+          console.log('   error:', event.error);
+          console.log('   status:', event.status);
+          
           if (!event.resultUrl || event.error) {
             failedImages++;
             log('❌', `Job completed with error: ${event.error || 'No result URL'}`);
           } else {
-            // If project has already failed, ignore successful completions
             if (projectFailed) {
-              log('⚠️', `Ignoring completion event for already failed project`);
+              log('⚠️', 'Ignoring completion event for already failed project');
               return;
             }
-            // Start download - defer success counting until download completes
             const imageId = event.jobId || `edited_${Date.now()}`;
             const outputPath = `${OPTIONS.output}/${imageId}.png`;
 
             downloadImage(event.resultUrl, outputPath)
               .then(() => {
-                // Download succeeded - now count as completed
                 completedImages++;
                 const elapsed = Math.round((Date.now() - startTime) / 1000);
                 log('✓', `Image ${completedImages}/${totalImages} completed (${elapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openImage(outputPath);
-
-                // Check if workflow is complete
                 checkWorkflowCompletion();
               })
               .catch((error) => {
-                // Download failed - count as failed
                 failedImages++;
                 log('❌', `Download failed for ${imageId}: ${error.message}`);
-
-                // Check if workflow is complete
                 checkWorkflowCompletion();
               });
           }
 
-          // For immediately failed completions, check completion right away
           if (!event.resultUrl || event.error) {
             checkWorkflowCompletion();
           }
           break;
 
+        case 'error':
         case 'failed':
           projectFailed = true;
           failedImages++;
-          log('❌', `Job failed: ${event.error || 'Unknown error'}`);
-
+          const errorMsg = event.error?.message || event.error || 'Unknown error';
+          const errorCode = event.error?.code;
+          if (errorCode !== undefined && errorCode !== null) {
+            log('❌', `Job failed: ${errorMsg} (Error code: ${errorCode})`);
+          } else {
+            log('❌', `Job failed: ${errorMsg}`);
+          }
           checkWorkflowCompletion();
           break;
       }
@@ -527,22 +599,25 @@ async function main() {
       }
     });
 
-    // Helper function to check workflow completion
     function checkWorkflowCompletion() {
       if (completedImages + failedImages === totalImages) {
         if (failedImages === 0) {
-          log('🎉', `All ${totalImages} edited image${totalImages > 1 ? 's' : ''} generated successfully!`);
+          if (totalImages === 1) {
+            log('🎉', 'Image generated successfully!');
+          } else {
+            log('🎉', `All ${totalImages} image${totalImages > 1 ? 's' : ''} generated successfully!`);
+          }
           console.log();
+          // Give a small delay for all image viewers to open
           process.exit(0);
         } else {
-          log('❌', `${failedImages} out of ${totalImages} edited image${totalImages > 1 ? 's' : ''} failed to generate`);
+          log('❌', `${failedImages} out of ${totalImages} image${totalImages > 1 ? 's' : ''} failed to generate`);
           console.log();
           process.exit(1);
         }
       }
     }
 
-    // Wait for completion or project failure
     await new Promise((resolve, reject) => {
       const checkCompletion = () => {
         if (projectFailed || completedImages + failedImages >= totalImages) {
@@ -552,21 +627,19 @@ async function main() {
         }
       };
 
-      // Timeout after 30 minutes
       const timeout = setTimeout(() => {
-        reject(new Error('Editing timed out after 30 minutes'));
+        reject(new Error('Generation timed out after 30 minutes'));
       }, 30 * 60 * 1000);
 
       checkCompletion();
     });
 
-    // Final status check
     if (projectFailed || failedImages > 0) {
       const failureCount = projectFailed ? totalImages : failedImages;
-      log('❌', `Edit workflow failed with ${failureCount} failed job${failureCount > 1 ? 's' : ''}`);
+      log('❌', `Image generation failed with ${failureCount} failed job${failureCount > 1 ? 's' : ''}`);
       process.exit(1);
     } else {
-      log('✅', 'Edit workflow completed successfully!');
+      log('✅', 'Image generation completed successfully!');
     }
 
   } catch (error) {
@@ -575,9 +648,6 @@ async function main() {
   }
 }
 
-/**
- * Get image job cost estimate
- */
 async function getImageJobEstimate(tokenType, modelId, steps, inputImagePath) {
   const network = 'fast';
   const imageCount = 1;
@@ -586,7 +656,6 @@ async function getImageJobEstimate(tokenType, modelId, steps, inputImagePath) {
   const cnEnabled = false;
   const denoiseStrength = 1.0;
 
-  // Detect dimensions from input image, fallback to defaults
   let width = 1024;
   let height = 1024;
   if (inputImagePath) {
@@ -597,11 +666,10 @@ async function getImageJobEstimate(tokenType, modelId, steps, inputImagePath) {
         height = dimensions.height;
       }
     } catch (error) {
-      // Use defaults if image dimension detection fails
+      // Use defaults
     }
   }
 
-  // Use configured socket endpoint or default, convert wss to https for HTTP requests
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');
@@ -620,12 +688,11 @@ async function getImageJobEstimate(tokenType, modelId, steps, inputImagePath) {
   return response.json();
 }
 
-/**
- * Download image from URL
- */
 async function downloadImage(url, outputPath) {
+  console.log('🔍 DEBUG: Downloading from URL:', url);
   const response = await fetch(url);
   if (!response.ok) {
+    console.log('🔍 DEBUG: Download response status:', response.status, response.statusText);
     throw new Error(`Failed to download image: ${response.statusText}`);
   }
 
@@ -633,18 +700,15 @@ async function downloadImage(url, outputPath) {
   await streamPipeline(response.body, fileStream);
 }
 
-/**
- * Open image in default OS image viewer
- */
 function openImage(imagePath) {
   const { platform } = process;
   let command;
 
-  if (platform === 'darwin') { // macOS
+  if (platform === 'darwin') {
     command = `open "${imagePath}"`;
-  } else if (platform === 'win32') { // Windows
+  } else if (platform === 'win32') {
     command = `start "" "${imagePath}"`;
-  } else { // Linux and others
+  } else {
     command = `xdg-open "${imagePath}"`;
   }
 
@@ -656,10 +720,6 @@ function openImage(imagePath) {
     }
   });
 }
-
-// ============================================
-// Run Main
-// ============================================
 
 main().catch((error) => {
   console.error('Fatal error:', error);

@@ -47,7 +47,8 @@ const project = await sogni.projects.create({
     'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
   stylePrompt: 'anime',
   numberOfMedia: 4,
-  outputFormat: 'jpg' // Can be 'png' or 'jpg', defaults to 'png'
+  outputFormat: 'jpg', // Can be 'png' or 'jpg', defaults to 'png'
+  seed: -1 // Default to random seed
 });
 
 project.on('progress', (progress) => {

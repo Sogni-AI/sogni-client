@@ -1,33 +1,41 @@
 #!/usr/bin/env node
 /**
- * Video-to-Video Workflow
+ * Video-to-Video (Animate) Workflow
  *
- * This script generates videos from input videos using WAN 2.2 animate models.
- * Supports animate-move and animate-replace workflows with configurable parameters.
+ * This script generates videos by animating reference images using motion from source videos.
+ * Supports two modes:
+ * - animate-move: Camera movement animation (pans, zooms, etc.)
+ * - animate-replace: Replace subjects in the source video with the reference image
  *
  * Prerequisites:
  * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
  * - You need access to the 'fast' network for video generation
  *
  * Usage:
- *   node workflow_video_to_video.mjs "smooth camera movement" --video input.mp4
- *   node workflow_video_to_video.mjs "replace subject with robot" --video source.mp4 --workflow replace
- *   node workflow_video_to_video.mjs "pan and zoom" --video clip.mp4 --width 768 --height 512
- *   node workflow_video_to_video.mjs "dramatic lighting change" --video movie.mp4 --model quality
+ *   node workflow_video_to_video.mjs --image person.jpg --video motion.mp4
+ *   node workflow_video_to_video.mjs "Dancing character" --image char.jpg --video dance.mp4
  *
  * Options:
- *   --video     Input video path (required)
- *   --workflow  Animation type: move or replace (default: prompts for selection)
- *   --prompt    Animation prompt (default: workflow-specific defaults)
- *   --width     Video width (default: auto-detect from video, minimum: 480)
- *   --height    Video height (default: auto-detect from video, minimum: 480)
- *   --fps       Frames per second: 16 or 32 (default: auto-detect from video)
- *   --frames    Number of frames (default: auto-detect from video)
- *   --model     Model variant: quality or speed (default: prompts for selection)
- *   --batch     Number of videos to generate (default: 1)
- *   --output    Output directory (default: ./videos)
- *   --seed      Random seed for reproducibility (default: random)
- *   --help      Show this help message
+ *   --image       Reference image path (required)
+ *   --video       Source video path (required)
+ *   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
+ *                 Format: "x,y" where x,y are normalized 0-1 coordinates
+ *   --model       Model to use (see available models below)
+ *   --width       Video width (default: auto from image, min: 480)
+ *   --height      Video height (default: auto from image, min: 480)
+ *   --duration    Duration in seconds (default: 5, converts to frames)
+ *   --fps         Frames per second: 16 or 32 (default: 16)
+ *   --batch       Number of videos to generate (default: 1)
+ *   --seed        Random seed for reproducibility (default: -1 for random)
+ *   --guidance    Guidance scale (default: model-specific)
+ *   --shift       Motion intensity 1.0-8.0 (default: 8.0)
+ *   --sampler     Sampler name (default: euler)
+ *   --scheduler   Scheduler name (default: simple)
+ *   --negative    Negative prompt (default: none)
+ *   --style       Style prompt (default: none)
+ *   --output      Output directory (default: ./output)
+ *   --no-interactive  Skip interactive prompts
+ *   --help        Show this help message
  */
 
 import { SogniClient } from '../dist/index.js';
@@ -35,45 +43,33 @@ import * as fs from 'node:fs';
 import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
-import * as readline from 'node:readline';
+import imageSize from 'image-size';
 import { loadCredentials, loadTokenTypePreference, saveTokenTypePreference } from './credentials.mjs';
+import {
+  MODELS,
+  VIDEO_CONSTRAINTS,
+  askQuestion,
+  selectModel,
+  promptCoreOptions,
+  promptVideoDuration,
+  promptAdvancedOptions,
+  promptAnimateReplaceOptions,
+  pickImageFile,
+  pickVideoFile,
+  readFileAsBuffer,
+  log,
+  formatDuration,
+  displayConfig,
+  displayPrompts
+} from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
 
-// Model variants for different animation workflows
-const MODELS = {
-  'animate-move': {
-    speed: {
-      id: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
-      name: 'WAN 2.2 Animate Move LightX2V (Speed)',
-      description: 'Fast camera movement animation',
-      defaultPrompt: 'Smooth natural motion, high quality animation, realistic movement'
-    },
-    quality: {
-      id: 'wan_v2.2-14b-fp8_animate-move',
-      name: 'WAN 2.2 Animate Move (Quality)',
-      description: 'High quality camera movement animation',
-      defaultPrompt: 'Smooth natural motion, high quality animation, realistic movement'
-    }
-  },
-  'animate-replace': {
-    speed: {
-      id: 'wan_v2.2-14b-fp8_animate-replace_lightx2v',
-      name: 'WAN 2.2 Animate Replace LightX2V (Speed)',
-      description: 'Fast subject replacement animation',
-      defaultPrompt: 'Seamless subject replacement, natural motion preserved, high quality'
-    },
-    quality: {
-      id: 'wan_v2.2-14b-fp8_animate-replace',
-      name: 'WAN 2.2 Animate Replace (Quality)',
-      description: 'High quality subject replacement animation',
-      defaultPrompt: 'Seamless subject replacement, natural motion preserved, high quality'
-    }
-  }
-};
+// Default prompt for this workflow
+const DEFAULT_PROMPT = 'High quality animation with smooth natural movement matching the source motion';
 
-// Minimum video dimensions for Wan 2.2 models
-const MIN_VIDEO_DIMENSION = 480;
+// Video dimension constraints
+const MAX_VIDEO_DIMENSION = 1536;
 
 // ============================================
 // Parse Command Line Arguments
@@ -85,16 +81,22 @@ async function parseArgs() {
     prompt: null,
     negative: null,
     style: null,
+    image: null,
     video: null,
-    workflow: 'animate-move', // Default to move workflow
-    width: null, // Will auto-detect if not specified
-    height: null, // Will auto-detect if not specified
-    fps: null, // Will auto-detect if not specified
-    frames: null, // Will auto-detect if not specified
-    model: 'speed', // Default to speed model
+    sam2Coordinates: null,
+    modelKey: null,
+    width: null,
+    height: null,
+    duration: null,
+    fps: null,
+    frames: null,
     batch: 1,
     seed: null,
-    output: './videos',
+    guidance: null,
+    shift: null,
+    sampler: null,
+    scheduler: null,
+    output: './output',
     interactive: true
   };
 
@@ -105,22 +107,24 @@ async function parseArgs() {
       process.exit(0);
     } else if (arg === '--no-interactive') {
       options.interactive = false;
+    } else if (arg === '--image' && args[i + 1]) {
+      options.image = args[++i];
     } else if (arg === '--video' && args[i + 1]) {
       options.video = args[++i];
-    } else if (arg === '--workflow' && args[i + 1]) {
-      options.workflow = args[++i];
-    } else if (arg === '--prompt' && args[i + 1]) {
-      options.prompt = args[++i];
+    } else if (arg === '--sam2-coords' && args[i + 1]) {
+      options.sam2Coordinates = args[++i];
+    } else if (arg === '--model' && args[i + 1]) {
+      options.modelKey = args[++i];
     } else if (arg === '--width' && args[i + 1]) {
       options.width = parseInt(args[++i], 10);
     } else if (arg === '--height' && args[i + 1]) {
       options.height = parseInt(args[++i], 10);
+    } else if (arg === '--duration' && args[i + 1]) {
+      options.duration = parseFloat(args[++i]);
     } else if (arg === '--fps' && args[i + 1]) {
       options.fps = parseInt(args[++i], 10);
     } else if (arg === '--frames' && args[i + 1]) {
       options.frames = parseInt(args[++i], 10);
-    } else if (arg === '--model' && args[i + 1]) {
-      options.model = args[++i];
     } else if (arg === '--batch' && args[i + 1]) {
       options.batch = parseInt(args[++i], 10);
     } else if (arg === '--negative' && args[i + 1]) {
@@ -129,6 +133,14 @@ async function parseArgs() {
       options.style = args[++i];
     } else if (arg === '--seed' && args[i + 1]) {
       options.seed = parseInt(args[++i], 10);
+    } else if (arg === '--guidance' && args[i + 1]) {
+      options.guidance = parseFloat(args[++i]);
+    } else if (arg === '--shift' && args[i + 1]) {
+      options.shift = parseFloat(args[++i]);
+    } else if (arg === '--sampler' && args[i + 1]) {
+      options.sampler = args[++i];
+    } else if (arg === '--scheduler' && args[i + 1]) {
+      options.scheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -140,234 +152,92 @@ async function parseArgs() {
     }
   }
 
-  // Provide defaults when interactive and missing required parameters
-  if (options.interactive && (!options.prompt || !options.video)) {
-    console.log('\n🎬 Video-to-Video Workflow');
-    console.log('=========================\n');
-
-    // Required video input
-    if (!options.video) {
-      const videoInput = await askQuestion('Enter input video path (required): ');
-      if (videoInput.trim()) {
-        options.video = videoInput.trim();
-        if (!fs.existsSync(options.video)) {
-          console.error(`Error: Video file '${options.video}' does not exist`);
-          process.exit(1);
-        }
-      } else {
-        console.error('Error: Input video is required');
-        process.exit(1);
-      }
-    }
-
-    // Default prompt based on workflow
-    if (!options.prompt) {
-      const defaultPrompt = options.workflow === 'animate-move'
-        ? 'Smooth natural camera movement with cinematic motion'
-        : 'Seamlessly replace the subject while maintaining natural motion';
-      const promptInput = await askQuestion(`Enter animation prompt (default: "${defaultPrompt}"): `);
-      options.prompt = promptInput.trim() || defaultPrompt;
-    }
-
-    // Optional negative prompt
-    const negativeInput = await askQuestion('Enter negative prompt (optional, press Enter to skip): ');
-    if (negativeInput.trim()) {
-      options.negative = negativeInput.trim();
-    }
-
-    // Optional style prompt
-    const styleInput = await askQuestion('Enter style prompt (optional, press Enter to skip): ');
-    if (styleInput.trim()) {
-      options.style = styleInput.trim();
-    }
-
-    // Workflow selection (already defaults to animate-move)
-    if (options.workflow === 'animate-move') {
-      const workflowChoice = await askQuestion('Animation type: Move (camera) or Replace (subject)? [m/r] (default: m): ');
-      if (workflowChoice.toLowerCase().startsWith('r')) {
-        options.workflow = 'animate-replace';
-        // Update prompt if it was the default
-        if (options.prompt.includes('camera movement')) {
-          options.prompt = 'Seamlessly replace the subject while maintaining natural motion';
-        }
-      }
-    }
-
-    // Model selection (already defaults to speed)
-    if (options.model === 'speed') {
-      const modelChoice = await askQuestion('Use Speed (fast) or Quality (high quality)? [s/q] (default: s): ');
-      if (modelChoice.toLowerCase().startsWith('q')) {
-        options.model = 'quality';
-      }
-    }
-
-    // Batch count
-    const batchInput = await askQuestion('Number of videos to generate (default: 1): ');
-    if (batchInput.trim()) {
-      const batchNum = parseInt(batchInput.trim(), 10);
-      if (batchNum > 0 && batchNum <= 5) {
-        options.batch = batchNum;
-      }
-    }
-
-    console.log('\n✅ Configuration complete!\n');
-  } else {
-    if (!options.video) {
-      console.error('Error: Input video is required (use --help for options)');
-      showHelp();
-      process.exit(1);
-    }
-    if (!options.prompt) {
-      console.error('Error: Prompt is required (use --help for options)');
-      showHelp();
-      process.exit(1);
-    }
-  }
-
   return options;
 }
 
 function showHelp() {
   console.log(`
-Video-to-Video Workflow
+Video-to-Video (Animate) Workflow
 
 Usage:
-  node workflow_video_to_video.mjs "smooth camera movement" --video input.mp4
-  node workflow_video_to_video.mjs "replace subject with robot" --video source.mp4 --workflow replace
+  node workflow_video_to_video.mjs --image person.jpg --video motion.mp4
+  node workflow_video_to_video.mjs "Dancing character" --image char.jpg --video dance.mp4
+
+Available Models:
+  Animate-Move (camera movement animation):
+    move-lightx2v  - WAN 2.2 14B Animate-Move LightX2V (fast, 4-step)
+    move-quality   - WAN 2.2 14B Animate-Move (high quality, 20-step)
+
+  Animate-Replace (subject replacement):
+    replace-lightx2v - WAN 2.2 14B Animate-Replace LightX2V (fast, 4-step)
+    replace-quality  - WAN 2.2 14B Animate-Replace (high quality, 20-step)
 
 Options:
-  --video     Input video path (required)
-  --workflow  Animation type: move or replace (default: animate-move)
-  --prompt    Animation prompt (default: workflow-specific defaults)
-  --negative  Negative prompt (default: server default)
-  --style     Style prompt (default: server default)
-  --width     Video width (default: auto-detect from video, minimum: 480)
-  --height    Video height (default: auto-detect from video, minimum: 480)
-  --fps       Frames per second: 16 or 32 (default: auto-detect from video)
-  --frames    Number of frames (default: auto-detect from video)
-  --model     Model variant: quality or speed (default: speed)
-  --batch     Number of videos to generate (default: 1)
-  --output    Output directory (default: ./videos)
-  --seed      Random seed for reproducibility (default: random)
-  --no-interactive  Skip interactive prompts (default: interactive mode)
-  --help      Show this help message
+  --image       Reference image path (required)
+  --video       Source video path (required)
+  --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
+                Format: "x,y" where x,y are normalized 0-1 coordinates (default: 0.5,0.5)
+  --model       Model key (move-lightx2v, move-quality, replace-lightx2v, replace-quality)
+  --negative    Negative prompt (default: none)
+  --style       Style prompt (default: none)
+  --width       Video width (default: auto from image, min: 480)
+  --height      Video height (default: auto from image, min: 480)
+  --duration    Duration in seconds (default: 5)
+  --fps         Frames per second: 16 or 32 (default: 16)
+  --batch       Number of videos to generate (default: 1)
+  --seed        Random seed (default: -1 for random)
+  --guidance    Guidance scale (default: model-specific)
+  --shift       Motion intensity 1.0-8.0 (default: 8.0)
+  --sampler     Sampler name (default: euler)
+  --scheduler   Scheduler name (default: simple)
+  --output      Output directory (default: ./output)
+  --no-interactive  Skip interactive prompts
+  --help        Show this help message
+
+SAM2 Coordinates (Animate-Replace only):
+  For animate-replace models, you can specify where to click to select the subject
+  to replace. Coordinates are normalized (0-1) where 0,0 is top-left and 1,1 is bottom-right.
+  Default: 0.5,0.5 (center of frame)
 `);
-}
-
-// ============================================
-// Interactive Prompts
-// ============================================
-
-async function askQuestion(question) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(typeof answer === 'string' ? answer : '');
-    });
-  });
-}
-
-async function selectWorkflowType() {
-  console.log('\n🎬 Select Animation Workflow:');
-  console.log('  1. Move - Camera movement animation (pan, zoom, rotate)');
-  console.log('  2. Replace - Subject replacement animation');
-  console.log();
-
-  const choice = await askQuestion('Enter choice [1/2] (default: 1): ');
-  const selected = choice.trim() || '1';
-
-  if (selected === '1' || selected.toLowerCase() === 'move') {
-    return 'animate-move';
-  } else if (selected === '2' || selected.toLowerCase() === 'replace') {
-    return 'animate-replace';
-  } else {
-    console.log('Invalid choice, using Move workflow');
-    return 'animate-move';
-  }
-}
-
-async function selectModelVariant() {
-  console.log('\n🎯 Select Model Quality:');
-  console.log('  1. Quality - High quality, slower generation');
-  console.log('  2. Speed   - Fast generation, good quality');
-  console.log();
-
-  const choice = await askQuestion('Enter choice [1/2] (default: 2): ');
-  const selected = choice.trim() || '2';
-
-  if (selected === '1' || selected.toLowerCase() === 'quality') {
-    return 'quality';
-  } else if (selected === '2' || selected.toLowerCase() === 'speed') {
-    return 'speed';
-  } else {
-    console.log('Invalid choice, using Speed variant');
-    return 'speed';
-  }
 }
 
 // ============================================
 // Utility Functions
 // ============================================
 
-function log(icon, message) {
-  console.log(`${icon} ${message}`);
-}
-
-function formatDuration(seconds) {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
 /**
- * Get video information using ffprobe
- */
-async function getVideoInfo(videoPath) {
-  return new Promise((resolve, reject) => {
-    exec(`ffprobe -v quiet -print_format json -show_format -show_streams "${videoPath}"`, (error, stdout) => {
-      if (error) {
-        reject(new Error(`Failed to get video info: ${error.message}`));
-        return;
-      }
-
-      try {
-        const data = JSON.parse(stdout);
-        const videoStream = data.streams.find(s => s.codec_type === 'video');
-
-        if (!videoStream) {
-          reject(new Error('No video stream found'));
-          return;
-        }
-
-        const info = {
-          width: parseInt(videoStream.width),
-          height: parseInt(videoStream.height),
-          fps: eval(videoStream.r_frame_rate), // Convert "30/1" to 30
-          duration: parseFloat(data.format.duration),
-          frames: Math.floor(parseFloat(data.format.duration) * eval(videoStream.r_frame_rate))
-        };
-
-        resolve(info);
-      } catch (parseError) {
-        reject(new Error(`Failed to parse video info: ${parseError.message}`));
-      }
-    });
-  });
-}
-
-/**
- * Ensure dimensions are even (some video codecs require this)
+ * Ensure dimensions are even
  */
 function ensureEvenDimensions(width, height) {
   return {
     width: width % 2 === 0 ? width : width - 1,
     height: height % 2 === 0 ? height : height - 1
   };
+}
+
+/**
+ * Parse SAM2 coordinates from string
+ */
+function parseSam2Coordinates(coordsStr) {
+  if (!coordsStr) return null;
+
+  const parts = coordsStr.split(',');
+  if (parts.length < 2) {
+    throw new Error('SAM2 coordinates must be in format "x,y"');
+  }
+
+  const x = parseFloat(parts[0]);
+  const y = parseFloat(parts[1]);
+
+  if (isNaN(x) || isNaN(y)) {
+    throw new Error('SAM2 coordinates must be valid numbers');
+  }
+
+  if (x < 0 || x > 1 || y < 0 || y > 1) {
+    throw new Error('SAM2 coordinates must be between 0 and 1');
+  }
+
+  return JSON.stringify([{ x, y }]);
 }
 
 // ============================================
@@ -378,85 +248,163 @@ async function main() {
   const OPTIONS = await parseArgs();
 
   console.log('╔══════════════════════════════════════════════════════════╗');
-  console.log('║              Video-to-Video Workflow                     ║');
+  console.log('║           Video-to-Video (Animate) Workflow              ║');
   console.log('╚══════════════════════════════════════════════════════════╝');
   console.log();
 
   // Load credentials
   const { username: USERNAME, password: PASSWORD } = await loadCredentials();
 
-  // Validate input video
+  // Interactive mode: get image path if not provided
+  if (OPTIONS.interactive && !OPTIONS.image) {
+    OPTIONS.image = await pickImageFile(null, 'reference image');
+  }
+
+  // Interactive mode: get video path if not provided
+  if (OPTIONS.interactive && !OPTIONS.video) {
+    OPTIONS.video = await pickVideoFile(null, 'source video');
+  }
+
+  // Validate required inputs
+  if (!OPTIONS.image) {
+    console.error('Error: Reference image is required (use --image option)');
+    process.exit(1);
+  }
+  if (!fs.existsSync(OPTIONS.image)) {
+    console.error(`Error: Reference image '${OPTIONS.image}' does not exist`);
+    process.exit(1);
+  }
+
+  if (!OPTIONS.video) {
+    console.error('Error: Source video is required (use --video option)');
+    process.exit(1);
+  }
   if (!fs.existsSync(OPTIONS.video)) {
-    console.error(`Error: Input video '${OPTIONS.video}' does not exist`);
+    console.error(`Error: Source video '${OPTIONS.video}' does not exist`);
     process.exit(1);
   }
 
-  // Get video information
-  let videoInfo;
+  // Get image dimensions
+  let imageInfo = { width: 640, height: 640 };
   try {
-    videoInfo = await getVideoInfo(OPTIONS.video);
-    log('📐', `Video dimensions: ${videoInfo.width}x${videoInfo.height}`);
-    log('🎬', `Video info: ${videoInfo.fps}fps, ${videoInfo.frames} frames, ${(videoInfo.duration).toFixed(1)}s`);
+    const dimensions = imageSize(OPTIONS.image);
+    if (dimensions.width && dimensions.height) {
+      imageInfo = { width: dimensions.width, height: dimensions.height };
+    }
+    log('📐', `Image dimensions: ${imageInfo.width}x${imageInfo.height}`);
   } catch (error) {
-    console.error(`Error reading video: ${error.message}`);
+    log('⚠️', 'Could not read image dimensions, using defaults');
+  }
+
+  // Interactive mode: select model and options
+  let modelConfig;
+  if (OPTIONS.interactive && !OPTIONS.modelKey) {
+    const selection = await selectModel(MODELS.animate, 'move-lightx2v');
+    OPTIONS.modelKey = selection.key;
+    modelConfig = selection.config;
+  } else {
+    OPTIONS.modelKey = OPTIONS.modelKey || 'move-lightx2v';
+    modelConfig = MODELS.animate[OPTIONS.modelKey];
+    if (!modelConfig) {
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use one of: move-lightx2v, move-quality, replace-lightx2v, replace-quality`);
     process.exit(1);
+    }
   }
 
-  // Determine workflow type
-  let workflowType = OPTIONS.workflow;
-  if (!workflowType) {
-    workflowType = await selectWorkflowType();
+  log('🎬', `Selected model: ${modelConfig.name}`);
+  log('🎬', `Workflow type: ${modelConfig.workflowType}`);
+
+  // Set default dimensions from image
+  modelConfig.defaultWidth = imageInfo.width;
+  modelConfig.defaultHeight = imageInfo.height;
+
+  // Interactive mode: prompt for options
+  if (OPTIONS.interactive) {
+    await promptCoreOptions(OPTIONS, modelConfig, {
+      defaultPrompt: DEFAULT_PROMPT,
+      isVideo: true
+    });
+
+    // Video duration
+    await promptVideoDuration(OPTIONS, modelConfig);
+
+    // Animate-replace specific: SAM2 coordinates
+    if (modelConfig.supportsSam2Coordinates) {
+      await promptAnimateReplaceOptions(OPTIONS);
+    }
+
+    // Ask about advanced options
+    const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
+    if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
+      await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: true });
+    }
+
+    console.log('\n✅ Configuration complete!\n');
   }
 
-  if (!MODELS[workflowType]) {
-    console.error(`Error: Unknown workflow type '${workflowType}'`);
+  // Apply defaults
+  if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
+  if (!OPTIONS.fps) OPTIONS.fps = VIDEO_CONSTRAINTS.fps.default;
+  if (!OPTIONS.shift) OPTIONS.shift = modelConfig.defaultShift;
+  if (!OPTIONS.sampler) OPTIONS.sampler = modelConfig.defaultSampler || 'euler';
+  if (!OPTIONS.scheduler) OPTIONS.scheduler = modelConfig.defaultScheduler || 'simple';
+  if (OPTIONS.guidance === undefined || OPTIONS.guidance === null) {
+    OPTIONS.guidance = modelConfig.defaultGuidance;
+  }
+
+  // Use model-specific frame limits (Animate supports up to 321 frames)
+  const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
+
+  // Parse SAM2 coordinates if provided via CLI
+  if (OPTIONS.sam2Coordinates && typeof OPTIONS.sam2Coordinates === 'string' && !OPTIONS.sam2Coordinates.startsWith('[')) {
+    try {
+      OPTIONS.sam2Coordinates = parseSam2Coordinates(OPTIONS.sam2Coordinates);
+    } catch (error) {
+      console.error(`Error parsing SAM2 coordinates: ${error.message}`);
     process.exit(1);
+    }
   }
 
-  // Determine model variant
-  let modelVariant = OPTIONS.model;
-  if (!modelVariant) {
-    modelVariant = await selectModelVariant();
+  // Default SAM2 coordinates for animate-replace
+  if (modelConfig.supportsSam2Coordinates && !OPTIONS.sam2Coordinates) {
+    OPTIONS.sam2Coordinates = JSON.stringify([{ x: 0.5, y: 0.5 }]);
   }
 
-  const modelConfig = MODELS[workflowType][modelVariant];
-  if (!modelConfig) {
-    console.error(`Error: Unknown model variant '${modelVariant}'`);
-    process.exit(1);
-  }
-
-  log('🎬', `Selected workflow: ${workflowType.replace('animate-', '').toUpperCase()}`);
-  log('🎯', `Selected model: ${modelConfig.name}`);
-
-  // Set dimensions
+  // Set dimensions with video constraints
   let { width, height } = ensureEvenDimensions(
-    OPTIONS.width || videoInfo.width,
-    OPTIONS.height || videoInfo.height
+    OPTIONS.width || imageInfo.width,
+    OPTIONS.height || imageInfo.height
   );
 
   // Validate minimum dimensions
-  if (width < MIN_VIDEO_DIMENSION) {
-    width = MIN_VIDEO_DIMENSION;
+  if (width < VIDEO_CONSTRAINTS.width.min) {
+    width = VIDEO_CONSTRAINTS.width.min;
     log('⚠️', `Width adjusted to minimum: ${width}px`);
   }
-  if (height < MIN_VIDEO_DIMENSION) {
-    height = MIN_VIDEO_DIMENSION;
+  if (height < VIDEO_CONSTRAINTS.height.min) {
+    height = VIDEO_CONSTRAINTS.height.min;
     log('⚠️', `Height adjusted to minimum: ${height}px`);
   }
 
-  // Set FPS and frames
-  const fps = OPTIONS.fps || Math.min(32, Math.max(16, Math.round(videoInfo.fps)));
-  const frames = OPTIONS.frames || Math.min(161, Math.max(17, videoInfo.frames));
+  OPTIONS.width = width;
+  OPTIONS.height = height;
+
+  // Calculate frames from duration if not explicitly set
+  if (!OPTIONS.frames) {
+    const duration = OPTIONS.duration || 5;
+    OPTIONS.frames = Math.round(duration * OPTIONS.fps) + 1;
+    OPTIONS.frames = Math.max(VIDEO_CONSTRAINTS.frames.min, Math.min(maxFrames, OPTIONS.frames));
+  }
 
   // Validate FPS
-  if (fps !== 16 && fps !== 32) {
+  if (OPTIONS.fps !== 16 && OPTIONS.fps !== 32) {
     console.error('Error: FPS must be 16 or 32');
     process.exit(1);
   }
 
   // Validate frames
-  if (frames < 17 || frames > 161) {
-    console.error('Error: Frames must be between 17 and 161');
+  if (OPTIONS.frames < VIDEO_CONSTRAINTS.frames.min || OPTIONS.frames > maxFrames) {
+    console.error(`Error: Frames must be between ${VIDEO_CONSTRAINTS.frames.min} and ${maxFrames}`);
     process.exit(1);
   }
 
@@ -465,9 +413,6 @@ async function main() {
     console.error('Error: Batch count must be between 1 and 5');
     process.exit(1);
   }
-
-  // Set prompt
-  const prompt = OPTIONS.prompt || modelConfig.defaultPrompt;
 
   // Create output directory
   if (!fs.existsSync(OPTIONS.output)) {
@@ -480,17 +425,14 @@ async function main() {
     network: 'fast'
   };
 
-  // Load optional configuration from environment
   const testnet = process.env.SOGNI_TESTNET === 'true';
   const socketEndpoint = process.env.SOGNI_SOCKET_ENDPOINT;
   const restEndpoint = process.env.SOGNI_REST_ENDPOINT;
 
-  // Only disable SSL verification if testnet is enabled
   if (testnet) {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }
 
-  // Only add optional configs if they're set in environment
   if (testnet) clientConfig.testnet = testnet;
   if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
   if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
@@ -515,7 +457,6 @@ async function main() {
     let tokenType = loadTokenTypePreference();
 
     if (!tokenType) {
-      // Ask user which token type to use
       const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
       const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
 
@@ -535,13 +476,12 @@ async function main() {
         console.log('  → Using Spark tokens\n');
       }
 
-      // Ask if they want to save the preference
       const savePreference = await askQuestion('Save payment preference to .env file? [Y/n]: ');
       if (savePreference.toLowerCase() !== 'n' && savePreference.toLowerCase() !== 'no') {
         saveTokenTypePreference(tokenType);
         console.log('✓ Payment preference saved\n');
       } else {
-        console.log('⚠️  Payment preference not saved. You will be asked again next time.\n');
+        console.log('⚠️  Payment preference not saved.\n');
       }
     } else {
       console.log(`💳 Using saved payment preference: ${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} tokens`);
@@ -550,12 +490,11 @@ async function main() {
 
     // Get cost estimate
     log('💵', 'Fetching cost estimate...');
-    const estimate = await getVideoJobEstimate(tokenType, modelConfig.id, width, height, frames, fps, 1);
+    const estimate = await getVideoJobEstimate(tokenType, modelConfig.id, OPTIONS.width, OPTIONS.height, OPTIONS.frames, OPTIONS.fps, modelConfig.defaultSteps);
 
     console.log();
     console.log('📊 Cost Estimate:');
 
-    // Show the cost in the selected token type and USD
     if (tokenType === 'spark') {
       const cost = parseFloat(estimate.quote.project.costInSpark || 0);
       const currentBalance = parseFloat(balance.spark.net || 0);
@@ -568,48 +507,50 @@ async function main() {
       console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
     }
 
+    // Show configuration
+    const videoDuration = (OPTIONS.frames - 1) / OPTIONS.fps;
+    const configDisplay = {
+      'Model': modelConfig.name,
+      'Prompt': OPTIONS.prompt,
+      'Workflow': modelConfig.workflowType,
+      'Image': OPTIONS.image,
+      'Video': OPTIONS.video,
+      'Resolution': `${OPTIONS.width}x${OPTIONS.height}`,
+      'Duration': `${videoDuration.toFixed(1)}s`,
+      'FPS': OPTIONS.fps,
+      'Frames': OPTIONS.frames,
+      'Batch': OPTIONS.batch,
+      'Guidance': OPTIONS.guidance,
+      'Shift': OPTIONS.shift,
+      'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      'Sampler': OPTIONS.sampler,
+      'Scheduler': OPTIONS.scheduler
+    };
+
+    if (modelConfig.supportsSam2Coordinates && OPTIONS.sam2Coordinates) {
+      const coords = JSON.parse(OPTIONS.sam2Coordinates);
+      configDisplay['SAM2 Coords'] = `(${coords[0].x}, ${coords[0].y})`;
+    }
+
+    displayConfig('Video Generation Configuration', configDisplay);
+
+    if (OPTIONS.negative) {
+      console.log(`   Negative prompt: ${OPTIONS.negative}`);
+    }
+    if (OPTIONS.style) {
+      console.log(`   Style prompt: ${OPTIONS.style}`);
+    }
+
     console.log();
     if (OPTIONS.interactive) {
       const proceed = await askQuestion('Proceed with generation? [Y/n]: ');
       if (proceed.toLowerCase() === 'n' || proceed.toLowerCase() === 'no') {
         log('❌', 'Generation cancelled');
-        return;
+        process.exit(0);
       }
     } else {
       console.log('✓ Proceeding with generation (non-interactive mode)');
     }
-
-    // Show configuration
-    console.log();
-    console.log('┌─────────────────────────────────────────────────────────┐');
-    console.log('│ Video Generation Configuration                          │');
-    console.log('├─────────────────────────────────────────────────────────┤');
-
-    const labelWidth = 12;
-    const boxWidth = 58;
-
-    console.log(`│ ${'Model:'.padEnd(labelWidth)}${modelConfig.name.padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Workflow:'.padEnd(labelWidth)}${workflowType.replace('animate-', '').toUpperCase().padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Input:'.padEnd(labelWidth)}${OPTIONS.video.slice(0, boxWidth - labelWidth - 2).padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Resolution:'.padEnd(labelWidth)}${(width + 'x' + height).padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Duration:'.padEnd(labelWidth)}${((frames / fps).toFixed(1) + 's').padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'FPS:'.padEnd(labelWidth)}${String(fps).padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Frames:'.padEnd(labelWidth)}${String(frames).padEnd(boxWidth - labelWidth - 2)} │`);
-    console.log(`│ ${'Batch:'.padEnd(labelWidth)}${String(OPTIONS.batch).padEnd(boxWidth - labelWidth - 2)} │`);
-    if (OPTIONS.seed !== null) {
-      console.log(`│ ${'Seed:'.padEnd(labelWidth)}${String(OPTIONS.seed).padEnd(boxWidth - labelWidth - 2)} │`);
-    }
-    console.log('└─────────────────────────────────────────────────────────┘');
-    console.log();
-    console.log('📝 Prompts:');
-    console.log(`   Positive: ${prompt}`);
-    if (OPTIONS.negative) {
-      console.log(`   Negative: ${OPTIONS.negative}`);
-    }
-    if (OPTIONS.style) {
-      console.log(`   Style: ${OPTIONS.style}`);
-    }
-    console.log();
 
     // Wait for models
     log('🔄', 'Loading available models...');
@@ -625,25 +566,45 @@ async function main() {
 
     // Create project
     log('📤', 'Submitting video-to-video job...');
-    log('🎬', 'Animating video...');
+    log('🎬', 'Generating animated video...');
     console.log();
 
     let startTime = Date.now();
+
+    // CRITICAL: SDK requires Buffer/File/Blob objects for media uploads, NOT string paths.
+    // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
+    const referenceImageBuffer = readFileAsBuffer(OPTIONS.image);
+    const referenceVideoBuffer = readFileAsBuffer(OPTIONS.video);
+
     const projectParams = {
       type: 'video',
       modelId: modelConfig.id,
-      positivePrompt: prompt,
+      positivePrompt: OPTIONS.prompt,
       numberOfMedia: OPTIONS.batch,
-      width: width,
-      height: height,
-      frames: frames,
-      fps: fps,
-      seed: OPTIONS.seed,
-      referenceVideo: OPTIONS.video,
+      width: OPTIONS.width,
+      height: OPTIONS.height,
+      frames: OPTIONS.frames,
+      fps: OPTIONS.fps,
+      shift: OPTIONS.shift,
+      seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      sampler: OPTIONS.sampler,
+      scheduler: OPTIONS.scheduler,
+      referenceImage: referenceImageBuffer,
+      referenceVideo: referenceVideoBuffer,
       tokenType: tokenType
     };
 
-    // Add optional prompts if provided
+    // Add SAM2 coordinates for animate-replace
+    if (modelConfig.supportsSam2Coordinates && OPTIONS.sam2Coordinates) {
+      projectParams.sam2Coordinates = OPTIONS.sam2Coordinates;
+    }
+
+    // Add guidance
+    if (OPTIONS.guidance !== undefined && OPTIONS.guidance !== null) {
+      projectParams.guidance = OPTIONS.guidance;
+    }
+
+    // Add optional prompts
     if (OPTIONS.negative) {
       projectParams.negativePrompt = OPTIONS.negative;
     }
@@ -659,7 +620,6 @@ async function main() {
     const totalVideos = OPTIONS.batch;
     let projectFailed = false;
 
-    // Track ETA and progress interval
     project._lastETA = undefined;
     project._progressInterval = null;
 
@@ -691,78 +651,69 @@ async function main() {
           break;
 
         case 'started':
-          // Start timing when job actually starts
           if (!project._progressInterval) {
             startTime = Date.now();
-            // Show progress and update every second throughout the entire job
             project._progressInterval = setInterval(() => {
               const elapsed = (Date.now() - startTime) / 1000;
-              if (project._lastETA !== undefined) {
-                // We have ETA info, show it
-                process.stdout.write(
-                  `\r  Generating... ETA: ${formatDuration(project._lastETA)} (${formatDuration(elapsed)} elapsed)   `
-                );
-              } else {
-                // No ETA yet, just show elapsed
-                process.stdout.write(`\r  Generating... (${formatDuration(elapsed)} elapsed)   `);
+              let progressStr = `\r  Generating...`;
+              if (project._lastStep !== undefined && project._lastStepCount !== undefined) {
+                const stepPercent = Math.round((project._lastStep / project._lastStepCount) * 100);
+                progressStr += ` Step ${project._lastStep}/${project._lastStepCount} (${stepPercent}%)`;
               }
+              if (project._lastETA !== undefined) {
+                progressStr += ` ETA: ${formatDuration(project._lastETA)}`;
+              }
+              progressStr += ` (${formatDuration(elapsed)} elapsed)   `;
+              process.stdout.write(progressStr);
             }, 1000);
           }
           log('🚀', `Job started on worker: ${event.workerName || 'Unknown'}`);
           break;
 
         case 'jobETA':
-          // Store the latest ETA so the interval can use it
           project._lastETA = event.etaSeconds;
           break;
 
         case 'progress':
-          // Progress events update step count (optional display)
+          // Store step progress for display
+          if (event.step !== undefined && event.stepCount !== undefined) {
+            project._lastStep = event.step;
+            project._lastStepCount = event.stepCount;
+          }
           break;
 
         case 'completed':
-          // Clear the progress interval and show final message
           if (project._progressInterval) {
             clearInterval(project._progressInterval);
             project._progressInterval = null;
-            // Clear the line
             process.stdout.write('\r' + ' '.repeat(70) + '\r');
           }
 
-          // Check if this completion event indicates failure
           if (!event.resultUrl || event.error) {
             failedVideos++;
             log('❌', `Job completed with error: ${event.error || 'No result URL'}`);
             checkWorkflowCompletion();
           } else {
-            // If project has already failed, ignore successful completions
             if (projectFailed) {
-              log('⚠️', `Ignoring completion event for already failed project`);
+              log('⚠️', 'Ignoring completion event for already failed project');
               return;
             }
             log('✅', 'Job completed!');
-            // Start download - defer success counting until download completes
             const videoId = event.jobId || `video_${Date.now()}`;
             const outputPath = `${OPTIONS.output}/${videoId}.mp4`;
 
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {
-                // Download succeeded - now count as completed
                 completedVideos++;
                 const elapsed = Math.round((Date.now() - startTime) / 1000);
                 log('✓', `Video ${completedVideos}/${totalVideos} completed (${elapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openVideo(outputPath);
-
-                // Check if workflow is complete
                 checkWorkflowCompletion();
               })
               .catch((error) => {
-                // Download failed - count as failed
                 failedVideos++;
                 log('❌', `Download failed for ${videoId}: ${error.message}`);
-
-                // Check if workflow is complete
                 checkWorkflowCompletion();
               });
           }
@@ -770,7 +721,6 @@ async function main() {
 
         case 'error':
         case 'failed':
-          // Clear the progress interval
           if (project._progressInterval) {
             clearInterval(project._progressInterval);
             project._progressInterval = null;
@@ -778,9 +728,12 @@ async function main() {
           }
           projectFailed = true;
           failedVideos++;
-          log('❌', `Job failed: ${event.error?.message || event.error || 'Unknown error'}`);
-          if (event.error?.code) {
-            console.log(`   Error code: ${event.error.code}`);
+          const errorMsg = event.error?.message || event.error || 'Unknown error';
+          const errorCode = event.error?.code;
+          if (errorCode !== undefined && errorCode !== null) {
+            log('❌', `Job failed: ${errorMsg} (Error code: ${errorCode})`);
+          } else {
+            log('❌', `Job failed: ${errorMsg}`);
           }
           checkWorkflowCompletion();
           break;
@@ -790,12 +743,16 @@ async function main() {
     sogni.projects.on('project', projectEventHandler);
     sogni.projects.on('job', jobEventHandler);
 
-    // Helper function to check workflow completion
     function checkWorkflowCompletion() {
       if (completedVideos + failedVideos === totalVideos) {
         if (failedVideos === 0) {
-          log('🎉', `All ${totalVideos} video${totalVideos > 1 ? 's' : ''} generated successfully!`);
+          if (totalVideos === 1) {
+            log('🎉', 'Video generated successfully!');
+          } else {
+            log('🎉', `All ${totalVideos} videos generated successfully!`);
+          }
           console.log();
+          // Give a small delay for all video players to open
           process.exit(0);
         } else {
           log('❌', `${failedVideos} out of ${totalVideos} video${totalVideos > 1 ? 's' : ''} failed to generate`);
@@ -805,7 +762,6 @@ async function main() {
       }
     }
 
-    // Wait for completion or project failure
     await new Promise((resolve, reject) => {
       const checkCompletion = () => {
         if (projectFailed || completedVideos + failedVideos >= totalVideos) {
@@ -815,7 +771,6 @@ async function main() {
         }
       };
 
-      // Timeout after 60 minutes
       setTimeout(() => {
         reject(new Error('Generation timed out after 60 minutes'));
       }, 60 * 60 * 1000);
@@ -823,7 +778,6 @@ async function main() {
       checkCompletion();
     });
 
-    // Final status check
     if (projectFailed || failedVideos > 0) {
       const failureCount = projectFailed ? totalVideos : failedVideos;
       log('❌', `Workflow failed with ${failureCount} failed video${failureCount > 1 ? 's' : ''}`);
@@ -836,14 +790,12 @@ async function main() {
     log('❌', `Error: ${error.message}`);
     process.exit(1);
   } finally {
-    // Clean up event handlers
     if (projectEventHandler) {
       sogni.projects.off('project', projectEventHandler);
     }
     if (jobEventHandler) {
       sogni.projects.off('job', jobEventHandler);
     }
-    // Clean up any remaining intervals
     if (project && project._progressInterval) {
       clearInterval(project._progressInterval);
     }
@@ -855,11 +807,7 @@ async function main() {
   }
 }
 
-/**
- * Get video job cost estimate
- */
 async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps) {
-  // Use configured socket endpoint or default, convert wss to https for HTTP requests
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');
@@ -875,9 +823,6 @@ async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fp
   return response.json();
 }
 
-/**
- * Download video from URL
- */
 async function downloadVideo(url, outputPath) {
   const response = await fetch(url);
   if (!response.ok) {
@@ -888,18 +833,15 @@ async function downloadVideo(url, outputPath) {
   await streamPipeline(response.body, fileStream);
 }
 
-/**
- * Open video in default OS video player
- */
 function openVideo(videoPath) {
   const { platform } = process;
   let command;
 
-  if (platform === 'darwin') { // macOS
+  if (platform === 'darwin') {
     command = `open "${videoPath}"`;
-  } else if (platform === 'win32') { // Windows
+  } else if (platform === 'win32') {
     command = `start "" "${videoPath}"`;
-  } else { // Linux and others
+  } else {
     command = `xdg-open "${videoPath}"`;
   }
 
@@ -911,10 +853,6 @@ function openVideo(videoPath) {
     }
   });
 }
-
-// ============================================
-// Run Main
-// ============================================
 
 main().catch((error) => {
   console.error('Fatal error:', error);
