@@ -425,6 +425,16 @@ async function main() {
     const totalImages = OPTIONS.batch;
     let projectFailed = false;
     let currentJobId = null;
+    let lastETA = undefined;
+
+    // Format duration in human-readable form
+    const formatETA = (seconds) => {
+      if (seconds === undefined || seconds === null || seconds < 0) return '';
+      if (seconds < 60) return `${Math.round(seconds)}s`;
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.round(seconds % 60);
+      return `${mins}m ${secs}s`;
+    };
 
     const eventHandler = (event) => {
       switch (event.type) {
@@ -434,6 +444,10 @@ async function main() {
 
         case 'started':
           log('🚀', `Job started on worker: ${event.workerName || 'Unknown'}`);
+          break;
+
+        case 'jobETA':
+          lastETA = event.etaSeconds;
           break;
 
         case 'completed':
@@ -519,7 +533,11 @@ async function main() {
         // Handle step-level progress from job events
         if (event.type === 'progress' && event.step !== undefined && event.stepCount !== undefined) {
           const percent = Math.round((event.step / event.stepCount) * 100);
-          process.stdout.write(`\r⏳ Step ${event.step}/${event.stepCount} (${percent}%)`);
+          let progressStr = `\r⏳ Step ${event.step}/${event.stepCount} (${percent}%)`;
+          if (lastETA !== undefined) {
+            progressStr += ` ETA: ${formatETA(lastETA)}`;
+          }
+          process.stdout.write(progressStr + '   '); // Extra spaces to clear previous longer output
         }
         eventHandler(event);
       }

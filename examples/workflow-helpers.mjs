@@ -18,7 +18,7 @@ import * as path from 'node:path';
  * Each model has a display name, internal ID, and workflow-specific settings.
  */
 export const MODELS = {
-  // Text-to-Image Models
+  // Text-to-Image Models (ComfyUI worker)
   image: {
     'z-turbo': {
       id: 'z_image_turbo_bf16',
@@ -31,7 +31,10 @@ export const MODELS = {
       defaultSteps: 9,
       supportsGuidance: false,
       supportsDenoise: true,
-      defaultDenoise: 0.7
+      defaultDenoise: 0.7,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
     },
     'flux2': {
       id: 'flux2_dev_fp8',
@@ -45,11 +48,14 @@ export const MODELS = {
       supportsGuidance: true,
       defaultGuidance: 4.0,
       supportsContextImages: true,
-      maxContextImages: 3
+      maxContextImages: 3,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'normal'
     }
   },
 
-  // Image Edit Models
+  // Image Edit Models (ComfyUI worker)
   imageEdit: {
     'qwen': {
       id: 'qwen_image_edit_2511_fp8',
@@ -59,7 +65,10 @@ export const MODELS = {
       minSteps: 10,
       maxSteps: 40,
       supportsContextImages: true,
-      maxContextImages: 3
+      maxContextImages: 3,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'normal'
     },
     'qwen-lightning': {
       id: 'qwen_image_edit_2511_fp8_lightning',
@@ -69,7 +78,10 @@ export const MODELS = {
       minSteps: 4,
       maxSteps: 8,
       supportsContextImages: true,
-      maxContextImages: 3
+      maxContextImages: 3,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
     },
     'flux2': {
       id: 'flux2_dev_fp8',
@@ -83,11 +95,14 @@ export const MODELS = {
       supportsGuidance: true,
       defaultGuidance: 4.0,
       supportsContextImages: true,
-      maxContextImages: 3
+      maxContextImages: 3,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'normal'
     }
   },
 
-  // Text-to-Video Models
+  // Text-to-Video Models (ComfyUI workflow)
   t2v: {
     'lightx2v': {
       id: 'wan_v2.2-14b-fp8_t2v_lightx2v',
@@ -100,10 +115,12 @@ export const MODELS = {
       defaultGuidance: 1.0,
       minGuidance: 0.7,
       maxGuidance: 1.6,
-      defaultSampler: 'euler',
-      defaultScheduler: 'simple',
+      // ComfyUI format (preferred for video models)
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple',
       maxFrames: 161,
-      isLightning: true
+      isLightning: true,
+      isComfyModel: true
     },
     'quality': {
       id: 'wan_v2.2-14b-fp8_t2v',
@@ -116,14 +133,16 @@ export const MODELS = {
       defaultGuidance: 3.5,
       minGuidance: 1.5,
       maxGuidance: 8.0,
-      defaultSampler: 'euler',
-      defaultScheduler: 'simple',
+      // ComfyUI format (preferred for video models)
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple',
       maxFrames: 161,
-      isLightning: false
+      isLightning: false,
+      isComfyModel: true
     }
   },
 
-  // Image-to-Video Models
+  // Image-to-Video Models (ComfyUI workflow)
   i2v: {
     'lightx2v': {
       id: 'wan_v2.2-14b-fp8_i2v_lightx2v',
@@ -136,10 +155,12 @@ export const MODELS = {
       defaultGuidance: 1.0,
       minGuidance: 0.7,
       maxGuidance: 1.6,
-      defaultSampler: 'euler',
-      defaultScheduler: 'simple',
+      // ComfyUI format (preferred for video models)
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple',
       maxFrames: 161,
-      isLightning: true
+      isLightning: true,
+      isComfyModel: true
     },
     'quality': {
       id: 'wan_v2.2-14b-fp8_i2v',
@@ -152,14 +173,16 @@ export const MODELS = {
       defaultGuidance: 4.0,
       minGuidance: 1.5,
       maxGuidance: 8.0,
-      defaultSampler: 'euler',
-      defaultScheduler: 'simple',
+      // ComfyUI format (preferred for video models)
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple',
       maxFrames: 161,
-      isLightning: false
+      isLightning: false,
+      isComfyModel: true
     }
   },
 
-  // Sound-to-Video Models
+  // Sound-to-Video Models (ComfyUI workflow)
   s2v: {
     'lightx2v': {
       id: 'wan_v2.2-14b-fp8_s2v_lightx2v',
@@ -172,10 +195,12 @@ export const MODELS = {
       defaultGuidance: 1.0,
       minGuidance: 0.7,
       maxGuidance: 1.6,
-      defaultSampler: 'uni_pc', // S2V uses uni_pc
-      defaultScheduler: 'simple',
+      // ComfyUI format (preferred for video models)
+      defaultComfySampler: 'uni_pc', // S2V uses uni_pc
+      defaultComfyScheduler: 'simple',
       maxFrames: 321, // S2V supports longer videos
-      isLightning: true
+      isLightning: true,
+      isComfyModel: true
     },
     'quality': {
       id: 'wan_v2.2-14b-fp8_s2v',
@@ -188,14 +213,16 @@ export const MODELS = {
       defaultGuidance: 6.0, // S2V quality uses higher guidance
       minGuidance: 1.5,
       maxGuidance: 8.0,
-      defaultSampler: 'uni_pc', // S2V uses uni_pc
-      defaultScheduler: 'simple',
+      // ComfyUI format (preferred for video models)
+      defaultComfySampler: 'uni_pc', // S2V uses uni_pc
+      defaultComfyScheduler: 'simple',
       maxFrames: 321, // S2V supports longer videos
-      isLightning: false
+      isLightning: false,
+      isComfyModel: true
     }
   },
 
-  // Video-to-Video (Animate) Models
+  // Video-to-Video (Animate) Models (ComfyUI workflow)
   animate: {
     'move-lightx2v': {
       id: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
@@ -209,10 +236,12 @@ export const MODELS = {
       defaultGuidance: 1.0,
       minGuidance: 0.7,
       maxGuidance: 1.6,
-      defaultSampler: 'euler',
-      defaultScheduler: 'simple',
+      // ComfyUI format (preferred for video models)
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple',
       maxFrames: 321,
-      isLightning: true
+      isLightning: true,
+      isComfyModel: true
     },
     'move-quality': {
       id: 'wan_v2.2-14b-fp8_animate-move',
@@ -226,10 +255,12 @@ export const MODELS = {
       defaultGuidance: 4.0,
       minGuidance: 1.5,
       maxGuidance: 8.0,
-      defaultSampler: 'euler',
-      defaultScheduler: 'simple',
+      // ComfyUI format (preferred for video models)
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple',
       maxFrames: 321,
-      isLightning: false
+      isLightning: false,
+      isComfyModel: true
     },
     'replace-lightx2v': {
       id: 'wan_v2.2-14b-fp8_animate-replace_lightx2v',
@@ -243,11 +274,13 @@ export const MODELS = {
       defaultGuidance: 1.0,
       minGuidance: 0.7,
       maxGuidance: 1.6,
-      defaultSampler: 'euler',
-      defaultScheduler: 'simple',
+      // ComfyUI format (preferred for video models)
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple',
       maxFrames: 321,
       isLightning: true,
-      supportsSam2Coordinates: true
+      supportsSam2Coordinates: true,
+      isComfyModel: true
     },
     'replace-quality': {
       id: 'wan_v2.2-14b-fp8_animate-replace',
@@ -261,11 +294,13 @@ export const MODELS = {
       defaultGuidance: 4.0,
       minGuidance: 1.5,
       maxGuidance: 8.0,
-      defaultSampler: 'euler',
-      defaultScheduler: 'simple',
+      // ComfyUI format (preferred for video models)
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple',
       maxFrames: 321,
       isLightning: false,
-      supportsSam2Coordinates: true
+      supportsSam2Coordinates: true,
+      isComfyModel: true
     }
   }
 };
@@ -294,7 +329,8 @@ export const VIDEO_CONSTRAINTS = {
 // Sampler and Scheduler Options
 // ============================================
 
-export const SAMPLERS = [
+// ComfyUI samplers for video models (lowercase format)
+export const COMFY_SAMPLERS = [
   { id: 'euler', name: 'Euler', description: 'Default, fast and stable' },
   { id: 'euler_ancestral', name: 'Euler Ancestral', description: 'More creative variations' },
   { id: 'dpmpp_2m', name: 'DPM++ 2M', description: 'Good quality, moderate speed' },
@@ -304,13 +340,19 @@ export const SAMPLERS = [
   { id: 'lcm', name: 'LCM', description: 'Latent Consistency Model - very fast' }
 ];
 
-export const SCHEDULERS = [
+// ComfyUI schedulers for video models (lowercase format)
+export const COMFY_SCHEDULERS = [
   { id: 'simple', name: 'Simple', description: 'Default scheduler' },
   { id: 'normal', name: 'Normal', description: 'Standard scheduling' },
   { id: 'karras', name: 'Karras', description: 'Smoother noise schedule' },
   { id: 'sgm_uniform', name: 'SGM Uniform', description: 'Uniform step spacing' },
-  { id: 'beta', name: 'Beta', description: 'Beta noise schedule' }
+  { id: 'beta', name: 'Beta', description: 'Beta noise schedule' },
+  { id: 'exponential', name: 'Exponential', description: 'Exponential noise schedule' }
 ];
+
+// Legacy aliases for backwards compatibility
+export const SAMPLERS = COMFY_SAMPLERS;
+export const SCHEDULERS = COMFY_SCHEDULERS;
 
 // ============================================
 // Interactive Prompts
@@ -585,18 +627,6 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
   }
   if (!options.height) options.height = defaultHeight;
 
-  // Batch count
-  const maxBatch = isVideo ? 5 : 10;
-  const mediaType = isVideo ? 'videos' : 'images';
-  const batchInput = await askQuestion(`Number of ${mediaType} to generate (1-${maxBatch}, default: 1): `);
-  if (batchInput.trim()) {
-    const b = parseInt(batchInput.trim(), 10);
-    if (b >= 1 && b <= maxBatch) {
-      options.batch = b;
-    }
-  }
-  if (!options.batch) options.batch = 1;
-
   return options;
 }
 
@@ -650,83 +680,10 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
 
   console.log('\n🔧 Advanced Options\n');
 
-  // Guidance (if supported by model)
-  if (modelConfig.supportsGuidance !== false) {
-    // Use model-specific guidance ranges
-    const defaultGuidance = modelConfig.defaultGuidance || 4.0;
-    const minGuidance = modelConfig.minGuidance || 1.5;
-    const maxGuidance = modelConfig.maxGuidance || 8.0;
-    const guidanceInput = await askQuestion(`Guidance scale (${minGuidance}-${maxGuidance}, default: ${defaultGuidance}): `);
-    if (guidanceInput.trim()) {
-      const g = parseFloat(guidanceInput.trim());
-      if (!isNaN(g) && g >= minGuidance && g <= maxGuidance) {
-        options.guidance = g;
-      } else if (!isNaN(g)) {
-        // Clamp to valid range
-        options.guidance = Math.max(minGuidance, Math.min(maxGuidance, g));
-        console.log(`    (clamped to ${options.guidance})`);
-      }
-    }
-    if (options.guidance === undefined) options.guidance = defaultGuidance;
-  }
-
-  // Sampler
-  const defaultSampler = modelConfig.defaultSampler || 'euler';
-  const defaultSamplerIdx = SAMPLERS.findIndex(s => s.id === defaultSampler) + 1;
-  const defaultSamplerName = SAMPLERS.find(s => s.id === defaultSampler)?.name || 'Euler';
-  console.log('\n  Samplers:');
-  SAMPLERS.forEach((s, i) => {
-    const marker = s.id === defaultSampler ? ' (recommended)' : '';
-    console.log(`    ${i + 1}. ${s.name} - ${s.description}${marker}`);
-  });
-  const samplerInput = await askQuestion(`  Select sampler (default: ${defaultSamplerIdx} - ${defaultSamplerName}): `);
-  if (samplerInput.trim()) {
-    const idx = parseInt(samplerInput.trim(), 10) - 1;
-    if (idx >= 0 && idx < SAMPLERS.length) {
-      options.sampler = SAMPLERS[idx].id;
-    }
-  }
-  if (!options.sampler) options.sampler = defaultSampler;
-
-  // Scheduler
-  const defaultScheduler = modelConfig.defaultScheduler || 'simple';
-  const defaultSchedulerIdx = SCHEDULERS.findIndex(s => s.id === defaultScheduler) + 1;
-  const defaultSchedulerName = SCHEDULERS.find(s => s.id === defaultScheduler)?.name || 'Simple';
-  console.log('\n  Schedulers:');
-  SCHEDULERS.forEach((s, i) => {
-    const marker = s.id === defaultScheduler ? ' (recommended)' : '';
-    console.log(`    ${i + 1}. ${s.name} - ${s.description}${marker}`);
-  });
-  const schedulerInput = await askQuestion(`  Select scheduler (default: ${defaultSchedulerIdx} - ${defaultSchedulerName}): `);
-  if (schedulerInput.trim()) {
-    const idx = parseInt(schedulerInput.trim(), 10) - 1;
-    if (idx >= 0 && idx < SCHEDULERS.length) {
-      options.scheduler = SCHEDULERS[idx].id;
-    }
-  }
-  if (!options.scheduler) options.scheduler = defaultScheduler;
-
-  // Negative prompt
-  const negativeInput = await askQuestion('\nNegative prompt (optional): ');
-  if (negativeInput.trim()) {
-    options.negative = negativeInput.trim();
-  }
-
-  // Seed
-  console.log('\n  Seed (-1 for random, or specify a number for reproducible results)');
-  const seedInput = await askQuestion('  Seed (default: -1): ');
-  if (seedInput.trim()) {
-    const seed = parseInt(seedInput.trim(), 10);
-    if (!isNaN(seed)) {
-      options.seed = seed;
-    }
-  }
-  if (options.seed === undefined || options.seed === null) options.seed = -1;
-
   // Video-specific advanced options
   if (isVideo) {
     // FPS
-    console.log('\n  FPS options: 16 (native), 32 (interpolated)');
+    console.log('  FPS options: 16 (native), 32 (interpolated)');
     const fpsInput = await askQuestion('  FPS (default: 16): ');
     if (fpsInput.trim()) {
       const f = parseInt(fpsInput.trim(), 10);
@@ -747,6 +704,110 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     }
     if (options.shift === undefined) options.shift = defaultShift;
   }
+
+  // Guidance (if supported by model)
+  if (modelConfig.supportsGuidance !== false) {
+    // Use model-specific guidance ranges
+    const defaultGuidance = modelConfig.defaultGuidance || 4.0;
+    const minGuidance = modelConfig.minGuidance || 1.5;
+    const maxGuidance = modelConfig.maxGuidance || 8.0;
+    const guidanceInput = await askQuestion(`Guidance scale (${minGuidance}-${maxGuidance}, default: ${defaultGuidance}): `);
+    if (guidanceInput.trim()) {
+      const g = parseFloat(guidanceInput.trim());
+      if (!isNaN(g) && g >= minGuidance && g <= maxGuidance) {
+        options.guidance = g;
+      } else if (!isNaN(g)) {
+        // Clamp to valid range
+        options.guidance = Math.max(minGuidance, Math.min(maxGuidance, g));
+        console.log(`    (clamped to ${options.guidance})`);
+      }
+    }
+    if (options.guidance === undefined) options.guidance = defaultGuidance;
+  }
+
+  // Sampler - use comfySampler for ComfyUI models, sampler for legacy models
+  const isComfyModel = modelConfig.isComfyModel;
+  const defaultSampler = modelConfig.defaultComfySampler || modelConfig.defaultSampler || 'euler';
+  const defaultSamplerIdx = COMFY_SAMPLERS.findIndex(s => s.id === defaultSampler) + 1;
+  const defaultSamplerName = COMFY_SAMPLERS.find(s => s.id === defaultSampler)?.name || 'Euler';
+  console.log('\n  Samplers:');
+  COMFY_SAMPLERS.forEach((s, i) => {
+    const marker = s.id === defaultSampler ? ' (recommended)' : '';
+    console.log(`    ${i + 1}. ${s.name} - ${s.description}${marker}`);
+  });
+  const samplerInput = await askQuestion(`  Select sampler (default: ${defaultSamplerIdx} - ${defaultSamplerName}): `);
+  if (samplerInput.trim()) {
+    const idx = parseInt(samplerInput.trim(), 10) - 1;
+    if (idx >= 0 && idx < COMFY_SAMPLERS.length) {
+      if (isComfyModel) {
+        options.comfySampler = COMFY_SAMPLERS[idx].id;
+      } else {
+        options.sampler = COMFY_SAMPLERS[idx].id;
+      }
+    }
+  }
+  // Set default if not selected
+  if (isComfyModel && !options.comfySampler) {
+    options.comfySampler = defaultSampler;
+  } else if (!isComfyModel && !options.sampler) {
+    options.sampler = defaultSampler;
+  }
+
+  // Scheduler - use comfyScheduler for ComfyUI models, scheduler for legacy models
+  const defaultScheduler = modelConfig.defaultComfyScheduler || modelConfig.defaultScheduler || 'simple';
+  const defaultSchedulerIdx = COMFY_SCHEDULERS.findIndex(s => s.id === defaultScheduler) + 1;
+  const defaultSchedulerName = COMFY_SCHEDULERS.find(s => s.id === defaultScheduler)?.name || 'Simple';
+  console.log('\n  Schedulers:');
+  COMFY_SCHEDULERS.forEach((s, i) => {
+    const marker = s.id === defaultScheduler ? ' (recommended)' : '';
+    console.log(`    ${i + 1}. ${s.name} - ${s.description}${marker}`);
+  });
+  const schedulerInput = await askQuestion(`  Select scheduler (default: ${defaultSchedulerIdx} - ${defaultSchedulerName}): `);
+  if (schedulerInput.trim()) {
+    const idx = parseInt(schedulerInput.trim(), 10) - 1;
+    if (idx >= 0 && idx < COMFY_SCHEDULERS.length) {
+      if (isComfyModel) {
+        options.comfyScheduler = COMFY_SCHEDULERS[idx].id;
+      } else {
+        options.scheduler = COMFY_SCHEDULERS[idx].id;
+      }
+    }
+  }
+  // Set default if not selected
+  if (isComfyModel && !options.comfyScheduler) {
+    options.comfyScheduler = defaultScheduler;
+  } else if (!isComfyModel && !options.scheduler) {
+    options.scheduler = defaultScheduler;
+  }
+
+  // Negative prompt
+  const negativeInput = await askQuestion('\nNegative prompt (optional): ');
+  if (negativeInput.trim()) {
+    options.negative = negativeInput.trim();
+  }
+
+  // Seed
+  console.log('\n  Seed (-1 for random, or specify a number for reproducible results)');
+  const seedInput = await askQuestion('  Seed (default: -1): ');
+  if (seedInput.trim()) {
+    const seed = parseInt(seedInput.trim(), 10);
+    if (!isNaN(seed)) {
+      options.seed = seed;
+    }
+  }
+  if (options.seed === undefined || options.seed === null) options.seed = -1;
+
+  // Batch count (number of images or videos to generate)
+  const maxBatch = isVideo ? 4 : 16;
+  const mediaType = isVideo ? 'videos' : 'images';
+  const batchInput = await askQuestion(`\n  Number of ${mediaType} to generate (1-${maxBatch}, default: 1): `);
+  if (batchInput.trim()) {
+    const b = parseInt(batchInput.trim(), 10);
+    if (b >= 1 && b <= maxBatch) {
+      options.batch = b;
+    }
+  }
+  if (!options.batch) options.batch = 1;
 
   return options;
 }
@@ -865,36 +926,39 @@ export function formatDuration(seconds) {
  * Display configuration summary
  */
 export function displayConfig(title, config) {
-  console.log();
-  console.log('┌─────────────────────────────────────────────────────────┐');
-  console.log(`│ ${title.padEnd(56)} │`);
-  console.log('├─────────────────────────────────────────────────────────┤');
+  const boxInnerWidth = 58;
+  const labelWidth = 16;
+  const valueWidth = boxInnerWidth - labelWidth;
 
-  const labelWidth = 14;
-  const boxWidth = 58;
-  const valueWidth = boxWidth - labelWidth - 2;
+  console.log();
+  console.log('┌' + '─'.repeat(boxInnerWidth) + '┐');
+  console.log('│ ' + title.padEnd(boxInnerWidth - 2) + ' │');
+  console.log('├' + '─'.repeat(boxInnerWidth) + '┤');
 
   for (const [label, value] of Object.entries(config)) {
     if (value !== undefined && value !== null && value !== '') {
+      const labelStr = (label + ':').padEnd(labelWidth);
       const valueStr = String(value);
-      
+
       // For longer values (like prompts), wrap them
-      if (valueStr.length > valueWidth) {
-        console.log(`│ ${(label + ':').padEnd(labelWidth)}${valueStr.substring(0, valueWidth - 3).padEnd(valueWidth)}│`);
-        // Print continuation on next line(s)
-        let remaining = valueStr.substring(valueWidth - 3);
+      if (valueStr.length > valueWidth - 2) {
+        // First line with label
+        const firstChunk = valueStr.substring(0, valueWidth - 2);
+        console.log('│ ' + labelStr + firstChunk.padEnd(valueWidth - 2) + ' │');
+        // Continuation lines
+        let remaining = valueStr.substring(valueWidth - 2);
         while (remaining.length > 0) {
-          const chunk = remaining.substring(0, valueWidth);
-          console.log(`│ ${''.padEnd(labelWidth)}${chunk.padEnd(valueWidth)}│`);
-          remaining = remaining.substring(valueWidth);
+          const chunk = remaining.substring(0, valueWidth - 2);
+          console.log('│ ' + ' '.repeat(labelWidth) + chunk.padEnd(valueWidth - 2) + ' │');
+          remaining = remaining.substring(valueWidth - 2);
         }
       } else {
-        console.log(`│ ${(label + ':').padEnd(labelWidth)}${valueStr.padEnd(valueWidth)}│`);
+        console.log('│ ' + labelStr + valueStr.padEnd(valueWidth - 2) + ' │');
       }
     }
   }
 
-  console.log('└─────────────────────────────────────────────────────────┘');
+  console.log('└' + '─'.repeat(boxInnerWidth) + '┘');
 }
 
 /**

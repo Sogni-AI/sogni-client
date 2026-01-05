@@ -12,7 +12,9 @@ import {
   validateSampler,
   validateScheduler,
   validateVideoSize,
-  validateTeacacheThreshold
+  validateTeacacheThreshold,
+  validateComfySampler,
+  validateComfyScheduler
 } from '../lib/validation';
 import { getVideoWorkflowType, isVideoModel, VIDEO_WORKFLOW_ASSETS } from './utils';
 import { ApiError } from '../ApiClient';
@@ -176,13 +178,27 @@ function getControlNet(params: ControlNetParams): ControlNetParamsRaw[] {
 function applyImageParams(inputKeyframe: Record<string, any>, params: ImageProjectParams) {
   const keyFrame: Record<string, any> = {
     ...inputKeyframe,
-    scheduler: validateSampler(params.sampler),
-    timeStepSpacing: validateScheduler(params.scheduler),
     sizePreset: params.sizePreset,
     hasContextImage1: !!params.contextImages?.[0],
     hasContextImage2: !!params.contextImages?.[1],
     hasContextImage3: !!params.contextImages?.[2]
   };
+
+  // Handle sampler/scheduler: ComfyUI models use comfySampler/comfyScheduler,
+  // legacy models use sampler/scheduler (mapped to scheduler/timeStepSpacing)
+  if (params.comfySampler !== undefined) {
+    keyFrame.comfySampler = validateComfySampler(params.comfySampler);
+  }
+  if (params.comfyScheduler !== undefined) {
+    keyFrame.comfyScheduler = validateComfyScheduler(params.comfyScheduler);
+  }
+  // Legacy fields only used when comfy fields are NOT provided
+  if (params.comfySampler === undefined && params.sampler !== undefined) {
+    keyFrame.scheduler = validateSampler(params.sampler);
+  }
+  if (params.comfyScheduler === undefined && params.scheduler !== undefined) {
+    keyFrame.timeStepSpacing = validateScheduler(params.scheduler);
+  }
 
   if (params.startingImage) {
     keyFrame.hasStartingImage = true;
@@ -254,14 +270,13 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
     keyFrame.height = validateVideoSize(params.height, 'height');
   }
 
-  // Add sampler and scheduler support for video models
-  // Note: In Sogni Socket, the "scheduler" field actually contains the sampler value,
-  // and "timeStepSpacing" field contains the scheduler value (legacy naming)
-  if (params.sampler !== undefined) {
-    keyFrame.scheduler = validateSampler(params.sampler);
+  // Video models are ComfyUI models - only accept comfySampler/comfyScheduler
+  // Legacy sampler/scheduler fields are NOT supported for video models
+  if (params.comfySampler !== undefined) {
+    keyFrame.comfySampler = validateComfySampler(params.comfySampler);
   }
-  if (params.scheduler !== undefined) {
-    keyFrame.timeStepSpacing = validateScheduler(params.scheduler);
+  if (params.comfyScheduler !== undefined) {
+    keyFrame.comfyScheduler = validateComfyScheduler(params.comfyScheduler);
   }
 
   return keyFrame;

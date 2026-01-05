@@ -228,17 +228,29 @@ async function main() {
       console.log('\n💡 This workflow uses reference images to guide the generation.');
       console.log('   Provide 1-3 images that represent the style or content you want.');
       console.log('   Example: portrait photo → generated portrait in that style\n');
-      
+
       // Get first context image (required)
       const firstContextImage = await pickImageFile(null, '1st reference image (required)');
       OPTIONS.contextImages.push(firstContextImage);
       log('✓', `Added reference image: ${firstContextImage}`);
+    }
+    // Prompt
+    if (!OPTIONS.prompt) {
+      console.log(`\nDefault prompt: "${DEFAULT_PROMPT}"`);
+      const promptInput = await askQuestion('Enter your generation prompt (or press Enter for default): ');
+      OPTIONS.prompt = promptInput.trim() || DEFAULT_PROMPT;
+    }
 
-      // Ask for additional context images
+    // Ask about advanced options
+    const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
+    if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
+      await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: false });
+
+      // Ask for additional context images in advanced mode
       for (let i = 1; i < (modelConfig.maxContextImages || 3); i++) {
         const ordinal = i === 1 ? '2nd' : '3rd';
-        const addMore = await askQuestion(`\nAdd ${ordinal} reference image? [y/N]: `);
-        
+        const addMore = await askQuestion(`\n  Add ${ordinal} reference image? [y/N]: `);
+
         if (addMore.toLowerCase() === 'y' || addMore.toLowerCase() === 'yes') {
           try {
             const contextImage = await pickImageFile(null, `${ordinal} reference image`);
@@ -253,27 +265,6 @@ async function main() {
         }
       }
     }
-    // Prompt
-    if (!OPTIONS.prompt) {
-      console.log(`\nDefault prompt: "${DEFAULT_PROMPT}"`);
-      const promptInput = await askQuestion('Enter your generation prompt (or press Enter for default): ');
-      OPTIONS.prompt = promptInput.trim() || DEFAULT_PROMPT;
-    }
-
-    // Batch count
-    const batchInput = await askQuestion('\nNumber of images to generate (1-10, default: 1): ');
-    if (batchInput.trim()) {
-      const b = parseInt(batchInput.trim(), 10);
-      if (b >= 1 && b <= 10) {
-        OPTIONS.batch = b;
-      }
-    }
-
-    // Ask about advanced options
-    const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
-    if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
-      await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: false });
-    }
 
     console.log('\n✅ Configuration complete!\n');
   }
@@ -282,6 +273,20 @@ async function main() {
   if (OPTIONS.contextImages.length === 0) {
     console.error('Error: At least one reference image is required (use --context option)');
     process.exit(1);
+  }
+
+  // Re-detect image dimensions from first context image
+  // (needed for interactive mode where images are selected after initial detection)
+  const firstContextImage = OPTIONS.contextImages[0];
+  if (firstContextImage) {
+    try {
+      const dimensions = imageSize(firstContextImage);
+      if (dimensions.width && dimensions.height) {
+        imageDimensions = { width: dimensions.width, height: dimensions.height };
+      }
+    } catch (error) {
+      // Keep existing dimensions if detection fails
+    }
   }
 
   // Apply defaults
@@ -452,12 +457,19 @@ async function main() {
     // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
     const contextImageBuffers = readFilesAsBuffers(OPTIONS.contextImages);
 
-    // Debug: Log the context images to verify they're Blobs
-    console.log('\n🔍 DEBUG: Context image upload info:');
-    contextImageBuffers.forEach((buf, i) => {
-      const size = buf.size || buf.byteLength || 'unknown';
-      console.log(`   Image ${i + 1}: ${buf.constructor.name}, ${size} bytes`);
-    });
+    // Determine output dimensions:
+    // - Flux2: uses model-specific defaults
+    // - Qwen/other image edit: use context image dimensions (already detected above)
+    let outputWidth, outputHeight;
+    if (modelConfig.supportsGuidance) {
+      // Flux2 uses its own dimension defaults
+      outputWidth = modelConfig.defaultWidth || 1248;
+      outputHeight = modelConfig.defaultHeight || 832;
+    } else {
+      // Qwen and other image edit workflows use context image dimensions
+      outputWidth = imageDimensions.width;
+      outputHeight = imageDimensions.height;
+    }
 
     const projectParams = {
       type: 'image',
@@ -467,15 +479,15 @@ async function main() {
       steps: steps,
       seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
       contextImages: contextImageBuffers,
-      tokenType: tokenType
+      tokenType: tokenType,
+      sizePreset: 'custom',
+      width: outputWidth,
+      height: outputHeight,
+      outputFormat: 'jpg'
     };
 
-    // Add width/height for Flux2 (it uses custom dimensions)
+    // Add guidance for Flux2
     if (modelConfig.supportsGuidance) {
-      projectParams.sizePreset = 'custom';
-      projectParams.width = modelConfig.defaultWidth || 1248;
-      projectParams.height = modelConfig.defaultHeight || 832;
-      // Flux2 always needs guidance
       projectParams.guidance = OPTIONS.guidance || modelConfig.defaultGuidance || 4.0;
     }
 
@@ -487,58 +499,76 @@ async function main() {
       projectParams.stylePrompt = OPTIONS.style;
     }
 
-    // Debug: Log the full project params
-    console.log('\n🔍 DEBUG: Project params:');
-    console.log(`   modelId: ${projectParams.modelId}`);
-    console.log(`   sizePreset: ${projectParams.sizePreset}`);
-    console.log(`   width: ${projectParams.width}`);
-    console.log(`   height: ${projectParams.height}`);
-    console.log(`   steps: ${projectParams.steps}`);
-    console.log(`   guidance: ${projectParams.guidance}`);
-    console.log(`   contextImages count: ${projectParams.contextImages?.length}`);
-    console.log();
-
     const project = await sogni.projects.create(projectParams);
-
-    // Listen for project-level progress (0-100 percentage)
-    project.on('progress', (progressPercent) => {
-      process.stdout.write(`\r⏳ Progress: ${progressPercent}%`);
-    });
 
     // Set up event handlers
     let completedImages = 0;
     let failedImages = 0;
     const totalImages = OPTIONS.batch;
     let projectFailed = false;
+    let lastETA = undefined;
+    let progressLineActive = false;
+
+    // Format duration in human-readable form
+    const formatETA = (seconds) => {
+      if (seconds === undefined || seconds === null || seconds < 0) return '';
+      if (seconds < 60) return `${Math.round(seconds)}s`;
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.round(seconds % 60);
+      return `${mins}m ${secs}s`;
+    };
+
+    // Clear progress line before logging
+    const clearProgress = () => {
+      if (progressLineActive) {
+        process.stdout.write('\r' + ' '.repeat(60) + '\r');
+        progressLineActive = false;
+      }
+    };
+
+    // Listen for project-level progress (0-100 percentage)
+    project.on('progress', (progressPercent) => {
+      process.stdout.write(`\r⏳ Progress: ${progressPercent}%`);
+      progressLineActive = true;
+    });
 
     const eventHandler = (event) => {
       // Handle step-level progress from job events
       if (event.type === 'progress' && event.step !== undefined && event.stepCount !== undefined) {
         const percent = Math.round((event.step / event.stepCount) * 100);
-        process.stdout.write(`\r⏳ Step ${event.step}/${event.stepCount} (${percent}%)`);
+        let progressStr = `\r⏳ Step ${event.step}/${event.stepCount} (${percent}%)`;
+        if (lastETA !== undefined) {
+          progressStr += ` ETA: ${formatETA(lastETA)}`;
+        }
+        process.stdout.write(progressStr + '   '); // Extra spaces to clear previous longer output
+        progressLineActive = true;
       }
 
       switch (event.type) {
         case 'queued':
+          clearProgress();
           log('📋', `Job queued at position: ${event.queuePosition || 'unknown'}`);
           break;
 
         case 'initiating':
+          clearProgress();
           log('🔧', `Worker ${event.workerName || 'unknown'} initializing model...`);
           break;
 
         case 'started':
+          clearProgress();
           log('🚀', `Worker ${event.workerName || 'unknown'} started generation`);
           break;
 
+        case 'jobETA':
+          lastETA = event.etaSeconds;
+          break;
+
         case 'completed':
-          // Debug: Log the full event (no truncation)
-          console.log('\n🔍 DEBUG: Completed event:');
-          console.log('   jobId:', event.jobId);
-          console.log('   resultUrl:', event.resultUrl);
-          console.log('   error:', event.error);
-          console.log('   status:', event.status);
-          
+          // Skip project-level completed events (only process job-level completions)
+          if (!event.jobId) return;
+          clearProgress();
+
           if (!event.resultUrl || event.error) {
             failedImages++;
             log('❌', `Job completed with error: ${event.error || 'No result URL'}`);
@@ -548,7 +578,7 @@ async function main() {
               return;
             }
             const imageId = event.jobId || `edited_${Date.now()}`;
-            const outputPath = `${OPTIONS.output}/${imageId}.png`;
+            const outputPath = `${OPTIONS.output}/${imageId}.jpg`;
 
             downloadImage(event.resultUrl, outputPath)
               .then(() => {
@@ -573,6 +603,7 @@ async function main() {
 
         case 'error':
         case 'failed':
+          clearProgress();
           projectFailed = true;
           failedImages++;
           const errorMsg = event.error?.message || event.error || 'Unknown error';
@@ -689,10 +720,8 @@ async function getImageJobEstimate(tokenType, modelId, steps, inputImagePath) {
 }
 
 async function downloadImage(url, outputPath) {
-  console.log('🔍 DEBUG: Downloading from URL:', url);
   const response = await fetch(url);
   if (!response.ok) {
-    console.log('🔍 DEBUG: Download response status:', response.status, response.statusText);
     throw new Error(`Failed to download image: ${response.statusText}`);
   }
 

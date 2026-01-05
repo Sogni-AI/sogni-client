@@ -1,5 +1,7 @@
 import { isRawSampler, isSampler, SupportedSamplers } from '../Projects/types/SamplerParams';
 import { isScheduler, SupportedSchedulers } from '../Projects/types/SchedulerParams';
+import { isComfySampler, SupportedComfySamplers } from '../Projects/types/ComfySamplerParams';
+import { isComfyScheduler, SupportedComfySchedulers } from '../Projects/types/ComfySchedulerParams';
 
 export function validateCustomImageSize(value: any): number {
   return validateNumber(value, { min: 256, max: 2048, propertyName: 'Width and height' });
@@ -96,4 +98,36 @@ export function validateTeacacheThreshold(value?: number): number | undefined {
     throw new Error(`teacacheThreshold must be between 0.0 and 1.0 (got ${num})`);
   }
   return num;
+}
+
+/**
+ * Validate ComfyUI sampler for video models.
+ * Returns the sampler string directly (no mapping needed).
+ */
+export function validateComfySampler(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (isComfySampler(value)) {
+    return SupportedComfySamplers[value];
+  }
+  throw new Error(
+    `Invalid comfySampler: ${value}. Supported options: ${Object.keys(SupportedComfySamplers).join(', ')}`
+  );
+}
+
+/**
+ * Validate ComfyUI scheduler for video models.
+ * Returns the scheduler string directly (no mapping needed).
+ */
+export function validateComfyScheduler(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (isComfyScheduler(value)) {
+    return SupportedComfySchedulers[value];
+  }
+  throw new Error(
+    `Invalid comfyScheduler: ${value}. Supported options: ${Object.keys(SupportedComfySchedulers).join(', ')}`
+  );
 }

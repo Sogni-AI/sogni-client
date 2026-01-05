@@ -26,8 +26,8 @@
  *   --seed      Random seed for reproducibility (default: -1 for random)
  *   --guidance  Guidance scale (default: model-specific)
  *   --shift     Motion intensity 1.0-8.0 (default: model-specific)
- *   --sampler   Sampler name (default: euler)
- *   --scheduler Scheduler name (default: simple)
+ *   --comfy-sampler  ComfyUI sampler name (default: euler)
+ *   --comfy-scheduler ComfyUI scheduler name (default: simple)
  *   --negative  Negative prompt (default: none)
  *   --style     Style prompt (default: none)
  *   --output    Output directory (default: ./output)
@@ -88,8 +88,8 @@ async function parseArgs() {
     seed: null,
     guidance: null,
     shift: null,
-    sampler: null,
-    scheduler: null,
+    comfySampler: null,
+    comfyScheduler: null,
     output: './output',
     interactive: true
   };
@@ -129,10 +129,10 @@ async function parseArgs() {
       options.guidance = parseFloat(args[++i]);
     } else if (arg === '--shift' && args[i + 1]) {
       options.shift = parseFloat(args[++i]);
-    } else if (arg === '--sampler' && args[i + 1]) {
-      options.sampler = args[++i];
-    } else if (arg === '--scheduler' && args[i + 1]) {
-      options.scheduler = args[++i];
+    } else if (arg === '--comfy-sampler' && args[i + 1]) {
+      options.comfySampler = args[++i];
+    } else if (arg === '--comfy-scheduler' && args[i + 1]) {
+      options.comfyScheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -174,8 +174,8 @@ Options:
   --seed      Random seed (default: -1 for random)
   --guidance  Guidance scale (default: model-specific)
   --shift     Motion intensity 1.0-8.0 (default: model-specific)
-  --sampler   Sampler name (default: euler)
-  --scheduler Scheduler name (default: simple)
+  --comfy-sampler  ComfyUI sampler name (default: euler)
+  --comfy-scheduler ComfyUI scheduler name (default: simple)
   --output    Output directory (default: ./output)
   --no-interactive  Skip interactive prompts
   --help      Show this help message
@@ -341,8 +341,9 @@ async function main() {
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
   if (!OPTIONS.fps) OPTIONS.fps = VIDEO_CONSTRAINTS.fps.default;
   if (!OPTIONS.shift) OPTIONS.shift = modelConfig.defaultShift;
-  if (!OPTIONS.sampler) OPTIONS.sampler = modelConfig.defaultSampler || 'euler';
-  if (!OPTIONS.scheduler) OPTIONS.scheduler = modelConfig.defaultScheduler || 'simple';
+  // Video models only support ComfyUI sampler/scheduler
+  if (!OPTIONS.comfySampler) OPTIONS.comfySampler = modelConfig.defaultComfySampler || 'euler';
+  if (!OPTIONS.comfyScheduler) OPTIONS.comfyScheduler = modelConfig.defaultComfyScheduler || 'simple';
   if (OPTIONS.guidance === undefined || OPTIONS.guidance === null) {
     OPTIONS.guidance = modelConfig.defaultGuidance;
   }
@@ -489,7 +490,7 @@ async function main() {
 
     // Show configuration
     const videoDuration = (OPTIONS.frames - 1) / OPTIONS.fps;
-    displayConfig('Video Generation Configuration', {
+    const configDisplay = {
       'Model': modelConfig.name,
       'Prompt': OPTIONS.prompt,
       'Input': OPTIONS.image,
@@ -501,10 +502,12 @@ async function main() {
       'Batch': OPTIONS.batch,
       'Guidance': OPTIONS.guidance,
       'Shift': OPTIONS.shift,
-      'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1,
-      'Sampler': OPTIONS.sampler,
-      'Scheduler': OPTIONS.scheduler
-    });
+      'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1
+    };
+    // Video models only support ComfyUI sampler/scheduler
+    configDisplay['Comfy Sampler'] = OPTIONS.comfySampler;
+    configDisplay['Comfy Scheduler'] = OPTIONS.comfyScheduler;
+    displayConfig('Video Generation Configuration', configDisplay);
 
     if (OPTIONS.negative) {
       console.log(`   Negative prompt: ${OPTIONS.negative}`);
@@ -558,11 +561,13 @@ async function main() {
       fps: OPTIONS.fps,
       shift: OPTIONS.shift,
       seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
-      sampler: OPTIONS.sampler,
-      scheduler: OPTIONS.scheduler,
       referenceImage: referenceImageBuffer,
       tokenType: tokenType
     };
+
+    // Video models only support ComfyUI sampler/scheduler
+    if (OPTIONS.comfySampler) projectParams.comfySampler = OPTIONS.comfySampler;
+    if (OPTIONS.comfyScheduler) projectParams.comfyScheduler = OPTIONS.comfyScheduler;
 
     // Add end image for interpolation if provided
     if (OPTIONS.endImage) {

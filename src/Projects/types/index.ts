@@ -3,6 +3,8 @@ import { ControlNetParams } from './ControlNetParams';
 import { TokenType } from '../../types/token';
 import { Sampler, SupportedSamplers } from './SamplerParams';
 import { Scheduler, SupportedSchedulers } from './SchedulerParams';
+import { ComfySampler, SupportedComfySamplers } from './ComfySamplerParams';
+import { ComfyScheduler, SupportedComfySchedulers } from './ComfySchedulerParams';
 
 export interface SupportedModel {
   id: string;
@@ -33,9 +35,9 @@ export interface SizePreset {
   aspect: string;
 }
 
-export type { Sampler, Scheduler };
+export type { Sampler, Scheduler, ComfySampler, ComfyScheduler };
 
-export { SupportedSamplers, SupportedSchedulers };
+export { SupportedSamplers, SupportedSchedulers, SupportedComfySamplers, SupportedComfySchedulers };
 
 export type ImageOutputFormat = 'png' | 'jpg';
 export type VideoOutputFormat = 'mp4';
@@ -148,17 +150,17 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   height?: number;
   /**
-   * Sampler to use for video generation.
-   * Supported: euler, euler_ancestral, dpmpp_2m, dpmpp_2m_sde, dpmpp_sde, uni_pc, lcm, heun, etc.
+   * ComfyUI sampler for video generation.
+   * Uses ComfyUI's native lowercase format: euler, euler_ancestral, dpmpp_2m, etc.
    * Default: euler (or uni_pc for s2v models)
    */
-  sampler?: Sampler;
+  comfySampler?: ComfySampler;
   /**
-   * Scheduler to use for video generation.
-   * Supported: simple, normal, karras, sgm_uniform, beta, exponential, ddim_uniform, kl_optimal, etc.
+   * ComfyUI scheduler for video generation.
+   * Uses ComfyUI's native lowercase format: simple, normal, karras, sgm_uniform, etc.
    * Default: simple
    */
-  scheduler?: Scheduler;
+  comfyScheduler?: ComfyScheduler;
   /**
    * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
    */
@@ -191,11 +193,23 @@ export interface ImageProjectParams extends BaseProjectParams {
    */
   contextImages?: InputMedia[];
   /**
-   * Scheduler to use
+   * ComfyUI sampler for ComfyUI image models (z_image_turbo, qwen_image_edit, flux2_dev).
+   * Uses ComfyUI's native lowercase format: euler, euler_ancestral, dpmpp_2m, etc.
+   */
+  comfySampler?: ComfySampler;
+  /**
+   * ComfyUI scheduler for ComfyUI image models (z_image_turbo, qwen_image_edit, flux2_dev).
+   * Uses ComfyUI's native lowercase format: simple, normal, karras, sgm_uniform, etc.
+   */
+  comfyScheduler?: ComfyScheduler;
+  /**
+   * Legacy sampler for non-ComfyUI models (Automatic1111 workers).
+   * Not supported for ComfyUI models - use comfySampler instead.
    */
   sampler?: Sampler;
   /**
-   * Time step spacing method
+   * Legacy scheduler for non-ComfyUI models (Automatic1111 workers).
+   * Not supported for ComfyUI models - use comfyScheduler instead.
    */
   scheduler?: Scheduler;
   /**
