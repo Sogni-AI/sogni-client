@@ -9,9 +9,11 @@ Welcome to the Sogni Client SDK examples! This directory contains working exampl
 - [Configuration](#configuration)
 - [Running Examples](#running-examples)
 - [Available Examples](#available-examples)
-  - [Image Generation Examples](#image-generation-examples)
-  - [Video Generation Examples](#video-generation-examples)
+  - [Image Generation Workflow Examples](#image-generation-workflow-examples)
+  - [Video Generation Workflow Examples](#video-generation-workflow-examples)
+  - [Basic Examples](#basic-examples)
   - [Web Application Example](#web-application-example)
+- [Featured Models](#featured-models)
 - [Command-Line Options](#command-line-options)
 - [Token Types and Costs](#token-types-and-costs)
 - [Understanding the Output](#understanding-the-output)
@@ -123,7 +125,7 @@ The examples need your Sogni account credentials to authenticate with the API.
 
 Simply run any example script, and it will prompt you to enter your credentials:
 ```bash
-node video_text_to_video.mjs
+node workflow_text_to_image.mjs
 ```
 
 You'll be asked:
@@ -180,31 +182,245 @@ node <script-name> [arguments] [options]
 
 ### Quick Start Examples
 
+**Generate images from text (try the new Z-Turbo model!):**
+```bash
+node workflow_text_to_image.mjs "A serene mountain landscape"
+```
+
+**Generate images using reference images (Qwen Image Edit):**
+```bash
+node workflow_image_edit.mjs "portrait in this style" --context test-assets/placeholder.jpg
+```
+
 **Generate a video from text:**
 ```bash
-node video_text_to_video.mjs "A serene ocean wave"
+node workflow_text_to_video.mjs "A serene ocean wave"
 ```
 
 **Animate an image into a video:**
 ```bash
-node video_image_to_video.mjs --image test-assets/salute.png
+node workflow_image_to_video.mjs --image test-assets/placeholder.jpg
 ```
 
-**Generate images (promise-based):**
+**Transfer motion or replace characters in video:**
+```bash
+node workflow_video_to_video.mjs  # Animate-Move / Animate-Replace
+```
+
+**Generate images (promise-based basic example):**
 ```bash
 node promise_based.mjs
-```
-
-**Generate images (event-driven):**
-```bash
-node event_driven.js
 ```
 
 ---
 
 ## Available Examples
 
-### Image Generation Examples
+### Featured Models
+
+The workflow examples showcase these powerful new models:
+
+| Model ID | Name | Type | Description |
+|----------|------|------|-------------|
+| `z_image_turbo_bf16` | Z-Image Turbo | Image | Fast 4-step turbo generation - great for quick iterations |
+| `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning | Image Edit | Fast 4-step reference-based generation |
+| `qwen_image_edit_2511_fp8` | Qwen Image Edit | Image Edit | High-quality 20-step image editing with context |
+| `flux2_dev_fp8` | Flux.2 Dev | Image | Professional quality with context image support |
+
+**Try them out:**
+```bash
+# Z-Image Turbo - fast and efficient
+node workflow_text_to_image.mjs "A cyberpunk city" --model z-turbo
+
+# Qwen Image Edit Lightning - quick reference-based generation
+node workflow_image_edit.mjs "portrait" --context test-assets/placeholder.jpg --model qwen-lightning
+
+# Flux.2 Dev - highest quality
+node workflow_text_to_image.mjs "Professional portrait" --model flux2
+```
+
+---
+
+### Image Generation Workflow Examples
+
+#### `workflow_text_to_image.mjs`
+Generate images from text prompts with support for multiple cutting-edge models.
+
+**Available Models:**
+| Model | Description | Best For |
+|-------|-------------|----------|
+| `z-turbo` | Z-Image Turbo (4-step, fast) | Quick prototyping, iterations |
+| `flux1-schnell` | Flux.1 Schnell (1-5 steps) | Ultra-fast generation |
+| `flux2` | Flux.2 Dev (20-step, high quality) | Professional quality output |
+
+**Usage:**
+```bash
+node workflow_text_to_image.mjs                           # Interactive mode
+node workflow_text_to_image.mjs "A beautiful sunset"      # With prompt
+node workflow_text_to_image.mjs "Portrait" --model z-turbo --seed 12345
+```
+
+**Options:**
+- `--model` - Model: z-turbo, flux1-schnell, or flux2
+- `--width` / `--height` - Output dimensions
+- `--batch` - Number of images (1-10)
+- `--steps` - Inference steps
+- `--guidance` - Guidance scale
+- `--seed` - Random seed for reproducibility
+- `--negative` - Negative prompt
+- `--style` - Style prompt
+- `--sampler` / `--scheduler` - Sampler and scheduler
+- `--output` - Output directory (default: ./output)
+- `--disable-safe-content-filter` - Disable NSFW filter
+
+#### `workflow_image_edit.mjs`
+Generate new images using reference/context images to guide style and content. Works with the powerful **Qwen Image Edit** models and **Flux.2 Dev**.
+
+**Available Models:**
+| Model | Description | Best For |
+|-------|-------------|----------|
+| `qwen-lightning` | Qwen Image Edit Lightning (4-step) | Fast reference-based generation |
+| `qwen` | Qwen Image Edit (20-step) | High-quality image editing |
+| `flux2` | Flux.2 Dev (20-step) | Professional quality with context |
+
+**Usage:**
+```bash
+node workflow_image_edit.mjs                                    # Interactive mode
+node workflow_image_edit.mjs "portrait in this style" --context ref.jpg
+node workflow_image_edit.mjs "modern artwork" --context ref1.jpg --context2 ref2.jpg
+```
+
+**Options:**
+- `--context` - Reference image 1 (required)
+- `--context2` / `--context3` - Additional reference images (optional)
+- `--model` - Model: qwen-lightning, qwen, or flux2
+- `--width` / `--height` - Output dimensions
+- `--batch` - Number of images
+- `--steps` - Inference steps
+- `--guidance` - Guidance scale
+- `--seed` - Random seed
+- `--negative` - Negative prompt
+- `--style` - Style prompt
+- `--output` - Output directory (default: ./output)
+
+**How It Works:**
+Provide 1-3 reference images that represent the style or content you want. The model uses these to guide generation of new images matching your prompt.
+
+---
+
+### Video Generation Workflow Examples
+
+All video workflows support the **Wan 2.2 14B FP8** model family with two variants:
+- **Speed/LightX2V** - Faster, 4-8 steps, good quality (recommended for testing)
+- **Quality** - Slower, 20-40 steps, best quality
+
+**Using Your Own Media Files:**
+
+All video examples can interactively select files from the `test-assets` folder. To use your own images, videos, or audio files:
+
+```bash
+# Add your own files
+cp ~/my-photo.jpg test-assets/
+cp ~/my-video.mp4 test-assets/
+cp ~/my-audio.mp3 test-assets/
+
+# Run the script - it will show your files in the selection menu
+node workflow_image_to_video.mjs
+```
+
+#### `workflow_text_to_video.mjs`
+Generate videos from text prompts.
+
+**Usage:**
+```bash
+node workflow_text_to_video.mjs                           # Interactive mode
+node workflow_text_to_video.mjs "A futuristic city"       # With prompt
+node workflow_text_to_video.mjs "Dancing robots" --fps 32 # With options
+```
+
+**Options:**
+- `--model` - Model: lightx2v (fast) or quality (best)
+- `--width` / `--height` - Video dimensions (default: 640)
+- `--duration` - Duration in seconds (default: 5)
+- `--fps` - Frames per second: 16 or 32 (default: 16)
+- `--batch` - Number of videos (1-5)
+- `--guidance` - Guidance scale
+- `--shift` - Motion intensity 1.0-8.0
+- `--seed` - Random seed
+- `--negative` - Negative prompt
+- `--style` - Style prompt
+- `--comfy-sampler` / `--comfy-scheduler` - ComfyUI sampler/scheduler
+- `--output` - Output directory (default: ./output)
+
+#### `workflow_image_to_video.mjs`
+Animate a static image into a video with motion prompts.
+
+**Usage:**
+```bash
+node workflow_image_to_video.mjs                          # Interactive mode
+node workflow_image_to_video.mjs --image photo.jpg
+node workflow_image_to_video.mjs --image photo.jpg "camera pans left"
+```
+
+**Features:**
+- Auto-detects image dimensions
+- Optional motion prompt (e.g., "zoom in", "camera pans left")
+- Interactive image selection from `test-assets`
+- First/Last frame support
+
+**Motion Prompt Examples:**
+- "camera pans left" / "camera pans right"
+- "zoom in slowly" / "zoom out"
+- "camera rotates"
+- Or leave blank for automatic animation
+
+#### `workflow_sound_to_video.mjs`
+Generate videos synchronized with audio, including lip-sync for characters.
+
+**Usage:**
+```bash
+node workflow_sound_to_video.mjs                          # Interactive mode
+node workflow_sound_to_video.mjs --model lightx2v
+```
+
+**Features:**
+- Interactive file selection for image and audio
+- Lip-sync animation for speaking characters
+- Emotion matching from audio
+- Automatic audio length detection
+- Frame count calculated from audio duration
+
+**Supported Audio Formats:** `.mp3`, `.m4a`, `.wav`
+
+#### `workflow_video_to_video.mjs`
+Transform existing videos with powerful **Animate-Move** (motion transfer) and **Animate-Replace** (character replacement) capabilities.
+
+**Usage:**
+```bash
+node workflow_video_to_video.mjs                          # Interactive mode
+node workflow_video_to_video.mjs --video source.mp4
+```
+
+**Available Modes:**
+- **Animate-Move** - Transfer motion and emotion from reference video to your subject image
+- **Animate-Replace** - Replace characters in video while preserving original motion
+
+**Features:**
+- Interactive video and image selection
+- Auto-detects video dimensions and frame count
+- Seamless motion transfer or character replacement
+
+**Use Cases:**
+- Apply dance moves from one person to another (Animate-Move)
+- Transfer facial expressions and emotions (Animate-Move)
+- Replace actors while maintaining action (Animate-Replace)
+- Swap video subjects while preserving motion (Animate-Replace)
+- Animate illustrations with real human motion (Animate-Move)
+- Create puppeteer and motion-capture effects
+
+### Basic Examples
+
+These simpler examples demonstrate core SDK patterns without the full interactive workflow features.
 
 #### `promise_based.mjs`
 Demonstrates image generation using promises and async/await syntax.
@@ -246,200 +462,6 @@ node event_driven.js
 
 ---
 
-### Video Generation Examples
-
-All video examples support the **Wan 2.2 14B FP8** model family with two variants:
-- **Speed** (with `_lightx2v` suffix) - Faster, 4-8 steps, good quality
-- **Quality** (without suffix) - Slower, 20-40 steps, best quality
-
-**Using Your Own Media Files:**
-
-Most video examples can interactively select files from the `test-assets` folder. To use your own images, videos, or audio files:
-
-1. Navigate to the `test-assets` directory: `cd test-assets`
-2. Add your media files (images: `.jpg`, `.png`, `.webp`; videos: `.mp4`; audio: `.mp3`, `.m4a`, `.wav`)
-3. Run the example script without file arguments, and it will prompt you to select from available files
-
-Example:
-```bash
-# Add your own files
-cp ~/my-photo.jpg test-assets/
-cp ~/my-audio.mp3 test-assets/
-
-# Run the script - it will show your files in the selection menu
-node video_sound_to_video.mjs
-```
-
-#### `video_text_to_video.mjs`
-Generate videos from text prompts.
-
-**Usage:**
-```bash
-node video_text_to_video.mjs "A cat playing piano"
-node video_text_to_video.mjs "Sunset over mountains" --width 768 --height 512
-node video_text_to_video.mjs "Ocean waves" --fps 32 --frames 161
-```
-
-**Options:**
-- `--width <n>` - Video width in pixels (default: 512)
-- `--height <n>` - Video height in pixels (default: 512)
-- `--fps <n>` - Frames per second: 16 or 32 (default: 16)
-- `--frames <n>` - Number of frames: 17-161 (default: 81)
-- `--steps <n>` - Inference steps (Speed: 4-8, Quality: 20-40)
-- `--model <id>` - Model ID (will prompt if not specified)
-- `--output <dir>` - Output directory (default: ./videos)
-- `--seed <n>` - Random seed for reproducibility
-- `--help` - Show help message
-
-**Interactive Features:**
-- Prompts for speed/quality mode if not specified
-- Shows cost estimate before generation
-- Asks for confirmation before spending tokens
-- Displays real-time progress with ETA
-- Auto-opens video when complete
-
-**Example Sessions:**
-```bash
-# Basic usage - will prompt for all options
-node video_text_to_video.mjs
-
-# Full command with all options
-node video_text_to_video.mjs "A robot walking" --width 1024 --height 576 --fps 16 --frames 81 --seed 42
-
-# Longer video at higher frame rate
-node video_text_to_video.mjs "Fireworks display" --fps 32 --frames 161
-```
-
-#### `video_image_to_video.mjs`
-Animate a static image into a video with optional motion prompts.
-
-**Usage:**
-```bash
-node video_image_to_video.mjs --image test-assets/salute.png
-node video_image_to_video.mjs --image photo.jpg "camera pans left"
-node video_image_to_video.mjs --image landscape.png "zoom in" --width 768 --height 512
-```
-
-**Options:**
-- `--image <path>` - Input image path (required, or will prompt)
-- `--width <n>` - Video width (default: auto-detect from image)
-- `--height <n>` - Video height (default: auto-detect from image)
-- `--fps <n>` - Frames per second: 16 or 32 (default: 16)
-- `--frames <n>` - Number of frames: 17-161 (default: 81)
-- `--steps <n>` - Inference steps
-- `--model <id>` - Model ID (will prompt if not specified)
-- `--output <dir>` - Output directory (default: ./videos)
-- `--seed <n>` - Random seed
-- `--help` - Show help message
-
-**Features:**
-- Auto-detects image dimensions
-- Optional motion prompt (e.g., "camera pans left", "zoom in")
-- Interactive image selection from `test-assets` folder
-- Preserves subject while adding motion
-- You can add your own images to the `test-assets` folder
-
-**Motion Prompt Examples:**
-- "camera pans left"
-- "camera pans right"
-- "zoom in slowly"
-- "zoom out"
-- "camera rotates"
-- Or leave blank for automatic animation
-
-#### `video_sound_to_video.mjs`
-Generate videos synchronized with audio, including lip-syncing for characters.
-
-**Usage:**
-```bash
-node video_sound_to_video.mjs
-node video_sound_to_video.mjs --model wan_v2.2-14b-fp8_s2v_lightx2v
-node video_sound_to_video.mjs --width 640 --height 480
-```
-
-**Options:**
-- `--model <id>` - Model ID (will prompt if not specified)
-- `--steps <n>` - Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
-- `--width <n>` - Video width (default: auto-detect from reference image)
-- `--height <n>` - Video height (default: auto-detect from reference image)
-
-**Features:**
-- Interactive file selection from `test-assets` folder
-- Lip-sync animation for speaking characters
-- Emotion matching from audio
-- Automatic audio length detection
-- Calculates required frame count from audio duration
-- You can add your own image and audio files to the `test-assets` folder
-
-**Supported Audio Formats:**
-- `.mp3` (recommended)
-- `.m4a`
-- `.wav`
-
-**Note:** The script will interactively prompt you to select image and audio files from the `test-assets` directory if you don't specify them via command line.
-
-#### `video_animate_move.mjs`
-Transfer motion and emotion from a reference video to a subject in an image.
-
-**Usage:**
-```bash
-node video_animate_move.mjs
-node video_animate_move.mjs --model wan_v2.2-14b-fp8_animate-move_lightx2v
-node video_animate_move.mjs --steps 6
-node video_animate_move.mjs --width 640 --height 480
-```
-
-**Options:**
-- `--model <id>` - Model ID (will prompt if not specified)
-- `--steps <n>` - Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
-- `--width <n>` - Video width (default: auto-detect from reference video)
-- `--height <n>` - Video height (default: auto-detect from reference video)
-
-**Features:**
-- Interactive file selection from `test-assets` folder for both image and video
-- Auto-detects video dimensions and frame count
-- You can add your own image and video files to the `test-assets` folder
-
-**Use Cases:**
-- Apply dance moves from one person to another
-- Transfer facial expressions
-- Animate cartoon/illustration characters with real motion
-- Create puppeteer effects
-
-**Note:** The script will interactively prompt you to select image and video files from the `test-assets` directory.
-
-#### `video_animate_replace.mjs`
-Replace a subject in a video while preserving the original motion and background.
-
-**Usage:**
-```bash
-node video_animate_replace.mjs
-node video_animate_replace.mjs --model wan_v2.2-14b-fp8_animate-replace_lightx2v
-node video_animate_replace.mjs --steps 6
-node video_animate_replace.mjs --width 640 --height 480
-```
-
-**Options:**
-- `--model <id>` - Model ID (will prompt if not specified)
-- `--steps <n>` - Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
-- `--width <n>` - Video width (default: auto-detect from reference video)
-- `--height <n>` - Video height (default: auto-detect from reference video)
-
-**Features:**
-- Interactive file selection from `test-assets` folder for both image and video
-- Auto-detects video dimensions and frame count
-- You can add your own image and video files to the `test-assets` folder
-
-**Use Cases:**
-- Replace actors in scenes
-- Swap characters while maintaining action
-- Create alternative versions of existing videos
-- Visual effects and compositing
-
-**Note:** The script will interactively prompt you to select image and video files from the `test-assets` directory.
-
----
-
 ### Web Application Example
 
 #### `express/`
@@ -463,23 +485,40 @@ Then open your browser to `http://localhost:3000`
 
 ## Command-Line Options
 
-### Common Options Across Video Examples
+### Common Options Across Workflow Examples
 
-The following options are available across most video examples. Note that some scripts may not support all options - check the individual script documentation above for specifics.
+The following options are available across most workflow examples. Check the individual script documentation above for specifics.
 
-| Option | Description | Default | Valid Values | Availability |
-|--------|-------------|---------|--------------|--------------|
-| `--model` | Model ID | Interactive prompt | See models section | All video scripts |
-| `--steps` | Inference steps | Auto (4 or 25) | Speed: 4-8, Quality: 20-40 | All video scripts |
-| `--width` | Video width in pixels | 512 or auto-detect | 256-2048 | All video scripts |
-| `--height` | Video height in pixels | 512 or auto-detect | 256-2048 | All video scripts |
-| `--fps` | Frames per second | 16 | 16, 32 | text_to_video only |
-| `--frames` | Total number of frames | 81 (~5s at 16fps) | 17-161 | text_to_video only |
-| `--output` | Output directory | ./videos | Any valid path | text_to_video, image_to_video |
-| `--seed` | Random seed | Random | 0-2147483647 | text_to_video, image_to_video |
-| `--image` | Input image path | Interactive prompt | Any image file | image_to_video only |
+**Image Workflow Options:**
 
-**Note:** The `sound_to_video`, `animate_move`, and `animate_replace` scripts use interactive file selection and automatically detect dimensions and frame counts from the reference media. They don't support `--fps`, `--frames`, `--output`, `--seed`, or `--image` flags.
+| Option | Description | Default | Availability |
+|--------|-------------|---------|--------------|
+| `--model` | Model ID | Interactive prompt | All image scripts |
+| `--width` / `--height` | Output dimensions | Model-specific | All image scripts |
+| `--batch` | Number of outputs | 1 | All image scripts |
+| `--steps` | Inference steps | Model-specific | All image scripts |
+| `--guidance` | Guidance scale | Model-specific | All image scripts |
+| `--seed` | Random seed | -1 (random) | All image scripts |
+| `--negative` | Negative prompt | None | All image scripts |
+| `--style` | Style prompt | None | All image scripts |
+| `--output` | Output directory | ./output | All image scripts |
+| `--context` | Reference image | Interactive prompt | workflow_image_edit.mjs |
+
+**Video Workflow Options:**
+
+| Option | Description | Default | Availability |
+|--------|-------------|---------|--------------|
+| `--model` | Model ID | Interactive prompt | All video scripts |
+| `--width` / `--height` | Video dimensions | 640 or auto-detect | All video scripts |
+| `--duration` | Duration in seconds | 5 | workflow_text_to_video.mjs |
+| `--fps` | Frames per second | 16 | workflow_text_to_video.mjs |
+| `--batch` | Number of videos | 1 | All video scripts |
+| `--guidance` | Guidance scale | Model-specific | All video scripts |
+| `--shift` | Motion intensity | Model-specific | All video scripts |
+| `--seed` | Random seed | -1 (random) | All video scripts |
+| `--output` | Output directory | ./output | All video scripts |
+
+**Note:** The `workflow_sound_to_video.mjs` and `workflow_video_to_video.mjs` scripts use interactive file selection and automatically detect dimensions and frame counts from reference media.
 
 ### Frame and Duration Guide
 
@@ -542,80 +581,76 @@ You must confirm before the job runs, so you're always in control of spending.
 
 ### Console Output
 
-When you run an example, you'll see output like:
+When you run a workflow example, you'll see output like:
 
 ```
 ╔══════════════════════════════════════════════════════════╗
-║        Sogni Text-to-Video (via Wan 2.2 14B)            ║
+║               Text-to-Image Workflow                     ║
 ╚══════════════════════════════════════════════════════════╝
 
 ✓ Credentials loaded from .env file
 
-⚡ Select generation mode:
+⚡ Select a model:
 
-  1. Speed   - Faster generation, good quality (LightX2V)
-  2. Quality - Slower generation, best quality - 2.5x cost
+  1. Z-Image Turbo       - Fast generation with good quality
+  2. Flux.1 Schnell      - Very fast generation (1-5 steps)
+  3. Flux.2 Dev          - Highest quality, supports context images.
 
-Enter choice [1/2] (default: 1): 1
-  → Using Speed mode
-
-🔎 Using appId: john-t2v-1702345678-a1b2c3
+Enter choice [1-3] (default: 1): 1
+🎨 Selected model: Z-Image Turbo
 
 💳 Using saved payment preference: Spark tokens
 
 💵 Fetching cost estimate...
 
 📊 Cost Estimate:
-   Spark: 0.45 (Balance remaining: 9.55)
-   USD: $0.0023
+   Spark: 0.15 (Balance remaining: 9.85)
+   USD: $0.0008
 
 Proceed with generation? [Y/n]: y
 
 ┌─────────────────────────────────────────────────────────┐
-│ Video Configuration                                     │
+│ Image Generation Configuration                          │
 ├─────────────────────────────────────────────────────────┤
-│ Model:        wan_v2.2-14b-fp8_t2v_lightx2v             │
-│ Resolution:   512x512                                   │
-│ Frames:       81                                        │
-│ Duration:     5s at 16fps                               │
+│ Model:        Z-Image Turbo                             │
+│ Resolution:   1024x1024                                 │
+│ Batch:        1                                         │
 │ Steps:        4                                         │
-│ Seed:         1234567                                   │
-│ Prompt:       A serene ocean wave                       │
+│ Guidance:     1.0                                       │
+│ Seed:         -1                                        │
+│ Sampler:      res_multistep                             │
+│ Scheduler:    simple                                    │
+│ Prompt:       A serene mountain landscape               │
 └─────────────────────────────────────────────────────────┘
 
 🔄 Loading available models...
-✓ Model ready: Wan 2.2 14B FP8 T2V (Speed)
+✓ Model ready: Z-Image Turbo
 
-📤 Submitting video generation job...
-⏳ (This may take several minutes)
+📤 Submitting text-to-image job...
+🎨 Generating images...
 
-📋 Job queued at position: 1
-⚙️ Model initiating on worker: gpu-worker-42
-🚀 Job started on worker: gpu-worker-42
-  Generating... ETA: 2:30 (0:15 elapsed)
+⏳ Step 3/4 (75%) ETA: 5s
 ✅ Job completed!
-✅ Project completed!
 
-📥 Downloading video...
-
-✅ Video generation complete!
-📁 Saved to: ./videos/video_proj123_1.mp4
-⏱️  Total time: 2:45
-🎬 Opening video...
+✅ Image generation complete!
+💾 Saved: ./output/z_turbo_1024x1024_steps4_1.jpg
+🖼️ Opened image in viewer
+🎉 Image generated successfully!
 ```
 
 ### Output Files
 
-Generated videos are saved to the output directory (default: `./videos/`):
+Generated media are saved to the output directory (default: `./output/`):
 
 ```
-videos/
-├── video_proj123_1.mp4
-├── video_proj124_1.mp4
+output/
+├── z_turbo_1024x1024_steps4_1.jpg      # Image from workflow_text_to_image.mjs
+├── job_abc123_edited.jpg                # Image from workflow_image_edit.mjs
+├── video_proj123_1.mp4                  # Video from workflow_text_to_video.mjs
 └── ...
 ```
 
-**Important:** Videos are also stored on Sogni servers for 24 hours, after which they are automatically deleted. Make sure to download any videos you want to keep!
+**Important:** Media are also stored on Sogni servers for 24 hours, after which they are automatically deleted. The examples automatically download your generated media!
 
 ### Auto-Opening Files
 
@@ -682,19 +717,22 @@ If you encounter issues not covered here:
 
 ### Learning Path for Beginners
 
-1. **Start Simple:** Run `promise_based.mjs` to understand basic image generation
-2. **Learn Events:** Try `event_driven.js` to see real-time updates
-3. **Try Video:** Start with `video_text_to_video.mjs` for simple video generation
-4. **Advanced Workflows:** Explore image-to-video, sound-to-video, and animation examples
-5. **Build Something:** Use the Express example as a template for your own app
+1. **Start Simple:** Run `workflow_text_to_image.mjs` with Z-Turbo for fast image generation
+2. **Try Reference-Based:** Explore `workflow_image_edit.mjs` with Qwen models
+3. **Learn Events:** Try `event_driven.js` to understand real-time SDK events
+4. **Try Video:** Start with `workflow_text_to_video.mjs` for video generation
+5. **Advanced Workflows:** Explore image-to-video, sound-to-video (lip-sync), and video-to-video (motion transfer/character replacement)
+6. **Build Something:** Use the Express example as a template for your own app
 
 ### Tips for Success
 
-- **Start with Speed models** - They're faster and cheaper while you're learning
-- **Use smaller resolutions** - 512x512 is a good starting point
-- **Keep frame counts low initially** - 81 frames (default) is perfect for testing
+- **Try Z-Turbo for images** - Fast 4-step generation is perfect for experimentation
+- **Use Qwen Lightning for edits** - Quick reference-based generation with great results
+- **Start with Speed/LightX2V models for video** - Faster and cheaper while learning
+- **Use smaller resolutions** - 512x512 or 1024x1024 are good starting points
+- **Keep video frame counts low initially** - 81 frames (default) is perfect for testing
 - **Save your credentials** - Makes running examples much faster
-- **Watch your token balance** - Monitor costs before confirming generations
+- **Watch your token balance** - All examples show cost estimates before generation
 - **Experiment with prompts** - Small changes can make big differences in output
 
 ---
