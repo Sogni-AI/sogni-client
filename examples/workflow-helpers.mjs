@@ -27,33 +27,35 @@ export const MODELS = {
       defaultWidth: 1024,
       defaultHeight: 1024,
       minSteps: 4,
-      maxSteps: 16,
-      defaultSteps: 9,
-      supportsGuidance: false,
+      maxSteps: 10,
+      defaultSteps: 4,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 0.6,
+      maxGuidance: 1.6,
       supportsDenoise: true,
       defaultDenoise: 0.7,
       isComfyModel: true,
       defaultComfySampler: 'res_multistep',
       defaultComfyScheduler: 'simple'
     },
-    flux2: {
+    'flux2': {
       id: 'flux2_dev_fp8',
       name: 'Flux.2 Dev',
-      description: 'Highest quality, supports context images',
+      description: 'Highest quality, supports context images.',
       defaultWidth: 1248,
       defaultHeight: 832,
-      minSteps: 15,
+      minSteps: 20,
       maxSteps: 50,
-      defaultSteps: 25,
+      defaultSteps: 20,
       supportsGuidance: true,
       defaultGuidance: 4.0,
-      minGuidance: 2.0,
-      maxGuidance: 10.0,
+      minGuidance: 3.0,
+      maxGuidance: 6.0,
       supportsContextImages: true,
       maxContextImages: 3,
       isComfyModel: true,
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'simple'
+      defaultComfySampler: 'euler'
     }
   },
 
@@ -69,13 +71,13 @@ export const MODELS = {
       supportsContextImages: true,
       maxContextImages: 3,
       isComfyModel: true,
-      defaultComfySampler: 'res_multistep',
+      defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       defaultGuidance: 1.0,
-      minGuidance: 0.7,
+      minGuidance: 0.6,
       maxGuidance: 1.6
     },
-    qwen: {
+    'qwen': {
       id: 'qwen_image_edit_2511_fp8',
       name: 'Qwen Image Edit 2511',
       description: 'High quality image editing, supports context images',
@@ -85,36 +87,35 @@ export const MODELS = {
       supportsContextImages: true,
       maxContextImages: 3,
       isComfyModel: true,
-      defaultComfySampler: 'res_multistep',
+      defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
-      defaultGuidance: 3.0,
-      minGuidance: 1.0,
-      maxGuidance: 8.0
+      defaultGuidance: 4.0,
+      minGuidance: 4.0,
+      maxGuidance: 4.0
     },
-    flux2: {
+    'flux2': {
       id: 'flux2_dev_fp8',
       name: 'Flux.2 Dev',
-      description: 'Highest quality, supports context images',
+      description: 'Highest quality, supports context images.',
       defaultWidth: 1248,
       defaultHeight: 832,
-      defaultSteps: 25,
-      minSteps: 15,
+      defaultSteps: 20,
+      minSteps: 20,
       maxSteps: 50,
       supportsGuidance: true,
       defaultGuidance: 4.0,
-      minGuidance: 2.0,
-      maxGuidance: 10.0,
+      minGuidance: 3.0,
+      maxGuidance: 6.0,
       supportsContextImages: true,
       maxContextImages: 3,
       isComfyModel: true,
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'simple'
+      defaultComfySampler: 'euler'
     }
   },
 
   // Text-to-Video Models (ComfyUI workflow)
   t2v: {
-    lightx2v: {
+    'lightx2v': {
       id: 'wan_v2.2-14b-fp8_t2v_lightx2v',
       name: 'WAN 2.2 14B FP8 T2V LightX2V',
       description: 'Fast 4-step generation (recommended)',
@@ -132,7 +133,7 @@ export const MODELS = {
       isLightning: true,
       isComfyModel: true
     },
-    quality: {
+    'quality': {
       id: 'wan_v2.2-14b-fp8_t2v',
       name: 'WAN 2.2 14B FP8 T2V',
       description: 'High quality 20-step generation',
@@ -154,7 +155,7 @@ export const MODELS = {
 
   // Image-to-Video Models (ComfyUI workflow)
   i2v: {
-    lightx2v: {
+    'lightx2v': {
       id: 'wan_v2.2-14b-fp8_i2v_lightx2v',
       name: 'WAN 2.2 14B FP8 I2V LightX2V',
       description: 'Fast 4-step generation (recommended)',
@@ -172,7 +173,7 @@ export const MODELS = {
       isLightning: true,
       isComfyModel: true
     },
-    quality: {
+    'quality': {
       id: 'wan_v2.2-14b-fp8_i2v',
       name: 'WAN 2.2 14B FP8 I2V',
       description: 'High quality 20-step generation',
@@ -194,7 +195,7 @@ export const MODELS = {
 
   // Sound-to-Video Models (ComfyUI workflow)
   s2v: {
-    lightx2v: {
+    'lightx2v': {
       id: 'wan_v2.2-14b-fp8_s2v_lightx2v',
       name: 'WAN 2.2 14B FP8 S2V LightX2V',
       description: 'Fast 4-step generation (recommended)',
@@ -212,7 +213,7 @@ export const MODELS = {
       isLightning: true,
       isComfyModel: true
     },
-    quality: {
+    'quality': {
       id: 'wan_v2.2-14b-fp8_s2v',
       name: 'WAN 2.2 14B FP8 S2V',
       description: 'High quality 20-step generation',
