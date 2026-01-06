@@ -647,6 +647,7 @@ async function main() {
         case 'started':
           if (!project._progressInterval) {
             startTime = Date.now();
+            project._lastETAUpdate = Date.now();
             project._progressInterval = setInterval(() => {
               const elapsed = (Date.now() - startTime) / 1000;
               let progressStr = `\r  Generating...`;
@@ -655,7 +656,9 @@ async function main() {
                 progressStr += ` Step ${project._lastStep}/${project._lastStepCount} (${stepPercent}%)`;
               }
               if (project._lastETA !== undefined) {
-                progressStr += ` ETA: ${formatDuration(project._lastETA)}`;
+                const elapsedSinceUpdate = (Date.now() - project._lastETAUpdate) / 1000;
+                const adjustedETA = Math.max(1, project._lastETA - elapsedSinceUpdate);
+                progressStr += ` ETA: ${formatDuration(adjustedETA)}`;
               }
               progressStr += ` (${formatDuration(elapsed)} elapsed)   `;
               process.stdout.write(progressStr);
@@ -666,6 +669,7 @@ async function main() {
 
         case 'jobETA':
           project._lastETA = event.etaSeconds;
+          project._lastETAUpdate = Date.now();
           break;
 
         case 'progress':
@@ -699,7 +703,7 @@ async function main() {
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {
                 completedVideos++;
-                const elapsed = Math.round((Date.now() - startTime) / 1000);
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
                 log('✓', `Video ${completedVideos}/${totalVideos} completed (${elapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openVideo(outputPath);

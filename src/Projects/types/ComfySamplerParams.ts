@@ -21,7 +21,10 @@ export const SupportedComfySamplers = {
   dpmpp_2s_ancestral: 'dpmpp_2s_ancestral',
   ddpm: 'ddpm',
   ddim: 'ddim',
-  uni_pc_bh2: 'uni_pc_bh2'
+  uni_pc_bh2: 'uni_pc_bh2',
+  // Z-Image specific samplers
+  res_multistep: 'res_multistep',
+  res_multistep_cfg_pp: 'res_multistep_cfg_pp'
 };
 
 export function isComfySampler(sampler: string): sampler is ComfySampler {

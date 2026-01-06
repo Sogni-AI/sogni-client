@@ -374,6 +374,22 @@ async function main() {
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
   if (!OPTIONS.outputFormat) OPTIONS.outputFormat = 'jpg'; // Default to JPG
 
+  // Apply default sampler/scheduler based on model type
+  if (!OPTIONS.sampler) {
+    if (modelConfig.isComfyModel && modelConfig.defaultComfySampler) {
+      OPTIONS.sampler = modelConfig.defaultComfySampler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultSampler) {
+      OPTIONS.sampler = modelConfig.defaultSampler;
+    }
+  }
+  if (!OPTIONS.scheduler) {
+    if (modelConfig.isComfyModel && modelConfig.defaultComfyScheduler) {
+      OPTIONS.scheduler = modelConfig.defaultComfyScheduler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultScheduler) {
+      OPTIONS.scheduler = modelConfig.defaultScheduler;
+    }
+  }
+
   // Validate batch count
   if (OPTIONS.batch < 1 || OPTIONS.batch > 10) {
     console.error('Error: Batch count must be between 1 and 10');
@@ -573,6 +589,23 @@ async function main() {
       projectParams.guidance = OPTIONS.guidance || modelConfig.defaultGuidance || 4.0;
     }
 
+    // Add sampler/scheduler - use model defaults if not specified
+    if (OPTIONS.sampler) {
+      projectParams.sampler = OPTIONS.sampler;
+    } else if (modelConfig.isComfyModel && modelConfig.defaultComfySampler) {
+      projectParams.sampler = modelConfig.defaultComfySampler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultSampler) {
+      projectParams.sampler = modelConfig.defaultSampler;
+    }
+
+    if (OPTIONS.scheduler) {
+      projectParams.scheduler = OPTIONS.scheduler;
+    } else if (modelConfig.isComfyModel && modelConfig.defaultComfyScheduler) {
+      projectParams.scheduler = modelConfig.defaultComfyScheduler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultScheduler) {
+      projectParams.scheduler = modelConfig.defaultScheduler;
+    }
+
     // Add optional prompts
     if (OPTIONS.negative) {
       projectParams.negativePrompt = OPTIONS.negative;
@@ -589,7 +622,11 @@ async function main() {
     const totalImages = OPTIONS.batch;
     let projectFailed = false;
     let lastETA = undefined;
+    let lastETAUpdate = Date.now();
+    let currentStep = undefined;
+    let totalSteps = undefined;
     let progressLineActive = false;
+    let etaCountdownInterval = null;
 
     // Format duration in human-readable form
     const formatETA = (seconds) => {
@@ -608,6 +645,21 @@ async function main() {
       }
     };
 
+    // Update progress display with countdown
+    const updateProgressDisplay = () => {
+      if (currentStep !== undefined && totalSteps !== undefined) {
+        const percent = Math.round((currentStep / totalSteps) * 100);
+        let progressStr = `\r⏳ Step ${currentStep}/${totalSteps} (${percent}%)`;
+        if (lastETA !== undefined) {
+          const elapsedSinceUpdate = (Date.now() - lastETAUpdate) / 1000;
+          const adjustedETA = Math.max(1, lastETA - elapsedSinceUpdate);
+          progressStr += ` ETA: ${formatETA(adjustedETA)}`;
+        }
+        process.stdout.write(progressStr + '   ');
+        progressLineActive = true;
+      }
+    };
+
     // Listen for project-level progress (0-100 percentage)
     project.on('progress', (progressPercent) => {
       // Skip 0% progress to avoid clutter before job starts
@@ -620,13 +672,9 @@ async function main() {
     const eventHandler = (event) => {
       // Handle step-level progress from job events
       if (event.type === 'progress' && event.step !== undefined && event.stepCount !== undefined) {
-        const percent = Math.round((event.step / event.stepCount) * 100);
-        let progressStr = `\r⏳ Step ${event.step}/${event.stepCount} (${percent}%)`;
-        if (lastETA !== undefined) {
-          progressStr += ` ETA: ${formatETA(lastETA)}`;
-        }
-        process.stdout.write(progressStr + '   '); // Extra spaces to clear previous longer output
-        progressLineActive = true;
+        currentStep = event.step;
+        totalSteps = event.stepCount;
+        updateProgressDisplay();
       }
 
       switch (event.type) {
@@ -647,6 +695,10 @@ async function main() {
 
         case 'jobETA':
           lastETA = event.etaSeconds;
+          lastETAUpdate = Date.now();
+          if (!etaCountdownInterval && lastETA > 0) {
+            etaCountdownInterval = setInterval(updateProgressDisplay, 1000);
+          }
           break;
 
         case 'completed':
@@ -669,7 +721,7 @@ async function main() {
             downloadImage(event.resultUrl, outputPath)
               .then(() => {
                 completedImages++;
-                const elapsed = Math.round((Date.now() - startTime) / 1000);
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
                 log('✓', `Image ${completedImages}/${totalImages} completed (${elapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openImage(outputPath);
@@ -717,6 +769,10 @@ async function main() {
     });
 
     function checkWorkflowCompletion() {
+      if (etaCountdownInterval) {
+        clearInterval(etaCountdownInterval);
+        etaCountdownInterval = null;
+      }
       if (completedImages + failedImages === totalImages) {
         if (failedImages === 0) {
           if (totalImages === 1) {

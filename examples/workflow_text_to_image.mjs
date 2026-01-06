@@ -15,7 +15,7 @@
  *   node workflow_text_to_image.mjs "Portrait" --seed 12345  # With specific seed
  *
  * Options:
- *   --model     Model: z-turbo or flux2 (default: prompts for selection)
+ *   --model     Model: z-turbo, flux1-schnell, or flux2 (default: prompts for selection)
  *   --width     Image width (default: model-specific)
  *   --height    Image height (default: model-specific)
  *   --batch     Number of images to generate (default: 1)
@@ -52,7 +52,7 @@ import {
 const streamPipeline = promisify(pipeline);
 
 // Default prompt for this workflow
-const DEFAULT_PROMPT = 'A beautiful landscape with mountains and a lake at sunset, highly detailed, 8k resolution';
+const DEFAULT_PROMPT = 'A mixed-media scene combining realistic photography and hand-drawn illustration. A 2D chibi cute cat is suggested only by loose, broken ink strokes, standing quietly in real physical space. The character is not enclosed by a complete outline — the silhouette is fragmented, incomplete, and interrupted, with strokes that do not fully connect. There is no solid interior at all. The body is formed by scattered and chaotic circular sketch lines, short and long hatching marks, and scribbles, leaving large open gaps where the real background passes through uninterrupted. The character feels barely held together, as if it exists only as an idea drawn in the air. The strokes vary in pressure and density: some lines are darker, others faint or partially erased. Edges dissolve into fewer marks instead of closing into a contour. Chibi proportions: oversized head, small body, big cute eyes, thin paws — all implied, not fully drawn. The face is minimal: eyes closed or lowered, expression calm and introspective. The surrounding environment is fully realistic photography: a beach sand in focus, with a soft, blurred outdoor background and shallow depth of field. The character casts no shadow, has no volume, and does not interact with light like a physical object. Mood: quiet, fragile, melancholic — a drawing that almost disappears inside reality. Style fusion: • broken ink sketch • incomplete line art • scribbled silhouette • negative space dominance • drawing dissolving into';
 
 // ============================================
 // Parse Command Line Arguments
@@ -133,11 +133,12 @@ Usage:
   node workflow_text_to_image.mjs "Portrait" --model flux2 # With specific model
 
 Available Models:
-  z-turbo  - Z-Image Turbo (fast generation)
-  flux2    - Flux.2 Dev (highest quality)
+  z-turbo       - Z-Image Turbo (fast generation)
+  flux1-schnell - Flux.1 Schnell (very fast, 1-5 steps)
+  flux2         - Flux.2 Dev (highest quality)
 
 Options:
-  --model     Model: z-turbo or flux2 (default: prompts for selection)
+  --model     Model: z-turbo, flux1-schnell, or flux2 (default: prompts for selection)
   --negative  Negative prompt (default: none)
   --style     Style prompt (default: none)
   --width     Image width (default: model-specific)
@@ -180,7 +181,7 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'z-turbo';
     modelConfig = MODELS.image[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'z-turbo' or 'flux2'.`);
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'z-turbo', 'flux1-schnell', or 'flux2'.`);
       process.exit(1);
     }
   }
@@ -208,6 +209,22 @@ async function main() {
   if (!OPTIONS.width) OPTIONS.width = modelConfig.defaultWidth;
   if (!OPTIONS.height) OPTIONS.height = modelConfig.defaultHeight;
   if (!OPTIONS.outputFormat) OPTIONS.outputFormat = 'jpg'; // Default to JPG
+
+  // Apply default sampler/scheduler based on model type
+  if (!OPTIONS.sampler) {
+    if (modelConfig.isComfyModel && modelConfig.defaultComfySampler) {
+      OPTIONS.sampler = modelConfig.defaultComfySampler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultSampler) {
+      OPTIONS.sampler = modelConfig.defaultSampler;
+    }
+  }
+  if (!OPTIONS.scheduler) {
+    if (modelConfig.isComfyModel && modelConfig.defaultComfyScheduler) {
+      OPTIONS.scheduler = modelConfig.defaultComfyScheduler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultScheduler) {
+      OPTIONS.scheduler = modelConfig.defaultScheduler;
+    }
+  }
 
   // Validate dimensions
   if (OPTIONS.width % 16 !== 0) {
@@ -326,8 +343,8 @@ async function main() {
       'Steps': steps,
       ...(guidance !== undefined && guidance !== null && { 'Guidance': guidance }),
       'Seed': displaySeed,
-      'Sampler': OPTIONS.sampler || 'euler',
-      'Scheduler': OPTIONS.scheduler || 'simple',
+      'Sampler': OPTIONS.sampler,
+      'Scheduler': OPTIONS.scheduler,
       'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
     });
 
@@ -413,12 +430,21 @@ async function main() {
       projectParams.guidance = guidance;
     }
 
-    // Add sampler/scheduler if specified
+    // Add sampler/scheduler - use model defaults if not specified
     if (OPTIONS.sampler) {
       projectParams.sampler = OPTIONS.sampler;
+    } else if (modelConfig.isComfyModel && modelConfig.defaultComfySampler) {
+      projectParams.sampler = modelConfig.defaultComfySampler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultSampler) {
+      projectParams.sampler = modelConfig.defaultSampler;
     }
+
     if (OPTIONS.scheduler) {
       projectParams.scheduler = OPTIONS.scheduler;
+    } else if (modelConfig.isComfyModel && modelConfig.defaultComfyScheduler) {
+      projectParams.scheduler = modelConfig.defaultComfyScheduler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultScheduler) {
+      projectParams.scheduler = modelConfig.defaultScheduler;
     }
 
     // Set up event handlers BEFORE creating project
@@ -428,6 +454,10 @@ async function main() {
     let projectFailed = false;
     let currentJobId = null;
     let lastETA = undefined;
+    let lastETAUpdate = Date.now();
+    let currentStep = undefined;
+    let totalSteps = undefined;
+    let etaCountdownInterval = null;
 
     // Format duration in human-readable form
     const formatETA = (seconds) => {
@@ -436,6 +466,21 @@ async function main() {
       const mins = Math.floor(seconds / 60);
       const secs = Math.round(seconds % 60);
       return `${mins}m ${secs}s`;
+    };
+
+    // Update progress display with countdown
+    const updateProgressDisplay = () => {
+      if (currentStep !== undefined && totalSteps !== undefined) {
+        const percent = Math.round((currentStep / totalSteps) * 100);
+        let progressStr = `\r⏳ Step ${currentStep}/${totalSteps} (${percent}%)`;
+        if (lastETA !== undefined) {
+          // Calculate adjusted ETA based on time elapsed since last update
+          const elapsedSinceUpdate = (Date.now() - lastETAUpdate) / 1000;
+          const adjustedETA = Math.max(1, lastETA - elapsedSinceUpdate);
+          progressStr += ` ETA: ${formatETA(adjustedETA)}`;
+        }
+        process.stdout.write(progressStr + '   '); // Extra spaces to clear previous longer output
+      }
     };
 
     const eventHandler = (event) => {
@@ -450,6 +495,11 @@ async function main() {
 
         case 'jobETA':
           lastETA = event.etaSeconds;
+          lastETAUpdate = Date.now();
+          // Start countdown interval if not already running
+          if (!etaCountdownInterval && lastETA > 0) {
+            etaCountdownInterval = setInterval(updateProgressDisplay, 1000);
+          }
           break;
 
         case 'completed':
@@ -483,7 +533,7 @@ async function main() {
             downloadImage(event.resultUrl, outputPath)
               .then(() => {
                 completedImages++;
-                const elapsed = Math.round((Date.now() - startTime) / 1000);
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
                 log('✓', `Image ${completedImages}/${totalImages} completed (${elapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openImage(outputPath);
@@ -538,12 +588,9 @@ async function main() {
       if (event.projectId === project.id) {
         // Handle step-level progress from job events
         if (event.type === 'progress' && event.step !== undefined && event.stepCount !== undefined) {
-          const percent = Math.round((event.step / event.stepCount) * 100);
-          let progressStr = `\r⏳ Step ${event.step}/${event.stepCount} (${percent}%)`;
-          if (lastETA !== undefined) {
-            progressStr += ` ETA: ${formatETA(lastETA)}`;
-          }
-          process.stdout.write(progressStr + '   '); // Extra spaces to clear previous longer output
+          currentStep = event.step;
+          totalSteps = event.stepCount;
+          updateProgressDisplay();
         }
         eventHandler(event);
       }
@@ -551,6 +598,11 @@ async function main() {
 
     // Helper function to check workflow completion
     function checkWorkflowCompletion() {
+      // Clear countdown interval when job completes
+      if (etaCountdownInterval) {
+        clearInterval(etaCountdownInterval);
+        etaCountdownInterval = null;
+      }
       if (completedImages + failedImages === totalImages) {
         if (failedImages === 0) {
           if (totalImages === 1) {

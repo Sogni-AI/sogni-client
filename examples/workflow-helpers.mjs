@@ -39,7 +39,24 @@ export const MODELS = {
       defaultComfySampler: 'res_multistep',
       defaultComfyScheduler: 'simple'
     },
-    'flux2': {
+    'flux1-schnell': {
+      id: 'flux1-schnell-fp8',
+      name: 'Flux.1 Schnell',
+      description: 'Very fast generation (1-5 steps)',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      minSteps: 1,
+      maxSteps: 5,
+      defaultSteps: 4,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 0.1,
+      maxGuidance: 1.0,
+      isComfyModel: false,
+      defaultSampler: 'Euler',
+      defaultScheduler: 'Simple'
+    },
+    flux2: {
       id: 'flux2_dev_fp8',
       name: 'Flux.2 Dev',
       description: 'Highest quality, supports context images.',
@@ -77,7 +94,7 @@ export const MODELS = {
       minGuidance: 0.6,
       maxGuidance: 1.6
     },
-    'qwen': {
+    qwen: {
       id: 'qwen_image_edit_2511_fp8',
       name: 'Qwen Image Edit 2511',
       description: 'High quality image editing, supports context images',
@@ -93,7 +110,7 @@ export const MODELS = {
       minGuidance: 4.0,
       maxGuidance: 4.0
     },
-    'flux2': {
+    flux2: {
       id: 'flux2_dev_fp8',
       name: 'Flux.2 Dev',
       description: 'Highest quality, supports context images.',
@@ -115,7 +132,7 @@ export const MODELS = {
 
   // Text-to-Video Models (ComfyUI workflow)
   t2v: {
-    'lightx2v': {
+    lightx2v: {
       id: 'wan_v2.2-14b-fp8_t2v_lightx2v',
       name: 'WAN 2.2 14B FP8 T2V LightX2V',
       description: 'Fast 4-step generation (recommended)',
@@ -133,7 +150,7 @@ export const MODELS = {
       isLightning: true,
       isComfyModel: true
     },
-    'quality': {
+    quality: {
       id: 'wan_v2.2-14b-fp8_t2v',
       name: 'WAN 2.2 14B FP8 T2V',
       description: 'High quality 20-step generation',
@@ -155,7 +172,7 @@ export const MODELS = {
 
   // Image-to-Video Models (ComfyUI workflow)
   i2v: {
-    'lightx2v': {
+    lightx2v: {
       id: 'wan_v2.2-14b-fp8_i2v_lightx2v',
       name: 'WAN 2.2 14B FP8 I2V LightX2V',
       description: 'Fast 4-step generation (recommended)',
@@ -173,7 +190,7 @@ export const MODELS = {
       isLightning: true,
       isComfyModel: true
     },
-    'quality': {
+    quality: {
       id: 'wan_v2.2-14b-fp8_i2v',
       name: 'WAN 2.2 14B FP8 I2V',
       description: 'High quality 20-step generation',
@@ -195,7 +212,7 @@ export const MODELS = {
 
   // Sound-to-Video Models (ComfyUI workflow)
   s2v: {
-    'lightx2v': {
+    lightx2v: {
       id: 'wan_v2.2-14b-fp8_s2v_lightx2v',
       name: 'WAN 2.2 14B FP8 S2V LightX2V',
       description: 'Fast 4-step generation (recommended)',
@@ -213,7 +230,7 @@ export const MODELS = {
       isLightning: true,
       isComfyModel: true
     },
-    'quality': {
+    quality: {
       id: 'wan_v2.2-14b-fp8_s2v',
       name: 'WAN 2.2 14B FP8 S2V',
       description: 'High quality 20-step generation',
@@ -734,6 +751,25 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     }
     if (options.shift === undefined) options.shift = defaultShift;
   }
+
+  // Steps
+  const defaultSteps = modelConfig.defaultSteps || 20;
+  const minSteps = modelConfig.minSteps || 1;
+  const maxSteps = modelConfig.maxSteps || 50;
+  const stepsInput = await askQuestion(
+    `Steps (${minSteps}-${maxSteps}, default: ${defaultSteps}): `
+  );
+  if (stepsInput.trim()) {
+    const s = parseInt(stepsInput.trim(), 10);
+    if (!isNaN(s) && s >= minSteps && s <= maxSteps) {
+      options.steps = s;
+    } else if (!isNaN(s)) {
+      // Clamp to valid range
+      options.steps = Math.max(minSteps, Math.min(maxSteps, s));
+      console.log(`    (clamped to ${options.steps})`);
+    }
+  }
+  if (options.steps === undefined) options.steps = defaultSteps;
 
   // Guidance (if supported by model)
   if (modelConfig.supportsGuidance !== false) {
