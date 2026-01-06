@@ -188,6 +188,82 @@ async function askSpeedOrQuality() {
   });
 }
 
+async function askFPS() {
+  // If FPS was explicitly set via CLI, use it
+  if (OPTIONS.fps && OPTIONS.fps !== 16) {
+    return OPTIONS.fps;
+  }
+
+  // If not TTY, default to 16
+  if (!process.stdin.isTTY) {
+    return 16;
+  }
+
+  console.log('🎬 Select frame rate:\n');
+  console.log('  1. 16 FPS - Standard, good for most uses');
+  console.log('  2. 32 FPS - Smoother motion, higher quality');
+  console.log();
+
+  const answer = await askQuestion('Enter choice [1/2] (default: 1): ');
+  const choice = answer.trim() || '1';
+
+  if (choice === '2' || choice === '32') {
+    console.log('  → Using 32 FPS\n');
+    return 32;
+  } else {
+    console.log('  → Using 16 FPS\n');
+    return 16;
+  }
+}
+
+async function askVideoDuration(fps) {
+  // If frames was explicitly set via CLI, use it
+  if (OPTIONS.frames && OPTIONS.frames !== 81) {
+    return OPTIONS.frames;
+  }
+
+  // If not TTY, default to 5 seconds
+  if (!process.stdin.isTTY) {
+    return fps === 32 ? 161 : 81;
+  }
+
+  console.log('⏱️  Select video duration:\n');
+  console.log('  1. 2 seconds');
+  console.log('  2. 3 seconds');
+  console.log('  3. 4 seconds');
+  console.log('  4. 5 seconds (default)');
+  console.log('  5. 6 seconds');
+  console.log('  6. 8 seconds');
+  console.log('  7. 10 seconds');
+  console.log('  8. Custom');
+  console.log();
+
+  const answer = await askQuestion('Enter choice [1-8] (default: 4): ');
+  const choice = answer.trim() || '4';
+
+  let seconds;
+  switch(choice) {
+    case '1': seconds = 2; break;
+    case '2': seconds = 3; break;
+    case '3': seconds = 4; break;
+    case '4': seconds = 5; break;
+    case '5': seconds = 6; break;
+    case '6': seconds = 8; break;
+    case '7': seconds = 10; break;
+    case '8':
+      const customAnswer = await askQuestion('Enter duration in seconds (1-10): ');
+      seconds = Math.min(10, Math.max(1, parseInt(customAnswer, 10) || 5));
+      break;
+    default: seconds = 5;
+  }
+
+  // Calculate frames: (seconds * fps) + 1
+  const frames = Math.min(161, Math.max(17, (seconds * fps) + 1));
+
+  console.log(`  → ${seconds} seconds = ${frames} frames at ${fps} FPS\n`);
+  return frames;
+}
+
 /**
  * Ask a question via readline
  */
@@ -358,9 +434,27 @@ async function processImageForVideo(imagePath, originalWidth, originalHeight) {
     }
   }
 
-  // Ensure dimensions are even (some video codecs require this)
-  targetWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth - 1;
-  targetHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
+  // Ensure dimensions are divisible by 16 (video encoder requirement)
+  const roundedWidth = Math.floor(targetWidth / 16) * 16;
+  const roundedHeight = Math.floor(targetHeight / 16) * 16;
+
+  // Check if rounding changed dimensions
+  if (roundedWidth !== targetWidth || roundedHeight !== targetHeight) {
+    needsResize = true;
+  }
+
+  targetWidth = roundedWidth;
+  targetHeight = roundedHeight;
+
+  // Ensure dimensions don't go below minimum after rounding
+  if (targetWidth < MIN_VIDEO_DIMENSION) {
+    targetWidth = Math.ceil(MIN_VIDEO_DIMENSION / 16) * 16;
+    needsResize = true;
+  }
+  if (targetHeight < MIN_VIDEO_DIMENSION) {
+    targetHeight = Math.ceil(MIN_VIDEO_DIMENSION / 16) * 16;
+    needsResize = true;
+  }
 
   let imageBuffer;
 
@@ -392,6 +486,20 @@ async function processImageForVideo(imagePath, originalWidth, originalHeight) {
 // ============================================
 
 async function main() {
+  // Suppress noisy error logs from the SDK that occur after successful completion
+  const originalConsoleError = console.error;
+  console.error = (...args) => {
+    const errorString = args.join(' ');
+    // Suppress "Project not found" errors and WebSocket disconnect messages
+    if (errorString.includes('Project not found') ||
+        errorString.includes('ApiError') ||
+        errorString.includes('WebSocket disconnected') ||
+        errorString.includes('CloseEvent')) {
+      return;
+    }
+    originalConsoleError.apply(console, args);
+  };
+
   console.log();
   console.log('╔══════════════════════════════════════════════════════════╗');
   console.log('║        Sogni Image-to-Video (via Wan 2.2 14B)            ║');
@@ -769,8 +877,8 @@ async function main() {
     sogni.projects.on('project', projectEventHandler);
     sogni.projects.on('job', jobEventHandler);
 
-    // Wait for completion
-    const resultUrls = await project.waitForCompletion();
+    // Wait for completion with 5 minute timeout (300 seconds)
+    const resultUrls = await project.waitForCompletion(300000); // 5 minutes
     console.log();
     console.log();
 
@@ -801,10 +909,11 @@ async function main() {
     log('❌', `Error: ${error.message}`);
     process.exit(1);
   } finally {
-    if (projectEventHandler) {
+    // Clean up event handlers if they were defined
+    if (projectEventHandler && sogni?.projects) {
       sogni.projects.off('project', projectEventHandler);
     }
-    if (jobEventHandler) {
+    if (jobEventHandler && sogni?.projects) {
       sogni.projects.off('job', jobEventHandler);
     }
     // Clean up any remaining intervals

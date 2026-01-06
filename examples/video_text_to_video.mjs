@@ -572,8 +572,8 @@ async function main() {
     sogni.projects.on('project', projectEventHandler);
     sogni.projects.on('job', jobEventHandler);
 
-    // Wait for completion
-    const resultUrls = await project.waitForCompletion();
+    // Wait for completion with 5 minute timeout (300 seconds)
+    const resultUrls = await project.waitForCompletion(300000); // 5 minutes
     console.log();
     console.log();
 

@@ -14,14 +14,17 @@
  *   node video_animate_move.mjs --prompt "A dancing robot with smooth movements"
  *   node video_animate_move.mjs --model wan_v2.2-14b-fp8_animate-move_lightx2v
  *   node video_animate_move.mjs --steps 6
+ *   node video_animate_move.mjs --seconds 5 --fps 32
  *   node video_animate_move.mjs --width 640 --height 480
  *
  * Options:
- *   --prompt <text> Custom prompt for the animation (optional, has default)
- *   --model <id>    Model ID (prompts for speed/quality if not specified)
- *   --steps <n>     Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
- *   --width <n>     Video width (default: auto-detect from image, or 640; minimum: 480)
- *   --height <n>    Video height (default: auto-detect from image, or 640; minimum: 480)
+ *   --prompt <text>   Custom prompt for the animation (optional, has default)
+ *   --model <id>      Model ID (prompts for speed/quality if not specified)
+ *   --steps <n>       Inference steps (Speed: 4-8, default 4; Quality: 20-40, default 25)
+ *   --seconds <n>     Video duration in seconds (default: 10, max: 20s @16fps or 10s @32fps)
+ *   --fps <n>         Frame rate: 16 or 32 (default: 16, prompts if not specified)
+ *   --width <n>       Video width (default: auto-detect from image, or 640; minimum: 480)
+ *   --height <n>      Video height (default: auto-detect from image, or 640; minimum: 480)
  */
 
 import * as fs from 'node:fs';
@@ -30,6 +33,7 @@ import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
 import * as readline from 'node:readline';
 import imageSize from 'image-size';
+import sharp from 'sharp';
 // When running from the repo, import from local dist
 // When published to npm, users would import from '@sogni-ai/sogni-client'
 import { SogniClient } from '../dist/index.js';
@@ -47,8 +51,18 @@ const MODELS = {
   }
 };
 
-// Minimum video dimensions for Wan 2.2 models
+// Video dimension constraints for Wan 2.2 models
 const MIN_VIDEO_DIMENSION = 480;
+const MAX_VIDEO_DIMENSION = 1536;
+
+// Memory budget to prevent GPU OOM errors
+// This is the max total pixels (width × height × frames) the GPU can handle
+// Conservative estimate based on 14B model capabilities
+const MAX_PIXEL_BUDGET = 85_000_000;
+
+// Video frame constraints
+const MIN_FRAMES = 17;
+const MAX_FRAMES = 321;
 
 // Parse command line args
 const args = process.argv.slice(2);
@@ -61,6 +75,10 @@ const widthArg = args.find((arg, i) => arg === '--width' && args[i + 1]);
 let WIDTH = widthArg ? parseInt(args[args.indexOf(widthArg) + 1], 10) : null;
 const heightArg = args.find((arg, i) => arg === '--height' && args[i + 1]);
 let HEIGHT = heightArg ? parseInt(args[args.indexOf(heightArg) + 1], 10) : null;
+const secondsArg = args.find((arg, i) => arg === '--seconds' && args[i + 1]);
+let SECONDS = secondsArg ? parseFloat(args[args.indexOf(secondsArg) + 1]) : null;
+const fpsArg = args.find((arg, i) => arg === '--fps' && args[i + 1]);
+let FPS_EXPLICIT = fpsArg ? parseInt(args[args.indexOf(fpsArg) + 1], 10) : null;
 const promptArg = args.find((arg, i) => arg === '--prompt' && args[i + 1]);
 const CUSTOM_PROMPT = promptArg ? args[args.indexOf(promptArg) + 1] : null;
 
@@ -72,9 +90,13 @@ const DEFAULT_NEGATIVE_PROMPT = 'blurry, low quality, distorted, artifacts, wate
 const REFERENCE_IMAGE = './test-assets/placeholder.jpg'; // Subject to animate
 const REFERENCE_VIDEO = './test-assets/placeholder.mp4'; // Motion source
 
+const DEFAULT_SECONDS = 10;
+const DEFAULT_FPS = 16;
+
+// VIDEO_CONFIG will be populated after user input
 const VIDEO_CONFIG = {
-  frames: 81,
-  fps: 16
+  frames: null, // Calculated from seconds
+  fps: DEFAULT_FPS
 };
 
 const OUTPUT_DIR = './videos';
@@ -131,6 +153,128 @@ function getImageDimensions(imagePath) {
     console.warn(`⚠️  Could not extract image dimensions: ${error.message}`);
     return null;
   }
+}
+
+/**
+ * Calculate the maximum allowed dimension based on frame count and pixel budget
+ */
+function calculateMaxDimension(frames) {
+  // Max pixels per frame = total budget / number of frames
+  const maxPixelsPerFrame = MAX_PIXEL_BUDGET / frames;
+  // Assuming roughly square aspect ratio for the limit calculation
+  const maxDimFromBudget = Math.floor(Math.sqrt(maxPixelsPerFrame));
+  // Return the more restrictive of the two limits
+  return Math.min(maxDimFromBudget, MAX_VIDEO_DIMENSION);
+}
+
+/**
+ * Resize image if it exceeds the maximum allowed dimensions
+ * Returns the processed image buffer and the new dimensions
+ */
+async function processImageForVideo(imagePath, originalWidth, originalHeight, frames) {
+  let targetWidth = originalWidth;
+  let targetHeight = originalHeight;
+  let needsResize = false;
+  let resizeReason = '';
+
+  // Calculate the effective max dimension based on frame count (memory budget)
+  const effectiveMaxDimension = calculateMaxDimension(frames);
+
+  // Check if we're limited by memory budget vs static limit
+  if (effectiveMaxDimension < MAX_VIDEO_DIMENSION) {
+    log('💾', `Memory limit: max ${effectiveMaxDimension}px per side for ${frames} frames`);
+  }
+
+  // Check if image exceeds maximum dimensions (considering memory budget)
+  if (originalWidth > effectiveMaxDimension || originalHeight > effectiveMaxDimension) {
+    needsResize = true;
+    resizeReason = 'memory budget';
+
+    // Calculate scaling factor to fit within max dimensions while maintaining aspect ratio
+    const scaleFactor = Math.min(
+      effectiveMaxDimension / originalWidth,
+      effectiveMaxDimension / originalHeight
+    );
+
+    targetWidth = Math.floor(originalWidth * scaleFactor);
+    targetHeight = Math.floor(originalHeight * scaleFactor);
+  }
+
+  // Check if image is below minimum dimensions
+  if (targetWidth < MIN_VIDEO_DIMENSION || targetHeight < MIN_VIDEO_DIMENSION) {
+    needsResize = true;
+
+    // Calculate scaling factor to meet minimum dimensions while maintaining aspect ratio
+    const scaleFactor = Math.max(
+      MIN_VIDEO_DIMENSION / targetWidth,
+      MIN_VIDEO_DIMENSION / targetHeight
+    );
+
+    targetWidth = Math.floor(targetWidth * scaleFactor);
+    targetHeight = Math.floor(targetHeight * scaleFactor);
+
+    // Ensure we don't exceed max dimensions after upscaling
+    if (targetWidth > MAX_VIDEO_DIMENSION || targetHeight > MAX_VIDEO_DIMENSION) {
+      const downscaleFactor = Math.min(
+        MAX_VIDEO_DIMENSION / targetWidth,
+        MAX_VIDEO_DIMENSION / targetHeight
+      );
+      targetWidth = Math.floor(targetWidth * downscaleFactor);
+      targetHeight = Math.floor(targetHeight * downscaleFactor);
+    }
+  }
+
+  // Ensure dimensions are divisible by 16 (video encoder requirement)
+  const roundedWidth = Math.floor(targetWidth / 16) * 16;
+  const roundedHeight = Math.floor(targetHeight / 16) * 16;
+
+  // Check if rounding changed dimensions
+  if (roundedWidth !== targetWidth || roundedHeight !== targetHeight) {
+    needsResize = true;
+  }
+
+  targetWidth = roundedWidth;
+  targetHeight = roundedHeight;
+
+  // Ensure dimensions don't go below minimum after rounding
+  if (targetWidth < MIN_VIDEO_DIMENSION) {
+    targetWidth = Math.ceil(MIN_VIDEO_DIMENSION / 16) * 16;
+    needsResize = true;
+  }
+  if (targetHeight < MIN_VIDEO_DIMENSION) {
+    targetHeight = Math.ceil(MIN_VIDEO_DIMENSION / 16) * 16;
+    needsResize = true;
+  }
+
+  let imageBuffer;
+
+  if (needsResize) {
+    if (resizeReason === 'memory budget') {
+      log('⚠️', `AUTO-RESIZE: Image ${originalWidth}x${originalHeight} exceeds memory budget for ${frames} frames`);
+      log('🔄', `Scaling down to ${targetWidth}x${targetHeight} to prevent GPU out-of-memory errors`);
+    } else {
+      log('🔄', `Resizing image from ${originalWidth}x${originalHeight} to ${targetWidth}x${targetHeight} to meet video requirements...`);
+    }
+
+    // Use sharp to resize the image
+    imageBuffer = await sharp(imagePath)
+      .resize(targetWidth, targetHeight, {
+        fit: 'inside',
+        withoutEnlargement: false // Allow enlargement if needed to meet minimum dimensions
+      })
+      .toBuffer();
+  } else {
+    // No resize needed, just read the original file
+    imageBuffer = fs.readFileSync(imagePath);
+  }
+
+  return {
+    buffer: imageBuffer,
+    width: targetWidth,
+    height: targetHeight,
+    wasResized: needsResize,
+    resizeReason: resizeReason
+  };
 }
 
 /**
@@ -302,6 +446,64 @@ function askQuestion(question) {
   });
 }
 
+async function askDuration() {
+  // If seconds was explicitly set via command line, use it
+  if (SECONDS !== null) {
+    return SECONDS;
+  }
+
+  // If not TTY, use default
+  if (!process.stdin.isTTY) {
+    return DEFAULT_SECONDS;
+  }
+
+  const answer = await askQuestion(`\n⏱️  Video duration in seconds (default: ${DEFAULT_SECONDS}): `);
+
+  if (answer === '') {
+    console.log(`  → Using default: ${DEFAULT_SECONDS} seconds\n`);
+    return DEFAULT_SECONDS;
+  }
+
+  const seconds = parseFloat(answer);
+  if (isNaN(seconds) || seconds <= 0) {
+    console.log(`  → Invalid input, using default: ${DEFAULT_SECONDS} seconds\n`);
+    return DEFAULT_SECONDS;
+  }
+
+  console.log(`  → Using ${seconds} seconds\n`);
+  return seconds;
+}
+
+async function askFPS() {
+  // If fps was explicitly set via command line, use it
+  if (FPS_EXPLICIT !== null) {
+    return FPS_EXPLICIT;
+  }
+
+  // If not TTY, use default
+  if (!process.stdin.isTTY) {
+    return DEFAULT_FPS;
+  }
+
+  console.log('\n🎞️  Select frame rate:\n');
+  console.log('  1. 16 FPS (default)');
+  console.log('  2. 32 FPS');
+  console.log();
+
+  const answer = await askQuestion('Enter choice [1/2] (default: 1): ');
+
+  if (answer === '' || answer === '1' || answer === '16') {
+    console.log('  → Using 16 FPS\n');
+    return 16;
+  } else if (answer === '2' || answer === '32') {
+    console.log('  → Using 32 FPS\n');
+    return 32;
+  } else {
+    console.log('  → Invalid input, using default: 16 FPS\n');
+    return 16;
+  }
+}
+
 async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps) {
   const url = `https://socket.sogni.ai/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}/${steps}`;
   const response = await fetch(url);
@@ -335,35 +537,58 @@ async function main() {
   console.log();
 
   // Auto-detect dimensions from reference image if not specified
+  let detectedWidth, detectedHeight;
   if (!WIDTH || !HEIGHT) {
     log('📐', 'Detecting image dimensions...');
     const dimensions = getImageDimensions(referenceImagePath);
     if (dimensions) {
-      WIDTH = WIDTH || dimensions.width;
-      HEIGHT = HEIGHT || dimensions.height;
-      log('✓', `Auto-detected dimensions: ${WIDTH}x${HEIGHT}`);
+      detectedWidth = WIDTH || dimensions.width;
+      detectedHeight = HEIGHT || dimensions.height;
+      log('✓', `Auto-detected dimensions: ${detectedWidth}x${detectedHeight}`);
     } else {
       log('⚠️', 'Could not auto-detect image dimensions, using defaults: 640x640');
-      WIDTH = WIDTH || 640;
-      HEIGHT = HEIGHT || 640;
+      detectedWidth = WIDTH || 640;
+      detectedHeight = HEIGHT || 640;
     }
     console.log();
-  }
-
-  // Validate minimum video dimensions for Wan 2.2
-  if (WIDTH < MIN_VIDEO_DIMENSION) {
-    console.error(`Error: Video width must be at least ${MIN_VIDEO_DIMENSION}px for Wan 2.2 models (got ${WIDTH})`);
-    process.exit(1);
-  }
-  if (HEIGHT < MIN_VIDEO_DIMENSION) {
-    console.error(`Error: Video height must be at least ${MIN_VIDEO_DIMENSION}px for Wan 2.2 models (got ${HEIGHT})`);
-    process.exit(1);
+  } else {
+    detectedWidth = WIDTH;
+    detectedHeight = HEIGHT;
   }
 
   // Prompt for model if not specified
   if (!VIDEO_MODEL_ID) {
     VIDEO_MODEL_ID = await askSpeedOrQuality();
   }
+
+  // Ask for duration and FPS BEFORE processing image (we need frame count for memory budget)
+  const duration = await askDuration();
+  VIDEO_CONFIG.fps = await askFPS();
+  VIDEO_CONFIG.frames = Math.round(duration * VIDEO_CONFIG.fps) + 1;
+
+  // Validate frame count is within allowed range
+  if (VIDEO_CONFIG.frames > MAX_FRAMES) {
+    const maxSeconds = (MAX_FRAMES - 1) / VIDEO_CONFIG.fps;
+    log('⚠️', `Requested ${VIDEO_CONFIG.frames} frames exceeds maximum of ${MAX_FRAMES}.`);
+    log('📉', `Capping duration to ${maxSeconds.toFixed(1)} seconds at ${VIDEO_CONFIG.fps} FPS.`);
+    VIDEO_CONFIG.frames = MAX_FRAMES;
+  }
+  if (VIDEO_CONFIG.frames < MIN_FRAMES) {
+    const minSeconds = (MIN_FRAMES - 1) / VIDEO_CONFIG.fps;
+    log('⚠️', `Requested ${VIDEO_CONFIG.frames} frames is below minimum of ${MIN_FRAMES}.`);
+    log('📈', `Increasing duration to ${minSeconds.toFixed(1)} seconds at ${VIDEO_CONFIG.fps} FPS.`);
+    VIDEO_CONFIG.frames = MIN_FRAMES;
+  }
+
+  // Process the image (will resize if necessary to meet video dimension/memory constraints)
+  const processedImage = await processImageForVideo(referenceImagePath, detectedWidth, detectedHeight, VIDEO_CONFIG.frames);
+  WIDTH = processedImage.width;
+  HEIGHT = processedImage.height;
+  const referenceImageBuffer = processedImage.buffer;
+
+  // The dimensions are now guaranteed to be within the valid range
+  log('✓', `Final video dimensions: ${WIDTH}x${HEIGHT}`);
+  console.log();
 
   // Determine if using speed (LoRA) variant
   const isSpeedVariant = VIDEO_MODEL_ID.includes('lightx2v');
@@ -536,8 +761,7 @@ async function main() {
 
     let startTime = null;
 
-    // Load the reference assets
-    const referenceImageBuffer = fs.readFileSync(referenceImagePath);
+    // Load the reference video (reference image was already processed above)
     const referenceVideoBuffer = fs.readFileSync(referenceVideoPath);
 
     // Determine which prompts to use
