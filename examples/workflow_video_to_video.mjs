@@ -44,7 +44,11 @@ import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
 import imageSize from 'image-size';
-import { loadCredentials, loadTokenTypePreference, saveTokenTypePreference } from './credentials.mjs';
+import {
+  loadCredentials,
+  loadTokenTypePreference,
+  saveTokenTypePreference
+} from './credentials.mjs';
 import {
   MODELS,
   VIDEO_CONSTRAINTS,
@@ -66,7 +70,8 @@ import {
 const streamPipeline = promisify(pipeline);
 
 // Default prompt for this workflow
-const DEFAULT_PROMPT = 'High quality animation with smooth natural movement matching the source motion';
+const DEFAULT_PROMPT =
+  'High quality animation with smooth natural movement matching the source motion';
 
 // Video dimension constraints
 const MAX_VIDEO_DIMENSION = 1536;
@@ -94,8 +99,8 @@ async function parseArgs() {
     seed: null,
     guidance: null,
     shift: null,
-    comfySampler: null,
-    comfyScheduler: null,
+    sampler: null,
+    scheduler: null,
     output: './output',
     interactive: true
   };
@@ -138,9 +143,9 @@ async function parseArgs() {
     } else if (arg === '--shift' && args[i + 1]) {
       options.shift = parseFloat(args[++i]);
     } else if (arg === '--comfy-sampler' && args[i + 1]) {
-      options.comfySampler = args[++i];
+      options.sampler = args[++i];
     } else if (arg === '--comfy-scheduler' && args[i + 1]) {
-      options.comfyScheduler = args[++i];
+      options.scheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -306,8 +311,10 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'move-lightx2v';
     modelConfig = MODELS.animate[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use one of: move-lightx2v, move-quality, replace-lightx2v, replace-quality`);
-    process.exit(1);
+      console.error(
+        `Error: Unknown model '${OPTIONS.modelKey}'. Use one of: move-lightx2v, move-quality, replace-lightx2v, replace-quality`
+      );
+      process.exit(1);
     }
   }
 
@@ -347,8 +354,8 @@ async function main() {
   if (!OPTIONS.fps) OPTIONS.fps = VIDEO_CONSTRAINTS.fps.default;
   if (!OPTIONS.shift) OPTIONS.shift = modelConfig.defaultShift;
   // Video models only support ComfyUI sampler/scheduler
-  if (!OPTIONS.comfySampler) OPTIONS.comfySampler = modelConfig.defaultComfySampler || 'euler';
-  if (!OPTIONS.comfyScheduler) OPTIONS.comfyScheduler = modelConfig.defaultComfyScheduler || 'simple';
+  if (!OPTIONS.sampler) OPTIONS.sampler = modelConfig.defaultComfySampler || 'euler';
+  if (!OPTIONS.scheduler) OPTIONS.scheduler = modelConfig.defaultComfyScheduler || 'simple';
   if (OPTIONS.guidance === undefined || OPTIONS.guidance === null) {
     OPTIONS.guidance = modelConfig.defaultGuidance;
   }
@@ -357,12 +364,16 @@ async function main() {
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
 
   // Parse SAM2 coordinates if provided via CLI
-  if (OPTIONS.sam2Coordinates && typeof OPTIONS.sam2Coordinates === 'string' && !OPTIONS.sam2Coordinates.startsWith('[')) {
+  if (
+    OPTIONS.sam2Coordinates &&
+    typeof OPTIONS.sam2Coordinates === 'string' &&
+    !OPTIONS.sam2Coordinates.startsWith('[')
+  ) {
     try {
       OPTIONS.sam2Coordinates = parseSam2Coordinates(OPTIONS.sam2Coordinates);
     } catch (error) {
       console.error(`Error parsing SAM2 coordinates: ${error.message}`);
-    process.exit(1);
+      process.exit(1);
     }
   }
 
@@ -485,30 +496,32 @@ async function main() {
         console.log('⚠️  Payment preference not saved.\n');
       }
     } else {
-      console.log(`💳 Using saved payment preference: ${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} tokens`);
+      console.log(
+        `💳 Using saved payment preference: ${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} tokens`
+      );
       console.log();
     }
 
     // Show configuration first
     const videoDuration = (OPTIONS.frames - 1) / OPTIONS.fps;
     const configDisplay = {
-      'Model': modelConfig.name,
-      'Prompt': OPTIONS.prompt,
-      'Workflow': modelConfig.workflowType,
-      'Image': OPTIONS.image,
-      'Video': OPTIONS.video,
-      'Resolution': `${OPTIONS.width}x${OPTIONS.height}`,
-      'Duration': `${videoDuration.toFixed(1)}s`,
-      'FPS': OPTIONS.fps,
-      'Frames': OPTIONS.frames,
-      'Batch': OPTIONS.batch,
-      'Guidance': OPTIONS.guidance,
-      'Shift': OPTIONS.shift,
-      'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1
+      Model: modelConfig.name,
+      Prompt: OPTIONS.prompt,
+      Workflow: modelConfig.workflowType,
+      Image: OPTIONS.image,
+      Video: OPTIONS.video,
+      Resolution: `${OPTIONS.width}x${OPTIONS.height}`,
+      Duration: `${videoDuration.toFixed(1)}s`,
+      FPS: OPTIONS.fps,
+      Frames: OPTIONS.frames,
+      Batch: OPTIONS.batch,
+      Guidance: OPTIONS.guidance,
+      Shift: OPTIONS.shift,
+      Seed: OPTIONS.seed !== null ? OPTIONS.seed : -1
     };
     // Video models only support ComfyUI sampler/scheduler
-    configDisplay['Comfy Sampler'] = OPTIONS.comfySampler;
-    configDisplay['Comfy Scheduler'] = OPTIONS.comfyScheduler;
+    configDisplay['Comfy Sampler'] = OPTIONS.sampler;
+    configDisplay['Comfy Scheduler'] = OPTIONS.scheduler;
 
     if (modelConfig.supportsSam2Coordinates && OPTIONS.sam2Coordinates) {
       const coords = JSON.parse(OPTIONS.sam2Coordinates);
@@ -526,7 +539,15 @@ async function main() {
 
     // Get cost estimate
     log('💵', 'Fetching cost estimate...');
-    const estimate = await getVideoJobEstimate(tokenType, modelConfig.id, OPTIONS.width, OPTIONS.height, OPTIONS.frames, OPTIONS.fps, modelConfig.defaultSteps);
+    const estimate = await getVideoJobEstimate(
+      tokenType,
+      modelConfig.id,
+      OPTIONS.width,
+      OPTIONS.height,
+      OPTIONS.frames,
+      OPTIONS.fps,
+      modelConfig.defaultSteps
+    );
 
     console.log();
     console.log('📊 Cost Estimate:');
@@ -534,12 +555,16 @@ async function main() {
     if (tokenType === 'spark') {
       const cost = parseFloat(estimate.quote.project.costInSpark || 0);
       const currentBalance = parseFloat(balance.spark.net || 0);
-      console.log(`   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      console.log(
+        `   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`
+      );
       console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
     } else {
       const cost = parseFloat(estimate.quote.project.costInSogni || 0);
       const currentBalance = parseFloat(balance.sogni.net || 0);
-      console.log(`   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      console.log(
+        `   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`
+      );
       console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
     }
 
@@ -595,8 +620,8 @@ async function main() {
     };
 
     // Video models only support ComfyUI sampler/scheduler
-    if (OPTIONS.comfySampler) projectParams.comfySampler = OPTIONS.comfySampler;
-    if (OPTIONS.comfyScheduler) projectParams.comfyScheduler = OPTIONS.comfyScheduler;
+    if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
+    if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
 
     // Add SAM2 coordinates for animate-replace
     if (modelConfig.supportsSam2Coordinates && OPTIONS.sam2Coordinates) {
@@ -759,7 +784,10 @@ async function main() {
           // Give a small delay for all video players to open
           process.exit(0);
         } else {
-          log('❌', `${failedVideos} out of ${totalVideos} video${totalVideos > 1 ? 's' : ''} failed to generate`);
+          log(
+            '❌',
+            `${failedVideos} out of ${totalVideos} video${totalVideos > 1 ? 's' : ''} failed to generate`
+          );
           console.log();
           process.exit(1);
         }
@@ -775,9 +803,12 @@ async function main() {
         }
       };
 
-      setTimeout(() => {
-        reject(new Error('Generation timed out after 60 minutes'));
-      }, 60 * 60 * 1000);
+      setTimeout(
+        () => {
+          reject(new Error('Generation timed out after 60 minutes'));
+        },
+        60 * 60 * 1000
+      );
 
       checkCompletion();
     });
@@ -789,7 +820,6 @@ async function main() {
     } else {
       log('✅', 'Workflow completed successfully!');
     }
-
   } catch (error) {
     log('❌', `Error: ${error.message}`);
     process.exit(1);

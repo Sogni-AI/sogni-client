@@ -413,7 +413,8 @@ export async function pickImageFile(defaultImage = null, label = 'input image') 
 
   for (const scanDir of scanDirs) {
     if (fs.existsSync(scanDir)) {
-      const files = fs.readdirSync(scanDir)
+      const files = fs
+        .readdirSync(scanDir)
         .filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f))
         .map((f) => ({ file: f, dir: scanDir, path: path.join(scanDir, f) }));
       allImages = allImages.concat(files);
@@ -468,12 +469,11 @@ export async function pickAudioFile(defaultAudio = null, label = 'audio file') {
   // Scan test-assets for audio files
   const scanDir = './test-assets';
   if (!fs.existsSync(scanDir)) {
-    throw new Error(
-      `Directory ${scanDir} not found. Please create it and add audio files.`
-    );
+    throw new Error(`Directory ${scanDir} not found. Please create it and add audio files.`);
   }
 
-  const audioFiles = fs.readdirSync(scanDir)
+  const audioFiles = fs
+    .readdirSync(scanDir)
     .filter((f) => /\.(mp3|wav|m4a|ogg|flac)$/i.test(f))
     .sort();
 
@@ -526,12 +526,11 @@ export async function pickVideoFile(defaultVideo = null, label = 'video file') {
   // Scan test-assets for video files
   const scanDir = './test-assets';
   if (!fs.existsSync(scanDir)) {
-    throw new Error(
-      `Directory ${scanDir} not found. Please create it and add video files.`
-    );
+    throw new Error(`Directory ${scanDir} not found. Please create it and add video files.`);
   }
 
-  const videoFiles = fs.readdirSync(scanDir)
+  const videoFiles = fs
+    .readdirSync(scanDir)
     .filter((f) => /\.(mp4|mov|avi|webm|mkv)$/i.test(f))
     .sort();
 
@@ -575,7 +574,7 @@ export async function selectModel(models, defaultKey = null) {
   console.log('\n📦 Select Model:\n');
   modelKeys.forEach((key, index) => {
     const model = models[key];
-    const marker = (defaultKey && key === defaultKey) ? ' (default)' : '';
+    const marker = defaultKey && key === defaultKey ? ' (default)' : '';
     console.log(`  ${index + 1}. ${model.name}${marker}`);
     if (model.description) {
       console.log(`     ${model.description}`);
@@ -583,7 +582,9 @@ export async function selectModel(models, defaultKey = null) {
   });
   console.log();
 
-  const choice = await askQuestion(`Enter choice [1-${modelKeys.length}] (default: ${defaultIndex}): `);
+  const choice = await askQuestion(
+    `Enter choice [1-${modelKeys.length}] (default: ${defaultIndex}): `
+  );
   const choiceNum = parseInt(choice.trim(), 10);
 
   if (choiceNum >= 1 && choiceNum <= modelKeys.length) {
@@ -610,32 +611,44 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
   if (!options.prompt) {
     console.log();
     if (defaultPrompt) {
-      console.log(`Default prompt: "${defaultPrompt.substring(0, 80)}${defaultPrompt.length > 80 ? '...' : ''}"`);
+      console.log(
+        `Default prompt: "${defaultPrompt.substring(0, 80)}${defaultPrompt.length > 80 ? '...' : ''}"`
+      );
     }
     const promptInput = await askQuestion('Enter your prompt (or press Enter for default): ');
     options.prompt = promptInput.trim() || defaultPrompt;
   }
 
   // Width
-  const defaultWidth = modelConfig.defaultWidth || (isVideo ? VIDEO_CONSTRAINTS.width.default : 1024);
-  const widthRange = isVideo ? ` (${VIDEO_CONSTRAINTS.width.min}-${VIDEO_CONSTRAINTS.width.max})` : '';
+  const defaultWidth =
+    modelConfig.defaultWidth || (isVideo ? VIDEO_CONSTRAINTS.width.default : 1024);
+  const widthRange = isVideo
+    ? ` (${VIDEO_CONSTRAINTS.width.min}-${VIDEO_CONSTRAINTS.width.max})`
+    : '';
   const widthInput = await askQuestion(`Width${widthRange} (default: ${defaultWidth}): `);
   if (widthInput.trim()) {
     const w = parseInt(widthInput.trim(), 10);
     if (!isNaN(w) && w > 0) {
-      options.width = isVideo ? Math.max(VIDEO_CONSTRAINTS.width.min, Math.min(VIDEO_CONSTRAINTS.width.max, w)) : w;
+      options.width = isVideo
+        ? Math.max(VIDEO_CONSTRAINTS.width.min, Math.min(VIDEO_CONSTRAINTS.width.max, w))
+        : w;
     }
   }
   if (!options.width) options.width = defaultWidth;
 
   // Height
-  const defaultHeight = modelConfig.defaultHeight || (isVideo ? VIDEO_CONSTRAINTS.height.default : 1024);
-  const heightRange = isVideo ? ` (${VIDEO_CONSTRAINTS.height.min}-${VIDEO_CONSTRAINTS.height.max})` : '';
+  const defaultHeight =
+    modelConfig.defaultHeight || (isVideo ? VIDEO_CONSTRAINTS.height.default : 1024);
+  const heightRange = isVideo
+    ? ` (${VIDEO_CONSTRAINTS.height.min}-${VIDEO_CONSTRAINTS.height.max})`
+    : '';
   const heightInput = await askQuestion(`Height${heightRange} (default: ${defaultHeight}): `);
   if (heightInput.trim()) {
     const h = parseInt(heightInput.trim(), 10);
     if (!isNaN(h) && h > 0) {
-      options.height = isVideo ? Math.max(VIDEO_CONSTRAINTS.height.min, Math.min(VIDEO_CONSTRAINTS.height.max, h)) : h;
+      options.height = isVideo
+        ? Math.max(VIDEO_CONSTRAINTS.height.min, Math.min(VIDEO_CONSTRAINTS.height.max, h))
+        : h;
     }
   }
   if (!options.height) options.height = defaultHeight;
@@ -663,7 +676,9 @@ export async function promptVideoDuration(options, modelConfig = {}) {
   const maxDuration = ((maxFrames - 1) / fps).toFixed(1);
 
   console.log();
-  const durationInput = await askQuestion(`Duration in seconds (${minDuration}-${maxDuration}s, default: ${defaultDuration}): `);
+  const durationInput = await askQuestion(
+    `Duration in seconds (${minDuration}-${maxDuration}s, default: ${defaultDuration}): `
+  );
   let duration = parseFloat(defaultDuration);
   if (durationInput.trim()) {
     const d = parseFloat(durationInput.trim());
@@ -708,7 +723,9 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
 
     // Shift
     const defaultShift = modelConfig.defaultShift || VIDEO_CONSTRAINTS.shift.default;
-    const shiftInput = await askQuestion(`  Shift (motion intensity, ${VIDEO_CONSTRAINTS.shift.min}-${VIDEO_CONSTRAINTS.shift.max}, default: ${defaultShift}): `);
+    const shiftInput = await askQuestion(
+      `  Shift (motion intensity, ${VIDEO_CONSTRAINTS.shift.min}-${VIDEO_CONSTRAINTS.shift.max}, default: ${defaultShift}): `
+    );
     if (shiftInput.trim()) {
       const s = parseFloat(shiftInput.trim());
       if (s >= VIDEO_CONSTRAINTS.shift.min && s <= VIDEO_CONSTRAINTS.shift.max) {
@@ -724,7 +741,9 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     const defaultGuidance = modelConfig.defaultGuidance || 4.0;
     const minGuidance = modelConfig.minGuidance || 1.5;
     const maxGuidance = modelConfig.maxGuidance || 8.0;
-    const guidanceInput = await askQuestion(`Guidance scale (${minGuidance}-${maxGuidance}, default: ${defaultGuidance}): `);
+    const guidanceInput = await askQuestion(
+      `Guidance scale (${minGuidance}-${maxGuidance}, default: ${defaultGuidance}): `
+    );
     if (guidanceInput.trim()) {
       const g = parseFloat(guidanceInput.trim());
       if (!isNaN(g) && g >= minGuidance && g <= maxGuidance) {
@@ -738,57 +757,63 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     if (options.guidance === undefined) options.guidance = defaultGuidance;
   }
 
-  // Sampler - use comfySampler for ComfyUI models, sampler for legacy models
+  // Sampler - use sampler for ComfyUI models, sampler for legacy models
   const isComfyModel = modelConfig.isComfyModel;
   const defaultSampler = modelConfig.defaultComfySampler || modelConfig.defaultSampler || 'euler';
-  const defaultSamplerIdx = COMFY_SAMPLERS.findIndex(s => s.id === defaultSampler) + 1;
-  const defaultSamplerName = COMFY_SAMPLERS.find(s => s.id === defaultSampler)?.name || 'Euler';
+  const defaultSamplerIdx = COMFY_SAMPLERS.findIndex((s) => s.id === defaultSampler) + 1;
+  const defaultSamplerName = COMFY_SAMPLERS.find((s) => s.id === defaultSampler)?.name || 'Euler';
   console.log('\n  Samplers:');
   COMFY_SAMPLERS.forEach((s, i) => {
     const marker = s.id === defaultSampler ? ' (recommended)' : '';
     console.log(`    ${i + 1}. ${s.name} - ${s.description}${marker}`);
   });
-  const samplerInput = await askQuestion(`  Select sampler (default: ${defaultSamplerIdx} - ${defaultSamplerName}): `);
+  const samplerInput = await askQuestion(
+    `  Select sampler (default: ${defaultSamplerIdx} - ${defaultSamplerName}): `
+  );
   if (samplerInput.trim()) {
     const idx = parseInt(samplerInput.trim(), 10) - 1;
     if (idx >= 0 && idx < COMFY_SAMPLERS.length) {
       if (isComfyModel) {
-        options.comfySampler = COMFY_SAMPLERS[idx].id;
+        options.sampler = COMFY_SAMPLERS[idx].id;
       } else {
         options.sampler = COMFY_SAMPLERS[idx].id;
       }
     }
   }
   // Set default if not selected
-  if (isComfyModel && !options.comfySampler) {
-    options.comfySampler = defaultSampler;
+  if (isComfyModel && !options.sampler) {
+    options.sampler = defaultSampler;
   } else if (!isComfyModel && !options.sampler) {
     options.sampler = defaultSampler;
   }
 
-  // Scheduler - use comfyScheduler for ComfyUI models, scheduler for legacy models
-  const defaultScheduler = modelConfig.defaultComfyScheduler || modelConfig.defaultScheduler || 'simple';
-  const defaultSchedulerIdx = COMFY_SCHEDULERS.findIndex(s => s.id === defaultScheduler) + 1;
-  const defaultSchedulerName = COMFY_SCHEDULERS.find(s => s.id === defaultScheduler)?.name || 'Simple';
+  // Scheduler - use scheduler for ComfyUI models, scheduler for legacy models
+  const defaultScheduler =
+    modelConfig.defaultComfyScheduler || modelConfig.defaultScheduler || 'simple';
+  const defaultSchedulerIdx = COMFY_SCHEDULERS.findIndex((s) => s.id === defaultScheduler) + 1;
+  const defaultSchedulerName =
+    COMFY_SCHEDULERS.find((s) => s.id === defaultScheduler)?.name || 'Simple';
   console.log('\n  Schedulers:');
   COMFY_SCHEDULERS.forEach((s, i) => {
     const marker = s.id === defaultScheduler ? ' (recommended)' : '';
     console.log(`    ${i + 1}. ${s.name} - ${s.description}${marker}`);
   });
-  const schedulerInput = await askQuestion(`  Select scheduler (default: ${defaultSchedulerIdx} - ${defaultSchedulerName}): `);
+  const schedulerInput = await askQuestion(
+    `  Select scheduler (default: ${defaultSchedulerIdx} - ${defaultSchedulerName}): `
+  );
   if (schedulerInput.trim()) {
     const idx = parseInt(schedulerInput.trim(), 10) - 1;
     if (idx >= 0 && idx < COMFY_SCHEDULERS.length) {
       if (isComfyModel) {
-        options.comfyScheduler = COMFY_SCHEDULERS[idx].id;
+        options.scheduler = COMFY_SCHEDULERS[idx].id;
       } else {
         options.scheduler = COMFY_SCHEDULERS[idx].id;
       }
     }
   }
   // Set default if not selected
-  if (isComfyModel && !options.comfyScheduler) {
-    options.comfyScheduler = defaultScheduler;
+  if (isComfyModel && !options.scheduler) {
+    options.scheduler = defaultScheduler;
   } else if (!isComfyModel && !options.scheduler) {
     options.scheduler = defaultScheduler;
   }
@@ -813,7 +838,9 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
   // Batch count (number of images or videos to generate)
   const maxBatch = isVideo ? 4 : 16;
   const mediaType = isVideo ? 'videos' : 'images';
-  const batchInput = await askQuestion(`\n  Number of ${mediaType} to generate (1-${maxBatch}, default: 1): `);
+  const batchInput = await askQuestion(
+    `\n  Number of ${mediaType} to generate (1-${maxBatch}, default: 1): `
+  );
   if (batchInput.trim()) {
     const b = parseInt(batchInput.trim(), 10);
     if (b >= 1 && b <= maxBatch) {
@@ -849,7 +876,9 @@ export async function promptS2VOptions(options, audioDuration) {
   console.log(`  Detected audio duration: ${audioDuration.toFixed(1)}s`);
 
   // Audio start position
-  const audioStartInput = await askQuestion(`  Audio start position in seconds (0-${audioDuration.toFixed(1)}s, default: 0): `);
+  const audioStartInput = await askQuestion(
+    `  Audio start position in seconds (0-${audioDuration.toFixed(1)}s, default: 0): `
+  );
   if (audioStartInput.trim()) {
     const s = parseFloat(audioStartInput.trim());
     if (!isNaN(s) && s >= 0 && s < audioDuration) {
@@ -860,7 +889,9 @@ export async function promptS2VOptions(options, audioDuration) {
 
   // Audio duration (how much of the audio to use)
   const maxAudioDuration = audioDuration - options.audioStart;
-  const audioLengthInput = await askQuestion(`  Audio duration to use (0-${maxAudioDuration.toFixed(1)}s, default: auto from video length): `);
+  const audioLengthInput = await askQuestion(
+    `  Audio duration to use (0-${maxAudioDuration.toFixed(1)}s, default: auto from video length): `
+  );
   if (audioLengthInput.trim()) {
     const d = parseFloat(audioLengthInput.trim());
     if (!isNaN(d) && d > 0 && d <= maxAudioDuration) {
@@ -994,9 +1025,8 @@ export function displayPrompts(prompts) {
   console.log();
   console.log('📝 Prompts:');
   if (prompts.positive) {
-    const truncated = prompts.positive.length > 100
-      ? prompts.positive.substring(0, 100) + '...'
-      : prompts.positive;
+    const truncated =
+      prompts.positive.length > 100 ? prompts.positive.substring(0, 100) + '...' : prompts.positive;
     console.log(`   Positive: ${truncated}`);
   }
   if (prompts.negative) {
@@ -1033,11 +1063,11 @@ export function readFileAsBuffer(filePath) {
   }
   // Read file as Buffer
   const buffer = fs.readFileSync(filePath);
-  
+
   // CRITICAL: Node.js Buffer may be backed by a pooled ArrayBuffer.
   // We must slice to get ONLY our file's data, not the entire pool.
   const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-  
+
   // Return as Blob - this is what the SDK's toFetchBody() expects
   return new Blob([arrayBuffer]);
 }
@@ -1051,4 +1081,3 @@ export function readFileAsBuffer(filePath) {
 export function readFilesAsBuffers(filePaths) {
   return filePaths.filter(Boolean).map(readFileAsBuffer);
 }
-
