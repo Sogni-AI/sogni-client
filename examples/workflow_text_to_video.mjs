@@ -16,8 +16,8 @@
  *
  * Options:
  *   --model     Model: lightx2v or quality (default: prompts for selection)
- *   --width     Video width (default: 640, min: 480)
- *   --height    Video height (default: 640, min: 480)
+ *   --width     Video width (default: 832, min: 480)
+ *   --height    Video height (default: 480, min: 480)
  *   --duration  Duration in seconds (default: 5, converts to frames)
  *   --fps       Frames per second: 16 or 32 (default: 16)
  *   --batch     Number of videos to generate (default: 1)
@@ -155,8 +155,8 @@ Options:
   --model     Model: lightx2v or quality (default: prompts for selection)
   --negative  Negative prompt (default: none)
   --style     Style prompt (default: none)
-  --width     Video width (default: 640, min: 480, max: 1536)
-  --height    Video height (default: 640, min: 480, max: 1536)
+  --width     Video width (default: 832, min: 480, max: 1536)
+  --height    Video height (default: 480, min: 480, max: 1536)
   --duration  Duration in seconds (default: 5)
   --fps       Frames per second: 16 or 32 (default: 16)
   --batch     Number of videos to generate (default: 1)

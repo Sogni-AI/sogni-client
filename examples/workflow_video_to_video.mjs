@@ -61,6 +61,7 @@ import {
   pickImageFile,
   pickVideoFile,
   readFileAsBuffer,
+  processImageForVideo,
   log,
   formatDuration,
   displayConfig,
@@ -290,7 +291,7 @@ async function main() {
   }
 
   // Get image dimensions
-  let imageInfo = { width: 640, height: 640 };
+  let imageInfo = { width: 832, height: 480 };
   try {
     const dimensions = imageSize(OPTIONS.image);
     if (dimensions.width && dimensions.height) {

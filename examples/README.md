@@ -340,7 +340,7 @@ node workflow_text_to_video.mjs "Dancing robots" --fps 32 # With options
 
 **Options:**
 - `--model` - Model: lightx2v (fast) or quality (best)
-- `--width` / `--height` - Video dimensions (default: 640)
+- `--width` / `--height` - Video dimensions (default: 832x480)
 - `--duration` - Duration in seconds (default: 5)
 - `--fps` - Frames per second: 16 or 32 (default: 16)
 - `--batch` - Number of videos (1-5)

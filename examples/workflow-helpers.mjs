@@ -8,6 +8,8 @@
 import * as readline from 'node:readline';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import imageSize from 'image-size';
+import sharp from 'sharp';
 
 // ============================================
 // Model Configurations
@@ -339,8 +341,8 @@ export const MODELS = {
 
 // Base constraints - note that frames.max may be overridden by model-specific maxFrames
 export const VIDEO_CONSTRAINTS = {
-  width: { min: 480, max: 1536, default: 640, step: 16 },
-  height: { min: 480, max: 1536, default: 640, step: 16 },
+  width: { min: 480, max: 1536, default: 832, step: 16 },
+  height: { min: 480, max: 1536, default: 480, step: 16 },
   frames: { min: 17, max: 161, default: 81 }, // Some models support max: 321
   fps: { allowedValues: [16, 32], default: 16 },
   shift: { min: 1.0, max: 8.0, default: 8.0, step: 0.1 },
@@ -352,6 +354,174 @@ export const VIDEO_CONSTRAINTS = {
     lightning: { min: 0.7, max: 1.6, step: 0.01 }
   }
 };
+
+// ============================================
+// GPU Memory Budget for Video Generation
+// ============================================
+
+/**
+ * Memory budget to prevent GPU OOM errors.
+ * This is the max total pixels (width × height × frames) the GPU can handle.
+ * Conservative estimate based on 14B model capabilities.
+ */
+export const MAX_PIXEL_BUDGET = 85_000_000;
+
+/**
+ * Calculate the maximum allowed dimension based on frame count and pixel budget.
+ * @param {number} frames - Number of frames
+ * @returns {number} Maximum dimension in pixels
+ */
+export function calculateMaxDimension(frames) {
+  // Max pixels per frame = total budget / number of frames
+  const maxPixelsPerFrame = MAX_PIXEL_BUDGET / frames;
+  // Assuming roughly square aspect ratio for the limit calculation
+  const maxDimFromBudget = Math.floor(Math.sqrt(maxPixelsPerFrame));
+  // Return the more restrictive of the two limits
+  return Math.min(maxDimFromBudget, VIDEO_CONSTRAINTS.width.max);
+}
+
+/**
+ * Ensure dimensions are divisible by 16 (video encoder requirement).
+ * @param {number} width - Input width
+ * @param {number} height - Input height
+ * @returns {{width: number, height: number}} Adjusted dimensions
+ */
+export function ensureDimensionsDivisibleBy16(width, height) {
+  return {
+    width: Math.floor(width / 16) * 16,
+    height: Math.floor(height / 16) * 16
+  };
+}
+
+/**
+ * Process image for video generation - auto-resize if needed.
+ * Handles memory budget constraints and dimension requirements.
+ *
+ * @param {string} imagePath - Path to the image file
+ * @param {number} frames - Target number of frames (for memory budget calculation)
+ * @param {Object} options - Optional overrides
+ * @param {number} options.targetWidth - Target width (optional, auto-detected if not provided)
+ * @param {number} options.targetHeight - Target height (optional, auto-detected if not provided)
+ * @returns {Promise<{buffer: Buffer, width: number, height: number, wasResized: boolean, originalWidth: number, originalHeight: number}>}
+ */
+export async function processImageForVideo(imagePath, frames, options = {}) {
+  // Get original dimensions
+  const dimensions = imageSize(imagePath);
+  if (!dimensions.width || !dimensions.height) {
+    throw new Error('Could not read image dimensions');
+  }
+
+  const originalWidth = dimensions.width;
+  const originalHeight = dimensions.height;
+
+  let targetWidth = options.targetWidth || originalWidth;
+  let targetHeight = options.targetHeight || originalHeight;
+  let needsResize = false;
+  let resizeReason = '';
+
+  // Calculate the effective max dimension based on frame count (memory budget)
+  const effectiveMaxDimension = calculateMaxDimension(frames);
+
+  // Check if we're limited by memory budget vs static limit
+  if (effectiveMaxDimension < VIDEO_CONSTRAINTS.width.max) {
+    log('💾', `Memory limit: max ${effectiveMaxDimension}px per side for ${frames} frames`);
+  }
+
+  // Check if image exceeds maximum dimensions (considering memory budget)
+  if (targetWidth > effectiveMaxDimension || targetHeight > effectiveMaxDimension) {
+    needsResize = true;
+    resizeReason = 'memory budget';
+
+    // Calculate scaling factor to fit within max dimensions while maintaining aspect ratio
+    const scaleFactor = Math.min(
+      effectiveMaxDimension / targetWidth,
+      effectiveMaxDimension / targetHeight
+    );
+
+    targetWidth = Math.floor(targetWidth * scaleFactor);
+    targetHeight = Math.floor(targetHeight * scaleFactor);
+  }
+
+  // Check if image is below minimum dimensions
+  if (targetWidth < VIDEO_CONSTRAINTS.width.min || targetHeight < VIDEO_CONSTRAINTS.height.min) {
+    needsResize = true;
+    if (!resizeReason) resizeReason = 'below minimum';
+
+    // Calculate scaling factor to meet minimum dimensions while maintaining aspect ratio
+    const scaleFactor = Math.max(
+      VIDEO_CONSTRAINTS.width.min / targetWidth,
+      VIDEO_CONSTRAINTS.height.min / targetHeight
+    );
+
+    targetWidth = Math.floor(targetWidth * scaleFactor);
+    targetHeight = Math.floor(targetHeight * scaleFactor);
+
+    // Ensure we don't exceed max dimensions after upscaling
+    if (targetWidth > effectiveMaxDimension || targetHeight > effectiveMaxDimension) {
+      const downscaleFactor = Math.min(
+        effectiveMaxDimension / targetWidth,
+        effectiveMaxDimension / targetHeight
+      );
+      targetWidth = Math.floor(targetWidth * downscaleFactor);
+      targetHeight = Math.floor(targetHeight * downscaleFactor);
+    }
+  }
+
+  // Ensure dimensions are divisible by 16 (video encoder requirement)
+  const aligned = ensureDimensionsDivisibleBy16(targetWidth, targetHeight);
+
+  // Check if alignment changed dimensions
+  if (aligned.width !== targetWidth || aligned.height !== targetHeight) {
+    needsResize = true;
+    if (!resizeReason) resizeReason = 'alignment';
+  }
+
+  targetWidth = aligned.width;
+  targetHeight = aligned.height;
+
+  // Ensure dimensions don't go below minimum after alignment
+  if (targetWidth < VIDEO_CONSTRAINTS.width.min) {
+    targetWidth = Math.ceil(VIDEO_CONSTRAINTS.width.min / 16) * 16;
+    needsResize = true;
+  }
+  if (targetHeight < VIDEO_CONSTRAINTS.height.min) {
+    targetHeight = Math.ceil(VIDEO_CONSTRAINTS.height.min / 16) * 16;
+    needsResize = true;
+  }
+
+  let imageBuffer;
+
+  if (needsResize || targetWidth !== originalWidth || targetHeight !== originalHeight) {
+    if (resizeReason === 'memory budget') {
+      log('⚠️', `AUTO-RESIZE: Image ${originalWidth}x${originalHeight} exceeds memory budget for ${frames} frames`);
+      log('🔄', `Scaling down to ${targetWidth}x${targetHeight} to prevent GPU out-of-memory errors`);
+    } else {
+      log('🔄', `Resizing image from ${originalWidth}x${originalHeight} to ${targetWidth}x${targetHeight}`);
+    }
+
+    // Use sharp to resize the image
+    imageBuffer = await sharp(imagePath)
+      .resize(targetWidth, targetHeight, {
+        fit: 'fill', // Fill to exact dimensions
+        withoutEnlargement: false // Allow enlargement if needed
+      })
+      .toBuffer();
+
+    needsResize = true;
+  } else {
+    // No resize needed, just read the original file
+    imageBuffer = fs.readFileSync(imagePath);
+  }
+
+  return {
+    buffer: imageBuffer,
+    width: targetWidth,
+    height: targetHeight,
+    wasResized: needsResize,
+    originalWidth,
+    originalHeight
+  };
+}
 
 // ============================================
 // Sampler and Scheduler Options
@@ -674,7 +844,7 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
 }
 
 /**
- * Prompt for video-specific duration
+ * Prompt for video-specific duration with user-friendly menu
  * @param {Object} options - Current options object
  * @param {Object} modelConfig - Selected model configuration (optional)
  * @returns {Promise<Object>} Updated options with frames calculated
@@ -684,24 +854,45 @@ export async function promptVideoDuration(options, modelConfig = {}) {
 
   // Use model-specific frame limits if available
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
-  const defaultFrames = modelConfig.defaultFrames || VIDEO_CONSTRAINTS.frames.default;
   const minFrames = VIDEO_CONSTRAINTS.frames.min;
 
-  // Calculate duration from default frames
-  const defaultDuration = ((defaultFrames - 1) / fps).toFixed(1);
-  const minDuration = ((minFrames - 1) / fps).toFixed(1);
-  const maxDuration = ((maxFrames - 1) / fps).toFixed(1);
+  // Calculate max duration in seconds
+  const maxDuration = Math.floor((maxFrames - 1) / fps);
 
+  // Predefined duration options (filtered by what's possible with this model)
+  const durationOptions = [2, 3, 4, 5, 6, 8, 10].filter(d => {
+    const frames = (d * fps) + 1;
+    return frames >= minFrames && frames <= maxFrames;
+  });
+
+  // Default to 5 seconds if available, otherwise the middle option
+  const defaultIndex = durationOptions.indexOf(5) !== -1
+    ? durationOptions.indexOf(5)
+    : Math.floor(durationOptions.length / 2);
+
+  console.log('\n⏱️  Select video duration:\n');
+  durationOptions.forEach((d, i) => {
+    const frames = (d * fps) + 1;
+    const marker = i === defaultIndex ? ' (default)' : '';
+    console.log(`  ${i + 1}. ${d} seconds (${frames} frames)${marker}`);
+  });
+  console.log(`  ${durationOptions.length + 1}. Custom duration`);
   console.log();
-  const durationInput = await askQuestion(
-    `Duration in seconds (${minDuration}-${maxDuration}s, default: ${defaultDuration}): `
-  );
-  let duration = parseFloat(defaultDuration);
-  if (durationInput.trim()) {
-    const d = parseFloat(durationInput.trim());
-    if (!isNaN(d) && d > 0) {
-      duration = d;
-    }
+
+  const choice = await askQuestion(`Enter choice [1-${durationOptions.length + 1}] (default: ${defaultIndex + 1}): `);
+  let duration;
+
+  const choiceNum = parseInt(choice.trim(), 10);
+
+  if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= durationOptions.length) {
+    duration = durationOptions[choiceNum - 1];
+  } else if (choiceNum === durationOptions.length + 1) {
+    // Custom duration
+    const customInput = await askQuestion(`Enter duration in seconds (1-${maxDuration}): `);
+    duration = Math.min(maxDuration, Math.max(1, parseFloat(customInput.trim()) || 5));
+  } else {
+    // Default selection
+    duration = durationOptions[defaultIndex];
   }
 
   // Convert duration to frames: frames = (seconds * fps) + 1
@@ -709,6 +900,8 @@ export async function promptVideoDuration(options, modelConfig = {}) {
   frames = Math.max(minFrames, Math.min(maxFrames, frames));
   options.frames = frames;
   options.duration = (frames - 1) / fps; // Store actual duration
+
+  console.log(`  → ${options.duration.toFixed(1)} seconds = ${frames} frames at ${fps} FPS\n`);
 
   return options;
 }

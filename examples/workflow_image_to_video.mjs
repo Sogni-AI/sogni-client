@@ -12,11 +12,11 @@
  * Usage:
  *   node workflow_image_to_video.mjs --image input.jpg       # Interactive mode
  *   node workflow_image_to_video.mjs "zoom in" --image pic.jpg
- *   node workflow_image_to_video.mjs --image img.jpg --end-image img2.jpg  # Interpolation
+ *   node workflow_image_to_video.mjs --image img.jpg --end-image img2.jpg  # transition
  *
  * Options:
  *   --image     Input image path (required)
- *   --end-image Optional end image for interpolation (i2v only)
+ *   --end-image Optional end image for transition (i2v only)
  *   --model     Model: lightx2v or quality (default: prompts for selection)
  *   --width     Video width (default: auto from image, min: 480)
  *   --height    Video height (default: auto from image, min: 480)
@@ -40,7 +40,6 @@ import * as fs from 'node:fs';
 import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
-import imageSize from 'image-size';
 import {
   loadCredentials,
   loadTokenTypePreference,
@@ -56,6 +55,8 @@ import {
   promptAdvancedOptions,
   pickImageFile,
   readFileAsBuffer,
+  processImageForVideo,
+  ensureDimensionsDivisibleBy16,
   log,
   formatDuration,
   displayConfig,
@@ -167,7 +168,7 @@ Available Models:
 
 Options:
   --image     Input image path (required)
-  --end-image Optional end image for interpolation
+  --end-image Optional end image for transition
   --model     Model: lightx2v or quality (default: prompts for selection)
   --negative  Negative prompt (default: none)
   --style     Style prompt (default: none)
@@ -187,58 +188,6 @@ Options:
 `);
 }
 
-// ============================================
-// Utility Functions
-// ============================================
-
-/**
- * Resize image if it exceeds the maximum allowed dimensions
- */
-async function resizeImageIfNeeded(imagePath, maxWidth, maxHeight) {
-  const dimensions = imageSize(imagePath);
-  if (!dimensions.width || !dimensions.height) {
-    throw new Error('Could not read image dimensions');
-  }
-
-  let { width, height } = dimensions;
-
-  if (width > maxWidth || height > maxHeight) {
-    const scaleX = maxWidth / width;
-    const scaleY = maxHeight / height;
-    const scale = Math.min(scaleX, scaleY);
-
-    const newWidth = Math.floor(width * scale);
-    const newHeight = Math.floor(height * scale);
-
-    const outputPath = `${imagePath}.resized.${Date.now()}.png`;
-
-    await new Promise((resolve, reject) => {
-      exec(`convert "${imagePath}" -resize ${newWidth}x${newHeight} "${outputPath}"`, (error) => {
-        if (error) {
-          reject(new Error(`Failed to resize image: ${error.message}`));
-        } else {
-          resolve(outputPath);
-        }
-      });
-    });
-
-    width = newWidth;
-    height = newHeight;
-    return { path: outputPath, width, height, resized: true };
-  }
-
-  return { path: imagePath, width, height, resized: false };
-}
-
-/**
- * Ensure dimensions are even
- */
-function ensureEvenDimensions(width, height) {
-  return {
-    width: width % 2 === 0 ? width : width - 1,
-    height: height % 2 === 0 ? height : height - 1
-  };
-}
 
 // ============================================
 // Main Logic
@@ -270,22 +219,24 @@ async function main() {
     process.exit(1);
   }
 
-  // Process image dimensions
-  let imageInfo;
+  log('📷', `Input image: ${OPTIONS.image}`);
+
+  // Get initial image dimensions for defaults (will be properly processed later with frame count)
+  let initialImageDimensions = { width: 832, height: 480 };
   try {
-    imageInfo = await resizeImageIfNeeded(OPTIONS.image, MAX_VIDEO_DIMENSION, MAX_VIDEO_DIMENSION);
-    log('📐', `Image dimensions: ${imageInfo.width}x${imageInfo.height}`);
-    if (imageInfo.resized) {
-      log('🔄', 'Image was resized to fit maximum dimensions');
+    const imageSize = (await import('image-size')).default;
+    const dims = imageSize(OPTIONS.image);
+    if (dims.width && dims.height) {
+      initialImageDimensions = { width: dims.width, height: dims.height };
+      log('📐', `Original image dimensions: ${dims.width}x${dims.height}`);
     }
   } catch (error) {
-    console.error(`Error processing image: ${error.message}`);
-    process.exit(1);
+    log('⚠️', 'Could not read image dimensions, using defaults');
   }
 
   // Ask about end image in interactive mode
   if (OPTIONS.interactive && !OPTIONS.endImage) {
-    const useEndImage = await askQuestion('\nAdd end image for interpolation? [y/N]: ');
+    const useEndImage = await askQuestion('\nAdd end image transition? [y/N]: ');
     if (useEndImage.toLowerCase() === 'y' || useEndImage.toLowerCase() === 'yes') {
       try {
         OPTIONS.endImage = await pickImageFile(null, 'end image');
@@ -320,8 +271,8 @@ async function main() {
   log('🎬', `Selected model: ${modelConfig.name}`);
 
   // Set default dimensions from image
-  modelConfig.defaultWidth = imageInfo.width;
-  modelConfig.defaultHeight = imageInfo.height;
+  modelConfig.defaultWidth = initialImageDimensions.width;
+  modelConfig.defaultHeight = initialImageDimensions.height;
 
   // Interactive mode: prompt for core options
   if (OPTIONS.interactive) {
@@ -356,31 +307,29 @@ async function main() {
   // Use model-specific frame limits
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
 
-  // Set dimensions with video constraints
-  let { width, height } = ensureEvenDimensions(
-    OPTIONS.width || imageInfo.width,
-    OPTIONS.height || imageInfo.height
-  );
-
-  // Validate minimum dimensions
-  if (width < VIDEO_CONSTRAINTS.width.min) {
-    width = VIDEO_CONSTRAINTS.width.min;
-    log('⚠️', `Width adjusted to minimum: ${width}px`);
-  }
-  if (height < VIDEO_CONSTRAINTS.height.min) {
-    height = VIDEO_CONSTRAINTS.height.min;
-    log('⚠️', `Height adjusted to minimum: ${height}px`);
-  }
-
-  OPTIONS.width = width;
-  OPTIONS.height = height;
-
-  // Calculate frames from duration if not explicitly set
+  // Calculate frames from duration if not explicitly set (need this before processing image)
   if (!OPTIONS.frames) {
     const duration = OPTIONS.duration || 5;
     OPTIONS.frames = Math.round(duration * OPTIONS.fps) + 1;
     OPTIONS.frames = Math.max(VIDEO_CONSTRAINTS.frames.min, Math.min(maxFrames, OPTIONS.frames));
   }
+
+  // Process the image with memory budget constraints now that we know the frame count
+  let processedImage;
+  try {
+    processedImage = await processImageForVideo(OPTIONS.image, OPTIONS.frames, {
+      targetWidth: OPTIONS.width || initialImageDimensions.width,
+      targetHeight: OPTIONS.height || initialImageDimensions.height
+    });
+    log('📐', `Final video dimensions: ${processedImage.width}x${processedImage.height}`);
+  } catch (error) {
+    console.error(`Error processing image: ${error.message}`);
+    process.exit(1);
+  }
+
+  // Use the processed dimensions
+  OPTIONS.width = processedImage.width;
+  OPTIONS.height = processedImage.height;
 
   // Validate FPS
   if (OPTIONS.fps !== 16 && OPTIONS.fps !== 32) {
@@ -565,9 +514,9 @@ async function main() {
 
     let startTime = Date.now();
 
-    // CRITICAL: SDK requires Buffer/File/Blob objects for media uploads, NOT string paths.
-    // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
-    const referenceImageBuffer = readFileAsBuffer(imageInfo.path);
+    // Use the pre-processed image buffer (already resized if needed)
+    // Convert Buffer to Blob for SDK upload
+    const referenceImageBlob = new Blob([processedImage.buffer]);
 
     const projectParams = {
       type: 'video',
@@ -580,7 +529,7 @@ async function main() {
       fps: OPTIONS.fps,
       shift: OPTIONS.shift,
       seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
-      referenceImage: referenceImageBuffer,
+      referenceImage: referenceImageBlob,
       tokenType: tokenType
     };
 
@@ -588,7 +537,7 @@ async function main() {
     if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
     if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
 
-    // Add end image for interpolation if provided
+    // Add end image for transition if provided
     if (OPTIONS.endImage) {
       projectParams.referenceImageEnd = readFileAsBuffer(OPTIONS.endImage);
     }
@@ -781,15 +730,6 @@ async function main() {
 
       checkCompletion();
     });
-
-    // Clean up resized image if created
-    if (imageInfo.resized && imageInfo.path !== OPTIONS.image) {
-      try {
-        fs.unlinkSync(imageInfo.path);
-      } catch (error) {
-        // Ignore cleanup errors
-      }
-    }
 
     if (projectFailed || failedVideos > 0) {
       const failureCount = projectFailed ? totalVideos : failedVideos;
