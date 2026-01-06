@@ -1,3 +1,10 @@
+# [4.0.0-alpha.41](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.40...v4.0.0-alpha.41) (2026-01-06)
+
+
+### Features
+
+* example script workflow enhancements ([94d14e4](https://github.com/Sogni-AI/sogni-client/commit/94d14e42a121976b1090fe797734f2f76e57da02))
+
 # [4.0.0-alpha.40](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.39...v4.0.0-alpha.40) (2026-01-06)
 
 
