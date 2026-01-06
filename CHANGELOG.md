@@ -1,3 +1,10 @@
+# [4.0.0-alpha.40](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.39...v4.0.0-alpha.40) (2026-01-06)
+
+
+### Bug Fixes
+
+* res_multistep support in SupportedComfySamplers to fix support for z-image. /examples script enhancements ([332e7b1](https://github.com/Sogni-AI/sogni-client/commit/332e7b1280272e05c7d897de22edea61482f5b7c))
+
 # [4.0.0-alpha.39](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.38...v4.0.0-alpha.39) (2026-01-05)
 
 
