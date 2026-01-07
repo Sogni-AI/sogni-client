@@ -151,6 +151,18 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceAudio?: InputMedia;
   /**
+   * Audio start position in seconds for s2v workflows.
+   * Specifies where to begin reading from the audio file.
+   * Default: 0
+   */
+  audioStart?: number;
+  /**
+   * Audio duration in seconds for s2v workflows.
+   * Specifies how many seconds of audio to use.
+   * If not provided, defaults to 30 seconds on the server.
+   */
+  audioDuration?: number;
+  /**
    * Reference video for animate workflows.
    * Maps to: drivingVideo (animate-move), sourceVideo (animate-replace)
    */

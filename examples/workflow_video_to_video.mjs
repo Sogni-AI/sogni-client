@@ -378,10 +378,10 @@ async function main() {
     }
   }
 
-  // Default SAM2 coordinates for animate-replace
-  if (modelConfig.supportsSam2Coordinates && !OPTIONS.sam2Coordinates) {
-    OPTIONS.sam2Coordinates = JSON.stringify([{ x: 0.5, y: 0.5 }]);
-  }
+  // SAM2 coordinates for animate-replace
+  // NOTE: Don't set default - let workflow use its pixel-based center coordinates
+  // The workflow template has hardcoded pixel coords (e.g., [416, 608] for 832x1216)
+  // which correctly target the frame center at the workflow's internal resolution
 
   // Set dimensions with video constraints
   let { width, height } = ensureEvenDimensions(

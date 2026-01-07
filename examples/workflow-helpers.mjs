@@ -1139,9 +1139,10 @@ export async function promptS2VOptions(options, audioDuration) {
 export async function promptAnimateReplaceOptions(options) {
   console.log('\n🎯 Subject Selection (SAM2 Coordinates)\n');
   console.log('  Click coordinates tell SAM2 which subject to replace.');
-  console.log('  Format: x,y pairs relative to image (e.g., "0.5,0.5" for center)');
+  console.log('  NOTE: Coordinates are in PIXELS at workflow resolution (832x1216).');
+  console.log('  Leave empty to use workflow default (center of frame).');
 
-  const coordsInput = await askQuestion('  Subject coordinates (default: 0.5,0.5 - center): ');
+  const coordsInput = await askQuestion('  Subject coordinates in pixels (default: center): ');
   if (coordsInput.trim()) {
     const parts = coordsInput.trim().split(',');
     if (parts.length >= 2) {
@@ -1152,9 +1153,8 @@ export async function promptAnimateReplaceOptions(options) {
       }
     }
   }
-  if (!options.sam2Coordinates) {
-    options.sam2Coordinates = JSON.stringify([{ x: 0.5, y: 0.5 }]);
-  }
+  // Don't set default - let workflow use its pixel-based center coordinates
+  // The workflow template has hardcoded pixel coords (e.g., [416, 608] for 832x1216)
 
   return options;
 }

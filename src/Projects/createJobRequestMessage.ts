@@ -273,6 +273,14 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
     }
   }
 
+  // S2V audio parameters
+  if (params.audioStart !== undefined) {
+    keyFrame.audioStart = params.audioStart;
+  }
+  if (params.audioDuration !== undefined) {
+    keyFrame.audioDuration = params.audioDuration;
+  }
+
   // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
   if (params.width && params.height) {
     keyFrame.width = validateVideoSize(params.width, 'width');
