@@ -172,18 +172,16 @@ Usage:
 Available Models:
   Animate-Move (camera movement animation):
     move-lightx2v  - WAN 2.2 14B Animate-Move LightX2V (fast, 4-step, default)
-    move-quality   - WAN 2.2 14B Animate-Move (high quality, 20-step)
 
   Animate-Replace (subject replacement):
     replace-lightx2v - WAN 2.2 14B Animate-Replace LightX2V (fast, 4-step, default)
-    replace-quality  - WAN 2.2 14B Animate-Replace (high quality, 20-step)
 
 Options:
   --image       Reference image path (required)
   --video       Source video path (required)
   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
-                Format: "x,y" where x,y are normalized 0-1 coordinates (default: 0.5,0.5)
-  --model       Model key (move-lightx2v, move-quality, replace-lightx2v, replace-quality)
+                Leave empty to use workflow default (center of frame)
+  --model       Model key (move-lightx2v, replace-lightx2v)
   --negative    Negative prompt (default: none)
   --style       Style prompt (default: none)
   --width       Video width (default: auto from image, min: 480)
@@ -313,7 +311,7 @@ async function main() {
     modelConfig = MODELS.animate[OPTIONS.modelKey];
     if (!modelConfig) {
       console.error(
-        `Error: Unknown model '${OPTIONS.modelKey}'. Use one of: move-lightx2v, move-quality, replace-lightx2v, replace-quality`
+        `Error: Unknown model '${OPTIONS.modelKey}'. Use one of: move-lightx2v, replace-lightx2v`
       );
       process.exit(1);
     }

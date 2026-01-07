@@ -273,25 +273,7 @@ export const MODELS = {
       isLightning: true,
       isComfyModel: true
     },
-    'move-quality': {
-      id: 'wan_v2.2-14b-fp8_animate-move',
-      name: 'WAN 2.2 14B FP8 Animate-Move',
-      description: 'High quality camera movement animation',
-      workflowType: 'animate-move',
-      defaultSteps: 20,
-      minSteps: 20,
-      maxSteps: 40,
-      defaultShift: 8.0,
-      defaultGuidance: 4.0,
-      minGuidance: 1.5,
-      maxGuidance: 8.0,
-      // ComfyUI format (preferred for video models)
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'simple',
-      maxFrames: 321,
-      isLightning: false,
-      isComfyModel: true
-    },
+    // NOTE: No official full quality animate-move exists - only lightx2v version available
     'replace-lightx2v': {
       id: 'wan_v2.2-14b-fp8_animate-replace_lightx2v',
       name: 'WAN 2.2 14B FP8 Animate-Replace LightX2V',
@@ -312,26 +294,7 @@ export const MODELS = {
       supportsSam2Coordinates: true,
       isComfyModel: true
     },
-    'replace-quality': {
-      id: 'wan_v2.2-14b-fp8_animate-replace',
-      name: 'WAN 2.2 14B FP8 Animate-Replace',
-      description: 'High quality subject replacement',
-      workflowType: 'animate-replace',
-      defaultSteps: 20,
-      minSteps: 20,
-      maxSteps: 40,
-      defaultShift: 8.0,
-      defaultGuidance: 4.0,
-      minGuidance: 1.5,
-      maxGuidance: 8.0,
-      // ComfyUI format (preferred for video models)
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'simple',
-      maxFrames: 321,
-      isLightning: false,
-      supportsSam2Coordinates: true,
-      isComfyModel: true
-    }
+    // NOTE: No official full quality animate-replace exists - only lightx2v version available
   }
 };
 
