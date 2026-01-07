@@ -1,3 +1,10 @@
+# [4.0.0-alpha.43](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.42...v4.0.0-alpha.43) (2026-01-07)
+
+
+### Bug Fixes
+
+* very long running video progress jobs aborting prematurely ([8860ae8](https://github.com/Sogni-AI/sogni-client/commit/8860ae87bfb8104a64585c3107f6d4da1c3b4615))
+
 # [4.0.0-alpha.42](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.41...v4.0.0-alpha.42) (2026-01-07)
 
 
