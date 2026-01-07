@@ -1,3 +1,10 @@
+# [4.0.0-alpha.42](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.41...v4.0.0-alpha.42) (2026-01-07)
+
+
+### Bug Fixes
+
+* fix for passing video s2v audioStart and audioDuration. Fix for broken animate-replace in examples due to default sam2 coordinates ([7b525cd](https://github.com/Sogni-AI/sogni-client/commit/7b525cd50d60ec8b3884db80ee39dca25e1aca97))
+
 # [4.0.0-alpha.41](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.40...v4.0.0-alpha.41) (2026-01-06)
 
 
