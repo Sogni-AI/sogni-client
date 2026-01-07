@@ -8,8 +8,8 @@ import { RawJob, RawProject } from './types/RawProject';
 import ProjectsApi from './index';
 import { Logger } from '../lib/DefaultLogger';
 
-// If project is not finished and had no updates for 1 minute, force refresh
-const PROJECT_TIMEOUT = 60 * 1000;
+// If project is not finished and had no updates for 2 minutes, force refresh
+const PROJECT_TIMEOUT = 2 * 60 * 1000;
 const MAX_FAILED_SYNC_ATTEMPTS = 3;
 
 export type ProjectStatus =

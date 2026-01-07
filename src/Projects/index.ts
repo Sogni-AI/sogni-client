@@ -427,6 +427,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         }
         break;
       case 'jobETA': {
+        // ETA updates keep the project alive (refreshes lastUpdated) and store the ETA value.
+        // This is critical for long-running jobs like video generation that can take several
+        // minutes and may not send frequent progress updates.
+        // We always call _keepAlive() to ensure lastUpdated is refreshed, preventing premature timeouts.
+        project._keepAlive();
+        
         const newEta = new Date(Date.now() + event.etaSeconds * 1000);
         if (job.eta?.getTime() !== newEta?.getTime()) {
           job._update({ eta: newEta });
@@ -435,13 +441,6 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           if (project.eta?.getTime() !== projectETA?.getTime()) {
             project._update({ eta: projectETA });
           }
-        } else {
-          // ETA updates keep the project alive (refreshes lastUpdated) and store the ETA value.
-          // This is critical for long-running jobs like video generation that can take several
-          // minutes and may not send frequent progress updates.
-          // We call _keepAlive() directly to ensure lastUpdated is refreshed even if the ETA
-          // value hasn't changed (job._update only emits 'updated' when values actually change).
-          project._keepAlive();
         }
         break;
       }
