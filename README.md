@@ -1,5 +1,5 @@
 # Sogni SDK for JavaScript & Node.js
-This library provides an easy way to interact with the [Sogni AI Supernet](https://www.sogni.ai/supernet) - a DePIN protocol for creative AI. It is written in TypeScript and can be used
+This library provides an easy way to interact with the [Sogni Supernet](https://www.sogni.ai/supernet) - a DePIN protocol for creative AI inference. It is written in TypeScript and can be used
 in both TypeScript and JavaScript projects such as backend Node.js and browser environments.
 
 Behind the scenes this SDK uses a WebSocket connection for communication between clients, server, and workers. It harnesses an event-based API to interact with Supernet to make things super efficient.
