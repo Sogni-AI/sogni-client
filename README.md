@@ -5,7 +5,8 @@ in both TypeScript and JavaScript projects such as backend Node.js and browser e
 Behind the scenes this SDK uses WebSocket connection for communication between clients, server, and workers. It harnesses an event-based API to interact with Supernet to make things super efficient.
 
 ## Features
-- 🎨 **Image Generation** - Create images with the latest frontier Open Source models like Stable Diffusion and Flux
+- 🎨 **Image Generation** - Create images with the latest frontier Open Source models like Stable Diffusion, Z-Image Turbo, and Flux
+- 🎨 **Image Edit** - Modify, merge, restyle, and transform images using prompts and/or multiple reference images using powerful models like Qwen Image Edit.
 - 🎬 **Video Generation** - Generate videos using **Wan 2.2 14B FP8** models with five workflow types:
   - Text-to-Video (t2v) - Generate videos from text prompts
   - Image-to-Video (i2v) - Animate static images
@@ -609,14 +610,14 @@ The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) dire
 
 ### Featured Models
 
-The workflow examples showcase powerful new models:
+The workflow examples showcase a few powerful open-source frontier models supported by Sogni Supernet:
 
 | Model ID | Description | Use Case |
 |----------|-------------|----------|
-| `z_image_turbo_bf16` | Z-Image Turbo - Fast 4-step generation | Quick text-to-image prototyping |
-| `qwen_image_edit_2511_fp8_lightning` | Qwen Image Edit Lightning - Fast 4-step | Quick reference-based generation |
-| `qwen_image_edit_2511_fp8` | Qwen Image Edit - High quality 20-step | Professional image editing |
-| `flux2_dev_fp8` | Flux.2 Dev - Context-aware generation | High-quality images with reference support |
+| `z_image_turbo_bf16` | **Z-Image Turbo** - Ultra-fast 4-step generation | Quick text-to-image prototyping and iteration |
+| `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing | Rapid reference-based image generation |
+| `qwen_image_edit_2511_fp8` | **Qwen Image Edit** - High quality 20-step editing | Professional image editing with context awareness |
+| `wan_v2.2-14b-fp8_t2v_lightx2v` | **Wan 2.2 T2V** - Text-to-video | Generate videos from text prompts |
 
 All workflow examples include:
 - Interactive model and parameter selection

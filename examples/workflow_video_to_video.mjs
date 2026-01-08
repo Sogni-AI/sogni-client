@@ -20,6 +20,7 @@
  *   --video       Source video path (required)
  *   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
  *                 Format: "x,y" where x,y are normalized 0-1 coordinates
+ *   --video-start Video start position in seconds (where to begin reading from source video)
  *   --model       Model to use (see available models below)
  *   --width       Video width (default: auto from image, min: 480)
  *   --height      Video height (default: auto from image, min: 480)
@@ -90,6 +91,7 @@ async function parseArgs() {
     image: null,
     video: null,
     sam2Coordinates: null,
+    videoStart: null,
     modelKey: null,
     width: null,
     height: null,
@@ -119,6 +121,8 @@ async function parseArgs() {
       options.video = args[++i];
     } else if (arg === '--sam2-coords' && args[i + 1]) {
       options.sam2Coordinates = args[++i];
+    } else if (arg === '--video-start' && args[i + 1]) {
+      options.videoStart = parseFloat(args[++i]);
     } else if (arg === '--model' && args[i + 1]) {
       options.modelKey = args[++i];
     } else if (arg === '--width' && args[i + 1]) {
@@ -181,6 +185,7 @@ Options:
   --video       Source video path (required)
   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
                 Leave empty to use workflow default (center of frame)
+  --video-start Video start position in seconds (where to begin reading from source video, default: 0)
   --model       Model key (move-lightx2v, replace-lightx2v)
   --negative    Negative prompt (default: none)
   --style       Style prompt (default: none)
@@ -343,6 +348,16 @@ async function main() {
     const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: true });
+
+      // Video start position (videoStart) - only for animate workflows
+      console.log('\n⏱️ Video Trimming (optional)\n');
+      const videoStartInput = await askQuestion('  Video start position in seconds (default: 0): ');
+      if (videoStartInput.trim()) {
+        const s = parseFloat(videoStartInput.trim());
+        if (!isNaN(s) && s >= 0) {
+          OPTIONS.videoStart = s;
+        }
+      }
     }
 
     console.log('\n✅ Configuration complete!\n');
@@ -638,6 +653,11 @@ async function main() {
     }
     if (OPTIONS.style) {
       projectParams.stylePrompt = OPTIONS.style;
+    }
+
+    // Add video start offset for trimming
+    if (OPTIONS.videoStart !== undefined && OPTIONS.videoStart !== null && OPTIONS.videoStart > 0) {
+      projectParams.videoStart = OPTIONS.videoStart;
     }
 
     project = await sogni.projects.create(projectParams);

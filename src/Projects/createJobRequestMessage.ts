@@ -281,6 +281,11 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
     keyFrame.audioDuration = params.audioDuration;
   }
 
+  // Animate video parameters (for animate-move, animate-replace)
+  if (params.videoStart !== undefined) {
+    keyFrame.videoStart = params.videoStart;
+  }
+
   // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
   if (params.width && params.height) {
     keyFrame.width = validateVideoSize(params.width, 'width');

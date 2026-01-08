@@ -168,6 +168,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceVideo?: InputMedia;
   /**
+   * Video start position in seconds for animate workflows (animate-move, animate-replace).
+   * Specifies where to begin reading from the reference video file.
+   * Default: 0
+   */
+  videoStart?: number;
+  /**
    * Output video width. Only used if `sizePreset` is "custom"
    */
   width?: number;
