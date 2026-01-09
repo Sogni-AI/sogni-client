@@ -28,6 +28,8 @@ export const MODELS = {
       description: 'Fast generation with good quality',
       defaultWidth: 1024,
       defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
       minSteps: 4,
       maxSteps: 10,
       defaultSteps: 4,
@@ -47,6 +49,8 @@ export const MODELS = {
       description: 'Very fast generation (1-5 steps)',
       defaultWidth: 1024,
       defaultHeight: 1024,
+      maxWidth: 1536,
+      maxHeight: 1536,
       minSteps: 1,
       maxSteps: 5,
       defaultSteps: 4,
@@ -64,6 +68,8 @@ export const MODELS = {
       description: 'Highest quality, supports context images.',
       defaultWidth: 1248,
       defaultHeight: 832,
+      maxWidth: 2048,
+      maxHeight: 2048,
       minSteps: 20,
       maxSteps: 50,
       defaultSteps: 20,
@@ -72,7 +78,7 @@ export const MODELS = {
       minGuidance: 3.0,
       maxGuidance: 6.0,
       supportsContextImages: true,
-      maxContextImages: 3,
+      maxContextImages: 6,
       isComfyModel: true,
       defaultComfySampler: 'euler'
     }
@@ -84,6 +90,8 @@ export const MODELS = {
       id: 'qwen_image_edit_2511_fp8_lightning',
       name: 'Qwen Image Edit 2511 Lightning',
       description: 'Fast 4-step image editing (recommended)',
+      maxWidth: 2048,
+      maxHeight: 2048,
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 8,
@@ -100,6 +108,8 @@ export const MODELS = {
       id: 'qwen_image_edit_2511_fp8',
       name: 'Qwen Image Edit 2511',
       description: 'High quality image editing, supports context images',
+      maxWidth: 2048,
+      maxHeight: 2048,
       defaultSteps: 20,
       minSteps: 20,
       maxSteps: 50,
@@ -118,6 +128,8 @@ export const MODELS = {
       description: 'Highest quality, supports context images.',
       defaultWidth: 1248,
       defaultHeight: 832,
+      maxWidth: 2048,
+      maxHeight: 2048,
       defaultSteps: 20,
       minSteps: 20,
       maxSteps: 50,
@@ -126,7 +138,7 @@ export const MODELS = {
       minGuidance: 3.0,
       maxGuidance: 6.0,
       supportsContextImages: true,
-      maxContextImages: 3,
+      maxContextImages: 6,
       isComfyModel: true,
       defaultComfySampler: 'euler'
     }
@@ -772,16 +784,21 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
   // Width
   const defaultWidth =
     modelConfig.defaultWidth || (isVideo ? VIDEO_CONSTRAINTS.width.default : 1024);
+  const maxWidth = modelConfig.maxWidth;
   const widthRange = isVideo
     ? ` (${VIDEO_CONSTRAINTS.width.min}-${VIDEO_CONSTRAINTS.width.max})`
-    : '';
+    : maxWidth ? ` (max: ${maxWidth})` : '';
   const widthInput = await askQuestion(`Width${widthRange} (default: ${defaultWidth}): `);
   if (widthInput.trim()) {
     const w = parseInt(widthInput.trim(), 10);
     if (!isNaN(w) && w > 0) {
-      options.width = isVideo
-        ? Math.max(VIDEO_CONSTRAINTS.width.min, Math.min(VIDEO_CONSTRAINTS.width.max, w))
-        : w;
+      if (isVideo) {
+        options.width = Math.max(VIDEO_CONSTRAINTS.width.min, Math.min(VIDEO_CONSTRAINTS.width.max, w));
+      } else if (maxWidth) {
+        options.width = Math.min(maxWidth, w);
+      } else {
+        options.width = w;
+      }
     }
   }
   if (!options.width) options.width = defaultWidth;
@@ -789,16 +806,21 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
   // Height
   const defaultHeight =
     modelConfig.defaultHeight || (isVideo ? VIDEO_CONSTRAINTS.height.default : 1024);
+  const maxHeight = modelConfig.maxHeight;
   const heightRange = isVideo
     ? ` (${VIDEO_CONSTRAINTS.height.min}-${VIDEO_CONSTRAINTS.height.max})`
-    : '';
+    : maxHeight ? ` (max: ${maxHeight})` : '';
   const heightInput = await askQuestion(`Height${heightRange} (default: ${defaultHeight}): `);
   if (heightInput.trim()) {
     const h = parseInt(heightInput.trim(), 10);
     if (!isNaN(h) && h > 0) {
-      options.height = isVideo
-        ? Math.max(VIDEO_CONSTRAINTS.height.min, Math.min(VIDEO_CONSTRAINTS.height.max, h))
-        : h;
+      if (isVideo) {
+        options.height = Math.max(VIDEO_CONSTRAINTS.height.min, Math.min(VIDEO_CONSTRAINTS.height.max, h));
+      } else if (maxHeight) {
+        options.height = Math.min(maxHeight, h);
+      } else {
+        options.height = h;
+      }
     }
   }
   if (!options.height) options.height = defaultHeight;

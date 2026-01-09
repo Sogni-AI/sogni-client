@@ -291,6 +291,9 @@ export type ImageUrlParams = {
     | 'contextImage1'
     | 'contextImage2'
     | 'contextImage3'
+    | 'contextImage4'
+    | 'contextImage5'
+    | 'contextImage6'
     | 'referenceImage'
     | 'referenceImageEnd';
   startContentType?: string;

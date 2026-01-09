@@ -184,7 +184,10 @@ function applyImageParams(inputKeyframe: Record<string, any>, params: ImageProje
     sizePreset: params.sizePreset,
     hasContextImage1: !!params.contextImages?.[0],
     hasContextImage2: !!params.contextImages?.[1],
-    hasContextImage3: !!params.contextImages?.[2]
+    hasContextImage3: !!params.contextImages?.[2],
+    hasContextImage4: !!params.contextImages?.[3],
+    hasContextImage5: !!params.contextImages?.[4],
+    hasContextImage6: !!params.contextImages?.[5]
   };
 
   // Handle sampler/scheduler: ComfyUI models use comfySampler/comfyScheduler,

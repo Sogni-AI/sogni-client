@@ -4,6 +4,7 @@
  *
  * This script generates images from text prompts using various AI models.
  * Supports both fast and high-quality generation with configurable parameters.
+ * Z-Image Turbo also supports img2img workflow with starting images.
  *
  * Prerequisites:
  * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
@@ -13,11 +14,12 @@
  *   node workflow_text_to_image.mjs                          # Interactive mode
  *   node workflow_text_to_image.mjs "A beautiful sunset"     # With prompt
  *   node workflow_text_to_image.mjs "Portrait" --seed 12345  # With specific seed
+ *   node workflow_text_to_image.mjs "Fantasy art" --model z-turbo --starting-image ./test-assets/placeholder.jpg --strength 0.7
  *
  * Options:
  *   --model     Model: z-turbo, flux1-schnell, or flux2 (default: prompts for selection)
- *   --width     Image width (default: model-specific)
- *   --height    Image height (default: model-specific)
+ *   --width     Image width (default: model-specific, max: 2048)
+ *   --height    Image height (default: model-specific, max: 2048)
  *   --batch     Number of images to generate (default: 1)
  *   --guidance  Guidance scale for Flux2 (default: 4.0)
  *   --steps     Inference steps (default: model-specific)
@@ -26,6 +28,8 @@
  *   --scheduler Scheduler name (default: simple)
  *   --negative  Negative prompt (default: none)
  *   --style     Style prompt (default: none)
+ *   --starting-image  Starting image for img2img (Z-Image Turbo only, default: none)
+ *   --strength  Starting image strength 0-1 (Z-Image Turbo only, default: 0.5, higher = more influence)
  *   --output    Output directory (default: ./output)
  *   --disable-safe-content-filter  Disable NSFW/safety filter
  *   --no-interactive  Skip interactive prompts
@@ -44,6 +48,8 @@ import {
   selectModel,
   promptCoreOptions,
   promptAdvancedOptions,
+  pickImageFile,
+  readFileAsBuffer,
   log,
   displayConfig,
   displayPrompts
@@ -73,6 +79,8 @@ async function parseArgs() {
     seed: null,
     sampler: null,
     scheduler: null,
+    startingImage: null,
+    strength: null,
     output: './output',
     interactive: true,
     disableSafeContentFilter: false
@@ -107,6 +115,10 @@ async function parseArgs() {
       options.sampler = args[++i];
     } else if (arg === '--scheduler' && args[i + 1]) {
       options.scheduler = args[++i];
+    } else if (arg === '--starting-image' && args[i + 1]) {
+      options.startingImage = args[++i];
+    } else if (arg === '--strength' && args[i + 1]) {
+      options.strength = parseFloat(args[++i]);
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
     } else if (arg === '--disable-safe-content-filter') {
@@ -131,24 +143,27 @@ Usage:
   node workflow_text_to_image.mjs                          # Interactive mode
   node workflow_text_to_image.mjs "your prompt here"       # With prompt
   node workflow_text_to_image.mjs "Portrait" --model flux2 # With specific model
+  node workflow_text_to_image.mjs "Fantasy art" --model z-turbo --starting-image ref.jpg --strength 0.7
 
 Available Models:
-  z-turbo       - Z-Image Turbo (fast generation)
+  z-turbo       - Z-Image Turbo (fast generation, max: 2048x2048, supports img2img)
   flux1-schnell - Flux.1 Schnell (very fast, 1-5 steps)
-  flux2         - Flux.2 Dev (highest quality)
+  flux2         - Flux.2 Dev (highest quality, max: 2048x2048, supports up to 6 context images)
 
 Options:
   --model     Model: z-turbo, flux1-schnell, or flux2 (default: prompts for selection)
   --negative  Negative prompt (default: none)
   --style     Style prompt (default: none)
-  --width     Image width (default: model-specific)
-  --height    Image height (default: model-specific)
+  --width     Image width (default: model-specific, max: 2048)
+  --height    Image height (default: model-specific, max: 2048)
   --batch     Number of images to generate (default: 1)
   --guidance  Guidance scale for Flux2 (default: 4.0)
   --steps     Inference steps (default: model-specific)
   --seed      Random seed (default: -1 for random)
   --sampler   Sampler name (default: euler)
   --scheduler Scheduler name (default: simple)
+  --starting-image  Starting image for img2img (Z-Image Turbo only)
+  --strength  Starting image strength 0-1 (Z-Image Turbo only, default: 0.5)
   --output    Output directory (default: ./output)
   --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
@@ -199,6 +214,26 @@ async function main() {
     const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: false });
+
+      // Prompt for starting image (img2img) - only supported by Z-Image Turbo
+      if (OPTIONS.modelKey === 'z-turbo') {
+        const useStartingImage = await askQuestion('\nUse a starting image (img2img)? [y/N]: ');
+        if (useStartingImage.toLowerCase() === 'y' || useStartingImage.toLowerCase() === 'yes') {
+          OPTIONS.startingImage = await pickImageFile(OPTIONS.startingImage, 'starting image');
+
+          // Prompt for strength
+          const strengthInput = await askQuestion('Starting image strength (0.0-1.0, default: 0.5, higher = more influence): ');
+          if (strengthInput.trim()) {
+            const s = parseFloat(strengthInput.trim());
+            if (!isNaN(s) && s >= 0 && s <= 1) {
+              OPTIONS.strength = s;
+            }
+          }
+          if (OPTIONS.strength === undefined || OPTIONS.strength === null) {
+            OPTIONS.strength = 0.5;
+          }
+        }
+      }
     }
 
     console.log('\n✅ Configuration complete!\n');
@@ -209,6 +244,16 @@ async function main() {
   if (!OPTIONS.width) OPTIONS.width = modelConfig.defaultWidth;
   if (!OPTIONS.height) OPTIONS.height = modelConfig.defaultHeight;
   if (!OPTIONS.outputFormat) OPTIONS.outputFormat = 'jpg'; // Default to JPG
+
+  // Cap dimensions to model max if specified
+  if (modelConfig.maxWidth && OPTIONS.width > modelConfig.maxWidth) {
+    log('⚠️', `Width exceeds model maximum of ${modelConfig.maxWidth}, capping to ${modelConfig.maxWidth}`);
+    OPTIONS.width = modelConfig.maxWidth;
+  }
+  if (modelConfig.maxHeight && OPTIONS.height > modelConfig.maxHeight) {
+    log('⚠️', `Height exceeds model maximum of ${modelConfig.maxHeight}, capping to ${modelConfig.maxHeight}`);
+    OPTIONS.height = modelConfig.maxHeight;
+  }
 
   // Apply default sampler/scheduler based on model type
   if (!OPTIONS.sampler) {
@@ -445,6 +490,19 @@ async function main() {
       projectParams.scheduler = modelConfig.defaultComfyScheduler;
     } else if (!modelConfig.isComfyModel && modelConfig.defaultScheduler) {
       projectParams.scheduler = modelConfig.defaultScheduler;
+    }
+
+    // Add starting image and strength for img2img (only supported by Z-Image Turbo)
+    if (OPTIONS.startingImage && OPTIONS.modelKey === 'z-turbo') {
+      if (fs.existsSync(OPTIONS.startingImage)) {
+        projectParams.startingImage = readFileAsBuffer(OPTIONS.startingImage);
+        projectParams.startingImageStrength = OPTIONS.strength !== undefined && OPTIONS.strength !== null ? OPTIONS.strength : 0.5;
+        log('🖼️', `Using starting image: ${OPTIONS.startingImage} (strength: ${projectParams.startingImageStrength})`);
+      } else {
+        log('⚠️', `Starting image not found: ${OPTIONS.startingImage}, proceeding without it`);
+      }
+    } else if (OPTIONS.startingImage && OPTIONS.modelKey !== 'z-turbo') {
+      log('⚠️', `Starting image is only supported by Z-Image Turbo model, ignoring for ${modelConfig.name}`);
     }
 
     // Set up event handlers BEFORE creating project
