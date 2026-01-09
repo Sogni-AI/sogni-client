@@ -8,6 +8,8 @@
 import * as readline from 'node:readline';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import imageSize from 'image-size';
+import sharp from 'sharp';
 
 // ============================================
 // Model Configurations
@@ -26,34 +28,59 @@ export const MODELS = {
       description: 'Fast generation with good quality',
       defaultWidth: 1024,
       defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
       minSteps: 4,
-      maxSteps: 16,
-      defaultSteps: 9,
-      supportsGuidance: false,
+      maxSteps: 10,
+      defaultSteps: 4,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 0.6,
+      maxGuidance: 1.6,
       supportsDenoise: true,
       defaultDenoise: 0.7,
       isComfyModel: true,
       defaultComfySampler: 'res_multistep',
       defaultComfyScheduler: 'simple'
     },
+    'flux1-schnell': {
+      id: 'flux1-schnell-fp8',
+      name: 'Flux.1 Schnell',
+      description: 'Very fast generation (1-5 steps)',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 1536,
+      maxHeight: 1536,
+      minSteps: 1,
+      maxSteps: 5,
+      defaultSteps: 4,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 0.1,
+      maxGuidance: 1.0,
+      isComfyModel: false,
+      defaultSampler: 'Euler',
+      defaultScheduler: 'Simple'
+    },
     flux2: {
       id: 'flux2_dev_fp8',
       name: 'Flux.2 Dev',
-      description: 'Highest quality, supports context images',
+      description: 'Highest quality, supports context images.',
       defaultWidth: 1248,
       defaultHeight: 832,
-      minSteps: 15,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 20,
       maxSteps: 50,
-      defaultSteps: 25,
+      defaultSteps: 20,
       supportsGuidance: true,
       defaultGuidance: 4.0,
-      minGuidance: 2.0,
-      maxGuidance: 10.0,
+      minGuidance: 3.0,
+      maxGuidance: 6.0,
       supportsContextImages: true,
-      maxContextImages: 3,
+      maxContextImages: 6,
       isComfyModel: true,
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'simple'
+      defaultComfySampler: 'euler'
     }
   },
 
@@ -63,52 +90,57 @@ export const MODELS = {
       id: 'qwen_image_edit_2511_fp8_lightning',
       name: 'Qwen Image Edit 2511 Lightning',
       description: 'Fast 4-step image editing (recommended)',
+      maxWidth: 2048,
+      maxHeight: 2048,
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 8,
       supportsContextImages: true,
       maxContextImages: 3,
       isComfyModel: true,
-      defaultComfySampler: 'res_multistep',
+      defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       defaultGuidance: 1.0,
-      minGuidance: 0.7,
+      minGuidance: 0.6,
       maxGuidance: 1.6
     },
     qwen: {
       id: 'qwen_image_edit_2511_fp8',
       name: 'Qwen Image Edit 2511',
       description: 'High quality image editing, supports context images',
+      maxWidth: 2048,
+      maxHeight: 2048,
       defaultSteps: 20,
       minSteps: 20,
       maxSteps: 50,
       supportsContextImages: true,
       maxContextImages: 3,
       isComfyModel: true,
-      defaultComfySampler: 'res_multistep',
+      defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
-      defaultGuidance: 3.0,
-      minGuidance: 1.0,
-      maxGuidance: 8.0
+      defaultGuidance: 4.0,
+      minGuidance: 4.0,
+      maxGuidance: 4.0
     },
     flux2: {
       id: 'flux2_dev_fp8',
       name: 'Flux.2 Dev',
-      description: 'Highest quality, supports context images',
+      description: 'Highest quality, supports context images.',
       defaultWidth: 1248,
       defaultHeight: 832,
-      defaultSteps: 25,
-      minSteps: 15,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      defaultSteps: 20,
+      minSteps: 20,
       maxSteps: 50,
       supportsGuidance: true,
       defaultGuidance: 4.0,
-      minGuidance: 2.0,
-      maxGuidance: 10.0,
+      minGuidance: 3.0,
+      maxGuidance: 6.0,
       supportsContextImages: true,
-      maxContextImages: 3,
+      maxContextImages: 6,
       isComfyModel: true,
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'simple'
+      defaultComfySampler: 'euler'
     }
   },
 
@@ -253,25 +285,7 @@ export const MODELS = {
       isLightning: true,
       isComfyModel: true
     },
-    'move-quality': {
-      id: 'wan_v2.2-14b-fp8_animate-move',
-      name: 'WAN 2.2 14B FP8 Animate-Move',
-      description: 'High quality camera movement animation',
-      workflowType: 'animate-move',
-      defaultSteps: 20,
-      minSteps: 20,
-      maxSteps: 40,
-      defaultShift: 8.0,
-      defaultGuidance: 4.0,
-      minGuidance: 1.5,
-      maxGuidance: 8.0,
-      // ComfyUI format (preferred for video models)
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'simple',
-      maxFrames: 321,
-      isLightning: false,
-      isComfyModel: true
-    },
+    // NOTE: No official full quality animate-move exists - only lightx2v version available
     'replace-lightx2v': {
       id: 'wan_v2.2-14b-fp8_animate-replace_lightx2v',
       name: 'WAN 2.2 14B FP8 Animate-Replace LightX2V',
@@ -292,26 +306,7 @@ export const MODELS = {
       supportsSam2Coordinates: true,
       isComfyModel: true
     },
-    'replace-quality': {
-      id: 'wan_v2.2-14b-fp8_animate-replace',
-      name: 'WAN 2.2 14B FP8 Animate-Replace',
-      description: 'High quality subject replacement',
-      workflowType: 'animate-replace',
-      defaultSteps: 20,
-      minSteps: 20,
-      maxSteps: 40,
-      defaultShift: 8.0,
-      defaultGuidance: 4.0,
-      minGuidance: 1.5,
-      maxGuidance: 8.0,
-      // ComfyUI format (preferred for video models)
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'simple',
-      maxFrames: 321,
-      isLightning: false,
-      supportsSam2Coordinates: true,
-      isComfyModel: true
-    }
+    // NOTE: No official full quality animate-replace exists - only lightx2v version available
   }
 };
 
@@ -321,8 +316,8 @@ export const MODELS = {
 
 // Base constraints - note that frames.max may be overridden by model-specific maxFrames
 export const VIDEO_CONSTRAINTS = {
-  width: { min: 480, max: 1536, default: 640, step: 16 },
-  height: { min: 480, max: 1536, default: 640, step: 16 },
+  width: { min: 480, max: 1536, default: 832, step: 16 },
+  height: { min: 480, max: 1536, default: 480, step: 16 },
   frames: { min: 17, max: 161, default: 81 }, // Some models support max: 321
   fps: { allowedValues: [16, 32], default: 16 },
   shift: { min: 1.0, max: 8.0, default: 8.0, step: 0.1 },
@@ -334,6 +329,174 @@ export const VIDEO_CONSTRAINTS = {
     lightning: { min: 0.7, max: 1.6, step: 0.01 }
   }
 };
+
+// ============================================
+// GPU Memory Budget for Video Generation
+// ============================================
+
+/**
+ * Memory budget to prevent GPU OOM errors.
+ * This is the max total pixels (width × height × frames) the GPU can handle.
+ * Conservative estimate based on 14B model capabilities.
+ */
+export const MAX_PIXEL_BUDGET = 85_000_000;
+
+/**
+ * Calculate the maximum allowed dimension based on frame count and pixel budget.
+ * @param {number} frames - Number of frames
+ * @returns {number} Maximum dimension in pixels
+ */
+export function calculateMaxDimension(frames) {
+  // Max pixels per frame = total budget / number of frames
+  const maxPixelsPerFrame = MAX_PIXEL_BUDGET / frames;
+  // Assuming roughly square aspect ratio for the limit calculation
+  const maxDimFromBudget = Math.floor(Math.sqrt(maxPixelsPerFrame));
+  // Return the more restrictive of the two limits
+  return Math.min(maxDimFromBudget, VIDEO_CONSTRAINTS.width.max);
+}
+
+/**
+ * Ensure dimensions are divisible by 16 (video encoder requirement).
+ * @param {number} width - Input width
+ * @param {number} height - Input height
+ * @returns {{width: number, height: number}} Adjusted dimensions
+ */
+export function ensureDimensionsDivisibleBy16(width, height) {
+  return {
+    width: Math.floor(width / 16) * 16,
+    height: Math.floor(height / 16) * 16
+  };
+}
+
+/**
+ * Process image for video generation - auto-resize if needed.
+ * Handles memory budget constraints and dimension requirements.
+ *
+ * @param {string} imagePath - Path to the image file
+ * @param {number} frames - Target number of frames (for memory budget calculation)
+ * @param {Object} options - Optional overrides
+ * @param {number} options.targetWidth - Target width (optional, auto-detected if not provided)
+ * @param {number} options.targetHeight - Target height (optional, auto-detected if not provided)
+ * @returns {Promise<{buffer: Buffer, width: number, height: number, wasResized: boolean, originalWidth: number, originalHeight: number}>}
+ */
+export async function processImageForVideo(imagePath, frames, options = {}) {
+  // Get original dimensions
+  const dimensions = imageSize(imagePath);
+  if (!dimensions.width || !dimensions.height) {
+    throw new Error('Could not read image dimensions');
+  }
+
+  const originalWidth = dimensions.width;
+  const originalHeight = dimensions.height;
+
+  let targetWidth = options.targetWidth || originalWidth;
+  let targetHeight = options.targetHeight || originalHeight;
+  let needsResize = false;
+  let resizeReason = '';
+
+  // Calculate the effective max dimension based on frame count (memory budget)
+  const effectiveMaxDimension = calculateMaxDimension(frames);
+
+  // Check if we're limited by memory budget vs static limit
+  if (effectiveMaxDimension < VIDEO_CONSTRAINTS.width.max) {
+    log('💾', `Memory limit: max ${effectiveMaxDimension}px per side for ${frames} frames`);
+  }
+
+  // Check if image exceeds maximum dimensions (considering memory budget)
+  if (targetWidth > effectiveMaxDimension || targetHeight > effectiveMaxDimension) {
+    needsResize = true;
+    resizeReason = 'memory budget';
+
+    // Calculate scaling factor to fit within max dimensions while maintaining aspect ratio
+    const scaleFactor = Math.min(
+      effectiveMaxDimension / targetWidth,
+      effectiveMaxDimension / targetHeight
+    );
+
+    targetWidth = Math.floor(targetWidth * scaleFactor);
+    targetHeight = Math.floor(targetHeight * scaleFactor);
+  }
+
+  // Check if image is below minimum dimensions
+  if (targetWidth < VIDEO_CONSTRAINTS.width.min || targetHeight < VIDEO_CONSTRAINTS.height.min) {
+    needsResize = true;
+    if (!resizeReason) resizeReason = 'below minimum';
+
+    // Calculate scaling factor to meet minimum dimensions while maintaining aspect ratio
+    const scaleFactor = Math.max(
+      VIDEO_CONSTRAINTS.width.min / targetWidth,
+      VIDEO_CONSTRAINTS.height.min / targetHeight
+    );
+
+    targetWidth = Math.floor(targetWidth * scaleFactor);
+    targetHeight = Math.floor(targetHeight * scaleFactor);
+
+    // Ensure we don't exceed max dimensions after upscaling
+    if (targetWidth > effectiveMaxDimension || targetHeight > effectiveMaxDimension) {
+      const downscaleFactor = Math.min(
+        effectiveMaxDimension / targetWidth,
+        effectiveMaxDimension / targetHeight
+      );
+      targetWidth = Math.floor(targetWidth * downscaleFactor);
+      targetHeight = Math.floor(targetHeight * downscaleFactor);
+    }
+  }
+
+  // Ensure dimensions are divisible by 16 (video encoder requirement)
+  const aligned = ensureDimensionsDivisibleBy16(targetWidth, targetHeight);
+
+  // Check if alignment changed dimensions
+  if (aligned.width !== targetWidth || aligned.height !== targetHeight) {
+    needsResize = true;
+    if (!resizeReason) resizeReason = 'alignment';
+  }
+
+  targetWidth = aligned.width;
+  targetHeight = aligned.height;
+
+  // Ensure dimensions don't go below minimum after alignment
+  if (targetWidth < VIDEO_CONSTRAINTS.width.min) {
+    targetWidth = Math.ceil(VIDEO_CONSTRAINTS.width.min / 16) * 16;
+    needsResize = true;
+  }
+  if (targetHeight < VIDEO_CONSTRAINTS.height.min) {
+    targetHeight = Math.ceil(VIDEO_CONSTRAINTS.height.min / 16) * 16;
+    needsResize = true;
+  }
+
+  let imageBuffer;
+
+  if (needsResize || targetWidth !== originalWidth || targetHeight !== originalHeight) {
+    if (resizeReason === 'memory budget') {
+      log('⚠️', `AUTO-RESIZE: Image ${originalWidth}x${originalHeight} exceeds memory budget for ${frames} frames`);
+      log('🔄', `Scaling down to ${targetWidth}x${targetHeight} to prevent GPU out-of-memory errors`);
+    } else {
+      log('🔄', `Resizing image from ${originalWidth}x${originalHeight} to ${targetWidth}x${targetHeight}`);
+    }
+
+    // Use sharp to resize the image
+    imageBuffer = await sharp(imagePath)
+      .resize(targetWidth, targetHeight, {
+        fit: 'fill', // Fill to exact dimensions
+        withoutEnlargement: false // Allow enlargement if needed
+      })
+      .toBuffer();
+
+    needsResize = true;
+  } else {
+    // No resize needed, just read the original file
+    imageBuffer = fs.readFileSync(imagePath);
+  }
+
+  return {
+    buffer: imageBuffer,
+    width: targetWidth,
+    height: targetHeight,
+    wasResized: needsResize,
+    originalWidth,
+    originalHeight
+  };
+}
 
 // ============================================
 // Sampler and Scheduler Options
@@ -621,16 +784,21 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
   // Width
   const defaultWidth =
     modelConfig.defaultWidth || (isVideo ? VIDEO_CONSTRAINTS.width.default : 1024);
+  const maxWidth = modelConfig.maxWidth;
   const widthRange = isVideo
     ? ` (${VIDEO_CONSTRAINTS.width.min}-${VIDEO_CONSTRAINTS.width.max})`
-    : '';
+    : maxWidth ? ` (max: ${maxWidth})` : '';
   const widthInput = await askQuestion(`Width${widthRange} (default: ${defaultWidth}): `);
   if (widthInput.trim()) {
     const w = parseInt(widthInput.trim(), 10);
     if (!isNaN(w) && w > 0) {
-      options.width = isVideo
-        ? Math.max(VIDEO_CONSTRAINTS.width.min, Math.min(VIDEO_CONSTRAINTS.width.max, w))
-        : w;
+      if (isVideo) {
+        options.width = Math.max(VIDEO_CONSTRAINTS.width.min, Math.min(VIDEO_CONSTRAINTS.width.max, w));
+      } else if (maxWidth) {
+        options.width = Math.min(maxWidth, w);
+      } else {
+        options.width = w;
+      }
     }
   }
   if (!options.width) options.width = defaultWidth;
@@ -638,16 +806,21 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
   // Height
   const defaultHeight =
     modelConfig.defaultHeight || (isVideo ? VIDEO_CONSTRAINTS.height.default : 1024);
+  const maxHeight = modelConfig.maxHeight;
   const heightRange = isVideo
     ? ` (${VIDEO_CONSTRAINTS.height.min}-${VIDEO_CONSTRAINTS.height.max})`
-    : '';
+    : maxHeight ? ` (max: ${maxHeight})` : '';
   const heightInput = await askQuestion(`Height${heightRange} (default: ${defaultHeight}): `);
   if (heightInput.trim()) {
     const h = parseInt(heightInput.trim(), 10);
     if (!isNaN(h) && h > 0) {
-      options.height = isVideo
-        ? Math.max(VIDEO_CONSTRAINTS.height.min, Math.min(VIDEO_CONSTRAINTS.height.max, h))
-        : h;
+      if (isVideo) {
+        options.height = Math.max(VIDEO_CONSTRAINTS.height.min, Math.min(VIDEO_CONSTRAINTS.height.max, h));
+      } else if (maxHeight) {
+        options.height = Math.min(maxHeight, h);
+      } else {
+        options.height = h;
+      }
     }
   }
   if (!options.height) options.height = defaultHeight;
@@ -656,7 +829,7 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
 }
 
 /**
- * Prompt for video-specific duration
+ * Prompt for video-specific duration with user-friendly menu
  * @param {Object} options - Current options object
  * @param {Object} modelConfig - Selected model configuration (optional)
  * @returns {Promise<Object>} Updated options with frames calculated
@@ -666,24 +839,45 @@ export async function promptVideoDuration(options, modelConfig = {}) {
 
   // Use model-specific frame limits if available
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
-  const defaultFrames = modelConfig.defaultFrames || VIDEO_CONSTRAINTS.frames.default;
   const minFrames = VIDEO_CONSTRAINTS.frames.min;
 
-  // Calculate duration from default frames
-  const defaultDuration = ((defaultFrames - 1) / fps).toFixed(1);
-  const minDuration = ((minFrames - 1) / fps).toFixed(1);
-  const maxDuration = ((maxFrames - 1) / fps).toFixed(1);
+  // Calculate max duration in seconds
+  const maxDuration = Math.floor((maxFrames - 1) / fps);
 
+  // Predefined duration options (filtered by what's possible with this model)
+  const durationOptions = [2, 3, 4, 5, 6, 8, 10].filter(d => {
+    const frames = (d * fps) + 1;
+    return frames >= minFrames && frames <= maxFrames;
+  });
+
+  // Default to 5 seconds if available, otherwise the middle option
+  const defaultIndex = durationOptions.indexOf(5) !== -1
+    ? durationOptions.indexOf(5)
+    : Math.floor(durationOptions.length / 2);
+
+  console.log('\n⏱️  Select video duration:\n');
+  durationOptions.forEach((d, i) => {
+    const frames = (d * fps) + 1;
+    const marker = i === defaultIndex ? ' (default)' : '';
+    console.log(`  ${i + 1}. ${d} seconds (${frames} frames)${marker}`);
+  });
+  console.log(`  ${durationOptions.length + 1}. Custom duration`);
   console.log();
-  const durationInput = await askQuestion(
-    `Duration in seconds (${minDuration}-${maxDuration}s, default: ${defaultDuration}): `
-  );
-  let duration = parseFloat(defaultDuration);
-  if (durationInput.trim()) {
-    const d = parseFloat(durationInput.trim());
-    if (!isNaN(d) && d > 0) {
-      duration = d;
-    }
+
+  const choice = await askQuestion(`Enter choice [1-${durationOptions.length + 1}] (default: ${defaultIndex + 1}): `);
+  let duration;
+
+  const choiceNum = parseInt(choice.trim(), 10);
+
+  if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= durationOptions.length) {
+    duration = durationOptions[choiceNum - 1];
+  } else if (choiceNum === durationOptions.length + 1) {
+    // Custom duration
+    const customInput = await askQuestion(`Enter duration in seconds (1-${maxDuration}): `);
+    duration = Math.min(maxDuration, Math.max(1, parseFloat(customInput.trim()) || 5));
+  } else {
+    // Default selection
+    duration = durationOptions[defaultIndex];
   }
 
   // Convert duration to frames: frames = (seconds * fps) + 1
@@ -691,6 +885,8 @@ export async function promptVideoDuration(options, modelConfig = {}) {
   frames = Math.max(minFrames, Math.min(maxFrames, frames));
   options.frames = frames;
   options.duration = (frames - 1) / fps; // Store actual duration
+
+  console.log(`  → ${options.duration.toFixed(1)} seconds = ${frames} frames at ${fps} FPS\n`);
 
   return options;
 }
@@ -733,6 +929,25 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     }
     if (options.shift === undefined) options.shift = defaultShift;
   }
+
+  // Steps
+  const defaultSteps = modelConfig.defaultSteps || 20;
+  const minSteps = modelConfig.minSteps || 1;
+  const maxSteps = modelConfig.maxSteps || 50;
+  const stepsInput = await askQuestion(
+    `Steps (${minSteps}-${maxSteps}, default: ${defaultSteps}): `
+  );
+  if (stepsInput.trim()) {
+    const s = parseInt(stepsInput.trim(), 10);
+    if (!isNaN(s) && s >= minSteps && s <= maxSteps) {
+      options.steps = s;
+    } else if (!isNaN(s)) {
+      // Clamp to valid range
+      options.steps = Math.max(minSteps, Math.min(maxSteps, s));
+      console.log(`    (clamped to ${options.steps})`);
+    }
+  }
+  if (options.steps === undefined) options.steps = defaultSteps;
 
   // Guidance (if supported by model)
   if (modelConfig.supportsGuidance !== false) {
@@ -909,9 +1124,10 @@ export async function promptS2VOptions(options, audioDuration) {
 export async function promptAnimateReplaceOptions(options) {
   console.log('\n🎯 Subject Selection (SAM2 Coordinates)\n');
   console.log('  Click coordinates tell SAM2 which subject to replace.');
-  console.log('  Format: x,y pairs relative to image (e.g., "0.5,0.5" for center)');
+  console.log('  NOTE: Coordinates are in PIXELS at workflow resolution (832x1216).');
+  console.log('  Leave empty to use workflow default (center of frame).');
 
-  const coordsInput = await askQuestion('  Subject coordinates (default: 0.5,0.5 - center): ');
+  const coordsInput = await askQuestion('  Subject coordinates in pixels (default: center): ');
   if (coordsInput.trim()) {
     const parts = coordsInput.trim().split(',');
     if (parts.length >= 2) {
@@ -922,9 +1138,8 @@ export async function promptAnimateReplaceOptions(options) {
       }
     }
   }
-  if (!options.sam2Coordinates) {
-    options.sam2Coordinates = JSON.stringify([{ x: 0.5, y: 0.5 }]);
-  }
+  // Don't set default - let workflow use its pixel-based center coordinates
+  // The workflow template has hardcoded pixel coords (e.g., [416, 608] for 832x1216)
 
   return options;
 }

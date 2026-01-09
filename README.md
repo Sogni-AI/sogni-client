@@ -1,11 +1,12 @@
 # Sogni SDK for JavaScript & Node.js
-This library provides an easy way to interact with the [Sogni AI Supernet](https://www.sogni.ai/supernet) - a DePIN protocol for creative AI. It is written in TypeScript and can be used
+This library provides an easy way to interact with the [Sogni Supernet](https://www.sogni.ai/supernet) - a DePIN protocol for creative AI inference. It is written in TypeScript and can be used
 in both TypeScript and JavaScript projects such as backend Node.js and browser environments.
 
-Behind the scenes this SDK uses WebSocket connection for communication between clients, server, and workers. It harnesses an event-based API to interact with Supernet to make things super efficient.
+Behind the scenes this SDK uses a WebSocket connection for communication between clients, server, and workers. It harnesses an event-based API to interact with Supernet to make things super efficient.
 
 ## Features
-- 🎨 **Image Generation** - Create images with the latest frontier Open Source models like Stable Diffusion and Flux
+- 🎨 **Image Generation** - Create images with the latest frontier Open Source models like Stable Diffusion, Z-Image Turbo, and Flux
+- 🎨 **Image Edit** - Modify, merge, restyle, and transform images using prompts and/or multiple reference images using powerful models like Qwen Image Edit.
 - 🎬 **Video Generation** - Generate videos using **Wan 2.2 14B FP8** models with five workflow types:
   - Text-to-Video (t2v) - Generate videos from text prompts
   - Image-to-Video (i2v) - Animate static images
@@ -598,24 +599,43 @@ const videoUrls = await project.waitForCompletion();
 
 The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) directory contains working examples for all workflows:
 
+### Image Workflow Examples
+- **`workflow_text_to_image.mjs`** - Text-to-image generation with multiple model options
+- **`workflow_image_edit.mjs`** - Reference-based image generation using context images
+
 ### Video Workflow Examples
-- **`video_text_to_video.mjs`** - Text-to-video generation with interactive prompts
-- **`video_image_to_video.mjs`** - Image-to-video animation with motion prompts
-- **`video_sound_to_video.mjs`** - Audio-synchronized video generation
-- **`video_animate_move.mjs`** - Motion transfer from video to image subject
-- **`video_animate_replace.mjs`** - Subject replacement while preserving motion
+- **`workflow_text_to_video.mjs`** - Text-to-video generation with WAN 2.2 models
+- **`workflow_image_to_video.mjs`** - Animate static images into videos
+- **`workflow_sound_to_video.mjs`** - Audio-synchronized video generation with lip-sync
+- **`workflow_video_to_video.mjs`** - Motion transfer and character replacement (Animate-Move/Animate-Replace)
 
 ### Basic Examples
 - **`promise_based.mjs`** - Image generation using promises/async-await
 - **`event_driven.js`** - Image generation using event listeners
 
-All video examples include:
-- Balance checking and cost confirmation
-- Progress tracking with visual indicators
-- Error handling and retry logic
-- Automatic video download and saving
+### Featured Models
 
-Run any example with:
+The workflow examples showcase a few powerful open-source frontier models supported by Sogni Supernet:
+
+| Model ID | Description | Use Case |
+|----------|-------------|----------|
+| `z_image_turbo_bf16` | **Z-Image Turbo** - Ultra-fast 4-step generation | Quick text-to-image prototyping and iteration |
+| `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing | Rapid reference-based image generation |
+| `qwen_image_edit_2511_fp8` | **Qwen Image Edit** - High quality 20-step editing | Professional image editing with context awareness |
+| `wan_v2.2-14b-fp8_t2v_lightx2v` | **Wan 2.2 T2V** - Text-to-video | Generate videos from text prompts |
+
+All workflow examples include:
+- Interactive model and parameter selection
+- Balance checking and cost confirmation
+- Real-time progress tracking with ETA
+- Error handling with detailed feedback
+- Automatic file download and preview
+
+Run any workflow example:
 ```bash
-node examples/video_text_to_video.mjs
+cd examples
+npm install
+node workflow_text_to_image.mjs
+node workflow_image_edit.mjs
+node workflow_text_to_video.mjs
 ```

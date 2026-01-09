@@ -187,7 +187,10 @@ function applyImageParams(
     sizePreset: params.sizePreset,
     hasContextImage1: !!params.contextImages?.[0],
     hasContextImage2: !!params.contextImages?.[1],
-    hasContextImage3: !!params.contextImages?.[2]
+    hasContextImage3: !!params.contextImages?.[2],
+    hasContextImage4: !!params.contextImages?.[3],
+    hasContextImage5: !!params.contextImages?.[4],
+    hasContextImage6: !!params.contextImages?.[5]
   };
   if (isComfyModel(params.modelId)) {
     keyFrame.comfySampler = validateSampler(params.sampler, options);
@@ -267,6 +270,19 @@ function applyVideoParams(
     if (validatedThreshold !== undefined) {
       keyFrame.teacacheThreshold = validatedThreshold;
     }
+  }
+
+  // S2V audio parameters
+  if (params.audioStart !== undefined) {
+    keyFrame.audioStart = params.audioStart;
+  }
+  if (params.audioDuration !== undefined) {
+    keyFrame.audioDuration = params.audioDuration;
+  }
+
+  // Animate video parameters (for animate-move, animate-replace)
+  if (params.videoStart !== undefined) {
+    keyFrame.videoStart = params.videoStart;
   }
 
   // Validate and set video dimensions (minimum 480px for Wan 2.2 models)

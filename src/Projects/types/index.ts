@@ -135,10 +135,28 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceAudio?: InputMedia;
   /**
+   * Audio start position in seconds for s2v workflows.
+   * Specifies where to begin reading from the audio file.
+   * Default: 0
+   */
+  audioStart?: number;
+  /**
+   * Audio duration in seconds for s2v workflows.
+   * Specifies how many seconds of audio to use.
+   * If not provided, defaults to 30 seconds on the server.
+   */
+  audioDuration?: number;
+  /**
    * Reference video for animate workflows.
    * Maps to: drivingVideo (animate-move), sourceVideo (animate-replace)
    */
   referenceVideo?: InputMedia;
+  /**
+   * Video start position in seconds for animate workflows (animate-move, animate-replace).
+   * Specifies where to begin reading from the reference video file.
+   * Default: 0
+   */
+  videoStart?: number;
   /**
    * Output video width. Only used if `sizePreset` is "custom"
    */
@@ -255,6 +273,9 @@ export type ImageUrlParams = {
     | 'contextImage1'
     | 'contextImage2'
     | 'contextImage3'
+    | 'contextImage4'
+    | 'contextImage5'
+    | 'contextImage6'
     | 'referenceImage'
     | 'referenceImageEnd';
   startContentType?: string;

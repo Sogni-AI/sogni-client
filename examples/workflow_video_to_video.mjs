@@ -20,6 +20,7 @@
  *   --video       Source video path (required)
  *   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
  *                 Format: "x,y" where x,y are normalized 0-1 coordinates
+ *   --video-start Video start position in seconds (where to begin reading from source video)
  *   --model       Model to use (see available models below)
  *   --width       Video width (default: auto from image, min: 480)
  *   --height      Video height (default: auto from image, min: 480)
@@ -61,6 +62,7 @@ import {
   pickImageFile,
   pickVideoFile,
   readFileAsBuffer,
+  processImageForVideo,
   log,
   formatDuration,
   displayConfig,
@@ -89,6 +91,7 @@ async function parseArgs() {
     image: null,
     video: null,
     sam2Coordinates: null,
+    videoStart: null,
     modelKey: null,
     width: null,
     height: null,
@@ -118,6 +121,8 @@ async function parseArgs() {
       options.video = args[++i];
     } else if (arg === '--sam2-coords' && args[i + 1]) {
       options.sam2Coordinates = args[++i];
+    } else if (arg === '--video-start' && args[i + 1]) {
+      options.videoStart = parseFloat(args[++i]);
     } else if (arg === '--model' && args[i + 1]) {
       options.modelKey = args[++i];
     } else if (arg === '--width' && args[i + 1]) {
@@ -171,18 +176,17 @@ Usage:
 Available Models:
   Animate-Move (camera movement animation):
     move-lightx2v  - WAN 2.2 14B Animate-Move LightX2V (fast, 4-step, default)
-    move-quality   - WAN 2.2 14B Animate-Move (high quality, 20-step)
 
   Animate-Replace (subject replacement):
     replace-lightx2v - WAN 2.2 14B Animate-Replace LightX2V (fast, 4-step, default)
-    replace-quality  - WAN 2.2 14B Animate-Replace (high quality, 20-step)
 
 Options:
   --image       Reference image path (required)
   --video       Source video path (required)
   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
-                Format: "x,y" where x,y are normalized 0-1 coordinates (default: 0.5,0.5)
-  --model       Model key (move-lightx2v, move-quality, replace-lightx2v, replace-quality)
+                Leave empty to use workflow default (center of frame)
+  --video-start Video start position in seconds (where to begin reading from source video, default: 0)
+  --model       Model key (move-lightx2v, replace-lightx2v)
   --negative    Negative prompt (default: none)
   --style       Style prompt (default: none)
   --width       Video width (default: auto from image, min: 480)
@@ -290,7 +294,7 @@ async function main() {
   }
 
   // Get image dimensions
-  let imageInfo = { width: 640, height: 640 };
+  let imageInfo = { width: 832, height: 480 };
   try {
     const dimensions = imageSize(OPTIONS.image);
     if (dimensions.width && dimensions.height) {
@@ -312,7 +316,7 @@ async function main() {
     modelConfig = MODELS.animate[OPTIONS.modelKey];
     if (!modelConfig) {
       console.error(
-        `Error: Unknown model '${OPTIONS.modelKey}'. Use one of: move-lightx2v, move-quality, replace-lightx2v, replace-quality`
+        `Error: Unknown model '${OPTIONS.modelKey}'. Use one of: move-lightx2v, replace-lightx2v`
       );
       process.exit(1);
     }
@@ -344,6 +348,16 @@ async function main() {
     const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: true });
+
+      // Video start position (videoStart) - only for animate workflows
+      console.log('\n⏱️ Video Trimming (optional)\n');
+      const videoStartInput = await askQuestion('  Video start position in seconds (default: 0): ');
+      if (videoStartInput.trim()) {
+        const s = parseFloat(videoStartInput.trim());
+        if (!isNaN(s) && s >= 0) {
+          OPTIONS.videoStart = s;
+        }
+      }
     }
 
     console.log('\n✅ Configuration complete!\n');
@@ -377,10 +391,10 @@ async function main() {
     }
   }
 
-  // Default SAM2 coordinates for animate-replace
-  if (modelConfig.supportsSam2Coordinates && !OPTIONS.sam2Coordinates) {
-    OPTIONS.sam2Coordinates = JSON.stringify([{ x: 0.5, y: 0.5 }]);
-  }
+  // SAM2 coordinates for animate-replace
+  // NOTE: Don't set default - let workflow use its pixel-based center coordinates
+  // The workflow template has hardcoded pixel coords (e.g., [416, 608] for 832x1216)
+  // which correctly target the frame center at the workflow's internal resolution
 
   // Set dimensions with video constraints
   let { width, height } = ensureEvenDimensions(
@@ -641,6 +655,11 @@ async function main() {
       projectParams.stylePrompt = OPTIONS.style;
     }
 
+    // Add video start offset for trimming
+    if (OPTIONS.videoStart !== undefined && OPTIONS.videoStart !== null && OPTIONS.videoStart > 0) {
+      projectParams.videoStart = OPTIONS.videoStart;
+    }
+
     project = await sogni.projects.create(projectParams);
 
     // Set up event handlers
@@ -682,6 +701,7 @@ async function main() {
         case 'started':
           if (!project._progressInterval) {
             startTime = Date.now();
+            project._lastETAUpdate = Date.now();
             project._progressInterval = setInterval(() => {
               const elapsed = (Date.now() - startTime) / 1000;
               let progressStr = `\r  Generating...`;
@@ -690,7 +710,9 @@ async function main() {
                 progressStr += ` Step ${project._lastStep}/${project._lastStepCount} (${stepPercent}%)`;
               }
               if (project._lastETA !== undefined) {
-                progressStr += ` ETA: ${formatDuration(project._lastETA)}`;
+                const elapsedSinceUpdate = (Date.now() - project._lastETAUpdate) / 1000;
+                const adjustedETA = Math.max(1, project._lastETA - elapsedSinceUpdate);
+                progressStr += ` ETA: ${formatDuration(adjustedETA)}`;
               }
               progressStr += ` (${formatDuration(elapsed)} elapsed)   `;
               process.stdout.write(progressStr);
@@ -701,6 +723,7 @@ async function main() {
 
         case 'jobETA':
           project._lastETA = event.etaSeconds;
+          project._lastETAUpdate = Date.now();
           break;
 
         case 'progress':
@@ -734,7 +757,7 @@ async function main() {
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {
                 completedVideos++;
-                const elapsed = Math.round((Date.now() - startTime) / 1000);
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
                 log('✓', `Video ${completedVideos}/${totalVideos} completed (${elapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openVideo(outputPath);

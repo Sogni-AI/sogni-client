@@ -18,9 +18,12 @@
  *   --context     Reference image 1 (required, at least 1 needed)
  *   --context2    Reference image 2 (optional)
  *   --context3    Reference image 3 (optional)
+ *   --context4    Reference image 4 (optional, Flux2 only)
+ *   --context5    Reference image 5 (optional, Flux2 only)
+ *   --context6    Reference image 6 (optional, Flux2 only)
  *   --model       Model: qwen, qwen-lightning, or flux2 (default: prompts for selection)
- *   --width       Output image width (default: context image width)
- *   --height      Output image height (default: context image height)
+ *   --width       Output image width (default: context image width, max: 2048)
+ *   --height      Output image height (default: context image height, max: 2048)
  *   --batch       Number of images to generate (default: 1)
  *   --seed        Random seed for reproducibility (default: -1 for random)
  *   --guidance    Guidance scale for Flux2 (default: 4.0)
@@ -101,6 +104,12 @@ async function parseArgs() {
       options.contextImages[1] = args[++i];
     } else if (arg === '--context3' && args[i + 1]) {
       options.contextImages[2] = args[++i];
+    } else if (arg === '--context4' && args[i + 1]) {
+      options.contextImages[3] = args[++i];
+    } else if (arg === '--context5' && args[i + 1]) {
+      options.contextImages[4] = args[++i];
+    } else if (arg === '--context6' && args[i + 1]) {
+      options.contextImages[5] = args[++i];
     } else if (arg === '--model' && args[i + 1]) {
       options.modelKey = args[++i];
     } else if (arg === '--batch' && args[i + 1]) {
@@ -152,15 +161,18 @@ Usage:
 Available Models:
   qwen-lightning - Qwen Image Edit 2511 Lightning (fast, 4-step, default)
   qwen           - Qwen Image Edit 2511 (high quality, 20-step)
-  flux2          - Flux.2 Dev (high quality with context images)
+  flux2          - Flux.2 Dev (high quality with up to 6 context images)
 
 Options:
   --context     Reference image 1 (required, at least 1 needed)
   --context2    Reference image 2 (optional)
   --context3    Reference image 3 (optional)
+  --context4    Reference image 4 (optional, Flux2 only)
+  --context5    Reference image 5 (optional, Flux2 only)
+  --context6    Reference image 6 (optional, Flux2 only)
   --model       Model: qwen, qwen-lightning, or flux2 (default: prompts for selection)
-  --width       Output image width (default: context image width)
-  --height      Output image height (default: context image height)
+  --width       Output image width (default: context image width, max: 2048)
+  --height      Output image height (default: context image height, max: 2048)
   --negative    Negative prompt (default: none)
   --style       Style prompt (default: none)
   --batch       Number of images to generate (default: 1)
@@ -175,7 +187,7 @@ Options:
 
 Reference Images:
   Qwen and Flux models use reference images to guide the generation (not img2img editing).
-  Provide 1-3 reference images that represent the style or content you want.
+  Provide 1-6 reference images (Flux2) or 1-3 (Qwen) that represent the style or content you want.
   Example: portrait photo → generates new portraits in that style
 `);
 }
@@ -255,13 +267,14 @@ async function main() {
       }
     }
 
-    // Ask for additional context images (up to 2 more)
+    // Ask for additional context images
+    const maxContextImages = modelConfig.maxContextImages || 3;
     console.log('\n📸 Additional Reference Images\n');
-    console.log('  You can add up to 2 more reference images.');
+    console.log(`  You can add up to ${maxContextImages - 1} more reference images.`);
     console.log('  Enter the image number or 0 to skip.\n');
 
-    for (let i = 1; i < (modelConfig.maxContextImages || 3); i++) {
-      const ordinal = i === 1 ? '2nd' : '3rd';
+    for (let i = 1; i < maxContextImages; i++) {
+      const ordinal = ['2nd', '3rd', '4th', '5th', '6th'][i - 1] || `${i + 1}th`;
 
       try {
         // Scan directories for image files
@@ -374,6 +387,22 @@ async function main() {
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
   if (!OPTIONS.outputFormat) OPTIONS.outputFormat = 'jpg'; // Default to JPG
 
+  // Apply default sampler/scheduler based on model type
+  if (!OPTIONS.sampler) {
+    if (modelConfig.isComfyModel && modelConfig.defaultComfySampler) {
+      OPTIONS.sampler = modelConfig.defaultComfySampler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultSampler) {
+      OPTIONS.sampler = modelConfig.defaultSampler;
+    }
+  }
+  if (!OPTIONS.scheduler) {
+    if (modelConfig.isComfyModel && modelConfig.defaultComfyScheduler) {
+      OPTIONS.scheduler = modelConfig.defaultComfyScheduler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultScheduler) {
+      OPTIONS.scheduler = modelConfig.defaultScheduler;
+    }
+  }
+
   // Validate batch count
   if (OPTIONS.batch < 1 || OPTIONS.batch > 10) {
     console.error('Error: Batch count must be between 1 and 10');
@@ -459,18 +488,28 @@ async function main() {
       console.log();
     }
 
-    // Determine output dimensions:
-    // Default to context image dimensions for all models (user can customize)
-    let outputWidth, outputHeight;
-    if (OPTIONS.width && OPTIONS.height) {
-      // User specified both dimensions
-      outputWidth = OPTIONS.width;
-      outputHeight = OPTIONS.height;
-    } else {
-      // Use context image dimensions as default for all models
-      outputWidth = OPTIONS.width || imageDimensions.width;
-      outputHeight = OPTIONS.height || imageDimensions.height;
-    }
+  // Determine output dimensions:
+  // Default to context image dimensions for all models (user can customize)
+  let outputWidth, outputHeight;
+  if (OPTIONS.width && OPTIONS.height) {
+    // User specified both dimensions
+    outputWidth = OPTIONS.width;
+    outputHeight = OPTIONS.height;
+  } else {
+    // Use context image dimensions as default for all models
+    outputWidth = OPTIONS.width || imageDimensions.width;
+    outputHeight = OPTIONS.height || imageDimensions.height;
+  }
+
+  // Cap dimensions to model max if specified
+  if (modelConfig.maxWidth && outputWidth > modelConfig.maxWidth) {
+    log('⚠️', `Width exceeds model maximum of ${modelConfig.maxWidth}, capping to ${modelConfig.maxWidth}`);
+    outputWidth = modelConfig.maxWidth;
+  }
+  if (modelConfig.maxHeight && outputHeight > modelConfig.maxHeight) {
+    log('⚠️', `Height exceeds model maximum of ${modelConfig.maxHeight}, capping to ${modelConfig.maxHeight}`);
+    outputHeight = modelConfig.maxHeight;
+  }
 
     // Show configuration first
     const steps = OPTIONS.steps || modelConfig.defaultSteps;
@@ -573,6 +612,23 @@ async function main() {
       projectParams.guidance = OPTIONS.guidance || modelConfig.defaultGuidance || 4.0;
     }
 
+    // Add sampler/scheduler - use model defaults if not specified
+    if (OPTIONS.sampler) {
+      projectParams.sampler = OPTIONS.sampler;
+    } else if (modelConfig.isComfyModel && modelConfig.defaultComfySampler) {
+      projectParams.sampler = modelConfig.defaultComfySampler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultSampler) {
+      projectParams.sampler = modelConfig.defaultSampler;
+    }
+
+    if (OPTIONS.scheduler) {
+      projectParams.scheduler = OPTIONS.scheduler;
+    } else if (modelConfig.isComfyModel && modelConfig.defaultComfyScheduler) {
+      projectParams.scheduler = modelConfig.defaultComfyScheduler;
+    } else if (!modelConfig.isComfyModel && modelConfig.defaultScheduler) {
+      projectParams.scheduler = modelConfig.defaultScheduler;
+    }
+
     // Add optional prompts
     if (OPTIONS.negative) {
       projectParams.negativePrompt = OPTIONS.negative;
@@ -589,7 +645,11 @@ async function main() {
     const totalImages = OPTIONS.batch;
     let projectFailed = false;
     let lastETA = undefined;
+    let lastETAUpdate = Date.now();
+    let currentStep = undefined;
+    let totalSteps = undefined;
     let progressLineActive = false;
+    let etaCountdownInterval = null;
 
     // Format duration in human-readable form
     const formatETA = (seconds) => {
@@ -608,6 +668,21 @@ async function main() {
       }
     };
 
+    // Update progress display with countdown
+    const updateProgressDisplay = () => {
+      if (currentStep !== undefined && totalSteps !== undefined) {
+        const percent = Math.round((currentStep / totalSteps) * 100);
+        let progressStr = `\r⏳ Step ${currentStep}/${totalSteps} (${percent}%)`;
+        if (lastETA !== undefined) {
+          const elapsedSinceUpdate = (Date.now() - lastETAUpdate) / 1000;
+          const adjustedETA = Math.max(1, lastETA - elapsedSinceUpdate);
+          progressStr += ` ETA: ${formatETA(adjustedETA)}`;
+        }
+        process.stdout.write(progressStr + '   ');
+        progressLineActive = true;
+      }
+    };
+
     // Listen for project-level progress (0-100 percentage)
     project.on('progress', (progressPercent) => {
       // Skip 0% progress to avoid clutter before job starts
@@ -620,13 +695,9 @@ async function main() {
     const eventHandler = (event) => {
       // Handle step-level progress from job events
       if (event.type === 'progress' && event.step !== undefined && event.stepCount !== undefined) {
-        const percent = Math.round((event.step / event.stepCount) * 100);
-        let progressStr = `\r⏳ Step ${event.step}/${event.stepCount} (${percent}%)`;
-        if (lastETA !== undefined) {
-          progressStr += ` ETA: ${formatETA(lastETA)}`;
-        }
-        process.stdout.write(progressStr + '   '); // Extra spaces to clear previous longer output
-        progressLineActive = true;
+        currentStep = event.step;
+        totalSteps = event.stepCount;
+        updateProgressDisplay();
       }
 
       switch (event.type) {
@@ -647,6 +718,10 @@ async function main() {
 
         case 'jobETA':
           lastETA = event.etaSeconds;
+          lastETAUpdate = Date.now();
+          if (!etaCountdownInterval && lastETA > 0) {
+            etaCountdownInterval = setInterval(updateProgressDisplay, 1000);
+          }
           break;
 
         case 'completed':
@@ -669,7 +744,7 @@ async function main() {
             downloadImage(event.resultUrl, outputPath)
               .then(() => {
                 completedImages++;
-                const elapsed = Math.round((Date.now() - startTime) / 1000);
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
                 log('✓', `Image ${completedImages}/${totalImages} completed (${elapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openImage(outputPath);
@@ -717,6 +792,10 @@ async function main() {
     });
 
     function checkWorkflowCompletion() {
+      if (etaCountdownInterval) {
+        clearInterval(etaCountdownInterval);
+        etaCountdownInterval = null;
+      }
       if (completedImages + failedImages === totalImages) {
         if (failedImages === 0) {
           if (totalImages === 1) {

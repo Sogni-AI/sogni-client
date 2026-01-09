@@ -1,3 +1,52 @@
+# [4.0.0-alpha.45](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.44...v4.0.0-alpha.45) (2026-01-09)
+
+
+### Features
+
+* add support for up to 6 contextImage for flux.2 [dev], add example script starting-image option for z-image and image size cap to ~4mp for new image models ([57c902c](https://github.com/Sogni-AI/sogni-client/commit/57c902c1b5d29c702a13ce58759af21f5e815eb4))
+
+# [4.0.0-alpha.44](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.43...v4.0.0-alpha.44) (2026-01-08)
+
+
+### Bug Fixes
+
+* videoStart release ([d9dd123](https://github.com/Sogni-AI/sogni-client/commit/d9dd1234c75e5166a94ef2aa7a705f6679c3d3ec))
+
+# [4.0.0-alpha.43](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.42...v4.0.0-alpha.43) (2026-01-07)
+
+
+### Bug Fixes
+
+* very long running video progress jobs aborting prematurely ([8860ae8](https://github.com/Sogni-AI/sogni-client/commit/8860ae87bfb8104a64585c3107f6d4da1c3b4615))
+
+# [4.0.0-alpha.42](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.41...v4.0.0-alpha.42) (2026-01-07)
+
+
+### Bug Fixes
+
+* fix for passing video s2v audioStart and audioDuration. Fix for broken animate-replace in examples due to default sam2 coordinates ([7b525cd](https://github.com/Sogni-AI/sogni-client/commit/7b525cd50d60ec8b3884db80ee39dca25e1aca97))
+
+# [4.0.0-alpha.41](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.40...v4.0.0-alpha.41) (2026-01-06)
+
+
+### Features
+
+* example script workflow enhancements ([94d14e4](https://github.com/Sogni-AI/sogni-client/commit/94d14e42a121976b1090fe797734f2f76e57da02))
+
+# [4.0.0-alpha.40](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.39...v4.0.0-alpha.40) (2026-01-06)
+
+
+### Bug Fixes
+
+* res_multistep support in SupportedComfySamplers to fix support for z-image. /examples script enhancements ([332e7b1](https://github.com/Sogni-AI/sogni-client/commit/332e7b1280272e05c7d897de22edea61482f5b7c))
+
+# [4.0.0-alpha.39](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.38...v4.0.0-alpha.39) (2026-01-05)
+
+
+### Bug Fixes
+
+* Add ForgeSampler, ComfySampler, ForgeScheduler, and ComfyScheduler to exports ([ad24b32](https://github.com/Sogni-AI/sogni-client/commit/ad24b326904f7ad67f43c34a0b758ce64e84a8f1))
+
 # [4.0.0-alpha.38](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.37...v4.0.0-alpha.38) (2026-01-05)
 
 
