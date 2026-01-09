@@ -1,3 +1,17 @@
+# [4.0.0-alpha.46](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.45...v4.0.0-alpha.46) (2026-01-09)
+
+
+### Features
+
+* Refactor sampler and scheduler handling; remove legacy definitions and centralize validation ([29b0905](https://github.com/Sogni-AI/sogni-client/commit/29b09056ba578e577d557754bae05bbb1671af00))
+
+
+### BREAKING CHANGES
+
+* Enums and type definitions for sampler and scheduler params are removed
+
+Now scheduler and sampler params are strings. `const modelOptions = await sogni.projects.getModelOptions(modelId)` can be used to pull options for each model.
+
 # [4.0.0-alpha.45](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.44...v4.0.0-alpha.45) (2026-01-09)
 
 
