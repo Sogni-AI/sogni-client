@@ -1,3 +1,10 @@
+# [4.0.0-alpha.45](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.44...v4.0.0-alpha.45) (2026-01-09)
+
+
+### Features
+
+* add support for up to 6 contextImage for flux.2 [dev], add example script starting-image option for z-image and image size cap to ~4mp for new image models ([57c902c](https://github.com/Sogni-AI/sogni-client/commit/57c902c1b5d29c702a13ce58759af21f5e815eb4))
+
 # [4.0.0-alpha.44](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.43...v4.0.0-alpha.44) (2026-01-08)
 
 
