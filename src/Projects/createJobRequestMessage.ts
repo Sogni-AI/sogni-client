@@ -9,17 +9,16 @@ import { ControlNetParams, ControlNetParamsRaw } from './types/ControlNetParams'
 import {
   validateNumber,
   validateCustomImageSize,
-  validateForgeSampler,
-  validateForgeScheduler,
   validateVideoSize,
   validateTeacacheThreshold,
-  validateComfySampler,
-  validateComfyScheduler,
   isComfyModel,
-  validateVideoDuration
+  validateVideoDuration,
+  validateSampler,
+  validateScheduler
 } from '../lib/validation';
 import { getVideoWorkflowType, isVideoModel, VIDEO_WORKFLOW_ASSETS } from './utils';
 import { ApiError } from '../ApiClient';
+import { ImageModelOptions, ModelOptions, VideoModelOptions } from './types/ModelOptions';
 
 /**
  * Validate that the provided assets match the workflow requirements.
@@ -178,7 +177,11 @@ function getControlNet(params: ControlNetParams): ControlNetParamsRaw[] {
   return [cn];
 }
 
-function applyImageParams(inputKeyframe: Record<string, any>, params: ImageProjectParams) {
+function applyImageParams(
+  inputKeyframe: Record<string, any>,
+  params: ImageProjectParams,
+  options: ImageModelOptions
+) {
   const keyFrame: Record<string, any> = {
     ...inputKeyframe,
     sizePreset: params.sizePreset,
@@ -186,23 +189,12 @@ function applyImageParams(inputKeyframe: Record<string, any>, params: ImageProje
     hasContextImage2: !!params.contextImages?.[1],
     hasContextImage3: !!params.contextImages?.[2]
   };
-
-  // Handle sampler/scheduler: ComfyUI models use comfySampler/comfyScheduler,
-  // legacy models use sampler/scheduler (mapped to scheduler/timeStepSpacing)
   if (isComfyModel(params.modelId)) {
-    if (params.sampler !== undefined) {
-      keyFrame.comfySampler = validateComfySampler(params.sampler);
-    }
-    if (params.scheduler !== undefined) {
-      keyFrame.comfyScheduler = validateComfyScheduler(params.scheduler);
-    }
+    keyFrame.comfySampler = validateSampler(params.sampler, options);
+    keyFrame.comfyScheduler = validateScheduler(params.scheduler, options);
   } else {
-    if (params.sampler !== undefined) {
-      keyFrame.scheduler = validateForgeSampler(params.sampler);
-    }
-    if (params.scheduler !== undefined) {
-      keyFrame.timeStepSpacing = validateForgeScheduler(params.scheduler);
-    }
+    keyFrame.scheduler = validateSampler(params.sampler, options);
+    keyFrame.timeStepSpacing = validateScheduler(params.scheduler, options);
   }
 
   if (params.startingImage) {
@@ -229,7 +221,11 @@ function applyImageParams(inputKeyframe: Record<string, any>, params: ImageProje
   return keyFrame;
 }
 
-function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProjectParams) {
+function applyVideoParams(
+  inputKeyframe: Record<string, any>,
+  params: VideoProjectParams,
+  options: VideoModelOptions
+) {
   if (!isVideoModel(params.modelId)) {
     throw new ApiError(400, {
       status: 'error',
@@ -279,19 +275,13 @@ function applyVideoParams(inputKeyframe: Record<string, any>, params: VideoProje
     keyFrame.height = validateVideoSize(params.height, 'height');
   }
 
-  // Video models are ComfyUI models - only accept comfySampler/comfyScheduler
-  // Legacy sampler/scheduler fields are NOT supported for video models
-  if (params.sampler !== undefined) {
-    keyFrame.comfySampler = validateComfySampler(params.sampler);
-  }
-  if (params.scheduler !== undefined) {
-    keyFrame.comfyScheduler = validateComfyScheduler(params.scheduler);
-  }
+  keyFrame.comfySampler = validateSampler(params.sampler, options);
+  keyFrame.comfyScheduler = validateScheduler(params.scheduler, options);
 
   return keyFrame;
 }
 
-function createJobRequestMessage(id: string, params: ProjectParams) {
+function createJobRequestMessage(id: string, params: ProjectParams, options: ModelOptions) {
   const template = getTemplate();
   // Base keyFrame with common params
   let keyFrame: Record<string, any> = {
@@ -307,10 +297,26 @@ function createJobRequestMessage(id: string, params: ProjectParams) {
 
   switch (params.type) {
     case 'image':
-      keyFrame = applyImageParams(keyFrame, params);
+      if (options.type !== 'image') {
+        throw new ApiError(400, {
+          status: 'error',
+          errorCode: 0,
+          message:
+            'Invalid model type. Model does not support image generation. Please use a different model.'
+        });
+      }
+      keyFrame = applyImageParams(keyFrame, params, options);
       break;
     case 'video':
-      keyFrame = applyVideoParams(keyFrame, params);
+      if (options.type !== 'video') {
+        throw new ApiError(400, {
+          status: 'error',
+          errorCode: 0,
+          message:
+            'Invalid model type. Model does not support video generation. Please use a different model.'
+        });
+      }
+      keyFrame = applyVideoParams(keyFrame, params, options);
       break;
     default:
       throw new ApiError(400, {

@@ -1,4 +1,4 @@
-export const SupportedForgeSamplers = {
+const SamplerAliases: Record<string, string> = {
   euler: 'Euler',
   euler_ancestral: 'Euler Ancestral',
   heun: 'Heun',
@@ -25,13 +25,14 @@ export const SupportedForgeSamplers = {
   pndm_plms: 'PNDM (Pseudo-linear multi-step)'
 };
 
-export function isForgeSampler(sampler: string): sampler is ForgeSampler {
-  return sampler in SupportedForgeSamplers;
+const SamplerValueToAlias = Object.fromEntries(
+  Object.entries(SamplerAliases).map(([k, v]) => [v, k])
+);
+
+export function samplerAliasToValue(alias: string): string {
+  return SamplerAliases[alias] || alias;
 }
 
-export function isRawForgeSampler(sampler: string): boolean {
-  const samplers = Object.values(SupportedForgeSamplers);
-  return samplers.includes(sampler);
+export function samplerValueToAlias(value: string): string {
+  return SamplerValueToAlias[value] || value;
 }
-
-export type ForgeSampler = keyof typeof SupportedForgeSamplers;

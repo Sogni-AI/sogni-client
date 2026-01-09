@@ -11,15 +11,7 @@ import {
   SupportedModel,
   ImageProjectParams,
   VideoProjectParams,
-  VideoEstimateRequest,
-  SupportedComfySamplers,
-  SupportedForgeSamplers,
-  SupportedComfySchedulers,
-  SupportedForgeSchedulers,
-  ComfyScheduler,
-  ForgeScheduler,
-  ComfySampler,
-  ForgeSampler
+  VideoEstimateRequest
 } from './types';
 import {
   JobErrorData,
@@ -47,7 +39,9 @@ import {
   VIDEO_WORKFLOW_ASSETS
 } from './utils';
 import { TokenType } from '../types/token';
-import { isComfyModel, validateSampler } from '../lib/validation';
+import { validateSampler } from '../lib/validation';
+import ModelTiersRaw, { isComfyImageTier, isImageTier, isVideoTier } from './types/ModelTiersRaw';
+import { mapComfyImageTier, mapImageTier, mapVideoTier, ModelOptions } from './types/ModelOptions';
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 const GARBAGE_COLLECT_TIMEOUT = 30000;
@@ -104,6 +98,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private projects: Project[] = [];
   private _supportedModels: { data: SupportedModel[] | null; updatedAt: Date } = {
     data: null,
+    updatedAt: new Date(0)
+  };
+  private _modelTiers: {
+    data: ModelTiersRaw;
+    updatedAt: Date;
+  } = {
+    data: {},
     updatedAt: new Date(0)
   };
 
@@ -525,7 +526,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   async create(data: ProjectParams): Promise<Project> {
     const project = new Project({ ...data }, { api: this, logger: this.client.logger });
-    const request = createJobRequestMessage(project.id, data);
+    const modelOptions = await this.getModelOptions(data.modelId);
+    const request = createJobRequestMessage(project.id, data, modelOptions);
 
     switch (data.type) {
       case 'image':
@@ -834,6 +836,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     contextImages
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
+    const modelOptions = await this.getModelOptions(model);
     const pathParams = [
       tokenType || 'spark',
       network,
@@ -859,7 +862,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (sampler) {
       apiVersion = 3;
       pathParams.push(guidance || 0);
-      pathParams.push(validateSampler(model, sampler)!);
+      pathParams.push(validateSampler(sampler, modelOptions)!);
       pathParams.push(contextImages || 0);
     }
     const r = await this.client.socket.get<EstimationResponse>(
@@ -1006,6 +1009,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return models;
   }
 
+  private async _getModelTiers(forceRefresh = false) {
+    if (
+      this._modelTiers.data &&
+      !forceRefresh &&
+      Date.now() - this._modelTiers.updatedAt.getTime() < MODELS_REFRESH_INTERVAL
+    ) {
+      return this._modelTiers.data;
+    }
+    const tiers = await this.client.socket.get<ModelTiersRaw>(`/api/v2/models/tiers`);
+    this._modelTiers = { data: tiers, updatedAt: new Date() };
+    return tiers;
+  }
+
   /**
    * Get supported size presets for the model and network. Size presets are cached for 10 minutes.
    *
@@ -1105,18 +1121,27 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
   }
 
-  async getSamplers(modelId: string) {
-    if (isComfyModel(modelId)) {
-      return Object.keys(SupportedComfySamplers) as ComfySampler[];
+  async getModelOptions(modelId: string): Promise<ModelOptions> {
+    const models = await this.getSupportedModels();
+    const tiers = await this._getModelTiers();
+    const model = models.find((m) => m.id === modelId);
+    if (!model) {
+      throw new Error(`Model ${modelId} not supported`);
     }
-    return Object.keys(SupportedForgeSamplers) as ForgeSampler[];
-  }
-
-  async getSchedulers(modelId: string) {
-    if (isComfyModel(modelId)) {
-      return Object.keys(SupportedComfySchedulers) as ComfyScheduler[];
+    const tier = tiers[model.tier];
+    if (!tier) {
+      throw new Error(`Unable to find model tier "${model.tier}" please contact support`);
     }
-    return Object.keys(SupportedForgeSchedulers) as ForgeScheduler[];
+    if (isImageTier(tier)) {
+      return mapImageTier(tier);
+    }
+    if (isVideoTier(tier)) {
+      return mapVideoTier(tier);
+    }
+    if (isComfyImageTier(tier)) {
+      return mapComfyImageTier(tier);
+    }
+    throw new Error(`Unsupported model tier "${model.tier}"`);
   }
 }
 

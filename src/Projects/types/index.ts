@@ -1,15 +1,12 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
 import { ControlNetParams } from './ControlNetParams';
 import { TokenType } from '../../types/token';
-import { ForgeSampler, SupportedForgeSamplers } from './ForgeSamplerParams';
-import { ForgeScheduler, SupportedForgeSchedulers } from './ForgeSchedulerParams';
-import { ComfySampler, SupportedComfySamplers } from './ComfySamplerParams';
-import { ComfyScheduler, SupportedComfySchedulers } from './ComfySchedulerParams';
 
 export interface SupportedModel {
   id: string;
   name: string;
   SID: number;
+  tier: string;
   /**
    * Media type produced by this model: 'image' or 'video'
    */
@@ -34,19 +31,6 @@ export interface SizePreset {
   ratio: string;
   aspect: string;
 }
-
-export type Sampler = ForgeSampler | ComfySampler;
-
-export type Scheduler = ForgeScheduler | ComfyScheduler;
-
-export type { ForgeSampler, ForgeScheduler, ComfySampler, ComfyScheduler };
-
-export {
-  SupportedForgeSamplers,
-  SupportedForgeSchedulers,
-  SupportedComfySamplers,
-  SupportedComfySchedulers
-};
 
 export type ImageOutputFormat = 'png' | 'jpg';
 export type VideoOutputFormat = 'mp4';
@@ -164,17 +148,15 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   height?: number;
   /**
-   * ComfyUI sampler for video generation.
-   * Uses ComfyUI's native lowercase format: euler, euler_ancestral, dpmpp_2m, etc.
-   * Default: euler (or uni_pc for s2v models)
+   * Sampler, available options depend on the model. Use `sogni.projects.getModelOptions(modelId)`
+   * to get the list of available samplers.
    */
-  sampler?: ComfySampler;
+  sampler?: string;
   /**
-   * ComfyUI scheduler for video generation.
-   * Uses ComfyUI's native lowercase format: simple, normal, karras, sgm_uniform, etc.
-   * Default: simple
+   * Scheduler, available options depend on the model. Use `sogni.projects.getModelOptions(modelId)`
+   * to get the list of available schedulers.
    */
-  scheduler?: ComfyScheduler;
+  scheduler?: string;
   /**
    * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
    */
@@ -207,15 +189,15 @@ export interface ImageProjectParams extends BaseProjectParams {
    */
   contextImages?: InputMedia[];
   /**
-   * Legacy sampler for non-ComfyUI models (Automatic1111 workers).
-   * Not supported for ComfyUI models - use comfySampler instead.
+   * Sampler, available options depend on the model. Use `sogni.projects.getModelOptions(modelId)`
+   * to get the list of available samplers.
    */
-  sampler?: Sampler;
+  sampler?: string;
   /**
-   * Legacy scheduler for non-ComfyUI models (Automatic1111 workers).
-   * Not supported for ComfyUI models - use comfyScheduler instead.
+   * Scheduler, available options depend on the model. Use `sogni.projects.getModelOptions(modelId)`
+   * to get the list of available schedulers.
    */
-  scheduler?: Scheduler;
+  scheduler?: string;
   /**
    * Size preset ID to use. You can query available size presets
    * from `sogni.projects.sizePresets(network, modelId)`
@@ -341,7 +323,7 @@ export interface EstimateRequest {
   /**
    * Sampler
    */
-  sampler?: Sampler;
+  sampler?: string;
   /**
    * Number of context images to use (for Flux Kontext).
    * Note that this parameter is ignored if `scheduler` is not provided

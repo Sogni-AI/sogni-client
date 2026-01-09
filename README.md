@@ -335,37 +335,42 @@ Sample response:
 ### Samplers
 Samplers control the denoising process — the sequence of steps that transforms random noise into your final image.
 
-Available sampler options:
-
-| Option          | Description                         |
-|-----------------|-------------------------------------|
-| `dfs_sd3`       | Discrete Flow Sampler (SD3)         |
-| `dpm_pp`        | DPM Solver Multistep (DPM-Solver++) |
-| `dpm_pp_sde`    | DPM++ SDE                           |
-| `dpm_pp_2m`     | DPM++ 2M                            |
-| `euler`         | Euler                               |
-| `euler_a`       | Euler a                             |
-| `lcm`           | LCM (Latent Consistency Model)      |
-| `pndm_plms`     | PNDM (Pseudo-linear multi-step)     |
-
-**IMPORTANT:** Sampler compatibility depends on model and network. See [Samplers and Schedulers](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers) docs for more info.
+Avaliable sampler options depend on a model. You can use api to get available samplers for a specific model:
+```javascript
+const modelOptions = await sogni.projects.getModelOptions('flux1-schnell-fp8');
+console.log(modelOptions.sampler);
+/*
+ {
+   allowed: [ 'euler', 'euler_a', 'dpm_pp_2m', 'dpmpp_2m_sde', 'dpm_pp_sde' ],
+   default: 'euler'
+ }
+ */
+```
+See [Samplers and Schedulers](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers) docs for more info.
 
 ### Schedulers
 Control how steps are distributed. For more info see [Schedulers and Samplers](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers#schedulers) docs.
 
-Available scheduler options:
-
-| Option        | Description |
-|---------------|-------------|
-| `beta`        | Beta        |
-| `ddim`        | DDIM        |
-| `karras`      | Karras      | 
-| `kl_optimal`  | KL Optimal  | 
-| `leading`     | Automatic   |
-| `linear`      | Automatic   |
-| `normal`      | Normal      |
-| `sgm_uniform` | SGM Uniform | 
-| `simple`      | Simple      |
+Available scheduler options depend on a model. You can use api to get available schedulers for a specific model:
+```javascript
+const modelOptions = await sogni.projects.getModelOptions(modelId);
+console.log(modelOptions.scheduler);
+/*
+ {
+   allowed: [
+     'simple',
+     'karras',
+     'linear',
+     'sgm_uniform',
+     'beta',
+     'normal',
+     'ddim',
+     'kl_optimal'
+   ],
+   default: 'simple'
+ }
+ */
+```
 
 ### ControlNets
 **EXPERIMENTAL FEATURE:** This feature is still in development and may not work as expected. Use at your own risk.

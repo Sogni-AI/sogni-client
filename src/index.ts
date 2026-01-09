@@ -17,16 +17,6 @@ import {
   ImageProjectParams,
   ImageOutputFormat,
   ProjectParams,
-  Sampler,
-  ForgeSampler,
-  ComfySampler,
-  Scheduler,
-  ForgeScheduler,
-  ComfyScheduler,
-  SupportedForgeSamplers,
-  SupportedForgeSchedulers,
-  SupportedComfySamplers,
-  SupportedComfySchedulers,
   VideoProjectParams,
   AudioFormat,
   VideoFormat,
@@ -52,13 +42,7 @@ export type {
   LogLevel,
   ProjectParams,
   ProjectStatus,
-  Sampler,
-  ForgeSampler,
-  ComfySampler,
   SupernetType,
-  Scheduler,
-  ForgeScheduler,
-  ComfyScheduler,
   TokenType,
   VideoFormat,
   VideoOutputFormat,
@@ -66,16 +50,7 @@ export type {
   VideoWorkflowType
 };
 
-export {
-  ApiError,
-  CurrentAccount,
-  Job,
-  Project,
-  SupportedComfySchedulers,
-  SupportedComfySamplers,
-  SupportedForgeSchedulers,
-  SupportedForgeSamplers
-};
+export { ApiError, CurrentAccount, Job, Project };
 
 export interface SogniClientConfig {
   /**
