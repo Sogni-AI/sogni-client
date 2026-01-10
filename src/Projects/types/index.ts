@@ -202,7 +202,8 @@ export interface ImageProjectParams extends BaseProjectParams {
   startingImageStrength?: number;
   /**
    * Context images for multi-reference image generation.
-   * Flux.2 Dev and Qwen Image Edit Plus support up to 3 context images.
+   * Flux.2 Dev supports up to 6 context images.
+   * Qwen Image Edit Plus supports up to 3 context images.
    * Flux Kontext supports up to 2 context images.
    */
   contextImages?: InputMedia[];

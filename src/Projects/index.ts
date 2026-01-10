@@ -39,7 +39,7 @@ import {
   VIDEO_WORKFLOW_ASSETS
 } from './utils';
 import { TokenType } from '../types/token';
-import { validateSampler } from '../lib/validation';
+import { getMaxContextImages, validateSampler } from '../lib/validation';
 import ModelTiersRaw, { isComfyImageTier, isImageTier, isVideoTier } from './types/ModelTiersRaw';
 import { mapComfyImageTier, mapImageTier, mapVideoTier, ModelOptions } from './types/ModelOptions';
 
@@ -552,19 +552,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       await this.uploadCNImage(project.id, data.controlNet.image);
     }
 
-    // Context images (Flux.2 Dev, Qwen Image Edit Plus support up to 3; Flux Kontext supports up to 2)
+    // Context images (Flux.2 Dev supports up to 6; Qwen Image Edit Plus supports up to 3; Flux Kontext supports up to 2)
     if (data.contextImages?.length) {
-      if (data.contextImages.length > 3) {
+      const maxContextImages = getMaxContextImages(data.modelId);
+      if (data.contextImages.length > maxContextImages) {
         throw new ApiError(500, {
           status: 'error',
           errorCode: 0,
-          message: `Up to 3 context images are supported`
+          message: `Up to ${maxContextImages} context images are supported for this model`
         });
       }
       await Promise.all(
         data.contextImages.map((image, index) => {
           if (image && image !== true) {
-            return this.uploadContextImage(project.id, index as 0 | 1 | 2, image);
+            return this.uploadContextImage(project.id, index as 0 | 1 | 2 | 3 | 4 | 5, image);
           }
         })
       );
@@ -674,11 +675,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadContextImage(
     projectId: string,
-    index: 0 | 1 | 2,
+    index: 0 | 1 | 2 | 3 | 4 | 5,
     file: File | Buffer | Blob
   ) {
     const imageId = getUUID();
-    const imageIndex = (index + 1) as 1 | 2 | 3;
+    const imageIndex = (index + 1) as 1 | 2 | 3 | 4 | 5 | 6;
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
