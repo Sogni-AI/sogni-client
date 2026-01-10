@@ -192,10 +192,14 @@ function applyImageParams(
     hasContextImage5: !!params.contextImages?.[4],
     hasContextImage6: !!params.contextImages?.[5]
   };
+  // Sampler/scheduler handling: SDK validates and passes through as-is.
+  // sogni-socket normalizes values for both ComfyUI and Forge workers.
   if (isComfyModel(params.modelId)) {
+    // ComfyUI models use comfySampler/comfyScheduler fields
     keyFrame.comfySampler = validateSampler(params.sampler, options);
     keyFrame.comfyScheduler = validateScheduler(params.scheduler, options);
   } else {
+    // Legacy Forge models use scheduler/timeStepSpacing fields
     keyFrame.scheduler = validateSampler(params.sampler, options);
     keyFrame.timeStepSpacing = validateScheduler(params.scheduler, options);
   }
