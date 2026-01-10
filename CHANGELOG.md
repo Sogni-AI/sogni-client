@@ -1,3 +1,10 @@
+# [4.0.0-alpha.47](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.46...v4.0.0-alpha.47) (2026-01-10)
+
+
+### Features
+
+* add support for up to 6 context images for Flux.2 Dev ([3096fe6](https://github.com/Sogni-AI/sogni-client/commit/3096fe62f155939e7a044a07f7696066e9f1e6d7))
+
 # [4.0.0-alpha.46](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.45...v4.0.0-alpha.46) (2026-01-09)
 
 
