@@ -60,7 +60,8 @@ import {
   log,
   formatDuration,
   displayConfig,
-  displayPrompts
+  displayPrompts,
+  getUniqueFilename
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -469,19 +470,33 @@ async function main() {
     console.log('📊 Cost Estimate:');
 
     if (tokenType === 'spark') {
-      const cost = parseFloat(estimate.quote.project.costInSpark || 0);
+      const costPerVideo = parseFloat(estimate.quote.project.costInSpark || 0);
+      const totalCost = costPerVideo * OPTIONS.batch;
       const currentBalance = parseFloat(balance.spark.net || 0);
+      if (OPTIONS.batch > 1) {
+        console.log(`   Per video: ${costPerVideo.toFixed(2)} Spark`);
+        console.log(`   Total (${OPTIONS.batch} videos): ${totalCost.toFixed(2)} Spark`);
+      } else {
+        console.log(`   Spark: ${totalCost.toFixed(2)}`);
+      }
       console.log(
-        `   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`
+        `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
       );
-      console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
+      console.log(`   USD: $${(totalCost * 0.005).toFixed(4)}`);
     } else {
-      const cost = parseFloat(estimate.quote.project.costInSogni || 0);
+      const costPerVideo = parseFloat(estimate.quote.project.costInSogni || 0);
+      const totalCost = costPerVideo * OPTIONS.batch;
       const currentBalance = parseFloat(balance.sogni.net || 0);
+      if (OPTIONS.batch > 1) {
+        console.log(`   Per video: ${costPerVideo.toFixed(2)} Sogni`);
+        console.log(`   Total (${OPTIONS.batch} videos): ${totalCost.toFixed(2)} Sogni`);
+      } else {
+        console.log(`   Sogni: ${totalCost.toFixed(2)}`);
+      }
       console.log(
-        `   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`
+        `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
       );
-      console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
+      console.log(`   USD: $${(totalCost * 0.05).toFixed(4)}`);
     }
 
     console.log();
@@ -647,7 +662,8 @@ async function main() {
             }
             log('✅', 'Job completed!');
             const videoId = event.jobId || `video_${Date.now()}`;
-            const outputPath = `${OPTIONS.output}/${videoId}.mp4`;
+            const desiredPath = `${OPTIONS.output}/${videoId}.mp4`;
+            const outputPath = getUniqueFilename(desiredPath);
 
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {

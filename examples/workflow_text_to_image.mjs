@@ -52,7 +52,11 @@ import {
   readFileAsBuffer,
   log,
   displayConfig,
-  displayPrompts
+  displayPrompts,
+  getUniqueFilename,
+  createSogniConnection,
+  getDefaultSampler,
+  getDefaultScheduler
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -203,6 +207,19 @@ async function main() {
 
   log('🎨', `Selected model: ${modelConfig.name}`);
 
+  // Create SDK connection early to fetch dynamic sampler/scheduler options
+  let sogni = null;
+  if (OPTIONS.interactive) {
+    log('🔄', 'Connecting to fetch model options...');
+    try {
+      sogni = await createSogniConnection(USERNAME, PASSWORD);
+      log('✓', 'Connected');
+    } catch (e) {
+      log('⚠️', `Could not connect for dynamic options: ${e.message}`);
+      log('ℹ️', 'Using default sampler/scheduler options');
+    }
+  }
+
   // Interactive mode: prompt for core options
   if (OPTIONS.interactive) {
     await promptCoreOptions(OPTIONS, modelConfig, {
@@ -213,7 +230,7 @@ async function main() {
     // Ask about advanced options
     const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
-      await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: false });
+      await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: false, sogni });
 
       // Prompt for starting image (img2img) - only supported by Z-Image Turbo
       if (OPTIONS.modelKey === 'z-turbo') {
@@ -255,19 +272,37 @@ async function main() {
     OPTIONS.height = modelConfig.maxHeight;
   }
 
-  // Apply default sampler/scheduler based on model type
+  // Apply default sampler/scheduler - try to get from SDK if connected
   if (!OPTIONS.sampler) {
-    if (modelConfig.isComfyModel && modelConfig.defaultComfySampler) {
-      OPTIONS.sampler = modelConfig.defaultComfySampler;
-    } else if (!modelConfig.isComfyModel && modelConfig.defaultSampler) {
-      OPTIONS.sampler = modelConfig.defaultSampler;
+    if (sogni) {
+      const dynamicDefault = await getDefaultSampler(sogni, modelConfig.id);
+      if (dynamicDefault) {
+        OPTIONS.sampler = dynamicDefault;
+      }
+    }
+    // Fall back to modelConfig defaults
+    if (!OPTIONS.sampler) {
+      if (modelConfig.isComfyModel && modelConfig.defaultComfySampler) {
+        OPTIONS.sampler = modelConfig.defaultComfySampler;
+      } else if (!modelConfig.isComfyModel && modelConfig.defaultSampler) {
+        OPTIONS.sampler = modelConfig.defaultSampler;
+      }
     }
   }
   if (!OPTIONS.scheduler) {
-    if (modelConfig.isComfyModel && modelConfig.defaultComfyScheduler) {
-      OPTIONS.scheduler = modelConfig.defaultComfyScheduler;
-    } else if (!modelConfig.isComfyModel && modelConfig.defaultScheduler) {
-      OPTIONS.scheduler = modelConfig.defaultScheduler;
+    if (sogni) {
+      const dynamicDefault = await getDefaultScheduler(sogni, modelConfig.id);
+      if (dynamicDefault) {
+        OPTIONS.scheduler = dynamicDefault;
+      }
+    }
+    // Fall back to modelConfig defaults
+    if (!OPTIONS.scheduler) {
+      if (modelConfig.isComfyModel && modelConfig.defaultComfyScheduler) {
+        OPTIONS.scheduler = modelConfig.defaultComfyScheduler;
+      } else if (!modelConfig.isComfyModel && modelConfig.defaultScheduler) {
+        OPTIONS.scheduler = modelConfig.defaultScheduler;
+      }
     }
   }
 
@@ -309,33 +344,39 @@ async function main() {
     fs.mkdirSync(OPTIONS.output, { recursive: true });
   }
 
-  // Initialize client
-  const clientConfig = {
-    appId: `sogni-workflow-t2i-${Date.now()}`,
-    network: 'fast'
-  };
+  // Initialize client - reuse early connection if available, otherwise create new one
+  if (!sogni) {
+    const clientConfig = {
+      appId: `sogni-workflow-t2i-${Date.now()}`,
+      network: 'fast'
+    };
 
-  // Load optional configuration from environment
-  const testnet = process.env.SOGNI_TESTNET === 'true';
-  const socketEndpoint = process.env.SOGNI_SOCKET_ENDPOINT;
-  const restEndpoint = process.env.SOGNI_REST_ENDPOINT;
+    // Load optional configuration from environment
+    const testnet = process.env.SOGNI_TESTNET === 'true';
+    const socketEndpoint = process.env.SOGNI_SOCKET_ENDPOINT;
+    const restEndpoint = process.env.SOGNI_REST_ENDPOINT;
 
-  if (testnet) {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-  }
+    if (testnet) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    }
 
-  if (testnet) clientConfig.testnet = testnet;
-  if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
-  if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
+    if (testnet) clientConfig.testnet = testnet;
+    if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
+    if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
 
-  const sogni = await SogniClient.createInstance(clientConfig);
+    sogni = await SogniClient.createInstance(clientConfig);
 
-  try {
     // Login
     log('🔓', 'Logging in...');
     await sogni.account.login(USERNAME, PASSWORD);
     log('✓', `Logged in as: ${USERNAME}`);
     console.log();
+  } else {
+    log('✓', `Using existing connection as: ${USERNAME}`);
+    console.log();
+  }
+
+  try {
 
     // Get balance for token selection
     const balance = await sogni.account.refreshBalance();
@@ -402,19 +443,33 @@ async function main() {
 
     // Get cost estimate
     log('💵', 'Fetching cost estimate...');
-    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, guidance || 0, OPTIONS.width, OPTIONS.height);
+    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, guidance || 0, OPTIONS.width, OPTIONS.height, OPTIONS.batch);
     console.log();
     console.log('📊 Cost Estimate:');
 
     if (tokenType === 'spark') {
       const cost = parseFloat(estimate.quote.project.costInSpark || 0);
       const currentBalance = parseFloat(balance.spark.net || 0);
-      console.log(`   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      if (OPTIONS.batch > 1) {
+        const costPerImage = cost / OPTIONS.batch;
+        console.log(`   Per image: ${costPerImage.toFixed(2)} Spark`);
+        console.log(`   Total (${OPTIONS.batch} images): ${cost.toFixed(2)} Spark`);
+      } else {
+        console.log(`   Spark: ${cost.toFixed(2)}`);
+      }
+      console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Spark`);
       console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
     } else {
       const cost = parseFloat(estimate.quote.project.costInSogni || 0);
       const currentBalance = parseFloat(balance.sogni.net || 0);
-      console.log(`   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      if (OPTIONS.batch > 1) {
+        const costPerImage = cost / OPTIONS.batch;
+        console.log(`   Per image: ${costPerImage.toFixed(2)} Sogni`);
+        console.log(`   Total (${OPTIONS.batch} images): ${cost.toFixed(2)} Sogni`);
+      } else {
+        console.log(`   Sogni: ${cost.toFixed(2)}`);
+      }
+      console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Sogni`);
       console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
     }
 
@@ -586,7 +641,8 @@ async function main() {
             const modelShortName = OPTIONS.modelKey.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
             const seedStr = projectParams.seed !== -1 ? `_seed${projectParams.seed}` : '';
             const extension = OPTIONS.outputFormat || 'jpg';
-            const outputPath = `${OPTIONS.output}/${modelShortName}_${OPTIONS.width}x${OPTIONS.height}_steps${steps}${seedStr}_${imageNumber}.${extension}`;
+            const desiredPath = `${OPTIONS.output}/${modelShortName}_${OPTIONS.width}x${OPTIONS.height}_steps${steps}${seedStr}_${imageNumber}.${extension}`;
+            const outputPath = getUniqueFilename(desiredPath);
 
             downloadImage(event.resultUrl, outputPath)
               .then(() => {
@@ -710,9 +766,8 @@ async function main() {
 /**
  * Get image job cost estimate
  */
-async function getImageJobEstimate(tokenType, modelId, steps, guidance = 0, width = 1024, height = 1024) {
+async function getImageJobEstimate(tokenType, modelId, steps, guidance = 0, width = 1024, height = 1024, imageCount = 1) {
   const network = 'fast';
-  const imageCount = 1;
   const stepCount = steps;
   const previewCount = 0;
   const cnEnabled = false;

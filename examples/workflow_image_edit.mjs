@@ -56,7 +56,8 @@ import {
   readFilesAsBuffers,
   log,
   displayConfig,
-  displayPrompts
+  displayPrompts,
+  getUniqueFilename
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -541,7 +542,7 @@ async function main() {
 
     // Get cost estimate
     log('💵', 'Fetching cost estimate...');
-    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, OPTIONS.contextImages[0]);
+    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, OPTIONS.contextImages[0], OPTIONS.batch);
 
     console.log();
     console.log('📊 Cost Estimate:');
@@ -549,12 +550,26 @@ async function main() {
     if (tokenType === 'spark') {
       const cost = parseFloat(estimate.quote.project.costInSpark || 0);
       const currentBalance = parseFloat(balance.spark.net || 0);
-      console.log(`   Spark: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      if (OPTIONS.batch > 1) {
+        const costPerImage = cost / OPTIONS.batch;
+        console.log(`   Per image: ${costPerImage.toFixed(2)} Spark`);
+        console.log(`   Total (${OPTIONS.batch} images): ${cost.toFixed(2)} Spark`);
+      } else {
+        console.log(`   Spark: ${cost.toFixed(2)}`);
+      }
+      console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Spark`);
       console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
     } else {
       const cost = parseFloat(estimate.quote.project.costInSogni || 0);
       const currentBalance = parseFloat(balance.sogni.net || 0);
-      console.log(`   Sogni: ${cost.toFixed(2)} (Balance remaining: ${(currentBalance - cost).toFixed(2)})`);
+      if (OPTIONS.batch > 1) {
+        const costPerImage = cost / OPTIONS.batch;
+        console.log(`   Per image: ${costPerImage.toFixed(2)} Sogni`);
+        console.log(`   Total (${OPTIONS.batch} images): ${cost.toFixed(2)} Sogni`);
+      } else {
+        console.log(`   Sogni: ${cost.toFixed(2)}`);
+      }
+      console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Sogni`);
       console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
     }
 
@@ -739,7 +754,8 @@ async function main() {
             }
             const imageId = event.jobId || `edited_${Date.now()}`;
             const extension = OPTIONS.outputFormat || 'jpg';
-            const outputPath = `${OPTIONS.output}/${imageId}.${extension}`;
+            const desiredPath = `${OPTIONS.output}/${imageId}.${extension}`;
+            const outputPath = getUniqueFilename(desiredPath);
 
             downloadImage(event.resultUrl, outputPath)
               .then(() => {
@@ -844,9 +860,8 @@ async function main() {
   }
 }
 
-async function getImageJobEstimate(tokenType, modelId, steps, inputImagePath) {
+async function getImageJobEstimate(tokenType, modelId, steps, inputImagePath, imageCount = 1) {
   const network = 'fast';
-  const imageCount = 1;
   const stepCount = steps;
   const previewCount = 0;
   const cnEnabled = false;

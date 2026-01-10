@@ -58,7 +58,8 @@ import {
   processImageForVideo,
   log,
   formatDuration,
-  displayConfig
+  displayConfig,
+  getUniqueFilename
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -574,7 +575,8 @@ async function main() {
 
     for (let i = 0; i < filesToProcess.length; i++) {
       const imageFile = filesToProcess[i];
-      const outputPath = path.join(OPTIONS.output, `${imageFile.basename}.mp4`);
+      const desiredPath = path.join(OPTIONS.output, `${imageFile.basename}.mp4`);
+      const outputPath = getUniqueFilename(desiredPath);
 
       console.log();
       console.log('━'.repeat(60));
