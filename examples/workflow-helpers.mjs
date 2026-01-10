@@ -10,6 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import imageSize from 'image-size';
 import sharp from 'sharp';
+import { SogniClient } from '../dist/index.js';
 
 // ============================================
 // Model Configurations
@@ -502,32 +503,100 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
 // Sampler and Scheduler Options
 // ============================================
 
-// ComfyUI samplers (lowercase format)
-export const COMFY_SAMPLERS = [
-  { id: 'euler', name: 'Euler', description: 'Default, fast and stable' },
-  { id: 'euler_ancestral', name: 'Euler Ancestral', description: 'More creative variations' },
-  { id: 'res_multistep', name: 'Res Multistep', description: 'Optimized for Z-Image Turbo' },
-  { id: 'dpmpp_2m', name: 'DPM++ 2M', description: 'Good quality, moderate speed' },
-  { id: 'dpmpp_2m_sde', name: 'DPM++ 2M SDE', description: 'Higher quality, slower' },
-  { id: 'dpmpp_sde', name: 'DPM++ SDE', description: 'High quality sampling' },
-  { id: 'uni_pc', name: 'UniPC', description: 'Recommended for S2V workflows' },
-  { id: 'lcm', name: 'LCM', description: 'Latent Consistency Model - very fast' },
-  { id: 'ddim', name: 'DDIM', description: 'Denoising Diffusion Implicit Models' }
-];
+/**
+ * Create a lightweight SDK connection for fetching model options.
+ * This can be used early in the workflow before the full SDK is created.
+ * @param {string} username - Username for authentication
+ * @param {string} password - Password for authentication
+ * @returns {Promise<Object>} SDK instance
+ */
+export async function createSogniConnection(username, password) {
+  // Load optional configuration from environment
+  const testnet = process.env.SOGNI_TESTNET === 'true';
+  const socketEndpoint = process.env.SOGNI_SOCKET_ENDPOINT;
+  const restEndpoint = process.env.SOGNI_REST_ENDPOINT;
 
-// ComfyUI schedulers for video models (lowercase format)
-export const COMFY_SCHEDULERS = [
-  { id: 'simple', name: 'Simple', description: 'Default scheduler' },
-  { id: 'normal', name: 'Normal', description: 'Standard scheduling' },
-  { id: 'karras', name: 'Karras', description: 'Smoother noise schedule' },
-  { id: 'sgm_uniform', name: 'SGM Uniform', description: 'Uniform step spacing' },
-  { id: 'beta', name: 'Beta', description: 'Beta noise schedule' },
-  { id: 'exponential', name: 'Exponential', description: 'Exponential noise schedule' }
-];
+  if (testnet) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  }
 
-// Legacy aliases for backwards compatibility
-export const SAMPLERS = COMFY_SAMPLERS;
-export const SCHEDULERS = COMFY_SCHEDULERS;
+  const clientConfig = {
+    appId: `sogni-workflow-options-${Date.now()}`,
+    network: 'fast'
+  };
+
+  if (testnet) clientConfig.testnet = testnet;
+  if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
+  if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
+
+  const sogni = await SogniClient.createInstance(clientConfig);
+  await sogni.account.login(username, password);
+  await sogni.projects.waitForModels();
+
+  return sogni;
+}
+
+/**
+ * Get sampler options from the SDK's model options API
+ * @param {Object} sogni - Sogni SDK instance
+ * @param {string} modelId - Model ID to get options for
+ * @returns {Promise<Object|null>} Sampler options { allowed: string[], default: string } or null
+ */
+export async function getSamplerOptions(sogni, modelId) {
+  try {
+    const modelOptions = await sogni.projects.getModelOptions(modelId);
+    return modelOptions.sampler;
+  } catch (e) {
+    console.warn(`Warning: Could not fetch sampler options for ${modelId}: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * Get scheduler options from the SDK's model options API
+ * @param {Object} sogni - Sogni SDK instance
+ * @param {string} modelId - Model ID to get options for
+ * @returns {Promise<Object|null>} Scheduler options { allowed: string[], default: string } or null
+ */
+export async function getSchedulerOptions(sogni, modelId) {
+  try {
+    const modelOptions = await sogni.projects.getModelOptions(modelId);
+    return modelOptions.scheduler;
+  } catch (e) {
+    console.warn(`Warning: Could not fetch scheduler options for ${modelId}: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * Get default sampler from SDK's model options API
+ * @param {Object} sogni - Sogni SDK instance
+ * @param {string} modelId - Model ID to get default for
+ * @returns {Promise<string|null>} Default sampler ID or null
+ */
+export async function getDefaultSampler(sogni, modelId) {
+  try {
+    const modelOptions = await sogni.projects.getModelOptions(modelId);
+    return modelOptions.sampler.default;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Get default scheduler from SDK's model options API
+ * @param {Object} sogni - Sogni SDK instance
+ * @param {string} modelId - Model ID to get default for
+ * @returns {Promise<string|null>} Default scheduler ID or null
+ */
+export async function getDefaultScheduler(sogni, modelId) {
+  try {
+    const modelOptions = await sogni.projects.getModelOptions(modelId);
+    return modelOptions.scheduler.default;
+  } catch (e) {
+    return null;
+  }
+}
 
 // ============================================
 // Interactive Prompts
@@ -895,11 +964,11 @@ export async function promptVideoDuration(options, modelConfig = {}) {
  * Prompt for advanced options
  * @param {Object} options - Current options object
  * @param {Object} modelConfig - Selected model configuration
- * @param {Object} config - Additional configuration (isVideo, etc.)
+ * @param {Object} config - Additional configuration (isVideo, sogni, etc.)
  * @returns {Promise<Object>} Updated options
  */
 export async function promptAdvancedOptions(options, modelConfig, config = {}) {
-  const { isVideo = false } = config;
+  const { isVideo = false, sogni = null } = config;
 
   console.log('\n🔧 Advanced Options\n');
 
@@ -971,64 +1040,77 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     if (options.guidance === undefined) options.guidance = defaultGuidance;
   }
 
-  // Sampler - use sampler for ComfyUI models, sampler for legacy models
-  const isComfyModel = modelConfig.isComfyModel;
-  const defaultSampler = modelConfig.defaultComfySampler || modelConfig.defaultSampler || 'euler';
-  const defaultSamplerIdx = COMFY_SAMPLERS.findIndex((s) => s.id === defaultSampler) + 1;
-  const defaultSamplerName = COMFY_SAMPLERS.find((s) => s.id === defaultSampler)?.name || 'Euler';
-  console.log('\n  Samplers:');
-  COMFY_SAMPLERS.forEach((s, i) => {
-    const marker = s.id === defaultSampler ? ' (recommended)' : '';
-    console.log(`    ${i + 1}. ${s.name} - ${s.description}${marker}`);
-  });
-  const samplerInput = await askQuestion(
-    `  Select sampler (default: ${defaultSamplerIdx} - ${defaultSamplerName}): `
-  );
-  if (samplerInput.trim()) {
-    const idx = parseInt(samplerInput.trim(), 10) - 1;
-    if (idx >= 0 && idx < COMFY_SAMPLERS.length) {
-      if (isComfyModel) {
-        options.sampler = COMFY_SAMPLERS[idx].id;
-      } else {
-        options.sampler = COMFY_SAMPLERS[idx].id;
+  // Sampler - fetch dynamic options from SDK if available
+  let samplerData = null;
+  if (sogni && modelConfig.id) {
+    samplerData = await getSamplerOptions(sogni, modelConfig.id);
+  }
+
+  // Use dynamic options or fall back to modelConfig defaults
+  const availableSamplers = samplerData?.allowed || [];
+  const defaultSampler =
+    samplerData?.default ||
+    modelConfig.defaultComfySampler ||
+    modelConfig.defaultSampler ||
+    'euler';
+
+  if (availableSamplers.length > 0) {
+    const defaultSamplerIdx = availableSamplers.indexOf(defaultSampler) + 1;
+
+    console.log('\n  Samplers:');
+    availableSamplers.forEach((sampler, i) => {
+      const marker = sampler === defaultSampler ? ' (default)' : '';
+      console.log(`    ${i + 1}. ${sampler}${marker}`);
+    });
+    const samplerInput = await askQuestion(
+      `  Select sampler (default: ${defaultSamplerIdx || 1} - ${defaultSampler}): `
+    );
+    if (samplerInput.trim()) {
+      const idx = parseInt(samplerInput.trim(), 10) - 1;
+      if (idx >= 0 && idx < availableSamplers.length) {
+        options.sampler = availableSamplers[idx];
       }
     }
   }
   // Set default if not selected
-  if (isComfyModel && !options.sampler) {
-    options.sampler = defaultSampler;
-  } else if (!isComfyModel && !options.sampler) {
+  if (!options.sampler) {
     options.sampler = defaultSampler;
   }
 
-  // Scheduler - use scheduler for ComfyUI models, scheduler for legacy models
+  // Scheduler - fetch dynamic options from SDK if available
+  let schedulerData = null;
+  if (sogni && modelConfig.id) {
+    schedulerData = await getSchedulerOptions(sogni, modelConfig.id);
+  }
+
+  // Use dynamic options or fall back to modelConfig defaults
+  const availableSchedulers = schedulerData?.allowed || [];
   const defaultScheduler =
-    modelConfig.defaultComfyScheduler || modelConfig.defaultScheduler || 'simple';
-  const defaultSchedulerIdx = COMFY_SCHEDULERS.findIndex((s) => s.id === defaultScheduler) + 1;
-  const defaultSchedulerName =
-    COMFY_SCHEDULERS.find((s) => s.id === defaultScheduler)?.name || 'Simple';
-  console.log('\n  Schedulers:');
-  COMFY_SCHEDULERS.forEach((s, i) => {
-    const marker = s.id === defaultScheduler ? ' (recommended)' : '';
-    console.log(`    ${i + 1}. ${s.name} - ${s.description}${marker}`);
-  });
-  const schedulerInput = await askQuestion(
-    `  Select scheduler (default: ${defaultSchedulerIdx} - ${defaultSchedulerName}): `
-  );
-  if (schedulerInput.trim()) {
-    const idx = parseInt(schedulerInput.trim(), 10) - 1;
-    if (idx >= 0 && idx < COMFY_SCHEDULERS.length) {
-      if (isComfyModel) {
-        options.scheduler = COMFY_SCHEDULERS[idx].id;
-      } else {
-        options.scheduler = COMFY_SCHEDULERS[idx].id;
+    schedulerData?.default ||
+    modelConfig.defaultComfyScheduler ||
+    modelConfig.defaultScheduler ||
+    'simple';
+
+  if (availableSchedulers.length > 0) {
+    const defaultSchedulerIdx = availableSchedulers.indexOf(defaultScheduler) + 1;
+
+    console.log('\n  Schedulers:');
+    availableSchedulers.forEach((scheduler, i) => {
+      const marker = scheduler === defaultScheduler ? ' (default)' : '';
+      console.log(`    ${i + 1}. ${scheduler}${marker}`);
+    });
+    const schedulerInput = await askQuestion(
+      `  Select scheduler (default: ${defaultSchedulerIdx || 1} - ${defaultScheduler}): `
+    );
+    if (schedulerInput.trim()) {
+      const idx = parseInt(schedulerInput.trim(), 10) - 1;
+      if (idx >= 0 && idx < availableSchedulers.length) {
+        options.scheduler = availableSchedulers[idx];
       }
     }
   }
   // Set default if not selected
-  if (isComfyModel && !options.scheduler) {
-    options.scheduler = defaultScheduler;
-  } else if (!isComfyModel && !options.scheduler) {
+  if (!options.scheduler) {
     options.scheduler = defaultScheduler;
   }
 
@@ -1294,4 +1376,40 @@ export function readFileAsBuffer(filePath) {
  */
 export function readFilesAsBuffers(filePaths) {
   return filePaths.filter(Boolean).map(readFileAsBuffer);
+}
+
+/**
+ * Generate a unique filename by incrementing a counter if the file already exists.
+ * If the file doesn't exist, returns the original path.
+ * If it does exist, appends _1, _2, _3, etc. before the extension.
+ *
+ * @param {string} outputPath - Desired output path (e.g., "./output/myfile.jpg")
+ * @returns {string} Unique output path that doesn't conflict with existing files
+ *
+ * @example
+ * // If output/test.jpg doesn't exist:
+ * getUniqueFilename('./output/test.jpg') // => './output/test.jpg'
+ *
+ * // If output/test.jpg exists but output/test_1.jpg doesn't:
+ * getUniqueFilename('./output/test.jpg') // => './output/test_1.jpg'
+ *
+ * // If output/test.jpg and output/test_1.jpg exist:
+ * getUniqueFilename('./output/test.jpg') // => './output/test_2.jpg'
+ */
+export function getUniqueFilename(outputPath) {
+  if (!fs.existsSync(outputPath)) {
+    return outputPath;
+  }
+
+  const parsedPath = path.parse(outputPath);
+  let counter = 1;
+  let uniquePath;
+
+  do {
+    const newName = `${parsedPath.name}_${counter}${parsedPath.ext}`;
+    uniquePath = path.join(parsedPath.dir, newName);
+    counter++;
+  } while (fs.existsSync(uniquePath));
+
+  return uniquePath;
 }
