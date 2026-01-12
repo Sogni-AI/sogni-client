@@ -279,7 +279,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           });
         }
       } catch (error: any) {
-        // Continue with null downloadUrl - the event will indicate failure
+        this.client.logger.error('Failed to generate download URL for job result');
+        this.client.logger.error(error);
       }
     }
 
@@ -433,7 +434,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         // minutes and may not send frequent progress updates.
         // We always call _keepAlive() to ensure lastUpdated is refreshed, preventing premature timeouts.
         project._keepAlive();
-        
+
         const newEta = new Date(Date.now() + event.etaSeconds * 1000);
         if (job.eta?.getTime() !== newEta?.getTime()) {
           job._update({ eta: newEta });
