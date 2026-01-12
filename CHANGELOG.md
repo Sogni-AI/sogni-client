@@ -1,3 +1,10 @@
+# [4.0.0-alpha.49](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.48...v4.0.0-alpha.49) (2026-01-12)
+
+
+### Bug Fixes
+
+* Improve error logging for failed job result URL generation ([e69ae09](https://github.com/Sogni-AI/sogni-client/commit/e69ae0970fc995adcdf4625246eb029c45cb5ea4))
+
 # [4.0.0-alpha.48](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.47...v4.0.0-alpha.48) (2026-01-12)
 
 

@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "4.0.0-alpha.48",
+  "version": "4.0.0-alpha.49",
   "description": "Sogni Supernet Client",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
