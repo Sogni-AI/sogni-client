@@ -20,6 +20,7 @@ const SamplerDisplayToAlias: Record<string, string> = {
   'DPM Adaptive': 'dpm_adaptive',
   'DPM++ 2S Ancestral': 'dpmpp_2s_ancestral',
   DDPM: 'ddpm',
+  'Discrete Flow Sampler (SD3)': 'dfs_sd3',
   'Discrete Flow Scheduler (SD3)': 'dfs_sd3',
   'DPM Solver Multistep (DPM-Solver++)': 'dpm_pp',
   'PNDM (Pseudo-linear multi-step)': 'pndm_plms'
