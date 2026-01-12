@@ -1,3 +1,10 @@
+# [4.0.0-alpha.48](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.47...v4.0.0-alpha.48) (2026-01-12)
+
+
+### Bug Fixes
+
+* Add 'Discrete Flow Sampler (SD3)' to sampler alias ([460b3c2](https://github.com/Sogni-AI/sogni-client/commit/460b3c21c516b1f395041ff588f06f793480cdb1))
+
 # [4.0.0-alpha.47](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.46...v4.0.0-alpha.47) (2026-01-10)
 
 
