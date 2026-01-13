@@ -40,8 +40,78 @@ export const MODELS = {
       maxGuidance: 1.6,
       supportsDenoise: true,
       defaultDenoise: 0.7,
+      supportsStartingImage: true,
       isComfyModel: true,
       defaultComfySampler: 'res_multistep',
+      defaultComfyScheduler: 'simple'
+    },
+    'chroma-v46-flash': {
+      id: 'chroma-v.46-flash_fp8',
+      name: 'Chroma v.46 Flash',
+      description: 'Fast high-quality generation',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 10,
+      maxSteps: 20,
+      defaultSteps: 10,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 2.5,
+      supportsDenoise: true,
+      defaultDenoise: 0.7,
+      supportsStartingImage: true,
+      defaultNegativePrompt: 'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
+    'chroma-v48-detail-svd': {
+      id: 'chroma-v48-detail-svd_fp8',
+      name: 'Chroma v48 Detail SVD',
+      description: 'High detail generation',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 20,
+      maxSteps: 40,
+      defaultSteps: 25,
+      supportsGuidance: true,
+      defaultGuidance: 5.0,
+      minGuidance: 3.0,
+      maxGuidance: 8.0,
+      supportsDenoise: true,
+      defaultDenoise: 0.7,
+      supportsStartingImage: true,
+      defaultNegativePrompt: 'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
+    'flux1-krea-dev': {
+      id: 'flux1-krea-dev_fp8_scaled',
+      name: 'Flux.1 Krea Dev',
+      description: 'Creative generation with detail',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 12,
+      maxSteps: 40,
+      defaultSteps: 20,
+      supportsGuidance: true,
+      defaultGuidance: 3.5,
+      minGuidance: 1.0,
+      maxGuidance: 5.0,
+      supportsDenoise: true,
+      defaultDenoise: 0.7,
+      supportsStartingImage: true,
+      defaultNegativePrompt: 'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
     },
     'flux1-schnell': {
@@ -1130,6 +1200,19 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     }
   }
   if (options.seed === undefined || options.seed === null) options.seed = -1;
+
+  // Preview thumbnails (image workflows only)
+  if (!isVideo) {
+    console.log('\n  Preview thumbnails show generation progress (0 to disable)');
+    const previewsInput = await askQuestion('  Number of preview thumbnails (default: 0): ');
+    if (previewsInput.trim()) {
+      const p = parseInt(previewsInput.trim(), 10);
+      if (!isNaN(p) && p >= 0 && p <= 20) {
+        options.previews = p;
+      }
+    }
+    if (options.previews === undefined) options.previews = 0;
+  }
 
   // Batch count (number of images or videos to generate)
   const maxBatch = isVideo ? 4 : 16;

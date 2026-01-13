@@ -4,7 +4,7 @@
  *
  * This script generates images from text prompts using various AI models.
  * Supports both fast and high-quality generation with configurable parameters.
- * Z-Image Turbo also supports img2img workflow with starting images.
+ * Multiple models support img2img workflow with starting images.
  *
  * Prerequisites:
  * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
@@ -14,22 +14,23 @@
  *   node workflow_text_to_image.mjs                          # Interactive mode
  *   node workflow_text_to_image.mjs "A beautiful sunset"     # With prompt
  *   node workflow_text_to_image.mjs "Portrait" --seed 12345  # With specific seed
- *   node workflow_text_to_image.mjs "Fantasy art" --model z-turbo --starting-image ./test-assets/placeholder.jpg --strength 0.7
+ *   node workflow_text_to_image.mjs "Fantasy art" --model chroma-v46-flash --starting-image ./test-assets/placeholder.jpg --strength 0.7
  *
  * Options:
- *   --model     Model: z-turbo, flux1-schnell, or flux2 (default: prompts for selection)
+ *   --model     Model: z-turbo, chroma-v46-flash, chroma-v48-detail-svd, flux1-krea-dev, flux1-schnell, or flux2 (default: prompts for selection)
  *   --width     Image width (default: model-specific, max: 2048)
  *   --height    Image height (default: model-specific, max: 2048)
  *   --batch     Number of images to generate (default: 1)
- *   --guidance  Guidance scale for Flux2 (default: 4.0)
+ *   --guidance  Guidance scale (default: model-specific)
  *   --steps     Inference steps (default: model-specific)
  *   --seed      Random seed for reproducibility (default: -1 for random)
  *   --sampler   Sampler name (default: euler)
  *   --scheduler Scheduler name (default: simple)
  *   --negative  Negative prompt (default: none)
  *   --style     Style prompt (default: none)
- *   --starting-image  Starting image for img2img (Z-Image Turbo only, default: none)
- *   --strength  Starting image strength 0-1 (Z-Image Turbo only, default: 0.5, higher = more influence)
+ *   --starting-image  Starting image for img2img (supported models only, default: none)
+ *   --strength  Starting image strength 0-1 (default: 0.5, higher = more influence)
+ *   --previews  Number of preview thumbnails during generation (default: 0, set to 5+ to enable)
  *   --output    Output directory (default: ./output)
  *   --disable-safe-content-filter  Disable NSFW/safety filter
  *   --no-interactive  Skip interactive prompts
@@ -85,6 +86,7 @@ async function parseArgs() {
     scheduler: null,
     startingImage: null,
     strength: null,
+    previews: 0,
     output: './output',
     interactive: true,
     disableSafeContentFilter: false
@@ -123,6 +125,8 @@ async function parseArgs() {
       options.startingImage = args[++i];
     } else if (arg === '--strength' && args[i + 1]) {
       options.strength = parseFloat(args[++i]);
+    } else if (arg === '--previews' && args[i + 1]) {
+      options.previews = parseInt(args[++i], 10);
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
     } else if (arg === '--disable-safe-content-filter') {
@@ -147,27 +151,31 @@ Usage:
   node workflow_text_to_image.mjs                          # Interactive mode
   node workflow_text_to_image.mjs "your prompt here"       # With prompt
   node workflow_text_to_image.mjs "Portrait" --model flux2 # With specific model
-  node workflow_text_to_image.mjs "Fantasy art" --model z-turbo --starting-image ref.jpg --strength 0.7
+  node workflow_text_to_image.mjs "Fantasy art" --model chroma-v46-flash --starting-image ref.jpg --strength 0.7
 
 Available Models:
-  z-turbo       - Z-Image Turbo (fast generation, max: 2048x2048, supports img2img)
-  flux1-schnell - Flux.1 Schnell (very fast, 1-5 steps)
-  flux2         - Flux.2 Dev (highest quality, max: 2048x2048, supports up to 6 context images)
+  z-turbo              - Z-Image Turbo (fast generation, max: 2048x2048, supports img2img)
+  chroma-v46-flash     - Chroma v.46 Flash (fast high-quality, max: 2048x2048, supports img2img)
+  chroma-v48-detail-svd - Chroma v48 Detail SVD (high detail, max: 2048x2048, supports img2img)
+  flux1-krea-dev       - Flux.1 Krea Dev (creative with detail, max: 2048x2048, supports img2img)
+  flux1-schnell        - Flux.1 Schnell (very fast, 1-5 steps)
+  flux2                - Flux.2 Dev (highest quality, max: 2048x2048, supports up to 6 context images)
 
 Options:
-  --model     Model: z-turbo, flux1-schnell, or flux2 (default: prompts for selection)
+  --model     Model: z-turbo, chroma-v46-flash, chroma-v48-detail-svd, flux1-krea-dev, flux1-schnell, or flux2 (default: prompts for selection)
   --negative  Negative prompt (default: none)
   --style     Style prompt (default: none)
   --width     Image width (default: model-specific, max: 2048)
   --height    Image height (default: model-specific, max: 2048)
   --batch     Number of images to generate (default: 1)
-  --guidance  Guidance scale for Flux2 (default: 4.0)
+  --guidance  Guidance scale (default: model-specific)
   --steps     Inference steps (default: model-specific)
   --seed      Random seed (default: -1 for random)
   --sampler   Sampler name (default: euler)
   --scheduler Scheduler name (default: simple)
-  --starting-image  Starting image for img2img (Z-Image Turbo only)
-  --strength  Starting image strength 0-1 (Z-Image Turbo only, default: 0.5)
+  --starting-image  Starting image for img2img (supported models only)
+  --strength  Starting image strength 0-1 (default: 0.5, higher = more influence)
+  --previews  Number of preview thumbnails during generation (default: 0, set to 5+ to enable)
   --output    Output directory (default: ./output)
   --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
@@ -200,7 +208,7 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'z-turbo';
     modelConfig = MODELS.image[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'z-turbo', 'flux1-schnell', or 'flux2'.`);
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'z-turbo', 'chroma-v46-flash', 'chroma-v48-detail-svd', 'flux1-krea-dev', 'flux1-schnell', or 'flux2'.`);
       process.exit(1);
     }
   }
@@ -232,8 +240,8 @@ async function main() {
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: false, sogni });
 
-      // Prompt for starting image (img2img) - only supported by Z-Image Turbo
-      if (OPTIONS.modelKey === 'z-turbo') {
+      // Prompt for starting image (img2img) - supported by models with supportsStartingImage
+      if (modelConfig.supportsStartingImage) {
         const useStartingImage = await askQuestion('\nUse a starting image (img2img)? [y/N]: ');
         if (useStartingImage.toLowerCase() === 'y' || useStartingImage.toLowerCase() === 'yes') {
           OPTIONS.startingImage = await pickImageFile(OPTIONS.startingImage, 'starting image');
@@ -261,6 +269,14 @@ async function main() {
   if (!OPTIONS.width) OPTIONS.width = modelConfig.defaultWidth;
   if (!OPTIONS.height) OPTIONS.height = modelConfig.defaultHeight;
   if (!OPTIONS.outputFormat) OPTIONS.outputFormat = 'jpg'; // Default to JPG
+
+  // Apply default negative prompt if model has one and user hasn't specified one
+  if (!OPTIONS.negative && modelConfig.defaultNegativePrompt) {
+    OPTIONS.negative = modelConfig.defaultNegativePrompt;
+    if (OPTIONS.interactive) {
+      log('ℹ️', `Using recommended negative prompt for ${modelConfig.name}`);
+    }
+  }
 
   // Cap dimensions to model max if specified
   if (modelConfig.maxWidth && OPTIONS.width > modelConfig.maxWidth) {
@@ -319,6 +335,15 @@ async function main() {
   // Validate batch count
   if (OPTIONS.batch < 1 || OPTIONS.batch > 10) {
     console.error('Error: Batch count must be between 1 and 10');
+    process.exit(1);
+  }
+
+  // Validate preview count
+  if (OPTIONS.previews === undefined || OPTIONS.previews === null) {
+    OPTIONS.previews = 0;
+  }
+  if (OPTIONS.previews < 0 || OPTIONS.previews > 20) {
+    console.error('Error: Preview count must be between 0 and 20');
     process.exit(1);
   }
 
@@ -431,6 +456,7 @@ async function main() {
       'Seed': displaySeed,
       'Sampler': OPTIONS.sampler,
       'Scheduler': OPTIONS.scheduler,
+      'Previews': OPTIONS.previews,
       'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
     });
 
@@ -443,7 +469,7 @@ async function main() {
 
     // Get cost estimate
     log('💵', 'Fetching cost estimate...');
-    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, guidance || 0, OPTIONS.width, OPTIONS.height, OPTIONS.batch);
+    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, guidance || 0, OPTIONS.width, OPTIONS.height, OPTIONS.batch, OPTIONS.previews);
     console.log();
     console.log('📊 Cost Estimate:');
 
@@ -509,7 +535,7 @@ async function main() {
       numberOfMedia: OPTIONS.batch,
       steps: steps,
       seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
-      numberOfPreviews: 5,
+      numberOfPreviews: OPTIONS.previews,
       disableNSFWFilter: OPTIONS.disableSafeContentFilter,
       outputFormat: OPTIONS.outputFormat,
       tokenType: tokenType,
@@ -547,8 +573,8 @@ async function main() {
       projectParams.scheduler = modelConfig.defaultScheduler;
     }
 
-    // Add starting image and strength for img2img (only supported by Z-Image Turbo)
-    if (OPTIONS.startingImage && OPTIONS.modelKey === 'z-turbo') {
+    // Add starting image and strength for img2img (supported by models with supportsStartingImage)
+    if (OPTIONS.startingImage && modelConfig.supportsStartingImage) {
       if (fs.existsSync(OPTIONS.startingImage)) {
         projectParams.startingImage = readFileAsBuffer(OPTIONS.startingImage);
         projectParams.startingImageStrength = OPTIONS.strength !== undefined && OPTIONS.strength !== null ? OPTIONS.strength : 0.5;
@@ -556,8 +582,8 @@ async function main() {
       } else {
         log('⚠️', `Starting image not found: ${OPTIONS.startingImage}, proceeding without it`);
       }
-    } else if (OPTIONS.startingImage && OPTIONS.modelKey !== 'z-turbo') {
-      log('⚠️', `Starting image is only supported by Z-Image Turbo model, ignoring for ${modelConfig.name}`);
+    } else if (OPTIONS.startingImage && !modelConfig.supportsStartingImage) {
+      log('⚠️', `Starting image is not supported by ${modelConfig.name}, ignoring`);
     }
 
     // Set up event handlers BEFORE creating project
@@ -612,6 +638,26 @@ async function main() {
           // Start countdown interval if not already running
           if (!etaCountdownInterval && lastETA > 0) {
             etaCountdownInterval = setInterval(updateProgressDisplay, 1000);
+          }
+          break;
+
+        case 'preview':
+          if (event.url && event.jobId) {
+            const imageNumber = completedImages + failedImages + 1;
+            const modelShortName = OPTIONS.modelKey.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+            const extension = OPTIONS.outputFormat || 'jpg';
+            const previewPath = `${OPTIONS.output}/${modelShortName}_preview_${imageNumber}_${Date.now()}.${extension}`;
+            const uniquePreviewPath = getUniqueFilename(previewPath);
+            
+            downloadImage(event.url, uniquePreviewPath)
+              .then(() => {
+                log('🔍', `Preview saved: ${uniquePreviewPath}`);
+                openImage(uniquePreviewPath);
+              })
+              .catch((error) => {
+                // Silently fail on preview errors - they're not critical
+                console.error(`Preview download failed: ${error.message}`);
+              });
           }
           break;
 
@@ -766,10 +812,9 @@ async function main() {
 /**
  * Get image job cost estimate
  */
-async function getImageJobEstimate(tokenType, modelId, steps, guidance = 0, width = 1024, height = 1024, imageCount = 1) {
+async function getImageJobEstimate(tokenType, modelId, steps, guidance = 0, width = 1024, height = 1024, imageCount = 1, previewCount = 5) {
   const network = 'fast';
   const stepCount = steps;
-  const previewCount = 0;
   const cnEnabled = false;
   const denoiseStrength = 1.0;
   const scheduler = 'euler';
