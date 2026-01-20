@@ -61,8 +61,11 @@ const streamPipeline = promisify(pipeline);
 const LORA_ID = 'multiple_angles';  // ID for runtime download (from comfy-loras-config.json)
 const LORA_FILENAME = 'qwen-image-edit-2511-multiple-angles-lora.safetensors';  // Filename for injection
 
-// Model configuration - uses base Qwen Image Edit 2511
-const MODEL_CONFIG = MODELS.imageEdit['qwen'];
+// Available models for Multiple Angles LoRA (Qwen Image Edit variants only)
+const AVAILABLE_MODELS = {
+  'qwen-lightning': MODELS.imageEdit['qwen-lightning'],
+  'qwen': MODELS.imageEdit['qwen']
+};
 
 // Camera pose options (96 total combinations)
 const AZIMUTHS = [
@@ -97,10 +100,12 @@ async function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
     contextImage: null,
+    modelKey: null,  // Will prompt or default to 'qwen-lightning'
     azimuth: 'front',
     elevation: 'eye-level',
     distance: 'medium',
     strength: 0.9,
+    guidance: null,  // Will use model default
     description: '',
     batch: 1,
     seed: null,
@@ -118,8 +123,12 @@ async function parseArgs() {
       process.exit(0);
     } else if (arg === '--no-interactive') {
       options.interactive = false;
+    } else if (arg === '--model' && args[i + 1]) {
+      options.modelKey = args[++i];
     } else if ((arg === '--context' || arg === '--image') && args[i + 1]) {
       options.contextImage = args[++i];
+    } else if (arg === '--guidance' && args[i + 1]) {
+      options.guidance = parseFloat(args[++i]);
     } else if (arg === '--azimuth' && args[i + 1]) {
       options.azimuth = args[++i];
     } else if (arg === '--elevation' && args[i + 1]) {
@@ -128,7 +137,7 @@ async function parseArgs() {
       options.distance = args[++i];
     } else if (arg === '--strength' && args[i + 1]) {
       options.strength = parseFloat(args[++i]);
-    } else if (arg === '--description' && args[i + 1]) {
+    } else if ((arg === '--description' || arg === '--anchor') && args[i + 1]) {
       options.description = args[++i];
     } else if (arg === '--batch' && args[i + 1]) {
       options.batch = parseInt(args[++i], 10);
@@ -165,6 +174,11 @@ Usage:
   node workflow_multiple_angles.mjs                                    # Interactive
   node workflow_multiple_angles.mjs --context subject.jpg              # With image
   node workflow_multiple_angles.mjs --context cat.jpg --azimuth back   # Back view
+  node workflow_multiple_angles.mjs --context cat.jpg --model qwen     # High quality mode
+
+Models:
+  qwen-lightning  - Fast 4-step generation, guidance 1.0 (default)
+  qwen            - High quality 20-step generation, guidance 4.0
 
 Camera Pose Options (96 combinations):
 
@@ -178,24 +192,29 @@ Camera Pose Options (96 combinations):
     close-up (×0.6), medium (×1.0), wide (×1.8)
 
 Options:
+  --model         Model: qwen-lightning (fast) or qwen (quality) (default: qwen-lightning)
   --context       Reference image of the subject (required)
   --azimuth       Camera horizontal angle (default: front)
   --elevation     Camera vertical angle (default: eye-level)
   --distance      Shot distance (default: medium)
   --strength      LoRA strength 0.0-1.5 (default: 0.9)
-  --description   Additional subject description
+  --guidance      Guidance scale (default: model-specific)
+  --anchor        Short anchor phrase to prevent drift (usually not needed)
   --width         Output width (default: 1024)
   --height        Output height (default: 1024)
   --batch         Number of images (default: 1)
   --seed          Random seed (default: -1)
-  --steps         Inference steps (default: 20)
+  --steps         Inference steps (default: model-specific)
   --output        Output directory (default: ./output)
   --no-interactive  Skip interactive prompts
   --help          Show this help
 
 Examples:
-  # Generate back view of a character
+  # Generate back view of a character (fast mode)
   node workflow_multiple_angles.mjs --context character.jpg --azimuth back
+
+  # Generate high quality back view
+  node workflow_multiple_angles.mjs --context character.jpg --azimuth back --model qwen
 
   # Generate high-angle close-up from the left
   node workflow_multiple_angles.mjs --context obj.jpg --azimuth left --elevation high-angle --distance close-up
@@ -214,21 +233,19 @@ function buildPrompt(options) {
   const elevationConfig = ELEVATIONS.find(e => e.key === options.elevation) || ELEVATIONS[1];
   const distanceConfig = DISTANCES.find(d => d.key === options.distance) || DISTANCES[1];
 
-  // Build the prompt with activation keyword <sks> and camera pose
+  // Build the prompt with activation keyword <sks> immediately followed by camera pose
   // Note: LoRA is applied via loras/loraStrengths arrays, NOT prompt syntax
   const parts = [
     '<sks>',  // Activation keyword for Multiple Angles LoRA
+    azimuthConfig.prompt,
+    elevationConfig.prompt,
+    distanceConfig.prompt
   ];
 
-  // Add optional description
+  // Add optional description at the end
   if (options.description) {
     parts.push(options.description);
   }
-
-  // Add camera pose
-  parts.push(azimuthConfig.prompt);
-  parts.push(elevationConfig.prompt);
-  parts.push(distanceConfig.prompt);
 
   return parts.join(' ');
 }
@@ -271,9 +288,40 @@ async function main() {
   // Load credentials
   const { username: USERNAME, password: PASSWORD } = await loadCredentials();
 
+  // Select model (interactive or from CLI)
+  let modelConfig;
+  if (OPTIONS.interactive && !OPTIONS.modelKey) {
+    console.log('📦 Select Model:\n');
+    console.log('  1. Qwen Image Edit 2511 Lightning - Fast 4-step generation (default)');
+    console.log('  2. Qwen Image Edit 2511 - High quality 20-step generation');
+    console.log();
+
+    const modelChoice = await askQuestion('Enter choice [1/2] (default: 1): ');
+    const choice = modelChoice.trim() || '1';
+
+    if (choice === '2' || choice.toLowerCase() === 'qwen') {
+      OPTIONS.modelKey = 'qwen';
+      console.log('  → Using Qwen Image Edit 2511 (high quality)\n');
+    } else {
+      OPTIONS.modelKey = 'qwen-lightning';
+      console.log('  → Using Qwen Image Edit 2511 Lightning (fast)\n');
+    }
+  } else {
+    OPTIONS.modelKey = OPTIONS.modelKey || 'qwen-lightning';
+  }
+
+  // Validate and get model config
+  modelConfig = AVAILABLE_MODELS[OPTIONS.modelKey];
+  if (!modelConfig) {
+    console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Valid options: qwen-lightning, qwen`);
+    process.exit(1);
+  }
+
+  log('🎨', `Selected model: ${modelConfig.name}`);
+
   // Interactive mode
   if (OPTIONS.interactive) {
-    console.log('📸 This workflow generates views from specific camera angles.');
+    console.log('\n📸 This workflow generates views from specific camera angles.');
     console.log('   Provide a reference image of your subject (character, object, etc.).\n');
 
     // Get reference image
@@ -295,10 +343,11 @@ async function main() {
     }
     console.log(`   Dimensions: ${imageDimensions.width} x ${imageDimensions.height}`);
 
-    // Optional subject description
-    console.log('\n💡 Optionally describe the subject for better results.');
-    console.log('   Examples: "a tabby cat", "anime character with blue hair", "wooden chair"');
-    const descInput = await askQuestion('\nSubject description (optional, press Enter to skip): ');
+    // Optional anchor description (usually not needed)
+    console.log('\n💡 Usually no description is needed - the LoRA handles pose from the reference image.');
+    console.log('   Only add a short anchor phrase if you notice drift in the output.');
+    console.log('   Example: "camera is behind the boxer"');
+    const descInput = await askQuestion('\nAnchor description (usually skip, press Enter): ');
     if (descInput.trim()) {
       OPTIONS.description = descInput.trim();
     }
@@ -323,11 +372,20 @@ async function main() {
       }
 
       // Steps
-      const stepsInput = await askQuestion(`Steps (${MODEL_CONFIG.minSteps}-${MODEL_CONFIG.maxSteps}, default: ${MODEL_CONFIG.defaultSteps}): `);
+      const stepsInput = await askQuestion(`Steps (${modelConfig.minSteps}-${modelConfig.maxSteps}, default: ${modelConfig.defaultSteps}): `);
       if (stepsInput.trim()) {
         const s = parseInt(stepsInput.trim(), 10);
-        if (!isNaN(s) && s >= MODEL_CONFIG.minSteps && s <= MODEL_CONFIG.maxSteps) {
+        if (!isNaN(s) && s >= modelConfig.minSteps && s <= modelConfig.maxSteps) {
           OPTIONS.steps = s;
+        }
+      }
+
+      // Guidance
+      const guidanceInput = await askQuestion(`Guidance (${modelConfig.minGuidance}-${modelConfig.maxGuidance}, default: ${modelConfig.defaultGuidance}): `);
+      if (guidanceInput.trim()) {
+        const g = parseFloat(guidanceInput.trim());
+        if (!isNaN(g) && g >= modelConfig.minGuidance && g <= modelConfig.maxGuidance) {
+          OPTIONS.guidance = g;
         }
       }
 
@@ -335,7 +393,7 @@ async function main() {
       const widthInput = await askQuestion(`Width (default: ${OPTIONS.width}): `);
       if (widthInput.trim()) {
         const w = parseInt(widthInput.trim(), 10);
-        if (!isNaN(w) && w > 0 && w <= MODEL_CONFIG.maxWidth) {
+        if (!isNaN(w) && w > 0 && w <= modelConfig.maxWidth) {
           OPTIONS.width = w;
         }
       }
@@ -343,7 +401,7 @@ async function main() {
       const heightInput = await askQuestion(`Height (default: ${OPTIONS.height}): `);
       if (heightInput.trim()) {
         const h = parseInt(heightInput.trim(), 10);
-        if (!isNaN(h) && h > 0 && h <= MODEL_CONFIG.maxHeight) {
+        if (!isNaN(h) && h > 0 && h <= modelConfig.maxHeight) {
           OPTIONS.height = h;
         }
       }
@@ -381,7 +439,8 @@ async function main() {
   }
 
   // Apply defaults
-  if (!OPTIONS.steps) OPTIONS.steps = MODEL_CONFIG.defaultSteps;
+  if (!OPTIONS.steps) OPTIONS.steps = modelConfig.defaultSteps;
+  if (OPTIONS.guidance === null) OPTIONS.guidance = modelConfig.defaultGuidance;
 
   // Validate camera pose options
   if (!AZIMUTHS.find(a => a.key === OPTIONS.azimuth)) {
@@ -474,7 +533,7 @@ async function main() {
 
     // Show configuration
     const configDisplay = {
-      'Model': 'Qwen Image Edit 2511 + Multiple Angles LoRA',
+      'Model': `${modelConfig.name} + Multiple Angles LoRA`,
       'Reference': OPTIONS.contextImage,
       'Azimuth': azimuthLabel,
       'Elevation': elevationLabel,
@@ -482,12 +541,13 @@ async function main() {
       'LoRA Strength': OPTIONS.strength.toFixed(2),
       'Dimensions': `${OPTIONS.width} x ${OPTIONS.height}`,
       'Steps': OPTIONS.steps,
+      'Guidance': OPTIONS.guidance,
       'Batch': OPTIONS.batch,
       'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1
     };
 
     if (OPTIONS.description) {
-      configDisplay['Subject'] = OPTIONS.description;
+      configDisplay['Anchor'] = OPTIONS.description;
     }
 
     displayConfig('Multiple Angles Configuration', configDisplay);
@@ -507,10 +567,10 @@ async function main() {
     // Wait for models
     log('🔄', 'Loading available models...');
     const models = await sogni.projects.waitForModels();
-    const imageModel = models.find((m) => m.id === MODEL_CONFIG.id);
+    const imageModel = models.find((m) => m.id === modelConfig.id);
 
     if (!imageModel) {
-      throw new Error(`Model ${MODEL_CONFIG.id} not available`);
+      throw new Error(`Model ${modelConfig.id} not available`);
     }
 
     log('✓', `Model ready: ${imageModel.name}`);
@@ -528,10 +588,11 @@ async function main() {
 
     const projectParams = {
       type: 'image',
-      modelId: MODEL_CONFIG.id,
+      modelId: modelConfig.id,
       positivePrompt: prompt,
       numberOfMedia: OPTIONS.batch,
       steps: OPTIONS.steps,
+      guidance: OPTIONS.guidance,
       seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
       contextImages: [contextImageBuffer],
       tokenType: tokenType,
@@ -539,8 +600,8 @@ async function main() {
       width: OPTIONS.width,
       height: OPTIONS.height,
       outputFormat: 'jpg',
-      sampler: MODEL_CONFIG.defaultComfySampler,
-      scheduler: MODEL_CONFIG.defaultComfyScheduler,
+      sampler: modelConfig.defaultComfySampler,
+      scheduler: modelConfig.defaultComfyScheduler,
       // LoRA configuration:
       // - loraId triggers runtime download if LoRA not present on worker
       // - loras/loraStrengths arrays specify which LoRAs to inject and their strengths

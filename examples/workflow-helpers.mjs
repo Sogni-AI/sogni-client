@@ -168,6 +168,7 @@ export const MODELS = {
       defaultGuidance: 1.0,
       minGuidance: 0.6,
       maxGuidance: 1.6,
+      supportsStartingImage: true,
       isComfyModel: true,
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
@@ -187,6 +188,7 @@ export const MODELS = {
       defaultGuidance: 4.0,
       minGuidance: 3.0,
       maxGuidance: 6.0,
+      supportsStartingImage: true,
       isComfyModel: true,
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
@@ -301,6 +303,8 @@ export const MODELS = {
       id: 'ltx2-19b-fp8_t2v_distilled',
       name: 'LTX-2 19B FP8 T2V Distilled',
       description: 'Fast 8-step generation with distilled LoRA',
+      defaultWidth: 1024,
+      defaultHeight: 576,
       defaultSteps: 8,
       minSteps: 6,
       maxSteps: 12,
@@ -320,6 +324,8 @@ export const MODELS = {
       id: 'ltx2-19b-fp8_t2v',
       name: 'LTX-2 19B FP8 T2V',
       description: 'High quality 25-step generation',
+      defaultWidth: 1024,
+      defaultHeight: 576,
       defaultSteps: 25,
       minSteps: 20,
       maxSteps: 50,
@@ -383,6 +389,8 @@ export const MODELS = {
       id: 'ltx2-19b-fp8_i2v_distilled',
       name: 'LTX-2 19B FP8 I2V Distilled',
       description: 'Fast 8-step generation with distilled LoRA',
+      defaultWidth: 1024,
+      defaultHeight: 576,
       defaultSteps: 8,
       minSteps: 6,
       maxSteps: 12,
@@ -402,6 +410,8 @@ export const MODELS = {
       id: 'ltx2-19b-fp8_i2v',
       name: 'LTX-2 19B FP8 I2V',
       description: 'High quality 25-step generation',
+      defaultWidth: 1024,
+      defaultHeight: 576,
       defaultSteps: 25,
       minSteps: 20,
       maxSteps: 50,
@@ -533,31 +543,6 @@ export const VIDEO_CONSTRAINTS = {
   }
 };
 
-// ============================================
-// GPU Memory Budget for Video Generation
-// ============================================
-
-/**
- * Memory budget to prevent GPU OOM errors.
- * This is the max total pixels (width × height × frames) the GPU can handle.
- * Conservative estimate based on 14B model capabilities.
- */
-export const MAX_PIXEL_BUDGET = 85_000_000;
-
-/**
- * Calculate the maximum allowed dimension based on frame count and pixel budget.
- * @param {number} frames - Number of frames
- * @returns {number} Maximum dimension in pixels
- */
-export function calculateMaxDimension(frames) {
-  // Max pixels per frame = total budget / number of frames
-  const maxPixelsPerFrame = MAX_PIXEL_BUDGET / frames;
-  // Assuming roughly square aspect ratio for the limit calculation
-  const maxDimFromBudget = Math.floor(Math.sqrt(maxPixelsPerFrame));
-  // Return the more restrictive of the two limits
-  return Math.min(maxDimFromBudget, VIDEO_CONSTRAINTS.width.max);
-}
-
 /**
  * Ensure dimensions are divisible by 16 (video encoder requirement).
  * @param {number} width - Input width
@@ -573,10 +558,10 @@ export function ensureDimensionsDivisibleBy16(width, height) {
 
 /**
  * Process image for video generation - auto-resize if needed.
- * Handles memory budget constraints and dimension requirements.
+ * Handles dimension requirements (min/max, divisible by 16).
  *
  * @param {string} imagePath - Path to the image file
- * @param {number} frames - Target number of frames (for memory budget calculation)
+ * @param {number} frames - Target number of frames (unused, kept for API compatibility)
  * @param {Object} options - Optional overrides
  * @param {number} options.targetWidth - Target width (optional, auto-detected if not provided)
  * @param {number} options.targetHeight - Target height (optional, auto-detected if not provided)
@@ -597,23 +582,17 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
   let needsResize = false;
   let resizeReason = '';
 
-  // Calculate the effective max dimension based on frame count (memory budget)
-  const effectiveMaxDimension = calculateMaxDimension(frames);
+  const maxDimension = VIDEO_CONSTRAINTS.width.max;
 
-  // Check if we're limited by memory budget vs static limit
-  if (effectiveMaxDimension < VIDEO_CONSTRAINTS.width.max) {
-    log('💾', `Memory limit: max ${effectiveMaxDimension}px per side for ${frames} frames`);
-  }
-
-  // Check if image exceeds maximum dimensions (considering memory budget)
-  if (targetWidth > effectiveMaxDimension || targetHeight > effectiveMaxDimension) {
+  // Check if image exceeds maximum dimensions
+  if (targetWidth > maxDimension || targetHeight > maxDimension) {
     needsResize = true;
-    resizeReason = 'memory budget';
+    resizeReason = 'exceeds max';
 
     // Calculate scaling factor to fit within max dimensions while maintaining aspect ratio
     const scaleFactor = Math.min(
-      effectiveMaxDimension / targetWidth,
-      effectiveMaxDimension / targetHeight
+      maxDimension / targetWidth,
+      maxDimension / targetHeight
     );
 
     targetWidth = Math.floor(targetWidth * scaleFactor);
@@ -635,10 +614,10 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
     targetHeight = Math.floor(targetHeight * scaleFactor);
 
     // Ensure we don't exceed max dimensions after upscaling
-    if (targetWidth > effectiveMaxDimension || targetHeight > effectiveMaxDimension) {
+    if (targetWidth > maxDimension || targetHeight > maxDimension) {
       const downscaleFactor = Math.min(
-        effectiveMaxDimension / targetWidth,
-        effectiveMaxDimension / targetHeight
+        maxDimension / targetWidth,
+        maxDimension / targetHeight
       );
       targetWidth = Math.floor(targetWidth * downscaleFactor);
       targetHeight = Math.floor(targetHeight * downscaleFactor);
@@ -670,12 +649,7 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
   let imageBuffer;
 
   if (needsResize || targetWidth !== originalWidth || targetHeight !== originalHeight) {
-    if (resizeReason === 'memory budget') {
-      log('⚠️', `AUTO-RESIZE: Image ${originalWidth}x${originalHeight} exceeds memory budget for ${frames} frames`);
-      log('🔄', `Scaling down to ${targetWidth}x${targetHeight} to prevent GPU out-of-memory errors`);
-    } else {
-      log('🔄', `Resizing image from ${originalWidth}x${originalHeight} to ${targetWidth}x${targetHeight}`);
-    }
+    log('🔄', `Resizing image from ${originalWidth}x${originalHeight} to ${targetWidth}x${targetHeight}`);
 
     // Use sharp to resize the image
     imageBuffer = await sharp(imagePath)

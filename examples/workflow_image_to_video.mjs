@@ -315,7 +315,7 @@ async function main() {
     OPTIONS.frames = Math.max(VIDEO_CONSTRAINTS.frames.min, Math.min(maxFrames, OPTIONS.frames));
   }
 
-  // Process the image with memory budget constraints now that we know the frame count
+  // Process the image - resize if needed for dimension requirements
   let processedImage;
   try {
     processedImage = await processImageForVideo(OPTIONS.image, OPTIONS.frames, {
