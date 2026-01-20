@@ -17,7 +17,7 @@ export function getEnhacementStrength(strength: EnhancementStrength): number {
  * Video models produce MP4 output; image models produce PNG/JPG output.
  */
 export function isVideoModel(modelId: string): boolean {
-  return modelId.startsWith('wan_');
+  return modelId.startsWith('wan_') || modelId.startsWith('ltx2-');
 }
 
 /**
@@ -25,12 +25,25 @@ export function isVideoModel(modelId: string): boolean {
  * Returns null for non-video models.
  */
 export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
-  if (!modelId || !modelId.startsWith('wan_')) return null;
+  if (!modelId) return null;
+
+  // Check for supported video model prefixes
+  const isWan = modelId.startsWith('wan_');
+  const isLtx2 = modelId.startsWith('ltx2-');
+
+  if (!isWan && !isLtx2) return null;
+
+  // WAN and LTX-2 models share similar workflow type suffixes
   if (modelId.includes('_i2v')) return 'i2v';
-  if (modelId.includes('_s2v')) return 's2v';
-  if (modelId.includes('_animate-move')) return 'animate-move';
-  if (modelId.includes('_animate-replace')) return 'animate-replace';
   if (modelId.includes('_t2v')) return 't2v';
+
+  // WAN-specific workflow types
+  if (isWan) {
+    if (modelId.includes('_s2v')) return 's2v';
+    if (modelId.includes('_animate-move')) return 'animate-move';
+    if (modelId.includes('_animate-replace')) return 'animate-replace';
+  }
+
   return null;
 }
 
