@@ -1,3 +1,15 @@
+# [4.0.0-alpha.51](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.50...v4.0.0-alpha.51) (2026-01-20)
+
+
+### Bug Fixes
+
+* Add LTX-2 video model detection support ([7a312d5](https://github.com/Sogni-AI/sogni-client/commit/7a312d560f4169c2593719cefb4b4abf0878bf9b))
+
+
+### Features
+
+* Add img2img support for Qwen Image 2512 models and improve workflows ([46324fd](https://github.com/Sogni-AI/sogni-client/commit/46324fde6043cd241bc41ee40e480a7064664575))
+
 # [4.0.0-alpha.50](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.49...v4.0.0-alpha.50) (2026-01-16)
 
 
