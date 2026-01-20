@@ -84,6 +84,24 @@ export interface BaseProjectParams {
    * If not specified, the Sogni token will be used.
    */
   tokenType?: TokenType;
+  /**
+   * LoRA ID to use for generation.
+   * Available LoRAs are model-specific. The worker will download the LoRA
+   * if not already present on the persistent volume.
+   */
+  loraId?: string;
+  /**
+   * Array of LoRA filenames to apply (for Qwen Image Edit workflows).
+   * Filenames should end with .safetensors.
+   * Example: ['qwen-image-edit-2511-multiple-angles-lora.safetensors']
+   */
+  loras?: string[];
+  /**
+   * Array of LoRA strengths corresponding to each LoRA in the loras array.
+   * Values should be between 0.0 and 2.0. Defaults to 1.0 if not specified.
+   * Example: [0.9]
+   */
+  loraStrengths?: number[];
 }
 
 export type InputMedia = File | Buffer | Blob | boolean;
