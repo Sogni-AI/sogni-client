@@ -1,3 +1,10 @@
+# [4.0.0-alpha.50](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.49...v4.0.0-alpha.50) (2026-01-16)
+
+
+### Bug Fixes
+
+* Handle logout errors gracefully and log warnings for 401 responses ([ba9b2ac](https://github.com/Sogni-AI/sogni-client/commit/ba9b2acc990e684fb59d7ba17e23dc7a3bebadf4))
+
 # [4.0.0-alpha.49](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.48...v4.0.0-alpha.49) (2026-01-12)
 
 

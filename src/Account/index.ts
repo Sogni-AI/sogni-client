@@ -196,7 +196,15 @@ class AccountApi extends ApiGroup {
    * ```
    */
   async logout(): Promise<void> {
-    await this.client.rest.post('/v1/account/logout');
+    try {
+      await this.client.rest.post('/v1/account/logout');
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        this.client.logger.warn('Failed to logout, probably already logged out');
+      } else {
+        throw e;
+      }
+    }
     this.client.auth.clear();
   }
 
