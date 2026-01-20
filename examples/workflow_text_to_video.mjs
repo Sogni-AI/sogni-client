@@ -19,7 +19,7 @@
  *   --width     Video width (default: 832, min: 480)
  *   --height    Video height (default: 480, min: 480)
  *   --duration  Duration in seconds (default: 5, converts to frames)
- *   --fps       Frames per second: 16 or 32 (default: 16)
+ *   --fps       Frames per second: 16, 24, 30, or 32 (default: model-specific, 24 for LTX-2)
  *   --batch     Number of videos to generate (default: 1)
  *   --seed      Random seed for reproducibility (default: -1 for random)
  *   --guidance  Guidance scale (default: model-specific)
@@ -159,7 +159,7 @@ Options:
   --width     Video width (default: 832, min: 480, max: 1536)
   --height    Video height (default: 480, min: 480, max: 1536)
   --duration  Duration in seconds (default: 5)
-  --fps       Frames per second: 16 or 32 (default: 16)
+  --fps       Frames per second: 16, 24, 30, or 32 (default: model-specific)
   --batch     Number of videos to generate (default: 1)
   --seed      Random seed (default: -1 for random)
   --guidance  Guidance scale (default: model-specific)
@@ -228,7 +228,7 @@ async function main() {
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
   if (!OPTIONS.width) OPTIONS.width = VIDEO_CONSTRAINTS.width.default;
   if (!OPTIONS.height) OPTIONS.height = VIDEO_CONSTRAINTS.height.default;
-  if (!OPTIONS.fps) OPTIONS.fps = VIDEO_CONSTRAINTS.fps.default;
+  if (!OPTIONS.fps) OPTIONS.fps = modelConfig.defaultFps || VIDEO_CONSTRAINTS.fps.default;
   if (!OPTIONS.shift) OPTIONS.shift = modelConfig.defaultShift;
   // Video models only support ComfyUI sampler/scheduler
   if (!OPTIONS.sampler) {
@@ -261,9 +261,10 @@ async function main() {
     Math.min(VIDEO_CONSTRAINTS.height.max, OPTIONS.height)
   );
 
-  // Validate FPS
-  if (OPTIONS.fps !== 16 && OPTIONS.fps !== 32) {
-    console.error('Error: FPS must be 16 or 32');
+  // Validate FPS - use model-specific allowed values or global defaults
+  const allowedFps = modelConfig.allowedFps || VIDEO_CONSTRAINTS.fps.allowedValues;
+  if (!allowedFps.includes(OPTIONS.fps)) {
+    console.error(`Error: FPS must be one of: ${allowedFps.join(', ')}`);
     process.exit(1);
   }
 

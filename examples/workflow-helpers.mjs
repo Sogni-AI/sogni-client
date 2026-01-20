@@ -194,34 +194,15 @@ export const MODELS = {
   },
 
   // Image Edit Models (ComfyUI worker)
+  // Note: Optional LoRAs (like Multiple Angles) should be supported through regular workflows
+  // by allowing CFG to be specified per-job. Regular editing uses CFG 4.0, LoRA uses CFG 1.0.
   imageEdit: {
-    'qwen-multiple-angles': {
-      id: 'qwen_image_edit_2511_fp8',
-      name: 'Qwen Image Edit 2511 + Multiple Angles LoRA',
-      description: 'Generate multiple viewing angles of a subject',
-      maxWidth: 2048,
-      maxHeight: 2048,
-      defaultSteps: 20,
-      minSteps: 20,
-      maxSteps: 50,
-      supportsContextImages: true,
-      maxContextImages: 3,
-      isComfyModel: true,
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'simple',
-      defaultGuidance: 4.0,
-      minGuidance: 4.0,
-      maxGuidance: 4.0,
-      // LoRA configuration
-      loraId: 'multiple_angles',
-      loraDescription: 'Generates multiple viewing angles (front, side, back, etc.) of a subject'
-    },
     'qwen-lightning': {
       id: 'qwen_image_edit_2511_fp8_lightning',
       name: 'Qwen Image Edit 2511 Lightning',
       description: 'Fast 4-step image editing (recommended)',
-      maxWidth: 2048,
-      maxHeight: 2048,
+      maxWidth: 2560,
+      maxHeight: 2560,
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 8,
@@ -238,8 +219,8 @@ export const MODELS = {
       id: 'qwen_image_edit_2511_fp8',
       name: 'Qwen Image Edit 2511',
       description: 'High quality image editing, supports context images',
-      maxWidth: 2048,
-      maxHeight: 2048,
+      maxWidth: 2560,
+      maxHeight: 2560,
       defaultSteps: 20,
       minSteps: 20,
       maxSteps: 50,
@@ -249,8 +230,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       defaultGuidance: 4.0,
-      minGuidance: 4.0,
-      maxGuidance: 4.0
+      minGuidance: 2.5,
+      maxGuidance: 5.0
     },
     flux2: {
       id: 'flux2_dev_fp8',
@@ -291,6 +272,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       maxFrames: 161,
+      defaultFps: 16,
+      allowedFps: [16, 32],
       isLightning: true,
       isComfyModel: true
     },
@@ -309,6 +292,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       maxFrames: 161,
+      defaultFps: 16,
+      allowedFps: [16, 32],
       isLightning: false,
       isComfyModel: true
     },
@@ -326,6 +311,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       maxFrames: 161,
+      defaultFps: 24,
+      allowedFps: [16, 24, 30],
       isLightning: true,
       isComfyModel: true
     },
@@ -343,6 +330,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       maxFrames: 161,
+      defaultFps: 24,
+      allowedFps: [16, 24, 30],
       isLightning: false,
       isComfyModel: true
     }
@@ -365,6 +354,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       maxFrames: 161,
+      defaultFps: 16,
+      allowedFps: [16, 32],
       isLightning: true,
       isComfyModel: true
     },
@@ -383,6 +374,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       maxFrames: 161,
+      defaultFps: 16,
+      allowedFps: [16, 32],
       isLightning: false,
       isComfyModel: true
     },
@@ -400,6 +393,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       maxFrames: 161,
+      defaultFps: 24,
+      allowedFps: [16, 24, 30],
       isLightning: true,
       isComfyModel: true
     },
@@ -417,6 +412,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       maxFrames: 161,
+      defaultFps: 24,
+      allowedFps: [16, 24, 30],
       isLightning: false,
       isComfyModel: true
     }
@@ -439,6 +436,8 @@ export const MODELS = {
       defaultComfySampler: 'uni_pc', // S2V uses uni_pc
       defaultComfyScheduler: 'simple',
       maxFrames: 321, // S2V supports longer videos
+      defaultFps: 16,
+      allowedFps: [16, 32],
       isLightning: true,
       isComfyModel: true
     },
@@ -457,6 +456,8 @@ export const MODELS = {
       defaultComfySampler: 'uni_pc', // S2V uses uni_pc
       defaultComfyScheduler: 'simple',
       maxFrames: 321, // S2V supports longer videos
+      defaultFps: 16,
+      allowedFps: [16, 32],
       isLightning: false,
       isComfyModel: true
     }
@@ -480,6 +481,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       maxFrames: 321,
+      defaultFps: 16,
+      allowedFps: [16, 32],
       isLightning: true,
       isComfyModel: true
     },
@@ -500,6 +503,8 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
       maxFrames: 321,
+      defaultFps: 16,
+      allowedFps: [16, 32],
       isLightning: true,
       supportsSam2Coordinates: true,
       isComfyModel: true
@@ -517,7 +522,7 @@ export const VIDEO_CONSTRAINTS = {
   width: { min: 480, max: 1536, default: 832, step: 16 },
   height: { min: 480, max: 1536, default: 480, step: 16 },
   frames: { min: 17, max: 161, default: 81 }, // Some models support max: 321
-  fps: { allowedValues: [16, 32], default: 16 },
+  fps: { allowedValues: [16, 24, 30, 32], default: 24 }, // Model-specific defaults override this
   shift: { min: 1.0, max: 8.0, default: 8.0, step: 0.1 },
   // Guidance ranges differ by model type:
   // Quality models: min: 1.5, max: 8.0
@@ -1101,7 +1106,7 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
  * @returns {Promise<Object>} Updated options with frames calculated
  */
 export async function promptVideoDuration(options, modelConfig = {}) {
-  const fps = options.fps || VIDEO_CONSTRAINTS.fps.default;
+  const fps = options.fps || modelConfig.defaultFps || VIDEO_CONSTRAINTS.fps.default;
 
   // Use model-specific frame limits if available
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
@@ -1171,16 +1176,18 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
 
   // Video-specific advanced options
   if (isVideo) {
-    // FPS
-    console.log('  FPS options: 16 (native), 32 (interpolated)');
-    const fpsInput = await askQuestion('  FPS (default: 16): ');
+    // FPS - use model-specific defaults
+    const defaultFps = modelConfig.defaultFps || VIDEO_CONSTRAINTS.fps.default;
+    const allowedFps = modelConfig.allowedFps || VIDEO_CONSTRAINTS.fps.allowedValues;
+    console.log(`  FPS options: ${allowedFps.join(', ')}`);
+    const fpsInput = await askQuestion(`  FPS (default: ${defaultFps}): `);
     if (fpsInput.trim()) {
       const f = parseInt(fpsInput.trim(), 10);
-      if (f === 16 || f === 32) {
+      if (allowedFps.includes(f)) {
         options.fps = f;
       }
     }
-    if (!options.fps) options.fps = 16;
+    if (!options.fps) options.fps = defaultFps;
 
     // Shift
     const defaultShift = modelConfig.defaultShift || VIDEO_CONSTRAINTS.shift.default;

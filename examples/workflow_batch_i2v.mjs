@@ -23,7 +23,7 @@
  *   --width       Video width (default: auto from first image, min: 480)
  *   --height      Video height (default: auto from first image, min: 480)
  *   --duration    Duration in seconds (default: 5, converts to frames)
- *   --fps         Frames per second: 16 or 32 (default: 16)
+ *   --fps         Frames per second: 16, 24, 30, or 32 (default: model-specific, 24 for LTX-2)
  *   --seed        Random seed for all videos, or -1 for random each (default: -1)
  *   --guidance    Guidance scale (default: model-specific)
  *   --shift       Motion intensity 1.0-8.0 (default: model-specific)
@@ -165,7 +165,7 @@ Options:
   --width       Video width (default: auto from first image, min: 480)
   --height      Video height (default: auto from first image, min: 480)
   --duration    Duration in seconds (default: 5)
-  --fps         Frames per second: 16 or 32 (default: 16)
+  --fps         Frames per second: 16, 24, 30, or 32 (default: model-specific)
   --seed        Random seed for all, or -1 for random each (default: -1)
   --guidance    Guidance scale (default: model-specific)
   --shift       Motion intensity 1.0-8.0 (default: model-specific)
@@ -375,7 +375,7 @@ async function main() {
 
   // Apply defaults
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
-  if (!OPTIONS.fps) OPTIONS.fps = VIDEO_CONSTRAINTS.fps.default;
+  if (!OPTIONS.fps) OPTIONS.fps = modelConfig.defaultFps || VIDEO_CONSTRAINTS.fps.default;
   if (!OPTIONS.shift) OPTIONS.shift = modelConfig.defaultShift;
   if (!OPTIONS.sampler) OPTIONS.sampler = modelConfig.defaultComfySampler || 'euler';
   if (!OPTIONS.scheduler) OPTIONS.scheduler = modelConfig.defaultComfyScheduler || 'simple';
@@ -393,9 +393,10 @@ async function main() {
     OPTIONS.frames = Math.max(VIDEO_CONSTRAINTS.frames.min, Math.min(maxFrames, OPTIONS.frames));
   }
 
-  // Validate FPS
-  if (OPTIONS.fps !== 16 && OPTIONS.fps !== 32) {
-    console.error('Error: FPS must be 16 or 32');
+  // Validate FPS - use model-specific allowed values or global defaults
+  const allowedFps = modelConfig.allowedFps || VIDEO_CONSTRAINTS.fps.allowedValues;
+  if (!allowedFps.includes(OPTIONS.fps)) {
+    console.error(`Error: FPS must be one of: ${allowedFps.join(', ')}`);
     process.exit(1);
   }
 
