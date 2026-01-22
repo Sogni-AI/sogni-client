@@ -1,3 +1,10 @@
+# [4.0.0-alpha.52](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.51...v4.0.0-alpha.52) (2026-01-22)
+
+
+### Bug Fixes
+
+* Lora schema update, LTX-2 video new default props ([bf1593f](https://github.com/Sogni-AI/sogni-client/commit/bf1593fa6c819aef6565bc096ba55e166bb8cc52))
+
 # [4.0.0-alpha.51](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.50...v4.0.0-alpha.51) (2026-01-20)
 
 
