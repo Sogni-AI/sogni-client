@@ -302,44 +302,58 @@ export const MODELS = {
     'ltx2-distilled': {
       id: 'ltx2-19b-fp8_t2v_distilled',
       name: 'LTX-2 19B FP8 T2V Distilled',
-      description: 'Fast 8-step generation with distilled LoRA',
-      defaultWidth: 1024,
-      defaultHeight: 576,
+      description: 'Fast 8-step generation with distilled LoRA (6-20s video)',
+      defaultWidth: 1920,
+      defaultHeight: 1088,
+      minWidth: 416,
+      maxWidth: 1920,
+      minHeight: 416,
+      maxHeight: 1920,
       defaultSteps: 8,
-      minSteps: 6,
+      minSteps: 4,
       maxSteps: 12,
       defaultShift: 8.0,
-      defaultGuidance: 3.0,
+      defaultGuidance: 1.0,
       minGuidance: 1.0,
-      maxGuidance: 5.0,
+      maxGuidance: 2.0,
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
-      maxFrames: 161,
-      defaultFps: 24,
-      allowedFps: [16, 24, 30],
+      minFrames: 153,
+      maxFrames: 505,
+      defaultFrames: 153,
+      defaultFps: 25,
+      allowedFps: [25, 50],
       isLightning: true,
-      isComfyModel: true
+      isComfyModel: true,
+      hasAudio: true
     },
     'ltx2-quality': {
       id: 'ltx2-19b-fp8_t2v',
       name: 'LTX-2 19B FP8 T2V',
-      description: 'High quality 25-step generation',
-      defaultWidth: 1024,
-      defaultHeight: 576,
+      description: 'High quality 25-step generation (6-10s video)',
+      defaultWidth: 1920,
+      defaultHeight: 1088,
+      minWidth: 416,
+      maxWidth: 1920,
+      minHeight: 416,
+      maxHeight: 1920,
       defaultSteps: 25,
       minSteps: 20,
-      maxSteps: 50,
+      maxSteps: 40,
       defaultShift: 8.0,
-      defaultGuidance: 3.0,
-      minGuidance: 1.0,
-      maxGuidance: 5.0,
+      defaultGuidance: 4.0,
+      minGuidance: 2.0,
+      maxGuidance: 7.0,
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
-      maxFrames: 161,
-      defaultFps: 24,
-      allowedFps: [16, 24, 30],
+      minFrames: 153,
+      maxFrames: 257,
+      defaultFrames: 153,
+      defaultFps: 25,
+      allowedFps: [25, 50],
       isLightning: false,
-      isComfyModel: true
+      isComfyModel: true,
+      hasAudio: true
     }
   },
 
@@ -388,44 +402,58 @@ export const MODELS = {
     'ltx2-distilled': {
       id: 'ltx2-19b-fp8_i2v_distilled',
       name: 'LTX-2 19B FP8 I2V Distilled',
-      description: 'Fast 8-step generation with distilled LoRA',
-      defaultWidth: 1024,
-      defaultHeight: 576,
+      description: 'Fast 8-step generation with distilled LoRA (6-20s video)',
+      defaultWidth: 1920,
+      defaultHeight: 1088,
+      minWidth: 416,
+      maxWidth: 1920,
+      minHeight: 416,
+      maxHeight: 1920,
       defaultSteps: 8,
-      minSteps: 6,
+      minSteps: 4,
       maxSteps: 12,
       defaultShift: 8.0,
-      defaultGuidance: 3.0,
+      defaultGuidance: 1.0,
       minGuidance: 1.0,
-      maxGuidance: 5.0,
+      maxGuidance: 2.0,
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
-      maxFrames: 161,
-      defaultFps: 24,
-      allowedFps: [16, 24, 30],
+      minFrames: 153,
+      maxFrames: 505,
+      defaultFrames: 153,
+      defaultFps: 25,
+      allowedFps: [25, 50],
       isLightning: true,
-      isComfyModel: true
+      isComfyModel: true,
+      hasAudio: true
     },
     'ltx2-quality': {
       id: 'ltx2-19b-fp8_i2v',
       name: 'LTX-2 19B FP8 I2V',
-      description: 'High quality 25-step generation',
-      defaultWidth: 1024,
-      defaultHeight: 576,
+      description: 'High quality 25-step generation (6-10s video)',
+      defaultWidth: 1920,
+      defaultHeight: 1088,
+      minWidth: 416,
+      maxWidth: 1920,
+      minHeight: 416,
+      maxHeight: 1920,
       defaultSteps: 25,
       minSteps: 20,
-      maxSteps: 50,
+      maxSteps: 40,
       defaultShift: 8.0,
-      defaultGuidance: 3.0,
-      minGuidance: 1.0,
-      maxGuidance: 5.0,
+      defaultGuidance: 4.0,
+      minGuidance: 2.0,
+      maxGuidance: 7.0,
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple',
-      maxFrames: 161,
-      defaultFps: 24,
-      allowedFps: [16, 24, 30],
+      minFrames: 153,
+      maxFrames: 257,
+      defaultFrames: 153,
+      defaultFps: 25,
+      allowedFps: [25, 50],
       isLightning: false,
-      isComfyModel: true
+      isComfyModel: true,
+      hasAudio: true
     }
   },
 
@@ -528,15 +556,18 @@ export const MODELS = {
 // ============================================
 
 // Base constraints - note that frames.max may be overridden by model-specific maxFrames
+// WAN models use 16/32 fps, LTX-2 uses 25/50 fps (native, not interpolated)
 export const VIDEO_CONSTRAINTS = {
-  width: { min: 480, max: 1536, default: 832, step: 16 },
-  height: { min: 480, max: 1536, default: 480, step: 16 },
-  frames: { min: 17, max: 161, default: 81 }, // Some models support max: 321
-  fps: { allowedValues: [16, 24, 30, 32], default: 24 }, // Model-specific defaults override this
+  width: { min: 416, max: 1920, default: 832, step: 16 },
+  height: { min: 416, max: 1920, default: 480, step: 16 },
+  frames: { min: 17, max: 505, default: 81 }, // WAN max: 161/321, LTX-2 max: 257/505
+  fps: { allowedValues: [16, 25, 32, 50], default: 25 }, // Model-specific defaults override this
   shift: { min: 1.0, max: 8.0, default: 8.0, step: 0.1 },
   // Guidance ranges differ by model type:
-  // Quality models: min: 1.5, max: 8.0
-  // Lightning models: min: 0.7, max: 1.6
+  // WAN Quality: min: 1.5, max: 8.0
+  // WAN Lightning: min: 0.7, max: 1.6
+  // LTX-2 Quality: min: 2.0, max: 7.0
+  // LTX-2 Distilled: min: 1.0, max: 2.0
   guidance: {
     quality: { min: 1.5, max: 8.0, step: 0.01 },
     lightning: { min: 0.7, max: 1.6, step: 0.01 }

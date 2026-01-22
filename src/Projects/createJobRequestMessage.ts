@@ -313,9 +313,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     seed: params.seed,
     positivePrompt: params.positivePrompt,
     stylePrompt: params.stylePrompt,
-    // LoRA ID for runtime LoRA loading (optional, model-specific)
-    ...(params.loraId && { loraId: params.loraId }),
-    // LoRA arrays for direct LoRA injection (Qwen Image Edit workflows)
+    // LoRA IDs for LoRA loading (resolved to filenames by worker via config API)
     ...(params.loras && params.loras.length > 0 && { loras: params.loras }),
     ...(params.loraStrengths && params.loraStrengths.length > 0 && { loraStrengths: params.loraStrengths })
   };

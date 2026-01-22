@@ -57,9 +57,8 @@ import {
 
 const streamPipeline = promisify(pipeline);
 
-// LoRA configuration
-const LORA_ID = 'multiple_angles';  // ID for runtime download (from comfy-loras-config.json)
-const LORA_FILENAME = 'qwen-image-edit-2511-multiple-angles-lora.safetensors';  // Filename for injection
+// LoRA configuration - using LoRA ID (resolved to filename by worker via config API)
+const LORA_ID = 'multiple_angles';
 
 // Available models for Multiple Angles LoRA (Qwen Image Edit variants only)
 const AVAILABLE_MODELS = {
@@ -602,11 +601,8 @@ async function main() {
       outputFormat: 'jpg',
       sampler: modelConfig.defaultComfySampler,
       scheduler: modelConfig.defaultComfyScheduler,
-      // LoRA configuration:
-      // - loraId triggers runtime download if LoRA not present on worker
-      // - loras/loraStrengths arrays specify which LoRAs to inject and their strengths
-      loraId: LORA_ID,
-      loras: [LORA_FILENAME],
+      // LoRA configuration - using LoRA IDs (resolved to filenames by worker via config API)
+      loras: [LORA_ID],
       loraStrengths: [OPTIONS.strength],
     };
 

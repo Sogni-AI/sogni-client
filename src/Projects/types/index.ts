@@ -85,15 +85,11 @@ export interface BaseProjectParams {
    */
   tokenType?: TokenType;
   /**
-   * LoRA ID to use for generation.
+   * Array of LoRA IDs to apply.
    * Available LoRAs are model-specific. The worker will download the LoRA
    * if not already present on the persistent volume.
-   */
-  loraId?: string;
-  /**
-   * Array of LoRA filenames to apply (for Qwen Image Edit workflows).
-   * Filenames should end with .safetensors.
-   * Example: ['qwen-image-edit-2511-multiple-angles-lora.safetensors']
+   * LoRA IDs are resolved to filenames via the worker config API.
+   * Example: ['multiple_angles']
    */
   loras?: string[];
   /**
