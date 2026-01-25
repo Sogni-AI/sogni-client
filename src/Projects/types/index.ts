@@ -49,13 +49,13 @@ export interface BaseProjectParams {
    */
   positivePrompt: string;
   /**
-   * Prompt for what to be avoided
+   * Prompt for what to be avoided. If not provided, server default is used.
    */
-  negativePrompt: string;
+  negativePrompt?: string;
   /**
-   * Image style prompt
+   * Image style prompt. If not provided, server default is used.
    */
-  stylePrompt: string;
+  stylePrompt?: string;
   /**
    * Number of steps. For most Stable Diffusion models, optimal value is 20.
    */

@@ -309,10 +309,12 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     steps: params.steps,
     guidanceScale: params.guidance,
     modelID: params.modelId,
-    negativePrompt: params.negativePrompt,
     seed: params.seed,
     positivePrompt: params.positivePrompt,
-    stylePrompt: params.stylePrompt,
+    // Only include optional prompts if they have actual non-empty values
+    // This allows the server to use its defaults when not specified
+    ...(params.negativePrompt && { negativePrompt: params.negativePrompt }),
+    ...(params.stylePrompt && { stylePrompt: params.stylePrompt }),
     // LoRA IDs for LoRA loading (resolved to filenames by worker via config API)
     ...(params.loras && params.loras.length > 0 && { loras: params.loras }),
     ...(params.loraStrengths && params.loraStrengths.length > 0 && { loraStrengths: params.loraStrengths })
