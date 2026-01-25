@@ -1,3 +1,15 @@
+# [4.0.0-alpha.53](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.52...v4.0.0-alpha.53) (2026-01-25)
+
+
+### Features
+
+* Support Etherlink ([57eaee3](https://github.com/Sogni-AI/sogni-client/commit/57eaee39c18efd26732f9ce735a42b414bf34e87))
+
+
+### BREAKING CHANGES
+
+* Account balance data format changed, instead of `unclaimed`, now it will be `relaxedUnclaimed` and `fastUnclaimed`
+
 # [4.0.0-alpha.52](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.51...v4.0.0-alpha.52) (2026-01-22)
 
 
