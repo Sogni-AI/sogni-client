@@ -289,6 +289,11 @@ function applyVideoParams(
     keyFrame.videoStart = params.videoStart;
   }
 
+  // Frame trimming for seamless stitching of transition videos
+  if (params.trimEndFrame) {
+    keyFrame.trimEndFrame = true;
+  }
+
   // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
   if (params.width && params.height) {
     keyFrame.width = validateVideoSize(params.width, 'width');

@@ -172,6 +172,13 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   videoStart?: number;
   /**
+   * Trim the last frame from the generated video.
+   * Used for seamless stitching of transition videos where the last frame
+   * duplicates the end reference image.
+   * Default: false
+   */
+  trimEndFrame?: boolean;
+  /**
    * Output video width. Only used if `sizePreset` is "custom"
    */
   width?: number;
