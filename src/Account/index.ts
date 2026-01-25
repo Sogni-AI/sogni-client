@@ -238,7 +238,7 @@ class AccountApi extends ApiGroup {
    * ```
    */
   async accountBalance(): Promise<FullBalances> {
-    const res = await this.client.rest.get<ApiResponse<FullBalances>>('/v3/account/balance');
+    const res = await this.client.rest.get<ApiResponse<FullBalances>>('/v4/account/balance');
     return res.data;
   }
 
@@ -439,19 +439,25 @@ class AccountApi extends ApiGroup {
    * Withdraw funds from the current account to wallet.
    * @example withdraw to current wallet address
    * ```typescript
-   * await sogni.account.withdraw('your-account-password', 100);
+   * await sogni.account.withdraw('your-account-password', 100, 'etherlink');
    * ```
    *
    * @param password - account password
    * @param amount - amount of tokens to withdraw from account to wallet
+   * @param provider - blockchain provider, 'base' or 'etherlink' defaults to 'base'
    */
-  async withdraw(password: string, amount: number | string): Promise<void> {
+  async withdraw(
+    password: string,
+    amount: number | string,
+    provider: string = 'base'
+  ): Promise<void> {
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const walletAddress = wallet.address;
-    const nonce = await this.getNonce(walletAddress);
+    //const nonce = await this.getNonce(walletAddress);
     const payload = {
-      walletAddress: walletAddress,
-      amount: parseEther(amount.toString()).toString()
+      walletAddress,
+      amount: parseEther(amount.toString()).toString(),
+      provider
     };
     if (walletAddress !== this.currentAccount.walletAddress) {
       throw new ApiError(400, {
@@ -460,10 +466,15 @@ class AccountApi extends ApiGroup {
         errorCode: 0
       });
     }
-    const signature = await this.eip712.signTypedData(wallet, 'withdraw', { ...payload, nonce });
-    await this.client.rest.post('/v1/account/token/withdraw', {
+    const permitR = await this.client.rest.post<{ data: Record<string, any> }>(
+      '/v1/account/token/withdraw/permit',
+      payload
+    );
+    const { domain, types, message } = permitR.data;
+    const signature = await wallet.signTypedData(domain, types, message);
+    await this.client.rest.post('/v2/account/token/withdraw', {
       ...payload,
-      signature: signature
+      signature
     });
   }
 
@@ -471,19 +482,25 @@ class AccountApi extends ApiGroup {
    * Deposit tokens from wallet to account
    * @example withdraw to current wallet address
    * ```typescript
-   * await sogni.account.deposit('your-account-password', 100);
+   * await sogni.account.deposit('your-account-password', 100, 'base');
    * ```
    *
    * @param password - account password
    * @param amount - amount to transfer
+   * @param provider - blockchain provider, 'base' or 'etherlink' defaults to 'base'
    */
-  async deposit(password: string, amount: number | string): Promise<void> {
-    return this._deposit(password, amount, 1);
+  async deposit(
+    password: string,
+    amount: number | string,
+    provider: string = 'base'
+  ): Promise<void> {
+    return this._deposit(password, amount, provider, 1);
   }
 
   private async _deposit(
     password: string,
     amount: number | string,
+    provider: string = 'base',
     attemptCount: number = 1
   ): Promise<void> {
     const wallet = this.getWallet(this.currentAccount.username!, password);
@@ -498,7 +515,7 @@ class AccountApi extends ApiGroup {
       await this.client.rest.post('/v3/account/token/deposit', {
         walletAddress: wallet.address,
         amount: parseEther(amount.toString()).toString(),
-        provider: 'base'
+        provider: provider
       });
     } catch (error) {
       if (error instanceof ApiError) {
@@ -506,13 +523,13 @@ class AccountApi extends ApiGroup {
           // If this is the first attempt, we need to approve the token usage,
           // otherwise we can retry the deposit directly.
           if (attemptCount === 1) {
-            await this.approveTokenUsage(password, 'account');
+            await this.approveTokenUsage(password, 'account', provider);
           }
           if (attemptCount >= MAX_DEPOSIT_ATTEMPTS) {
             throw error;
           }
           await delay(10000); // Wait for the approval transaction to be processed
-          await this._deposit(password, amount, attemptCount + 1);
+          await this._deposit(password, amount, provider, attemptCount + 1);
           return;
         }
         throw error;
