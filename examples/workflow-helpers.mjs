@@ -259,96 +259,126 @@ export const MODELS = {
 
   // Text-to-Video Models (ComfyUI workflow)
   t2v: {
-    lightx2v: {
+    'wan_v2.2-14b-fp8_t2v_lightx2v': {
       id: 'wan_v2.2-14b-fp8_t2v_lightx2v',
       name: 'WAN 2.2 14B FP8 T2V LightX2V',
-      description: 'Fast 4-step generation (recommended)',
+      description: 'Fast 4-step generation (1-10s video)',
+      defaultWidth: 640,
+      defaultHeight: 640,
+      minWidth: 480,
+      maxWidth: 1536,
+      minHeight: 480,
+      maxHeight: 1536,
+      dimensionStep: 16,
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 8,
       defaultShift: 5.0,
+      minShift: 1.0,
+      maxShift: 8.0,
       defaultGuidance: 1.0,
       minGuidance: 0.7,
       maxGuidance: 1.6,
-      // ComfyUI format (preferred for video models)
       defaultComfySampler: 'euler',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'heun', 'lms', 'dpm_2', 'dpm_2_ancestral', 'dpm_fast', 'dpm_adaptive', 'dpmpp_2s_ancestral', 'dpmpp_sde', 'dpmpp_sde_gpu', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_2m_sde_gpu', 'dpmpp_3m_sde', 'dpmpp_3m_sde_gpu', 'ddpm', 'uni_pc', 'lcm'],
       defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple', 'normal', 'karras', 'exponential', 'sgm_uniform', 'ddim_uniform', 'beta'],
+      minFrames: 17,
       maxFrames: 161,
+      defaultFrames: 81,
       defaultFps: 16,
       allowedFps: [16, 32],
       isLightning: true,
       isComfyModel: true
     },
-    quality: {
+    'wan_v2.2-14b-fp8_t2v': {
       id: 'wan_v2.2-14b-fp8_t2v',
       name: 'WAN 2.2 14B FP8 T2V',
-      description: 'High quality 20-step generation',
+      description: 'High quality 20-step generation (1-10s video)',
+      defaultWidth: 640,
+      defaultHeight: 640,
+      minWidth: 480,
+      maxWidth: 1536,
+      minHeight: 480,
+      maxHeight: 1536,
+      dimensionStep: 16,
       defaultSteps: 20,
       minSteps: 20,
       maxSteps: 40,
       defaultShift: 8.0,
+      minShift: 1.0,
+      maxShift: 8.0,
       defaultGuidance: 3.5,
       minGuidance: 1.5,
       maxGuidance: 8.0,
-      // ComfyUI format (preferred for video models)
       defaultComfySampler: 'euler',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'heun', 'lms', 'dpm_2', 'dpm_2_ancestral', 'dpm_fast', 'dpm_adaptive', 'dpmpp_2s_ancestral', 'dpmpp_sde', 'dpmpp_sde_gpu', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_2m_sde_gpu', 'dpmpp_3m_sde', 'dpmpp_3m_sde_gpu', 'ddpm', 'uni_pc', 'lcm'],
       defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple', 'normal', 'karras', 'exponential', 'sgm_uniform', 'ddim_uniform', 'beta'],
+      minFrames: 17,
       maxFrames: 161,
+      defaultFrames: 81,
       defaultFps: 16,
       allowedFps: [16, 32],
       isLightning: false,
       isComfyModel: true
     },
-    'ltx2-distilled': {
+    'ltx2-19b-fp8_t2v_distilled': {
       id: 'ltx2-19b-fp8_t2v_distilled',
       name: 'LTX-2 19B FP8 T2V Distilled',
-      description: 'Fast 8-step generation with distilled LoRA (6-20s video)',
+      description: 'Fast 8-step generation with audio (~4-20s video)',
       defaultWidth: 1920,
       defaultHeight: 1088,
-      minWidth: 416,
+      minWidth: 768,
       maxWidth: 1920,
-      minHeight: 416,
+      minHeight: 768,
       maxHeight: 1920,
+      dimensionStep: 64,
       defaultSteps: 8,
       minSteps: 4,
       maxSteps: 12,
-      defaultShift: 8.0,
       defaultGuidance: 1.0,
       minGuidance: 1.0,
       maxGuidance: 2.0,
-      defaultComfySampler: 'euler',
+      defaultComfySampler: 'euler_ancestral',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
       defaultComfyScheduler: 'simple',
-      minFrames: 153,
+      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      minFrames: 97,
       maxFrames: 505,
-      defaultFrames: 153,
+      defaultFrames: 97,
+      frameStep: 8,
       defaultFps: 25,
       allowedFps: [25, 50],
       isLightning: true,
       isComfyModel: true,
       hasAudio: true
     },
-    'ltx2-quality': {
+    'ltx2-19b-fp8_t2v': {
       id: 'ltx2-19b-fp8_t2v',
       name: 'LTX-2 19B FP8 T2V',
-      description: 'High quality 25-step generation (6-10s video)',
+      description: 'High quality 20-step generation with audio (~4-10s video)',
       defaultWidth: 1920,
       defaultHeight: 1088,
-      minWidth: 416,
+      minWidth: 768,
       maxWidth: 1920,
-      minHeight: 416,
+      minHeight: 768,
       maxHeight: 1920,
-      defaultSteps: 25,
-      minSteps: 20,
-      maxSteps: 40,
-      defaultShift: 8.0,
+      dimensionStep: 64,
+      defaultSteps: 20,
+      minSteps: 15,
+      maxSteps: 30,
       defaultGuidance: 4.0,
       minGuidance: 2.0,
       maxGuidance: 7.0,
-      defaultComfySampler: 'euler',
+      defaultComfySampler: 'euler_ancestral',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
       defaultComfyScheduler: 'simple',
-      minFrames: 153,
+      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      minFrames: 97,
       maxFrames: 257,
-      defaultFrames: 153,
+      defaultFrames: 97,
+      frameStep: 8,
       defaultFps: 25,
       allowedFps: [25, 50],
       isLightning: false,
@@ -359,96 +389,132 @@ export const MODELS = {
 
   // Image-to-Video Models (ComfyUI workflow)
   i2v: {
-    lightx2v: {
+    'wan_v2.2-14b-fp8_i2v_lightx2v': {
       id: 'wan_v2.2-14b-fp8_i2v_lightx2v',
       name: 'WAN 2.2 14B FP8 I2V LightX2V',
-      description: 'Fast 4-step generation (recommended)',
+      description: 'Fast 4-step generation (1-10s video)',
+      defaultWidth: 640,
+      defaultHeight: 640,
+      minWidth: 480,
+      maxWidth: 1536,
+      minHeight: 480,
+      maxHeight: 1536,
+      dimensionStep: 16,
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 8,
       defaultShift: 5.0,
+      minShift: 1.0,
+      maxShift: 8.0,
       defaultGuidance: 1.0,
       minGuidance: 0.7,
       maxGuidance: 1.6,
-      // ComfyUI format (preferred for video models)
       defaultComfySampler: 'euler',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'heun', 'lms', 'dpm_2', 'dpm_2_ancestral', 'dpm_fast', 'dpm_adaptive', 'dpmpp_2s_ancestral', 'dpmpp_sde', 'dpmpp_sde_gpu', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_2m_sde_gpu', 'dpmpp_3m_sde', 'dpmpp_3m_sde_gpu', 'ddpm', 'uni_pc', 'lcm'],
       defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple', 'normal', 'karras', 'exponential', 'sgm_uniform', 'ddim_uniform', 'beta'],
+      minFrames: 17,
       maxFrames: 161,
+      defaultFrames: 81,
       defaultFps: 16,
       allowedFps: [16, 32],
       isLightning: true,
       isComfyModel: true
     },
-    quality: {
+    'wan_v2.2-14b-fp8_i2v': {
       id: 'wan_v2.2-14b-fp8_i2v',
       name: 'WAN 2.2 14B FP8 I2V',
-      description: 'High quality 20-step generation',
+      description: 'High quality 20-step generation (1-10s video)',
+      defaultWidth: 640,
+      defaultHeight: 640,
+      minWidth: 480,
+      maxWidth: 1536,
+      minHeight: 480,
+      maxHeight: 1536,
+      dimensionStep: 16,
       defaultSteps: 20,
       minSteps: 20,
       maxSteps: 40,
       defaultShift: 8.0,
+      minShift: 1.0,
+      maxShift: 8.0,
       defaultGuidance: 4.0,
       minGuidance: 1.5,
       maxGuidance: 8.0,
-      // ComfyUI format (preferred for video models)
       defaultComfySampler: 'euler',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'heun', 'lms', 'dpm_2', 'dpm_2_ancestral', 'dpm_fast', 'dpm_adaptive', 'dpmpp_2s_ancestral', 'dpmpp_sde', 'dpmpp_sde_gpu', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_2m_sde_gpu', 'dpmpp_3m_sde', 'dpmpp_3m_sde_gpu', 'ddpm', 'uni_pc', 'lcm'],
       defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple', 'normal', 'karras', 'exponential', 'sgm_uniform', 'ddim_uniform', 'beta'],
+      minFrames: 17,
       maxFrames: 161,
+      defaultFrames: 81,
       defaultFps: 16,
       allowedFps: [16, 32],
       isLightning: false,
       isComfyModel: true
     },
-    'ltx2-distilled': {
+    'ltx2-19b-fp8_i2v_distilled': {
       id: 'ltx2-19b-fp8_i2v_distilled',
       name: 'LTX-2 19B FP8 I2V Distilled',
-      description: 'Fast 8-step generation with distilled LoRA (6-20s video)',
+      description: 'Fast 8-step image animation with audio (~4-20s video)',
       defaultWidth: 1920,
       defaultHeight: 1088,
-      minWidth: 416,
+      minWidth: 768,
       maxWidth: 1920,
-      minHeight: 416,
+      minHeight: 768,
       maxHeight: 1920,
+      dimensionStep: 64,
       defaultSteps: 8,
       minSteps: 4,
       maxSteps: 12,
-      defaultShift: 8.0,
       defaultGuidance: 1.0,
       minGuidance: 1.0,
       maxGuidance: 2.0,
+      defaultStrength: 0.85,
+      minStrength: 0.5,
+      maxStrength: 1.0,
       defaultComfySampler: 'euler',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
       defaultComfyScheduler: 'simple',
-      minFrames: 153,
+      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      minFrames: 97,
       maxFrames: 505,
-      defaultFrames: 153,
+      defaultFrames: 97,
+      frameStep: 8,
       defaultFps: 25,
       allowedFps: [25, 50],
       isLightning: true,
       isComfyModel: true,
       hasAudio: true
     },
-    'ltx2-quality': {
+    'ltx2-19b-fp8_i2v': {
       id: 'ltx2-19b-fp8_i2v',
       name: 'LTX-2 19B FP8 I2V',
-      description: 'High quality 25-step generation (6-10s video)',
+      description: 'High quality 20-step image animation with audio (~4-10s video)',
       defaultWidth: 1920,
       defaultHeight: 1088,
-      minWidth: 416,
+      minWidth: 768,
       maxWidth: 1920,
-      minHeight: 416,
+      minHeight: 768,
       maxHeight: 1920,
-      defaultSteps: 25,
-      minSteps: 20,
-      maxSteps: 40,
-      defaultShift: 8.0,
+      dimensionStep: 64,
+      defaultSteps: 20,
+      minSteps: 15,
+      maxSteps: 30,
       defaultGuidance: 4.0,
       minGuidance: 2.0,
       maxGuidance: 7.0,
+      defaultStrength: 0.85,
+      minStrength: 0.5,
+      maxStrength: 1.0,
       defaultComfySampler: 'euler',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
       defaultComfyScheduler: 'simple',
-      minFrames: 153,
+      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      minFrames: 97,
       maxFrames: 257,
-      defaultFrames: 153,
+      defaultFrames: 97,
+      frameStep: 8,
       defaultFps: 25,
       allowedFps: [25, 50],
       isLightning: false,
@@ -827,6 +893,64 @@ export async function askQuestion(question) {
 }
 
 /**
+ * Ask for a multi-line prompt. User can paste text with linebreaks.
+ * Input ends when user presses Enter on an empty line (double Enter).
+ * @param {string} question - The question/instruction to display
+ * @param {string} defaultValue - Default value if user enters nothing
+ * @returns {Promise<string>} The collected multi-line text
+ */
+export async function askMultilinePrompt(question, defaultValue = '') {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  console.log(question);
+  console.log('  (Paste or type your prompt. Press Enter twice to finish, or Enter once for default)');
+  if (defaultValue) {
+    const preview = defaultValue.length > 60 ? defaultValue.substring(0, 60) + '...' : defaultValue;
+    console.log(`  Default: "${preview}"`);
+  }
+  console.log();
+
+  return new Promise((resolve) => {
+    const lines = [];
+    let emptyLineCount = 0;
+
+    rl.on('line', (line) => {
+      if (line === '') {
+        emptyLineCount++;
+        // If first line is empty and we have no content, use default
+        if (lines.length === 0 && emptyLineCount === 1) {
+          rl.close();
+          resolve(defaultValue);
+          return;
+        }
+        // Second empty line (or first after content) ends input
+        if (emptyLineCount >= 1 && lines.length > 0) {
+          rl.close();
+          const result = lines.join('\n').trim();
+          resolve(result || defaultValue);
+          return;
+        }
+      } else {
+        emptyLineCount = 0;
+        lines.push(line);
+      }
+    });
+
+    rl.on('close', () => {
+      // Handle Ctrl+D / EOF
+      if (lines.length > 0) {
+        resolve(lines.join('\n').trim());
+      } else {
+        resolve(defaultValue);
+      }
+    });
+  });
+}
+
+/**
  * Interactively pick an image file from test-assets or images directory
  * @param {string|null} defaultImage - Image path provided via CLI
  * @param {string} label - Label for the image type (e.g., 'input image', 'reference image')
@@ -1045,58 +1169,49 @@ export async function selectModel(models, defaultKey = null) {
 export async function promptCoreOptions(options, modelConfig, config = {}) {
   const { defaultPrompt = '', isVideo = false } = config;
 
-  // Prompt
+  // Prompt - use multi-line input to support pasted prompts with linebreaks
   if (!options.prompt) {
     console.log();
-    if (defaultPrompt) {
-      console.log(
-        `Default prompt: "${defaultPrompt.substring(0, 80)}${defaultPrompt.length > 80 ? '...' : ''}"`
-      );
-    }
-    const promptInput = await askQuestion('Enter your prompt (or press Enter for default): ');
-    options.prompt = promptInput.trim() || defaultPrompt;
+    options.prompt = await askMultilinePrompt('📝 Enter your prompt:', defaultPrompt);
   }
 
-  // Width
+  // Width - use model-specific constraints if available
   const defaultWidth =
     modelConfig.defaultWidth || (isVideo ? VIDEO_CONSTRAINTS.width.default : 1024);
-  const maxWidth = modelConfig.maxWidth;
+  const minWidth = modelConfig.minWidth || VIDEO_CONSTRAINTS.width.min;
+  const maxWidth = modelConfig.maxWidth || VIDEO_CONSTRAINTS.width.max;
+  const dimensionStep = modelConfig.dimensionStep || VIDEO_CONSTRAINTS.width.step || 16;
   const widthRange = isVideo
-    ? ` (${VIDEO_CONSTRAINTS.width.min}-${VIDEO_CONSTRAINTS.width.max})`
+    ? ` (${minWidth}-${maxWidth}, step ${dimensionStep})`
     : maxWidth ? ` (max: ${maxWidth})` : '';
   const widthInput = await askQuestion(`Width${widthRange} (default: ${defaultWidth}): `);
   if (widthInput.trim()) {
     const w = parseInt(widthInput.trim(), 10);
     if (!isNaN(w) && w > 0) {
-      if (isVideo) {
-        options.width = Math.max(VIDEO_CONSTRAINTS.width.min, Math.min(VIDEO_CONSTRAINTS.width.max, w));
-      } else if (maxWidth) {
-        options.width = Math.min(maxWidth, w);
-      } else {
-        options.width = w;
-      }
+      // Round to nearest step
+      let adjustedWidth = Math.round(w / dimensionStep) * dimensionStep;
+      adjustedWidth = Math.max(minWidth, Math.min(maxWidth, adjustedWidth));
+      options.width = adjustedWidth;
     }
   }
   if (!options.width) options.width = defaultWidth;
 
-  // Height
+  // Height - use model-specific constraints if available
   const defaultHeight =
     modelConfig.defaultHeight || (isVideo ? VIDEO_CONSTRAINTS.height.default : 1024);
-  const maxHeight = modelConfig.maxHeight;
+  const minHeight = modelConfig.minHeight || VIDEO_CONSTRAINTS.height.min;
+  const maxHeight = modelConfig.maxHeight || VIDEO_CONSTRAINTS.height.max;
   const heightRange = isVideo
-    ? ` (${VIDEO_CONSTRAINTS.height.min}-${VIDEO_CONSTRAINTS.height.max})`
+    ? ` (${minHeight}-${maxHeight}, step ${dimensionStep})`
     : maxHeight ? ` (max: ${maxHeight})` : '';
   const heightInput = await askQuestion(`Height${heightRange} (default: ${defaultHeight}): `);
   if (heightInput.trim()) {
     const h = parseInt(heightInput.trim(), 10);
     if (!isNaN(h) && h > 0) {
-      if (isVideo) {
-        options.height = Math.max(VIDEO_CONSTRAINTS.height.min, Math.min(VIDEO_CONSTRAINTS.height.max, h));
-      } else if (maxHeight) {
-        options.height = Math.min(maxHeight, h);
-      } else {
-        options.height = h;
-      }
+      // Round to nearest step
+      let adjustedHeight = Math.round(h / dimensionStep) * dimensionStep;
+      adjustedHeight = Math.max(minHeight, Math.min(maxHeight, adjustedHeight));
+      options.height = adjustedHeight;
     }
   }
   if (!options.height) options.height = defaultHeight;
@@ -1115,27 +1230,77 @@ export async function promptVideoDuration(options, modelConfig = {}) {
 
   // Use model-specific frame limits if available
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
-  const minFrames = VIDEO_CONSTRAINTS.frames.min;
+  const minFrames = modelConfig.minFrames || VIDEO_CONSTRAINTS.frames.min;
+  const frameStep = modelConfig.frameStep || 1;
 
-  // Calculate max duration in seconds
-  const maxDuration = Math.floor((maxFrames - 1) / fps);
+  /**
+   * Convert duration to valid frame count following n*step+1 rule
+   * LTX-2 uses step=8, so valid frames are: 1, 9, 17, ..., 153, 161, 169, ...
+   */
+  function durationToFrames(durationSec) {
+    let frames = Math.round(durationSec * fps) + 1;
+    if (frameStep > 1) {
+      // Round to nearest n*frameStep + 1
+      const n = Math.round((frames - 1) / frameStep);
+      frames = n * frameStep + 1;
+    }
+    return Math.max(minFrames, Math.min(maxFrames, frames));
+  }
 
-  // Predefined duration options (filtered by what's possible with this model)
-  const durationOptions = [2, 3, 4, 5, 6, 8, 10].filter(d => {
-    const frames = (d * fps) + 1;
-    return frames >= minFrames && frames <= maxFrames;
-  });
+  // Calculate min/max duration based on valid frame counts
+  // For LTX-2 with minFrames=97 at 25fps: (97-1)/25 = 3.84s
+  const minDurationExact = (minFrames - 1) / fps;
+  const maxDurationExact = (maxFrames - 1) / fps;
 
-  // Default to 5 seconds if available, otherwise the middle option
-  const defaultIndex = durationOptions.indexOf(5) !== -1
-    ? durationOptions.indexOf(5)
-    : Math.floor(durationOptions.length / 2);
+  // Generate duration options based on model constraints
+  // Build options that map to unique frame counts (no duplicates)
+  let durationOptions = [];
+  let seenFrames = new Set();
+
+  // Start from actual minimum duration (rounded up) to max duration
+  const startDuration = Math.ceil(minDurationExact);
+  const endDuration = Math.floor(maxDurationExact);
+
+  // Generate candidates: every second from min to 10s, then every 2s after that
+  let candidateDurations = [];
+  for (let d = startDuration; d <= Math.min(10, endDuration); d++) {
+    candidateDurations.push(d);
+  }
+  for (let d = 12; d <= endDuration; d += 2) {
+    candidateDurations.push(d);
+  }
+
+  for (const d of candidateDurations) {
+    const frames = durationToFrames(d);
+    // Only add if within bounds AND maps to a new frame count
+    if (frames >= minFrames && frames <= maxFrames && !seenFrames.has(frames)) {
+      seenFrames.add(frames);
+      durationOptions.push(d);
+    }
+  }
+
+  // Default to first option if list is empty
+  if (durationOptions.length === 0) {
+    durationOptions = [Math.round(minDurationExact)];
+  }
+
+  // Find default: use model's defaultFrames if available, otherwise first option
+  let defaultDuration;
+  if (modelConfig.defaultFrames) {
+    defaultDuration = Math.round((modelConfig.defaultFrames - 1) / fps);
+  } else {
+    defaultDuration = durationOptions[0];
+  }
+  const defaultIndex = durationOptions.indexOf(defaultDuration) !== -1
+    ? durationOptions.indexOf(defaultDuration)
+    : 0;
 
   console.log('\n⏱️  Select video duration:\n');
   durationOptions.forEach((d, i) => {
-    const frames = (d * fps) + 1;
+    const frames = durationToFrames(d);
+    const actualDuration = (frames - 1) / fps;
     const marker = i === defaultIndex ? ' (default)' : '';
-    console.log(`  ${i + 1}. ${d} seconds (${frames} frames)${marker}`);
+    console.log(`  ${i + 1}. ${d}s → ${frames} frames (${actualDuration.toFixed(1)}s actual)${marker}`);
   });
   console.log(`  ${durationOptions.length + 1}. Custom duration`);
   console.log();
@@ -1149,16 +1314,17 @@ export async function promptVideoDuration(options, modelConfig = {}) {
     duration = durationOptions[choiceNum - 1];
   } else if (choiceNum === durationOptions.length + 1) {
     // Custom duration
-    const customInput = await askQuestion(`Enter duration in seconds (1-${maxDuration}): `);
-    duration = Math.min(maxDuration, Math.max(1, parseFloat(customInput.trim()) || 5));
+    const minDur = Math.floor(minDurationExact);
+    const maxDur = Math.floor(maxDurationExact);
+    const customInput = await askQuestion(`Enter duration in seconds (${minDur}-${maxDur}): `);
+    duration = Math.min(maxDur, Math.max(minDur, parseFloat(customInput.trim()) || defaultDuration));
   } else {
     // Default selection
     duration = durationOptions[defaultIndex];
   }
 
-  // Convert duration to frames: frames = (seconds * fps) + 1
-  let frames = Math.round(duration * fps) + 1;
-  frames = Math.max(minFrames, Math.min(maxFrames, frames));
+  // Convert duration to valid frame count
+  const frames = durationToFrames(duration);
   options.frames = frames;
   options.duration = (frames - 1) / fps; // Store actual duration
 
@@ -1249,14 +1415,14 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     if (options.guidance === undefined) options.guidance = defaultGuidance;
   }
 
-  // Sampler - fetch dynamic options from SDK if available
+  // Sampler - fetch dynamic options from SDK if available, fall back to model config
   let samplerData = null;
   if (sogni && modelConfig.id) {
     samplerData = await getSamplerOptions(sogni, modelConfig.id);
   }
 
-  // Use dynamic options or fall back to modelConfig defaults
-  const availableSamplers = samplerData?.allowed || [];
+  // Use dynamic options, then model config, then empty
+  const availableSamplers = samplerData?.allowed || modelConfig.allowedComfySamplers || [];
   const defaultSampler =
     samplerData?.default ||
     modelConfig.defaultComfySampler ||
@@ -1286,14 +1452,14 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     options.sampler = defaultSampler;
   }
 
-  // Scheduler - fetch dynamic options from SDK if available
+  // Scheduler - fetch dynamic options from SDK if available, fall back to model config
   let schedulerData = null;
   if (sogni && modelConfig.id) {
     schedulerData = await getSchedulerOptions(sogni, modelConfig.id);
   }
 
-  // Use dynamic options or fall back to modelConfig defaults
-  const availableSchedulers = schedulerData?.allowed || [];
+  // Use dynamic options, then model config, then empty
+  const availableSchedulers = schedulerData?.allowed || modelConfig.allowedComfySchedulers || [];
   const defaultScheduler =
     schedulerData?.default ||
     modelConfig.defaultComfyScheduler ||
@@ -1354,7 +1520,7 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
   }
 
   // Batch count (number of images or videos to generate)
-  const maxBatch = isVideo ? 4 : 16;
+  const maxBatch = 512;
   const mediaType = isVideo ? 'videos' : 'images';
   const batchInput = await askQuestion(
     `\n  Number of ${mediaType} to generate (1-${maxBatch}, default: 1): `

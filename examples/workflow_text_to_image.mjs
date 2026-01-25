@@ -333,8 +333,8 @@ async function main() {
   }
 
   // Validate batch count
-  if (OPTIONS.batch < 1 || OPTIONS.batch > 10) {
-    console.error('Error: Batch count must be between 1 and 10');
+  if (OPTIONS.batch < 1 || OPTIONS.batch > 512) {
+    console.error('Error: Batch count must be between 1 and 512');
     process.exit(1);
   }
 

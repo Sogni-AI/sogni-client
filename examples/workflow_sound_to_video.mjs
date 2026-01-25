@@ -358,6 +358,7 @@ async function main() {
   if (OPTIONS.guidance === undefined || OPTIONS.guidance === null) {
     OPTIONS.guidance = modelConfig.defaultGuidance;
   }
+  if (!OPTIONS.steps) OPTIONS.steps = modelConfig.defaultSteps;
 
   // Use model-specific frame limits (S2V supports up to 321 frames)
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
@@ -402,8 +403,8 @@ async function main() {
   }
 
   // Validate batch count
-  if (OPTIONS.batch < 1 || OPTIONS.batch > 5) {
-    console.error('Error: Batch count must be between 1 and 5');
+  if (OPTIONS.batch < 1 || OPTIONS.batch > 512) {
+    console.error('Error: Batch count must be between 1 and 512');
     process.exit(1);
   }
 
@@ -505,6 +506,7 @@ async function main() {
       Duration: `${videoDuration.toFixed(1)}s`,
       FPS: OPTIONS.fps,
       Frames: OPTIONS.frames,
+      Steps: OPTIONS.steps,
       Batch: OPTIONS.batch,
       Guidance: OPTIONS.guidance,
       Shift: OPTIONS.shift,
@@ -536,7 +538,7 @@ async function main() {
       OPTIONS.height,
       OPTIONS.frames,
       OPTIONS.fps,
-      modelConfig.defaultSteps
+      OPTIONS.steps
     );
 
     console.log();
@@ -600,8 +602,6 @@ async function main() {
     log('🎬', 'Generating video from sound...');
     console.log();
 
-    let startTime = Date.now();
-
     // CRITICAL: SDK requires Buffer/File/Blob objects for media uploads, NOT string paths.
     // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
     const referenceImageBuffer = readFileAsBuffer(OPTIONS.image);
@@ -616,6 +616,7 @@ async function main() {
       height: OPTIONS.height,
       frames: OPTIONS.frames,
       fps: OPTIONS.fps,
+      steps: OPTIONS.steps,
       shift: OPTIONS.shift,
       seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
       referenceImage: referenceImageBuffer,
@@ -656,14 +657,40 @@ async function main() {
     const totalVideos = OPTIONS.batch;
     let projectFailed = false;
 
-    project._lastETA = undefined;
-    project._progressInterval = null;
+    // Track per-job state for progress display
+    const jobStates = new Map(); // jobId -> { startTime, lastStep, lastStepCount, lastETA, lastETAUpdate, interval }
+    let activeJobId = null; // Track which job is currently showing progress
+
+    // Helper to get job label (e.g., "Job 1/2")
+    function getJobLabel(event) {
+      if (totalVideos === 1) return '';
+      const jobNum = event.jobIndex !== undefined ? event.jobIndex + 1 : '?';
+      return `[${jobNum}/${totalVideos}] `;
+    }
+
+    // Helper to clear progress line
+    function clearProgressLine() {
+      process.stdout.write('\r' + ' '.repeat(80) + '\r');
+    }
+
+    // Helper to stop progress display for a job
+    function stopJobProgress(jobId) {
+      const state = jobStates.get(jobId);
+      if (state?.interval) {
+        clearInterval(state.interval);
+        state.interval = null;
+        clearProgressLine();
+      }
+      if (activeJobId === jobId) {
+        activeJobId = null;
+      }
+    }
 
     projectEventHandler = (event) => {
       if (event.projectId !== project.id) return;
       switch (event.type) {
         case 'queued':
-          log('📋', `Job queued at position: ${event.queuePosition}`);
+          log('📋', `Project queued at position: ${event.queuePosition}`);
           break;
         case 'completed':
           log('✅', 'Project completed!');
@@ -681,101 +708,127 @@ async function main() {
 
     jobEventHandler = (event) => {
       if (event.projectId !== project.id) return;
+      const jobId = event.jobId;
+      const jobLabel = getJobLabel(event);
+
       switch (event.type) {
+        case 'queued':
+          log('📋', `${jobLabel}Job queued at position: ${event.queuePosition}`);
+          break;
+
         case 'initiating':
-          log('⚙️', `Model initiating on worker: ${event.workerName || 'Unknown'}`);
+          log('⚙️', `${jobLabel}Model initiating on worker: ${event.workerName || 'Unknown'}`);
           break;
 
-        case 'started':
-          if (!project._progressInterval) {
-            startTime = Date.now();
-            project._lastETAUpdate = Date.now();
-            project._progressInterval = setInterval(() => {
-              const elapsed = (Date.now() - startTime) / 1000;
-              let progressStr = `\r  Generating...`;
-              if (project._lastStep !== undefined && project._lastStepCount !== undefined) {
-                const stepPercent = Math.round((project._lastStep / project._lastStepCount) * 100);
-                progressStr += ` Step ${project._lastStep}/${project._lastStepCount} (${stepPercent}%)`;
-              }
-              if (project._lastETA !== undefined) {
-                const elapsedSinceUpdate = (Date.now() - project._lastETAUpdate) / 1000;
-                const adjustedETA = Math.max(1, project._lastETA - elapsedSinceUpdate);
-                progressStr += ` ETA: ${formatDuration(adjustedETA)}`;
-              }
-              progressStr += ` (${formatDuration(elapsed)} elapsed)   `;
-              process.stdout.write(progressStr);
-            }, 1000);
+        case 'started': {
+          // Initialize state for this job
+          const jobState = {
+            startTime: Date.now(),
+            lastStep: undefined,
+            lastStepCount: undefined,
+            lastETA: undefined,
+            lastETAUpdate: Date.now(),
+            interval: null
+          };
+          jobStates.set(jobId, jobState);
+
+          // Start progress display for this job
+          activeJobId = jobId;
+          jobState.interval = setInterval(() => {
+            const state = jobStates.get(jobId);
+            if (!state) return;
+
+            const elapsed = (Date.now() - state.startTime) / 1000;
+            let progressStr = `\r  ${jobLabel}Generating...`;
+            if (state.lastStep !== undefined && state.lastStepCount !== undefined) {
+              const stepPercent = Math.round((state.lastStep / state.lastStepCount) * 100);
+              progressStr += ` Step ${state.lastStep}/${state.lastStepCount} (${stepPercent}%)`;
+            }
+            if (state.lastETA !== undefined) {
+              const elapsedSinceUpdate = (Date.now() - state.lastETAUpdate) / 1000;
+              const adjustedETA = Math.max(1, state.lastETA - elapsedSinceUpdate);
+              progressStr += ` ETA: ${formatDuration(adjustedETA)}`;
+            }
+            progressStr += ` (${formatDuration(elapsed)} elapsed)   `;
+            process.stdout.write(progressStr);
+          }, 1000);
+
+          log('🚀', `${jobLabel}Job started on worker: ${event.workerName || 'Unknown'}`);
+          break;
+        }
+
+        case 'jobETA': {
+          const state = jobStates.get(jobId);
+          if (state) {
+            state.lastETA = event.etaSeconds;
+            state.lastETAUpdate = Date.now();
           }
-          log('🚀', `Job started on worker: ${event.workerName || 'Unknown'}`);
           break;
+        }
 
-        case 'jobETA':
-          project._lastETA = event.etaSeconds;
-          project._lastETAUpdate = Date.now();
-          break;
-
-        case 'progress':
-          // Store step progress for display
-          if (event.step !== undefined && event.stepCount !== undefined) {
-            project._lastStep = event.step;
-            project._lastStepCount = event.stepCount;
+        case 'progress': {
+          const state = jobStates.get(jobId);
+          if (state && event.step !== undefined && event.stepCount !== undefined) {
+            state.lastStep = event.step;
+            state.lastStepCount = event.stepCount;
           }
           break;
+        }
 
-        case 'completed':
-          if (project._progressInterval) {
-            clearInterval(project._progressInterval);
-            project._progressInterval = null;
-            process.stdout.write('\r' + ' '.repeat(70) + '\r');
-          }
+        case 'completed': {
+          const state = jobStates.get(jobId);
+          stopJobProgress(jobId);
 
           if (!event.resultUrl || event.error) {
             failedVideos++;
-            log('❌', `Job completed with error: ${event.error || 'No result URL'}`);
+            log('❌', `${jobLabel}Job completed with error: ${event.error || 'No result URL'}`);
+            jobStates.delete(jobId);
             checkWorkflowCompletion();
           } else {
             if (projectFailed) {
-              log('⚠️', 'Ignoring completion event for already failed project');
+              log('⚠️', `${jobLabel}Ignoring completion event for already failed project`);
               return;
             }
-            log('✅', 'Job completed!');
+            log('✅', `${jobLabel}Job completed!`);
             const videoId = event.jobId || `video_${Date.now()}`;
             const desiredPath = `${OPTIONS.output}/${videoId}.mp4`;
             const outputPath = getUniqueFilename(desiredPath);
 
+            // Calculate elapsed time for THIS job
+            const jobElapsed = state ? ((Date.now() - state.startTime) / 1000).toFixed(2) : '?';
+
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {
                 completedVideos++;
-                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-                log('✓', `Video ${completedVideos}/${totalVideos} completed (${elapsed}s)`);
+                log('✓', `${jobLabel}Video completed (${jobElapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openVideo(outputPath);
+                jobStates.delete(jobId);
                 checkWorkflowCompletion();
               })
               .catch((error) => {
                 failedVideos++;
-                log('❌', `Download failed for ${videoId}: ${error.message}`);
+                log('❌', `${jobLabel}Download failed: ${error.message}`);
+                jobStates.delete(jobId);
                 checkWorkflowCompletion();
               });
           }
           break;
+        }
 
         case 'error':
         case 'failed':
-          if (project._progressInterval) {
-            clearInterval(project._progressInterval);
-            project._progressInterval = null;
-            process.stdout.write('\r' + ' '.repeat(70) + '\r');
-          }
+          stopJobProgress(jobId);
           projectFailed = true;
           failedVideos++;
           const errorMsg = event.error?.message || event.error || 'Unknown error';
           const errorCode = event.error?.code;
           if (errorCode !== undefined && errorCode !== null) {
-            log('❌', `Job failed: ${errorMsg} (Error code: ${errorCode})`);
+            log('❌', `${jobLabel}Job failed: ${errorMsg} (Error code: ${errorCode})`);
           } else {
-            log('❌', `Job failed: ${errorMsg}`);
+            log('❌', `${jobLabel}Job failed: ${errorMsg}`);
           }
+          jobStates.delete(jobId);
           checkWorkflowCompletion();
           break;
       }
@@ -842,9 +895,13 @@ async function main() {
     if (jobEventHandler) {
       sogni.projects.off('job', jobEventHandler);
     }
-    if (project && project._progressInterval) {
-      clearInterval(project._progressInterval);
+    // Clean up all per-job progress intervals
+    for (const [jobId, state] of jobStates) {
+      if (state?.interval) {
+        clearInterval(state.interval);
+      }
     }
+    jobStates.clear();
     try {
       await sogni.account.logout();
     } catch {

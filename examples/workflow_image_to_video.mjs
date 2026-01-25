@@ -17,15 +17,15 @@
  * Options:
  *   --image     Input image path (required)
  *   --end-image Optional end image for transition (i2v only)
- *   --model     Model: lightx2v or quality (default: prompts for selection)
- *   --width     Video width (default: auto from image, min: 480)
- *   --height    Video height (default: auto from image, min: 480)
- *   --duration  Duration in seconds (default: 5, converts to frames)
- *   --fps       Frames per second: 16/32 for WAN, 25/50 for LTX-2 (default: model-specific)
+ *   --model     Model ID (default: wan_v2.2-14b-fp8_i2v_lightx2v)
+ *   --width     Video width (WAN: 480-1536 step 16, LTX-2: 384-960 step 32, output 2x)
+ *   --height    Video height (WAN: 480-1536 step 16, LTX-2: 384-960 step 32, output 2x)
+ *   --duration  Duration in seconds (WAN: 1-10s default 5, LTX-2: 4-10/20s default 4)
+ *   --fps       Frames per second (WAN: 16/32, LTX-2: 25/50)
  *   --batch     Number of videos to generate (default: 1)
  *   --seed      Random seed for reproducibility (default: -1 for random)
- *   --guidance  Guidance scale (default: model-specific)
- *   --shift     Motion intensity 1.0-8.0 (default: model-specific)
+ *   --guidance  Guidance scale (WAN: 0.7-8, LTX-2: 1-7)
+ *   --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2)
  *   --comfy-sampler  ComfyUI sampler name (default: euler)
  *   --comfy-scheduler ComfyUI scheduler name (default: simple)
  *   --negative  Negative prompt (default: none)
@@ -164,25 +164,32 @@ Usage:
   node workflow_image_to_video.mjs --image img.jpg --end-image img2.jpg  # Interpolation
 
 Available Models:
-  lightx2v - WAN 2.2 14B I2V LightX2V (fast, 4-step, default)
-  quality  - WAN 2.2 14B I2V (high quality, 20-step)
+  wan_v2.2-14b-fp8_i2v_lightx2v  (WAN 2.2, fast 4-step, 1-10s, default)
+  wan_v2.2-14b-fp8_i2v           (WAN 2.2, high quality 20-step, 1-10s)
+  ltx2-19b-fp8_i2v_distilled     (LTX-2, fast 8-step, 4-20s, 2x upscaled output)
+  ltx2-19b-fp8_i2v               (LTX-2, high quality 20-step, 4-10s, 2x upscaled output)
+
+Model-Specific Constraints:
+  WAN models:   480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
+  LTX-2 models: 384-960px input (step 32), 25/50 fps, 4-10/20s, no shift, guidance 1-7
+                Note: LTX-2 outputs at 2x input resolution (768x512 → 1536x1024)
 
 Options:
   --image     Input image path (required)
   --end-image Optional end image for transition
-  --model     Model: lightx2v or quality (default: prompts for selection)
+  --model     Model ID (default: wan_v2.2-14b-fp8_i2v_lightx2v)
   --negative  Negative prompt (default: none)
   --style     Style prompt (default: none)
-  --width     Video width (default: auto from image, min: 480)
-  --height    Video height (default: auto from image, min: 480)
-  --duration  Duration in seconds (default: 5)
-  --fps       Frames per second: 16/32 for WAN, 25/50 for LTX-2 (default: model-specific)
+  --width     Video width (default: auto from image or WAN 640, LTX-2 768)
+  --height    Video height (default: auto from image or WAN 640, LTX-2 512)
+  --duration  Duration in seconds (default: WAN 5s, LTX-2 4s)
+  --fps       Frames per second (default: WAN 16, LTX-2 25)
   --batch     Number of videos to generate (default: 1)
   --seed      Random seed (default: -1 for random)
   --guidance  Guidance scale (default: model-specific)
-  --shift     Motion intensity 1.0-8.0 (default: model-specific)
-  --comfy-sampler  ComfyUI sampler name (default: euler)
-  --comfy-scheduler ComfyUI scheduler name (default: simple)
+  --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2)
+  --comfy-sampler  ComfyUI sampler (default: euler)
+  --comfy-scheduler ComfyUI scheduler (default: simple)
   --output    Output directory (default: ./output)
   --no-interactive  Skip interactive prompts
   --help      Show this help message
@@ -235,8 +242,28 @@ async function main() {
     log('⚠️', 'Could not read image dimensions, using defaults');
   }
 
-  // Ask about end image in interactive mode
-  if (OPTIONS.interactive && !OPTIONS.endImage) {
+  // Interactive mode: select model first (before asking about end image)
+  let modelConfig;
+  if (OPTIONS.interactive && !OPTIONS.modelKey) {
+    const selection = await selectModel(MODELS.i2v, 'wan_v2.2-14b-fp8_i2v_lightx2v');
+    OPTIONS.modelKey = selection.key;
+    modelConfig = selection.config;
+  } else {
+    OPTIONS.modelKey = OPTIONS.modelKey || 'wan_v2.2-14b-fp8_i2v_lightx2v';
+    modelConfig = MODELS.i2v[OPTIONS.modelKey];
+    if (!modelConfig) {
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx2-19b-fp8_i2v_distilled, ltx2-19b-fp8_i2v`);
+      process.exit(1);
+    }
+  }
+
+  log('🎬', `Selected model: ${modelConfig.name}`);
+
+  // Check if model supports end image (LTX-2 models do not)
+  const supportsEndImage = !OPTIONS.modelKey.startsWith('ltx');
+
+  // Ask about end image in interactive mode (only for models that support it)
+  if (OPTIONS.interactive && !OPTIONS.endImage && supportsEndImage) {
     const useEndImage = await askQuestion('\nAdd end image transition? [y/N]: ');
     if (useEndImage.toLowerCase() === 'y' || useEndImage.toLowerCase() === 'yes') {
       try {
@@ -248,28 +275,17 @@ async function main() {
     }
   }
 
+  // Warn if end image was provided via CLI for unsupported model
+  if (OPTIONS.endImage && !supportsEndImage) {
+    log('⚠️', 'End image transitions are not supported by LTX-2 models. End image will be ignored.');
+    OPTIONS.endImage = null;
+  }
+
   // Validate end image if provided
   if (OPTIONS.endImage && !fs.existsSync(OPTIONS.endImage)) {
     console.error(`Error: End image '${OPTIONS.endImage}' does not exist`);
     process.exit(1);
   }
-
-  // Interactive mode: select model and options
-  let modelConfig;
-  if (OPTIONS.interactive && !OPTIONS.modelKey) {
-    const selection = await selectModel(MODELS.i2v, 'lightx2v');
-    OPTIONS.modelKey = selection.key;
-    modelConfig = selection.config;
-  } else {
-    OPTIONS.modelKey = OPTIONS.modelKey || 'lightx2v';
-    modelConfig = MODELS.i2v[OPTIONS.modelKey];
-    if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'lightx2v' or 'quality'.`);
-      process.exit(1);
-    }
-  }
-
-  log('🎬', `Selected model: ${modelConfig.name}`);
 
   // Set default dimensions from image
   modelConfig.defaultWidth = initialImageDimensions.width;
@@ -304,6 +320,7 @@ async function main() {
   if (OPTIONS.guidance === undefined || OPTIONS.guidance === null) {
     OPTIONS.guidance = modelConfig.defaultGuidance;
   }
+  if (!OPTIONS.steps) OPTIONS.steps = modelConfig.defaultSteps;
 
   // Use model-specific frame limits
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
@@ -346,8 +363,8 @@ async function main() {
   }
 
   // Validate batch count
-  if (OPTIONS.batch < 1 || OPTIONS.batch > 5) {
-    console.error('Error: Batch count must be between 1 and 5');
+  if (OPTIONS.batch < 1 || OPTIONS.batch > 512) {
+    console.error('Error: Batch count must be between 1 and 512');
     process.exit(1);
   }
 
@@ -438,6 +455,7 @@ async function main() {
       Duration: `${videoDuration.toFixed(1)}s`,
       FPS: OPTIONS.fps,
       Frames: OPTIONS.frames,
+      Steps: OPTIONS.steps,
       Batch: OPTIONS.batch,
       Guidance: OPTIONS.guidance,
       Shift: OPTIONS.shift,
@@ -464,7 +482,7 @@ async function main() {
       OPTIONS.height,
       OPTIONS.frames,
       OPTIONS.fps,
-      modelConfig.defaultSteps
+      OPTIONS.steps
     );
 
     console.log();
@@ -528,8 +546,6 @@ async function main() {
     log('🎬', 'Generating video from image...');
     console.log();
 
-    let startTime = Date.now();
-
     // Use the pre-processed image buffer (already resized if needed)
     // Convert Buffer to Blob for SDK upload
     const referenceImageBlob = new Blob([processedImage.buffer]);
@@ -543,6 +559,7 @@ async function main() {
       height: OPTIONS.height,
       frames: OPTIONS.frames,
       fps: OPTIONS.fps,
+      steps: OPTIONS.steps,
       shift: OPTIONS.shift,
       seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
       referenceImage: referenceImageBlob,
@@ -579,14 +596,40 @@ async function main() {
     const totalVideos = OPTIONS.batch;
     let projectFailed = false;
 
-    project._lastETA = undefined;
-    project._progressInterval = null;
+    // Track per-job state for progress display
+    const jobStates = new Map(); // jobId -> { startTime, lastStep, lastStepCount, lastETA, lastETAUpdate, interval }
+    let activeJobId = null; // Track which job is currently showing progress
+
+    // Helper to get job label (e.g., "Job 1/2")
+    function getJobLabel(event) {
+      if (totalVideos === 1) return '';
+      const jobNum = event.jobIndex !== undefined ? event.jobIndex + 1 : '?';
+      return `[${jobNum}/${totalVideos}] `;
+    }
+
+    // Helper to clear progress line
+    function clearProgressLine() {
+      process.stdout.write('\r' + ' '.repeat(80) + '\r');
+    }
+
+    // Helper to stop progress display for a job
+    function stopJobProgress(jobId) {
+      const state = jobStates.get(jobId);
+      if (state?.interval) {
+        clearInterval(state.interval);
+        state.interval = null;
+        clearProgressLine();
+      }
+      if (activeJobId === jobId) {
+        activeJobId = null;
+      }
+    }
 
     projectEventHandler = (event) => {
       if (event.projectId !== project.id) return;
       switch (event.type) {
         case 'queued':
-          log('📋', `Job queued at position: ${event.queuePosition}`);
+          log('📋', `Project queued at position: ${event.queuePosition}`);
           break;
         case 'completed':
           log('✅', 'Project completed!');
@@ -604,101 +647,127 @@ async function main() {
 
     jobEventHandler = (event) => {
       if (event.projectId !== project.id) return;
+      const jobId = event.jobId;
+      const jobLabel = getJobLabel(event);
+
       switch (event.type) {
+        case 'queued':
+          log('📋', `${jobLabel}Job queued at position: ${event.queuePosition}`);
+          break;
+
         case 'initiating':
-          log('⚙️', `Model initiating on worker: ${event.workerName || 'Unknown'}`);
+          log('⚙️', `${jobLabel}Model initiating on worker: ${event.workerName || 'Unknown'}`);
           break;
 
-        case 'started':
-          if (!project._progressInterval) {
-            startTime = Date.now();
-            project._lastETAUpdate = Date.now();
-            project._progressInterval = setInterval(() => {
-              const elapsed = (Date.now() - startTime) / 1000;
-              let progressStr = `\r  Generating...`;
-              if (project._lastStep !== undefined && project._lastStepCount !== undefined) {
-                const stepPercent = Math.round((project._lastStep / project._lastStepCount) * 100);
-                progressStr += ` Step ${project._lastStep}/${project._lastStepCount} (${stepPercent}%)`;
-              }
-              if (project._lastETA !== undefined) {
-                const elapsedSinceUpdate = (Date.now() - project._lastETAUpdate) / 1000;
-                const adjustedETA = Math.max(1, project._lastETA - elapsedSinceUpdate);
-                progressStr += ` ETA: ${formatDuration(adjustedETA)}`;
-              }
-              progressStr += ` (${formatDuration(elapsed)} elapsed)   `;
-              process.stdout.write(progressStr);
-            }, 1000);
+        case 'started': {
+          // Initialize state for this job
+          const jobState = {
+            startTime: Date.now(),
+            lastStep: undefined,
+            lastStepCount: undefined,
+            lastETA: undefined,
+            lastETAUpdate: Date.now(),
+            interval: null
+          };
+          jobStates.set(jobId, jobState);
+
+          // Start progress display for this job
+          activeJobId = jobId;
+          jobState.interval = setInterval(() => {
+            const state = jobStates.get(jobId);
+            if (!state) return;
+
+            const elapsed = (Date.now() - state.startTime) / 1000;
+            let progressStr = `\r  ${jobLabel}Generating...`;
+            if (state.lastStep !== undefined && state.lastStepCount !== undefined) {
+              const stepPercent = Math.round((state.lastStep / state.lastStepCount) * 100);
+              progressStr += ` Step ${state.lastStep}/${state.lastStepCount} (${stepPercent}%)`;
+            }
+            if (state.lastETA !== undefined) {
+              const elapsedSinceUpdate = (Date.now() - state.lastETAUpdate) / 1000;
+              const adjustedETA = Math.max(1, state.lastETA - elapsedSinceUpdate);
+              progressStr += ` ETA: ${formatDuration(adjustedETA)}`;
+            }
+            progressStr += ` (${formatDuration(elapsed)} elapsed)   `;
+            process.stdout.write(progressStr);
+          }, 1000);
+
+          log('🚀', `${jobLabel}Job started on worker: ${event.workerName || 'Unknown'}`);
+          break;
+        }
+
+        case 'jobETA': {
+          const state = jobStates.get(jobId);
+          if (state) {
+            state.lastETA = event.etaSeconds;
+            state.lastETAUpdate = Date.now();
           }
-          log('🚀', `Job started on worker: ${event.workerName || 'Unknown'}`);
           break;
+        }
 
-        case 'jobETA':
-          project._lastETA = event.etaSeconds;
-          project._lastETAUpdate = Date.now();
-          break;
-
-        case 'progress':
-          // Store step progress for display
-          if (event.step !== undefined && event.stepCount !== undefined) {
-            project._lastStep = event.step;
-            project._lastStepCount = event.stepCount;
+        case 'progress': {
+          const state = jobStates.get(jobId);
+          if (state && event.step !== undefined && event.stepCount !== undefined) {
+            state.lastStep = event.step;
+            state.lastStepCount = event.stepCount;
           }
           break;
+        }
 
-        case 'completed':
-          if (project._progressInterval) {
-            clearInterval(project._progressInterval);
-            project._progressInterval = null;
-            process.stdout.write('\r' + ' '.repeat(70) + '\r');
-          }
+        case 'completed': {
+          const state = jobStates.get(jobId);
+          stopJobProgress(jobId);
 
           if (!event.resultUrl || event.error) {
             failedVideos++;
-            log('❌', `Job completed with error: ${event.error || 'No result URL'}`);
+            log('❌', `${jobLabel}Job completed with error: ${event.error || 'No result URL'}`);
+            jobStates.delete(jobId);
             checkWorkflowCompletion();
           } else {
             if (projectFailed) {
-              log('⚠️', 'Ignoring completion event for already failed project');
+              log('⚠️', `${jobLabel}Ignoring completion event for already failed project`);
               return;
             }
-            log('✅', 'Job completed!');
+            log('✅', `${jobLabel}Job completed!`);
             const videoId = event.jobId || `video_${Date.now()}`;
             const desiredPath = `${OPTIONS.output}/${videoId}.mp4`;
             const outputPath = getUniqueFilename(desiredPath);
 
+            // Calculate elapsed time for THIS job
+            const jobElapsed = state ? ((Date.now() - state.startTime) / 1000).toFixed(2) : '?';
+
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {
                 completedVideos++;
-                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-                log('✓', `Video ${completedVideos}/${totalVideos} completed (${elapsed}s)`);
+                log('✓', `${jobLabel}Video completed (${jobElapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openVideo(outputPath);
+                jobStates.delete(jobId);
                 checkWorkflowCompletion();
               })
               .catch((error) => {
                 failedVideos++;
-                log('❌', `Download failed for ${videoId}: ${error.message}`);
+                log('❌', `${jobLabel}Download failed: ${error.message}`);
+                jobStates.delete(jobId);
                 checkWorkflowCompletion();
               });
           }
           break;
+        }
 
         case 'error':
         case 'failed':
-          if (project._progressInterval) {
-            clearInterval(project._progressInterval);
-            project._progressInterval = null;
-            process.stdout.write('\r' + ' '.repeat(70) + '\r');
-          }
+          stopJobProgress(jobId);
           projectFailed = true;
           failedVideos++;
           const errorMsg = event.error?.message || event.error || 'Unknown error';
           const errorCode = event.error?.code;
           if (errorCode !== undefined && errorCode !== null) {
-            log('❌', `Job failed: ${errorMsg} (Error code: ${errorCode})`);
+            log('❌', `${jobLabel}Job failed: ${errorMsg} (Error code: ${errorCode})`);
           } else {
-            log('❌', `Job failed: ${errorMsg}`);
+            log('❌', `${jobLabel}Job failed: ${errorMsg}`);
           }
+          jobStates.delete(jobId);
           checkWorkflowCompletion();
           break;
       }
@@ -765,9 +834,13 @@ async function main() {
     if (jobEventHandler) {
       sogni.projects.off('job', jobEventHandler);
     }
-    if (project && project._progressInterval) {
-      clearInterval(project._progressInterval);
+    // Clean up all per-job progress intervals
+    for (const [jobId, state] of jobStates) {
+      if (state?.interval) {
+        clearInterval(state.interval);
+      }
     }
+    jobStates.clear();
     try {
       await sogni.account.logout();
     } catch {

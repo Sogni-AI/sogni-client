@@ -415,10 +415,10 @@ async function main() {
       }
 
       // Batch
-      const batchInput = await askQuestion('Number of images (1-4, default: 1): ');
+      const batchInput = await askQuestion('Number of images (1-512, default: 1): ');
       if (batchInput.trim()) {
         const b = parseInt(batchInput.trim(), 10);
-        if (b >= 1 && b <= 4) {
+        if (b >= 1 && b <= 512) {
           OPTIONS.batch = b;
         }
       }
