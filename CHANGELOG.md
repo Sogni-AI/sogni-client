@@ -1,3 +1,15 @@
+# [4.0.0-alpha.54](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.53...v4.0.0-alpha.54) (2026-01-26)
+
+
+### Bug Fixes
+
+* make negativePrompt and stylePrompt optional ([5e422c3](https://github.com/Sogni-AI/sogni-client/commit/5e422c3d310df2f87edee3ad19df1ed57efff088))
+
+
+### Features
+
+* add trimEndFrame parameter for video stitching ([985d13b](https://github.com/Sogni-AI/sogni-client/commit/985d13bad9576b01388d1e58450cec8d585d9134))
+
 # [4.0.0-alpha.53](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.52...v4.0.0-alpha.53) (2026-01-25)
 
 
