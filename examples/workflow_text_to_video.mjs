@@ -501,13 +501,21 @@ async function main() {
     let projectFailed = false;
 
     // Track per-job state for progress display
-    const jobStates = new Map(); // jobId -> { startTime, lastStep, lastStepCount, lastETA, lastETAUpdate, interval }
+    const jobStates = new Map(); // jobId -> { startTime, lastStep, lastStepCount, lastETA, lastETAUpdate, interval, jobIndex }
     let activeJobId = null; // Track which job is currently showing progress
 
     // Helper to get job label (e.g., "Job 1/2")
-    function getJobLabel(event) {
+    function getJobLabel(event, jobId = null) {
       if (totalVideos === 1) return '';
-      const jobNum = event.jobIndex !== undefined ? event.jobIndex + 1 : '?';
+      // First try to get jobIndex from event, then from stored state
+      let jobNum = event.jobIndex;
+      if (jobNum === undefined && jobId) {
+        const state = jobStates.get(jobId);
+        if (state?.jobIndex !== undefined) {
+          jobNum = state.jobIndex;
+        }
+      }
+      jobNum = jobNum !== undefined ? jobNum + 1 : '?';
       return `[${jobNum}/${totalVideos}] `;
     }
 
@@ -555,25 +563,57 @@ async function main() {
       const jobLabel = getJobLabel(event);
 
       switch (event.type) {
-        case 'queued':
-          log('📋', `${jobLabel}Job queued at position: ${event.queuePosition}`);
+        case 'queued': {
+                    const queuedLabel = getJobLabel(event, jobId);
+          log('📋', `${queuedLabel}Job queued at position: ${event.queuePosition}`);
           break;
+        }
 
-        case 'initiating':
-          log('⚙️', `${jobLabel}Model initiating on worker: ${event.workerName || 'Unknown'}`);
+        case 'initiating': {
+                    // Pre-create job state with jobIndex if provided
+          if (!jobStates.has(jobId) && event.jobIndex !== undefined) {
+            jobStates.set(jobId, {
+              startTime: null,
+              lastStep: undefined,
+              lastStepCount: undefined,
+              lastETA: undefined,
+              lastETAUpdate: null,
+              interval: null,
+              jobIndex: event.jobIndex
+            });
+          } else if (jobStates.has(jobId) && event.jobIndex !== undefined) {
+            jobStates.get(jobId).jobIndex = event.jobIndex;
+          }
+          const initLabel = getJobLabel(event, jobId);
+          log('⚙️', `${initLabel}Model initiating on worker: ${event.workerName || 'Unknown'}`);
           break;
+        }
 
         case 'started': {
-          // Initialize state for this job
-          const jobState = {
-            startTime: Date.now(),
-            lastStep: undefined,
-            lastStepCount: undefined,
-            lastETA: undefined,
-            lastETAUpdate: Date.now(),
-            interval: null
-          };
-          jobStates.set(jobId, jobState);
+                    // Initialize or update state for this job
+          let jobState = jobStates.get(jobId);
+          if (!jobState) {
+            jobState = {
+              startTime: Date.now(),
+              lastStep: undefined,
+              lastStepCount: undefined,
+              lastETA: undefined,
+              lastETAUpdate: Date.now(),
+              interval: null,
+              jobIndex: event.jobIndex
+            };
+            jobStates.set(jobId, jobState);
+          } else {
+            // Update existing state from initiating
+            jobState.startTime = Date.now();
+            jobState.lastETAUpdate = Date.now();
+            if (event.jobIndex !== undefined) {
+              jobState.jobIndex = event.jobIndex;
+            }
+          }
+
+          // Get job label using stored jobIndex
+          const startedLabel = getJobLabel(event, jobId);
 
           // Start progress display for this job
           activeJobId = jobId;
@@ -582,7 +622,8 @@ async function main() {
             if (!state) return;
 
             const elapsed = (Date.now() - state.startTime) / 1000;
-            let progressStr = `\r  ${jobLabel}Generating...`;
+            const progressLabel = getJobLabel({}, jobId);
+            let progressStr = `\r  ${progressLabel}Generating...`;
             if (state.lastStep !== undefined && state.lastStepCount !== undefined) {
               const stepPercent = Math.round((state.lastStep / state.lastStepCount) * 100);
               progressStr += ` Step ${state.lastStep}/${state.lastStepCount} (${stepPercent}%)`;
@@ -596,12 +637,12 @@ async function main() {
             process.stdout.write(progressStr);
           }, 1000);
 
-          log('🚀', `${jobLabel}Job started on worker: ${event.workerName || 'Unknown'}`);
+          log('🚀', `${startedLabel}Job started on worker: ${event.workerName || 'Unknown'}`);
           break;
         }
 
         case 'jobETA': {
-          const state = jobStates.get(jobId);
+                    const state = jobStates.get(jobId);
           if (state) {
             state.lastETA = event.etaSeconds;
             state.lastETAUpdate = Date.now();
@@ -610,7 +651,7 @@ async function main() {
         }
 
         case 'progress': {
-          const state = jobStates.get(jobId);
+                    const state = jobStates.get(jobId);
           if (state && event.step !== undefined && event.stepCount !== undefined) {
             state.lastStep = event.step;
             state.lastStepCount = event.stepCount;
@@ -619,20 +660,21 @@ async function main() {
         }
 
         case 'completed': {
-          const state = jobStates.get(jobId);
+                    const state = jobStates.get(jobId);
+          const completedLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
 
           if (!event.resultUrl || event.error) {
             failedVideos++;
-            log('❌', `${jobLabel}Job completed with error: ${event.error || 'No result URL'}`);
+            log('❌', `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`);
             jobStates.delete(jobId);
             checkWorkflowCompletion();
           } else {
             if (projectFailed) {
-              log('⚠️', `${jobLabel}Ignoring completion event for already failed project`);
+              log('⚠️', `${completedLabel}Ignoring completion event for already failed project`);
               return;
             }
-            log('✅', `${jobLabel}Job completed!`);
+            log('✅', `${completedLabel}Job completed!`);
             const videoId = event.jobId || `video_${Date.now()}`;
             const desiredPath = `${OPTIONS.output}/${videoId}.mp4`;
             const outputPath = getUniqueFilename(desiredPath);
@@ -643,7 +685,7 @@ async function main() {
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {
                 completedVideos++;
-                log('✓', `${jobLabel}Video completed (${jobElapsed}s)`);
+                log('✓', `${completedLabel}Video completed (${jobElapsed}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openVideo(outputPath);
                 jobStates.delete(jobId);
@@ -651,7 +693,7 @@ async function main() {
               })
               .catch((error) => {
                 failedVideos++;
-                log('❌', `${jobLabel}Download failed: ${error.message}`);
+                log('❌', `${completedLabel}Download failed: ${error.message}`);
                 jobStates.delete(jobId);
                 checkWorkflowCompletion();
               });
@@ -660,20 +702,22 @@ async function main() {
         }
 
         case 'error':
-        case 'failed':
+        case 'failed': {
+                    const errorLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
           projectFailed = true;
           failedVideos++;
           const errorMsg = event.error?.message || event.error || 'Unknown error';
           const errorCode = event.error?.code;
           if (errorCode !== undefined && errorCode !== null) {
-            log('❌', `${jobLabel}Job failed: ${errorMsg} (Error code: ${errorCode})`);
+            log('❌', `${errorLabel}Job failed: ${errorMsg} (Error code: ${errorCode})`);
           } else {
-            log('❌', `${jobLabel}Job failed: ${errorMsg}`);
+            log('❌', `${errorLabel}Job failed: ${errorMsg}`);
           }
           jobStates.delete(jobId);
           checkWorkflowCompletion();
           break;
+        }
       }
     };
 
@@ -703,8 +747,8 @@ async function main() {
       }
     }
 
-    // Wait for completion or project failure
-    await new Promise((resolve, reject) => {
+    // Wait for all jobs to complete - SDK and server handle their own timeouts
+    await new Promise((resolve) => {
       const checkCompletion = () => {
         if (projectFailed || completedVideos + failedVideos >= totalVideos) {
           resolve();
@@ -712,14 +756,6 @@ async function main() {
           setTimeout(checkCompletion, 1000);
         }
       };
-
-      setTimeout(
-        () => {
-          reject(new Error('Generation timed out after 60 minutes'));
-        },
-        60 * 60 * 1000
-      );
-
       checkCompletion();
     });
 

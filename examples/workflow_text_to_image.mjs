@@ -625,15 +625,15 @@ async function main() {
     const eventHandler = (event) => {
       switch (event.type) {
         case 'initiating':
-          log('⚙️', `Model initiating on worker: ${event.workerName || 'Unknown'}`);
+                    log('⚙️', `Model initiating on worker: ${event.workerName || 'Unknown'}`);
           break;
 
         case 'started':
-          log('🚀', `Job started on worker: ${event.workerName || 'Unknown'}`);
+                    log('🚀', `Job started on worker: ${event.workerName || 'Unknown'}`);
           break;
 
         case 'jobETA':
-          lastETA = event.etaSeconds;
+                    lastETA = event.etaSeconds;
           lastETAUpdate = Date.now();
           // Start countdown interval if not already running
           if (!etaCountdownInterval && lastETA > 0) {
@@ -642,13 +642,13 @@ async function main() {
           break;
 
         case 'preview':
-          if (event.url && event.jobId) {
+                    if (event.url && event.jobId) {
             const imageNumber = completedImages + failedImages + 1;
             const modelShortName = OPTIONS.modelKey.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
             const extension = OPTIONS.outputFormat || 'jpg';
             const previewPath = `${OPTIONS.output}/${modelShortName}_preview_${imageNumber}_${Date.now()}.${extension}`;
             const uniquePreviewPath = getUniqueFilename(previewPath);
-            
+
             downloadImage(event.url, uniquePreviewPath)
               .then(() => {
                 log('🔍', `Preview saved: ${uniquePreviewPath}`);
@@ -662,7 +662,7 @@ async function main() {
           break;
 
         case 'completed':
-          if (!event.jobId) return;
+                    if (!event.jobId) return;
           if (event.isNSFW) {
             failedImages++;
             console.log('\n' + '─'.repeat(60));
@@ -714,7 +714,7 @@ async function main() {
 
         case 'error':
         case 'failed':
-          projectFailed = true;
+                    projectFailed = true;
           failedImages++;
           const errorMsg = event.error?.message || event.error || 'Unknown error';
           const errorCode = event.error?.code;
@@ -748,7 +748,7 @@ async function main() {
       if (event.projectId === project.id) {
         // Handle step-level progress from job events
         if (event.type === 'progress' && event.step !== undefined && event.stepCount !== undefined) {
-          currentStep = event.step;
+                    currentStep = event.step;
           totalSteps = event.stepCount;
           updateProgressDisplay();
         }
@@ -781,8 +781,8 @@ async function main() {
       }
     }
 
-    // Wait for completion or project failure
-    await new Promise((resolve, reject) => {
+    // Wait for all jobs to complete - SDK and server handle their own timeouts
+    await new Promise((resolve) => {
       const checkCompletion = () => {
         if (projectFailed || completedImages + failedImages >= totalImages) {
           resolve();
@@ -790,18 +790,8 @@ async function main() {
           setTimeout(checkCompletion, 1000);
         }
       };
-
-      const timeout = setTimeout(() => {
-        reject(new Error('Generation timed out after 30 minutes'));
-      }, 30 * 60 * 1000);
-
       checkCompletion();
     });
-
-    if (completedImages + failedImages < totalImages) {
-      log('⚠️', 'Workflow timed out before all jobs completed');
-      process.exit(1);
-    }
 
   } catch (error) {
     log('❌', `Error: ${error.message}`);

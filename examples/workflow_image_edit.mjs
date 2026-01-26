@@ -710,29 +710,29 @@ async function main() {
     const eventHandler = (event) => {
       // Handle step-level progress from job events
       if (event.type === 'progress' && event.step !== undefined && event.stepCount !== undefined) {
-        currentStep = event.step;
+                currentStep = event.step;
         totalSteps = event.stepCount;
         updateProgressDisplay();
       }
 
       switch (event.type) {
         case 'queued':
-          clearProgress();
+                    clearProgress();
           log('📋', `Job queued at position: ${event.queuePosition || 'unknown'}`);
           break;
 
         case 'initiating':
-          clearProgress();
+                    clearProgress();
           log('🔧', `Worker ${event.workerName || 'unknown'} initializing model...`);
           break;
 
         case 'started':
-          clearProgress();
+                    clearProgress();
           log('🚀', `Worker ${event.workerName || 'unknown'} started generation`);
           break;
 
         case 'jobETA':
-          lastETA = event.etaSeconds;
+                    lastETA = event.etaSeconds;
           lastETAUpdate = Date.now();
           if (!etaCountdownInterval && lastETA > 0) {
             etaCountdownInterval = setInterval(updateProgressDisplay, 1000);
@@ -740,7 +740,7 @@ async function main() {
           break;
 
         case 'completed':
-          // Skip project-level completed events (only process job-level completions)
+                    // Skip project-level completed events (only process job-level completions)
           if (!event.jobId) return;
           clearProgress();
 
@@ -780,7 +780,7 @@ async function main() {
 
         case 'error':
         case 'failed':
-          clearProgress();
+                    clearProgress();
           projectFailed = true;
           failedImages++;
           const errorMsg = event.error?.message || event.error || 'Unknown error';
@@ -830,7 +830,8 @@ async function main() {
       }
     }
 
-    await new Promise((resolve, reject) => {
+    // Wait for all jobs to complete - SDK and server handle their own timeouts
+    await new Promise((resolve) => {
       const checkCompletion = () => {
         if (projectFailed || completedImages + failedImages >= totalImages) {
           resolve();
@@ -838,11 +839,6 @@ async function main() {
           setTimeout(checkCompletion, 1000);
         }
       };
-
-      const timeout = setTimeout(() => {
-        reject(new Error('Generation timed out after 30 minutes'));
-      }, 30 * 60 * 1000);
-
       checkCompletion();
     });
 
