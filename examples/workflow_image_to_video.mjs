@@ -53,6 +53,7 @@ import {
   promptCoreOptions,
   promptVideoDuration,
   promptAdvancedOptions,
+  promptBatchCount,
   pickImageFile,
   readFileAsBuffer,
   processImageForVideo,
@@ -61,14 +62,19 @@ import {
   formatDuration,
   displayConfig,
   displayPrompts,
-  getUniqueFilename
+  getUniqueFilename,
+  generateVideoFilename,
+  generateRandomSeed
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
 
 // Default prompt for this workflow
 const DEFAULT_PROMPT =
-  'A cinematic camera movement that brings the image to life with smooth, natural motion';
+  'A close-up shot of a young waitress in a retro 1950s diner, her warm brown eyes meeting the camera with a gentle smile. She wears a black polka-dot dress with an elegant cream lace collar, her reddish-brown hair styled in an elaborate updo with delicate curls framing her freckled face. Soft, warm light from overhead fixtures illuminates her features as she stands behind a yellow counter. The camera begins slightly to her side, then slowly pushes in toward her face, revealing the subtle rosy blush on her cheeks. In the blurred background, the soft teal walls and a glowing red "Diner" sign create a nostalgic atmosphere. The ambient sounds of clinking dishes, distant conversations, and the gentle hum of a jukebox fill the air. She tilts her head slightly and says in a friendly, warm voice: "Welcome to Rosie\'s. What can I get for you today?" The mood is inviting, timeless, and full of classic American diner charm.';
+
+// Default image for this workflow
+const DEFAULT_IMAGE = './test-assets/placeholder6.jpg';
 
 // Video dimension constraints
 const MAX_VIDEO_DIMENSION = 1536;
@@ -444,6 +450,11 @@ async function main() {
       console.log();
     }
 
+    // Ask for batch count as last question before confirmation
+    if (OPTIONS.interactive) {
+      await promptBatchCount(OPTIONS, { isVideo: true });
+    }
+
     // Show configuration first
     const videoDuration = (OPTIONS.frames - 1) / OPTIONS.fps;
     const configDisplay = {
@@ -541,6 +552,12 @@ async function main() {
     log('✓', `Model ready: ${videoModel.name}`);
     console.log();
 
+    // Generate seed client-side if not specified (for reliable filename generation)
+    if (OPTIONS.seed === null || OPTIONS.seed === -1) {
+      OPTIONS.seed = generateRandomSeed();
+      log('🎲', `Generated seed: ${OPTIONS.seed}`);
+    }
+
     // Create project
     log('📤', 'Submitting image-to-video job...');
     log('🎬', 'Generating video from image...');
@@ -561,7 +578,7 @@ async function main() {
       fps: OPTIONS.fps,
       steps: OPTIONS.steps,
       shift: OPTIONS.shift,
-      seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      seed: OPTIONS.seed,
       referenceImage: referenceImageBlob,
       tokenType: tokenType
     };
@@ -771,12 +788,26 @@ async function main() {
               return;
             }
             log('✅', `${completedLabel}Job completed!`);
-            const videoId = event.jobId || `video_${Date.now()}`;
-            const desiredPath = `${OPTIONS.output}/${videoId}.mp4`;
-            const outputPath = getUniqueFilename(desiredPath);
 
             // Calculate elapsed time for THIS job
-            const jobElapsed = state ? ((Date.now() - state.startTime) / 1000).toFixed(2) : '?';
+            const jobElapsedSeconds = state ? (Date.now() - state.startTime) / 1000 : null;
+            const jobElapsed = jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?';
+
+            // Use seed + jobIndex for batch jobs (server increments seed per job)
+            const jobSeed = OPTIONS.seed + (state?.jobIndex || 0);
+
+            const desiredPath = generateVideoFilename({
+              modelId: modelConfig.id,
+              frames: OPTIONS.frames,
+              fps: OPTIONS.fps,
+              width: OPTIONS.width,
+              height: OPTIONS.height,
+              seed: jobSeed,
+              prompt: OPTIONS.prompt,
+              generationTime: jobElapsedSeconds,
+              outputDir: OPTIONS.output
+            });
+            const outputPath = getUniqueFilename(desiredPath);
 
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {

@@ -48,11 +48,14 @@ import { loadCredentials, loadTokenTypePreference, saveTokenTypePreference } fro
 import {
   MODELS,
   askQuestion,
+  promptBatchCount,
   pickImageFile,
   readFileAsBuffer,
   log,
   displayConfig,
-  getUniqueFilename
+  getUniqueFilename,
+  generateImageFilename,
+  generateRandomSeed
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -413,15 +416,6 @@ async function main() {
           OPTIONS.seed = seed;
         }
       }
-
-      // Batch
-      const batchInput = await askQuestion('Number of images (1-512, default: 1): ');
-      if (batchInput.trim()) {
-        const b = parseInt(batchInput.trim(), 10);
-        if (b >= 1 && b <= 512) {
-          OPTIONS.batch = b;
-        }
-      }
     }
 
     console.log('\n✅ Configuration complete!\n');
@@ -525,6 +519,11 @@ async function main() {
       console.log(`💳 Using saved payment preference: ${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} tokens\n`);
     }
 
+    // Ask for batch count as last question before confirmation
+    if (OPTIONS.interactive) {
+      await promptBatchCount(OPTIONS, { isVideo: false });
+    }
+
     // Get camera pose labels for display
     const azimuthLabel = AZIMUTHS.find(a => a.key === OPTIONS.azimuth)?.label || OPTIONS.azimuth;
     const elevationLabel = ELEVATIONS.find(e => e.key === OPTIONS.elevation)?.label || OPTIONS.elevation;
@@ -575,6 +574,12 @@ async function main() {
     log('✓', `Model ready: ${imageModel.name}`);
     console.log();
 
+    // Generate seed client-side if not specified (for reliable filename generation)
+    if (OPTIONS.seed === null || OPTIONS.seed === -1) {
+      OPTIONS.seed = generateRandomSeed();
+      log('🎲', `Generated seed: ${OPTIONS.seed}`);
+    }
+
     // Create project
     log('📤', 'Submitting multiple angles generation job...');
     log('🎨', `Generating ${azimuthLabel} ${elevationLabel} ${distanceLabel}...`);
@@ -592,7 +597,7 @@ async function main() {
       numberOfMedia: OPTIONS.batch,
       steps: OPTIONS.steps,
       guidance: OPTIONS.guidance,
-      seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      seed: OPTIONS.seed,
       contextImages: [contextImageBuffer],
       tokenType: tokenType,
       sizePreset: 'custom',
@@ -665,15 +670,29 @@ async function main() {
           } else {
             if (projectFailed) return;
 
-            const imageId = event.jobId || `angles_${Date.now()}`;
-            const desiredPath = `${OPTIONS.output}/${imageId}.jpg`;
+            // Calculate elapsed time for this image
+            const elapsedSeconds = (Date.now() - startTime) / 1000;
+
+            // Use seed + jobIndex for batch jobs (server increments seed per job)
+            const jobIndex = completedImages + failedImages;
+            const jobSeed = OPTIONS.seed + jobIndex;
+
+            const desiredPath = generateImageFilename({
+              modelId: modelConfig.id,
+              width: OPTIONS.width,
+              height: OPTIONS.height,
+              seed: jobSeed,
+              prompt: prompt,
+              generationTime: elapsedSeconds,
+              outputFormat: 'jpg',
+              outputDir: OPTIONS.output
+            });
             const outputPath = getUniqueFilename(desiredPath);
 
             downloadImage(event.resultUrl, outputPath)
               .then(() => {
                 completedImages++;
-                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-                log('✓', `Image ${completedImages}/${totalImages} completed (${elapsed}s)`);
+                log('✓', `Image ${completedImages}/${totalImages} completed (${elapsedSeconds.toFixed(2)}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openImage(outputPath);
                 checkWorkflowCompletion();

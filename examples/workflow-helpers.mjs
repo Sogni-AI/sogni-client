@@ -1519,20 +1519,6 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     if (options.previews === undefined) options.previews = 0;
   }
 
-  // Batch count (number of images or videos to generate)
-  const maxBatch = 512;
-  const mediaType = isVideo ? 'videos' : 'images';
-  const batchInput = await askQuestion(
-    `\n  Number of ${mediaType} to generate (1-${maxBatch}, default: 1): `
-  );
-  if (batchInput.trim()) {
-    const b = parseInt(batchInput.trim(), 10);
-    if (b >= 1 && b <= maxBatch) {
-      options.batch = b;
-    }
-  }
-  if (!options.batch) options.batch = 1;
-
   // Output format (image workflows only)
   if (!isVideo) {
     console.log('\n  Output Format:');
@@ -1545,6 +1531,34 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
       options.outputFormat = 'jpg';
     }
   }
+
+  return options;
+}
+
+/**
+ * Prompt for batch count (number of images/videos to generate)
+ * This should be called as the last question before job confirmation.
+ * @param {Object} options - Current options object
+ * @param {Object} config - Configuration options
+ * @param {boolean} config.isVideo - Whether this is for video generation
+ * @returns {Promise<Object>} Updated options
+ */
+export async function promptBatchCount(options, config = {}) {
+  const { isVideo = false } = config;
+  const maxBatch = 512;
+  const mediaType = isVideo ? 'videos' : 'images';
+
+  console.log(`\n📦 Batch Size\n`);
+  const batchInput = await askQuestion(
+    `  Number of ${mediaType} to generate (1-${maxBatch}, default: 1): `
+  );
+  if (batchInput.trim()) {
+    const b = parseInt(batchInput.trim(), 10);
+    if (b >= 1 && b <= maxBatch) {
+      options.batch = b;
+    }
+  }
+  if (!options.batch) options.batch = 1;
 
   return options;
 }
@@ -1764,6 +1778,182 @@ export function readFileAsBuffer(filePath) {
  */
 export function readFilesAsBuffers(filePaths) {
   return filePaths.filter(Boolean).map(readFileAsBuffer);
+}
+
+/**
+ * Convert text to kebab-case, keeping only alphanumeric characters and hyphens.
+ * @param {string} text - Text to convert
+ * @param {number} maxLength - Maximum length of output (default: 30)
+ * @returns {string} Kebab-case string
+ */
+export function toKebabCase(text, maxLength = 30) {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '') // Remove non-alphanumeric except spaces and hyphens
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Collapse multiple hyphens
+    .replace(/^-|-$/g, '') // Trim leading/trailing hyphens
+    .substring(0, maxLength) // Limit length
+    .replace(/-$/, ''); // Remove trailing hyphen after truncation
+}
+
+/**
+ * Generate a random seed for reproducible generation.
+ * @returns {number} Random seed between 0 and 2147483647 (max 32-bit signed int)
+ */
+export function generateRandomSeed() {
+  return Math.floor(Math.random() * 2147483647);
+}
+
+/**
+ * Generate a descriptive video filename based on generation parameters.
+ * Format: ${modelId}-${seconds}s-${width}x${height}-${fps}fps-${seed}-${genTime}s-${prompt}.mp4
+ *
+ * @param {Object} params - Generation parameters
+ * @param {string} params.modelId - Model identifier (will be kebab-cased)
+ * @param {number} params.frames - Number of frames
+ * @param {number} params.fps - Frames per second
+ * @param {number} params.width - Video width
+ * @param {number} params.height - Video height
+ * @param {number} params.seed - Random seed (should be actual seed, not -1)
+ * @param {string} params.prompt - Generation prompt
+ * @param {number} [params.generationTime] - Generation time in seconds
+ * @param {string} [params.outputDir] - Output directory (default: './output')
+ * @returns {string} Generated filename path
+ *
+ * @example
+ * generateVideoFilename({
+ *   modelId: 'ltx2-19b-fp8_t2v_distilled',
+ *   frames: 505,
+ *   fps: 25,
+ *   width: 1920,
+ *   height: 1088,
+ *   seed: 12345,
+ *   prompt: 'A futuristic city at night with neon lights',
+ *   generationTime: 45.2,
+ *   outputDir: './output'
+ * })
+ * // => './output/ltx2-19b-fp8-t2v-distilled-20s-1920x1088-25fps-12345-45s-a-futuristic-city-at-night-with-neon-lights.mp4'
+ */
+export function generateVideoFilename(params) {
+  const {
+    modelId,
+    frames,
+    fps,
+    width,
+    height,
+    seed,
+    prompt,
+    generationTime,
+    outputDir = './output'
+  } = params;
+
+  // Convert model ID to kebab-case (replace underscores with hyphens)
+  const modelSlug = modelId
+    .replace(/_/g, '-')
+    .replace(/\./g, '-')
+    .toLowerCase();
+
+  // Calculate duration in seconds from frames and fps
+  const durationSeconds = Math.round((frames - 1) / fps);
+
+  // Format seed (use actual value)
+  const seedStr = seed !== undefined && seed !== null ? String(seed) : 'unknown';
+
+  // Format generation time if provided
+  const genTimeStr = generationTime !== undefined ? `${Math.round(generationTime)}s` : null;
+
+  // Convert prompt to kebab-case (first 54 chars)
+  const promptSlug = toKebabCase(prompt, 72);
+
+  // Build filename with optional generation time
+  const parts = [
+    modelSlug,
+    `${durationSeconds}s`,
+    `${width}x${height}`,
+    `${fps}fps`,
+    seedStr
+  ];
+  if (genTimeStr) {
+    parts.push(genTimeStr);
+  }
+  parts.push(promptSlug);
+
+  const filename = `${parts.join('-')}.mp4`;
+
+  return path.join(outputDir, filename);
+}
+
+/**
+ * Generate a descriptive image filename based on generation parameters.
+ * Format: ${modelId}-${width}x${height}-${seed}-${genTime}s-${prompt}.${ext}
+ *
+ * @param {Object} params - Generation parameters
+ * @param {string} params.modelId - Model identifier (will be kebab-cased)
+ * @param {number} params.width - Image width
+ * @param {number} params.height - Image height
+ * @param {number} params.seed - Random seed (should be actual seed, not -1)
+ * @param {string} params.prompt - Generation prompt
+ * @param {number} [params.generationTime] - Generation time in seconds
+ * @param {string} [params.outputFormat] - Output format (default: 'jpg')
+ * @param {string} [params.outputDir] - Output directory (default: './output')
+ * @returns {string} Generated filename path
+ *
+ * @example
+ * generateImageFilename({
+ *   modelId: 'chroma-v46-flash',
+ *   width: 1024,
+ *   height: 1024,
+ *   seed: 12345,
+ *   prompt: 'A beautiful sunset over mountains',
+ *   generationTime: 3.5,
+ *   outputDir: './output'
+ * })
+ * // => './output/chroma-v46-flash-1024x1024-12345-4s-a-beautiful-sunset-over-mountains.jpg'
+ */
+export function generateImageFilename(params) {
+  const {
+    modelId,
+    width,
+    height,
+    seed,
+    prompt,
+    generationTime,
+    outputFormat = 'jpg',
+    outputDir = './output'
+  } = params;
+
+  // Convert model ID to kebab-case (replace underscores with hyphens)
+  const modelSlug = modelId
+    .replace(/_/g, '-')
+    .replace(/\./g, '-')
+    .toLowerCase();
+
+  // Format seed (use actual value)
+  const seedStr = seed !== undefined && seed !== null ? String(seed) : 'unknown';
+
+  // Format generation time if provided
+  const genTimeStr = generationTime !== undefined ? `${Math.round(generationTime)}s` : null;
+
+  // Convert prompt to kebab-case (first 54 chars)
+  const promptSlug = toKebabCase(prompt, 72);
+
+  // Build filename with optional generation time
+  const parts = [
+    modelSlug,
+    `${width}x${height}`,
+    seedStr
+  ];
+  if (genTimeStr) {
+    parts.push(genTimeStr);
+  }
+  parts.push(promptSlug);
+
+  const ext = outputFormat === 'png' ? 'png' : 'jpg';
+  const filename = `${parts.join('-')}.${ext}`;
+
+  return path.join(outputDir, filename);
 }
 
 /**

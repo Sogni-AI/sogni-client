@@ -51,18 +51,21 @@ import {
   promptCoreOptions,
   promptVideoDuration,
   promptAdvancedOptions,
+  promptBatchCount,
   log,
   formatDuration,
   displayConfig,
   displayPrompts,
-  getUniqueFilename
+  getUniqueFilename,
+  generateVideoFilename,
+  generateRandomSeed
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
 
 // Default prompt for this workflow
 const DEFAULT_PROMPT =
-  '**Shot in black and white.** A grainy, 16mm black and white archival film. An actor is dressed as an astronaut and is walking on the moon, back to the camera, looking at an American flag. The scene is framed like an iconic, high-contrast NASA photograph from the 1960s. The camera, maintaining its 1960s black and white film quality, begins a slow, deliberate zoom out and pan to the right. The motion is smooth, as if on a studio dolly. As the camera pulls back, the artificial edges of a film set, including scaffolding and large studio lights, start to enter the frame. The shot resolves into a wide-angle view of a massive film studio soundstage, all in grainy, high-contrast black and white. The moon landing is revealed to be a detailed set. Surrounding it, a busy 1960s-era film crew is at work: a director in a collared shirt watches intently, technicians in vests adjust large boom microphones, and crew members operate massive studio lights. The entire scene has the authentic look and feel of a behind-the-scenes documentary from that era. ';
+  'A close-up of a cheerful girl puppet with curly auburn yarn hair and wide button eyes, holding a small red umbrella above her head. Rain falls gently around her. She looks upward and begins to sing with joy in English: "It\'s raining, it\'s raining, I love it when its raining." Her fabric mouth opening and closing to a melodic tune. Her hands grip the umbrella handle as she sways slightly from side to side in rhythm. The camera holds steady as the rain sparkles against the soft lighting. Her eyes blink occasionally as she sings.';
 
 // ============================================
 // Parse Command Line Arguments
@@ -363,6 +366,11 @@ async function main() {
       console.log();
     }
 
+    // Ask for batch count as last question before confirmation
+    if (OPTIONS.interactive) {
+      await promptBatchCount(OPTIONS, { isVideo: true });
+    }
+
     // Show configuration
     const videoDuration = (OPTIONS.frames - 1) / OPTIONS.fps;
     displayConfig('Video Generation Configuration', {
@@ -456,6 +464,12 @@ async function main() {
     log('✓', `Model ready: ${videoModel.name}`);
     console.log();
 
+    // Generate seed client-side if not specified (for reliable filename generation)
+    if (OPTIONS.seed === null || OPTIONS.seed === -1) {
+      OPTIONS.seed = generateRandomSeed();
+      log('🎲', `Generated seed: ${OPTIONS.seed}`);
+    }
+
     // Create project
     log('📤', 'Submitting text-to-video job...');
     log('🎬', 'Generating video...');
@@ -472,7 +486,7 @@ async function main() {
       fps: OPTIONS.fps,
       steps: OPTIONS.steps,
       shift: OPTIONS.shift,
-      seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      seed: OPTIONS.seed,
       // Use sampler/scheduler for video models (ComfyUI format)
       sampler: OPTIONS.sampler,
       scheduler: OPTIONS.scheduler,
@@ -675,12 +689,26 @@ async function main() {
               return;
             }
             log('✅', `${completedLabel}Job completed!`);
-            const videoId = event.jobId || `video_${Date.now()}`;
-            const desiredPath = `${OPTIONS.output}/${videoId}.mp4`;
-            const outputPath = getUniqueFilename(desiredPath);
 
             // Calculate elapsed time for THIS job
-            const jobElapsed = state ? ((Date.now() - state.startTime) / 1000).toFixed(2) : '?';
+            const jobElapsedSeconds = state ? (Date.now() - state.startTime) / 1000 : null;
+            const jobElapsed = jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?';
+
+            // Use seed + jobIndex for batch jobs (server increments seed per job)
+            const jobSeed = OPTIONS.seed + (state?.jobIndex || 0);
+
+            const desiredPath = generateVideoFilename({
+              modelId: modelConfig.id,
+              frames: OPTIONS.frames,
+              fps: OPTIONS.fps,
+              width: OPTIONS.width,
+              height: OPTIONS.height,
+              seed: jobSeed,
+              prompt: OPTIONS.prompt,
+              generationTime: jobElapsedSeconds,
+              outputDir: OPTIONS.output
+            });
+            const outputPath = getUniqueFilename(desiredPath);
 
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {

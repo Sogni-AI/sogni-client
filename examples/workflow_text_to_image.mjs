@@ -49,12 +49,15 @@ import {
   selectModel,
   promptCoreOptions,
   promptAdvancedOptions,
+  promptBatchCount,
   pickImageFile,
   readFileAsBuffer,
   log,
   displayConfig,
   displayPrompts,
   getUniqueFilename,
+  generateImageFilename,
+  generateRandomSeed,
   createSogniConnection,
   getDefaultSampler,
   getDefaultScheduler
@@ -441,6 +444,11 @@ async function main() {
       console.log();
     }
 
+    // Ask for batch count as last question before confirmation
+    if (OPTIONS.interactive) {
+      await promptBatchCount(OPTIONS, { isVideo: false });
+    }
+
     // Show configuration first
     const steps = OPTIONS.steps || modelConfig.defaultSteps;
     const guidance = OPTIONS.guidance !== undefined ? OPTIONS.guidance : modelConfig.defaultGuidance;
@@ -522,6 +530,12 @@ async function main() {
     log('✓', `Model ready: ${imageModel.name}`);
     console.log();
 
+    // Generate seed client-side if not specified (for reliable filename generation)
+    if (OPTIONS.seed === null || OPTIONS.seed === -1) {
+      OPTIONS.seed = generateRandomSeed();
+      log('🎲', `Generated seed: ${OPTIONS.seed}`);
+    }
+
     // Create project
     log('📤', 'Submitting text-to-image job...');
     log('🎨', 'Generating images...');
@@ -534,7 +548,7 @@ async function main() {
       positivePrompt: OPTIONS.prompt,
       numberOfMedia: OPTIONS.batch,
       steps: steps,
-      seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      seed: OPTIONS.seed,
       numberOfPreviews: OPTIONS.previews,
       disableNSFWFilter: OPTIONS.disableSafeContentFilter,
       outputFormat: OPTIONS.outputFormat,
@@ -683,18 +697,29 @@ async function main() {
               return;
             }
 
-            const imageNumber = completedImages + failedImages + 1;
-            const modelShortName = OPTIONS.modelKey.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-            const seedStr = projectParams.seed !== -1 ? `_seed${projectParams.seed}` : '';
-            const extension = OPTIONS.outputFormat || 'jpg';
-            const desiredPath = `${OPTIONS.output}/${modelShortName}_${OPTIONS.width}x${OPTIONS.height}_steps${steps}${seedStr}_${imageNumber}.${extension}`;
+            // Calculate elapsed time for this image
+            const elapsedSeconds = (Date.now() - startTime) / 1000;
+
+            // Use seed + jobIndex for batch jobs (server increments seed per job)
+            const jobIndex = completedImages + failedImages;
+            const jobSeed = OPTIONS.seed + jobIndex;
+
+            const desiredPath = generateImageFilename({
+              modelId: modelConfig.id,
+              width: OPTIONS.width,
+              height: OPTIONS.height,
+              seed: jobSeed,
+              prompt: OPTIONS.prompt,
+              generationTime: elapsedSeconds,
+              outputFormat: OPTIONS.outputFormat,
+              outputDir: OPTIONS.output
+            });
             const outputPath = getUniqueFilename(desiredPath);
 
             downloadImage(event.resultUrl, outputPath)
               .then(() => {
                 completedImages++;
-                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-                log('✓', `Image ${completedImages}/${totalImages} completed (${elapsed}s)`);
+                log('✓', `Image ${completedImages}/${totalImages} completed (${elapsedSeconds.toFixed(2)}s)`);
                 log('💾', `Saved: ${outputPath}`);
                 openImage(outputPath);
                 checkWorkflowCompletion();

@@ -55,6 +55,7 @@ import {
   promptCoreOptions,
   promptVideoDuration,
   promptAdvancedOptions,
+  promptBatchCount,
   promptS2VOptions,
   pickImageFile,
   pickAudioFile,
@@ -64,7 +65,9 @@ import {
   formatDuration,
   displayConfig,
   displayPrompts,
-  getUniqueFilename
+  getUniqueFilename,
+  generateVideoFilename,
+  generateRandomSeed
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -494,6 +497,11 @@ async function main() {
       console.log();
     }
 
+    // Ask for batch count as last question before confirmation
+    if (OPTIONS.interactive) {
+      await promptBatchCount(OPTIONS, { isVideo: true });
+    }
+
     // Show configuration first
     const videoDuration = (OPTIONS.frames - 1) / OPTIONS.fps;
     const configDisplay = {
@@ -597,6 +605,12 @@ async function main() {
     log('✓', `Model ready: ${videoModel.name}`);
     console.log();
 
+    // Generate seed client-side if not specified (for reliable filename generation)
+    if (OPTIONS.seed === null || OPTIONS.seed === -1) {
+      OPTIONS.seed = generateRandomSeed();
+      log('🎲', `Generated seed: ${OPTIONS.seed}`);
+    }
+
     // Create project
     log('📤', 'Submitting sound-to-video job...');
     log('🎬', 'Generating video from sound...');
@@ -618,7 +632,7 @@ async function main() {
       fps: OPTIONS.fps,
       steps: OPTIONS.steps,
       shift: OPTIONS.shift,
-      seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      seed: OPTIONS.seed,
       referenceImage: referenceImageBuffer,
       referenceAudio: referenceAudioBuffer,
       tokenType: tokenType
@@ -831,12 +845,26 @@ async function main() {
               return;
             }
             log('✅', `${completedLabel}Job completed!`);
-            const videoId = event.jobId || `video_${Date.now()}`;
-            const desiredPath = `${OPTIONS.output}/${videoId}.mp4`;
-            const outputPath = getUniqueFilename(desiredPath);
 
             // Calculate elapsed time for THIS job
-            const jobElapsed = state ? ((Date.now() - state.startTime) / 1000).toFixed(2) : '?';
+            const jobElapsedSeconds = state ? (Date.now() - state.startTime) / 1000 : null;
+            const jobElapsed = jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?';
+
+            // Use seed + jobIndex for batch jobs (server increments seed per job)
+            const jobSeed = OPTIONS.seed + (state?.jobIndex || 0);
+
+            const desiredPath = generateVideoFilename({
+              modelId: modelConfig.id,
+              frames: OPTIONS.frames,
+              fps: OPTIONS.fps,
+              width: OPTIONS.width,
+              height: OPTIONS.height,
+              seed: jobSeed,
+              prompt: OPTIONS.prompt,
+              generationTime: jobElapsedSeconds,
+              outputDir: OPTIONS.output
+            });
+            const outputPath = getUniqueFilename(desiredPath);
 
             downloadVideo(event.resultUrl, outputPath)
               .then(() => {

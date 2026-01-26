@@ -59,7 +59,9 @@ import {
   log,
   formatDuration,
   displayConfig,
-  getUniqueFilename
+  getUniqueFilename,
+  generateVideoFilename,
+  generateRandomSeed
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -576,8 +578,7 @@ async function main() {
 
     for (let i = 0; i < filesToProcess.length; i++) {
       const imageFile = filesToProcess[i];
-      const desiredPath = path.join(OPTIONS.output, `${imageFile.basename}.mp4`);
-      const outputPath = getUniqueFilename(desiredPath);
+      const imageStartTime = Date.now();
 
       console.log();
       console.log('━'.repeat(60));
@@ -597,7 +598,7 @@ async function main() {
         // Generate seed for this video
         const seed = OPTIONS.seed !== null && OPTIONS.seed !== -1
           ? OPTIONS.seed
-          : Math.floor(Math.random() * 2147483647);
+          : generateRandomSeed();
 
         log('🎲', `Seed: ${seed}`);
 
@@ -633,7 +634,6 @@ async function main() {
         const project = await sogni.projects.create(projectParams);
 
         // Wait for completion with progress updates
-        const imageStartTime = Date.now();
         let progressInterval;
 
         // Set up progress tracking
@@ -694,10 +694,24 @@ async function main() {
         // Check result
         const jobs = project.jobs;
         if (jobs.length > 0 && jobs[0].resultUrl) {
+          // Calculate generation time and generate output filename
+          const elapsedSeconds = (Date.now() - imageStartTime) / 1000;
+          const desiredPath = generateVideoFilename({
+            modelId: modelConfig.id,
+            frames: OPTIONS.frames,
+            fps: OPTIONS.fps,
+            width: processedImage.width,
+            height: processedImage.height,
+            seed: seed,
+            prompt: OPTIONS.prompt,
+            generationTime: elapsedSeconds,
+            outputDir: OPTIONS.output
+          });
+          const outputPath = getUniqueFilename(desiredPath);
+
           log('⬇️', 'Downloading video...');
           await downloadVideo(jobs[0].resultUrl, outputPath);
-          const elapsed = ((Date.now() - imageStartTime) / 1000).toFixed(1);
-          log('✅', `Completed: ${outputPath} (${elapsed}s)`);
+          log('✅', `Completed: ${outputPath} (${elapsedSeconds.toFixed(1)}s)`);
           successCount++;
         } else {
           const error = jobs[0]?.error || 'No result URL';
