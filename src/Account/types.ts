@@ -45,7 +45,12 @@ export interface BalanceData {
    * Unclaimed worker earnings amount
    * @experimental Socket messages do not provide this field yet, so it may not be available in all cases.
    */
-  unclaimed?: string;
+  relaxedUnclaimed?: string;
+  /**
+   * Unclaimed worker earnings amount
+   * @experimental Socket messages do not provide this field yet, so it may not be available in all cases.
+   */
+  fastUnclaimed?: string;
 }
 
 export interface SparkBalanceData extends BalanceData {

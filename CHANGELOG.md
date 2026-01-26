@@ -1,3 +1,22 @@
+# [4.0.0-alpha.53](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.52...v4.0.0-alpha.53) (2026-01-25)
+
+
+### Features
+
+* Support Etherlink ([57eaee3](https://github.com/Sogni-AI/sogni-client/commit/57eaee39c18efd26732f9ce735a42b414bf34e87))
+
+
+### BREAKING CHANGES
+
+* Account balance data format changed, instead of `unclaimed`, now it will be `relaxedUnclaimed` and `fastUnclaimed`
+
+# [4.0.0-alpha.52](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.51...v4.0.0-alpha.52) (2026-01-22)
+
+
+### Bug Fixes
+
+* Lora schema update, LTX-2 video new default props ([bf1593f](https://github.com/Sogni-AI/sogni-client/commit/bf1593fa6c819aef6565bc096ba55e166bb8cc52))
+
 # [4.0.0-alpha.51](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.50...v4.0.0-alpha.51) (2026-01-20)
 
 
