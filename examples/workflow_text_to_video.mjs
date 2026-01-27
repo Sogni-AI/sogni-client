@@ -55,6 +55,7 @@ import {
   askQuestion,
   selectModel,
   promptCoreOptions,
+  promptVideoFps,
   promptVideoDuration,
   promptAdvancedOptions,
   promptBatchCount,
@@ -227,7 +228,8 @@ async function main() {
       isVideo: true
     });
 
-    // Video-specific: duration
+    // Video-specific: FPS first (needed for frame calculation), then duration
+    await promptVideoFps(OPTIONS, modelConfig);
     await promptVideoDuration(OPTIONS, modelConfig);
 
     // Ask about advanced options
@@ -277,11 +279,19 @@ async function main() {
     Math.min(VIDEO_CONSTRAINTS.height.max, OPTIONS.height)
   );
 
-  // Validate FPS - use model-specific allowed values or global defaults
-  const allowedFps = modelConfig.allowedFps || VIDEO_CONSTRAINTS.fps.allowedValues;
-  if (!allowedFps.includes(OPTIONS.fps)) {
-    console.error(`Error: FPS must be one of: ${allowedFps.join(', ')}`);
-    process.exit(1);
+  // Validate FPS - use model-specific range or allowed values
+  if (modelConfig.minFps !== undefined && modelConfig.maxFps !== undefined) {
+    // Range-based validation (LTX-2 models)
+    if (OPTIONS.fps < modelConfig.minFps || OPTIONS.fps > modelConfig.maxFps) {
+      console.error(`Error: FPS must be between ${modelConfig.minFps} and ${modelConfig.maxFps}`);
+      process.exit(1);
+    }
+  } else if (modelConfig.allowedFps) {
+    // Array-based validation (WAN models)
+    if (!modelConfig.allowedFps.includes(OPTIONS.fps)) {
+      console.error(`Error: FPS must be one of: ${modelConfig.allowedFps.join(', ')}`);
+      process.exit(1);
+    }
   }
 
   // Validate frames

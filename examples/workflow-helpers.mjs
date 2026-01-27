@@ -349,7 +349,8 @@ export const MODELS = {
       defaultFrames: 97,
       frameStep: 8,
       defaultFps: 25,
-      allowedFps: [25, 50],
+      minFps: 1,
+      maxFps: 60,
       isLightning: true,
       isComfyModel: true,
       hasAudio: true
@@ -380,7 +381,8 @@ export const MODELS = {
       defaultFrames: 97,
       frameStep: 8,
       defaultFps: 25,
-      allowedFps: [25, 50],
+      minFps: 1,
+      maxFps: 60,
       isLightning: false,
       isComfyModel: true,
       hasAudio: true
@@ -482,7 +484,8 @@ export const MODELS = {
       defaultFrames: 97,
       frameStep: 8,
       defaultFps: 25,
-      allowedFps: [25, 50],
+      minFps: 1,
+      maxFps: 60,
       isLightning: true,
       isComfyModel: true,
       hasAudio: true
@@ -516,7 +519,8 @@ export const MODELS = {
       defaultFrames: 97,
       frameStep: 8,
       defaultFps: 25,
-      allowedFps: [25, 50],
+      minFps: 1,
+      maxFps: 60,
       isLightning: false,
       isComfyModel: true,
       hasAudio: true
@@ -622,13 +626,13 @@ export const MODELS = {
 // ============================================
 
 // Base constraints - note that frames.max may be overridden by model-specific maxFrames
-// WAN models use 16/32 fps, LTX-2 uses 25/50 fps (native, not interpolated)
+// WAN models use 16/32 fps, LTX-2 supports 1-60 fps (native, not interpolated)
 // LTX-2 supports up to 4K (3840x3840) with VRAM-based restrictions enforced server-side
 export const VIDEO_CONSTRAINTS = {
   width: { min: 416, max: 3840, default: 832, step: 16 },
   height: { min: 416, max: 3840, default: 480, step: 16 },
   frames: { min: 17, max: 505, default: 81 }, // WAN max: 161/321, LTX-2 max: 257/505
-  fps: { allowedValues: [16, 25, 32, 50], default: 25 }, // Model-specific defaults override this
+  fps: { min: 1, max: 60, default: 25 }, // LTX-2: 1-60, WAN: 16/32 (model-specific overrides)
   shift: { min: 1.0, max: 8.0, default: 8.0, step: 0.1 },
   // Guidance ranges differ by model type:
   // WAN Quality: min: 1.5, max: 8.0
@@ -1223,13 +1227,86 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
 }
 
 /**
+ * Prompt for video FPS selection
+ * Should be called before promptVideoDuration so frame calculations use the selected FPS.
+ * @param {Object} options - Current options object
+ * @param {Object} modelConfig - Selected model configuration
+ * @returns {Promise<Object>} Updated options with fps set
+ */
+export async function promptVideoFps(options, modelConfig = {}) {
+  const defaultFps = modelConfig.defaultFps || VIDEO_CONSTRAINTS.fps.default;
+  const hasRangeFps = modelConfig.minFps !== undefined && modelConfig.maxFps !== undefined;
+
+  console.log('\n🎞️  Select frame rate (FPS):\n');
+
+  if (hasRangeFps) {
+    // Range-based FPS (LTX-2 models: 1-60)
+    // Show common options as a menu
+    const commonFps = [24, 25, 30, 50, 60].filter(f => f >= modelConfig.minFps && f <= modelConfig.maxFps);
+    const defaultIndex = commonFps.indexOf(defaultFps) !== -1 ? commonFps.indexOf(defaultFps) : 0;
+
+    commonFps.forEach((f, i) => {
+      const marker = f === defaultFps ? ' (default)' : '';
+      console.log(`  ${i + 1}. ${f} fps${marker}`);
+    });
+    console.log(`  ${commonFps.length + 1}. Custom (${modelConfig.minFps}-${modelConfig.maxFps})`);
+    console.log();
+
+    const choice = await askQuestion(`Enter choice [1-${commonFps.length + 1}] (default: ${defaultIndex + 1}): `);
+    const choiceNum = parseInt(choice.trim(), 10);
+
+    if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= commonFps.length) {
+      options.fps = commonFps[choiceNum - 1];
+    } else if (choiceNum === commonFps.length + 1) {
+      // Custom FPS
+      const customInput = await askQuestion(`Enter FPS (${modelConfig.minFps}-${modelConfig.maxFps}): `);
+      const customFps = parseInt(customInput.trim(), 10);
+      if (!isNaN(customFps) && customFps >= modelConfig.minFps && customFps <= modelConfig.maxFps) {
+        options.fps = customFps;
+      } else {
+        console.log(`    (invalid, using default ${defaultFps})`);
+        options.fps = defaultFps;
+      }
+    } else {
+      options.fps = defaultFps;
+    }
+  } else if (modelConfig.allowedFps) {
+    // Array-based FPS (WAN models: 16/32)
+    const defaultIndex = modelConfig.allowedFps.indexOf(defaultFps);
+
+    modelConfig.allowedFps.forEach((f, i) => {
+      const marker = f === defaultFps ? ' (default)' : '';
+      console.log(`  ${i + 1}. ${f} fps${marker}`);
+    });
+    console.log();
+
+    const choice = await askQuestion(`Enter choice [1-${modelConfig.allowedFps.length}] (default: ${defaultIndex + 1}): `);
+    const choiceNum = parseInt(choice.trim(), 10);
+
+    if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= modelConfig.allowedFps.length) {
+      options.fps = modelConfig.allowedFps[choiceNum - 1];
+    } else {
+      options.fps = defaultFps;
+    }
+  } else {
+    options.fps = defaultFps;
+  }
+
+  console.log(`  → Using ${options.fps} fps\n`);
+  return options;
+}
+
+/**
  * Prompt for video-specific duration with user-friendly menu
  * @param {Object} options - Current options object
  * @param {Object} modelConfig - Selected model configuration (optional)
+ * @param {Object} config - Additional configuration
+ * @param {number} config.maxDuration - Maximum duration in seconds (default: 20)
  * @returns {Promise<Object>} Updated options with frames calculated
  */
-export async function promptVideoDuration(options, modelConfig = {}) {
+export async function promptVideoDuration(options, modelConfig = {}, config = {}) {
   const fps = options.fps || modelConfig.defaultFps || VIDEO_CONSTRAINTS.fps.default;
+  const maxDurationLimit = config.maxDuration || 20; // Default 20s max
 
   // Use model-specific frame limits if available
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
@@ -1255,14 +1332,17 @@ export async function promptVideoDuration(options, modelConfig = {}) {
   const minDurationExact = (minFrames - 1) / fps;
   const maxDurationExact = (maxFrames - 1) / fps;
 
+  // Apply max duration limit (default 20s)
+  const effectiveMaxDuration = Math.min(maxDurationExact, maxDurationLimit);
+
   // Generate duration options based on model constraints
   // Build options that map to unique frame counts (no duplicates)
   let durationOptions = [];
   let seenFrames = new Set();
 
-  // Start from actual minimum duration (rounded up) to max duration
+  // Start from actual minimum duration (rounded up) to max duration (capped)
   const startDuration = Math.ceil(minDurationExact);
-  const endDuration = Math.floor(maxDurationExact);
+  const endDuration = Math.floor(effectiveMaxDuration);
 
   // Generate candidates: every second from min to 10s, then every 2s after that
   let candidateDurations = [];
@@ -1316,9 +1396,9 @@ export async function promptVideoDuration(options, modelConfig = {}) {
   if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= durationOptions.length) {
     duration = durationOptions[choiceNum - 1];
   } else if (choiceNum === durationOptions.length + 1) {
-    // Custom duration
+    // Custom duration (capped at max duration limit)
     const minDur = Math.floor(minDurationExact);
-    const maxDur = Math.floor(maxDurationExact);
+    const maxDur = Math.floor(effectiveMaxDuration);
     const customInput = await askQuestion(`Enter duration in seconds (${minDur}-${maxDur}): `);
     duration = Math.min(maxDur, Math.max(minDur, parseFloat(customInput.trim()) || defaultDuration));
   } else {
@@ -1348,21 +1428,8 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
 
   console.log('\n🔧 Advanced Options\n');
 
-  // Video-specific advanced options
+  // Video-specific advanced options (FPS is now asked before duration via promptVideoFps)
   if (isVideo) {
-    // FPS - use model-specific defaults
-    const defaultFps = modelConfig.defaultFps || VIDEO_CONSTRAINTS.fps.default;
-    const allowedFps = modelConfig.allowedFps || VIDEO_CONSTRAINTS.fps.allowedValues;
-    console.log(`  FPS options: ${allowedFps.join(', ')}`);
-    const fpsInput = await askQuestion(`  FPS (default: ${defaultFps}): `);
-    if (fpsInput.trim()) {
-      const f = parseInt(fpsInput.trim(), 10);
-      if (allowedFps.includes(f)) {
-        options.fps = f;
-      }
-    }
-    if (!options.fps) options.fps = defaultFps;
-
     // Shift
     const defaultShift = modelConfig.defaultShift || VIDEO_CONSTRAINTS.shift.default;
     const shiftInput = await askQuestion(
