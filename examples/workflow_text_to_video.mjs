@@ -16,10 +16,16 @@
  *
  * Options:
  *   --model     Model ID (default: wan_v2.2-14b-fp8_t2v_lightx2v)
- *   --width     Video width (WAN: 480-1536 step 16, LTX-2: 768-1920 step 64)
- *   --height    Video height (WAN: 480-1536 step 16, LTX-2: 768-1920 step 64)
+ *   --width     Video width (WAN: 480-1536 step 16, LTX-2: 768-3840 step 64)
+ *   --height    Video height (WAN: 480-1536 step 16, LTX-2: 768-3840 step 64)
  *   --duration  Duration in seconds (WAN: 1-10s default 5, LTX-2: 4-10/20s default 4)
  *   --fps       Frames per second (WAN: 16/32, LTX-2: 25/50)
+ *
+ * LTX-2 VRAM-based resolution limits (enforced during job assignment):
+ *   Jobs are only assigned to workers with sufficient VRAM for the requested resolution:
+ *   - <30GB VRAM workers: 1080p tier (~2.2MP max, e.g., 1920x1152)
+ *   - <40GB VRAM workers: 1440p tier (~4.0MP max, e.g., 2560x1600)
+ *   - >=40GB VRAM workers: Full 4K (up to 3840x3840)
  *   --batch     Number of videos to generate (default: 1)
  *   --seed      Random seed for reproducibility (default: -1 for random)
  *   --guidance  Guidance scale (WAN: 0.7-8, LTX-2: 1-7)

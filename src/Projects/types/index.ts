@@ -197,6 +197,18 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   scheduler?: string;
   /**
+   * First frame strength for LTX-2 keyframe interpolation (when referenceImageEnd is provided).
+   * Controls how strictly the first frame is matched.
+   * Range: 0.0-1.0, default 0.6. Set to 0 to disable first frame (last-frame-only mode).
+   */
+  firstFrameStrength?: number;
+  /**
+   * Last frame strength for LTX-2 keyframe interpolation (when referenceImageEnd is provided).
+   * Controls how strictly the last frame is matched.
+   * Range: 0.0-1.0, default 0.6.
+   */
+  lastFrameStrength?: number;
+  /**
    * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
    */
   outputFormat?: VideoOutputFormat;

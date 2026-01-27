@@ -330,9 +330,9 @@ export const MODELS = {
       defaultWidth: 1920,
       defaultHeight: 1088,
       minWidth: 768,
-      maxWidth: 1920,
+      maxWidth: 3840,
       minHeight: 768,
-      maxHeight: 1920,
+      maxHeight: 3840,
       dimensionStep: 64,
       defaultSteps: 8,
       minSteps: 4,
@@ -361,9 +361,9 @@ export const MODELS = {
       defaultWidth: 1920,
       defaultHeight: 1088,
       minWidth: 768,
-      maxWidth: 1920,
+      maxWidth: 3840,
       minHeight: 768,
-      maxHeight: 1920,
+      maxHeight: 3840,
       dimensionStep: 64,
       defaultSteps: 20,
       minSteps: 15,
@@ -460,9 +460,9 @@ export const MODELS = {
       defaultWidth: 1920,
       defaultHeight: 1088,
       minWidth: 768,
-      maxWidth: 1920,
+      maxWidth: 3840,
       minHeight: 768,
-      maxHeight: 1920,
+      maxHeight: 3840,
       dimensionStep: 64,
       defaultSteps: 8,
       minSteps: 4,
@@ -494,9 +494,9 @@ export const MODELS = {
       defaultWidth: 1920,
       defaultHeight: 1088,
       minWidth: 768,
-      maxWidth: 1920,
+      maxWidth: 3840,
       minHeight: 768,
-      maxHeight: 1920,
+      maxHeight: 3840,
       dimensionStep: 64,
       defaultSteps: 20,
       minSteps: 15,
@@ -623,9 +623,10 @@ export const MODELS = {
 
 // Base constraints - note that frames.max may be overridden by model-specific maxFrames
 // WAN models use 16/32 fps, LTX-2 uses 25/50 fps (native, not interpolated)
+// LTX-2 supports up to 4K (3840x3840) with VRAM-based restrictions enforced server-side
 export const VIDEO_CONSTRAINTS = {
-  width: { min: 416, max: 1920, default: 832, step: 16 },
-  height: { min: 416, max: 1920, default: 480, step: 16 },
+  width: { min: 416, max: 3840, default: 832, step: 16 },
+  height: { min: 416, max: 3840, default: 480, step: 16 },
   frames: { min: 17, max: 505, default: 81 }, // WAN max: 161/321, LTX-2 max: 257/505
   fps: { allowedValues: [16, 25, 32, 50], default: 25 }, // Model-specific defaults override this
   shift: { min: 1.0, max: 8.0, default: 8.0, step: 0.1 },
@@ -748,10 +749,12 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
   if (needsResize || targetWidth !== originalWidth || targetHeight !== originalHeight) {
     log('🔄', `Resizing image from ${originalWidth}x${originalHeight} to ${targetWidth}x${targetHeight}`);
 
-    // Use sharp to resize the image
+    // Use sharp to resize the image with "cover" mode (fill target area, crop overflow)
+    // This scales the image to cover the entire target dimensions, cropping if needed
     imageBuffer = await sharp(imagePath)
       .resize(targetWidth, targetHeight, {
-        fit: 'fill', // Fill to exact dimensions
+        fit: 'cover', // Scale to cover entire target area, crop overflow
+        position: 'center', // Center the crop
         withoutEnlargement: false // Allow enlargement if needed
       })
       .toBuffer();

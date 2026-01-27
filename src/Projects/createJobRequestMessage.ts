@@ -294,6 +294,14 @@ function applyVideoParams(
     keyFrame.trimEndFrame = true;
   }
 
+  // First/last frame strengths for LTX-2 keyframe interpolation (when referenceImageEnd is provided)
+  if (params.firstFrameStrength !== undefined) {
+    keyFrame.firstFrameStrength = params.firstFrameStrength;
+  }
+  if (params.lastFrameStrength !== undefined) {
+    keyFrame.lastFrameStrength = params.lastFrameStrength;
+  }
+
   // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
   if (params.width && params.height) {
     keyFrame.width = validateVideoSize(params.width, 'width');

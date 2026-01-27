@@ -16,16 +16,26 @@
  *
  * Options:
  *   --image     Input image path (required)
- *   --end-image Optional end image for transition (i2v only)
+ *   --end-image Optional end image for keyframe interpolation (i2v only)
  *   --model     Model ID (default: wan_v2.2-14b-fp8_i2v_lightx2v)
- *   --width     Video width (WAN: 480-1536 step 16, LTX-2: 384-960 step 32, output 2x)
- *   --height    Video height (WAN: 480-1536 step 16, LTX-2: 384-960 step 32, output 2x)
+ *   --width     Video width (WAN: 480-1536 step 16, LTX-2: 768-3840 step 64)
+ *   --height    Video height (WAN: 480-1536 step 16, LTX-2: 768-3840 step 64)
  *   --duration  Duration in seconds (WAN: 1-10s default 5, LTX-2: 4-10/20s default 4)
  *   --fps       Frames per second (WAN: 16/32, LTX-2: 25/50)
+ *   --first-frame-strength  LTX-2 keyframes: first frame match strength 0-1 (default: 1.0, 0=disable)
+ *   --last-frame-strength   LTX-2 keyframes: last frame match strength 0-1 (default: 1.0)
+ *
+ * LTX-2 VRAM-based resolution limits (enforced during job assignment):
+ *   Jobs are only assigned to workers with sufficient VRAM for the requested resolution:
+ *   - <30GB VRAM workers: 1080p tier (~2.2MP max, e.g., 1920x1152)
+ *   - <40GB VRAM workers: 1440p tier (~4.0MP max, e.g., 2560x1600)
+ *   - >=40GB VRAM workers: Full 4K (up to 3840x3840)
  *   --batch     Number of videos to generate (default: 1)
  *   --seed      Random seed for reproducibility (default: -1 for random)
  *   --guidance  Guidance scale (WAN: 0.7-8, LTX-2: 1-7)
  *   --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2)
+ *   --first-frame-strength  First frame strength 0-1 (keyframe models, 0=disable)
+ *   --last-frame-strength   Last frame strength 0-1 (keyframe models)
  *   --comfy-sampler  ComfyUI sampler name (default: euler)
  *   --comfy-scheduler ComfyUI scheduler name (default: simple)
  *   --negative  Negative prompt (default: none)
@@ -76,8 +86,8 @@ const DEFAULT_PROMPT =
 // Default image for this workflow
 const DEFAULT_IMAGE = './test-assets/placeholder6.jpg';
 
-// Video dimension constraints
-const MAX_VIDEO_DIMENSION = 1536;
+// Video dimension constraints (WAN: 1536, LTX-2: 3840)
+const MAX_VIDEO_DIMENSION = 3840;
 
 // ============================================
 // Parse Command Line Arguments
@@ -142,6 +152,10 @@ async function parseArgs() {
       options.guidance = parseFloat(args[++i]);
     } else if (arg === '--shift' && args[i + 1]) {
       options.shift = parseFloat(args[++i]);
+    } else if (arg === '--first-frame-strength' && args[i + 1]) {
+      options.firstFrameStrength = parseFloat(args[++i]);
+    } else if (arg === '--last-frame-strength' && args[i + 1]) {
+      options.lastFrameStrength = parseFloat(args[++i]);
     } else if (arg === '--comfy-sampler' && args[i + 1]) {
       options.sampler = args[++i];
     } else if (arg === '--comfy-scheduler' && args[i + 1]) {
@@ -170,10 +184,12 @@ Usage:
   node workflow_image_to_video.mjs --image img.jpg --end-image img2.jpg  # Interpolation
 
 Available Models:
-  wan_v2.2-14b-fp8_i2v_lightx2v  (WAN 2.2, fast 4-step, 1-10s, default)
-  wan_v2.2-14b-fp8_i2v           (WAN 2.2, high quality 20-step, 1-10s)
-  ltx2-19b-fp8_i2v_distilled     (LTX-2, fast 8-step, 4-20s, 2x upscaled output)
-  ltx2-19b-fp8_i2v               (LTX-2, high quality 20-step, 4-10s, 2x upscaled output)
+  wan_v2.2-14b-fp8_i2v_lightx2v       (WAN 2.2, fast 4-step, 1-10s, default)
+  wan_v2.2-14b-fp8_i2v                (WAN 2.2, high quality 20-step, 1-10s)
+  ltx2-19b-fp8_i2v_distilled          (LTX-2, fast 8-step, 4-20s, 2x upscaled output)
+  ltx2-19b-fp8_i2v                    (LTX-2, high quality 20-step, 4-10s, 2x upscaled output)
+
+Note: LTX-2 models automatically use keyframe interpolation when --end-image is provided.
 
 Model-Specific Constraints:
   WAN models:   480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
@@ -194,6 +210,8 @@ Options:
   --seed      Random seed (default: -1 for random)
   --guidance  Guidance scale (default: model-specific)
   --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2)
+  --first-frame-strength  First frame strength 0-1 (LTX-2 with end-image, default: 1.0, 0=disable)
+  --last-frame-strength   Last frame strength 0-1 (LTX-2 with end-image, default: 1.0)
   --comfy-sampler  ComfyUI sampler (default: euler)
   --comfy-scheduler ComfyUI scheduler (default: simple)
   --output    Output directory (default: ./output)
@@ -248,7 +266,27 @@ async function main() {
     log('⚠️', 'Could not read image dimensions, using defaults');
   }
 
-  // Interactive mode: select model first (before asking about end image)
+  // Ask about end image in interactive mode (all i2v models support it)
+  // This is asked right after the first image, before model selection
+  if (OPTIONS.interactive && !OPTIONS.endImage) {
+    const useEndImage = await askQuestion('\nAdd end image for keyframe interpolation? [y/N]: ');
+    if (useEndImage.toLowerCase() === 'y' || useEndImage.toLowerCase() === 'yes') {
+      try {
+        OPTIONS.endImage = await pickImageFile(null, 'end image');
+        log('📸', `End image: ${OPTIONS.endImage}`);
+      } catch (error) {
+        log('⚠️', 'No end image selected, continuing without interpolation');
+      }
+    }
+  }
+
+  // Validate end image if provided via CLI
+  if (OPTIONS.endImage && !fs.existsSync(OPTIONS.endImage)) {
+    console.error(`Error: End image '${OPTIONS.endImage}' does not exist`);
+    process.exit(1);
+  }
+
+  // Interactive mode: select model
   let modelConfig;
   if (OPTIONS.interactive && !OPTIONS.modelKey) {
     const selection = await selectModel(MODELS.i2v, 'wan_v2.2-14b-fp8_i2v_lightx2v');
@@ -265,32 +303,44 @@ async function main() {
 
   log('🎬', `Selected model: ${modelConfig.name}`);
 
-  // Check if model supports end image (LTX-2 models do not)
-  const supportsEndImage = !OPTIONS.modelKey.startsWith('ltx');
+  // Prompt for frame strength values when end image is provided (LTX-2 keyframes only)
+  const isLtx2Model = OPTIONS.modelKey.startsWith('ltx2-');
+  if (OPTIONS.interactive && OPTIONS.endImage && isLtx2Model) {
+    console.log('\n📊 Frame Strength Settings (0.0-1.0, higher = more exact match):');
 
-  // Ask about end image in interactive mode (only for models that support it)
-  if (OPTIONS.interactive && !OPTIONS.endImage && supportsEndImage) {
-    const useEndImage = await askQuestion('\nAdd end image transition? [y/N]: ');
-    if (useEndImage.toLowerCase() === 'y' || useEndImage.toLowerCase() === 'yes') {
-      try {
-        OPTIONS.endImage = await pickImageFile(null, 'end image');
-        log('📸', `End image: ${OPTIONS.endImage}`);
-      } catch (error) {
-        log('⚠️', 'No end image selected, continuing without interpolation');
+    // First frame strength
+    if (OPTIONS.firstFrameStrength === undefined) {
+      const firstStrength = await askQuestion('  First frame strength [1.0]: ');
+      if (firstStrength.trim()) {
+        const parsed = parseFloat(firstStrength);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          OPTIONS.firstFrameStrength = parsed;
+        } else {
+          log('⚠️', 'Invalid value, using default 1.0');
+          OPTIONS.firstFrameStrength = 1.0;
+        }
+      } else {
+        OPTIONS.firstFrameStrength = 1.0;
       }
     }
-  }
 
-  // Warn if end image was provided via CLI for unsupported model
-  if (OPTIONS.endImage && !supportsEndImage) {
-    log('⚠️', 'End image transitions are not supported by LTX-2 models. End image will be ignored.');
-    OPTIONS.endImage = null;
-  }
+    // Last frame strength
+    if (OPTIONS.lastFrameStrength === undefined) {
+      const lastStrength = await askQuestion('  Last frame strength [1.0]: ');
+      if (lastStrength.trim()) {
+        const parsed = parseFloat(lastStrength);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          OPTIONS.lastFrameStrength = parsed;
+        } else {
+          log('⚠️', 'Invalid value, using default 1.0');
+          OPTIONS.lastFrameStrength = 1.0;
+        }
+      } else {
+        OPTIONS.lastFrameStrength = 1.0;
+      }
+    }
 
-  // Validate end image if provided
-  if (OPTIONS.endImage && !fs.existsSync(OPTIONS.endImage)) {
-    console.error(`Error: End image '${OPTIONS.endImage}' does not exist`);
-    process.exit(1);
+    log('⚙️', `Frame strengths: first=${OPTIONS.firstFrameStrength}, last=${OPTIONS.lastFrameStrength}`);
   }
 
   // Set default dimensions from image
@@ -587,9 +637,25 @@ async function main() {
     if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
     if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
 
-    // Add end image for transition if provided
+    // Add end image for transition if provided (processed to match video dimensions)
     if (OPTIONS.endImage) {
-      projectParams.referenceImageEnd = readFileAsBuffer(OPTIONS.endImage);
+      // Process end image to match the target video dimensions using "cover" mode (scale to fill, crop overflow)
+      const processedEndImage = await processImageForVideo(OPTIONS.endImage, OPTIONS.frames, {
+        targetWidth: OPTIONS.width,
+        targetHeight: OPTIONS.height
+      });
+      projectParams.referenceImageEnd = processedEndImage.buffer;
+      if (processedEndImage.wasResized) {
+        log('🔄', `End image resized from ${processedEndImage.originalWidth}x${processedEndImage.originalHeight} to ${processedEndImage.width}x${processedEndImage.height}`);
+      }
+    }
+
+    // Add first/last frame strengths for LTX-2 keyframe interpolation (used when end-image is provided)
+    if (OPTIONS.firstFrameStrength !== undefined) {
+      projectParams.firstFrameStrength = OPTIONS.firstFrameStrength;
+    }
+    if (OPTIONS.lastFrameStrength !== undefined) {
+      projectParams.lastFrameStrength = OPTIONS.lastFrameStrength;
     }
 
     // Add guidance
