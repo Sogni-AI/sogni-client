@@ -1,3 +1,10 @@
+# [4.0.0-alpha.55](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.54...v4.0.0-alpha.55) (2026-01-27)
+
+
+### Features
+
+* LTX-2 variable FPS 1-60 with improved UX flow ([8cf63fd](https://github.com/Sogni-AI/sogni-client/commit/8cf63fd790e7890baaeffb861e618c641bcaf7c7))
+
 # [4.0.0-alpha.54](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.53...v4.0.0-alpha.54) (2026-01-26)
 
 
