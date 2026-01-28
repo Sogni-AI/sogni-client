@@ -8,9 +8,93 @@
 import * as readline from 'node:readline';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { exec } from 'node:child_process';
 import imageSize from 'image-size';
 import sharp from 'sharp';
 import { SogniClient } from '../dist/index.js';
+
+/**
+ * Get video duration using ffprobe
+ * @param {string} videoPath - Path to the video file
+ * @returns {Promise<number>} Duration in seconds
+ */
+export async function getVideoDuration(videoPath) {
+  return new Promise((resolve) => {
+    const command = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`;
+    exec(command, (error, stdout) => {
+      if (error) {
+        log('⚠️', 'Could not auto-detect video duration (install ffmpeg for auto-detection)');
+        resolve(null); // Return null to fall back to manual duration input
+      } else {
+        const duration = parseFloat(stdout.trim());
+        resolve(isNaN(duration) ? null : duration);
+      }
+    });
+  });
+}
+
+/**
+ * Get video dimensions using ffprobe
+ * @param {string} videoPath - Path to the video file
+ * @returns {Promise<{width: number, height: number}|null>} Video dimensions or null if detection fails
+ */
+export async function getVideoDimensions(videoPath) {
+  return new Promise((resolve) => {
+    const command = `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${videoPath}"`;
+    exec(command, (error, stdout) => {
+      if (error) {
+        resolve(null); // Return null to fall back to defaults
+      } else {
+        const parts = stdout.trim().split('x');
+        if (parts.length === 2) {
+          const width = parseInt(parts[0], 10);
+          const height = parseInt(parts[1], 10);
+          if (!isNaN(width) && !isNaN(height) && width > 0 && height > 0) {
+            resolve({ width, height });
+            return;
+          }
+        }
+        resolve(null);
+      }
+    });
+  });
+}
+
+/**
+ * Get video FPS using ffprobe
+ * @param {string} videoPath - Path to the video file
+ * @returns {Promise<number|null>} FPS rounded to nearest integer, or null if detection fails
+ */
+export async function getVideoFps(videoPath) {
+  return new Promise((resolve) => {
+    // Use r_frame_rate which gives the real frame rate as a fraction (e.g., "30000/1001" for 29.97)
+    const command = `ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`;
+    exec(command, (error, stdout) => {
+      if (error) {
+        resolve(null);
+      } else {
+        const output = stdout.trim();
+        // Handle fractional format like "30000/1001" or "25/1"
+        if (output.includes('/')) {
+          const [num, denom] = output.split('/').map(Number);
+          if (!isNaN(num) && !isNaN(denom) && denom > 0) {
+            const fps = Math.round(num / denom);
+            resolve(fps > 0 ? fps : null);
+            return;
+          }
+        } else {
+          // Handle decimal format
+          const fps = Math.round(parseFloat(output));
+          if (!isNaN(fps) && fps > 0) {
+            resolve(fps);
+            return;
+          }
+        }
+        resolve(null);
+      }
+    });
+  });
+}
 
 // ============================================
 // Model Configurations
@@ -344,11 +428,11 @@ export const MODELS = {
       allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
       defaultComfyScheduler: 'simple',
       allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
-      minFrames: 97,
+      minFrames: 25,
       maxFrames: 505,
       defaultFrames: 97,
       frameStep: 8,
-      defaultFps: 25,
+      defaultFps: 24,
       minFps: 1,
       maxFps: 60,
       isLightning: true,
@@ -376,11 +460,11 @@ export const MODELS = {
       allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
       defaultComfyScheduler: 'simple',
       allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
-      minFrames: 97,
+      minFrames: 25,
       maxFrames: 257,
       defaultFrames: 97,
       frameStep: 8,
-      defaultFps: 25,
+      defaultFps: 24,
       minFps: 1,
       maxFps: 60,
       isLightning: false,
@@ -479,11 +563,11 @@ export const MODELS = {
       allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
       defaultComfyScheduler: 'simple',
       allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
-      minFrames: 97,
+      minFrames: 25,
       maxFrames: 505,
       defaultFrames: 97,
       frameStep: 8,
-      defaultFps: 25,
+      defaultFps: 24,
       minFps: 1,
       maxFps: 60,
       isLightning: true,
@@ -514,11 +598,11 @@ export const MODELS = {
       allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
       defaultComfyScheduler: 'simple',
       allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
-      minFrames: 97,
+      minFrames: 25,
       maxFrames: 257,
       defaultFrames: 97,
       frameStep: 8,
-      defaultFps: 25,
+      defaultFps: 24,
       minFps: 1,
       maxFps: 60,
       isLightning: false,
@@ -571,8 +655,89 @@ export const MODELS = {
     }
   },
 
-  // Video-to-Video (Animate) Models (ComfyUI workflow)
+  // Video-to-Video Models (ComfyUI workflow)
+  // Includes WAN animate models and LTX-2 ControlNet models
   animate: {
+    // LTX-2 V2V ControlNet Models (video-only, no reference image needed)
+    'ltx2-v2v-distilled': {
+      id: 'ltx2-19b-fp8_v2v_distilled',
+      name: 'LTX-2 V2V ControlNet (Fast)',
+      description: 'Fast 8-step with canny/pose/depth/detailer control',
+      workflowType: 'v2v-controlnet',
+      defaultWidth: 1280,
+      defaultHeight: 768,
+      minWidth: 768,
+      maxWidth: 3840,
+      minHeight: 768,
+      maxHeight: 3840,
+      dimensionStep: 64,
+      defaultSteps: 8,
+      minSteps: 4,
+      maxSteps: 12,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 2.0,
+      defaultStrength: 0.85,
+      minStrength: 0.5,
+      maxStrength: 1.0,
+      defaultComfySampler: 'euler',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      minFrames: 25,
+      maxFrames: 513,
+      defaultFrames: 97,
+      frameStep: 8,
+      defaultFps: 24,
+      minFps: 1,
+      maxFps: 60,
+      isLightning: true,
+      isComfyModel: true,
+      hasAudio: true,
+      requiresReferenceImage: false,
+      supportsControlNet: true,
+      controlNetTypes: ['canny', 'pose', 'depth', 'detailer']
+    },
+    'ltx2-v2v': {
+      id: 'ltx2-19b-fp8_v2v',
+      name: 'LTX-2 V2V ControlNet (Quality)',
+      description: 'High quality 20-step with canny/pose/depth/detailer control',
+      workflowType: 'v2v-controlnet',
+      defaultWidth: 1280,
+      defaultHeight: 768,
+      minWidth: 768,
+      maxWidth: 3840,
+      minHeight: 768,
+      maxHeight: 3840,
+      dimensionStep: 64,
+      defaultSteps: 20,
+      minSteps: 15,
+      maxSteps: 30,
+      defaultGuidance: 4.0,
+      minGuidance: 2.0,
+      maxGuidance: 7.0,
+      defaultStrength: 0.85,
+      minStrength: 0.5,
+      maxStrength: 1.0,
+      defaultComfySampler: 'euler',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      minFrames: 25,
+      maxFrames: 257,
+      defaultFrames: 97,
+      frameStep: 8,
+      defaultFps: 24,
+      minFps: 1,
+      maxFps: 60,
+      isLightning: false,
+      isComfyModel: true,
+      hasAudio: true,
+      requiresReferenceImage: false,
+      supportsControlNet: true,
+      controlNetTypes: ['canny', 'pose', 'depth', 'detailer']
+    },
+    // WAN Animate Models (require both reference image and source video)
     'move-lightx2v': {
       id: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
       name: 'WAN 2.2 14B FP8 Animate-Move LightX2V',
@@ -592,7 +757,8 @@ export const MODELS = {
       defaultFps: 16,
       allowedFps: [16, 32],
       isLightning: true,
-      isComfyModel: true
+      isComfyModel: true,
+      requiresReferenceImage: true
     },
     // NOTE: No official full quality animate-move exists - only lightx2v version available
     'replace-lightx2v': {
@@ -615,7 +781,8 @@ export const MODELS = {
       allowedFps: [16, 32],
       isLightning: true,
       supportsSam2Coordinates: true,
-      isComfyModel: true
+      isComfyModel: true,
+      requiresReferenceImage: true
     },
     // NOTE: No official full quality animate-replace exists - only lightx2v version available
   }
@@ -1174,7 +1341,7 @@ export async function selectModel(models, defaultKey = null) {
  * @returns {Promise<Object>} Updated options
  */
 export async function promptCoreOptions(options, modelConfig, config = {}) {
-  const { defaultPrompt = '', isVideo = false } = config;
+  const { defaultPrompt = '', isVideo = false, sourceAspectRatio = null } = config;
 
   // Prompt - use multi-line input to support pasted prompts with linebreaks
   if (!options.prompt) {
@@ -1192,6 +1359,7 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
     ? ` (${minWidth}-${maxWidth}, step ${dimensionStep})`
     : maxWidth ? ` (max: ${maxWidth})` : '';
   const widthInput = await askQuestion(`Width${widthRange} (default: ${defaultWidth}): `);
+  let userChangedWidth = false;
   if (widthInput.trim()) {
     const w = parseInt(widthInput.trim(), 10);
     if (!isNaN(w) && w > 0) {
@@ -1199,13 +1367,23 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
       let adjustedWidth = Math.round(w / dimensionStep) * dimensionStep;
       adjustedWidth = Math.max(minWidth, Math.min(maxWidth, adjustedWidth));
       options.width = adjustedWidth;
+      userChangedWidth = true;
     }
   }
   if (!options.width) options.width = defaultWidth;
 
   // Height - use model-specific constraints if available
-  const defaultHeight =
+  // If user changed width and we have source aspect ratio, suggest proportional height
+  let defaultHeight =
     modelConfig.defaultHeight || (isVideo ? VIDEO_CONSTRAINTS.height.default : 1024);
+  if (userChangedWidth && sourceAspectRatio) {
+    // Calculate proportional height based on new width
+    let proportionalHeight = Math.round(options.width / sourceAspectRatio / dimensionStep) * dimensionStep;
+    const minHeight = modelConfig.minHeight || VIDEO_CONSTRAINTS.height.min;
+    const maxHeight = modelConfig.maxHeight || VIDEO_CONSTRAINTS.height.max;
+    proportionalHeight = Math.max(minHeight, Math.min(maxHeight, proportionalHeight));
+    defaultHeight = proportionalHeight;
+  }
   const minHeight = modelConfig.minHeight || VIDEO_CONSTRAINTS.height.min;
   const maxHeight = modelConfig.maxHeight || VIDEO_CONSTRAINTS.height.max;
   const heightRange = isVideo
@@ -1241,23 +1419,30 @@ export async function promptVideoFps(options, modelConfig = {}) {
 
   if (hasRangeFps) {
     // Range-based FPS (LTX-2 models: 1-60)
-    // Show common options as a menu
-    const commonFps = [24, 25, 30, 50, 60].filter(f => f >= modelConfig.minFps && f <= modelConfig.maxFps);
-    const defaultIndex = commonFps.indexOf(defaultFps) !== -1 ? commonFps.indexOf(defaultFps) : 0;
+    // Build menu with common options, including defaultFps if not already present
+    let menuFps = [24, 25, 30, 50, 60].filter(f => f >= modelConfig.minFps && f <= modelConfig.maxFps);
 
-    commonFps.forEach((f, i) => {
-      const marker = f === defaultFps ? ' (default)' : '';
+    // If defaultFps (e.g., from source video) isn't in the list, add it and sort
+    if (defaultFps >= modelConfig.minFps && defaultFps <= modelConfig.maxFps && !menuFps.includes(defaultFps)) {
+      menuFps.push(defaultFps);
+      menuFps.sort((a, b) => a - b);
+    }
+
+    const defaultIndex = menuFps.indexOf(defaultFps);
+
+    menuFps.forEach((f, i) => {
+      const marker = f === defaultFps ? ' (recommended from source)' : '';
       console.log(`  ${i + 1}. ${f} fps${marker}`);
     });
-    console.log(`  ${commonFps.length + 1}. Custom (${modelConfig.minFps}-${modelConfig.maxFps})`);
+    console.log(`  ${menuFps.length + 1}. Custom (${modelConfig.minFps}-${modelConfig.maxFps})`);
     console.log();
 
-    const choice = await askQuestion(`Enter choice [1-${commonFps.length + 1}] (default: ${defaultIndex + 1}): `);
+    const choice = await askQuestion(`Enter choice [1-${menuFps.length + 1}] (default: ${defaultIndex + 1}): `);
     const choiceNum = parseInt(choice.trim(), 10);
 
-    if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= commonFps.length) {
-      options.fps = commonFps[choiceNum - 1];
-    } else if (choiceNum === commonFps.length + 1) {
+    if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= menuFps.length) {
+      options.fps = menuFps[choiceNum - 1];
+    } else if (choiceNum === menuFps.length + 1) {
       // Custom FPS
       const customInput = await askQuestion(`Enter FPS (${modelConfig.minFps}-${modelConfig.maxFps}): `);
       const customFps = parseInt(customInput.trim(), 10);
@@ -1694,6 +1879,64 @@ export async function promptAnimateReplaceOptions(options) {
   }
   // Don't set default - let workflow use its pixel-based center coordinates
   // The workflow template has hardcoded pixel coords (e.g., [416, 608] for 832x1216)
+
+  return options;
+}
+
+/**
+ * Control type descriptions for LTX-2 V2V ControlNet
+ */
+export const CONTROL_NET_TYPES = {
+  canny: {
+    name: 'Canny Edge Detection',
+    description: 'Uses edge detection to preserve structure and outlines'
+  },
+  pose: {
+    name: 'Pose/Skeleton Control',
+    description: 'Uses pose estimation to preserve body movements'
+  },
+  depth: {
+    name: 'Depth Control (MiDaS)',
+    description: 'Uses depth maps to preserve spatial relationships'
+  },
+  detailer: {
+    name: 'Detailer (Quality Enhancement)',
+    description: 'Enhances quality without preprocessing - uses raw video frames'
+  }
+};
+
+/**
+ * Prompt for ControlNet type selection (LTX-2 V2V)
+ * @param {Object} options - Current options object
+ * @param {Object} modelConfig - Selected model configuration
+ * @returns {Promise<Object>} Updated options
+ */
+export async function promptControlNetType(options, modelConfig) {
+  if (!modelConfig.supportsControlNet || !modelConfig.controlNetTypes) {
+    return options;
+  }
+
+  console.log('\n🎛️  Select Control Type:\n');
+  const controlTypes = modelConfig.controlNetTypes;
+  controlTypes.forEach((key, i) => {
+    const ct = CONTROL_NET_TYPES[key];
+    const marker = i === 0 ? ' (default)' : '';
+    console.log(`  ${i + 1}. ${ct.name}${marker}`);
+    console.log(`     ${ct.description}`);
+  });
+  console.log();
+
+  const choice = await askQuestion(`Enter choice [1-${controlTypes.length}] (default: 1): `);
+  const choiceNum = parseInt(choice.trim(), 10);
+
+  if (choiceNum >= 1 && choiceNum <= controlTypes.length) {
+    options.controlNetType = controlTypes[choiceNum - 1];
+  } else {
+    options.controlNetType = controlTypes[0];
+  }
+
+  const selectedType = CONTROL_NET_TYPES[options.controlNetType];
+  console.log(`  → Using ${selectedType.name}\n`);
 
   return options;
 }
