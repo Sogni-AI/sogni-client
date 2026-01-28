@@ -1,3 +1,10 @@
+# [4.0.0-alpha.56](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.55...v4.0.0-alpha.56) (2026-01-28)
+
+
+### Features
+
+* add LTX-2 video-to-video ControlNet workflow support ([2dc2169](https://github.com/Sogni-AI/sogni-client/commit/2dc2169190e2adfb94a452eecfe209105dba95dd))
+
 # [4.0.0-alpha.55](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.54...v4.0.0-alpha.55) (2026-01-27)
 
 
