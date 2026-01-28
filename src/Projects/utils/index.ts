@@ -91,7 +91,7 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceAudio: 'forbidden'
   },
   v2v: {
-    referenceImage: 'forbidden',
+    referenceImage: 'optional', // Required for pose control, optional for other control types
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
     referenceVideo: 'required'
