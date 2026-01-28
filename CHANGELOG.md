@@ -1,3 +1,10 @@
+# [4.0.0-alpha.57](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.56...v4.0.0-alpha.57) (2026-01-28)
+
+
+### Bug Fixes
+
+* allow optional referenceImage for v2v pose control ([183b324](https://github.com/Sogni-AI/sogni-client/commit/183b324c0e1c74f27041c46e666771a95102061c))
+
 # [4.0.0-alpha.56](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.55...v4.0.0-alpha.56) (2026-01-28)
 
 
