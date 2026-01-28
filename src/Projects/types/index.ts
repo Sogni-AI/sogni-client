@@ -161,10 +161,23 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   audioDuration?: number;
   /**
-   * Reference video for animate workflows.
-   * Maps to: drivingVideo (animate-move), sourceVideo (animate-replace)
+   * Reference video for animate and v2v (ControlNet) workflows.
+   * Maps to: drivingVideo (animate-move), sourceVideo (animate-replace), referenceVideo (v2v)
    */
   referenceVideo?: InputMedia;
+  /**
+   * ControlNet type for LTX-2 v2v workflows.
+   * Specifies which control signal to extract from the reference video.
+   * Options: 'canny' (edge detection), 'pose' (body pose detection),
+   * 'depth' (depth estimation), 'detailer' (quality enhancement)
+   */
+  controlNetType?: 'canny' | 'pose' | 'depth' | 'detailer';
+  /**
+   * Control strength for v2v ControlNet workflows.
+   * Higher values follow the control signal more strictly.
+   * Range: 0.0-1.0, default 0.8
+   */
+  controlStrength?: number;
   /**
    * Video start position in seconds for animate workflows (animate-move, animate-replace).
    * Specifies where to begin reading from the reference video file.
@@ -421,7 +434,7 @@ export type EnhancementStrength = 'light' | 'medium' | 'heavy';
 /**
  * Video workflow types for WAN models
  */
-export type VideoWorkflowType = 't2v' | 'i2v' | 's2v' | 'animate-move' | 'animate-replace' | null;
+export type VideoWorkflowType = 't2v' | 'i2v' | 's2v' | 'v2v' | 'animate-move' | 'animate-replace' | null;
 
 export type AssetRequirement = 'required' | 'optional' | 'forbidden';
 

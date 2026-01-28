@@ -37,6 +37,9 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   if (modelId.includes('_i2v')) return 'i2v';
   if (modelId.includes('_t2v')) return 't2v';
 
+  // LTX-2 v2v ControlNet workflows (model IDs use underscore: ltx2-19b-fp8_v2v_distilled)
+  if (isLtx2 && modelId.includes('_v2v')) return 'v2v';
+
   // WAN-specific workflow types
   if (isWan) {
     if (modelId.includes('_s2v')) return 's2v';
@@ -86,5 +89,11 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceVideo: 'required',
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden'
+  },
+  v2v: {
+    referenceImage: 'forbidden',
+    referenceImageEnd: 'forbidden',
+    referenceAudio: 'forbidden',
+    referenceVideo: 'required'
   }
 };

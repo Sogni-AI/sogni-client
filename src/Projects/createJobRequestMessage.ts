@@ -302,6 +302,14 @@ function applyVideoParams(
     keyFrame.lastFrameStrength = params.lastFrameStrength;
   }
 
+  // ControlNet parameters for LTX-2 v2v workflows
+  if (params.controlNetType) {
+    keyFrame.controlNetType = params.controlNetType;
+  }
+  if (params.controlStrength !== undefined) {
+    keyFrame.strength = params.controlStrength;
+  }
+
   // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
   if (params.width && params.height) {
     keyFrame.width = validateVideoSize(params.width, 'width');
