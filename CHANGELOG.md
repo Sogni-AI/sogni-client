@@ -1,3 +1,10 @@
+# [4.0.0-alpha.58](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.57...v4.0.0-alpha.58) (2026-01-29)
+
+
+### Bug Fixes
+
+* refactor Video controlnet schema to match existing image controlnet schema ([b9e01f5](https://github.com/Sogni-AI/sogni-client/commit/b9e01f5c21449259e47f45b16eb4f7e65fdf7c51))
+
 # [4.0.0-alpha.57](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.56...v4.0.0-alpha.57) (2026-01-28)
 
 
