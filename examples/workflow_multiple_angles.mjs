@@ -673,9 +673,9 @@ async function main() {
             // Calculate elapsed time for this image
             const elapsedSeconds = (Date.now() - startTime) / 1000;
 
-            // Use seed + jobIndex for batch jobs (server increments seed per job)
+            // Use actual seed from job completion event (server generates unique seeds for batch items)
             const jobIndex = completedImages + failedImages;
-            const jobSeed = OPTIONS.seed + jobIndex;
+            const jobSeed = event.seed ?? (OPTIONS.seed + jobIndex);
 
             const desiredPath = generateImageFilename({
               modelId: modelConfig.id,

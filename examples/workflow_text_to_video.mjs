@@ -421,15 +421,16 @@ async function main() {
       OPTIONS.height,
       OPTIONS.frames,
       OPTIONS.fps,
-      OPTIONS.steps
+      OPTIONS.steps,
+      OPTIONS.batch
     );
 
     console.log();
     console.log('📊 Cost Estimate:');
 
     if (tokenType === 'spark') {
-      const costPerVideo = parseFloat(estimate.quote.project.costInSpark || 0);
-      const totalCost = costPerVideo * OPTIONS.batch;
+      const totalCost = parseFloat(estimate.quote.project.costInSpark || 0);
+      const costPerVideo = totalCost / OPTIONS.batch;
       const currentBalance = parseFloat(balance.spark.net || 0);
       if (OPTIONS.batch > 1) {
         console.log(`   Per video: ${costPerVideo.toFixed(2)} Spark`);
@@ -442,8 +443,8 @@ async function main() {
       );
       console.log(`   USD: $${(totalCost * 0.005).toFixed(4)}`);
     } else {
-      const costPerVideo = parseFloat(estimate.quote.project.costInSogni || 0);
-      const totalCost = costPerVideo * OPTIONS.batch;
+      const totalCost = parseFloat(estimate.quote.project.costInSogni || 0);
+      const costPerVideo = totalCost / OPTIONS.batch;
       const currentBalance = parseFloat(balance.sogni.net || 0);
       if (OPTIONS.batch > 1) {
         console.log(`   Per video: ${costPerVideo.toFixed(2)} Sogni`);
@@ -710,8 +711,8 @@ async function main() {
             const jobElapsedSeconds = state ? (Date.now() - state.startTime) / 1000 : null;
             const jobElapsed = jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?';
 
-            // Use seed + jobIndex for batch jobs (server increments seed per job)
-            const jobSeed = OPTIONS.seed + (state?.jobIndex || 0);
+            // Use actual seed from job completion event (server generates unique seeds for batch items)
+            const jobSeed = event.seed ?? (OPTIONS.seed + (state?.jobIndex || 0));
 
             const desiredPath = generateVideoFilename({
               modelId: modelConfig.id,
@@ -839,14 +840,14 @@ async function main() {
 /**
  * Get video job cost estimate
  */
-async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps) {
+async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps, videoCount = 1) {
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');
   } else if (baseUrl.startsWith('ws://')) {
     baseUrl = baseUrl.replace('ws://', 'https://');
   }
-  const url = `${baseUrl}/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}/${steps}`;
+  const url = `${baseUrl}/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}/${steps}/${videoCount}`;
   console.log(`🔗 Video cost estimate URL: ${url}`);
   const response = await fetch(url);
   if (!response.ok) {

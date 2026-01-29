@@ -222,14 +222,14 @@ function videoExists(basename, outputDir) {
 /**
  * Get video job cost estimate
  */
-async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps) {
+async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps, videoCount = 1) {
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');
   } else if (baseUrl.startsWith('ws://')) {
     baseUrl = baseUrl.replace('ws://', 'https://');
   }
-  const url = `${baseUrl}/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}/${steps}`;
+  const url = `${baseUrl}/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}/${steps}/${videoCount}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to get cost estimate: ${response.statusText}`);
