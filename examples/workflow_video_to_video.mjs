@@ -1042,12 +1042,12 @@ async function main() {
     if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
     if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
 
-    // LTX-2 V2V: add controlNetType and strength
+    // LTX-2 V2V: add controlNet params
     if (modelConfig.supportsControlNet && OPTIONS.controlNetType) {
-      projectParams.controlNetType = OPTIONS.controlNetType;
-    }
-    if (OPTIONS.strength !== undefined && OPTIONS.strength !== null) {
-      projectParams.strength = OPTIONS.strength;
+      projectParams.controlNet = {
+        name: OPTIONS.controlNetType,
+        ...(OPTIONS.strength !== undefined && OPTIONS.strength !== null && { strength: OPTIONS.strength })
+      };
     }
 
     // Add SAM2 coordinates for animate-replace

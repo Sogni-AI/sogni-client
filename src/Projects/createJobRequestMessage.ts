@@ -5,7 +5,12 @@ import {
   ProjectParams,
   VideoProjectParams
 } from './types';
-import { ControlNetParams, ControlNetParamsRaw } from './types/ControlNetParams';
+import {
+  ControlNetParams,
+  ControlNetParamsRaw,
+  VideoControlNetParams,
+  VideoControlNetParamsRaw
+} from './types/ControlNetParams';
 import {
   validateNumber,
   validateCustomImageSize,
@@ -177,6 +182,20 @@ function getControlNet(params: ControlNetParams): ControlNetParamsRaw[] {
   return [cn];
 }
 
+function getVideoControlNet(params: VideoControlNetParams): VideoControlNetParamsRaw[] {
+  const cn: VideoControlNetParamsRaw = {
+    name: params.name
+  };
+  if (params.strength !== undefined) {
+    cn.controlStrength = validateNumber(params.strength, {
+      min: 0,
+      max: 1,
+      propertyName: 'strength'
+    });
+  }
+  return [cn];
+}
+
 function applyImageParams(
   inputKeyframe: Record<string, any>,
   params: ImageProjectParams,
@@ -303,11 +322,8 @@ function applyVideoParams(
   }
 
   // ControlNet parameters for LTX-2 v2v workflows
-  if (params.controlNetType) {
-    keyFrame.controlNetType = params.controlNetType;
-  }
-  if (params.controlStrength !== undefined) {
-    keyFrame.strength = params.controlStrength;
+  if (params.controlNet) {
+    keyFrame.currentControlNetsJob = getVideoControlNet(params.controlNet);
   }
 
   // Validate and set video dimensions (minimum 480px for Wan 2.2 models)

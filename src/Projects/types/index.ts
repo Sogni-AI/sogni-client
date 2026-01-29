@@ -1,5 +1,5 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types';
-import { ControlNetParams } from './ControlNetParams';
+import { ControlNetParams, VideoControlNetParams } from './ControlNetParams';
 import { TokenType } from '../../types/token';
 
 export interface SupportedModel {
@@ -166,18 +166,10 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceVideo?: InputMedia;
   /**
-   * ControlNet type for LTX-2 v2v workflows.
+   * ControlNet parameters for LTX-2 v2v workflows.
    * Specifies which control signal to extract from the reference video.
-   * Options: 'canny' (edge detection), 'pose' (body pose detection),
-   * 'depth' (depth estimation), 'detailer' (quality enhancement)
    */
-  controlNetType?: 'canny' | 'pose' | 'depth' | 'detailer';
-  /**
-   * Control strength for v2v ControlNet workflows.
-   * Higher values follow the control signal more strictly.
-   * Range: 0.0-1.0, default 0.8
-   */
-  controlStrength?: number;
+  controlNet?: VideoControlNetParams;
   /**
    * Video start position in seconds for animate workflows (animate-move, animate-replace).
    * Specifies where to begin reading from the reference video file.

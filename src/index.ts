@@ -23,6 +23,13 @@ import {
   VideoOutputFormat,
   VideoWorkflowType
 } from './Projects/types';
+import {
+  ControlNetName,
+  ControlNetParams,
+  ControlNetMode,
+  VideoControlNetName,
+  VideoControlNetParams
+} from './Projects/types/ControlNetParams';
 // Stats API
 import StatsApi from './Stats';
 // Base Types
@@ -34,6 +41,9 @@ import { MeData } from './Account/types';
 export type {
   AudioFormat,
   AvailableModel,
+  ControlNetMode,
+  ControlNetName,
+  ControlNetParams,
   ErrorData,
   ImageProjectParams,
   ImageOutputFormat,
@@ -44,6 +54,8 @@ export type {
   ProjectStatus,
   SupernetType,
   TokenType,
+  VideoControlNetName,
+  VideoControlNetParams,
   VideoFormat,
   VideoOutputFormat,
   VideoProjectParams,

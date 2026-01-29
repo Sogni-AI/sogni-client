@@ -20,6 +20,12 @@ export type ControlNetName =
   | 'instantid';
 
 /**
+ * Video ControlNet model names for LTX-2 v2v workflows
+ * @inline
+ */
+export type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer';
+
+/**
  * Raw ControlNet parameters passed to the API
  */
 export interface ControlNetParamsRaw {
@@ -82,4 +88,32 @@ export interface ControlNetParams {
    * Must be greater than guidanceStart
    */
   guidanceEnd?: number;
+}
+
+/**
+ * Raw Video ControlNet parameters passed to the API
+ */
+export interface VideoControlNetParamsRaw {
+  name: VideoControlNetName;
+  controlStrength?: number;
+}
+
+/**
+ * Video ControlNet parameters for LTX-2 v2v workflows.
+ * The control input is provided via `referenceVideo` in VideoProjectParams.
+ */
+export interface VideoControlNetParams {
+  /**
+   * ControlNet type specifying which control signal to extract from the reference video.
+   * - 'canny': Edge detection-based control
+   * - 'pose': Body pose detection (supports optional referenceImage for appearance)
+   * - 'depth': Depth estimation
+   * - 'detailer': Quality enhancement
+   */
+  name: VideoControlNetName;
+  /**
+   * Control strength. Higher values follow the control signal more strictly.
+   * Range: 0.0-1.0, default 0.8
+   */
+  strength?: number;
 }
