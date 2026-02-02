@@ -9,7 +9,7 @@ import Project from './Project';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import { getEnhacementStrength } from './utils';
 import { TokenType } from '../types/token';
-import { has } from 'lodash';
+import has from 'lodash/has';
 
 export const enhancementDefaults = {
   network: 'fast' as SupernetType,
