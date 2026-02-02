@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "4.0.0-alpha.58",
+  "version": "4.0.0-alpha.60",
   "description": "Sogni Supernet Client",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -38,13 +38,13 @@
   "dependencies": {
     "@lukeed/uuid": "^2.0.1",
     "@types/js-cookie": "^3.0.6",
-    "@types/lodash": "^4.17.13",
+    "@types/lodash": "^4.17.23",
     "@types/ws": "^8.5.13",
     "ethers": "^6.16.0",
     "isomorphic-ws": "^5.0.0",
     "js-cookie": "^3.0.5",
     "jwt-decode": "^4.0.0",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "ws": "^8.18.0"
   },
   "devDependencies": {

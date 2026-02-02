@@ -354,7 +354,8 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     ...(params.stylePrompt && { stylePrompt: params.stylePrompt }),
     // LoRA IDs for LoRA loading (resolved to filenames by worker via config API)
     ...(params.loras && params.loras.length > 0 && { loras: params.loras }),
-    ...(params.loraStrengths && params.loraStrengths.length > 0 && { loraStrengths: params.loraStrengths })
+    ...(params.loraStrengths &&
+      params.loraStrengths.length > 0 && { loraStrengths: params.loraStrengths })
   };
 
   switch (params.type) {

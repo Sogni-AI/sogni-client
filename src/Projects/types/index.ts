@@ -426,7 +426,14 @@ export type EnhancementStrength = 'light' | 'medium' | 'heavy';
 /**
  * Video workflow types for WAN models
  */
-export type VideoWorkflowType = 't2v' | 'i2v' | 's2v' | 'v2v' | 'animate-move' | 'animate-replace' | null;
+export type VideoWorkflowType =
+  | 't2v'
+  | 'i2v'
+  | 's2v'
+  | 'v2v'
+  | 'animate-move'
+  | 'animate-replace'
+  | null;
 
 export type AssetRequirement = 'required' | 'optional' | 'forbidden';
 
