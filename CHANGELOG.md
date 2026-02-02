@@ -1,3 +1,10 @@
+# [4.0.0-alpha.59](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.58...v4.0.0-alpha.59) (2026-02-02)
+
+
+### Bug Fixes
+
+* Optimize lodash imports ([86479d0](https://github.com/Sogni-AI/sogni-client/commit/86479d0713bbb361811c98445b0c330cdc49bcc2))
+
 # [4.0.0-alpha.58](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.57...v4.0.0-alpha.58) (2026-01-29)
 
 
