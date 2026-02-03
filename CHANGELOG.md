@@ -1,3 +1,10 @@
+# [4.0.0-alpha.61](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.60...v4.0.0-alpha.61) (2026-02-03)
+
+
+### Bug Fixes
+
+* Correct video frame calculation for WAN vs LTX-2 models ([9127498](https://github.com/Sogni-AI/sogni-client/commit/9127498935e68f352850871ed9f4115234df9e0d))
+
 # [4.0.0-alpha.60](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.59...v4.0.0-alpha.60) (2026-02-02)
 
 
