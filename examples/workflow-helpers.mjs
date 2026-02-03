@@ -13,6 +13,103 @@ import imageSize from 'image-size';
 import sharp from 'sharp';
 import { SogniClient } from '../dist/index.js';
 
+// ============================================
+// Video Model FPS/Frame Calculation Helpers
+// ============================================
+
+/**
+ * Check if a model ID is a WAN 2.2 video model.
+ *
+ * WAN 2.2 models always generate video at 16fps internally.
+ * The fps parameter (16 or 32) only controls post-render frame interpolation:
+ * - fps=16: No interpolation, output matches generation
+ * - fps=32: Frames are doubled via interpolation after generation
+ *
+ * Therefore, frame count should always be calculated as: duration * 16 + 1
+ *
+ * @param {string} modelId - The model ID to check
+ * @returns {boolean} True if this is a WAN model
+ */
+export function isWanModel(modelId) {
+  return modelId?.startsWith('wan_') || false;
+}
+
+/**
+ * Check if a model ID is an LTX-2 video model.
+ *
+ * LTX-2 models generate video at the actual specified FPS (1-60 fps range).
+ * There is no post-render interpolation - fps directly affects generation.
+ *
+ * Frame count should be calculated as: duration * fps + 1
+ * Additionally, LTX-2 has a frame step constraint where frames must follow
+ * the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, 41, ...)
+ *
+ * @param {string} modelId - The model ID to check
+ * @returns {boolean} True if this is an LTX-2 model
+ */
+export function isLtx2Model(modelId) {
+  return modelId?.startsWith('ltx2-') || false;
+}
+
+/**
+ * LTX-2 frame step constraint.
+ * Valid frame counts follow the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, ...)
+ */
+export const LTX2_FRAME_STEP = 8;
+
+/**
+ * Calculate the frame count for a given duration and fps based on the video model.
+ *
+ * ## WAN 2.2 Models
+ * - Always generate at 16fps internally, regardless of the fps parameter
+ * - fps=32 is post-render interpolation that doubles frames
+ * - Formula: duration * 16 + 1
+ *
+ * ## LTX-2 Models
+ * - Generate at the actual specified FPS (no interpolation)
+ * - Frame count must follow the pattern: 1 + n*8
+ * - Formula: duration * fps + 1, snapped to frame step constraint
+ *
+ * @param {string} modelId - The video model ID
+ * @param {number} duration - Duration in seconds
+ * @param {number} fps - Frames per second (only affects LTX-2 models)
+ * @param {Object} options - Optional constraints
+ * @param {number} options.minFrames - Minimum frame count
+ * @param {number} options.maxFrames - Maximum frame count
+ * @param {number} options.frameStep - Frame step for LTX-2 (default: 8)
+ * @returns {number} The calculated frame count
+ */
+export function calculateVideoFrames(modelId, duration, fps, options = {}) {
+  const { minFrames, maxFrames, frameStep = LTX2_FRAME_STEP } = options;
+  let frames;
+
+  if (isWanModel(modelId)) {
+    // WAN 2.2: Always generates at 16fps, fps param is for post-render interpolation only
+    // This is legacy behavior specific to WAN models
+    frames = Math.round(duration * 16) + 1;
+  } else {
+    // LTX-2 and future models: Generate at actual fps
+    // This is the standard behavior going forward
+    frames = Math.round(duration * fps) + 1;
+
+    // LTX-2 specific: snap to frame step constraint (1 + n*frameStep)
+    if (isLtx2Model(modelId) && frameStep > 1) {
+      const n = Math.round((frames - 1) / frameStep);
+      frames = n * frameStep + 1;
+    }
+  }
+
+  // Apply min/max constraints if provided
+  if (minFrames !== undefined) {
+    frames = Math.max(minFrames, frames);
+  }
+  if (maxFrames !== undefined) {
+    frames = Math.min(maxFrames, frames);
+  }
+
+  return frames;
+}
+
 /**
  * Get video duration using ffprobe
  * @param {string} videoPath - Path to the video file
@@ -1498,14 +1595,25 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
   const minFrames = modelConfig.minFrames || VIDEO_CONSTRAINTS.frames.min;
   const frameStep = modelConfig.frameStep || 1;
 
+  // Determine model type for frame calculation
+  // WAN models: always generate at 16fps (fps param is for post-render interpolation)
+  // LTX-2 models: generate at actual fps with frame step constraint
+  const modelId = modelConfig.id || '';
+  const isWan = isWanModel(modelId);
+
+  // For duration calculations, WAN always uses 16fps internally
+  const effectiveFps = isWan ? 16 : fps;
+
   /**
-   * Convert duration to valid frame count following n*step+1 rule
-   * LTX-2 uses step=8, so valid frames are: 1, 9, 17, ..., 153, 161, 169, ...
+   * Convert duration to valid frame count.
+   *
+   * WAN 2.2 Models: Always use 16fps for calculation (fps is interpolation only)
+   * LTX-2 Models: Use actual fps, snap to frame step constraint (1 + n*8)
    */
   function durationToFrames(durationSec) {
-    let frames = Math.round(durationSec * fps) + 1;
+    let frames = Math.round(durationSec * effectiveFps) + 1;
     if (frameStep > 1) {
-      // Round to nearest n*frameStep + 1
+      // LTX-2: Round to nearest n*frameStep + 1
       const n = Math.round((frames - 1) / frameStep);
       frames = n * frameStep + 1;
     }
@@ -1513,9 +1621,9 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
   }
 
   // Calculate min/max duration based on valid frame counts
-  // For LTX-2 with minFrames=97 at 25fps: (97-1)/25 = 3.84s
-  const minDurationExact = (minFrames - 1) / fps;
-  const maxDurationExact = (maxFrames - 1) / fps;
+  // Use effectiveFps (16 for WAN, actual for LTX-2)
+  const minDurationExact = (minFrames - 1) / effectiveFps;
+  const maxDurationExact = (maxFrames - 1) / effectiveFps;
 
   // Apply max duration limit (default 20s)
   const effectiveMaxDuration = Math.min(maxDurationExact, maxDurationLimit);
@@ -1555,7 +1663,7 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
   // Find default: use model's defaultFrames if available, otherwise first option
   let defaultDuration;
   if (modelConfig.defaultFrames) {
-    defaultDuration = Math.round((modelConfig.defaultFrames - 1) / fps);
+    defaultDuration = Math.round((modelConfig.defaultFrames - 1) / effectiveFps);
   } else {
     defaultDuration = durationOptions[0];
   }
@@ -1566,7 +1674,8 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
   console.log('\n⏱️  Select video duration:\n');
   durationOptions.forEach((d, i) => {
     const frames = durationToFrames(d);
-    const actualDuration = (frames - 1) / fps;
+    // For display, use effectiveFps to show actual duration
+    const actualDuration = (frames - 1) / effectiveFps;
     const marker = i === defaultIndex ? ' (default)' : '';
     console.log(`  ${i + 1}. ${d}s → ${frames} frames (${actualDuration.toFixed(1)}s actual)${marker}`);
   });
@@ -1594,9 +1703,14 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
   // Convert duration to valid frame count
   const frames = durationToFrames(duration);
   options.frames = frames;
-  options.duration = (frames - 1) / fps; // Store actual duration
+  options.duration = (frames - 1) / effectiveFps; // Store actual duration based on model type
 
-  console.log(`  → ${options.duration.toFixed(1)} seconds = ${frames} frames at ${fps} FPS\n`);
+  // Display message explains the model behavior
+  if (isWan && fps !== 16) {
+    console.log(`  → ${options.duration.toFixed(1)} seconds = ${frames} frames (generated at 16fps, output at ${fps}fps via interpolation)\n`);
+  } else {
+    console.log(`  → ${options.duration.toFixed(1)} seconds = ${frames} frames at ${fps} FPS\n`);
+  }
 
   return options;
 }

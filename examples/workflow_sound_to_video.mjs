@@ -67,7 +67,8 @@ import {
   displayPrompts,
   getUniqueFilename,
   generateVideoFilename,
-  generateRandomSeed
+  generateRandomSeed,
+  calculateVideoFrames
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -365,6 +366,7 @@ async function main() {
 
   // Use model-specific frame limits (S2V supports up to 321 frames)
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
+  const minFrames = modelConfig.minFrames || VIDEO_CONSTRAINTS.frames.min;
 
   // Set dimensions with video constraints
   let { width, height } = ensureEvenDimensions(
@@ -386,10 +388,14 @@ async function main() {
   OPTIONS.height = height;
 
   // Calculate frames from duration if not explicitly set
+  // S2V is WAN-only, so always uses 16fps internal generation
   if (!OPTIONS.frames) {
     const duration = OPTIONS.duration || 5;
-    OPTIONS.frames = Math.round(duration * OPTIONS.fps) + 1;
-    OPTIONS.frames = Math.max(VIDEO_CONSTRAINTS.frames.min, Math.min(maxFrames, OPTIONS.frames));
+    OPTIONS.frames = calculateVideoFrames(modelConfig.id, duration, OPTIONS.fps, {
+      minFrames,
+      maxFrames,
+      frameStep: modelConfig.frameStep
+    });
   }
 
   // Validate FPS - use model-specific allowed values or global defaults

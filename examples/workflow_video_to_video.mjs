@@ -91,7 +91,10 @@ import {
   displayPrompts,
   getUniqueFilename,
   generateVideoFilename,
-  generateRandomSeed
+  generateRandomSeed,
+  calculateVideoFrames,
+  isWanModel,
+  isLtx2Model
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -741,6 +744,7 @@ async function main() {
   }
 
   // Calculate frames from duration if not explicitly set
+  // Uses model-aware calculation: WAN = 16fps internal, LTX-2 = actual fps
   if (!OPTIONS.frames) {
     // For LTX-2 V2V non-interactive, try to auto-detect from source video
     let duration = OPTIONS.duration;
@@ -749,13 +753,11 @@ async function main() {
     }
     duration = duration || 5;
 
-    let frames = Math.round(duration * OPTIONS.fps) + 1;
-    // LTX-2: round to nearest n*frameStep + 1
-    if (frameStep > 1) {
-      const n = Math.round((frames - 1) / frameStep);
-      frames = n * frameStep + 1;
-    }
-    OPTIONS.frames = Math.max(minFrames, Math.min(maxFrames, frames));
+    OPTIONS.frames = calculateVideoFrames(modelConfig.id, duration, OPTIONS.fps, {
+      minFrames,
+      maxFrames,
+      frameStep
+    });
   }
 
   // Validate FPS - use model-specific range or allowed values

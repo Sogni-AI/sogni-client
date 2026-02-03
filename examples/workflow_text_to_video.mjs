@@ -65,7 +65,8 @@ import {
   displayPrompts,
   getUniqueFilename,
   generateVideoFilename,
-  generateRandomSeed
+  generateRandomSeed,
+  calculateVideoFrames
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -261,12 +262,17 @@ async function main() {
 
   // Use model-specific frame limits
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
+  const minFrames = modelConfig.minFrames || VIDEO_CONSTRAINTS.frames.min;
 
   // Calculate frames from duration if not explicitly set
+  // Uses model-aware calculation: WAN = 16fps internal, LTX-2 = actual fps
   if (!OPTIONS.frames) {
     const duration = OPTIONS.duration || 5;
-    OPTIONS.frames = Math.round(duration * OPTIONS.fps) + 1;
-    OPTIONS.frames = Math.max(VIDEO_CONSTRAINTS.frames.min, Math.min(maxFrames, OPTIONS.frames));
+    OPTIONS.frames = calculateVideoFrames(modelConfig.id, duration, OPTIONS.fps, {
+      minFrames,
+      maxFrames,
+      frameStep: modelConfig.frameStep
+    });
   }
 
   // Validate dimensions

@@ -104,22 +104,49 @@ export type InputMedia = File | Buffer | Blob | boolean;
 
 /**
  * Video-specific parameters for video workflows (t2v, i2v, s2v, animate).
- * Only applicable when using video models like wan_v2.2-14b-fp8_t2v.
+ * Only applicable when using video models like wan_v2.2-14b-fp8_t2v or ltx2-19b-fp8_t2v.
  * Includes frame count, fps, shift, and reference assets (image, audio, video).
+ *
+ * ## Important: FPS and Frame Count Behavior Differs by Model
+ *
+ * ### WAN 2.2 Models (wan_v2.2-*)
+ * - Always generate video at 16fps internally
+ * - The `fps` parameter (16 or 32) only controls post-render frame interpolation
+ * - fps=32 doubles the frames via interpolation after generation
+ * - Frame count is always calculated as: `duration * 16 + 1`
+ * - Example: 5 seconds at 32fps = 81 frames generated, then interpolated to 161 output frames
+ *
+ * ### LTX-2 Models (ltx2-*)
+ * - Generate video at the actual specified FPS (1-60 fps range)
+ * - No post-render interpolation - fps directly affects generation
+ * - Frame count is calculated as: `duration * fps + 1`
+ * - Frame count must follow the pattern: `1 + n*8` (i.e., 1, 9, 17, 25, 33, ...)
+ * - Example: 5 seconds at 24fps = 121 frames (since 121 = 1 + 15*8)
  */
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
   /**
-   * Number of frames to generate
-   * @deprecated Use duration instead
+   * Number of frames to generate.
+   * @deprecated Use duration instead. When using duration, the SDK automatically
+   * calculates the correct frame count based on the model type.
    */
   frames?: number;
   /**
-   * Duration of the video in seconds. Supported range 1 to 10
+   * Duration of the video in seconds. Supported range 1 to 10 (WAN) or 4 to 20 (LTX-2).
+   *
+   * The SDK automatically calculates the correct frame count based on the model:
+   * - WAN 2.2: `duration * 16 + 1` (always 16fps generation)
+   * - LTX-2: `duration * fps + 1`, snapped to frame step constraint
    */
   duration?: number;
   /**
-   * Frames per second for output video
+   * Frames per second for output video.
+   *
+   * **WAN 2.2 Models:** Only 16 or 32 fps allowed. The 32fps option is post-render
+   * frame interpolation that doubles the output frames. Internal generation is always 16fps.
+   *
+   * **LTX-2 Models:** Any value from 1-60 fps. This directly controls the generation
+   * frame rate - there is no post-render interpolation.
    */
   fps?: number;
   /**

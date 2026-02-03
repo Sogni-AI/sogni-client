@@ -21,7 +21,12 @@ import {
   validateSampler,
   validateScheduler
 } from '../lib/validation';
-import { getVideoWorkflowType, isVideoModel, VIDEO_WORKFLOW_ASSETS } from './utils';
+import {
+  getVideoWorkflowType,
+  isVideoModel,
+  VIDEO_WORKFLOW_ASSETS,
+  calculateVideoFrames
+} from './utils';
 import { ApiError } from '../ApiClient';
 import { ImageModelOptions, ModelOptions, VideoModelOptions } from './types/ModelOptions';
 
@@ -275,15 +280,20 @@ function applyVideoParams(
   }
 
   // Video generation parameters
+  // Note: fps must be processed before duration to correctly calculate frames for LTX-2 models
+  if (params.fps !== undefined) {
+    keyFrame.fps = params.fps;
+  }
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
   }
   if (params.duration !== undefined) {
     const duration = validateVideoDuration(params.duration);
-    keyFrame.frames = duration * 16 + 1;
-  }
-  if (params.fps !== undefined) {
-    keyFrame.fps = params.fps;
+    // Use fps from params or default based on model type:
+    // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
+    // - LTX-2: fps directly affects frame count (default 24fps if not specified)
+    const fps = params.fps ?? 24;
+    keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
   }
   if (params.shift !== undefined) {
     keyFrame.shift = params.shift;

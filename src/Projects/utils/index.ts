@@ -21,6 +21,96 @@ export function isVideoModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model ID is a WAN 2.2 video model.
+ *
+ * WAN 2.2 models always generate video at 16fps internally.
+ * The fps parameter (16 or 32) only controls post-render frame interpolation:
+ * - fps=16: No interpolation, output matches generation
+ * - fps=32: Frames are doubled via interpolation after generation
+ *
+ * Therefore, frame count should always be calculated as: duration * 16 + 1
+ */
+export function isWanModel(modelId: string): boolean {
+  return modelId.startsWith('wan_');
+}
+
+/**
+ * Check if a model ID is an LTX-2 video model.
+ *
+ * LTX-2 models generate video at the actual specified FPS (1-60 fps range).
+ * There is no post-render interpolation - fps directly affects generation.
+ *
+ * Frame count should be calculated as: duration * fps + 1
+ * Additionally, LTX-2 has a frame step constraint where frames must follow
+ * the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, 41, ...)
+ */
+export function isLtx2Model(modelId: string): boolean {
+  return modelId.startsWith('ltx2-');
+}
+
+/**
+ * LTX-2 frame step constraint.
+ * Valid frame counts follow the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, ...)
+ */
+export const LTX2_FRAME_STEP = 8;
+
+/**
+ * Calculate the frame count for a given duration and fps based on the video model.
+ *
+ * ## Standard Behavior (LTX-2 and future models)
+ * - Generate at the actual specified FPS (no interpolation)
+ * - Formula: duration * fps + 1
+ * - LTX-2 specific: Frame count must follow the pattern: 1 + n*8
+ *
+ * ## Legacy Behavior (WAN 2.2 only)
+ * - Always generate at 16fps internally, regardless of the fps parameter
+ * - fps=32 is post-render interpolation that doubles frames
+ * - Formula: duration * 16 + 1
+ *
+ * @param modelId - The video model ID
+ * @param duration - Duration in seconds
+ * @param fps - Frames per second (ignored for WAN models which always use 16fps)
+ * @param minFrames - Minimum frame count (optional, defaults to 17)
+ * @param maxFrames - Maximum frame count (optional, defaults to model-specific limits)
+ * @returns The calculated frame count
+ */
+export function calculateVideoFrames(
+  modelId: string,
+  duration: number,
+  fps: number,
+  minFrames?: number,
+  maxFrames?: number
+): number {
+  let frames: number;
+
+  if (isWanModel(modelId)) {
+    // WAN 2.2: Always generates at 16fps, fps param is for post-render interpolation only
+    // This is legacy behavior specific to WAN models
+    frames = Math.round(duration * 16) + 1;
+  } else {
+    // LTX-2 and future models: Generate at actual fps
+    // This is the standard behavior going forward
+    frames = Math.round(duration * fps) + 1;
+
+    // LTX-2 specific: snap to frame step constraint (1 + n*8)
+    if (isLtx2Model(modelId)) {
+      const n = Math.round((frames - 1) / LTX2_FRAME_STEP);
+      frames = n * LTX2_FRAME_STEP + 1;
+    }
+  }
+
+  // Apply min/max constraints if provided
+  if (minFrames !== undefined) {
+    frames = Math.max(minFrames, frames);
+  }
+  if (maxFrames !== undefined) {
+    frames = Math.min(maxFrames, frames);
+  }
+
+  return frames;
+}
+
+/**
  * Get the video workflow type from a model ID.
  * Returns null for non-video models.
  */
