@@ -639,3 +639,33 @@ node workflow_text_to_image.mjs
 node workflow_image_edit.mjs
 node workflow_text_to_video.mjs
 ```
+
+## AI Assistant Resources
+
+This SDK provides documentation optimized for AI coding assistants like Claude Code, GitHub Copilot, Cursor, and [Open Claw](https://openclaw.ai/):
+
+| File | Description |
+|------|-------------|
+| [`llms.txt`](./llms.txt) | Indexed quick reference with code examples |
+| [`llms-full.txt`](./llms-full.txt) | Comprehensive documentation with complete API reference |
+| [`CLAUDE.md`](./CLAUDE.md) | Claude Code-specific guidance and project context |
+
+These files follow the [llms.txt convention](https://llmstxt.org/) for LLM-friendly documentation.
+
+### For AI Assistants
+
+When helping users generate images or videos with Sogni:
+
+1. **Image generation**: Use `type: 'image'` with models like `flux1-schnell-fp8`
+2. **Video generation**: Use `type: 'video'` with `network: 'fast'` (required)
+3. **WAN 2.2 vs LTX-2**: These model families have different FPS behaviors - see `llms-full.txt` for details
+
+## API Documentation
+
+Full TypeScript API documentation is available at [sdk-docs.sogni.ai](https://sdk-docs.sogni.ai).
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/Sogni-AI/sogni-client/issues)
+- **Documentation**: [docs.sogni.ai](https://docs.sogni.ai)
+- **Website**: [sogni.ai](https://www.sogni.ai)

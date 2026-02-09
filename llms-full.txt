@@ -1,0 +1,981 @@
+# Sogni SDK - Complete LLM Reference
+
+> @sogni-ai/sogni-client - JavaScript/Node.js SDK for AI image and video generation
+> Version: 4.x | License: ISC | Platform: Node.js & Browser
+> Repository: https://github.com/Sogni-AI/sogni-client
+> API Docs: https://sdk-docs.sogni.ai
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+
+1. Overview & Installation
+2. Quick Start Examples
+3. Client Initialization
+4. Image Generation
+5. Video Generation - WAN 2.2 Models
+6. Video Generation - LTX-2 Models
+7. Complete Parameter Reference
+8. Events & Progress Tracking
+9. Models, Presets & Options
+10. Cost Estimation
+11. Error Handling
+12. Advanced Patterns
+13. Type Definitions
+
+================================================================================
+1. OVERVIEW & INSTALLATION
+================================================================================
+
+The Sogni SDK provides access to the Sogni Supernet - a decentralized network
+for AI inference. It supports:
+
+- Image Generation: Stable Diffusion, Flux, Z-Image Turbo, Qwen Image Edit
+- Video Generation: WAN 2.2 (5 workflows), LTX-2 models
+- Real-time Progress: WebSocket-based event system
+- Multiple Networks: Fast (GPU) and Relaxed (Mac)
+
+INSTALLATION:
+```bash
+npm install @sogni-ai/sogni-client
+```
+
+REQUIREMENTS:
+- Node.js 18+ or modern browser
+- Sogni account with token balance (free signup at app.sogni.ai)
+
+================================================================================
+2. QUICK START EXAMPLES
+================================================================================
+
+MINIMAL IMAGE GENERATION:
+```javascript
+import { SogniClient } from '@sogni-ai/sogni-client';
+
+const sogni = await SogniClient.createInstance({ appId: 'my-unique-app-id' });
+await sogni.account.login('username', 'password');
+await sogni.projects.waitForModels();
+
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'flux1-schnell-fp8',
+  positivePrompt: 'A cat wearing a hat',
+  numberOfMedia: 1,
+  steps: 4,
+  guidance: 1
+});
+
+const urls = await project.waitForCompletion();
+console.log('Image URL:', urls[0]); // Valid for 24 hours
+```
+
+MINIMAL VIDEO GENERATION:
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_t2v_lightx2v',
+  positivePrompt: 'Ocean waves crashing on a beach at sunset',
+  numberOfMedia: 1,
+  duration: 5,
+  fps: 16
+});
+
+const urls = await project.waitForCompletion();
+console.log('Video URL:', urls[0]);
+```
+
+================================================================================
+3. CLIENT INITIALIZATION
+================================================================================
+
+CREATING THE CLIENT:
+```javascript
+import { SogniClient } from '@sogni-ai/sogni-client';
+
+const sogni = await SogniClient.createInstance({
+  appId: 'your-unique-app-id',  // Required - UUID recommended
+  network: 'fast'                // 'fast' or 'relaxed'
+});
+```
+
+AUTHENTICATION:
+```javascript
+// Username/password login
+await sogni.account.login('username', 'password');
+
+// Check if authenticated
+const isLoggedIn = await sogni.checkAuth();
+
+// Get current user info
+const user = await sogni.account.me();
+console.log(user.username, user.email);
+
+// Get balance
+await sogni.account.refreshBalance();
+console.log(sogni.account.currentAccount.balance);
+```
+
+NETWORK TYPES:
+- 'fast': High-end GPU workers. Faster, higher cost. REQUIRED for video.
+- 'relaxed': Mac device workers. Slower, lower cost. Image only.
+
+CONNECTION EVENTS:
+```javascript
+sogni.apiClient.on('connected', ({ network }) => {
+  console.log('Connected to:', network);
+});
+
+sogni.apiClient.on('disconnected', ({ code, reason }) => {
+  console.log('Disconnected:', code, reason);
+});
+```
+
+================================================================================
+4. IMAGE GENERATION
+================================================================================
+
+BASIC IMAGE GENERATION:
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'flux1-schnell-fp8',
+  positivePrompt: 'A serene mountain landscape at dawn',
+  negativePrompt: 'blurry, low quality, watermark',
+  stylePrompt: 'photorealistic',
+  numberOfMedia: 1,
+  steps: 4,
+  guidance: 1,
+  outputFormat: 'jpg'
+});
+
+const urls = await project.waitForCompletion();
+```
+
+WITH SIZE PRESET:
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'flux1-schnell-fp8',
+  positivePrompt: 'Portrait of a woman',
+  numberOfMedia: 1,
+  sizePreset: 'portrait_7_9',
+  steps: 4,
+  guidance: 1
+});
+```
+
+WITH CUSTOM DIMENSIONS:
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'flux1-schnell-fp8',
+  positivePrompt: 'Wide landscape',
+  numberOfMedia: 1,
+  sizePreset: 'custom',
+  width: 1920,
+  height: 1080,
+  steps: 4,
+  guidance: 1
+});
+```
+
+IMAGE-TO-IMAGE (Starting Image):
+```javascript
+import fs from 'fs';
+
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'coreml-cyberrealistic_v70_768',
+  positivePrompt: 'Transform into oil painting style',
+  startingImage: fs.readFileSync('./input.png'),
+  startingImageStrength: 0.7,  // 0-1, higher = more original preserved
+  numberOfMedia: 1,
+  steps: 20,
+  guidance: 7.5
+});
+```
+
+WITH CONTROLNET:
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'coreml-cyberrealistic_v70_768',
+  positivePrompt: 'Professional portrait photo',
+  numberOfMedia: 1,
+  steps: 20,
+  guidance: 7.5,
+  controlNet: {
+    name: 'openpose',
+    image: fs.readFileSync('./pose-reference.png'),
+    strength: 0.8,
+    mode: 'balanced',
+    guidanceStart: 0,
+    guidanceEnd: 1
+  }
+});
+```
+
+CONTROLNET TYPES:
+- canny: Edge detection
+- depth: Depth map
+- openpose: Body pose
+- lineart: Line art extraction
+- lineartanime: Anime-style lines
+- scribble: Rough sketches
+- softedge: Soft edge detection
+- tile: Texture/detail preservation
+- inpaint: Inpainting mask
+- instrp2p: Instruction-based editing
+- mlsd: Straight line detection
+- normalbae: Normal map
+- segmentation: Semantic segmentation
+- shuffle: Style shuffle
+- instantid: Face identity
+
+WITH CONTEXT IMAGES (Qwen Image Edit):
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'qwen_image_edit_2511_fp8_lightning',
+  positivePrompt: 'Combine these into one scene',
+  contextImages: [
+    fs.readFileSync('./image1.png'),
+    fs.readFileSync('./image2.png'),
+    fs.readFileSync('./image3.png')
+  ],
+  numberOfMedia: 1,
+  steps: 4,
+  guidance: 1
+});
+```
+
+RECOMMENDED MODELS:
+| Model ID | Type | Steps | Guidance | Notes |
+|----------|------|-------|----------|-------|
+| flux1-schnell-fp8 | Fast | 4 | 1 | Best for quick iteration |
+| z_image_turbo_bf16 | Ultra-fast | 4 | 1 | Fastest generation |
+| qwen_image_edit_2511_fp8_lightning | Edit | 4 | 1 | Multi-image context |
+| coreml-cyberrealistic_v70_768 | SD 1.5 | 20-40 | 7.5 | Photorealistic |
+
+================================================================================
+5. VIDEO GENERATION - WAN 2.2 MODELS
+================================================================================
+
+CRITICAL: WAN 2.2 FPS BEHAVIOR
+------------------------------
+WAN 2.2 models ALWAYS generate video at 16fps internally.
+The 'fps' parameter (16 or 32) only controls POST-RENDER frame interpolation:
+- fps: 16 -> No interpolation, output is 16fps
+- fps: 32 -> Frames are doubled via interpolation, output is 32fps
+
+Frame calculation: duration * 16 + 1 (IGNORES fps setting)
+Example: 5 seconds always = 81 frames generated, regardless of fps
+
+MODEL VARIANTS:
+- Speed models (with _lightx2v suffix): 4-step, faster, good quality
+- Quality models (without suffix): More steps, slower, best quality
+
+WORKFLOW REFERENCE TABLE:
+| Workflow | Model ID | Assets Required |
+|----------|----------|-----------------|
+| Text-to-Video | wan_v2.2-14b-fp8_t2v_lightx2v | None |
+| Image-to-Video | wan_v2.2-14b-fp8_i2v_lightx2v | referenceImage |
+| Sound-to-Video | wan_v2.2-14b-fp8_s2v_lightx2v | referenceImage + referenceAudio |
+| Animate-Move | wan_v2.2-14b-fp8_animate-move_lightx2v | referenceImage + referenceVideo |
+| Animate-Replace | wan_v2.2-14b-fp8_animate-replace_lightx2v | referenceImage + referenceVideo |
+
+TEXT-TO-VIDEO:
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_t2v_lightx2v',
+  positivePrompt: 'A hummingbird hovering near a flower, slow motion',
+  negativePrompt: 'blurry, distorted',
+  numberOfMedia: 1,
+  duration: 5,
+  fps: 16,
+  shift: 5.0  // Motion intensity: 1.0-8.0
+});
+
+const urls = await project.waitForCompletion();
+```
+
+IMAGE-TO-VIDEO:
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_i2v_lightx2v',
+  positivePrompt: 'The subject slowly turns their head and smiles',
+  referenceImage: fs.readFileSync('./portrait.jpg'),
+  numberOfMedia: 1,
+  duration: 5,
+  fps: 16
+});
+```
+
+IMAGE-TO-VIDEO WITH END FRAME (Interpolation):
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_i2v_lightx2v',
+  positivePrompt: 'Smooth transition between poses',
+  referenceImage: fs.readFileSync('./start-pose.jpg'),
+  referenceImageEnd: fs.readFileSync('./end-pose.jpg'),
+  numberOfMedia: 1,
+  duration: 5,
+  fps: 16
+});
+```
+
+SOUND-TO-VIDEO (Lip Sync):
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_s2v_lightx2v',
+  positivePrompt: '',  // Optional for s2v
+  referenceImage: fs.readFileSync('./face.jpg'),
+  referenceAudio: fs.readFileSync('./speech.m4a'),
+  audioStart: 0,       // Where to start in audio file (seconds)
+  audioDuration: 5,    // How much audio to use (seconds)
+  numberOfMedia: 1,
+  duration: 5,
+  fps: 16
+});
+```
+
+ANIMATE-MOVE (Motion Transfer):
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
+  positivePrompt: '',
+  referenceImage: fs.readFileSync('./character.jpg'),    // Subject to animate
+  referenceVideo: fs.readFileSync('./motion-source.mp4'), // Motion source
+  videoStart: 0,  // Where to start in video (seconds)
+  numberOfMedia: 1,
+  duration: 5,
+  fps: 16
+});
+```
+
+ANIMATE-REPLACE (Subject Replacement):
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_animate-replace_lightx2v',
+  positivePrompt: '',
+  referenceImage: fs.readFileSync('./new-character.jpg'),  // New subject
+  referenceVideo: fs.readFileSync('./original-video.mp4'), // Video with subject to replace
+  videoStart: 0,
+  numberOfMedia: 1,
+  duration: 5,
+  fps: 16
+});
+```
+
+WAN 2.2 VIDEO PARAMETERS:
+| Parameter | Type | Range | Default | Notes |
+|-----------|------|-------|---------|-------|
+| duration | number | 1-10 | - | Seconds of video |
+| fps | number | 16, 32 | 16 | Only controls interpolation |
+| shift | number | 1.0-8.0 | 5.0/8.0 | Motion intensity |
+| steps | number | 4-50 | varies | More = quality, slower |
+| teacacheThreshold | number | 0.0-1.0 | 0 | Speedup optimization |
+| audioStart | number | 0+ | 0 | s2v: audio start position |
+| audioDuration | number | 1-30 | 30 | s2v: audio length to use |
+| videoStart | number | 0+ | 0 | animate: video start position |
+
+================================================================================
+6. VIDEO GENERATION - LTX-2 MODELS
+================================================================================
+
+CRITICAL: LTX-2 FPS BEHAVIOR (Different from WAN!)
+--------------------------------------------------
+LTX-2 models generate at the ACTUAL specified FPS (1-60 range).
+There is NO post-render interpolation.
+
+Frame calculation: duration * fps + 1
+Frame count must follow pattern: 1 + n*8 (valid: 1, 9, 17, 25, 33, 41, ...)
+The SDK automatically snaps to valid frame counts.
+
+Example: 5 seconds at 24fps = 121 frames (1 + 15*8 = 121)
+
+LTX-2 MODELS:
+- ltx2-19b-fp8_t2v: Text-to-video
+- ltx2-19b-fp8_i2v: Image-to-video
+
+LTX-2 TEXT-TO-VIDEO:
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'ltx2-19b-fp8_t2v',
+  positivePrompt: 'A butterfly landing on a flower',
+  numberOfMedia: 1,
+  duration: 8,
+  fps: 24
+});
+```
+
+LTX-2 IMAGE-TO-VIDEO WITH KEYFRAMES:
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'ltx2-19b-fp8_i2v',
+  positivePrompt: 'Smooth camera movement',
+  referenceImage: fs.readFileSync('./start.jpg'),
+  referenceImageEnd: fs.readFileSync('./end.jpg'),
+  firstFrameStrength: 0.6,  // 0-1, how closely to match start
+  lastFrameStrength: 0.6,   // 0-1, how closely to match end
+  numberOfMedia: 1,
+  duration: 8,
+  fps: 24
+});
+```
+
+LTX-2 WITH CONTROLNET (v2v):
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'ltx2-19b-fp8_i2v',
+  positivePrompt: 'Transform into anime style',
+  referenceVideo: fs.readFileSync('./source-video.mp4'),
+  controlNet: {
+    name: 'canny',  // 'canny', 'pose', 'depth', or 'detailer'
+    strength: 0.8
+  },
+  numberOfMedia: 1,
+  duration: 5,
+  fps: 24
+});
+```
+
+LTX-2 VIDEO PARAMETERS:
+| Parameter | Type | Range | Default | Notes |
+|-----------|------|-------|---------|-------|
+| duration | number | 4-20 | - | Seconds of video |
+| fps | number | 1-60 | 24 | Actual generation FPS |
+| firstFrameStrength | number | 0.0-1.0 | 0.6 | Keyframe matching |
+| lastFrameStrength | number | 0.0-1.0 | 0.6 | Keyframe matching |
+
+================================================================================
+7. COMPLETE PARAMETER REFERENCE
+================================================================================
+
+BASE PARAMETERS (Both Image and Video):
+```typescript
+{
+  modelId: string;           // Required - model identifier
+  numberOfMedia: number;     // Required - how many to generate
+  positivePrompt: string;    // Required - what to create
+  negativePrompt?: string;   // What to avoid
+  stylePrompt?: string;      // Style description
+  steps?: number;            // Inference steps
+  guidance?: number;         // Guidance scale
+  network?: 'fast' | 'relaxed';
+  seed?: number;             // Reproducibility seed
+  tokenType?: 'sogni' | 'spark';
+  disableNSFWFilter?: boolean;
+  loras?: string[];          // LoRA IDs
+  loraStrengths?: number[];  // LoRA weights (0-2)
+}
+```
+
+IMAGE-SPECIFIC PARAMETERS:
+```typescript
+{
+  type: 'image';
+  sizePreset?: string;       // e.g., 'square_hd', 'portrait_7_9'
+  width?: number;            // If sizePreset is 'custom'
+  height?: number;           // If sizePreset is 'custom'
+  sampler?: string;          // Model-specific
+  scheduler?: string;        // Model-specific
+  numberOfPreviews?: number; // Preview images during generation
+  startingImage?: File | Buffer | Blob;
+  startingImageStrength?: number;  // 0-1
+  contextImages?: (File | Buffer | Blob)[];
+  controlNet?: ControlNetParams;
+  outputFormat?: 'png' | 'jpg';
+}
+```
+
+VIDEO-SPECIFIC PARAMETERS:
+```typescript
+{
+  type: 'video';
+  duration?: number;         // Seconds (preferred over frames)
+  frames?: number;           // Deprecated - use duration
+  fps?: number;              // Model-dependent behavior!
+  shift?: number;            // Motion intensity (1.0-8.0)
+  teacacheThreshold?: number;// Speedup (0.0-1.0)
+  width?: number;
+  height?: number;
+  sampler?: string;
+  scheduler?: string;
+  referenceImage?: File | Buffer | Blob;
+  referenceImageEnd?: File | Buffer | Blob;
+  referenceAudio?: File | Buffer | Blob;
+  referenceVideo?: File | Buffer | Blob;
+  audioStart?: number;       // Seconds into audio
+  audioDuration?: number;    // Seconds of audio
+  videoStart?: number;       // Seconds into video
+  firstFrameStrength?: number;  // LTX-2 only (0-1)
+  lastFrameStrength?: number;   // LTX-2 only (0-1)
+  trimEndFrame?: boolean;
+  controlNet?: VideoControlNetParams;  // LTX-2 only
+  outputFormat?: 'mp4';
+}
+```
+
+================================================================================
+8. EVENTS & PROGRESS TRACKING
+================================================================================
+
+PROMISE-BASED COMPLETION:
+```javascript
+const project = await sogni.projects.create({ ... });
+const urls = await project.waitForCompletion();
+// urls is string[] of result URLs
+```
+
+PROJECT EVENTS:
+```javascript
+project.on('progress', (percent) => {
+  console.log(`Overall: ${percent}%`);
+});
+
+project.on('jobStarted', (job) => {
+  console.log(`Job ${job.id} started on ${job.workerName}`);
+});
+
+project.on('jobCompleted', (job) => {
+  console.log(`Job ${job.id} done:`, job.resultUrl);
+});
+
+project.on('jobFailed', (job) => {
+  console.log(`Job ${job.id} failed:`, job.error);
+});
+
+project.on('completed', (urls) => {
+  console.log('All done:', urls);
+});
+
+project.on('failed', (error) => {
+  console.error('Project failed:', error.message);
+});
+```
+
+JOB EVENTS:
+```javascript
+const job = project.jobs[0];
+
+job.on('progress', ({ step, stepCount, progress }) => {
+  console.log(`Step ${step}/${stepCount} (${progress}%)`);
+});
+
+job.on('preview', (previewUrl) => {
+  console.log('Preview available:', previewUrl);
+});
+
+job.on('completed', () => {
+  console.log('Result:', job.resultUrl);
+});
+
+job.on('failed', (error) => {
+  console.error('Job failed:', error);
+});
+```
+
+PROJECT PROPERTIES:
+```javascript
+project.id           // string
+project.status       // 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
+project.progress     // number (0-100)
+project.queuePosition // number | null
+project.eta          // number | null (seconds)
+project.jobs         // Job[]
+project.resultUrls   // string[] (after completion)
+```
+
+JOB PROPERTIES:
+```javascript
+job.id               // string
+job.status           // 'pending' | 'initiating' | 'processing' | 'completed' | 'failed' | 'canceled'
+job.progress         // number (0-100)
+job.step             // number (current step)
+job.stepCount        // number (total steps)
+job.seed             // number
+job.previewUrl       // string | null
+job.resultUrl        // string | null
+job.hasResultMedia   // boolean
+job.isNSFW           // boolean
+job.workerName       // string
+job.eta              // string | null
+job.etaSeconds       // number | null
+job.type             // 'image' | 'video'
+```
+
+FETCHING RESULTS:
+```javascript
+// Get signed URL (valid ~1 hour)
+const signedUrl = await job.getResultUrl();
+
+// Download as blob
+const blob = await job.getResultData();
+```
+
+================================================================================
+9. MODELS, PRESETS & OPTIONS
+================================================================================
+
+WAIT FOR MODELS:
+```javascript
+const models = await sogni.projects.waitForModels();
+// Returns AvailableModel[]
+```
+
+GET AVAILABLE MODELS:
+```javascript
+const models = sogni.projects.availableModels;
+// or
+const models = await sogni.projects.getAvailableModels('fast');
+// Returns: { id, name, workerCount, media: 'image' | 'video' }[]
+```
+
+GET ALL SUPPORTED MODELS:
+```javascript
+const allModels = await sogni.projects.getSupportedModels();
+// Returns full model list with tiers
+```
+
+GET SIZE PRESETS:
+```javascript
+const presets = await sogni.projects.getSizePresets('fast', 'flux1-schnell-fp8');
+/*
+Returns: [
+  { id: 'square', label: 'Square', width: 512, height: 512, ratio: '1:1' },
+  { id: 'square_hd', label: 'Square HD', width: 1024, height: 1024, ratio: '1:1' },
+  { id: 'portrait_7_9', label: 'Portrait: Standard', width: 896, height: 1152, ratio: '7:9' },
+  { id: 'landscape_7_4', label: 'Landscape: Widescreen', width: 1344, height: 768, ratio: '7:4' },
+  ...
+]
+*/
+```
+
+GET SAMPLER/SCHEDULER OPTIONS:
+```javascript
+const options = await sogni.projects.getModelOptions('flux1-schnell-fp8');
+/*
+Returns: {
+  sampler: {
+    allowed: ['euler', 'euler_a', 'dpm_pp_2m', ...],
+    default: 'euler'
+  },
+  scheduler: {
+    allowed: ['simple', 'karras', 'linear', ...],
+    default: 'simple'
+  }
+}
+*/
+```
+
+================================================================================
+10. COST ESTIMATION
+================================================================================
+
+ESTIMATE IMAGE COST:
+```javascript
+const cost = await sogni.projects.estimate({
+  network: 'fast',
+  tokenType: 'sogni',
+  model: 'flux1-schnell-fp8',
+  imageCount: 4,
+  stepCount: 4,
+  previewCount: 0,
+  sizePreset: 'square_hd'
+});
+
+console.log(cost.sogni);  // Cost in Sogni tokens
+console.log(cost.spark);  // Cost in Spark tokens
+console.log(cost.usd);    // Cost in USD
+```
+
+ESTIMATE VIDEO COST:
+```javascript
+const cost = await sogni.projects.estimateVideo({
+  tokenType: 'sogni',
+  model: 'wan_v2.2-14b-fp8_t2v_lightx2v',
+  width: 512,
+  height: 512,
+  duration: 5,
+  fps: 16,
+  steps: 4,
+  numberOfMedia: 1
+});
+```
+
+CHECK BALANCE:
+```javascript
+await sogni.account.refreshBalance();
+const balance = sogni.account.currentAccount.balance;
+console.log(balance.sogni, balance.spark);
+```
+
+================================================================================
+11. ERROR HANDLING
+================================================================================
+
+TRY-CATCH PATTERN:
+```javascript
+try {
+  const project = await sogni.projects.create({ ... });
+  const urls = await project.waitForCompletion();
+} catch (error) {
+  if (error.code) {
+    // API error with code
+    console.error(`Error ${error.code}: ${error.message}`);
+  } else {
+    // Network or other error
+    console.error(error.message);
+  }
+}
+```
+
+EVENT-BASED ERROR HANDLING:
+```javascript
+project.on('failed', (error) => {
+  console.error('Project failed:', error.code, error.message);
+});
+
+project.on('jobFailed', (job) => {
+  console.error('Job failed:', job.error);
+});
+```
+
+CANCEL A PROJECT:
+```javascript
+await sogni.projects.cancel(project.id);
+// or
+await project.cancel();
+```
+
+COMMON ERROR SCENARIOS:
+- Insufficient balance
+- Invalid model ID
+- Missing required parameters (e.g., referenceImage for i2v)
+- Network unavailable
+- NSFW content detected (if filter enabled)
+- Invalid dimensions or parameters
+
+================================================================================
+12. ADVANCED PATTERNS
+================================================================================
+
+BATCH PROCESSING:
+```javascript
+const images = ['image1.jpg', 'image2.jpg', 'image3.jpg'];
+const projects = [];
+
+for (const img of images) {
+  const project = await sogni.projects.create({
+    type: 'video',
+    network: 'fast',
+    modelId: 'wan_v2.2-14b-fp8_i2v_lightx2v',
+    referenceImage: fs.readFileSync(img),
+    positivePrompt: 'camera slowly zooms in',
+    numberOfMedia: 1,
+    duration: 5,
+    fps: 16
+  });
+  projects.push(project);
+}
+
+const results = await Promise.all(
+  projects.map(p => p.waitForCompletion())
+);
+```
+
+IMAGE ENHANCEMENT:
+```javascript
+// After a job completes, enhance it
+const enhancedProject = await job.enhance('medium', {
+  // Optional overrides
+  steps: 30
+});
+const enhancedUrls = await enhancedProject.waitForCompletion();
+```
+
+TOKEN MANAGEMENT:
+```javascript
+// Use Spark tokens instead of Sogni
+const project = await sogni.projects.create({
+  type: 'image',
+  tokenType: 'spark',
+  // ... other params
+});
+```
+
+USING LORAS:
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'flux1-schnell-fp8',
+  positivePrompt: 'Portrait from multiple angles',
+  loras: ['multiple_angles'],
+  loraStrengths: [0.9],
+  numberOfMedia: 1
+});
+```
+
+================================================================================
+13. TYPE DEFINITIONS
+================================================================================
+
+PROJECT PARAMS:
+```typescript
+type ProjectParams = ImageProjectParams | VideoProjectParams;
+
+interface BaseProjectParams {
+  modelId: string;
+  numberOfMedia: number;
+  positivePrompt: string;
+  negativePrompt?: string;
+  stylePrompt?: string;
+  steps?: number;
+  guidance?: number;
+  network?: 'fast' | 'relaxed';
+  disableNSFWFilter?: boolean;
+  seed?: number;
+  tokenType?: 'sogni' | 'spark';
+  loras?: string[];
+  loraStrengths?: number[];
+}
+
+interface ImageProjectParams extends BaseProjectParams {
+  type: 'image';
+  numberOfPreviews?: number;
+  startingImage?: File | Buffer | Blob;
+  startingImageStrength?: number;
+  contextImages?: (File | Buffer | Blob)[];
+  sampler?: string;
+  scheduler?: string;
+  sizePreset?: string | 'custom';
+  width?: number;
+  height?: number;
+  controlNet?: ControlNetParams;
+  outputFormat?: 'png' | 'jpg';
+}
+
+interface VideoProjectParams extends BaseProjectParams {
+  type: 'video';
+  frames?: number;  // deprecated
+  duration?: number;
+  fps?: number;
+  shift?: number;
+  teacacheThreshold?: number;
+  referenceImage?: File | Buffer | Blob;
+  referenceImageEnd?: File | Buffer | Blob;
+  referenceAudio?: File | Buffer | Blob;
+  referenceVideo?: File | Buffer | Blob;
+  audioStart?: number;
+  audioDuration?: number;
+  videoStart?: number;
+  trimEndFrame?: boolean;
+  width?: number;
+  height?: number;
+  sampler?: string;
+  scheduler?: string;
+  firstFrameStrength?: number;
+  lastFrameStrength?: number;
+  outputFormat?: 'mp4';
+  controlNet?: VideoControlNetParams;
+}
+```
+
+CONTROLNET TYPES:
+```typescript
+type ControlNetName =
+  | 'canny' | 'depth' | 'inpaint' | 'instrp2p'
+  | 'lineart' | 'lineartanime' | 'mlsd' | 'normalbae'
+  | 'openpose' | 'scribble' | 'segmentation'
+  | 'shuffle' | 'softedge' | 'tile' | 'instantid';
+
+type ControlNetMode = 'balanced' | 'prompt_priority' | 'cn_priority';
+
+interface ControlNetParams {
+  name: ControlNetName;
+  image?: File | Buffer | Blob;
+  strength?: number;
+  mode?: ControlNetMode;
+  guidanceStart?: number;
+  guidanceEnd?: number;
+}
+
+type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer';
+
+interface VideoControlNetParams {
+  name: VideoControlNetName;
+  strength?: number;
+}
+```
+
+MODEL TYPES:
+```typescript
+interface AvailableModel {
+  id: string;
+  name: string;
+  workerCount: number;
+  media: 'image' | 'video';
+}
+
+interface SupportedModel extends AvailableModel {
+  SID: number;
+  tier: string;
+}
+
+interface SizePreset {
+  id: string;
+  label: string;
+  width: number;
+  height: number;
+  ratio: string;
+  aspect: string;
+}
+```
+
+STATUS TYPES:
+```typescript
+type ProjectStatus =
+  | 'pending' | 'queued' | 'processing'
+  | 'completed' | 'failed' | 'canceled';
+
+type JobStatus =
+  | 'pending' | 'initiating' | 'processing'
+  | 'completed' | 'failed' | 'canceled';
+```
+
+ERROR TYPE:
+```typescript
+interface ErrorData {
+  code: number;
+  message: string;
+}
+```
+
+================================================================================
+END OF DOCUMENT
+================================================================================
+
+For additional resources:
+- Examples: https://github.com/Sogni-AI/sogni-client/tree/main/examples
+- API Docs: https://sdk-docs.sogni.ai
+- Support: https://www.sogni.ai/support

@@ -1,0 +1,306 @@
+# Sogni SDK - LLM Context Index
+
+> AI-friendly documentation for the Sogni SDK (JavaScript/Node.js)
+> Full documentation: llms-full.txt | TypeScript types: dist/index.d.ts
+> npm: @sogni-ai/sogni-client | GitHub: https://github.com/Sogni-AI/sogni-client
+
+## Quick Reference
+
+### Installation
+```bash
+npm install @sogni-ai/sogni-client
+```
+
+### Minimal Image Generation
+```javascript
+import { SogniClient } from '@sogni-ai/sogni-client';
+
+const sogni = await SogniClient.createInstance({ appId: 'my-app-uuid' });
+await sogni.account.login('username', 'password');
+await sogni.projects.waitForModels();
+
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'flux1-schnell-fp8',
+  positivePrompt: 'A cat wearing a hat',
+  numberOfMedia: 1,
+  steps: 4,
+  guidance: 1
+});
+
+const urls = await project.waitForCompletion();
+console.log(urls[0]); // Image URL (valid 24 hours)
+```
+
+### Minimal Video Generation
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast', // Required for video
+  modelId: 'wan_v2.2-14b-fp8_t2v_lightx2v',
+  positivePrompt: 'Ocean waves at sunset',
+  numberOfMedia: 1,
+  duration: 5, // seconds
+  fps: 16
+});
+
+const urls = await project.waitForCompletion();
+console.log(urls[0]); // Video URL (valid 24 hours)
+```
+
+---
+
+## Index of Topics
+
+1. **Authentication & Setup** - Client initialization, login, network types
+2. **Image Generation** - Text-to-image, img2img, ControlNets
+3. **Video Generation (WAN 2.2)** - t2v, i2v, s2v, animate-move, animate-replace
+4. **Video Generation (LTX-2)** - Alternative video models with different fps behavior
+5. **Project Parameters** - Complete parameter reference
+6. **Events & Progress** - Real-time tracking, completion handling
+7. **Models & Presets** - Discovering available models, size presets, samplers
+8. **Error Handling** - Common errors and recovery
+9. **API Reference** - Full method signatures
+
+---
+
+## 1. Authentication & Setup
+
+### Client Creation
+```javascript
+const sogni = await SogniClient.createInstance({
+  appId: 'unique-uuid',     // Required - identifies your app
+  network: 'fast'           // 'fast' (GPU) or 'relaxed' (Mac)
+});
+```
+
+### Login
+```javascript
+await sogni.account.login(username, password);
+```
+
+### Network Types
+- `fast` - High-end GPUs, faster, more expensive. **Required for video.**
+- `relaxed` - Mac devices, cheaper. Image only.
+
+---
+
+## 2. Image Generation
+
+### Basic Parameters
+```javascript
+{
+  type: 'image',
+  modelId: string,           // e.g., 'flux1-schnell-fp8'
+  positivePrompt: string,
+  negativePrompt?: string,
+  stylePrompt?: string,
+  numberOfMedia: number,     // How many images
+  steps?: number,            // 4 for Flux, 20-40 for SD
+  guidance?: number,         // 1 for Flux, 7.5 for SD
+  sizePreset?: string,       // or 'custom' with width/height
+  width?: number,
+  height?: number,
+  seed?: number,
+  sampler?: string,
+  scheduler?: string,
+  outputFormat?: 'png' | 'jpg'
+}
+```
+
+### With Starting Image (img2img)
+```javascript
+{
+  type: 'image',
+  startingImage: fs.readFileSync('./input.png'),
+  startingImageStrength: 0.5  // 0-1, higher = more influence
+}
+```
+
+### With ControlNet
+```javascript
+{
+  type: 'image',
+  controlNet: {
+    name: 'canny' | 'depth' | 'openpose' | 'lineart' | ...,
+    image: imageBuffer,
+    strength: 0.8,
+    mode: 'balanced' | 'prompt_priority' | 'cn_priority'
+  }
+}
+```
+
+---
+
+## 3. Video Generation (WAN 2.2)
+
+### CRITICAL: WAN 2.2 FPS Behavior
+WAN models always generate at 16fps internally. The `fps` parameter only controls post-render interpolation:
+- `fps: 16` - No interpolation, output is 16fps
+- `fps: 32` - Frames doubled via interpolation
+
+Frame calculation: `duration * 16 + 1`
+Example: 5 seconds = 81 frames (regardless of fps setting)
+
+### Model IDs
+| Workflow | Speed Model | Quality Model |
+|----------|-------------|---------------|
+| Text-to-Video | wan_v2.2-14b-fp8_t2v_lightx2v | wan_v2.2-14b-fp8_t2v |
+| Image-to-Video | wan_v2.2-14b-fp8_i2v_lightx2v | wan_v2.2-14b-fp8_i2v |
+| Sound-to-Video | wan_v2.2-14b-fp8_s2v_lightx2v | wan_v2.2-14b-fp8_s2v |
+| Animate-Move | wan_v2.2-14b-fp8_animate-move_lightx2v | - |
+| Animate-Replace | wan_v2.2-14b-fp8_animate-replace_lightx2v | - |
+
+### Workflow Asset Requirements
+| Workflow | referenceImage | referenceAudio | referenceVideo |
+|----------|----------------|----------------|----------------|
+| t2v | - | - | - |
+| i2v | Required | - | - |
+| s2v | Required | Required | - |
+| animate-move | Required | - | Required |
+| animate-replace | Required | - | Required |
+
+### Image-to-Video Example
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_i2v_lightx2v',
+  positivePrompt: 'camera slowly zooms in',
+  referenceImage: fs.readFileSync('./image.png'),
+  duration: 5,
+  fps: 16,
+  numberOfMedia: 1
+});
+```
+
+### Sound-to-Video (Lip Sync)
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan_v2.2-14b-fp8_s2v_lightx2v',
+  referenceImage: fs.readFileSync('./face.jpg'),
+  referenceAudio: fs.readFileSync('./speech.m4a'),
+  audioStart: 0,       // Start position in audio
+  audioDuration: 5,    // Seconds of audio to use
+  duration: 5,
+  fps: 16,
+  numberOfMedia: 1
+});
+```
+
+---
+
+## 4. Video Generation (LTX-2)
+
+### LTX-2 FPS Behavior (Different from WAN!)
+LTX-2 generates at the actual specified FPS (1-60 range). No interpolation.
+- Frame calculation: `duration * fps + 1`
+- Frame count must follow: `1 + n*8` (1, 9, 17, 25, 33, ...)
+
+Example: 5 seconds at 24fps = 121 frames
+
+### LTX-2 Model IDs
+- `ltx2-19b-fp8_t2v` - Text-to-video
+- `ltx2-19b-fp8_i2v` - Image-to-video
+
+---
+
+## 5. Events & Progress
+
+### Promise-based
+```javascript
+const urls = await project.waitForCompletion();
+```
+
+### Event-based
+```javascript
+project.on('progress', (percent) => console.log(`${percent}%`));
+project.on('jobCompleted', (job) => console.log(job.resultUrl));
+project.on('completed', (urls) => console.log('Done:', urls));
+project.on('failed', (error) => console.error(error));
+```
+
+### Job-level Events
+```javascript
+project.jobs[0].on('progress', ({ step, stepCount }) => {
+  console.log(`Step ${step}/${stepCount}`);
+});
+```
+
+---
+
+## 6. Discovering Models & Options
+
+### List Available Models
+```javascript
+const models = await sogni.projects.waitForModels();
+// or
+const models = sogni.projects.availableModels;
+```
+
+### Get Size Presets
+```javascript
+const presets = await sogni.projects.getSizePresets('fast', 'flux1-schnell-fp8');
+```
+
+### Get Sampler/Scheduler Options
+```javascript
+const options = await sogni.projects.getModelOptions('flux1-schnell-fp8');
+console.log(options.sampler.allowed);
+console.log(options.scheduler.allowed);
+```
+
+---
+
+## 7. Cost Estimation
+
+```javascript
+const cost = await sogni.projects.estimate({
+  network: 'fast',
+  model: 'flux1-schnell-fp8',
+  imageCount: 1,
+  stepCount: 4,
+  previewCount: 0
+});
+console.log(cost.sogni, cost.usd);
+```
+
+---
+
+## 8. Key Types Summary
+
+```typescript
+type ProjectParams = ImageProjectParams | VideoProjectParams;
+
+interface ImageProjectParams {
+  type: 'image';
+  modelId: string;
+  positivePrompt: string;
+  numberOfMedia: number;
+  // ... see llms-full.txt for complete list
+}
+
+interface VideoProjectParams {
+  type: 'video';
+  modelId: string;
+  positivePrompt: string;
+  numberOfMedia: number;
+  duration?: number;
+  fps?: number;
+  referenceImage?: File | Buffer | Blob;
+  referenceAudio?: File | Buffer | Blob;
+  referenceVideo?: File | Buffer | Blob;
+  // ... see llms-full.txt for complete list
+}
+```
+
+---
+
+## Full Documentation
+
+For complete API reference, all parameters, and advanced usage:
+- **llms-full.txt** - Comprehensive guide in this repository
+- **https://sdk-docs.sogni.ai** - TypeDoc API documentation
+- **https://github.com/Sogni-AI/sogni-client/tree/main/examples** - Working examples

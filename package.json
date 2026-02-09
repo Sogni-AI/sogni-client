@@ -4,12 +4,31 @@
     "access": "public"
   },
   "version": "4.0.0-alpha.61",
-  "description": "Sogni Supernet Client",
+  "description": "Sogni SDK - AI image and video generation via the Sogni Supernet (Stable Diffusion, Flux, WAN 2.2, LTX-2)",
+  "keywords": [
+    "ai",
+    "image-generation",
+    "video-generation",
+    "stable-diffusion",
+    "flux",
+    "wan",
+    "ltx",
+    "text-to-image",
+    "text-to-video",
+    "image-to-video",
+    "generative-ai",
+    "sogni",
+    "supernet",
+    "llm-friendly"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "CHANGELOG.md",
     "README.md",
+    "CLAUDE.md",
+    "llms.txt",
+    "llms-full.txt",
     "dist/",
     "src/"
   ],
