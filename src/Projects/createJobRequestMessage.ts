@@ -53,6 +53,15 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
     }
   }
 
+  // sam2Coordinates is only valid for animate-replace workflows
+  if (params.sam2Coordinates && workflowType !== 'animate-replace') {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'sam2Coordinates is only supported for animate-replace workflows.'
+    });
+  }
+
   // Check for missing required assets and forbidden assets
   for (const [asset, requirement] of Object.entries(requirements)) {
     const assetKey = asset as keyof VideoProjectParams;
@@ -316,6 +325,11 @@ function applyVideoParams(
   // Animate video parameters (for animate-move, animate-replace)
   if (params.videoStart !== undefined) {
     keyFrame.videoStart = params.videoStart;
+  }
+
+  // SAM2 subject detection coordinates for animate-replace workflows
+  if (params.sam2Coordinates !== undefined) {
+    keyFrame.sam2Coordinates = JSON.stringify(params.sam2Coordinates);
   }
 
   // Frame trimming for seamless stitching of transition videos

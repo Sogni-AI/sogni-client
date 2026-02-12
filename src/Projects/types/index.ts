@@ -244,6 +244,18 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
    */
   outputFormat?: VideoOutputFormat;
+  /**
+   * SAM2 click coordinates for subject detection in animate-replace workflows.
+   * Array of {x, y} coordinate objects indicating where the subject is located
+   * in the reference image.
+   *
+   * Coordinates can be normalized (0.0-1.0) or absolute pixel values.
+   * Normalized coordinates are automatically converted to pixel values by the server.
+   * If not provided, the server defaults to the center of the frame.
+   *
+   * Example: [{ x: 0.5, y: 0.5 }] for center of frame
+   */
+  sam2Coordinates?: Array<{ x: number; y: number }>;
 }
 
 export interface ImageProjectParams extends BaseProjectParams {
