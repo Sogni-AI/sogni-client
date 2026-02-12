@@ -1,3 +1,10 @@
+# [4.0.0-alpha.62](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.61...v4.0.0-alpha.62) (2026-02-12)
+
+
+### Features
+
+* sam2Coordinates option for Animate Replace workflow ([9275249](https://github.com/Sogni-AI/sogni-client/commit/9275249370fe1bb34732dece0e2c814c35d56dcf))
+
 # [4.0.0-alpha.61](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.60...v4.0.0-alpha.61) (2026-02-03)
 
 
