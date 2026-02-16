@@ -1276,7 +1276,8 @@ export async function askMultilinePrompt(question, defaultValue = '', { consecut
     console.log('  (Paste or type your prompt. Press Enter twice to finish, or Enter once for default)');
   }
   if (defaultValue) {
-    const preview = defaultValue.length > 60 ? defaultValue.substring(0, 60) + '...' : defaultValue;
+    const flat = defaultValue.replace(/\n+/g, ' ').trim();
+    const preview = flat.length > 60 ? flat.substring(0, 60) + '...' : flat;
     console.log(`  Default: "${preview}"`);
   }
   console.log();

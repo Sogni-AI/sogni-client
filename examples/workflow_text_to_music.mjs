@@ -62,7 +62,7 @@ const streamPipeline = promisify(pipeline);
 const AUDIO_MODEL_ID = 'ace_step_1.5_sft';
 
 const AUDIO_CONSTRAINTS = {
-  duration: { min: 10, max: 600, default: 90 },
+  duration: { min: 10, max: 600, default: 60 },
   bpm: { min: 30, max: 300, default: 123 },
   keyscale: {
     allowed: [
@@ -568,8 +568,52 @@ async function main() {
       Seed: OPTIONS.seed !== null && OPTIONS.seed !== -1 ? OPTIONS.seed : '(random)'
     });
 
+    // Get cost estimate
+    log('💵', 'Fetching cost estimate...');
+    const estimate = await getAudioJobEstimate(
+      tokenType,
+      AUDIO_MODEL_ID,
+      OPTIONS.duration,
+      OPTIONS.steps,
+      OPTIONS.batch
+    );
+
+    console.log();
+    console.log('📊 Cost Estimate:');
+
+    if (tokenType === 'spark') {
+      const totalCost = parseFloat(estimate.quote.project.costInSpark || 0);
+      const costPerTrack = totalCost / OPTIONS.batch;
+      const currentBalance = parseFloat(balance.spark.net || 0);
+      if (OPTIONS.batch > 1) {
+        console.log(`   Per track: ${costPerTrack.toFixed(2)} Spark`);
+        console.log(`   Total (${OPTIONS.batch} tracks): ${totalCost.toFixed(2)} Spark`);
+      } else {
+        console.log(`   Spark: ${totalCost.toFixed(2)}`);
+      }
+      console.log(
+        `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
+      );
+      console.log(`   USD: $${(totalCost * 0.005).toFixed(4)}`);
+    } else {
+      const totalCost = parseFloat(estimate.quote.project.costInSogni || 0);
+      const costPerTrack = totalCost / OPTIONS.batch;
+      const currentBalance = parseFloat(balance.sogni.net || 0);
+      if (OPTIONS.batch > 1) {
+        console.log(`   Per track: ${costPerTrack.toFixed(2)} Sogni`);
+        console.log(`   Total (${OPTIONS.batch} tracks): ${totalCost.toFixed(2)} Sogni`);
+      } else {
+        console.log(`   Sogni: ${totalCost.toFixed(2)}`);
+      }
+      console.log(
+        `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
+      );
+      console.log(`   USD: $${(totalCost * 0.05).toFixed(4)}`);
+    }
+
+    console.log();
     if (OPTIONS.interactive) {
-      const proceed = await askQuestion('\nProceed with generation? [Y/n]: ');
+      const proceed = await askQuestion('Proceed with generation? [Y/n]: ');
       if (proceed.toLowerCase() === 'n' || proceed.toLowerCase() === 'no') {
         log('❌', 'Generation cancelled');
         process.exit(0);
@@ -919,6 +963,25 @@ async function main() {
       // Ignore logout errors
     }
   }
+}
+
+/**
+ * Get audio job cost estimate
+ */
+async function getAudioJobEstimate(tokenType, modelId, duration, steps, audioCount = 1) {
+  let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
+  if (baseUrl.startsWith('wss://')) {
+    baseUrl = baseUrl.replace('wss://', 'https://');
+  } else if (baseUrl.startsWith('ws://')) {
+    baseUrl = baseUrl.replace('ws://', 'https://');
+  }
+  const url = `${baseUrl}/api/v1/job-audio/estimate/${tokenType}/${encodeURIComponent(modelId)}/${duration}/${steps}/${audioCount}`;
+  console.log(`🔗 Audio cost estimate URL: ${url}`);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to get cost estimate: ${response.statusText}`);
+  }
+  return response.json();
 }
 
 /**

@@ -680,7 +680,7 @@ async function main() {
 
         case 'completed':
                     if (!event.jobId) return;
-          if (event.isNSFW) {
+          if (event.isNSFW && !OPTIONS.disableSafeContentFilter) {
             failedImages++;
             displaySafeContentFilterMessage();
             checkWorkflowCompletion();
@@ -724,7 +724,7 @@ async function main() {
               })
               .catch((error) => {
                 failedImages++;
-                if (error.message?.includes('Not Found')) {
+                if (error.message?.includes('Not Found') && !OPTIONS.disableSafeContentFilter) {
                   displaySafeContentFilterMessage();
                 } else {
                   const failedImageId = event.jobId || currentJobId || `image_${Date.now()}`;
@@ -743,7 +743,7 @@ async function main() {
         case 'failed':
                     projectFailed = true;
           failedImages++;
-          if (isSensitiveContentError(event)) {
+          if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
             displaySafeContentFilterMessage();
           } else {
             const errorMsg = event.error?.message || event.error || 'Unknown error';
