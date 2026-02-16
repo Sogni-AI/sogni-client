@@ -45,7 +45,7 @@
  *   --steps       Number of inference steps (default: model-specific)
  *   --guidance    Guidance scale (default: model-specific)
  *   --shift       Motion intensity 1.0-8.0 (default: 8.0, WAN only)
- *   --strength    Guide strength 0.5-1.0 (default: 0.85, LTX-2 only)
+ *   --strength    Control injection strength 0.5-1.0 (default: 0.85, LTX-2 only)
  *   --detailer-strength  Detailer LoRA strength 0.0-1.0 (default: 0.6, LTX-2 v2v only)
  *   --comfy-sampler  ComfyUI sampler name (default: euler)
  *   --comfy-scheduler ComfyUI scheduler name (default: simple)
@@ -247,7 +247,7 @@ Options:
   --steps         Number of inference steps (default: model-specific)
   --guidance      Guidance scale (default: model-specific)
   --shift         Motion intensity 1.0-8.0 (WAN only, default: 8.0)
-  --strength      Guide strength 0.5-1.0 (LTX-2 only, default: 0.85)
+  --strength      Control injection strength 0.5-1.0 (LTX-2 only, default: 0.85)
   --detailer-strength Detailer LoRA strength 0.0-1.0 (LTX-2 v2v only, default: 0.6)
   --comfy-sampler   ComfyUI sampler name (default: euler)
   --comfy-scheduler ComfyUI scheduler name (default: simple)
@@ -615,9 +615,9 @@ async function main() {
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: true });
 
-      // LTX-2 V2V: Guide strength
+      // LTX-2 V2V: Control injection strength
       if (modelConfig.supportsControlNet && modelConfig.defaultStrength !== undefined) {
-        console.log('\n🎚️  Guide Strength (how closely to follow the reference video)\n');
+        console.log('\n🎚️  Control Strength (how closely to follow the control signal)\n');
         const strengthInput = await askQuestion(`  Strength (${modelConfig.minStrength}-${modelConfig.maxStrength}, default: ${modelConfig.defaultStrength}): `);
         if (strengthInput.trim()) {
           const s = parseFloat(strengthInput.trim());
@@ -664,7 +664,7 @@ async function main() {
     OPTIONS.guidance = modelConfig.defaultGuidance;
   }
   if (!OPTIONS.steps) OPTIONS.steps = modelConfig.defaultSteps;
-  // LTX-2 V2V: strength (guide strength)
+  // LTX-2 V2V: strength (control injection strength)
   if (modelConfig.defaultStrength !== undefined && (OPTIONS.strength === undefined || OPTIONS.strength === null)) {
     OPTIONS.strength = modelConfig.defaultStrength;
   }

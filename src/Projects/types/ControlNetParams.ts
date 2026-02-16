@@ -113,7 +113,10 @@ export interface VideoControlNetParams {
   name: VideoControlNetName;
   /**
    * Control strength. Higher values follow the control signal more strictly.
-   * Range: 0.0-1.0, default 0.8
+   * Range: 0.0-1.0, default 0.85.
+   * For canny/depth: controls how strongly the preprocessor output (edges/depth maps)
+   * is injected into the generation. For pose: controls pose adherence.
+   * For detailer: controls appearance preservation.
    */
   strength?: number;
 }

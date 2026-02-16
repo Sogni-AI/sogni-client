@@ -458,7 +458,7 @@ const project = await sogni.projects.create({
   referenceVideo: fs.readFileSync('./source-video.mp4'),
   controlNet: {
     name: 'canny',  // 'canny', 'pose', 'depth', or 'detailer'
-    strength: 0.8
+    strength: 0.6   // Recommended: canny/depth 0.6, pose/detailer 0.85
   },
   numberOfMedia: 1,
   duration: 5,
