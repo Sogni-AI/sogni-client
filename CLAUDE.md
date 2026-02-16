@@ -185,7 +185,10 @@ const urls = await project.waitForCompletion();
 | Workflow | Model Pattern | Required Assets |
 |----------|---------------|-----------------|
 | Text-to-Video | `*_t2v*` | None |
-| Image-to-Video | `*_i2v*` | `referenceImage` |
-| Sound-to-Video | `*_s2v*` | `referenceImage` + `referenceAudio` |
+| Image-to-Video | `*_i2v*` | `referenceImage` (and/or `referenceImageEnd`) |
+| Video-to-Video | `*_v2v*` (LTX-2 only) | `referenceVideo` + `controlNet` |
+| Sound-to-Video | `*_s2v*` (WAN only) | `referenceImage` + `referenceAudio` |
+| Image+Audio-to-Video | `*_ia2v*` (LTX-2 only) | `referenceImage` + `referenceAudio` |
+| Audio-to-Video | `*_a2v*` (LTX-2 only) | `referenceAudio` |
 | Animate-Move | `*_animate-move*` | `referenceImage` + `referenceVideo` |
 | Animate-Replace | `*_animate-replace*` | `referenceImage` + `referenceVideo` |

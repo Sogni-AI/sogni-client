@@ -202,8 +202,16 @@ LTX-2 generates at the actual specified FPS (1-60 range). No interpolation.
 Example: 5 seconds at 24fps = 121 frames
 
 ### LTX-2 Model IDs
-- `ltx2-19b-fp8_t2v` - Text-to-video
-- `ltx2-19b-fp8_i2v` - Image-to-video
+- Speed models (`_distilled` suffix): 8-step, faster
+- Quality models (no suffix): 20-step, best quality
+
+| Workflow | Fast | Quality |
+|----------|------|---------|
+| Text-to-Video | `ltx2-19b-fp8_t2v_distilled` | `ltx2-19b-fp8_t2v` |
+| Image-to-Video | `ltx2-19b-fp8_i2v_distilled` | `ltx2-19b-fp8_i2v` |
+| Video-to-Video (ControlNet) | `ltx2-19b-fp8_v2v_distilled` | `ltx2-19b-fp8_v2v` |
+
+IMPORTANT: ControlNet (canny/pose/depth/detailer) requires a `_v2v` model, NOT `_i2v`.
 
 ---
 

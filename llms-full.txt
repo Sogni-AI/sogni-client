@@ -30,7 +30,7 @@ TABLE OF CONTENTS
 The Sogni SDK provides access to the Sogni Supernet - a decentralized network
 for AI inference. It supports:
 
-- Image Generation: Stable Diffusion, Flux, Z-Image Turbo, Qwen Image Edit
+- Image Generation: Stable Diffusion, Flux, Z-Image, Z-Image Turbo, Qwen Image Edit
 - Video Generation: WAN 2.2 (5 workflows), LTX-2 models
 - Real-time Progress: WebSocket-based event system
 - Multiple Networks: Fast (GPU) and Relaxed (Mac)
@@ -254,7 +254,8 @@ RECOMMENDED MODELS:
 | Model ID | Type | Steps | Guidance | Notes |
 |----------|------|-------|----------|-------|
 | flux1-schnell-fp8 | Fast | 4 | 1 | Best for quick iteration |
-| z_image_turbo_bf16 | Ultra-fast | 4 | 1 | Fastest generation |
+| z_image_turbo_bf16 | Ultra-fast | 8 | 1 | Fastest generation |
+| z_image_bf16 | Quality | 20 | 3 | High quality Z-Image generation |
 | qwen_image_edit_2511_fp8_lightning | Edit | 4 | 1 | Multi-image context |
 | coreml-cyberrealistic_v70_768 | SD 1.5 | 20-40 | 7.5 | Photorealistic |
 
@@ -408,8 +409,14 @@ The SDK automatically snaps to valid frame counts.
 Example: 5 seconds at 24fps = 121 frames (1 + 15*8 = 121)
 
 LTX-2 MODELS:
-- ltx2-19b-fp8_t2v: Text-to-video
-- ltx2-19b-fp8_i2v: Image-to-video
+- Speed models (with _distilled suffix): 8-step, faster, good quality
+- Quality models (without suffix): 20-step, slower, best quality
+
+| Workflow | Model ID (Fast) | Model ID (Quality) |
+|----------|-----------------|---------------------|
+| Text-to-Video | ltx2-19b-fp8_t2v_distilled | ltx2-19b-fp8_t2v |
+| Image-to-Video | ltx2-19b-fp8_i2v_distilled | ltx2-19b-fp8_i2v |
+| Video-to-Video (ControlNet) | ltx2-19b-fp8_v2v_distilled | ltx2-19b-fp8_v2v |
 
 LTX-2 TEXT-TO-VIDEO:
 ```javascript
@@ -441,12 +448,12 @@ const project = await sogni.projects.create({
 });
 ```
 
-LTX-2 WITH CONTROLNET (v2v):
+LTX-2 VIDEO-TO-VIDEO WITH CONTROLNET:
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'ltx2-19b-fp8_i2v',
+  modelId: 'ltx2-19b-fp8_v2v_distilled',  // Must use v2v model for ControlNet
   positivePrompt: 'Transform into anime style',
   referenceVideo: fs.readFileSync('./source-video.mp4'),
   controlNet: {
