@@ -1,3 +1,11 @@
+# [4.0.0-alpha.63](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.62...v4.0.0-alpha.63) (2026-02-16)
+
+
+### Features
+
+* Add audio cost estimation API and image download content type support ([784ccca](https://github.com/Sogni-AI/sogni-client/commit/784ccca38c8b4031415ba18158dbdda53dbb0ed2))
+* Add audio generation support and LTX-2 ia2v/a2v/v2v workflows ([7d1f2dc](https://github.com/Sogni-AI/sogni-client/commit/7d1f2dcd4cac6c8750b46d88f04fb87077d379a6))
+
 # [4.0.0-alpha.62](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.61...v4.0.0-alpha.62) (2026-02-12)
 
 
