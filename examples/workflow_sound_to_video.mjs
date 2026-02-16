@@ -2,8 +2,10 @@
 /**
  * Sound-to-Video Workflow
  *
- * This script generates videos from audio files and reference images using WAN 2.2 S2V models.
- * The generated video is lip-synced/motion-synced to the audio input.
+ * This script generates videos from audio files using various audio-driven models:
+ * - WAN 2.2 S2V: Sound-to-video with reference image (lip-sync/motion-sync)
+ * - LTX-2 IA2V: Image+audio to video with reference image (audio-reactive)
+ * - LTX-2 A2V: Audio to video without reference image (audio-reactive generation)
  *
  * Prerequisites:
  * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
@@ -12,13 +14,14 @@
  * Usage:
  *   node workflow_sound_to_video.mjs --image person.jpg --audio speech.m4a
  *   node workflow_sound_to_video.mjs "A person speaking" --image face.jpg --audio voice.mp3
+ *   node workflow_sound_to_video.mjs "A music visualizer" --audio music.mp3 --model ltx2-a2v-distilled
  *
  * Options:
- *   --image       Reference image path (required)
+ *   --image       Reference image path (required for s2v/ia2v, not used for a2v)
  *   --audio       Audio file path (required, m4a/mp3/wav)
  *   --audio-start Start position in audio in seconds (default: 0)
  *   --audio-duration  Duration of audio to use in seconds (default: auto from video)
- *   --model       Model: lightx2v or quality (default: prompts for selection)
+ *   --model       Model: lightx2v, quality, ltx2-ia2v-distilled, ltx2-a2v-distilled (default: prompts)
  *   --width       Video width (default: auto from image, min: 480)
  *   --height      Video height (default: auto from image, min: 480)
  *   --duration    Duration in seconds (default: 5, converts to frames)
@@ -173,35 +176,38 @@ Sound-to-Video Workflow
 Usage:
   node workflow_sound_to_video.mjs --image person.jpg --audio speech.m4a
   node workflow_sound_to_video.mjs "A person speaking" --image face.jpg --audio voice.mp3
+  node workflow_sound_to_video.mjs "A music visualizer" --audio music.mp3 --model ltx2-a2v-distilled
 
 Available Models:
-  lightx2v - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
-  quality  - WAN 2.2 14B S2V (high quality, 20-step)
+  lightx2v          - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
+  quality           - WAN 2.2 14B S2V (high quality, 20-step)
+  ltx2-ia2v-distilled - LTX-2 19B Image+Audio to Video (fast, 8-step, requires image)
+  ltx2-a2v-distilled  - LTX-2 19B Audio to Video (fast, 8-step, no image needed)
 
 Options:
-  --image       Reference image path (required)
+  --image       Reference image path (required for s2v/ia2v, not used for a2v)
   --audio       Audio file path (required, m4a/mp3/wav)
   --audio-start Start position in audio in seconds (default: 0)
   --audio-duration  Duration of audio to use in seconds (default: auto from video)
-  --model       Model: lightx2v or quality (default: prompts for selection)
+  --model       Model key (default: prompts for selection)
   --negative    Negative prompt (default: none)
   --style       Style prompt (default: none)
   --width       Video width (default: auto from image, min: 480)
   --height      Video height (default: auto from image, min: 480)
   --duration    Duration in seconds (default: 5)
-  --fps         Frames per second: 16, 24, 30, or 32 (default: model-specific)
+  --fps         Frames per second (default: model-specific)
   --batch       Number of videos to generate (default: 1)
   --seed        Random seed (default: -1 for random)
   --guidance    Guidance scale (default: model-specific)
   --shift       Motion intensity 1.0-8.0 (default: 8.0)
-  --comfy-sampler  ComfyUI sampler name (default: uni_pc for s2v)
+  --comfy-sampler  ComfyUI sampler name (default: model-specific)
   --comfy-scheduler ComfyUI scheduler name (default: simple)
   --output      Output directory (default: ./output)
   --no-interactive  Skip interactive prompts
   --help        Show this help message
 
 Audio Options:
-  S2V workflows allow you to specify which portion of the audio to use:
+  Audio-driven workflows allow you to specify which portion of the audio to use:
   - audioStart: Where to begin reading from the audio file (in seconds)
   - audioDuration: How many seconds of audio to use (calculated from video length if not set)
 `);
@@ -263,8 +269,29 @@ async function main() {
   // Load credentials
   const { username: USERNAME, password: PASSWORD } = await loadCredentials();
 
-  // Interactive mode: get image path if not provided
-  if (OPTIONS.interactive && !OPTIONS.image) {
+  // Interactive mode: select model first so we know if image is needed
+  let modelConfig;
+  if (OPTIONS.interactive && !OPTIONS.modelKey) {
+    const selection = await selectModel(MODELS.s2v, 'lightx2v');
+    OPTIONS.modelKey = selection.key;
+    modelConfig = selection.config;
+  } else {
+    OPTIONS.modelKey = OPTIONS.modelKey || 'lightx2v';
+    modelConfig = MODELS.s2v[OPTIONS.modelKey];
+    if (!modelConfig) {
+      const validKeys = Object.keys(MODELS.s2v).join(', ');
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: ${validKeys}`);
+      process.exit(1);
+    }
+  }
+
+  log('🎬', `Selected model: ${modelConfig.name}`);
+
+  // Determine if this model needs a reference image
+  const needsReferenceImage = modelConfig.requiresReferenceImage !== false;
+
+  // Interactive mode: get image path if not provided (only for models that need it)
+  if (needsReferenceImage && OPTIONS.interactive && !OPTIONS.image) {
     OPTIONS.image = await pickImageFile(null, 'reference image');
   }
 
@@ -274,13 +301,15 @@ async function main() {
   }
 
   // Validate required inputs
-  if (!OPTIONS.image) {
-    console.error('Error: Reference image is required (use --image option)');
-    process.exit(1);
-  }
-  if (!fs.existsSync(OPTIONS.image)) {
-    console.error(`Error: Reference image '${OPTIONS.image}' does not exist`);
-    process.exit(1);
+  if (needsReferenceImage) {
+    if (!OPTIONS.image) {
+      console.error('Error: Reference image is required for this model (use --image option)');
+      process.exit(1);
+    }
+    if (!fs.existsSync(OPTIONS.image)) {
+      console.error(`Error: Reference image '${OPTIONS.image}' does not exist`);
+      process.exit(1);
+    }
   }
 
   if (!OPTIONS.audio) {
@@ -292,16 +321,18 @@ async function main() {
     process.exit(1);
   }
 
-  // Get image dimensions
-  let imageInfo = { width: 832, height: 480 };
-  try {
-    const dimensions = imageSize(OPTIONS.image);
-    if (dimensions.width && dimensions.height) {
-      imageInfo = { width: dimensions.width, height: dimensions.height };
+  // Get image dimensions (if image is provided)
+  let imageInfo = { width: modelConfig.defaultWidth || 832, height: modelConfig.defaultHeight || 480 };
+  if (OPTIONS.image) {
+    try {
+      const dimensions = imageSize(OPTIONS.image);
+      if (dimensions.width && dimensions.height) {
+        imageInfo = { width: dimensions.width, height: dimensions.height };
+      }
+      log('📐', `Image dimensions: ${imageInfo.width}x${imageInfo.height}`);
+    } catch (error) {
+      log('⚠️', 'Could not read image dimensions, using defaults');
     }
-    log('📐', `Image dimensions: ${imageInfo.width}x${imageInfo.height}`);
-  } catch (error) {
-    log('⚠️', 'Could not read image dimensions, using defaults');
   }
 
   // Get audio duration
@@ -309,24 +340,7 @@ async function main() {
   const audioDuration = await getAudioDuration(OPTIONS.audio);
   log('🎵', `Audio duration: ${audioDuration.toFixed(1)}s`);
 
-  // Interactive mode: select model and options
-  let modelConfig;
-  if (OPTIONS.interactive && !OPTIONS.modelKey) {
-    const selection = await selectModel(MODELS.s2v, 'lightx2v');
-    OPTIONS.modelKey = selection.key;
-    modelConfig = selection.config;
-  } else {
-    OPTIONS.modelKey = OPTIONS.modelKey || 'lightx2v';
-    modelConfig = MODELS.s2v[OPTIONS.modelKey];
-    if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'lightx2v' or 'quality'.`);
-      process.exit(1);
-    }
-  }
-
-  log('🎬', `Selected model: ${modelConfig.name}`);
-
-  // Set default dimensions from image
+  // Set default dimensions from image (or model defaults for a2v)
   modelConfig.defaultWidth = imageInfo.width;
   modelConfig.defaultHeight = imageInfo.height;
 
@@ -337,8 +351,8 @@ async function main() {
       isVideo: true
     });
 
-    // Video duration
-    await promptVideoDuration(OPTIONS, modelConfig);
+    // Video duration - default to audio length for audio-driven workflows
+    await promptVideoDuration(OPTIONS, modelConfig, { audioDuration });
 
     // S2V-specific options
     await promptS2VOptions(OPTIONS, audioDuration);
@@ -388,21 +402,31 @@ async function main() {
   OPTIONS.height = height;
 
   // Calculate frames from duration if not explicitly set
-  // S2V is WAN-only, so always uses 16fps internal generation
+  // Default duration: match audio length (rounded down to fit frame constraints)
+  // WAN S2V: always uses 16fps internal generation
+  // LTX-2 IA2V/A2V: uses actual fps with frame step constraint
   if (!OPTIONS.frames) {
-    const duration = OPTIONS.duration || 5;
+    const duration = OPTIONS.duration || audioDuration || 5;
     OPTIONS.frames = calculateVideoFrames(modelConfig.id, duration, OPTIONS.fps, {
       minFrames,
       maxFrames,
-      frameStep: modelConfig.frameStep
+      frameStep: modelConfig.frameStep,
+      roundDown: true
     });
   }
 
-  // Validate FPS - use model-specific allowed values or global defaults
-  const allowedFps = modelConfig.allowedFps || VIDEO_CONSTRAINTS.fps.allowedValues;
-  if (!allowedFps.includes(OPTIONS.fps)) {
-    console.error(`Error: FPS must be one of: ${allowedFps.join(', ')}`);
-    process.exit(1);
+  // Validate FPS - LTX-2 models use a continuous range, WAN uses discrete values
+  if (modelConfig.minFps !== undefined && modelConfig.maxFps !== undefined) {
+    if (OPTIONS.fps < modelConfig.minFps || OPTIONS.fps > modelConfig.maxFps) {
+      console.error(`Error: FPS must be between ${modelConfig.minFps} and ${modelConfig.maxFps}`);
+      process.exit(1);
+    }
+  } else {
+    const allowedFps = modelConfig.allowedFps || VIDEO_CONSTRAINTS.fps.allowedValues;
+    if (!allowedFps.includes(OPTIONS.fps)) {
+      console.error(`Error: FPS must be one of: ${allowedFps.join(', ')}`);
+      process.exit(1);
+    }
   }
 
   // Validate frames
@@ -513,7 +537,7 @@ async function main() {
     const configDisplay = {
       Model: modelConfig.name,
       Prompt: OPTIONS.prompt,
-      Image: OPTIONS.image,
+      ...(OPTIONS.image && { Image: OPTIONS.image }),
       Audio: OPTIONS.audio,
       'Audio Start': `${(OPTIONS.audioStart || 0).toFixed(1)}s`,
       Resolution: `${OPTIONS.width}x${OPTIONS.height}`,
@@ -625,7 +649,7 @@ async function main() {
 
     // CRITICAL: SDK requires Buffer/File/Blob objects for media uploads, NOT string paths.
     // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
-    const referenceImageBuffer = readFileAsBuffer(OPTIONS.image);
+    const referenceImageBuffer = OPTIONS.image ? readFileAsBuffer(OPTIONS.image) : null;
     const referenceAudioBuffer = readFileAsBuffer(OPTIONS.audio);
 
     const projectParams = {
@@ -640,10 +664,14 @@ async function main() {
       steps: OPTIONS.steps,
       shift: OPTIONS.shift,
       seed: OPTIONS.seed,
-      referenceImage: referenceImageBuffer,
       referenceAudio: referenceAudioBuffer,
       tokenType: tokenType
     };
+
+    // Only include referenceImage for models that need it (s2v, ia2v)
+    if (referenceImageBuffer) {
+      projectParams.referenceImage = referenceImageBuffer;
+    }
 
     // Video models only support ComfyUI sampler/scheduler
     if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;

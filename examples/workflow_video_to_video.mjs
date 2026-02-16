@@ -42,9 +42,11 @@
  *   --fps         Frames per second (default: model-specific)
  *   --batch       Number of videos to generate (default: 1)
  *   --seed        Random seed for reproducibility (default: -1 for random)
+ *   --steps       Number of inference steps (default: model-specific)
  *   --guidance    Guidance scale (default: model-specific)
  *   --shift       Motion intensity 1.0-8.0 (default: 8.0, WAN only)
  *   --strength    Guide strength 0.5-1.0 (default: 0.85, LTX-2 only)
+ *   --detailer-strength  Detailer LoRA strength 0.0-1.0 (default: 0.6, LTX-2 v2v only)
  *   --comfy-sampler  ComfyUI sampler name (default: euler)
  *   --comfy-scheduler ComfyUI scheduler name (default: simple)
  *   --negative    Negative prompt (default: none)
@@ -81,20 +83,16 @@ import {
   pickImageFile,
   pickVideoFile,
   readFileAsBuffer,
-  processImageForVideo,
   getVideoDuration,
   getVideoDimensions,
   getVideoFps,
   log,
   formatDuration,
   displayConfig,
-  displayPrompts,
   getUniqueFilename,
   generateVideoFilename,
   generateRandomSeed,
-  calculateVideoFrames,
-  isWanModel,
-  isLtx2Model
+  calculateVideoFrames
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -132,6 +130,7 @@ async function parseArgs() {
     guidance: null,
     shift: null,
     strength: null,
+    detailerStrength: null,
     sampler: null,
     scheduler: null,
     output: './output',
@@ -153,6 +152,8 @@ async function parseArgs() {
       options.controlNetType = args[++i];
     } else if (arg === '--strength' && args[i + 1]) {
       options.strength = parseFloat(args[++i]);
+    } else if (arg === '--detailer-strength' && args[i + 1]) {
+      options.detailerStrength = parseFloat(args[++i]);
     } else if (arg === '--sam2-coords' && args[i + 1]) {
       options.sam2Coordinates = args[++i];
     } else if (arg === '--video-start' && args[i + 1]) {
@@ -177,6 +178,8 @@ async function parseArgs() {
       options.style = args[++i];
     } else if (arg === '--seed' && args[i + 1]) {
       options.seed = parseInt(args[++i], 10);
+    } else if (arg === '--steps' && args[i + 1]) {
+      options.steps = parseInt(args[++i], 10);
     } else if (arg === '--guidance' && args[i + 1]) {
       options.guidance = parseFloat(args[++i]);
     } else if (arg === '--shift' && args[i + 1]) {
@@ -241,9 +244,11 @@ Options:
   --fps           Frames per second (default: model-specific)
   --batch         Number of videos to generate (default: 1)
   --seed          Random seed (default: -1 for random)
+  --steps         Number of inference steps (default: model-specific)
   --guidance      Guidance scale (default: model-specific)
   --shift         Motion intensity 1.0-8.0 (WAN only, default: 8.0)
   --strength      Guide strength 0.5-1.0 (LTX-2 only, default: 0.85)
+  --detailer-strength Detailer LoRA strength 0.0-1.0 (LTX-2 v2v only, default: 0.6)
   --comfy-sampler   ComfyUI sampler name (default: euler)
   --comfy-scheduler ComfyUI scheduler name (default: simple)
   --output        Output directory (default: ./output)
@@ -277,6 +282,44 @@ function ensureEvenDimensions(width, height) {
     width: width % 2 === 0 ? width : width - 1,
     height: height % 2 === 0 ? height : height - 1
   };
+}
+
+/**
+ * Scale and align dimensions to fit within model constraints while preserving aspect ratio.
+ * Handles: scale up to minimums, scale down to maximums, align to step size.
+ */
+function fitDimensions(width, height, { dimStep = 64, minWidth = 768, minHeight = 768, maxWidth = 3840, maxHeight = 3840 } = {}) {
+  const aspectRatio = width / height;
+
+  // Scale up proportionally if below minimums
+  if (width < minWidth || height < minHeight) {
+    const scale = Math.max(minWidth / width, minHeight / height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+
+  // Scale down proportionally if above maximums
+  if (width > maxWidth || height > maxHeight) {
+    const scale = Math.min(maxWidth / width, maxHeight / height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+
+  // Align to step size, using aspect ratio to keep height proportional
+  width = Math.round(width / dimStep) * dimStep;
+  height = Math.round(width / aspectRatio / dimStep) * dimStep;
+
+  // Clamp again after alignment (rounding can push outside bounds)
+  if (width < minWidth) width = Math.ceil(minWidth / dimStep) * dimStep;
+  if (height < minHeight) {
+    height = Math.ceil(minHeight / dimStep) * dimStep;
+    width = Math.round(height * aspectRatio / dimStep) * dimStep;
+    if (width < minWidth) width = Math.ceil(minWidth / dimStep) * dimStep;
+  }
+  if (width > maxWidth) width = Math.floor(maxWidth / dimStep) * dimStep;
+  if (height > maxHeight) height = Math.floor(maxHeight / dimStep) * dimStep;
+
+  return { width, height };
 }
 
 /**
@@ -483,60 +526,22 @@ async function main() {
   let recommendedWidth = modelConfig.defaultWidth;
   let recommendedHeight = modelConfig.defaultHeight;
   if (modelConfig.supportsControlNet && sourceVideoDimensions) {
-    const dimStep = modelConfig.dimensionStep || 64;
-    const minWidth = modelConfig.minWidth || 768;
-    const minHeight = modelConfig.minHeight || 768;
-    const maxWidth = modelConfig.maxWidth || 3840;
-    const maxHeight = modelConfig.maxHeight || 3840;
+    const dimConstraints = {
+      dimStep: modelConfig.dimensionStep || 64,
+      minWidth: modelConfig.minWidth || 768,
+      minHeight: modelConfig.minHeight || 768,
+      maxWidth: modelConfig.maxWidth || 3840,
+      maxHeight: modelConfig.maxHeight || 3840
+    };
 
-    // Start with source dimensions
-    let targetWidth = sourceVideoDimensions.width;
-    let targetHeight = sourceVideoDimensions.height;
-    const aspectRatio = sourceVideoDimensions.width / sourceVideoDimensions.height;
-
-    // Scale up proportionally if below minimums
-    if (targetWidth < minWidth || targetHeight < minHeight) {
-      const scaleForWidth = minWidth / targetWidth;
-      const scaleForHeight = minHeight / targetHeight;
-      const scale = Math.max(scaleForWidth, scaleForHeight);
-      targetWidth = Math.round(targetWidth * scale);
-      targetHeight = Math.round(targetHeight * scale);
-    }
-
-    // Scale down proportionally if above maximums
-    if (targetWidth > maxWidth || targetHeight > maxHeight) {
-      const scaleForWidth = maxWidth / targetWidth;
-      const scaleForHeight = maxHeight / targetHeight;
-      const scale = Math.min(scaleForWidth, scaleForHeight);
-      targetWidth = Math.round(targetWidth * scale);
-      targetHeight = Math.round(targetHeight * scale);
-    }
-
-    // Align to step size while maintaining aspect ratio as closely as possible
-    // Round width to step, then calculate height to maintain aspect ratio
-    let alignedWidth = Math.round(targetWidth / dimStep) * dimStep;
-    let alignedHeight = Math.round(alignedWidth / aspectRatio / dimStep) * dimStep;
-
-    // Ensure we still meet minimums after alignment (step rounding can push below)
-    if (alignedWidth < minWidth) alignedWidth = minWidth;
-    if (alignedHeight < minHeight) {
-      alignedHeight = minHeight;
-      // Recalculate width to maintain aspect ratio
-      alignedWidth = Math.round(alignedHeight * aspectRatio / dimStep) * dimStep;
-      if (alignedWidth < minWidth) alignedWidth = minWidth;
-    }
-
-    // Ensure we don't exceed maximums
-    if (alignedWidth > maxWidth) alignedWidth = maxWidth;
-    if (alignedHeight > maxHeight) alignedHeight = maxHeight;
-
-    recommendedWidth = alignedWidth;
-    recommendedHeight = alignedHeight;
+    ({ width: recommendedWidth, height: recommendedHeight } = fitDimensions(
+      sourceVideoDimensions.width, sourceVideoDimensions.height, dimConstraints
+    ));
 
     // Log the recommendation
     const sourceRatio = (sourceVideoDimensions.width / sourceVideoDimensions.height).toFixed(2);
     const targetRatio = (recommendedWidth / recommendedHeight).toFixed(2);
-    if (sourceVideoDimensions.width < minWidth || sourceVideoDimensions.height < minHeight) {
+    if (sourceVideoDimensions.width < dimConstraints.minWidth || sourceVideoDimensions.height < dimConstraints.minHeight) {
       log('📐', `Recommended: ${recommendedWidth}x${recommendedHeight} (scaled from ${sourceVideoDimensions.width}x${sourceVideoDimensions.height}, ratio ${sourceRatio}→${targetRatio})`);
     } else {
       log('📐', `Recommended: ${recommendedWidth}x${recommendedHeight} (ratio ${sourceRatio}→${targetRatio})`);
@@ -622,6 +627,18 @@ async function main() {
         }
       }
 
+      // LTX-2 V2V: Detailer LoRA strength
+      if (modelConfig.supportsControlNet && OPTIONS.controlNetType !== 'detailer') {
+        console.log('\n🔍 Detailer LoRA Strength (enhances fine detail quality)\n');
+        const detailerInput = await askQuestion('  Detailer strength (0.0-1.0, default: 0.6): ');
+        if (detailerInput.trim()) {
+          const d = parseFloat(detailerInput.trim());
+          if (!isNaN(d) && d >= 0.0 && d <= 1.0) {
+            OPTIONS.detailerStrength = d;
+          }
+        }
+      }
+
       // Video start position (videoStart)
       console.log('\n⏱️ Video Trimming (optional)\n');
       const videoStartInput = await askQuestion('  Video start position in seconds (default: 0): ');
@@ -677,11 +694,13 @@ async function main() {
   // which correctly target the frame center at the workflow's internal resolution
 
   // Set dimensions with model-specific constraints
-  const dimStep = modelConfig.dimensionStep || 16;
-  const minWidth = modelConfig.minWidth || VIDEO_CONSTRAINTS.width.min;
-  const minHeight = modelConfig.minHeight || VIDEO_CONSTRAINTS.height.min;
-  const maxWidth = modelConfig.maxWidth || VIDEO_CONSTRAINTS.width.max || 3840;
-  const maxHeight = modelConfig.maxHeight || VIDEO_CONSTRAINTS.height.max || 3840;
+  const dimConstraints = {
+    dimStep: modelConfig.dimensionStep || 16,
+    minWidth: modelConfig.minWidth || VIDEO_CONSTRAINTS.width.min,
+    minHeight: modelConfig.minHeight || VIDEO_CONSTRAINTS.height.min,
+    maxWidth: modelConfig.maxWidth || VIDEO_CONSTRAINTS.width.max || 3840,
+    maxHeight: modelConfig.maxHeight || VIDEO_CONSTRAINTS.height.max || 3840
+  };
 
   // For LTX-2 V2V, use recommended dimensions (from source video); otherwise use image dimensions
   const fallbackWidth = modelConfig.supportsControlNet ? recommendedWidth : imageInfo.width;
@@ -709,28 +728,13 @@ async function main() {
 
   ({ width, height } = ensureEvenDimensions(width, height));
 
-  // Align to step size
-  width = Math.round(width / dimStep) * dimStep;
-  height = Math.round(height / dimStep) * dimStep;
+  // Scale and align to model constraints
+  const inputWidth = width;
+  const inputHeight = height;
+  ({ width, height } = fitDimensions(width, height, dimConstraints));
 
-  // Scale proportionally if below minimums (maintain aspect ratio)
-  if (width < minWidth || height < minHeight) {
-    const scaleForWidth = width < minWidth ? minWidth / width : 1;
-    const scaleForHeight = height < minHeight ? minHeight / height : 1;
-    const scale = Math.max(scaleForWidth, scaleForHeight);
-    width = Math.round(width * scale / dimStep) * dimStep;
-    height = Math.round(height * scale / dimStep) * dimStep;
-    log('⚠️', `Dimensions scaled up to meet minimums: ${width}x${height}`);
-  }
-
-  // Scale proportionally if above maximums (maintain aspect ratio)
-  if (width > maxWidth || height > maxHeight) {
-    const scaleForWidth = width > maxWidth ? maxWidth / width : 1;
-    const scaleForHeight = height > maxHeight ? maxHeight / height : 1;
-    const scale = Math.min(scaleForWidth, scaleForHeight);
-    width = Math.round(width * scale / dimStep) * dimStep;
-    height = Math.round(height * scale / dimStep) * dimStep;
-    log('⚠️', `Dimensions scaled down to meet maximums: ${width}x${height}`);
+  if (width !== inputWidth || height !== inputHeight) {
+    log('⚠️', `Dimensions adjusted from ${inputWidth}x${inputHeight} to ${width}x${height}`);
   }
 
   OPTIONS.width = width;
@@ -905,6 +909,9 @@ async function main() {
     if (modelConfig.supportsControlNet && OPTIONS.strength !== undefined) {
       configDisplay['Strength'] = OPTIONS.strength;
     }
+    if (modelConfig.supportsControlNet && OPTIONS.detailerStrength !== undefined) {
+      configDisplay['Detailer Strength'] = OPTIONS.detailerStrength;
+    }
 
     configDisplay['Seed'] = OPTIONS.seed !== null ? OPTIONS.seed : -1;
 
@@ -926,51 +933,35 @@ async function main() {
       console.log(`   Style prompt: ${OPTIONS.style}`);
     }
 
-    // Get cost estimate
+    // Get cost estimate using SDK
     log('💵', 'Fetching cost estimate...');
-    const estimate = await getVideoJobEstimate(
+    const estimate = await sogni.projects.estimateVideoCost({
       tokenType,
-      modelConfig.id,
-      OPTIONS.width,
-      OPTIONS.height,
-      OPTIONS.frames,
-      OPTIONS.fps,
-      OPTIONS.steps,
-      OPTIONS.batch
-    );
+      model: modelConfig.id,
+      width: OPTIONS.width,
+      height: OPTIONS.height,
+      frames: OPTIONS.frames,
+      fps: OPTIONS.fps,
+      steps: OPTIONS.steps,
+      numberOfMedia: OPTIONS.batch
+    });
 
     console.log();
     console.log('📊 Cost Estimate:');
 
-    if (tokenType === 'spark') {
-      const totalCost = parseFloat(estimate.quote.project.costInSpark || 0);
-      const costPerVideo = totalCost / OPTIONS.batch;
-      const currentBalance = parseFloat(balance.spark.net || 0);
-      if (OPTIONS.batch > 1) {
-        console.log(`   Per video: ${costPerVideo.toFixed(2)} Spark`);
-        console.log(`   Total (${OPTIONS.batch} videos): ${totalCost.toFixed(2)} Spark`);
-      } else {
-        console.log(`   Spark: ${totalCost.toFixed(2)}`);
-      }
-      console.log(
-        `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
-      );
-      console.log(`   USD: $${(totalCost * 0.005).toFixed(4)}`);
+    const tokenLabel = tokenType === 'spark' ? 'Spark' : 'Sogni';
+    const totalCost = parseFloat(tokenType === 'spark' ? estimate.spark : estimate.sogni) || 0;
+    const costPerVideo = totalCost / OPTIONS.batch;
+    const currentBalance = parseFloat(tokenType === 'spark' ? balance.spark.net : balance.sogni.net) || 0;
+
+    if (OPTIONS.batch > 1) {
+      console.log(`   Per video: ${costPerVideo.toFixed(2)} ${tokenLabel}`);
+      console.log(`   Total (${OPTIONS.batch} videos): ${totalCost.toFixed(2)} ${tokenLabel}`);
     } else {
-      const totalCost = parseFloat(estimate.quote.project.costInSogni || 0);
-      const costPerVideo = totalCost / OPTIONS.batch;
-      const currentBalance = parseFloat(balance.sogni.net || 0);
-      if (OPTIONS.batch > 1) {
-        console.log(`   Per video: ${costPerVideo.toFixed(2)} Sogni`);
-        console.log(`   Total (${OPTIONS.batch} videos): ${totalCost.toFixed(2)} Sogni`);
-      } else {
-        console.log(`   Sogni: ${totalCost.toFixed(2)}`);
-      }
-      console.log(
-        `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
-      );
-      console.log(`   USD: $${(totalCost * 0.05).toFixed(4)}`);
+      console.log(`   ${tokenLabel}: ${totalCost.toFixed(2)}`);
     }
+    console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} ${tokenLabel}`);
+    console.log(`   USD: $${parseFloat(estimate.usd || 0).toFixed(4)}`);
 
     console.log();
     if (OPTIONS.interactive) {
@@ -1051,6 +1042,10 @@ async function main() {
         name: OPTIONS.controlNetType,
         ...(OPTIONS.strength !== undefined && OPTIONS.strength !== null && { strength: OPTIONS.strength })
       };
+      // Detailer LoRA strength (always loaded alongside control LoRA)
+      if (OPTIONS.detailerStrength !== undefined && OPTIONS.detailerStrength !== null) {
+        projectParams.detailerStrength = OPTIONS.detailerStrength;
+      }
     }
 
     // Add SAM2 coordinates for animate-replace
@@ -1397,34 +1392,6 @@ async function main() {
     } catch {
       // Ignore logout errors
     }
-  }
-}
-
-async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps, videoCount = 1) {
-  let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
-  if (baseUrl.startsWith('wss://')) {
-    baseUrl = baseUrl.replace('wss://', 'https://');
-  } else if (baseUrl.startsWith('ws://')) {
-    baseUrl = baseUrl.replace('ws://', 'https://');
-  }
-  const url = `${baseUrl}/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}/${steps}/${videoCount}`;
-  console.log(`🔗 Video cost estimate URL: ${url}`);
-  const response = await fetch(url);
-
-  // Read body as text first, then try to parse as JSON
-  const text = await response.text();
-
-  if (!response.ok) {
-    if (text.includes('Model not found') || text.includes('not found')) {
-      throw new Error(`Model '${modelId}' is not available on this server. The model may not be deployed yet.`);
-    }
-    throw new Error(`Failed to get cost estimate: ${response.statusText} - ${text}`);
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    throw new Error(`Invalid response from server: ${text.substring(0, 100)}`);
   }
 }
 

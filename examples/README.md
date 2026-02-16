@@ -222,7 +222,8 @@ The workflow examples showcase these powerful new models:
 
 | Model ID | Name | Type | Description |
 |----------|------|------|-------------|
-| `z_image_turbo_bf16` | Z-Image Turbo | Image | Fast 4-step turbo generation - great for quick iterations |
+| `z_image_turbo_bf16` | Z-Image Turbo | Image | Fast 8-step turbo generation - great for quick iterations |
+| `z_image_bf16` | Z-Image | Image | High quality 20-step generation with detailed output |
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning | Image Edit | Fast 4-step reference-based generation |
 | `qwen_image_edit_2511_fp8` | Qwen Image Edit | Image Edit | High-quality 20-step image editing with context |
 | `flux2_dev_fp8` | Flux.2 Dev | Image | Professional quality with context image support |
@@ -231,6 +232,9 @@ The workflow examples showcase these powerful new models:
 ```bash
 # Z-Image Turbo - fast and efficient
 node workflow_text_to_image.mjs "A cyberpunk city" --model z-turbo
+
+# Z-Image - high quality output
+node workflow_text_to_image.mjs "A cyberpunk city" --model z-image
 
 # Qwen Image Edit Lightning - quick reference-based generation
 node workflow_image_edit.mjs "portrait" --context test-assets/placeholder.jpg --model qwen-lightning
@@ -249,7 +253,8 @@ Generate images from text prompts with support for multiple cutting-edge models.
 **Available Models:**
 | Model | Description | Best For |
 |-------|-------------|----------|
-| `z-turbo` | Z-Image Turbo (4-step, fast) | Quick prototyping, iterations |
+| `z-turbo` | Z-Image Turbo (8-step, fast) | Quick prototyping, iterations |
+| `z-image` | Z-Image (20-step, high quality) | Detailed, high quality output |
 | `flux1-schnell` | Flux.1 Schnell (1-5 steps) | Ultra-fast generation |
 | `flux2` | Flux.2 Dev (20-step, high quality) | Professional quality output |
 
@@ -258,10 +263,11 @@ Generate images from text prompts with support for multiple cutting-edge models.
 node workflow_text_to_image.mjs                           # Interactive mode
 node workflow_text_to_image.mjs "A beautiful sunset"      # With prompt
 node workflow_text_to_image.mjs "Portrait" --model z-turbo --seed 12345
+node workflow_text_to_image.mjs "Portrait" --model z-image --seed 12345
 ```
 
 **Options:**
-- `--model` - Model: z-turbo, flux1-schnell, or flux2
+- `--model` - Model: z-turbo, z-image, flux1-schnell, or flux2
 - `--width` / `--height` - Output dimensions
 - `--batch` - Number of images (1-10)
 - `--steps` - Inference steps
@@ -593,10 +599,11 @@ When you run a workflow example, you'll see output like:
 ⚡ Select a model:
 
   1. Z-Image Turbo       - Fast generation with good quality
-  2. Flux.1 Schnell      - Very fast generation (1-5 steps)
-  3. Flux.2 Dev          - Highest quality, supports context images.
+  2. Z-Image             - High quality generation (20-50 steps)
+  3. Flux.1 Schnell      - Very fast generation (1-5 steps)
+  4. Flux.2 Dev          - Highest quality, supports context images.
 
-Enter choice [1-3] (default: 1): 1
+Enter choice [1-4] (default: 1): 1
 🎨 Selected model: Z-Image Turbo
 
 💳 Using saved payment preference: Spark tokens
@@ -726,7 +733,7 @@ If you encounter issues not covered here:
 
 ### Tips for Success
 
-- **Try Z-Turbo for images** - Fast 4-step generation is perfect for experimentation
+- **Try Z-Turbo for images** - Fast 8-step generation is perfect for experimentation
 - **Use Qwen Lightning for edits** - Quick reference-based generation with great results
 - **Start with Speed/LightX2V models for video** - Faster and cheaper while learning
 - **Use smaller resolutions** - 512x512 or 1024x1024 are good starting points
