@@ -434,6 +434,7 @@ export type ImageUrlParams = {
     | 'referenceImage'
     | 'referenceImageEnd';
   startContentType?: string;
+  contentType?: string;
 };
 
 /**
@@ -520,6 +521,14 @@ export interface VideoEstimateRequest {
    */
   frames?: number;
   fps: number;
+  steps: number;
+  numberOfMedia: number;
+}
+
+export interface AudioEstimateRequest {
+  tokenType: TokenType;
+  model: string;
+  duration: number;
   steps: number;
   numberOfMedia: number;
 }

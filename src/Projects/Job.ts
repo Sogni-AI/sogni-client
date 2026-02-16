@@ -238,6 +238,24 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
+   * Get the MIME content type for image downloads based on the project's output format.
+   */
+  private get _imageContentType(): string | undefined {
+    const format = (this._project.params as any).outputFormat;
+    switch (format) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'webp':
+        return 'image/webp';
+      case 'png':
+        return 'image/png';
+      default:
+        return undefined;
+    }
+  }
+
+  /**
    * Get the result URL of the job. This method will make a request to the API to get signed URL.
    * IMPORTANT: URL expires after 30 minutes, so make sure to download the result as soon as possible.
    * For video jobs, this returns a video URL. For image jobs, this returns an image URL.
@@ -258,7 +276,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
       url = await this._api.downloadUrl({
         jobId: this.projectId,
         imageId: this.id,
-        type: 'complete'
+        type: 'complete',
+        ...(this._imageContentType ? { contentType: this._imageContentType } : {})
       });
     }
     this._update({ resultUrl: url });
@@ -329,7 +348,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
           delta.resultUrl = await this._api.downloadUrl({
             jobId: this.projectId,
             imageId: this.id,
-            type: 'complete'
+            type: 'complete',
+            ...(this._imageContentType ? { contentType: this._imageContentType } : {})
           });
         }
       } catch (error) {

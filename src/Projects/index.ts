@@ -11,7 +11,8 @@ import {
   SupportedModel,
   ImageProjectParams,
   VideoProjectParams,
-  VideoEstimateRequest
+  VideoEstimateRequest,
+  AudioEstimateRequest
 } from './types';
 import {
   JobErrorData,
@@ -102,6 +103,24 @@ function mapErrorCodes(code: string): number {
       return 5005;
     default:
       return 5000;
+  }
+}
+
+/**
+ * Get the MIME content type for image downloads based on the project's output format.
+ */
+function getImageContentType(project: Project): string | undefined {
+  const format = (project.params as any).outputFormat;
+  switch (format) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'webp':
+      return 'image/webp';
+    case 'png':
+      return 'image/png';
+    default:
+      return undefined; // Let the API default to PNG
   }
 }
 
@@ -315,10 +334,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             ...(isAudio && project ? { contentType: getAudioContentType(project) } : {})
           });
         } else {
+          const imageContentType = project ? getImageContentType(project) : undefined;
           downloadUrl = await this.downloadUrl({
             jobId: data.jobID,
             imageId: data.imgID,
-            type: 'complete'
+            type: 'complete',
+            ...(imageContentType ? { contentType: imageContentType } : {})
           });
         }
       } catch (error: any) {
@@ -972,6 +993,37 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-video/estimate/${path}`
+    );
+    return {
+      token: r.quote.project.costInToken,
+      usd: r.quote.project.costInUSD,
+      spark: r.quote.project.costInSpark,
+      sogni: r.quote.project.costInSogni
+    };
+  }
+
+  /**
+   * Estimate the cost of an audio generation job.
+   *
+   * @param {AudioEstimateRequest} params - The parameters required for audio cost estimation. This includes:
+   *   - tokenType: The type of token to be used for generation.
+   *   - model: The model to be used for audio generation.
+   *   - duration: Duration of the audio in seconds.
+   *   - steps: Number of inference steps.
+   *   - numberOfMedia: Number of audio tracks to generate.
+   * @return {Promise<CostEstimation>} Returns an object containing the estimated costs in different units.
+   */
+  async estimateAudioCost(params: AudioEstimateRequest): Promise<CostEstimation> {
+    const pathParams = [
+      params.tokenType,
+      params.model,
+      params.duration,
+      params.steps,
+      params.numberOfMedia
+    ];
+    const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
+    const r = await this.client.socket.get<EstimationResponse>(
+      `/api/v1/job-audio/estimate/${path}`
     );
     return {
       token: r.quote.project.costInToken,
