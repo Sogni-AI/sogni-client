@@ -80,21 +80,22 @@ export const LTX2_FRAME_STEP = 8;
  * @returns {number} The calculated frame count
  */
 export function calculateVideoFrames(modelId, duration, fps, options = {}) {
-  const { minFrames, maxFrames, frameStep = LTX2_FRAME_STEP } = options;
+  const { minFrames, maxFrames, frameStep = LTX2_FRAME_STEP, roundDown = false } = options;
+  const snap = roundDown ? Math.floor : Math.round;
   let frames;
 
   if (isWanModel(modelId)) {
     // WAN 2.2: Always generates at 16fps, fps param is for post-render interpolation only
     // This is legacy behavior specific to WAN models
-    frames = Math.round(duration * 16) + 1;
+    frames = snap(duration * 16) + 1;
   } else {
     // LTX-2 and future models: Generate at actual fps
     // This is the standard behavior going forward
-    frames = Math.round(duration * fps) + 1;
+    frames = snap(duration * fps) + 1;
 
     // LTX-2 specific: snap to frame step constraint (1 + n*frameStep)
     if (isLtx2Model(modelId) && frameStep > 1) {
-      const n = Math.round((frames - 1) / frameStep);
+      const n = snap((frames - 1) / frameStep);
       frames = n * frameStep + 1;
     }
   }
@@ -214,11 +215,33 @@ export const MODELS = {
       maxHeight: 2048,
       minSteps: 4,
       maxSteps: 10,
-      defaultSteps: 4,
+      defaultSteps: 8,
       supportsGuidance: true,
       defaultGuidance: 1.0,
       minGuidance: 0.6,
       maxGuidance: 1.6,
+      supportsDenoise: true,
+      defaultDenoise: 0.7,
+      supportsStartingImage: true,
+      isComfyModel: true,
+      defaultComfySampler: 'res_multistep',
+      defaultComfyScheduler: 'simple'
+    },
+    'z-image': {
+      id: 'z_image_bf16',
+      name: 'Z-Image',
+      description: 'High quality generation (20-50 steps)',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 20,
+      maxSteps: 50,
+      defaultSteps: 25,
+      supportsGuidance: true,
+      defaultGuidance: 4.0,
+      minGuidance: 1.0,
+      maxGuidance: 7.0,
       supportsDenoise: true,
       defaultDenoise: 0.7,
       supportsStartingImage: true,
@@ -749,6 +772,76 @@ export const MODELS = {
       allowedFps: [16, 32],
       isLightning: false,
       isComfyModel: true
+    },
+    // LTX-2 Image+Audio to Video (ia2v) - requires referenceImage + referenceAudio
+    'ltx2-ia2v-distilled': {
+      id: 'ltx2-19b-fp8_ia2v_distilled',
+      name: 'LTX-2 19B FP8 IA2V Distilled',
+      description: 'Fast 8-step image+audio to video with audio (~4-20s video)',
+      workflowType: 'ia2v',
+      defaultWidth: 1920,
+      defaultHeight: 1088,
+      minWidth: 768,
+      maxWidth: 3840,
+      minHeight: 768,
+      maxHeight: 3840,
+      dimensionStep: 64,
+      defaultSteps: 8,
+      minSteps: 4,
+      maxSteps: 12,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 2.0,
+      defaultComfySampler: 'euler_ancestral',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      minFrames: 25,
+      maxFrames: 505,
+      defaultFrames: 97,
+      frameStep: 8,
+      defaultFps: 24,
+      minFps: 1,
+      maxFps: 60,
+      isLightning: true,
+      isComfyModel: true,
+      hasAudio: true,
+      requiresReferenceImage: true
+    },
+    // LTX-2 Audio to Video (a2v) - requires referenceAudio only, no referenceImage
+    'ltx2-a2v-distilled': {
+      id: 'ltx2-19b-fp8_a2v_distilled',
+      name: 'LTX-2 19B FP8 A2V Distilled',
+      description: 'Fast 8-step audio to video with audio (~4-20s video)',
+      workflowType: 'a2v',
+      defaultWidth: 1920,
+      defaultHeight: 1088,
+      minWidth: 768,
+      maxWidth: 3840,
+      minHeight: 768,
+      maxHeight: 3840,
+      dimensionStep: 64,
+      defaultSteps: 8,
+      minSteps: 4,
+      maxSteps: 12,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 2.0,
+      defaultComfySampler: 'euler_ancestral',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      minFrames: 25,
+      maxFrames: 505,
+      defaultFrames: 97,
+      frameStep: 8,
+      defaultFps: 24,
+      minFps: 1,
+      maxFps: 60,
+      isLightning: true,
+      isComfyModel: true,
+      hasAudio: true,
+      requiresReferenceImage: false
     }
   },
 
@@ -810,8 +903,8 @@ export const MODELS = {
       defaultSteps: 20,
       minSteps: 15,
       maxSteps: 30,
-      defaultGuidance: 4.0,
-      minGuidance: 2.0,
+      defaultGuidance: 3.0,
+      minGuidance: 1.0,
       maxGuidance: 7.0,
       defaultStrength: 0.85,
       minStrength: 0.5,
@@ -1170,14 +1263,18 @@ export async function askQuestion(question) {
  * @param {string} defaultValue - Default value if user enters nothing
  * @returns {Promise<string>} The collected multi-line text
  */
-export async function askMultilinePrompt(question, defaultValue = '') {
+export async function askMultilinePrompt(question, defaultValue = '', { consecutiveEmptyLinesToEnd = 1 } = {}) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
   });
 
   console.log(question);
-  console.log('  (Paste or type your prompt. Press Enter twice to finish, or Enter once for default)');
+  if (consecutiveEmptyLinesToEnd > 1) {
+    console.log(`  (Paste or type text. Press Enter ${consecutiveEmptyLinesToEnd} times on a blank line to finish, or Enter once for default)`);
+  } else {
+    console.log('  (Paste or type your prompt. Press Enter twice to finish, or Enter once for default)');
+  }
   if (defaultValue) {
     const preview = defaultValue.length > 60 ? defaultValue.substring(0, 60) + '...' : defaultValue;
     console.log(`  Default: "${preview}"`);
@@ -1197,14 +1294,18 @@ export async function askMultilinePrompt(question, defaultValue = '') {
           resolve(defaultValue);
           return;
         }
-        // Second empty line (or first after content) ends input
-        if (emptyLineCount >= 1 && lines.length > 0) {
+        // End input after enough consecutive empty lines
+        if (emptyLineCount >= consecutiveEmptyLinesToEnd && lines.length > 0) {
           rl.close();
           const result = lines.join('\n').trim();
           resolve(result || defaultValue);
           return;
         }
       } else {
+        // Preserve blank lines that appeared between content
+        for (let i = 0; i < emptyLineCount; i++) {
+          lines.push('');
+        }
         emptyLineCount = 0;
         lines.push(line);
       }
@@ -1660,9 +1761,15 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
     durationOptions = [Math.round(minDurationExact)];
   }
 
-  // Find default: use model's defaultFrames if available, otherwise first option
+  // Find default: audio duration (for audio-driven workflows) > model's defaultFrames > first option
   let defaultDuration;
-  if (modelConfig.defaultFrames) {
+  if (config.audioDuration) {
+    // For audio-driven workflows, default to the closest duration that fits the audio length
+    const targetDuration = Math.floor(config.audioDuration);
+    // Find the closest available option that doesn't exceed the audio length
+    const candidates = durationOptions.filter(d => d <= targetDuration);
+    defaultDuration = candidates.length > 0 ? candidates[candidates.length - 1] : durationOptions[0];
+  } else if (modelConfig.defaultFrames) {
     defaultDuration = Math.round((modelConfig.defaultFrames - 1) / effectiveFps);
   } else {
     defaultDuration = durationOptions[0];
@@ -1728,7 +1835,8 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
   console.log('\n🔧 Advanced Options\n');
 
   // Video-specific advanced options (FPS is now asked before duration via promptVideoFps)
-  if (isVideo) {
+  // Only show shift prompt for models that use it (WAN models have defaultShift, LTX-2 models don't)
+  if (isVideo && modelConfig.defaultShift !== undefined) {
     // Shift
     const defaultShift = modelConfig.defaultShift || VIDEO_CONSTRAINTS.shift.default;
     const shiftInput = await askQuestion(
@@ -1859,7 +1967,7 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
   }
 
   // Negative prompt
-  const negativeInput = await askQuestion('\nNegative prompt (optional): ');
+  const negativeInput = await askMultilinePrompt('\nNegative prompt (optional):', '');
   if (negativeInput.trim()) {
     options.negative = negativeInput.trim();
   }
@@ -2086,6 +2194,39 @@ export async function promptContextImages(options, maxImages = 3) {
   }
 
   return options;
+}
+
+/**
+ * Display a formatted safe content filter message.
+ * Used when NSFW/sensitive content is detected by the worker.
+ *
+ * @param {Object} options
+ * @param {boolean} [options.showDisableHint=true] - Whether to show the --disable-safe-content-filter hint
+ */
+export function displaySafeContentFilterMessage({ showDisableHint = true } = {}) {
+  console.log('\n' + '─'.repeat(60));
+  console.log('ℹ️  Safe Content Filter Triggered');
+  console.log('─'.repeat(60));
+  console.log('Your prompt or generated image was flagged by the content filter.');
+  if (showDisableHint) {
+    console.log('To disable, add: --disable-safe-content-filter');
+  }
+  console.log('─'.repeat(60) + '\n');
+}
+
+/**
+ * Check if an error event represents a sensitive content / NSFW detection.
+ * The server sends sensitiveContent as the originalCode when the worker
+ * detects content that violates safety policies.
+ *
+ * @param {Object} event - The error event from the SDK
+ * @returns {boolean} True if this is a sensitive content error
+ */
+export function isSensitiveContentError(event) {
+  if (!event?.error) return false;
+  const { originalCode, message } = event.error;
+  return originalCode === 'sensitiveContent' ||
+    (typeof message === 'string' && message.toLowerCase().includes('sensitive content'));
 }
 
 /**

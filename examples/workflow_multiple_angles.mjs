@@ -55,7 +55,9 @@ import {
   displayConfig,
   getUniqueFilename,
   generateImageFilename,
-  generateRandomSeed
+  generateRandomSeed,
+  displaySafeContentFilterMessage,
+  isSensitiveContentError
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -664,6 +666,12 @@ async function main() {
                     if (!event.jobId) return;
           clearProgress();
 
+          if (event.isNSFW) {
+            failedImages++;
+            displaySafeContentFilterMessage({ showDisableHint: false });
+            checkWorkflowCompletion();
+            return;
+          }
           if (!event.resultUrl || event.error) {
             failedImages++;
             log('❌', `Job completed with error: ${event.error || 'No result URL'}`);
@@ -699,7 +707,11 @@ async function main() {
               })
               .catch((error) => {
                 failedImages++;
-                log('❌', `Download failed: ${error.message}`);
+                if (error.message?.includes('Not Found')) {
+                  displaySafeContentFilterMessage({ showDisableHint: false });
+                } else {
+                  log('❌', `Download failed: ${error.message}`);
+                }
                 checkWorkflowCompletion();
               });
           }
@@ -714,8 +726,12 @@ async function main() {
                     clearProgress();
           projectFailed = true;
           failedImages++;
-          const errorMsg = event.error?.message || event.error || 'Unknown error';
-          log('❌', `Job failed: ${errorMsg}`);
+          if (isSensitiveContentError(event)) {
+            displaySafeContentFilterMessage({ showDisableHint: false });
+          } else {
+            const errorMsg = event.error?.message || event.error || 'Unknown error';
+            log('❌', `Job failed: ${errorMsg}`);
+          }
           checkWorkflowCompletion();
           break;
       }

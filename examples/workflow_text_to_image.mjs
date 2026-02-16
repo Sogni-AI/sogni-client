@@ -17,7 +17,7 @@
  *   node workflow_text_to_image.mjs "Fantasy art" --model chroma-v46-flash --starting-image ./test-assets/placeholder.jpg --strength 0.7
  *
  * Options:
- *   --model     Model: z-turbo, chroma-v46-flash, chroma-v48-detail-svd, flux1-krea-dev, flux1-schnell, or flux2 (default: prompts for selection)
+ *   --model     Model: z-turbo, z-image, chroma-v46-flash, chroma-v48-detail-svd, flux1-krea-dev, flux1-schnell, or flux2 (default: prompts for selection)
  *   --width     Image width (default: model-specific, max: 2048)
  *   --height    Image height (default: model-specific, max: 2048)
  *   --batch     Number of images to generate (default: 1)
@@ -60,7 +60,9 @@ import {
   generateRandomSeed,
   createSogniConnection,
   getDefaultSampler,
-  getDefaultScheduler
+  getDefaultScheduler,
+  displaySafeContentFilterMessage,
+  isSensitiveContentError
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -158,6 +160,7 @@ Usage:
 
 Available Models:
   z-turbo              - Z-Image Turbo (fast generation, max: 2048x2048, supports img2img)
+  z-image              - Z-Image (high quality 20-50 steps, max: 2048x2048, supports img2img)
   chroma-v46-flash     - Chroma v.46 Flash (fast high-quality, max: 2048x2048, supports img2img)
   chroma-v48-detail-svd - Chroma v48 Detail SVD (high detail, max: 2048x2048, supports img2img)
   flux1-krea-dev       - Flux.1 Krea Dev (creative with detail, max: 2048x2048, supports img2img)
@@ -165,7 +168,7 @@ Available Models:
   flux2                - Flux.2 Dev (highest quality, max: 2048x2048, supports up to 6 context images)
 
 Options:
-  --model     Model: z-turbo, chroma-v46-flash, chroma-v48-detail-svd, flux1-krea-dev, flux1-schnell, or flux2 (default: prompts for selection)
+  --model     Model: z-turbo, z-image, chroma-v46-flash, chroma-v48-detail-svd, flux1-krea-dev, flux1-schnell, or flux2 (default: prompts for selection)
   --negative  Negative prompt (default: none)
   --style     Style prompt (default: none)
   --width     Image width (default: model-specific, max: 2048)
@@ -211,7 +214,7 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'z-turbo';
     modelConfig = MODELS.image[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'z-turbo', 'chroma-v46-flash', 'chroma-v48-detail-svd', 'flux1-krea-dev', 'flux1-schnell', or 'flux2'.`);
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'z-turbo', 'z-image', 'chroma-v46-flash', 'chroma-v48-detail-svd', 'flux1-krea-dev', 'flux1-schnell', or 'flux2'.`);
       process.exit(1);
     }
   }
@@ -679,12 +682,7 @@ async function main() {
                     if (!event.jobId) return;
           if (event.isNSFW) {
             failedImages++;
-            console.log('\n' + '─'.repeat(60));
-            console.log('ℹ️  Safe Content Filter Triggered');
-            console.log('─'.repeat(60));
-            console.log('Your prompt or generated image was flagged by the content filter.');
-            console.log('To disable, add: --disable-safe-content-filter');
-            console.log('─'.repeat(60) + '\n');
+            displaySafeContentFilterMessage();
             checkWorkflowCompletion();
             return;
           }
@@ -726,8 +724,12 @@ async function main() {
               })
               .catch((error) => {
                 failedImages++;
-                const failedImageId = event.jobId || currentJobId || `image_${Date.now()}`;
-                log('❌', `Download failed for ${failedImageId}: ${error.message}`);
+                if (error.message?.includes('Not Found')) {
+                  displaySafeContentFilterMessage();
+                } else {
+                  const failedImageId = event.jobId || currentJobId || `image_${Date.now()}`;
+                  log('❌', `Download failed for ${failedImageId}: ${error.message}`);
+                }
                 checkWorkflowCompletion();
               });
           }
@@ -741,12 +743,16 @@ async function main() {
         case 'failed':
                     projectFailed = true;
           failedImages++;
-          const errorMsg = event.error?.message || event.error || 'Unknown error';
-          const errorCode = event.error?.code;
-          if (errorCode !== undefined && errorCode !== null) {
-            log('❌', `Job failed: ${errorMsg} (Error code: ${errorCode})`);
+          if (isSensitiveContentError(event)) {
+            displaySafeContentFilterMessage();
           } else {
-            log('❌', `Job failed: ${errorMsg}`);
+            const errorMsg = event.error?.message || event.error || 'Unknown error';
+            const errorCode = event.error?.code;
+            if (errorCode !== undefined && errorCode !== null) {
+              log('❌', `Job failed: ${errorMsg} (Error code: ${errorCode})`);
+            } else {
+              log('❌', `Job failed: ${errorMsg}`);
+            }
           }
           checkWorkflowCompletion();
           break;
