@@ -13,6 +13,7 @@ import ProjectsApi from './Projects';
 import Job, { JobStatus } from './Projects/Job';
 import Project, { ProjectStatus } from './Projects/Project';
 import {
+  AudioOutputFormat,
   AvailableModel,
   ImageProjectParams,
   ImageOutputFormat,
@@ -40,6 +41,7 @@ import { MeData } from './Account/types';
 
 export type {
   AudioFormat,
+  AudioOutputFormat,
   AvailableModel,
   ControlNetMode,
   ControlNetName,

@@ -199,10 +199,12 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
-   * Whether this job produces video output (based on the model used)
+   * Media type produced by this job's model
    */
-  get type(): 'image' | 'video' {
-    return this._api.isVideoModelId(this._project.params.modelId) ? 'video' : 'image';
+  get type(): 'image' | 'video' | 'audio' {
+    if (this._api.isVideoModelId(this._project.params.modelId)) return 'video';
+    if (this._api.isAudioModelId(this._project.params.modelId)) return 'audio';
+    return 'image';
   }
 
   get enhancedImage() {
@@ -221,6 +223,21 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
+   * Get the MIME content type for audio downloads based on the project's output format.
+   */
+  private get _audioContentType(): string {
+    const format = (this._project.params as any).outputFormat;
+    switch (format) {
+      case 'flac':
+        return 'audio/flac';
+      case 'wav':
+        return 'audio/wav';
+      default:
+        return 'audio/mpeg';
+    }
+  }
+
+  /**
    * Get the result URL of the job. This method will make a request to the API to get signed URL.
    * IMPORTANT: URL expires after 30 minutes, so make sure to download the result as soon as possible.
    * For video jobs, this returns a video URL. For image jobs, this returns an image URL.
@@ -230,11 +247,12 @@ class Job extends DataEntity<JobData, JobEventMap> {
       throw new Error('Job is not completed yet');
     }
     let url: string;
-    if (this.type === 'video') {
+    if (this.type === 'video' || this.type === 'audio') {
       url = await this._api.mediaDownloadUrl({
         jobId: this.projectId,
         id: this.id,
-        type: 'complete'
+        type: 'complete',
+        ...(this.type === 'audio' ? { contentType: this._audioContentType } : {})
       });
     } else {
       url = await this._api.downloadUrl({
@@ -300,11 +318,12 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
     if (!this.data.resultUrl && delta.status === 'completed' && !data.triggeredNSFWFilter) {
       try {
-        if (this.type === 'video') {
+        if (this.type === 'video' || this.type === 'audio') {
           delta.resultUrl = await this._api.mediaDownloadUrl({
             jobId: this.projectId,
             id: this.id,
-            type: 'complete'
+            type: 'complete',
+            ...(this.type === 'audio' ? { contentType: this._audioContentType } : {})
           });
         } else {
           delta.resultUrl = await this._api.downloadUrl({

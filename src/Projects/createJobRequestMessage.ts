@@ -1,5 +1,7 @@
 import {
+  AudioProjectParams,
   ImageProjectParams,
+  isAudioParams,
   isImageParams,
   isVideoParams,
   ProjectParams,
@@ -28,7 +30,12 @@ import {
   calculateVideoFrames
 } from './utils';
 import { ApiError } from '../ApiClient';
-import { ImageModelOptions, ModelOptions, VideoModelOptions } from './types/ModelOptions';
+import {
+  AudioModelOptions,
+  ImageModelOptions,
+  ModelOptions,
+  VideoModelOptions
+} from './types/ModelOptions';
 
 /**
  * Validate that the provided assets match the workflow requirements.
@@ -350,10 +357,59 @@ function applyVideoParams(
     keyFrame.currentControlNetsJob = getVideoControlNet(params.controlNet);
   }
 
+  // Detailer LoRA strength for LTX-2 v2v IC-Control workflows
+  if (params.detailerStrength !== undefined) {
+    keyFrame.detailerStrength = params.detailerStrength;
+  }
+
   // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
   if (params.width && params.height) {
     keyFrame.width = validateVideoSize(params.width, 'width');
     keyFrame.height = validateVideoSize(params.height, 'height');
+  }
+
+  keyFrame.comfySampler = validateSampler(params.sampler, options);
+  keyFrame.comfyScheduler = validateScheduler(params.scheduler, options);
+
+  return keyFrame;
+}
+
+function applyAudioParams(
+  inputKeyframe: Record<string, any>,
+  params: AudioProjectParams,
+  options: AudioModelOptions
+) {
+  const keyFrame: Record<string, any> = { ...inputKeyframe };
+
+  if (params.duration !== undefined) {
+    keyFrame.duration = params.duration;
+  }
+  if (params.bpm !== undefined) {
+    keyFrame.bpm = params.bpm;
+  }
+  if (params.timesignature !== undefined) {
+    keyFrame.timesignature = params.timesignature;
+  }
+  if (params.language !== undefined) {
+    keyFrame.language = params.language;
+  }
+  if (params.lyrics !== undefined) {
+    keyFrame.lyrics = params.lyrics;
+  }
+  if (params.keyscale !== undefined) {
+    keyFrame.keyscale = params.keyscale;
+  }
+  if (params.composerMode !== undefined) {
+    keyFrame.composerMode = params.composerMode;
+  }
+  if (params.promptStrength !== undefined) {
+    keyFrame.promptStrength = params.promptStrength;
+  }
+  if (params.creativity !== undefined) {
+    keyFrame.creativity = params.creativity;
+  }
+  if (params.shift !== undefined) {
+    keyFrame.shift = params.shift;
   }
 
   keyFrame.comfySampler = validateSampler(params.sampler, options);
@@ -405,11 +461,22 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
       }
       keyFrame = applyVideoParams(keyFrame, params, options);
       break;
+    case 'audio':
+      if (options.type !== 'audio') {
+        throw new ApiError(400, {
+          status: 'error',
+          errorCode: 0,
+          message:
+            'Invalid model type. Model does not support audio generation. Please use a different model.'
+        });
+      }
+      keyFrame = applyAudioParams(keyFrame, params, options);
+      break;
     default:
       throw new ApiError(400, {
         status: 'error',
         errorCode: 0,
-        message: 'Invalid project type. Must be "image" or "video".'
+        message: 'Invalid project type. Must be "image", "video", or "audio".'
       });
   }
 
@@ -421,7 +488,8 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     jobID: id,
     disableSafety: !!params.disableNSFWFilter,
     tokenType: params.tokenType,
-    outputFormat: params.outputFormat || (isVideoParams(params) ? 'mp4' : 'png')
+    outputFormat:
+      params.outputFormat || (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png')
   };
 
   if (params.network) {

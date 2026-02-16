@@ -35,13 +35,25 @@ import { enhancementDefaults } from './Job';
 import {
   getEnhacementStrength,
   getVideoWorkflowType,
+  isAudioModel,
   isVideoModel,
   VIDEO_WORKFLOW_ASSETS
 } from './utils';
 import { TokenType } from '../types/token';
 import { getMaxContextImages, validateSampler } from '../lib/validation';
-import ModelTiersRaw, { isComfyImageTier, isImageTier, isVideoTier } from './types/ModelTiersRaw';
-import { mapComfyImageTier, mapImageTier, mapVideoTier, ModelOptions } from './types/ModelOptions';
+import ModelTiersRaw, {
+  isAudioTier,
+  isComfyImageTier,
+  isImageTier,
+  isVideoTier
+} from './types/ModelTiersRaw';
+import {
+  mapAudioTier,
+  mapComfyImageTier,
+  mapImageTier,
+  mapVideoTier,
+  ModelOptions
+} from './types/ModelOptions';
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 const GARBAGE_COLLECT_TIMEOUT = 30000;
@@ -93,6 +105,21 @@ function mapErrorCodes(code: string): number {
   }
 }
 
+/**
+ * Get the MIME content type for audio downloads based on the project's output format.
+ */
+function getAudioContentType(project: Project): string {
+  const format = (project.params as any).outputFormat;
+  switch (format) {
+    case 'flac':
+      return 'audio/flac';
+    case 'wav':
+      return 'audio/wav';
+    default:
+      return 'audio/mpeg';
+  }
+}
+
 class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
   private projects: Project[] = [];
@@ -124,6 +151,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     // Fallback to prefix check if models not loaded
     return isVideoModel(modelId);
+  }
+
+  /**
+   * Check if a model produces audio output using the cached models list.
+   * Uses the `media` property from the models API when available,
+   * falls back to model ID prefix check if models aren't loaded yet.
+   */
+  isAudioModelId(modelId: string): boolean {
+    const model = this._supportedModels.data?.find((m) => m.id === modelId);
+    if (model) {
+      return model.media === 'audio';
+    }
+    return isAudioModel(modelId);
   }
 
   constructor(config: ApiConfig) {
@@ -262,14 +302,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
     // If no resultUrl provided and NSFW check passes, generate download URL
     if (!downloadUrl && passNSFWCheck && !data.userCanceled) {
-      // Use media endpoint for video models, image endpoint for image models
+      // Use media endpoint for video/audio models, image endpoint for image models
       const isVideo = project && this.isVideoModelId(project.params.modelId);
+      const isAudio = project && this.isAudioModelId(project.params.modelId);
+      const isMedia = isVideo || isAudio;
       try {
-        if (isVideo) {
+        if (isMedia) {
           downloadUrl = await this.mediaDownloadUrl({
             jobId: data.jobID,
             id: data.imgID,
-            type: 'complete'
+            type: 'complete',
+            ...(isAudio && project ? { contentType: getAudioContentType(project) } : {})
           });
         } else {
           downloadUrl = await this.downloadUrl({
@@ -535,6 +578,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         break;
       case 'video':
         await this._processVideoAssets(project, data);
+        break;
+      case 'audio':
+        // No assets to upload for audio
         break;
     }
     await this.client.socket.send('jobRequest', request);
@@ -1141,6 +1187,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     if (isComfyImageTier(tier)) {
       return mapComfyImageTier(tier);
+    }
+    if (isAudioTier(tier)) {
+      return mapAudioTier(tier);
     }
     throw new Error(`Unsupported model tier "${model.tier}"`);
   }

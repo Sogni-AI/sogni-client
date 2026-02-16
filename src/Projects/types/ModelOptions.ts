@@ -1,4 +1,4 @@
-import { ComfyImageTier, ImageTier, NumericDefaults, VideoTier } from './ModelTiersRaw';
+import { AudioTier, ComfyImageTier, ImageTier, NumericDefaults, VideoTier } from './ModelTiersRaw';
 import { samplerValueToAlias } from '../utils/samplers';
 import { schedulerValueToAlias } from '../utils/scheduler';
 
@@ -36,7 +36,23 @@ export interface VideoModelOptions {
   scheduler: Options<string>;
 }
 
-export type ModelOptions = ImageModelOptions | VideoModelOptions;
+export interface AudioModelOptions {
+  type: 'audio';
+  steps: NumRange;
+  guidance: NumRange;
+  sampler: Options<string>;
+  scheduler: Options<string>;
+  duration: NumRange;
+  bpm: NumRange;
+  timesignature: Options<string>;
+  language: Options<string>;
+  keyscale?: Options<string>;
+  composerMode?: { default: boolean };
+  promptStrength?: NumRange;
+  creativity?: NumRange;
+}
+
+export type ModelOptions = ImageModelOptions | VideoModelOptions | AudioModelOptions;
 
 function mapRange(data: NumericDefaults): NumRange {
   return {
@@ -89,4 +105,31 @@ export function mapVideoTier(tier: VideoTier): VideoModelOptions {
     sampler: mapOptions(tier.comfySampler, samplerValueToAlias),
     fps: tier.fps
   };
+}
+
+export function mapAudioTier(tier: AudioTier): AudioModelOptions {
+  const options: AudioModelOptions = {
+    type: 'audio',
+    steps: mapRange(tier.steps),
+    guidance: mapRange(tier.guidance),
+    sampler: mapOptions(tier.comfySampler, samplerValueToAlias),
+    scheduler: mapOptions(tier.comfyScheduler, schedulerValueToAlias),
+    duration: mapRange(tier.duration),
+    bpm: mapRange(tier.bpm),
+    timesignature: mapOptions(tier.timesignature),
+    language: mapOptions(tier.language)
+  };
+  if (tier.keyscale) {
+    options.keyscale = mapOptions(tier.keyscale);
+  }
+  if (tier.composerMode) {
+    options.composerMode = { default: tier.composerMode.default };
+  }
+  if (tier.promptStrength) {
+    options.promptStrength = mapRange(tier.promptStrength);
+  }
+  if (tier.creativity) {
+    options.creativity = mapRange(tier.creativity);
+  }
+  return options;
 }

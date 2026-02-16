@@ -8,9 +8,9 @@ export interface SupportedModel {
   SID: number;
   tier: string;
   /**
-   * Media type produced by this model: 'image' or 'video'
+   * Media type produced by this model: 'image', 'video', or 'audio'
    */
-  media: 'image' | 'video';
+  media: 'image' | 'video' | 'audio';
 }
 
 export interface AvailableModel {
@@ -18,9 +18,9 @@ export interface AvailableModel {
   name: string;
   workerCount: number;
   /**
-   * Media type produced by this model: 'image' or 'video'
+   * Media type produced by this model: 'image', 'video', or 'audio'
    */
-  media: 'image' | 'video';
+  media: 'image' | 'video' | 'audio';
 }
 
 export interface SizePreset {
@@ -34,6 +34,7 @@ export interface SizePreset {
 
 export type ImageOutputFormat = 'png' | 'jpg';
 export type VideoOutputFormat = 'mp4';
+export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
 
 export interface BaseProjectParams {
   /**
@@ -103,7 +104,7 @@ export interface BaseProjectParams {
 export type InputMedia = File | Buffer | Blob | boolean;
 
 /**
- * Video-specific parameters for video workflows (t2v, i2v, s2v, animate).
+ * Video-specific parameters for video workflows (t2v, i2v, s2v, ia2v, a2v, animate).
  * Only applicable when using video models like wan_v2.2-14b-fp8_t2v or ltx2-19b-fp8_t2v.
  * Includes frame count, fps, shift, and reference assets (image, audio, video).
  *
@@ -162,8 +163,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   teacacheThreshold?: number;
   /**
-   * Reference image for WAN video workflows.
-   * Maps to: startImage (i2v), characterImage (animate), referenceImage (s2v)
+   * Reference image for video workflows.
+   * Maps to: startImage (i2v), characterImage (animate), referenceImage (s2v, ia2v)
    */
   referenceImage?: InputMedia;
   /**
@@ -172,17 +173,17 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceImageEnd?: InputMedia;
   /**
-   * Reference audio for s2v (sound-to-video) workflows.
+   * Reference audio for audio-driven video workflows (s2v, ia2v, a2v).
    */
   referenceAudio?: InputMedia;
   /**
-   * Audio start position in seconds for s2v workflows.
+   * Audio start position in seconds for audio-driven workflows (s2v, ia2v, a2v).
    * Specifies where to begin reading from the audio file.
    * Default: 0
    */
   audioStart?: number;
   /**
-   * Audio duration in seconds for s2v workflows.
+   * Audio duration in seconds for audio-driven workflows (s2v, ia2v, a2v).
    * Specifies how many seconds of audio to use.
    * If not provided, defaults to 30 seconds on the server.
    */
@@ -197,6 +198,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Specifies which control signal to extract from the reference video.
    */
   controlNet?: VideoControlNetParams;
+  /**
+   * Detailer LoRA strength for LTX-2 v2v IC-Control workflows.
+   * The detailer LoRA is always loaded alongside the control LoRA (canny/pose/depth).
+   * Range: 0.0-1.0, default 0.6.
+   */
+  detailerStrength?: number;
   /**
    * Video start position in seconds for animate workflows (animate-move, animate-replace).
    * Specifies where to begin reading from the reference video file.
@@ -317,7 +324,73 @@ export interface ImageProjectParams extends BaseProjectParams {
   outputFormat?: ImageOutputFormat;
 }
 
-export type ProjectParams = ImageProjectParams | VideoProjectParams;
+export interface AudioProjectParams extends BaseProjectParams {
+  type: 'audio';
+  /**
+   * Duration of the audio in seconds (10-600, default: 30)
+   */
+  duration?: number;
+  /**
+   * Beats per minute (30-300, default: 120)
+   */
+  bpm?: number;
+  /**
+   * Time signature (2, 3, 4, or 6 - default: 4)
+   */
+  timesignature?: string;
+  /**
+   * Lyrics language code (default: en)
+   */
+  language?: string;
+  /**
+   * Song lyrics. Omit for instrumental generation.
+   */
+  lyrics?: string;
+  /**
+   * Key/scale setting (e.g., "C major", "A minor"). Omitted to use server default.
+   */
+  keyscale?: string;
+  /**
+   * Enable AI composer mode for higher quality music generation (default: true).
+   * Disable for faster generation or when using reference audio.
+   * Maps to generate_audio_codes in the ComfyUI workflow.
+   */
+  composerMode?: boolean;
+  /**
+   * How closely the AI composer follows your prompt (0-10, default: 2.0).
+   * Higher values = stricter prompt adherence.
+   * Maps to cfg_scale in the ComfyUI workflow.
+   */
+  promptStrength?: number;
+  /**
+   * Composition variation / temperature (0-2, default: 0.85).
+   * Higher = more creative, lower = more predictable.
+   * Maps to temperature in the ComfyUI workflow.
+   */
+  creativity?: number;
+  /**
+   * Shift parameter for ModelSamplingAuraFlow (1-6, default: 3 for turbo).
+   * Controls how denoising effort is distributed across generation steps.
+   * Higher values front-load structure/composition, producing more coherent arrangements.
+   * Lower values distribute effort evenly, focusing more on detail/texture.
+   * Official ComfyUI template uses shift=3 for ACE-Step 1.5 Turbo.
+   */
+  shift?: number;
+  /**
+   * Sampler, available options depend on the model.
+   */
+  sampler?: string;
+  /**
+   * Scheduler, available options depend on the model.
+   */
+  scheduler?: string;
+  /**
+   * Output audio format. Can be 'mp3', 'flac', or 'wav'. Defaults to 'mp3'.
+   */
+  outputFormat?: AudioOutputFormat;
+}
+
+export type ProjectParams = ImageProjectParams | VideoProjectParams | AudioProjectParams;
 
 export function isVideoParams(params: ProjectParams): params is VideoProjectParams {
   return params.type === 'video';
@@ -327,10 +400,14 @@ export function isImageParams(params: ProjectParams): params is ImageProjectPara
   return params.type === 'image';
 }
 
+export function isAudioParams(params: ProjectParams): params is AudioProjectParams {
+  return params.type === 'audio';
+}
+
 /**
  * Supported audio formats
  */
-export type AudioFormat = 'm4a' | 'mp3' | 'wav';
+export type AudioFormat = 'm4a' | 'mp3' | 'wav' | 'flac';
 
 /**
  * Supported video formats
@@ -366,6 +443,7 @@ export type MediaUrlParams = {
   id?: string;
   jobId: string;
   type: 'complete' | 'preview' | 'referenceAudio' | 'referenceVideo';
+  contentType?: string;
 };
 
 export interface EstimateRequest {
@@ -463,12 +541,14 @@ export interface CostEstimation {
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
 
 /**
- * Video workflow types for WAN models
+ * Video workflow types for WAN and LTX-2 models
  */
 export type VideoWorkflowType =
   | 't2v'
   | 'i2v'
   | 's2v'
+  | 'ia2v'
+  | 'a2v'
   | 'v2v'
   | 'animate-move'
   | 'animate-replace'

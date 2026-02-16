@@ -73,7 +73,7 @@ export function validateTeacacheThreshold(value?: number): number | undefined {
 }
 
 export function isComfyModel(modelId: string): boolean {
-  const COMFY_PREFIXES = ['z_image_', 'qwen_image_', 'flux2_', 'wan_'];
+  const COMFY_PREFIXES = ['z_image_', 'qwen_image_', 'flux2_', 'wan_', 'ace_step'];
   return COMFY_PREFIXES.some((prefix) => modelId.startsWith(prefix));
 }
 

@@ -21,6 +21,14 @@ export function isVideoModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model ID is for an audio workflow (e.g., ACE-Step).
+ * Audio models produce MP3 output by default.
+ */
+export function isAudioModel(modelId: string): boolean {
+  return modelId.startsWith('ace_step');
+}
+
+/**
  * Check if a model ID is a WAN 2.2 video model.
  *
  * WAN 2.2 models always generate video at 16fps internally.
@@ -130,6 +138,13 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   // LTX-2 v2v ControlNet workflows (model IDs use underscore: ltx2-19b-fp8_v2v_distilled)
   if (isLtx2 && modelId.includes('_v2v')) return 'v2v';
 
+  // LTX-2 audio-to-video workflows
+  // ia2v = image+audio to video (requires referenceImage + referenceAudio)
+  // a2v = audio to video (requires referenceAudio only)
+  // Note: Check _ia2v before _a2v since _ia2v contains _a2v as a substring
+  if (isLtx2 && modelId.includes('_ia2v')) return 'ia2v';
+  if (isLtx2 && modelId.includes('_a2v')) return 'a2v';
+
   // WAN-specific workflow types
   if (isWan) {
     if (modelId.includes('_s2v')) return 's2v';
@@ -164,6 +179,18 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
   },
   s2v: {
     referenceImage: 'required',
+    referenceAudio: 'required',
+    referenceImageEnd: 'forbidden',
+    referenceVideo: 'forbidden'
+  },
+  ia2v: {
+    referenceImage: 'required',
+    referenceAudio: 'required',
+    referenceImageEnd: 'forbidden',
+    referenceVideo: 'forbidden'
+  },
+  a2v: {
+    referenceImage: 'forbidden',
     referenceAudio: 'required',
     referenceImageEnd: 'forbidden',
     referenceVideo: 'forbidden'

@@ -1,6 +1,6 @@
 export type ModelTiersRaw = Record<string, ModelTier>;
 
-export type ModelTier = ImageTier | VideoTier | ComfyImageTier;
+export type ModelTier = ImageTier | VideoTier | ComfyImageTier | AudioTier;
 
 export interface ComfyImageTier {
   benchmark: Benchmark;
@@ -81,6 +81,31 @@ export interface DurationDefaults {
 export interface NumericOptions {
   allowed: number[];
   default: number;
+}
+
+export interface BooleanDefault {
+  default: boolean;
+}
+
+export interface AudioTier {
+  benchmark: Benchmark;
+  bpm: NumericDefaults;
+  comfySampler: StringDefaults;
+  comfyScheduler: StringDefaults;
+  composerMode?: BooleanDefault;
+  creativity?: NumericDefaults;
+  duration: NumericDefaults;
+  guidance: NumericDefaults;
+  keyscale?: StringDefaults;
+  language: StringDefaults;
+  promptStrength?: NumericDefaults;
+  steps: NumericDefaults;
+  timesignature: StringDefaults;
+  type: 'audio';
+}
+
+export function isAudioTier(t: ModelTier): t is AudioTier {
+  return 'type' in t && t.type === 'audio';
 }
 
 export default ModelTiersRaw;
