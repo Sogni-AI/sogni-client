@@ -2,8 +2,12 @@
 /**
  * Text-to-Music Workflow
  *
- * This script generates music from text prompts using the ACE-Step 1.5 SFT model
+ * This script generates music from text prompts using ACE-Step models
  * via the SDK's native audio project support.
+ *
+ * Two models are available:
+ *   - ACE-Step 1.5 Turbo: Fast generation (4-16 steps), no CFG guidance, half cost
+ *   - ACE-Step 1.5 SFT:   Higher quality (10-200 steps), CFG guidance, full cost
  *
  * Prerequisites:
  * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
@@ -13,21 +17,24 @@
  *   node workflow_text_to_music.mjs                                    # Interactive mode
  *   node workflow_text_to_music.mjs "upbeat electronic dance music"    # With prompt
  *   node workflow_text_to_music.mjs "jazz ballad" --duration 60        # With options
+ *   node workflow_text_to_music.mjs "rock anthem" --model sft          # Use SFT model
  *
  * Options:
+ *   --model           Model: turbo, sft (default: turbo)
  *   --duration        Duration in seconds (10-600, default: 30)
  *   --bpm             Beats per minute (30-300, default: 120)
  *   --keyscale        Musical key (e.g., "C major", "A minor", default: C major)
  *   --timesig         Time signature (2, 3, 4, 6, default: 4)
  *   --language        Lyrics language (default: auto-detect)
  *   --lyrics          Song lyrics (default: included)
- *   --steps           Inference steps (10-200, default: 50)
- *   --guidance        Diffusion CFG guidance (1-15, default: 5)
+ *   --steps           Inference steps (model-dependent, see below)
+ *   --guidance        Diffusion CFG guidance (1-15, default: 5, SFT only)
+ *   --shift           Denoising shift (1-5, default: 3)
  *   --composer-mode   Enable AI composer (true/false, default: true)
  *   --prompt-strength How closely composer follows prompt (0-10, default: 2.0)
  *   --creativity      Composition variation (0-2, default: 0.85)
- *   --sampler         Sampler algorithm (default: er_sde)
- *   --scheduler       Scheduler algorithm (default: linear_quadratic)
+ *   --sampler         Sampler algorithm (model-dependent)
+ *   --scheduler       Scheduler algorithm (model-dependent)
  *   --seed            Random seed (default: -1 for random)
  *   --format          Output format: mp3, wav, flac (default: mp3)
  *   --batch           Number of tracks to generate (default: 1)
@@ -59,7 +66,28 @@ import {
 
 const streamPipeline = promisify(pipeline);
 
-const AUDIO_MODEL_ID = 'ace_step_1.5_sft';
+const AUDIO_MODELS = {
+  turbo: {
+    id: 'ace_step_1.5_turbo',
+    name: 'ACE-Step 1.5 Turbo',
+    description: 'Fast generation, no CFG guidance, half cost',
+    steps: { min: 4, max: 16, default: 8 },
+    shift: { min: 1, max: 5, default: 3 },
+    guidance: null, // Turbo does not use CFG guidance
+    sampler: { allowed: ['euler', 'euler_ancestral'], default: 'euler' },
+    scheduler: { allowed: ['simple'], default: 'simple' }
+  },
+  sft: {
+    id: 'ace_step_1.5_sft',
+    name: 'ACE-Step 1.5 SFT',
+    description: 'Higher quality, CFG guidance, more steps',
+    steps: { min: 10, max: 200, default: 50 },
+    shift: { min: 1, max: 5, default: 3 },
+    guidance: { min: 1, max: 15, default: 5 },
+    sampler: { allowed: ['euler', 'euler_ancestral', 'er_sde'], default: 'er_sde' },
+    scheduler: { allowed: ['simple', 'linear_quadratic'], default: 'linear_quadratic' }
+  }
+};
 
 const AUDIO_CONSTRAINTS = {
   duration: { min: 10, max: 600, default: 30 },
@@ -102,13 +130,9 @@ const AUDIO_CONSTRAINTS = {
     ],
     default: 'en'
   },
-  steps: { min: 10, max: 200, default: 50 },
-  guidance: { min: 1, max: 15, default: 5 },
   composerMode: { default: true },
   promptStrength: { min: 0, max: 10, default: 2.0 },
   creativity: { min: 0, max: 2, default: 0.85 },
-  sampler: { allowed: ['euler', 'euler_ancestral', 'er_sde'], default: 'er_sde' },
-  scheduler: { allowed: ['simple', 'linear_quadratic'], default: 'linear_quadratic' },
   outputFormat: { allowed: ['mp3', 'wav', 'flac'], default: 'mp3' }
 };
 
@@ -122,6 +146,7 @@ const DEFAULT_LYRICS = `[Intro]\nCLANK… CLANK…\nSYSTEM ONLINE.\nI AM CLANKER
 function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
+    model: null,
     prompt: null,
     lyrics: null,
     duration: null,
@@ -131,6 +156,7 @@ function parseArgs() {
     language: null,
     steps: null,
     guidance: null,
+    shift: null,
     composerMode: null,
     promptStrength: null,
     creativity: null,
@@ -150,6 +176,8 @@ function parseArgs() {
       process.exit(0);
     } else if (arg === '--no-interactive') {
       options.interactive = false;
+    } else if (arg === '--model' && args[i + 1]) {
+      options.model = args[++i].toLowerCase();
     } else if (arg === '--duration' && args[i + 1]) {
       options.duration = parseInt(args[++i], 10);
     } else if (arg === '--bpm' && args[i + 1]) {
@@ -166,6 +194,8 @@ function parseArgs() {
       options.steps = parseInt(args[++i], 10);
     } else if (arg === '--guidance' && args[i + 1]) {
       options.guidance = parseFloat(args[++i]);
+    } else if (arg === '--shift' && args[i + 1]) {
+      options.shift = parseFloat(args[++i]);
     } else if (arg === '--composer-mode' && args[i + 1]) {
       options.composerMode = args[++i].toLowerCase() !== 'false';
     } else if (arg === '--prompt-strength' && args[i + 1]) {
@@ -198,14 +228,20 @@ function parseArgs() {
 
 function showHelp() {
   console.log(`
-Text-to-Music Workflow (ACE-Step 1.5 SFT)
+Text-to-Music Workflow (ACE-Step)
 
 Usage:
   node workflow_text_to_music.mjs                                    # Interactive mode
   node workflow_text_to_music.mjs "upbeat electronic dance music"    # With prompt
   node workflow_text_to_music.mjs "jazz ballad" --duration 60        # With options
+  node workflow_text_to_music.mjs "rock anthem" --model sft          # Use SFT model
+
+Models:
+  turbo (default)   ACE-Step 1.5 Turbo - Fast, 4-16 steps, no CFG, half cost
+  sft               ACE-Step 1.5 SFT   - Quality, 10-200 steps, CFG guidance
 
 Options:
+  --model           Model: turbo, sft (default: turbo)
   --duration        Duration in seconds (10-600, default: 30)
   --bpm             Beats per minute (30-300, default: 120)
   --keyscale        Musical key, e.g. "C major", "A minor" (default: C major)
@@ -216,15 +252,16 @@ Options:
                                ms, ne, nl, no, pa, pl, pt, ro, ru, sa, sk, sr, sv,
                                sw, ta, te, th, tl, tr, uk, ur, vi, yue, zh, unknown
   --lyrics          Song lyrics (default: included)
-  --steps           Inference steps (10-200, default: 50)
-  --guidance        Diffusion CFG guidance (1-15, default: 5)
+  --steps           Inference steps (turbo: 4-16 default 8, sft: 10-200 default 50)
+  --guidance        Diffusion CFG guidance (1-15, default: 5, SFT only)
+  --shift           Denoising shift (1-5, default: 3)
   --composer-mode   Enable AI composer planner (true/false, default: true)
                     Disable for faster generation or when using reference audio
   --prompt-strength How closely composer follows your prompt (0-10, default: 2.0)
   --creativity      Composition variation (0-2, default: 0.85)
                     Higher = more creative, lower = more predictable
-  --sampler         Sampler algorithm (default: er_sde)
-  --scheduler       Scheduler algorithm (default: linear_quadratic)
+  --sampler         Sampler algorithm (turbo: euler, sft: er_sde)
+  --scheduler       Scheduler algorithm (turbo: simple, sft: linear_quadratic)
   --seed            Random seed (default: -1 for random)
   --format          Output format: mp3, wav, flac (default: mp3)
   --batch           Number of tracks to generate (default: 1)
@@ -239,6 +276,23 @@ Options:
 // ============================================
 
 async function promptAudioOptions(options) {
+  // Model selection
+  if (!options.model) {
+    console.log('Select a model:\n');
+    console.log('  1. ACE-Step 1.5 Turbo  (fast, 4-16 steps, no CFG, half cost)');
+    console.log('  2. ACE-Step 1.5 SFT    (quality, 10-200 steps, CFG guidance)');
+    console.log();
+    const modelChoice = await askQuestion('Enter choice [1/2] (default: 1): ');
+    const modelChoiceTrimmed = modelChoice.trim() || '1';
+    if (modelChoiceTrimmed === '2' || modelChoiceTrimmed.toLowerCase() === 'sft') {
+      options.model = 'sft';
+      console.log('  → Using ACE-Step 1.5 SFT\n');
+    } else {
+      options.model = 'turbo';
+      console.log('  → Using ACE-Step 1.5 Turbo\n');
+    }
+  }
+
   // Prompt
   if (!options.prompt) {
     options.prompt = await askMultilinePrompt(
@@ -352,7 +406,7 @@ async function main() {
 
   console.log('╔══════════════════════════════════════════════════════════╗');
   console.log('║               Text-to-Music Workflow                     ║');
-  console.log('║                    ACE-Step 1.5 SFT                        ║');
+  console.log('║                      ACE-Step                              ║');
   console.log('╚══════════════════════════════════════════════════════════╝');
   console.log();
 
@@ -363,19 +417,28 @@ async function main() {
   if (OPTIONS.interactive) {
     await promptAudioOptions(OPTIONS);
 
-    const advancedChoice = await askQuestion('\nCustomize advanced options (steps, guidance, composer, seed)? [y/N]: ');
+    // Resolve model config for interactive prompts
+    const interactiveModelConfig = AUDIO_MODELS[OPTIONS.model] || AUDIO_MODELS.turbo;
+
+    const advancedChoice = await askQuestion('\nCustomize advanced options (steps, guidance, shift, composer, seed)? [y/N]: ');
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       if (OPTIONS.steps === null) {
-        const { min, max } = AUDIO_CONSTRAINTS.steps;
-        const defaultVal = AUDIO_CONSTRAINTS.steps.default;
+        const { min, max } = interactiveModelConfig.steps;
+        const defaultVal = interactiveModelConfig.steps.default;
         const answer = await askQuestion(`Steps (${min}-${max}, default: ${defaultVal}): `);
         OPTIONS.steps = answer ? parseInt(answer, 10) : null;
       }
-      if (OPTIONS.guidance === null) {
-        const { min, max } = AUDIO_CONSTRAINTS.guidance;
-        const defaultVal = AUDIO_CONSTRAINTS.guidance.default;
+      if (interactiveModelConfig.guidance && OPTIONS.guidance === null) {
+        const { min, max } = interactiveModelConfig.guidance;
+        const defaultVal = interactiveModelConfig.guidance.default;
         const answer = await askQuestion(`Guidance/CFG (${min}-${max}, default: ${defaultVal}): `);
         OPTIONS.guidance = answer ? parseFloat(answer) : null;
+      }
+      if (OPTIONS.shift === null) {
+        const { min, max } = interactiveModelConfig.shift;
+        const defaultVal = interactiveModelConfig.shift.default;
+        const answer = await askQuestion(`Shift - denoising distribution (${min}-${max}, default: ${defaultVal}): `);
+        OPTIONS.shift = answer ? parseFloat(answer) : null;
       }
       if (OPTIONS.composerMode === null) {
         const defaultVal = AUDIO_CONSTRAINTS.composerMode.default;
@@ -397,14 +460,14 @@ async function main() {
         OPTIONS.creativity = answer ? parseFloat(answer) : null;
       }
       if (OPTIONS.sampler === null) {
-        const allowed = AUDIO_CONSTRAINTS.sampler.allowed.join(', ');
-        const defaultVal = AUDIO_CONSTRAINTS.sampler.default;
+        const allowed = interactiveModelConfig.sampler.allowed.join(', ');
+        const defaultVal = interactiveModelConfig.sampler.default;
         const answer = await askQuestion(`Sampler [${allowed}] (default: ${defaultVal}): `);
         OPTIONS.sampler = answer || null;
       }
       if (OPTIONS.scheduler === null) {
-        const allowed = AUDIO_CONSTRAINTS.scheduler.allowed.join(', ');
-        const defaultVal = AUDIO_CONSTRAINTS.scheduler.default;
+        const allowed = interactiveModelConfig.scheduler.allowed.join(', ');
+        const defaultVal = interactiveModelConfig.scheduler.default;
         const answer = await askQuestion(`Scheduler [${allowed}] (default: ${defaultVal}): `);
         OPTIONS.scheduler = answer || null;
       }
@@ -423,7 +486,16 @@ async function main() {
     console.log('\n✅ Configuration complete!\n');
   }
 
-  // Apply defaults
+  // Apply model default
+  if (!OPTIONS.model) OPTIONS.model = 'turbo';
+  const modelConfig = AUDIO_MODELS[OPTIONS.model];
+  if (!modelConfig) {
+    console.error(`Error: Unknown model "${OPTIONS.model}". Must be one of: ${Object.keys(AUDIO_MODELS).join(', ')}`);
+    process.exit(1);
+  }
+  const AUDIO_MODEL_ID = modelConfig.id;
+
+  // Apply defaults (model-specific where applicable)
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
   if (OPTIONS.lyrics === null) OPTIONS.lyrics = DEFAULT_LYRICS;
   if (!OPTIONS.duration) OPTIONS.duration = AUDIO_CONSTRAINTS.duration.default;
@@ -431,13 +503,16 @@ async function main() {
   if (!OPTIONS.keyscale) OPTIONS.keyscale = AUDIO_CONSTRAINTS.keyscale.default;
   if (!OPTIONS.timesignature) OPTIONS.timesignature = AUDIO_CONSTRAINTS.timesignature.default;
   if (!OPTIONS.language) OPTIONS.language = AUDIO_CONSTRAINTS.language.default;
-  if (!OPTIONS.steps) OPTIONS.steps = AUDIO_CONSTRAINTS.steps.default;
-  if (OPTIONS.guidance === null || OPTIONS.guidance === undefined) OPTIONS.guidance = AUDIO_CONSTRAINTS.guidance.default;
+  if (!OPTIONS.steps) OPTIONS.steps = modelConfig.steps.default;
+  if (OPTIONS.guidance === null || OPTIONS.guidance === undefined) {
+    OPTIONS.guidance = modelConfig.guidance ? modelConfig.guidance.default : null;
+  }
+  if (OPTIONS.shift === null || OPTIONS.shift === undefined) OPTIONS.shift = modelConfig.shift.default;
   if (OPTIONS.composerMode === null || OPTIONS.composerMode === undefined) OPTIONS.composerMode = AUDIO_CONSTRAINTS.composerMode.default;
   if (OPTIONS.promptStrength === null || OPTIONS.promptStrength === undefined) OPTIONS.promptStrength = AUDIO_CONSTRAINTS.promptStrength.default;
   if (OPTIONS.creativity === null || OPTIONS.creativity === undefined) OPTIONS.creativity = AUDIO_CONSTRAINTS.creativity.default;
-  if (!OPTIONS.sampler) OPTIONS.sampler = AUDIO_CONSTRAINTS.sampler.default;
-  if (!OPTIONS.scheduler) OPTIONS.scheduler = AUDIO_CONSTRAINTS.scheduler.default;
+  if (!OPTIONS.sampler) OPTIONS.sampler = modelConfig.sampler.default;
+  if (!OPTIONS.scheduler) OPTIONS.scheduler = modelConfig.scheduler.default;
   if (!OPTIONS.format) OPTIONS.format = AUDIO_CONSTRAINTS.outputFormat.default;
 
   // Validate
@@ -461,12 +536,21 @@ async function main() {
     console.error(`Error: Language must be one of: ${AUDIO_CONSTRAINTS.language.allowed.join(', ')}`);
     process.exit(1);
   }
-  if (OPTIONS.steps < AUDIO_CONSTRAINTS.steps.min || OPTIONS.steps > AUDIO_CONSTRAINTS.steps.max) {
-    console.error(`Error: Steps must be between ${AUDIO_CONSTRAINTS.steps.min} and ${AUDIO_CONSTRAINTS.steps.max}`);
+  if (OPTIONS.steps < modelConfig.steps.min || OPTIONS.steps > modelConfig.steps.max) {
+    console.error(`Error: Steps must be between ${modelConfig.steps.min} and ${modelConfig.steps.max} for ${modelConfig.name}`);
     process.exit(1);
   }
-  if (OPTIONS.guidance < AUDIO_CONSTRAINTS.guidance.min || OPTIONS.guidance > AUDIO_CONSTRAINTS.guidance.max) {
-    console.error(`Error: Guidance must be between ${AUDIO_CONSTRAINTS.guidance.min} and ${AUDIO_CONSTRAINTS.guidance.max}`);
+  if (OPTIONS.guidance !== null && modelConfig.guidance) {
+    if (OPTIONS.guidance < modelConfig.guidance.min || OPTIONS.guidance > modelConfig.guidance.max) {
+      console.error(`Error: Guidance must be between ${modelConfig.guidance.min} and ${modelConfig.guidance.max}`);
+      process.exit(1);
+    }
+  } else if (OPTIONS.guidance !== null && !modelConfig.guidance) {
+    console.warn(`Warning: ${modelConfig.name} does not use CFG guidance, ignoring --guidance`);
+    OPTIONS.guidance = null;
+  }
+  if (OPTIONS.shift < modelConfig.shift.min || OPTIONS.shift > modelConfig.shift.max) {
+    console.error(`Error: Shift must be between ${modelConfig.shift.min} and ${modelConfig.shift.max}`);
     process.exit(1);
   }
   if (OPTIONS.promptStrength < AUDIO_CONSTRAINTS.promptStrength.min || OPTIONS.promptStrength > AUDIO_CONSTRAINTS.promptStrength.max) {
@@ -477,12 +561,12 @@ async function main() {
     console.error(`Error: Creativity must be between ${AUDIO_CONSTRAINTS.creativity.min} and ${AUDIO_CONSTRAINTS.creativity.max}`);
     process.exit(1);
   }
-  if (!AUDIO_CONSTRAINTS.sampler.allowed.includes(OPTIONS.sampler)) {
-    console.error(`Error: Sampler must be one of: ${AUDIO_CONSTRAINTS.sampler.allowed.join(', ')}`);
+  if (!modelConfig.sampler.allowed.includes(OPTIONS.sampler)) {
+    console.error(`Error: Sampler must be one of: ${modelConfig.sampler.allowed.join(', ')} for ${modelConfig.name}`);
     process.exit(1);
   }
-  if (!AUDIO_CONSTRAINTS.scheduler.allowed.includes(OPTIONS.scheduler)) {
-    console.error(`Error: Scheduler must be one of: ${AUDIO_CONSTRAINTS.scheduler.allowed.join(', ')}`);
+  if (!modelConfig.scheduler.allowed.includes(OPTIONS.scheduler)) {
+    console.error(`Error: Scheduler must be one of: ${modelConfig.scheduler.allowed.join(', ')} for ${modelConfig.name}`);
     process.exit(1);
   }
   if (!AUDIO_CONSTRAINTS.outputFormat.allowed.includes(OPTIONS.format)) {
@@ -577,8 +661,8 @@ async function main() {
           return `${firstLine} (${lines.length} lines)`;
         })()
       : '(instrumental)';
-    displayConfig('Music Generation Configuration', {
-      Model: 'ACE-Step 1.5 SFT',
+    const configDisplay = {
+      Model: modelConfig.name,
       Prompt: OPTIONS.prompt,
       Lyrics: lyricsDisplay,
       Duration: `${OPTIONS.duration}s`,
@@ -587,7 +671,12 @@ async function main() {
       'Time Signature': `${OPTIONS.timesignature}/4`,
       Language: OPTIONS.language,
       Steps: OPTIONS.steps,
-      Guidance: OPTIONS.guidance,
+      Shift: OPTIONS.shift
+    };
+    if (OPTIONS.guidance !== null) {
+      configDisplay.Guidance = OPTIONS.guidance;
+    }
+    Object.assign(configDisplay, {
       'Composer Mode': OPTIONS.composerMode ? 'Enabled' : 'Disabled',
       'Prompt Strength': OPTIONS.promptStrength,
       Creativity: OPTIONS.creativity,
@@ -597,6 +686,7 @@ async function main() {
       Batch: OPTIONS.batch,
       Seed: OPTIONS.seed !== null && OPTIONS.seed !== -1 ? OPTIONS.seed : '(random)'
     });
+    displayConfig('Music Generation Configuration', configDisplay);
 
     // Get cost estimate
     log('💵', 'Fetching cost estimate...');
@@ -683,7 +773,8 @@ async function main() {
       positivePrompt: OPTIONS.prompt,
       numberOfMedia: OPTIONS.batch,
       steps: OPTIONS.steps,
-      guidance: OPTIONS.guidance,
+      ...(OPTIONS.guidance !== null && { guidance: OPTIONS.guidance }),
+      shift: OPTIONS.shift,
       seed: OPTIONS.seed !== null && OPTIONS.seed !== -1 ? OPTIONS.seed : undefined,
       duration: OPTIONS.duration,
       bpm: OPTIONS.bpm,

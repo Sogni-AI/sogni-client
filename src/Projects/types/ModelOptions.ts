@@ -39,7 +39,7 @@ export interface VideoModelOptions {
 export interface AudioModelOptions {
   type: 'audio';
   steps: NumRange;
-  guidance: NumRange;
+  guidance?: NumRange;
   sampler: Options<string>;
   scheduler: Options<string>;
   duration: NumRange;
@@ -50,6 +50,7 @@ export interface AudioModelOptions {
   composerMode?: { default: boolean };
   promptStrength?: NumRange;
   creativity?: NumRange;
+  shift?: NumRange;
 }
 
 export type ModelOptions = ImageModelOptions | VideoModelOptions | AudioModelOptions;
@@ -111,7 +112,6 @@ export function mapAudioTier(tier: AudioTier): AudioModelOptions {
   const options: AudioModelOptions = {
     type: 'audio',
     steps: mapRange(tier.steps),
-    guidance: mapRange(tier.guidance),
     sampler: mapOptions(tier.comfySampler, samplerValueToAlias),
     scheduler: mapOptions(tier.comfyScheduler, schedulerValueToAlias),
     duration: mapRange(tier.duration),
@@ -119,6 +119,9 @@ export function mapAudioTier(tier: AudioTier): AudioModelOptions {
     timesignature: mapOptions(tier.timesignature),
     language: mapOptions(tier.language)
   };
+  if (tier.guidance) {
+    options.guidance = mapRange(tier.guidance);
+  }
   if (tier.keyscale) {
     options.keyscale = mapOptions(tier.keyscale);
   }
@@ -130,6 +133,9 @@ export function mapAudioTier(tier: AudioTier): AudioModelOptions {
   }
   if (tier.creativity) {
     options.creativity = mapRange(tier.creativity);
+  }
+  if (tier.shift) {
+    options.shift = mapRange(tier.shift);
   }
   return options;
 }

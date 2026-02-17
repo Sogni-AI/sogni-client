@@ -95,10 +95,11 @@ export interface AudioTier {
   composerMode?: BooleanDefault;
   creativity?: NumericDefaults;
   duration: NumericDefaults;
-  guidance: NumericDefaults;
+  guidance?: NumericDefaults;
   keyscale?: StringDefaults;
   language: StringDefaults;
   promptStrength?: NumericDefaults;
+  shift?: NumericDefaults;
   steps: NumericDefaults;
   timesignature: StringDefaults;
   type: 'audio';
