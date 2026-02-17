@@ -1,3 +1,10 @@
+# [4.0.0-alpha.65](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.64...v4.0.0-alpha.65) (2026-02-17)
+
+
+### Bug Fixes
+
+* Add `AudioProjectParams` to exports in `index.ts` ([bdbbca7](https://github.com/Sogni-AI/sogni-client/commit/bdbbca7dfe5dde5dd3e379a8209db1b1c41eaaa4))
+
 # [4.0.0-alpha.64](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.63...v4.0.0-alpha.64) (2026-02-17)
 
 
