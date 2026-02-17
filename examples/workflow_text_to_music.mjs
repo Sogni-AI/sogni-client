@@ -15,11 +15,11 @@
  *   node workflow_text_to_music.mjs "jazz ballad" --duration 60        # With options
  *
  * Options:
- *   --duration        Duration in seconds (10-600, default: 45)
- *   --bpm             Beats per minute (30-300, default: 123)
- *   --keyscale        Musical key (e.g., "C major", "A minor", default: F minor)
+ *   --duration        Duration in seconds (10-600, default: 30)
+ *   --bpm             Beats per minute (30-300, default: 120)
+ *   --keyscale        Musical key (e.g., "C major", "A minor", default: C major)
  *   --timesig         Time signature (2, 3, 4, 6, default: 4)
- *   --language        Lyrics language (default: en)
+ *   --language        Lyrics language (default: auto-detect)
  *   --lyrics          Song lyrics (default: included)
  *   --steps           Inference steps (10-200, default: 50)
  *   --guidance        Diffusion CFG guidance (1-15, default: 5)
@@ -62,26 +62,44 @@ const streamPipeline = promisify(pipeline);
 const AUDIO_MODEL_ID = 'ace_step_1.5_sft';
 
 const AUDIO_CONSTRAINTS = {
-  duration: { min: 10, max: 600, default: 45 },
-  bpm: { min: 30, max: 300, default: 123 },
+  duration: { min: 10, max: 600, default: 30 },
+  bpm: { min: 30, max: 300, default: 120 },
   keyscale: {
     allowed: [
+      'A major', 'A minor', 'A# major', 'A# minor',
+      'Ab major', 'Ab minor', 'A♯ major', 'A♯ minor',
+      'A♭ major', 'A♭ minor',
+      'B major', 'B minor', 'B# major', 'B# minor',
+      'Bb major', 'Bb minor', 'B♯ major', 'B♯ minor',
+      'B♭ major', 'B♭ minor',
       'C major', 'C minor', 'C# major', 'C# minor',
-      'Db major', 'Db minor', 'D major', 'D minor',
-      'D# major', 'D# minor', 'Eb major', 'Eb minor',
-      'E major', 'E minor', 'F major', 'F minor',
-      'F# major', 'F# minor', 'Gb major', 'Gb minor',
+      'Cb major', 'Cb minor', 'C♯ major', 'C♯ minor',
+      'C♭ major', 'C♭ minor',
+      'D major', 'D minor', 'D# major', 'D# minor',
+      'Db major', 'Db minor', 'D♯ major', 'D♯ minor',
+      'D♭ major', 'D♭ minor',
+      'E major', 'E minor', 'E# major', 'E# minor',
+      'Eb major', 'Eb minor', 'E♯ major', 'E♯ minor',
+      'E♭ major', 'E♭ minor',
+      'F major', 'F minor', 'F# major', 'F# minor',
+      'Fb major', 'Fb minor', 'F♯ major', 'F♯ minor',
+      'F♭ major', 'F♭ minor',
       'G major', 'G minor', 'G# major', 'G# minor',
-      'Ab major', 'Ab minor', 'A major', 'A minor',
-      'A# major', 'A# minor', 'Bb major', 'Bb minor',
-      'B major', 'B minor'
+      'Gb major', 'Gb minor', 'G♯ major', 'G♯ minor',
+      'G♭ major', 'G♭ minor'
     ],
-    default: 'F minor'
+    default: 'C major'
   },
   timesignature: { allowed: ['2', '3', '4', '6'], default: '4' },
   language: {
-    allowed: ['en', 'ja', 'zh', 'es', 'de', 'fr', 'pt', 'ru', 'it', 'nl',
-      'pl', 'tr', 'vi', 'cs', 'fa', 'id', 'ko', 'uk', 'hu', 'ar', 'sv', 'ro', 'el'],
+    allowed: [
+      'ar', 'az', 'bg', 'bn', 'ca', 'cs', 'da', 'de', 'el', 'en',
+      'es', 'fa', 'fi', 'fr', 'he', 'hi', 'hr', 'ht', 'hu', 'id',
+      'is', 'it', 'ja', 'ko', 'la', 'lt', 'ms', 'ne', 'nl', 'no',
+      'pa', 'pl', 'pt', 'ro', 'ru', 'sa', 'sk', 'sr', 'sv', 'sw',
+      'ta', 'te', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'yue', 'zh',
+      'unknown'
+    ],
     default: 'en'
   },
   steps: { min: 10, max: 200, default: 50 },
@@ -89,8 +107,8 @@ const AUDIO_CONSTRAINTS = {
   composerMode: { default: true },
   promptStrength: { min: 0, max: 10, default: 2.0 },
   creativity: { min: 0, max: 2, default: 0.85 },
-  sampler: { default: 'er_sde' },
-  scheduler: { default: 'linear_quadratic' },
+  sampler: { allowed: ['euler', 'euler_ancestral', 'er_sde'], default: 'er_sde' },
+  scheduler: { allowed: ['simple', 'linear_quadratic'], default: 'linear_quadratic' },
   outputFormat: { allowed: ['mp3', 'wav', 'flac'], default: 'mp3' }
 };
 
@@ -188,13 +206,15 @@ Usage:
   node workflow_text_to_music.mjs "jazz ballad" --duration 60        # With options
 
 Options:
-  --duration        Duration in seconds (10-600, default: 45)
-  --bpm             Beats per minute (30-300, default: 123)
-  --keyscale        Musical key, e.g. "C major", "A minor" (default: F minor)
+  --duration        Duration in seconds (10-600, default: 30)
+  --bpm             Beats per minute (30-300, default: 120)
+  --keyscale        Musical key, e.g. "C major", "A minor" (default: C major)
   --timesig         Time signature (2, 3, 4, 6 - default: 4)
-  --language        Lyrics language code (default: en)
-                    Supported: en, ja, zh, es, de, fr, pt, ru, it, nl, pl, tr,
-                               vi, cs, fa, id, ko, uk, hu, ar, sv, ro, el
+  --language        Lyrics language code (default: auto-detect)
+                    Supported: ar, az, bg, bn, ca, cs, da, de, el, en, es, fa, fi,
+                               fr, he, hi, hr, ht, hu, id, is, it, ja, ko, la, lt,
+                               ms, ne, nl, no, pa, pl, pt, ro, ru, sa, sk, sr, sv,
+                               sw, ta, te, th, tl, tr, uk, ur, vi, yue, zh, unknown
   --lyrics          Song lyrics (default: included)
   --steps           Inference steps (10-200, default: 50)
   --guidance        Diffusion CFG guidance (1-15, default: 5)
@@ -377,13 +397,15 @@ async function main() {
         OPTIONS.creativity = answer ? parseFloat(answer) : null;
       }
       if (OPTIONS.sampler === null) {
+        const allowed = AUDIO_CONSTRAINTS.sampler.allowed.join(', ');
         const defaultVal = AUDIO_CONSTRAINTS.sampler.default;
-        const answer = await askQuestion(`Sampler (default: ${defaultVal}): `);
+        const answer = await askQuestion(`Sampler [${allowed}] (default: ${defaultVal}): `);
         OPTIONS.sampler = answer || null;
       }
       if (OPTIONS.scheduler === null) {
+        const allowed = AUDIO_CONSTRAINTS.scheduler.allowed.join(', ');
         const defaultVal = AUDIO_CONSTRAINTS.scheduler.default;
-        const answer = await askQuestion(`Scheduler (default: ${defaultVal}): `);
+        const answer = await askQuestion(`Scheduler [${allowed}] (default: ${defaultVal}): `);
         OPTIONS.scheduler = answer || null;
       }
       if (OPTIONS.seed === null) {
@@ -453,6 +475,14 @@ async function main() {
   }
   if (OPTIONS.creativity < AUDIO_CONSTRAINTS.creativity.min || OPTIONS.creativity > AUDIO_CONSTRAINTS.creativity.max) {
     console.error(`Error: Creativity must be between ${AUDIO_CONSTRAINTS.creativity.min} and ${AUDIO_CONSTRAINTS.creativity.max}`);
+    process.exit(1);
+  }
+  if (!AUDIO_CONSTRAINTS.sampler.allowed.includes(OPTIONS.sampler)) {
+    console.error(`Error: Sampler must be one of: ${AUDIO_CONSTRAINTS.sampler.allowed.join(', ')}`);
+    process.exit(1);
+  }
+  if (!AUDIO_CONSTRAINTS.scheduler.allowed.includes(OPTIONS.scheduler)) {
+    console.error(`Error: Scheduler must be one of: ${AUDIO_CONSTRAINTS.scheduler.allowed.join(', ')}`);
     process.exit(1);
   }
   if (!AUDIO_CONSTRAINTS.outputFormat.allowed.includes(OPTIONS.format)) {
