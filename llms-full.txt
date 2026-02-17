@@ -1,6 +1,6 @@
 # Sogni SDK - Complete LLM Reference
 
-> @sogni-ai/sogni-client - JavaScript/Node.js SDK for AI image and video generation
+> @sogni-ai/sogni-client - JavaScript/Node.js SDK for AI image, video, and audio generation
 > Version: 4.x | License: ISC | Platform: Node.js & Browser
 > Repository: https://github.com/Sogni-AI/sogni-client
 > API Docs: https://sdk-docs.sogni.ai
@@ -15,13 +15,14 @@ TABLE OF CONTENTS
 4. Image Generation
 5. Video Generation - WAN 2.2 Models
 6. Video Generation - LTX-2 Models
-7. Complete Parameter Reference
-8. Events & Progress Tracking
-9. Models, Presets & Options
-10. Cost Estimation
-11. Error Handling
-12. Advanced Patterns
-13. Type Definitions
+7. Audio Generation - ACE-Step 1.5 Models
+8. Complete Parameter Reference
+9. Events & Progress Tracking
+10. Models, Presets & Options
+11. Cost Estimation
+12. Error Handling
+13. Advanced Patterns
+14. Type Definitions
 
 ================================================================================
 1. OVERVIEW & INSTALLATION
@@ -32,6 +33,7 @@ for AI inference. It supports:
 
 - Image Generation: Stable Diffusion, Flux, Z-Image, Z-Image Turbo, Qwen Image Edit
 - Video Generation: WAN 2.2 (5 workflows), LTX-2 models
+- Audio Generation: ACE-Step 1.5 music generation (Turbo and SFT models)
 - Real-time Progress: WebSocket-based event system
 - Multiple Networks: Fast (GPU) and Relaxed (Mac)
 
@@ -475,7 +477,96 @@ LTX-2 VIDEO PARAMETERS:
 | lastFrameStrength | number | 0.0-1.0 | 0.6 | Keyframe matching |
 
 ================================================================================
-7. COMPLETE PARAMETER REFERENCE
+7. AUDIO GENERATION - ACE-STEP 1.5 MODELS
+================================================================================
+
+ACE-Step 1.5 models generate music from text descriptions with optional lyrics.
+Two model variants are available:
+
+MODEL VARIANTS:
+| Model ID | Name | Description |
+|----------|------|-------------|
+| ace_step_1.5_turbo | Fast & Catchy | Quick generation, best quality sound |
+| ace_step_1.5_sft | More Control | More accurate lyrics, less stable |
+
+TEXT-TO-MUSIC (Instrumental):
+```javascript
+const project = await sogni.projects.create({
+  type: 'audio',
+  modelId: 'ace_step_1.5_turbo',
+  positivePrompt: 'Upbeat electronic dance music with synth leads and driving bass',
+  numberOfMedia: 1,
+  duration: 30,       // seconds (10-600)
+  bpm: 128,           // beats per minute (30-300)
+  keyscale: 'C major',
+  timesignature: '4', // 4/4 time
+  steps: 8,
+  outputFormat: 'mp3'
+});
+
+const urls = await project.waitForCompletion();
+console.log(urls[0]); // Audio URL (valid 24 hours)
+```
+
+TEXT-TO-MUSIC (With Lyrics):
+```javascript
+const project = await sogni.projects.create({
+  type: 'audio',
+  modelId: 'ace_step_1.5_sft',
+  positivePrompt: 'Soft acoustic folk ballad with fingerpicked guitar',
+  lyrics: 'Verse 1:\nWalking down a quiet road\nWith the wind upon my face\n\nChorus:\nThis is where I find my peace\nIn this gentle, open space',
+  language: 'en',
+  numberOfMedia: 2,   // Generate 2 versions
+  duration: 60,
+  bpm: 90,
+  keyscale: 'A minor',
+  timesignature: '3', // 3/4 waltz time
+  steps: 12,
+  composerMode: true,
+  creativity: 0.85,
+  promptStrength: 2.0
+});
+```
+
+MULTIPLE VERSIONS:
+Use `numberOfMedia` (1-4) to generate multiple variations of the same prompt.
+Each version uses a different random seed, producing unique interpretations.
+
+ACE-STEP 1.5 AUDIO PARAMETERS:
+| Parameter | Type | Range | Default | Notes |
+|-----------|------|-------|---------|-------|
+| duration | number | 10-600 | 30 | Seconds of audio |
+| bpm | number | 30-300 | 120 | Beats per minute |
+| keyscale | string | see below | C major | Musical key and scale |
+| timesignature | string | 2, 3, 4, 6 | 4 | Time signature (2/4, 3/4, 4/4, 6/8) |
+| lyrics | string | - | - | Song lyrics (omit for instrumental) |
+| language | string | en, ja, zh, etc. | en | Lyrics language code (51 languages) |
+| composerMode | boolean | - | true | AI composer for higher quality |
+| promptStrength | number | 0-10 | 2.0 | Prompt adherence (higher = stricter) |
+| creativity | number | 0-2 | 0.85 | Composition temperature |
+| shift | number | 1-5 | 3 | Denoising distribution (turbo only) |
+| steps | number | 4-16 | 8 | Inference steps |
+| outputFormat | string | mp3, wav, flac | mp3 | Audio output format |
+
+SUPPORTED KEYS:
+C, C#, Db, D, D#, Eb, E, F, F#, Gb, G, G#, Ab, A, A#, Bb, B
+(each with major and minor variants, e.g., "C major", "A minor")
+
+TIME SIGNATURES:
+- 2 = 2/4 time (marches, polka)
+- 3 = 3/4 time (waltzes, ballads)
+- 4 = 4/4 time (most pop, rock, hip-hop)
+- 6 = 6/8 time (compound time, folk dances)
+
+SUPPORTED LANGUAGES:
+en (English), ja (Japanese), zh (Chinese), es (Spanish), de (German),
+fr (French), pt (Portuguese), ru (Russian), it (Italian), nl (Dutch),
+pl (Polish), tr (Turkish), vi (Vietnamese), cs (Czech), fa (Persian),
+id (Indonesian), ko (Korean), uk (Ukrainian), hu (Hungarian), ar (Arabic),
+sv (Swedish), ro (Romanian), el (Greek), and more. Use 'unknown' for auto-detect.
+
+================================================================================
+8. COMPLETE PARAMETER REFERENCE
 ================================================================================
 
 BASE PARAMETERS (Both Image and Video):
@@ -543,8 +634,28 @@ VIDEO-SPECIFIC PARAMETERS:
 }
 ```
 
+AUDIO-SPECIFIC PARAMETERS:
+```typescript
+{
+  type: 'audio';
+  duration?: number;           // 10-600 seconds
+  bpm?: number;                // 30-300 beats per minute
+  keyscale?: string;           // e.g., 'C major', 'A minor'
+  timesignature?: string;      // '2', '3', '4', or '6'
+  lyrics?: string;             // Song lyrics (omit for instrumental)
+  language?: string;           // Language code (default: 'en')
+  composerMode?: boolean;      // AI composer mode (default: true)
+  promptStrength?: number;     // 0-10, prompt adherence
+  creativity?: number;         // 0-2, composition temperature
+  shift?: number;              // 1-5, denoising distribution
+  sampler?: string;            // Model-specific
+  scheduler?: string;          // Model-specific
+  outputFormat?: 'mp3' | 'wav' | 'flac';
+}
+```
+
 ================================================================================
-8. EVENTS & PROGRESS TRACKING
+9. EVENTS & PROGRESS TRACKING
 ================================================================================
 
 PROMISE-BASED COMPLETION:
@@ -641,7 +752,7 @@ const blob = await job.getResultData();
 ```
 
 ================================================================================
-9. MODELS, PRESETS & OPTIONS
+10. MODELS, PRESETS & OPTIONS
 ================================================================================
 
 WAIT FOR MODELS:
@@ -696,7 +807,7 @@ Returns: {
 ```
 
 ================================================================================
-10. COST ESTIMATION
+11. COST ESTIMATION
 ================================================================================
 
 ESTIMATE IMAGE COST:
@@ -738,7 +849,7 @@ console.log(balance.sogni, balance.spark);
 ```
 
 ================================================================================
-11. ERROR HANDLING
+12. ERROR HANDLING
 ================================================================================
 
 TRY-CATCH PATTERN:
@@ -784,7 +895,7 @@ COMMON ERROR SCENARIOS:
 - Invalid dimensions or parameters
 
 ================================================================================
-12. ADVANCED PATTERNS
+13. ADVANCED PATTERNS
 ================================================================================
 
 BATCH PROCESSING:
@@ -844,7 +955,7 @@ const project = await sogni.projects.create({
 ```
 
 ================================================================================
-13. TYPE DEFINITIONS
+14. TYPE DEFINITIONS
 ================================================================================
 
 PROJECT PARAMS:

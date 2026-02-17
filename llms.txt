@@ -56,11 +56,12 @@ console.log(urls[0]); // Video URL (valid 24 hours)
 2. **Image Generation** - Text-to-image, img2img, ControlNets
 3. **Video Generation (WAN 2.2)** - t2v, i2v, s2v, animate-move, animate-replace
 4. **Video Generation (LTX-2)** - Alternative video models with different fps behavior
-5. **Project Parameters** - Complete parameter reference
-6. **Events & Progress** - Real-time tracking, completion handling
-7. **Models & Presets** - Discovering available models, size presets, samplers
-8. **Error Handling** - Common errors and recovery
-9. **API Reference** - Full method signatures
+5. **Audio Generation (ACE-Step 1.5)** - Text-to-music with optional lyrics
+6. **Project Parameters** - Complete parameter reference
+7. **Events & Progress** - Real-time tracking, completion handling
+8. **Models & Presets** - Discovering available models, size presets, samplers
+9. **Error Handling** - Common errors and recovery
+10. **API Reference** - Full method signatures
 
 ---
 
@@ -215,7 +216,67 @@ IMPORTANT: ControlNet (canny/pose/depth/detailer) requires a `_v2v` model, NOT `
 
 ---
 
-## 5. Events & Progress
+## 5. Audio Generation (ACE-Step 1.5)
+
+### Model Variants
+| Model ID | Name | Description |
+|----------|------|-------------|
+| ace_step_1.5_turbo | Fast & Catchy | Quick generation, best quality sound |
+| ace_step_1.5_sft | More Control | More accurate lyrics, less stable |
+
+### Text-to-Music (Instrumental)
+```javascript
+const project = await sogni.projects.create({
+  type: 'audio',
+  modelId: 'ace_step_1.5_turbo',
+  positivePrompt: 'Upbeat electronic dance music with synth leads',
+  numberOfMedia: 1,
+  duration: 30,       // 10-600 seconds
+  bpm: 128,           // 30-300
+  keyscale: 'C major',
+  timesignature: '4', // 4/4 time
+  steps: 8,
+  outputFormat: 'mp3'
+});
+const urls = await project.waitForCompletion();
+```
+
+### Text-to-Music (With Lyrics)
+```javascript
+const project = await sogni.projects.create({
+  type: 'audio',
+  modelId: 'ace_step_1.5_sft',
+  positivePrompt: 'Soft acoustic folk ballad',
+  lyrics: 'Verse 1:\nWalking down a quiet road...',
+  language: 'en',
+  numberOfMedia: 2,   // Generate 2 versions
+  duration: 60,
+  bpm: 90,
+  keyscale: 'A minor',
+  composerMode: true,
+  creativity: 0.85,
+  promptStrength: 2.0
+});
+```
+
+### Key Parameters
+| Parameter | Range | Default | Notes |
+|-----------|-------|---------|-------|
+| duration | 10-600 | 30 | Seconds of audio |
+| bpm | 30-300 | 120 | Beats per minute |
+| keyscale | key + scale | C major | e.g., "A minor", "F# major" |
+| timesignature | 2, 3, 4, 6 | 4 | Time signature |
+| lyrics | string | - | Omit for instrumental |
+| language | code | en | 51 languages supported |
+| composerMode | boolean | true | AI composer mode |
+| promptStrength | 0-10 | 2.0 | Prompt adherence |
+| creativity | 0-2 | 0.85 | Composition temperature |
+| steps | 4-16 | 8 | Inference steps |
+| outputFormat | mp3/wav/flac | mp3 | Audio format |
+
+---
+
+## 6. Events & Progress
 
 ### Promise-based
 ```javascript
@@ -239,7 +300,7 @@ project.jobs[0].on('progress', ({ step, stepCount }) => {
 
 ---
 
-## 6. Discovering Models & Options
+## 7. Discovering Models & Options
 
 ### List Available Models
 ```javascript
@@ -262,7 +323,7 @@ console.log(options.scheduler.allowed);
 
 ---
 
-## 7. Cost Estimation
+## 8. Cost Estimation
 
 ```javascript
 const cost = await sogni.projects.estimate({
@@ -277,10 +338,10 @@ console.log(cost.sogni, cost.usd);
 
 ---
 
-## 8. Key Types Summary
+## 9. Key Types Summary
 
 ```typescript
-type ProjectParams = ImageProjectParams | VideoProjectParams;
+type ProjectParams = ImageProjectParams | VideoProjectParams | AudioProjectParams;
 
 interface ImageProjectParams {
   type: 'image';
@@ -300,6 +361,18 @@ interface VideoProjectParams {
   referenceImage?: File | Buffer | Blob;
   referenceAudio?: File | Buffer | Blob;
   referenceVideo?: File | Buffer | Blob;
+  // ... see llms-full.txt for complete list
+}
+
+interface AudioProjectParams {
+  type: 'audio';
+  modelId: string;
+  positivePrompt: string;
+  numberOfMedia: number;
+  duration?: number;
+  bpm?: number;
+  lyrics?: string;
+  language?: string;
   // ... see llms-full.txt for complete list
 }
 ```

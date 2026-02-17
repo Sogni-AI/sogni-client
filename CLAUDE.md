@@ -181,6 +181,29 @@ const project = await sogni.projects.create({
 const urls = await project.waitForCompletion();
 ```
 
+### Generate Music (ACE-Step 1.5)
+```javascript
+const project = await sogni.projects.create({
+  type: 'audio',
+  modelId: 'ace_step_1.5_turbo',  // or 'ace_step_1.5_sft'
+  positivePrompt: 'Upbeat electronic dance music with synth leads',
+  numberOfMedia: 1,
+  duration: 30,       // 10-600 seconds
+  bpm: 128,           // 30-300
+  keyscale: 'C major',
+  timesignature: '4', // 4/4 time
+  steps: 8,
+  outputFormat: 'mp3'
+});
+const urls = await project.waitForCompletion();
+```
+
+### Audio Model Variants
+| Model ID | Name | Description |
+|----------|------|-------------|
+| `ace_step_1.5_turbo` | Fast & Catchy | Quick generation, best quality sound |
+| `ace_step_1.5_sft` | More Control | More accurate lyrics, less stable |
+
 ### Video Workflow Asset Requirements
 | Workflow | Model Pattern | Required Assets |
 |----------|---------------|-----------------|
