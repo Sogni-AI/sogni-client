@@ -1,3 +1,10 @@
+# [4.0.0-alpha.64](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.63...v4.0.0-alpha.64) (2026-02-17)
+
+
+### Features
+
+* Add ACE-Step 1.5 audio generation documentation ([c02c80b](https://github.com/Sogni-AI/sogni-client/commit/c02c80be31067c6b929fea85bec1898cd26aff3a))
+
 # [4.0.0-alpha.63](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.62...v4.0.0-alpha.63) (2026-02-16)
 
 
