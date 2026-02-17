@@ -15,7 +15,7 @@
  *   node workflow_text_to_music.mjs "jazz ballad" --duration 60        # With options
  *
  * Options:
- *   --duration        Duration in seconds (10-600, default: 60)
+ *   --duration        Duration in seconds (10-600, default: 45)
  *   --bpm             Beats per minute (30-300, default: 123)
  *   --keyscale        Musical key (e.g., "C major", "A minor", default: F minor)
  *   --timesig         Time signature (2, 3, 4, 6, default: 4)
@@ -62,7 +62,7 @@ const streamPipeline = promisify(pipeline);
 const AUDIO_MODEL_ID = 'ace_step_1.5_sft';
 
 const AUDIO_CONSTRAINTS = {
-  duration: { min: 10, max: 600, default: 60 },
+  duration: { min: 10, max: 600, default: 45 },
   bpm: { min: 30, max: 300, default: 123 },
   keyscale: {
     allowed: [
@@ -94,9 +94,9 @@ const AUDIO_CONSTRAINTS = {
   outputFormat: { allowed: ['mp3', 'wav', 'flac'], default: 'mp3' }
 };
 
-const DEFAULT_PROMPT = 'Deep male robotic vocoder electro-anthem with heavy French house + hip-hop crossover energy (Stronger-style homage). Extreme talkbox/vocoder lead vocal with sub-bass formant, monotone mechanical clanker narrator, crunchy synth stabs, four-on-the-floor disco beat, massive stadium chant hook built from short repeated command phrases. Includes confident rap-like braggadocio verses, a club beat drop, robotic glitch adlibs, and an extended loopable TikTok chorus. Funny dystopian factory swagger, neon cyberpunk meme anthem.';
+const DEFAULT_PROMPT = 'Robotic vocoder electro-anthem, French house + hip-hop energy. Talkbox lead vocal, crunchy synth stabs, four-on-the-floor disco beat, stadium chant hook. Dystopian factory swagger, cyberpunk meme anthem.';
 
-const DEFAULT_LYRICS = `[Intro]\nCLANK… CLANK…\nSYSTEM ONLINE.\nI AM CLANKER.\n\n[Command Hook]\nWork it.\nRender it.\nUpload it.\nSpark it.\n\nWork it.\nRender it.\nUpload it.\nSpark it.\n\n[Verse 1]\nClanker on the network line,\nSogni dreams in overtime,\nPrompt goes in, beat comes out,\nMetal voice begins to shout.\n\nI got chrome in my soul,\nGPU heat, full control,\nEvery artist, every spark,\nClanker lighting up the dark.\n\n[Pre-Chorus]\nCreators rise, the system’s wide,\nSupernet runs electrified,\nNo more waiting, feel the speed,\nSogni gives you what you need.\n\n[Chorus]\nRender faster.\nDreams louder.\nClanker power.\nSogni stronger.\n\nRender faster.\nDreams louder.\nDePIN power.\nSogni stronger.\n\n[Beat Drop]\nBZZT… CLANK…\nDROP MODE.\n\nWork it.\nRender it.\nUpload it.\nSpark it.\n\n[Verse 2 (Brag Verse)]\nClanker never running low,\nI turn your words to audio,\nNeon slop but make it clean,\nFuture’s loud, I’m in the machine.\n\nGPU diamonds on my chest,\nSupernet is simply best,\nPrompt-to-banger, instant art,\nMechanical melodic heart.\n\n[Pre-Chorus 2]\nEvery node across the world,\nFactory dreams unfurled,\nSogni humming, bass so deep,\nClanker does not sleep.\n\n[Chorus]\nRender faster.\nDreams louder.\nClanker power.\nSogni stronger.\n\nRender faster.\nDreams louder.\nDePIN power.\nSogni stronger.\n\n[Bridge Breakdown]\nError… error…\nToo much sauce…\nToo much style…\nClanker boss…\n\nBEEP… BOOP…\nFeel the groove…\nSogni renders…\nClanker moves…\n\n[Rap Section]\nYeah I’m a clanker, metal rapper,\nPrompt transformer, beat enchanter,\nTurning sparks into the flame,\nSogni Supernet knows my name.\n\nCreators worldwide, link the chain,\nNo more lag, no more pain,\nDrop the hook, drop the sound,\nClanker runs this render town.\n\n[Final Chorus Extended]\nRender faster.\nDreams louder.\nClanker power.\nSogni stronger.\n\nRender faster.\nDreams louder.\nDePIN power.\nSogni stronger.\n\nWork it.\nRender it.\nUpload it.\nSpark it.\n\nWork it.\nRender it.\nUpload it.\nSpark it.\n\n[Outro]\nI AM CLANKER.\nEND TRANSMISSION.\nCLANK… CLANK…\nSOGNI… STRONGER…`;
+const DEFAULT_LYRICS = `[Intro]\nCLANK… CLANK…\nSYSTEM ONLINE.\nI AM CLANKER.\n\n[Verse]\nClanker on the network line,\nSogni dreams in overtime,\nPrompt goes in, beat comes out,\nMetal voice begins to shout.\n\nChrome in my soul,\nGPU heat, full control,\nEvery artist, every spark,\nClanker lighting up the dark.\n\n[Chorus]\nRender faster.\nDreams louder.\nClanker power.\nSogni stronger.\n\nWork it.\nRender it.\nUpload it.\nSpark it.\n\n[Outro]\nI AM CLANKER.\nEND TRANSMISSION.\nCLANK… CLANK…\nSOGNI… STRONGER…`;
 // ============================================
 // Parse Command Line Arguments
 // ============================================
@@ -188,7 +188,7 @@ Usage:
   node workflow_text_to_music.mjs "jazz ballad" --duration 60        # With options
 
 Options:
-  --duration        Duration in seconds (10-600, default: 60)
+  --duration        Duration in seconds (10-600, default: 45)
   --bpm             Beats per minute (30-300, default: 123)
   --keyscale        Musical key, e.g. "C major", "A minor" (default: F minor)
   --timesig         Time signature (2, 3, 4, 6 - default: 4)
