@@ -1,3 +1,10 @@
+# [4.0.0-alpha.66](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.65...v4.0.0-alpha.66) (2026-02-20)
+
+
+### Bug Fixes
+
+* Allow 20 seconds duration videos for LTX-2 ([d7ad669](https://github.com/Sogni-AI/sogni-client/commit/d7ad669fd56c0f64f9a8f2a0fa4b4dbe5c4a9683))
+
 # [4.0.0-alpha.65](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.64...v4.0.0-alpha.65) (2026-02-17)
 
 
