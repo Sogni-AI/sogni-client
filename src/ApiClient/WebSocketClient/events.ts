@@ -107,6 +107,34 @@ export type ArtistCancelConfirmation = {
   jobID: string;
 };
 
+export type JobTokensData = {
+  jobID: string;
+  content?: string;
+  role?: string;
+  finishReason?: string | null;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+};
+
+export type LLMJobResultData = {
+  jobID: string;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  timeTaken: number;
+};
+
+export type LLMJobErrorData = {
+  jobID: string;
+  error: string;
+  error_message: string;
+};
+
 export type SocketEventMap = {
   /**
    * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
@@ -142,9 +170,27 @@ export type SocketEventMap = {
    */
   jobState: JobStateData;
   /**
+   * @event WebSocketClient#jobTokens - LLM token stream chunk received
+   * Sent by LLM workers during chat completion streaming
+   */
+  jobTokens: JobTokensData;
+  /**
+   * @event WebSocketClient#llmJobResult - LLM job completed with usage data
+   * Sent by LLM workers when a chat completion finishes
+   */
+  llmJobResult: LLMJobResultData;
+  /**
+   * @event WebSocketClient#llmJobError - LLM job error
+   */
+  llmJobError: LLMJobErrorData;
+  /**
    * @event WebSocketClient#swarmModels - Received swarm model count
    */
   swarmModels: Record<string, number>;
+  /**
+   * @event WebSocketClient#swarmLLMModels - Available LLM models with worker counts
+   */
+  swarmLLMModels: Record<string, number>;
   /**
    * @event WebSocketClient#connected - WebSocket connection opened
    */

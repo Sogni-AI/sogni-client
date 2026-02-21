@@ -31,6 +31,16 @@ import {
   VideoControlNetName,
   VideoControlNetParams
 } from './Projects/types/ControlNetParams';
+// Chat API
+import ChatApi from './Chat';
+import ChatStream from './Chat/ChatStream';
+import {
+  ChatMessage,
+  ChatCompletionParams,
+  ChatCompletionChunk,
+  ChatCompletionResult,
+  TokenUsage as ChatTokenUsage
+} from './Chat/types';
 // Stats API
 import StatsApi from './Stats';
 // Base Types
@@ -43,6 +53,11 @@ export type {
   AudioFormat,
   AudioOutputFormat,
   AvailableModel,
+  ChatCompletionChunk,
+  ChatCompletionParams,
+  ChatCompletionResult,
+  ChatMessage,
+  ChatTokenUsage,
   ControlNetMode,
   ControlNetName,
   ControlNetParams,
@@ -64,7 +79,7 @@ export type {
   VideoWorkflowType
 };
 
-export { ApiError, CurrentAccount, Job, Project };
+export { ApiError, ChatStream, CurrentAccount, Job, Project };
 
 export interface SogniClientConfig {
   /**
@@ -129,6 +144,7 @@ export class SogniClient {
   account: AccountApi;
   projects: ProjectsApi;
   stats: StatsApi;
+  chat: ChatApi;
 
   apiClient: ApiClient;
 
@@ -136,6 +152,7 @@ export class SogniClient {
     this.account = new AccountApi(config);
     this.projects = new ProjectsApi(config);
     this.stats = new StatsApi(config);
+    this.chat = new ChatApi(config);
 
     this.apiClient = config.client;
   }
