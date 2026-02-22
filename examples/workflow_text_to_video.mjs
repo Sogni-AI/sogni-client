@@ -16,8 +16,8 @@
  *
  * Options:
  *   --model     Model ID (default: wan_v2.2-14b-fp8_t2v_lightx2v)
- *   --width     Video width (WAN: 480-1536 step 16, LTX-2: 768-3840 step 64)
- *   --height    Video height (WAN: 480-1536 step 16, LTX-2: 768-3840 step 64)
+ *   --width     Video width (WAN: 480-1536 step 16, LTX-2: 640-3840 step 64)
+ *   --height    Video height (WAN: 480-1536 step 16, LTX-2: 640-3840 step 64)
  *   --duration  Duration in seconds (WAN: 1-10s default 5, LTX-2: 4-10/20s default 4)
  *   --fps       Frames per second (WAN: 16/32, LTX-2: 25/50)
  *
@@ -167,7 +167,7 @@ Available Models:
 
 Model-Specific Constraints:
   WAN models:   480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
-  LTX-2 models: 768-1920px (step 64), 25/50 fps, 4-10/20s, no shift, guidance 1-7
+  LTX-2 models: 640-1920px (step 64), 25/50 fps, 4-10/20s, no shift, guidance 1-7
 
 Options:
   --model     Model ID (default: wan_v2.2-14b-fp8_t2v_lightx2v)

@@ -36,8 +36,8 @@
  *   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
  *                 Format: "x,y" where x,y are normalized 0-1 coordinates
  *   --video-start Video start position in seconds (where to begin reading from source video)
- *   --width       Video width (LTX-2: auto from source video, aligned to 64, min 768)
- *   --height      Video height (LTX-2: auto from source video, aligned to 64, min 768)
+ *   --width       Video width (LTX-2: auto from source video, aligned to 64, min 640)
+ *   --height      Video height (LTX-2: auto from source video, aligned to 64, min 640)
  *   --duration    Duration in seconds (default: 5, converts to frames)
  *   --fps         Frames per second (default: model-specific)
  *   --batch       Number of videos to generate (default: 1)
@@ -238,8 +238,8 @@ Options:
   --video-start   Video start position in seconds (default: 0)
   --negative      Negative prompt (default: none)
   --style         Style prompt (default: none)
-  --width         Video width (LTX-2: auto from source, aligned to 64, min 768)
-  --height        Video height (LTX-2: auto from source, aligned to 64, min 768)
+  --width         Video width (LTX-2: auto from source, aligned to 64, min 640)
+  --height        Video height (LTX-2: auto from source, aligned to 64, min 640)
   --duration      Duration in seconds (default: 5)
   --fps           Frames per second (default: model-specific)
   --batch         Number of videos to generate (default: 1)
@@ -288,7 +288,7 @@ function ensureEvenDimensions(width, height) {
  * Scale and align dimensions to fit within model constraints while preserving aspect ratio.
  * Handles: scale up to minimums, scale down to maximums, align to step size.
  */
-function fitDimensions(width, height, { dimStep = 64, minWidth = 768, minHeight = 768, maxWidth = 3840, maxHeight = 3840 } = {}) {
+function fitDimensions(width, height, { dimStep = 64, minWidth = 640, minHeight = 640, maxWidth = 3840, maxHeight = 3840 } = {}) {
   const aspectRatio = width / height;
 
   // Scale up proportionally if below minimums
@@ -528,8 +528,8 @@ async function main() {
   if (modelConfig.supportsControlNet && sourceVideoDimensions) {
     const dimConstraints = {
       dimStep: modelConfig.dimensionStep || 64,
-      minWidth: modelConfig.minWidth || 768,
-      minHeight: modelConfig.minHeight || 768,
+      minWidth: modelConfig.minWidth || 640,
+      minHeight: modelConfig.minHeight || 640,
       maxWidth: modelConfig.maxWidth || 3840,
       maxHeight: modelConfig.maxHeight || 3840
     };

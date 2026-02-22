@@ -13,8 +13,8 @@ export function validateVideoSize(value: any, propertyName: 'width' | 'height'):
   return validateNumber(value, { min: 480, propertyName: `Video ${propertyName}` });
 }
 
-export function validateVideoDuration(value: any): number {
-  return validateNumber(value, { min: 1, max: 10, propertyName: 'Video duration' });
+export function validateVideoDuration(value: any, min = 1, max = 10): number {
+  return validateNumber(value, { min, max, propertyName: 'Video duration' });
 }
 
 interface NumberValidationOptions {
@@ -30,7 +30,7 @@ export function validateNumber(
 ): number {
   const number = Number(value);
   const hasDefaultValue = defaultValue !== undefined;
-  if (propertyName) {
+  if (!propertyName) {
     propertyName = 'Value';
   }
   if (isNaN(number)) {
