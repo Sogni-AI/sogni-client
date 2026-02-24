@@ -6,7 +6,7 @@
  * Supports quality/speed variants with configurable dimensions and frame rates.
  *
  * Prerequisites:
- * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
+ * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
  * - You need access to the 'fast' network for video generation
  *
  * Usage:
@@ -202,7 +202,7 @@ async function main() {
   console.log();
 
   // Load credentials
-  const { username: USERNAME, password: PASSWORD } = await loadCredentials();
+  const credentials = await loadCredentials();
 
   // Interactive mode: select model and options
   let modelConfig;
@@ -335,6 +335,7 @@ async function main() {
   if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
   if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
 
+  if (credentials.apiKey) clientConfig.apiKey = credentials.apiKey;
   const sogni = await SogniClient.createInstance(clientConfig);
 
   let projectEventHandler;
@@ -342,10 +343,14 @@ async function main() {
   let project;
 
   try {
-    // Login
-    log('🔓', 'Logging in...');
-    await sogni.account.login(USERNAME, PASSWORD);
-    log('✓', `Logged in as: ${USERNAME}`);
+    // Login (skip for API key auth)
+    if (!credentials.apiKey) {
+      log('🔓', 'Logging in...');
+      await sogni.account.login(credentials.username, credentials.password);
+      log('✓', `Logged in as: ${credentials.username}`);
+    } else {
+      log('✓', 'Authenticated with API key');
+    }
     console.log();
 
     // Get balance for token selection
@@ -355,12 +360,16 @@ async function main() {
     let tokenType = loadTokenTypePreference();
 
     if (!tokenType) {
-      const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
-      const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
-
       console.log('💳 Select payment token type:\n');
-      console.log(`  1. Spark Points (Balance: ${sparkBalance})`);
-      console.log(`  2. Sogni Tokens (Balance: ${sogniBalance})`);
+      if (balance) {
+        const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
+        const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
+        console.log(`  1. Spark Points (Balance: ${sparkBalance})`);
+        console.log(`  2. Sogni Tokens (Balance: ${sogniBalance})`);
+      } else {
+        console.log('  1. Spark Points');
+        console.log('  2. Sogni Tokens');
+      }
       console.log();
 
       const tokenChoice = await askQuestion('Enter choice [1/2] (default: 1): ');
@@ -437,30 +446,34 @@ async function main() {
     if (tokenType === 'spark') {
       const totalCost = parseFloat(estimate.quote.project.costInSpark || 0);
       const costPerVideo = totalCost / OPTIONS.batch;
-      const currentBalance = parseFloat(balance.spark.net || 0);
       if (OPTIONS.batch > 1) {
         console.log(`   Per video: ${costPerVideo.toFixed(2)} Spark`);
         console.log(`   Total (${OPTIONS.batch} videos): ${totalCost.toFixed(2)} Spark`);
       } else {
         console.log(`   Spark: ${totalCost.toFixed(2)}`);
       }
-      console.log(
-        `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
-      );
+      if (balance) {
+        const currentBalance = parseFloat(balance.spark.net || 0);
+        console.log(
+          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
+        );
+      }
       console.log(`   USD: $${(totalCost * 0.005).toFixed(4)}`);
     } else {
       const totalCost = parseFloat(estimate.quote.project.costInSogni || 0);
       const costPerVideo = totalCost / OPTIONS.batch;
-      const currentBalance = parseFloat(balance.sogni.net || 0);
       if (OPTIONS.batch > 1) {
         console.log(`   Per video: ${costPerVideo.toFixed(2)} Sogni`);
         console.log(`   Total (${OPTIONS.batch} videos): ${totalCost.toFixed(2)} Sogni`);
       } else {
         console.log(`   Sogni: ${totalCost.toFixed(2)}`);
       }
-      console.log(
-        `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
-      );
+      if (balance) {
+        const currentBalance = parseFloat(balance.sogni.net || 0);
+        console.log(
+          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
+        );
+      }
       console.log(`   USD: $${(totalCost * 0.05).toFixed(4)}`);
     }
 

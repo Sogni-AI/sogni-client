@@ -12,7 +12,7 @@
  *   - Runs 2-3: measured and averaged
  *
  * Prerequisites:
- * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
+ * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
  * - Sufficient token balance for all generations
  *
  * Usage:
@@ -404,7 +404,7 @@ async function main() {
   console.log();
 
   // Load credentials and connect
-  const { username, password } = await loadCredentials();
+  const credentials = await loadCredentials();
   let tokenType = loadTokenTypePreference() || 'spark';
   console.log(`Using ${tokenType} tokens for payment.`);
   console.log();
@@ -428,10 +428,13 @@ async function main() {
   if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
   if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
 
+  if (credentials.apiKey) clientConfig.apiKey = credentials.apiKey;
   const sogni = await SogniClient.createInstance(clientConfig);
-  await sogni.account.login(username, password);
+  if (!credentials.apiKey) {
+    await sogni.account.login(credentials.username, credentials.password);
+  }
   await sogni.projects.waitForModels();
-  log('✓', `Connected and logged in as: ${username}`);
+  log('✓', credentials.apiKey ? 'Connected with API key' : `Connected and logged in as: ${credentials.username}`);
   console.log();
 
   // Create output directory

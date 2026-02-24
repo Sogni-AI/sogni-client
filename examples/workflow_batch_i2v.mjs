@@ -7,7 +7,7 @@
  * them to all images sequentially.
  *
  * Prerequisites:
- * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
+ * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
  * - Place images in the input folder (default: ./toprocess)
  * - You need access to the 'fast' network for video generation
  *
@@ -286,7 +286,7 @@ async function main() {
   console.log();
 
   // Load credentials
-  const { username: USERNAME, password: PASSWORD } = await loadCredentials();
+  const credentials = await loadCredentials();
 
   // Find images in the input folder
   let imageFiles;
@@ -437,13 +437,18 @@ async function main() {
   if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
   if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
 
+  if (credentials.apiKey) clientConfig.apiKey = credentials.apiKey;
   const sogni = await SogniClient.createInstance(clientConfig);
 
   try {
-    // Login
-    log('🔓', 'Logging in...');
-    await sogni.account.login(USERNAME, PASSWORD);
-    log('✓', `Logged in as: ${USERNAME}`);
+    // Login (skip for API key auth)
+    if (!credentials.apiKey) {
+      log('🔓', 'Logging in...');
+      await sogni.account.login(credentials.username, credentials.password);
+      log('✓', `Logged in as: ${credentials.username}`);
+    } else {
+      log('✓', 'Authenticated with API key');
+    }
     console.log();
 
     // Get balance for token selection
@@ -453,12 +458,16 @@ async function main() {
     let tokenType = loadTokenTypePreference();
 
     if (!tokenType) {
-      const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
-      const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
-
       console.log('💳 Select payment token type:\n');
-      console.log(`  1. Spark Points (Balance: ${sparkBalance})`);
-      console.log(`  2. Sogni Tokens (Balance: ${sogniBalance})`);
+      if (balance) {
+        const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
+        const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
+        console.log(`  1. Spark Points (Balance: ${sparkBalance})`);
+        console.log(`  2. Sogni Tokens (Balance: ${sogniBalance})`);
+      } else {
+        console.log('  1. Spark Points');
+        console.log('  2. Sogni Tokens');
+      }
       console.log();
 
       const tokenChoice = await askQuestion('Enter choice [1/2] (default: 1): ');
@@ -524,32 +533,42 @@ async function main() {
     if (tokenType === 'spark') {
       costPerVideo = parseFloat(estimate.quote.project.costInSpark || 0);
       const totalCost = costPerVideo * filesToProcess.length;
-      const currentBalance = parseFloat(balance.spark.net || 0);
       console.log(`   Per video: ${costPerVideo.toFixed(2)} Spark`);
       console.log(`   Total (${filesToProcess.length} videos): ${totalCost.toFixed(2)} Spark`);
-      console.log(`   Balance: ${currentBalance.toFixed(2)} → ${(currentBalance - totalCost).toFixed(2)} Spark`);
+      if (balance) {
+        const currentBalance = parseFloat(balance.spark.net || 0);
+        console.log(`   Balance: ${currentBalance.toFixed(2)} → ${(currentBalance - totalCost).toFixed(2)} Spark`);
+      }
       console.log(`   USD: ~$${(totalCost * 0.005).toFixed(2)}`);
 
-      if (currentBalance < totalCost) {
-        console.log();
-        log('⚠️', `Warning: Insufficient balance for all ${filesToProcess.length} videos`);
-        const affordableCount = Math.floor(currentBalance / costPerVideo);
-        log('⚠️', `You can afford approximately ${affordableCount} videos`);
+      if (balance) {
+        const currentBalance = parseFloat(balance.spark.net || 0);
+        if (currentBalance < totalCost) {
+          console.log();
+          log('⚠️', `Warning: Insufficient balance for all ${filesToProcess.length} videos`);
+          const affordableCount = Math.floor(currentBalance / costPerVideo);
+          log('⚠️', `You can afford approximately ${affordableCount} videos`);
+        }
       }
     } else {
       costPerVideo = parseFloat(estimate.quote.project.costInSogni || 0);
       const totalCost = costPerVideo * filesToProcess.length;
-      const currentBalance = parseFloat(balance.sogni.net || 0);
       console.log(`   Per video: ${costPerVideo.toFixed(2)} Sogni`);
       console.log(`   Total (${filesToProcess.length} videos): ${totalCost.toFixed(2)} Sogni`);
-      console.log(`   Balance: ${currentBalance.toFixed(2)} → ${(currentBalance - totalCost).toFixed(2)} Sogni`);
+      if (balance) {
+        const currentBalance = parseFloat(balance.sogni.net || 0);
+        console.log(`   Balance: ${currentBalance.toFixed(2)} → ${(currentBalance - totalCost).toFixed(2)} Sogni`);
+      }
       console.log(`   USD: ~$${(totalCost * 0.05).toFixed(2)}`);
 
-      if (currentBalance < totalCost) {
-        console.log();
-        log('⚠️', `Warning: Insufficient balance for all ${filesToProcess.length} videos`);
-        const affordableCount = Math.floor(currentBalance / costPerVideo);
-        log('⚠️', `You can afford approximately ${affordableCount} videos`);
+      if (balance) {
+        const currentBalance = parseFloat(balance.sogni.net || 0);
+        if (currentBalance < totalCost) {
+          console.log();
+          log('⚠️', `Warning: Insufficient balance for all ${filesToProcess.length} videos`);
+          const affordableCount = Math.floor(currentBalance / costPerVideo);
+          log('⚠️', `You can afford approximately ${affordableCount} videos`);
+        }
       }
     }
 

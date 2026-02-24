@@ -6,7 +6,7 @@
  * token-by-token, showing real-time output as the model generates text.
  *
  * Prerequisites:
- * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
+ * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
  * - LLM workers must be online on the Sogni network
  *
  * Usage:
@@ -118,7 +118,7 @@ async function main() {
   console.log();
 
   // Load credentials
-  const { username, password } = await loadCredentials();
+  const credentials = await loadCredentials();
 
   // Prompt for message if not given
   if (!options.prompt) {
@@ -142,13 +142,18 @@ async function main() {
   const sogni = await SogniClient.createInstance({
     appId: `sogni-chat-stream-${Date.now()}`,
     network: 'fast',
+    ...(credentials.apiKey && { apiKey: credentials.apiKey }),
     ...(testnet && { testnet }),
     ...(socketEndpoint && { socketEndpoint }),
     ...(restEndpoint && { restEndpoint }),
   });
 
-  await sogni.account.login(username, password);
-  console.log(`Logged in as: ${username}`);
+  if (!credentials.apiKey) {
+    await sogni.account.login(credentials.username, credentials.password);
+    console.log(`Logged in as: ${credentials.username}`);
+  } else {
+    console.log('Authenticated with API key');
+  }
   console.log();
 
   // Build messages

@@ -12,7 +12,7 @@
  * - 3 Distances: close-up (×0.6), medium shot (×1.0), wide shot (×1.8)
  *
  * Prerequisites:
- * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
+ * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
  * - You need access to the 'fast' network for image generation
  *
  * Usage:
@@ -290,7 +290,7 @@ async function main() {
   console.log();
 
   // Load credentials
-  const { username: USERNAME, password: PASSWORD } = await loadCredentials();
+  const credentials = await loadCredentials();
 
   // Select model (interactive or from CLI)
   let modelConfig;
@@ -477,13 +477,18 @@ async function main() {
   if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
   if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
 
+  if (credentials.apiKey) clientConfig.apiKey = credentials.apiKey;
   const sogni = await SogniClient.createInstance(clientConfig);
 
   try {
-    // Login
-    log('🔓', 'Logging in...');
-    await sogni.account.login(USERNAME, PASSWORD);
-    log('✓', `Logged in as: ${USERNAME}`);
+    // Login (skip for API key auth)
+    if (!credentials.apiKey) {
+      log('🔓', 'Logging in...');
+      await sogni.account.login(credentials.username, credentials.password);
+      log('✓', `Logged in as: ${credentials.username}`);
+    } else {
+      log('✓', 'Authenticated with API key');
+    }
     console.log();
 
     // Get balance for token selection
@@ -493,12 +498,16 @@ async function main() {
     let tokenType = loadTokenTypePreference();
 
     if (!tokenType) {
-      const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
-      const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
-
       console.log('💳 Select payment token type:\n');
-      console.log(`  1. Spark Points (Balance: ${sparkBalance})`);
-      console.log(`  2. Sogni Tokens (Balance: ${sogniBalance})`);
+      if (balance) {
+        const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
+        const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
+        console.log(`  1. Spark Points (Balance: ${sparkBalance})`);
+        console.log(`  2. Sogni Tokens (Balance: ${sogniBalance})`);
+      } else {
+        console.log('  1. Spark Points');
+        console.log('  2. Sogni Tokens');
+      }
       console.log();
 
       const tokenChoice = await askQuestion('Enter choice [1/2] (default: 1): ');

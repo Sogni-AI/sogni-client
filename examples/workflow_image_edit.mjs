@@ -6,7 +6,7 @@
  * Works with Qwen Image Edit and Flux models that support context-based generation.
  *
  * Prerequisites:
- * - Set SOGNI_USERNAME and SOGNI_PASSWORD in .env file (or will prompt)
+ * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
  * - You need access to the 'fast' network for image generation
  *
  * Usage:
@@ -211,7 +211,7 @@ async function main() {
   console.log();
 
   // Load credentials
-  const { username: USERNAME, password: PASSWORD } = await loadCredentials();
+  const credentials = await loadCredentials();
 
   // Legacy support: if --image was used, treat it as the first context image
   if (OPTIONS.image && !OPTIONS.contextImages[0]) {
@@ -447,13 +447,18 @@ async function main() {
   if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
   if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
 
+  if (credentials.apiKey) clientConfig.apiKey = credentials.apiKey;
   const sogni = await SogniClient.createInstance(clientConfig);
 
   try {
-    // Login
-    log('🔓', 'Logging in...');
-    await sogni.account.login(USERNAME, PASSWORD);
-    log('✓', `Logged in as: ${USERNAME}`);
+    // Login (skip for API key auth)
+    if (!credentials.apiKey) {
+      log('🔓', 'Logging in...');
+      await sogni.account.login(credentials.username, credentials.password);
+      log('✓', `Logged in as: ${credentials.username}`);
+    } else {
+      log('✓', 'Authenticated with API key');
+    }
     console.log();
 
     // Get balance for token selection
@@ -463,12 +468,16 @@ async function main() {
     let tokenType = loadTokenTypePreference();
 
     if (!tokenType) {
-      const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
-      const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
-
       console.log('💳 Select payment token type:\n');
-      console.log(`  1. Spark Points (Balance: ${sparkBalance})`);
-      console.log(`  2. Sogni Tokens (Balance: ${sogniBalance})`);
+      if (balance) {
+        const sparkBalance = parseFloat(balance.spark.net || 0).toFixed(2);
+        const sogniBalance = parseFloat(balance.sogni.net || 0).toFixed(2);
+        console.log(`  1. Spark Points (Balance: ${sparkBalance})`);
+        console.log(`  2. Sogni Tokens (Balance: ${sogniBalance})`);
+      } else {
+        console.log('  1. Spark Points');
+        console.log('  2. Sogni Tokens');
+      }
       console.log();
 
       const tokenChoice = await askQuestion('Enter choice [1/2] (default: 1): ');
@@ -559,7 +568,6 @@ async function main() {
 
     if (tokenType === 'spark') {
       const cost = parseFloat(estimate.quote.project.costInSpark || 0);
-      const currentBalance = parseFloat(balance.spark.net || 0);
       if (OPTIONS.batch > 1) {
         const costPerImage = cost / OPTIONS.batch;
         console.log(`   Per image: ${costPerImage.toFixed(2)} Spark`);
@@ -567,11 +575,13 @@ async function main() {
       } else {
         console.log(`   Spark: ${cost.toFixed(2)}`);
       }
-      console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Spark`);
+      if (balance) {
+        const currentBalance = parseFloat(balance.spark.net || 0);
+        console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Spark`);
+      }
       console.log(`   USD: $${(cost * 0.005).toFixed(4)}`);
     } else {
       const cost = parseFloat(estimate.quote.project.costInSogni || 0);
-      const currentBalance = parseFloat(balance.sogni.net || 0);
       if (OPTIONS.batch > 1) {
         const costPerImage = cost / OPTIONS.batch;
         console.log(`   Per image: ${costPerImage.toFixed(2)} Sogni`);
@@ -579,7 +589,10 @@ async function main() {
       } else {
         console.log(`   Sogni: ${cost.toFixed(2)}`);
       }
-      console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Sogni`);
+      if (balance) {
+        const currentBalance = parseFloat(balance.sogni.net || 0);
+        console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Sogni`);
+      }
       console.log(`   USD: $${(cost * 0.05).toFixed(4)}`);
     }
 

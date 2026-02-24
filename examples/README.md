@@ -121,19 +121,33 @@ cd examples
 
 The examples need your Sogni account credentials to authenticate with the API.
 
-**Option 1: Interactive Prompt (Easiest for Beginners)**
+**Option 1: API Key (Recommended)**
+
+Set your API key in a `.env` file in the `examples` directory:
+
+```env
+SOGNI_API_KEY=your_api_key_here
+```
+
+With an API key, the examples authenticate automatically — no username/password needed.
+
+**Option 2: Username & Password**
+
+```env
+SOGNI_USERNAME=your_username
+SOGNI_PASSWORD=your_password
+```
+
+**Option 3: Interactive Prompt (Easiest for Beginners)**
 
 Simply run any example script, and it will prompt you to enter your credentials:
 ```bash
 node workflow_text_to_image.mjs
 ```
 
-You'll be asked:
-- Username
-- Password
-- Whether to save credentials (recommended for convenience)
+You'll be asked for username and password, with an option to save them.
 
-**Option 2: Manual .env File Setup**
+**Setting Up the .env File**
 
 Create a file named `.env` in the `examples` directory:
 
@@ -142,12 +156,15 @@ Create a file named `.env` in the `examples` directory:
 touch .env
 ```
 
-Edit the `.env` file and add your credentials:
+Edit the `.env` file and add your credentials (choose one method):
 
 ```env
-# Sogni Account Credentials
-SOGNI_USERNAME=your_username
-SOGNI_PASSWORD=your_password
+# Option 1: API Key (recommended)
+SOGNI_API_KEY=your_api_key_here
+
+# Option 2: Username/Password
+# SOGNI_USERNAME=your_username
+# SOGNI_PASSWORD=your_password
 
 # Optional: Payment Token Type (sogni or spark)
 SOGNI_TOKEN_TYPE=spark
@@ -685,7 +702,11 @@ npm install
 
 **Solution:**
 1. Create a `.env` file in the `examples` directory
-2. Add your credentials:
+2. Add your API key or credentials:
+   ```env
+   SOGNI_API_KEY=your_api_key
+   ```
+   or:
    ```env
    SOGNI_USERNAME=your_username
    SOGNI_PASSWORD=your_password

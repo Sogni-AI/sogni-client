@@ -110,7 +110,8 @@ export function loadTokenTypePreference() {
 }
 
 /**
- * Load credentials from .env or prompt user
+ * Load credentials from .env or prompt user.
+ * Returns { apiKey } if SOGNI_API_KEY is set, otherwise { username, password }.
  */
 export async function loadCredentials() {
   // Check if dependencies are installed
@@ -126,18 +127,27 @@ export async function loadCredentials() {
     process.exit(1);
   }
 
-  // Try to load from .env file
+  // Load .env file if it exists
   if (fs.existsSync(ENV_FILE)) {
     dotenv.config({ path: ENV_FILE });
+  }
 
-    const username = process.env.SOGNI_USERNAME;
-    const password = process.env.SOGNI_PASSWORD;
+  // Check for API key first (preferred auth method)
+  const apiKey = process.env.SOGNI_API_KEY;
+  if (apiKey) {
+    console.log('✓ API key loaded from environment');
+    console.log();
+    return { apiKey };
+  }
 
-    if (username && password) {
-      console.log('✓ Credentials loaded from .env file');
-      console.log();
-      return { username, password };
-    }
+  // Try username/password from .env
+  const username = process.env.SOGNI_USERNAME;
+  const password = process.env.SOGNI_PASSWORD;
+
+  if (username && password) {
+    console.log('✓ Credentials loaded from .env file');
+    console.log();
+    return { username, password };
   }
 
   // .env file doesn't exist or credentials are missing
@@ -147,6 +157,7 @@ export async function loadCredentials() {
   console.log();
   console.log('No credentials found in .env file.');
   console.log('Please enter your Sogni account credentials:');
+  console.log('(Tip: set SOGNI_API_KEY in .env for API key auth)');
   console.log();
 
   // Check if we're in a TTY (interactive terminal)
@@ -154,16 +165,18 @@ export async function loadCredentials() {
     throw new Error(
       'No credentials found in .env file and running in non-interactive mode.\n' +
       'Please create a .env file in the examples directory with:\n' +
+      'SOGNI_API_KEY=your_api_key\n' +
+      'or:\n' +
       'SOGNI_USERNAME=your_username\n' +
       'SOGNI_PASSWORD=your_password'
     );
   }
 
   // Prompt for credentials
-  const username = await askQuestion('Username: ');
-  const password = await askQuestion('Password: ');
+  const promptUsername = await askQuestion('Username: ');
+  const promptPassword = await askQuestion('Password: ');
 
-  if (!username || !password) {
+  if (!promptUsername || !promptPassword) {
     throw new Error('Username and password are required');
   }
 
@@ -173,7 +186,7 @@ export async function loadCredentials() {
   const save = await askQuestion('Save credentials to .env file? [Y/n]: ');
 
   if (save.toLowerCase() !== 'n' && save.toLowerCase() !== 'no') {
-    saveCredentials(username, password);
+    saveCredentials(promptUsername, promptPassword);
     console.log(`✓ Credentials saved to: ${ENV_FILE}`);
     console.log('  (You won\'t need to enter them again)');
     console.log();
@@ -182,6 +195,6 @@ export async function loadCredentials() {
     console.log();
   }
 
-  return { username, password };
+  return { username: promptUsername, password: promptPassword };
 }
 

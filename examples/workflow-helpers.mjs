@@ -1143,11 +1143,10 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
 /**
  * Create a lightweight SDK connection for fetching model options.
  * This can be used early in the workflow before the full SDK is created.
- * @param {string} username - Username for authentication
- * @param {string} password - Password for authentication
+ * @param {Object} credentials - Auth credentials ({ apiKey } or { username, password })
  * @returns {Promise<Object>} SDK instance
  */
-export async function createSogniConnection(username, password) {
+export async function createSogniConnection(credentials) {
   // Load optional configuration from environment
   const testnet = process.env.SOGNI_TESTNET === 'true';
   const socketEndpoint = process.env.SOGNI_SOCKET_ENDPOINT;
@@ -1162,12 +1161,15 @@ export async function createSogniConnection(username, password) {
     network: 'fast'
   };
 
+  if (credentials.apiKey) clientConfig.apiKey = credentials.apiKey;
   if (testnet) clientConfig.testnet = testnet;
   if (socketEndpoint) clientConfig.socketEndpoint = socketEndpoint;
   if (restEndpoint) clientConfig.restEndpoint = restEndpoint;
 
   const sogni = await SogniClient.createInstance(clientConfig);
-  await sogni.account.login(username, password);
+  if (!credentials.apiKey) {
+    await sogni.account.login(credentials.username, credentials.password);
+  }
   await sogni.projects.waitForModels();
 
   return sogni;
