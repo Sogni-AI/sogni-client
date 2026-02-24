@@ -15,8 +15,13 @@ npm install @sogni-ai/sogni-client
 ```javascript
 import { SogniClient } from '@sogni-ai/sogni-client';
 
-const sogni = await SogniClient.createInstance({ appId: 'my-app-uuid' });
-await sogni.account.login('username', 'password');
+// Option 1: API key auth (recommended) — no login() needed
+const sogni = await SogniClient.createInstance({ appId: 'my-app-uuid', apiKey: 'your-api-key' });
+
+// Option 2: Username/password auth
+// const sogni = await SogniClient.createInstance({ appId: 'my-app-uuid' });
+// await sogni.account.login('username', 'password');
+
 await sogni.projects.waitForModels();
 
 const project = await sogni.projects.create({
@@ -67,18 +72,27 @@ console.log(urls[0]); // Video URL (valid 24 hours)
 
 ## 1. Authentication & Setup
 
-### Client Creation
+### Client Creation with API Key (Recommended)
 ```javascript
 const sogni = await SogniClient.createInstance({
   appId: 'unique-uuid',     // Required - identifies your app
-  network: 'fast'           // 'fast' (GPU) or 'relaxed' (Mac)
+  network: 'fast',          // 'fast' (GPU) or 'relaxed' (Mac)
+  apiKey: 'your-api-key'    // Auto-authenticates, no login() needed
 });
 ```
 
-### Login
+### Client Creation with Username/Password
 ```javascript
+const sogni = await SogniClient.createInstance({
+  appId: 'unique-uuid',
+  network: 'fast'
+});
 await sogni.account.login(username, password);
 ```
+
+### API Key vs Username/Password
+- **API key**: Pass `apiKey` to `createInstance()`. Auto-authenticates via WebSocket. No `login()` call needed. Most REST API calls (balance, profile, etc.) available. Sensitive operations (withdrawals, staking, 2FA) not available.
+- **Username/password**: Call `sogni.account.login()` after creating instance. Full REST API access.
 
 ### Network Types
 - `fast` - High-end GPUs, faster, more expensive. **Required for video.**

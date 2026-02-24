@@ -34,7 +34,7 @@ or
 yarn add @sogni-ai/sogni-client
 ```
 ## Core concepts
-In order to use Sogni Supernet, you need an active Sogni account (in the form of a username and password) with a positive SOGNI or Spark token balance. 
+In order to use Sogni Supernet, you need an active Sogni account with a positive SOGNI or Spark token balance. You can authenticate using either an **API key** (recommended) or **username and password**.
 You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio) which will give you tokens just for signing up and confirming your email. You can get daily bonus tokens by claiming them (under rewards) each 24-hours.
 
 Spark tokens can be purchased with a credit card in a Mac or Web app.
@@ -58,32 +58,46 @@ uploaded to Sogni servers where it will be stored for 24 hours. After this perio
 ## Client initialization
 To initialize a client, you need to provide `appId`, and account credentials.
 
+### Option 1: API Key Authentication (Recommended)
+
+API key authentication is the simplest way to connect. The client auto-authenticates via the WebSocket connection — no separate `login()` call is needed.
+
 ```javascript
 import { SogniClient } from '@sogni-ai/sogni-client';
 
-const USERNAME = 'your-username';
-const PASSWORD = 'your-password';
-
-const options = {
+const sogni = await SogniClient.createInstance({
   appId: 'your-app-id', // Required, must be unique string, UUID is recommended
-  network: 'fast', // Network to use, 'fast' or 'relaxed'
-}
+  network: 'fast',       // Network to use, 'fast' or 'relaxed'
+  apiKey: 'your-api-key' // API key for authentication
+});
 
-const sogni = await SogniClient.createInstance(options);
-// Login to Sogni account and establish WebSocket connection to Supernet
-await sogni.account.login(USERNAME, PASSWORD);
-// Now wait until list of available models is received.
-// This step is only needed if you want to create project immediately.
+// No login() call needed — the client is authenticated automatically
 const models = await sogni.projects.waitForModels();
-// You can get list of available models any time from `sogni.projects.availableModels`
 ```
-**Important Note:** 
-- This sample assume you are using ES modules, which allow `await` on the top level, if you are CommomJS you will need to wrap `await` calls in an async function.
+
+> **Note:** With API key auth, most REST API calls (balance, profile, etc.) are available. Sensitive account operations (withdrawals, staking, 2FA) are not available with API key auth.
+
+### Option 2: Username & Password Authentication
+
+```javascript
+import { SogniClient } from '@sogni-ai/sogni-client';
+
+const sogni = await SogniClient.createInstance({
+  appId: 'your-app-id',
+  network: 'fast',
+});
+
+await sogni.account.login('your-username', 'your-password');
+const models = await sogni.projects.waitForModels();
+```
+
+**Important Note:**
+- These samples assume you are using ES modules, which allow `await` on the top level, if you are CommonJS you will need to wrap `await` calls in an async function.
 - `appId` must be unique string, UUID is recommended. It is used to identify your application.
 - Only one connection per `appId` is allowed. If you try to connect with the same `appId` multiple times, the previous connection will be closed.
 
 ## Usage
-After calling `login` method, the client will establish a WebSocket connection to Sogni Supernet. Within a short period of time the
+After authentication, the client will have an active WebSocket connection to Sogni Supernet. Within a short period of time the
 client will receive the current balance and list of available models. After this you can start using the client to generate images or videos.
 
 It is advised to watch for `connected` and `disconnected` events on the client instance to be notified when the connection is established or lost:

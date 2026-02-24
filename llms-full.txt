@@ -54,8 +54,13 @@ MINIMAL IMAGE GENERATION:
 ```javascript
 import { SogniClient } from '@sogni-ai/sogni-client';
 
-const sogni = await SogniClient.createInstance({ appId: 'my-unique-app-id' });
-await sogni.account.login('username', 'password');
+// Option 1: API key auth (recommended) — no login() needed
+const sogni = await SogniClient.createInstance({ appId: 'my-unique-app-id', apiKey: 'your-api-key' });
+
+// Option 2: Username/password auth
+// const sogni = await SogniClient.createInstance({ appId: 'my-unique-app-id' });
+// await sogni.account.login('username', 'password');
+
 await sogni.projects.waitForModels();
 
 const project = await sogni.projects.create({
@@ -101,11 +106,35 @@ const sogni = await SogniClient.createInstance({
 });
 ```
 
-AUTHENTICATION:
+AUTHENTICATION - API KEY (Recommended):
+```javascript
+// API key auth — auto-authenticates via WebSocket, no login() needed
+const sogni = await SogniClient.createInstance({
+  appId: 'your-unique-app-id',
+  network: 'fast',
+  apiKey: 'your-api-key'
+});
+// Client is authenticated immediately after creation
+```
+
+AUTHENTICATION - USERNAME/PASSWORD:
 ```javascript
 // Username/password login
+const sogni = await SogniClient.createInstance({
+  appId: 'your-unique-app-id',
+  network: 'fast'
+});
 await sogni.account.login('username', 'password');
+```
 
+API KEY VS USERNAME/PASSWORD:
+- API key: Pass `apiKey` to `createInstance()`. Auto-authenticates via WebSocket
+  header. No `login()` call needed. Most REST API calls (balance, profile, etc.)
+  available. Sensitive operations (withdrawals, staking, 2FA) not available.
+- Username/password: Call `login()` after `createInstance()`. Full REST API access.
+
+ACCOUNT INFO (Available with both auth methods):
+```javascript
 // Check if authenticated
 const isLoggedIn = await sogni.checkAuth();
 
@@ -113,7 +142,7 @@ const isLoggedIn = await sogni.checkAuth();
 const user = await sogni.account.me();
 console.log(user.username, user.email);
 
-// Get balance
+// Get balance (username/password auth only)
 await sogni.account.refreshBalance();
 console.log(sogni.account.currentAccount.balance);
 ```
