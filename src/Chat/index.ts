@@ -1,7 +1,16 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup';
 import { JobTokensData, LLMJobResultData, LLMJobErrorData } from '../ApiClient/WebSocketClient/events';
 import ChatStream from './ChatStream';
-import { ChatCompletionParams, ChatCompletionChunk, ChatCompletionResult, ChatRequestMessage } from './types';
+import {
+  ChatCompletionParams,
+  ChatCompletionChunk,
+  ChatCompletionResult,
+  ChatJobStateEvent,
+  ChatRequestMessage,
+  ChatMessage,
+  LLMCostEstimation,
+  LLMEstimateResponse,
+} from './types';
 import getUUID from '../lib/getUUID';
 
 export interface ChatApiEvents {
@@ -11,6 +20,8 @@ export interface ChatApiEvents {
   completed: ChatCompletionResult;
   /** Emitted when a chat completion fails */
   error: { jobID: string; error: string; message: string };
+  /** Emitted when the job state changes (queued, assigned to worker, started, etc.) */
+  jobState: ChatJobStateEvent;
 }
 
 /**
@@ -70,6 +81,46 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     return { ...this.availableLLMModels };
   }
 
+  /**
+   * Estimate the cost of a chat completion request before submitting it.
+   *
+   * Uses the same token estimation formula as the server:
+   * input tokens ≈ ceil(JSON.stringify(messages).length / 4)
+   *
+   * @example
+   * ```typescript
+   * const estimate = await sogni.chat.estimateCost({
+   *   model: 'Qwen/Qwen3-30B-A3B-GPTQ-Int4',
+   *   messages: [{ role: 'user', content: 'Hello!' }],
+   *   max_tokens: 1024,
+   * });
+   * console.log(`Estimated cost: ${estimate.costInToken.toFixed(6)}`);
+   * ```
+   */
+  async estimateCost(params: {
+    model: string;
+    messages: ChatMessage[];
+    max_tokens?: number;
+    tokenType?: 'sogni' | 'spark';
+  }): Promise<LLMCostEstimation> {
+    const tokenType = params.tokenType || 'sogni';
+    const inputTokens = Math.ceil(JSON.stringify(params.messages).length / 4);
+    const maxOutputTokens = params.max_tokens || 4096;
+    const pathParams = [tokenType, params.model, inputTokens, maxOutputTokens];
+    const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
+    const r = await this.client.socket.get<LLMEstimateResponse>(
+      `/api/v1/job-llm/estimate/${path}`
+    );
+    return {
+      costInUSD: r.quote.costInUSD,
+      costInSogni: r.quote.costInSogni,
+      costInSpark: r.quote.costInSpark,
+      costInToken: r.quote.costInToken,
+      inputTokens: r.quote.inputTokens,
+      outputTokens: r.quote.outputTokens,
+    };
+  }
+
   private handleSwarmLLMModels(data: Record<string, number>): void {
     this.availableLLMModels = data;
   }
@@ -89,6 +140,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       frequency_penalty: params.frequency_penalty,
       presence_penalty: params.presence_penalty,
       stop: params.stop,
+      tokenType: params.tokenType,
     };
 
     const stream = new ChatStream(jobID);
@@ -166,6 +218,19 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private handleJobState(data: any): void {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
+
+    // Track worker name on the stream for inclusion in finalResult
+    if (data.workerName) {
+      stream._setWorkerName(data.workerName);
+    }
+
+    // Emit jobState event for consumers
+    this.emit('jobState', {
+      jobID: data.jobID,
+      type: data.type,
+      workerName: data.workerName,
+      queuePosition: data.queuePosition,
+    });
 
     if (data.type === 'queued') {
       this.client.logger.debug(`Chat job ${data.jobID} queued`);

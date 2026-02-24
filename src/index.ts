@@ -40,7 +40,9 @@ import {
   ChatCompletionParams,
   ChatCompletionChunk,
   ChatCompletionResult,
-  TokenUsage as ChatTokenUsage
+  ChatJobStateEvent,
+  TokenUsage as ChatTokenUsage,
+  LLMCostEstimation
 } from './Chat/types';
 // Stats API
 import StatsApi from './Stats';
@@ -58,8 +60,10 @@ export type {
   ChatCompletionChunk,
   ChatCompletionParams,
   ChatCompletionResult,
+  ChatJobStateEvent,
   ChatMessage,
   ChatTokenUsage,
+  LLMCostEstimation,
   ControlNetMode,
   ControlNetName,
   ControlNetParams,

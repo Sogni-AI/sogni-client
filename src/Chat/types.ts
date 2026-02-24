@@ -13,6 +13,8 @@ export interface ChatCompletionParams {
   frequency_penalty?: number;
   presence_penalty?: number;
   stop?: string | string[];
+  /** Token type to use for billing. Defaults to 'sogni'. */
+  tokenType?: 'sogni' | 'spark';
 }
 
 export interface ChatRequestMessage {
@@ -27,6 +29,7 @@ export interface ChatRequestMessage {
   frequency_penalty?: number;
   presence_penalty?: number;
   stop?: string | string[];
+  tokenType?: 'sogni' | 'spark';
 }
 
 export interface ChatCompletionChunk {
@@ -50,4 +53,46 @@ export interface ChatCompletionResult {
   finishReason: string;
   usage: TokenUsage;
   timeTaken: number;
+  /** Name of the worker that processed this request */
+  workerName?: string;
+}
+
+export interface ChatJobStateEvent {
+  jobID: string;
+  type: string;
+  workerName?: string;
+  queuePosition?: number;
+}
+
+export interface LLMCostEstimation {
+  /** Estimated cost in USD */
+  costInUSD: number;
+  /** Estimated cost in SOGNI tokens (market rate) */
+  costInSogni: number;
+  /** Estimated cost in Spark tokens (fixed rate) */
+  costInSpark: number;
+  /** Estimated cost in the requested token type */
+  costInToken: number;
+  /** Estimated input token count */
+  inputTokens: number;
+  /** Maximum output tokens requested */
+  outputTokens: number;
+}
+
+export interface LLMEstimateResponse {
+  request: {
+    model: string;
+    inputTokens: number;
+    maxOutputTokens: number;
+    tokenType: string;
+    time: string;
+  };
+  quote: {
+    costInUSD: number;
+    costInSogni: number;
+    costInSpark: number;
+    costInToken: number;
+    inputTokens: number;
+    outputTokens: number;
+  };
 }

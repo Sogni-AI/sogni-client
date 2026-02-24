@@ -23,6 +23,7 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
   private _finishReason: string | null = null;
   private _usage: TokenUsage | null = null;
   private _timeTaken = 0;
+  private _workerName?: string;
 
   readonly jobID: string;
 
@@ -35,6 +36,11 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
     return this._content;
   }
 
+  /** Name of the worker that processed this request */
+  get workerName(): string | undefined {
+    return this._workerName;
+  }
+
   /** Final result once stream is complete. Null if still streaming. */
   get finalResult(): ChatCompletionResult | null {
     if (!this.done || this.error) return null;
@@ -45,6 +51,7 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
       finishReason: this._finishReason || 'stop',
       usage: this._usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
       timeTaken: this._timeTaken,
+      workerName: this._workerName,
     };
   }
 
@@ -93,6 +100,11 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
       this.reject = null;
       rej(error);
     }
+  }
+
+  /** @internal Set the worker name from a jobState event */
+  _setWorkerName(workerName: string): void {
+    this._workerName = workerName;
   }
 
   [Symbol.asyncIterator](): AsyncIterator<ChatCompletionChunk> {
