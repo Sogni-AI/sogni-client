@@ -1,3 +1,10 @@
+# [4.0.0-alpha.67](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.66...v4.0.0-alpha.67) (2026-02-24)
+
+
+### Features
+
+* add API key authentication support ([b7c1187](https://github.com/Sogni-AI/sogni-client/commit/b7c11879315e311afa6a668423de0e848e41c2fc))
+
 # [4.0.0-alpha.66](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.65...v4.0.0-alpha.66) (2026-02-20)
 
 
