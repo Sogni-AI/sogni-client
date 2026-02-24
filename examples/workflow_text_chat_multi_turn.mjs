@@ -36,7 +36,7 @@
  */
 
 import { SogniClient } from '../dist/index.js';
-import { loadCredentials } from './credentials.mjs';
+import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 import * as readline from 'node:readline';
 
 const DEFAULT_MODEL = 'Qwen/Qwen3-30B-A3B-GPTQ-Int4';
@@ -139,16 +139,30 @@ async function main() {
   } else {
     console.log('Authenticated with API key');
   }
+  // Load token type preference
+  const tokenType = loadTokenTypePreference() || 'sogni';
+  const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
+
   console.log();
   console.log(`Model:       ${options.model}`);
   console.log(`Max Tokens:  ${options.maxTokens}`);
   console.log(`Temperature: ${options.temperature}`);
+  console.log(`Payment:     ${tokenLabel}`);
   console.log(`System:      ${options.system}`);
   console.log();
   console.log('Type your message and press Enter. Type "exit" to quit.');
   console.log('Commands: /clear, /history, /system <msg>, /stats');
   console.log('-'.repeat(60));
   console.log();
+
+  // Listen for job state events (worker assignment)
+  sogni.chat.on('jobState', (event) => {
+    if (event.type === 'initiatingModel' && event.workerName) {
+      process.stdout.write(`\n  [Worker: ${event.workerName} (initiating)]\n`);
+    } else if (event.type === 'jobStarted' && event.workerName) {
+      process.stdout.write(`  [Worker: ${event.workerName} (started)]\n`);
+    }
+  });
 
   // Conversation state
   let systemPrompt = options.system;
@@ -259,6 +273,28 @@ async function main() {
       ...history,
     ];
 
+    // Estimate cost and check balance before submitting
+    try {
+      const estimate = await sogni.chat.estimateCost({
+        model: options.model,
+        messages,
+        max_tokens: options.maxTokens,
+        tokenType,
+      });
+      await sogni.account.refreshBalance();
+      const balance = sogni.account.currentAccount.balance;
+      const available = parseFloat(tokenType === 'spark' ? balance.spark.net : balance.sogni.net);
+
+      if (available < estimate.costInToken) {
+        console.error(`\n  Insufficient balance. You need at least ${estimate.costInToken.toFixed(6)} ${tokenLabel} but have ${available.toFixed(4)} ${tokenLabel}.`);
+        console.error(`  Tip: Reduce --max-tokens to lower the estimated cost, or add funds at https://app.sogni.ai\n`);
+        history.pop();
+        continue;
+      }
+    } catch {
+      // Estimation endpoint may not be available; proceed anyway
+    }
+
     try {
       const startTime = Date.now();
 
@@ -271,6 +307,7 @@ async function main() {
         temperature: options.temperature,
         top_p: options.topP,
         stream: true,
+        tokenType,
       });
 
       let responseContent = '';
@@ -304,7 +341,14 @@ async function main() {
       }
       console.log();
     } catch (err) {
-      console.error(`\n  Error: ${err.message}\n`);
+      if (err.message.includes('insufficient_balance')) {
+        const balance = sogni.account.currentAccount.balance;
+        const available = parseFloat(tokenType === 'spark' ? balance.spark.net : balance.sogni.net);
+        console.error(`\n  Insufficient balance. You have ${available.toFixed(4)} ${tokenLabel}.`);
+        console.error(`  Tip: Reduce --max-tokens to lower the estimated cost, or add funds at https://app.sogni.ai\n`);
+      } else {
+        console.error(`\n  Error: ${err.message}\n`);
+      }
       // Remove the failed user message from history
       history.pop();
     }
