@@ -47,7 +47,7 @@ import StatsApi from './Stats';
 // Base Types
 import ErrorData from './types/ErrorData';
 import { TokenType } from './types/token';
-import { CookieAuthManager, TokenAuthData, TokenAuthManager } from './lib/AuthManager';
+import { ApiKeyAuthManager, CookieAuthManager, TokenAuthData, TokenAuthManager } from './lib/AuthManager';
 import { MeData } from './Account/types';
 
 export type {
@@ -81,7 +81,7 @@ export type {
   VideoWorkflowType
 };
 
-export { ApiError, ChatStream, CurrentAccount, Job, Project };
+export { ApiError, ApiKeyAuthManager, ChatStream, CurrentAccount, Job, Project };
 
 export interface SogniClientConfig {
   /**
@@ -123,15 +123,24 @@ export interface SogniClientConfig {
    */
   testnet?: boolean;
   /**
-   * Authentication type to use. Can be 'token' or 'cookie'. If not provided, 'token' will be used.
+   * API key for authentication. When provided, the client will use API key authentication
+   * instead of username/password login. API keys support both socket-based operations
+   * (image generation, LLM chat) and most REST API calls (balance, profile, etc.).
+   * Sensitive account operations (withdrawals, staking, 2FA) are not available with API key auth.
+   */
+  apiKey?: string;
+  /**
+   * Authentication type to use. Can be 'token', 'cookie', or 'apiKey'. If not provided, 'token'
+   * will be used. When `apiKey` is provided in the config, this is automatically set to 'apiKey'.
    * `token` authentication relies on a token stored in the client instance. This is what 3rd party
    * Node.js apps should use.
    * `cookie` authentication relies on htmlOnly cookie, set by the server. This will only work for
    * browser apps located on .sogni.ai subdomains due to CORS restrictions.
+   * `apiKey` authentication uses a pre-generated API key.
    * @default 'token'
    * @experimental
    */
-  authType?: 'token' | 'cookies';
+  authType?: 'token' | 'cookies' | 'apiKey';
   /**
    * Browser only. If true, the client will use a single WebSocket connection shared across multiple
    * tabs. This is useful for browser apps that need to process multiple projects at the same time.
@@ -212,6 +221,7 @@ export class SogniClient {
     const network = config.network || 'fast';
     const logger = config.logger || new DefaultLogger(config.logLevel || 'warn');
     const isTestnet = config.testnet !== undefined ? config.testnet : false;
+    const authType = config.apiKey ? 'apiKey' : (config.authType || 'token');
 
     const client = new ApiClient({
       baseUrl: restEndpoint,
@@ -219,7 +229,7 @@ export class SogniClient {
       appId: config.appId,
       networkType: network,
       logger,
-      authType: config.authType || 'token',
+      authType,
       disableSocket: config.disableSocket,
       multiInstance: config.multiInstance
     });
@@ -228,6 +238,14 @@ export class SogniClient {
       version: '1',
       chainId: isTestnet ? '84532' : '8453'
     });
-    return new SogniClient({ client, eip712 });
+    const sogniClient = new SogniClient({ client, eip712 });
+
+    // Auto-authenticate with API key if provided
+    if (config.apiKey) {
+      const auth = client.auth as ApiKeyAuthManager;
+      await auth.authenticate(config.apiKey);
+    }
+
+    return sogniClient;
   }
 }

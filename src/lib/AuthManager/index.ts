@@ -1,8 +1,9 @@
+import ApiKeyAuthManager from './ApiKeyAuthManager';
 import CookieAuthManager from './CookieAuthManager';
 import TokenAuthManager, { TokenAuthData } from './TokenAuthManager';
 
 export type { TokenAuthData };
 
-export { CookieAuthManager, TokenAuthManager };
+export { ApiKeyAuthManager, CookieAuthManager, TokenAuthManager };
 
-export type AuthManager = CookieAuthManager | TokenAuthManager;
+export type AuthManager = ApiKeyAuthManager | CookieAuthManager | TokenAuthManager;

@@ -20,7 +20,7 @@ import { ApiError, ApiResponse } from '../ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import { delay } from '../lib/utils';
-import { TokenAuthManager } from '../lib/AuthManager';
+import { ApiKeyAuthManager, CookieAuthManager, TokenAuthManager } from '../lib/AuthManager';
 
 const MAX_DEPOSIT_ATTEMPTS = 4;
 enum ErrorCode {
@@ -49,6 +49,7 @@ class AccountApi extends ApiGroup {
     });
     this.client.socket.on('balanceUpdate', this.handleBalanceUpdate.bind(this));
     this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
+    this.client.socket.on('authenticated', this.handleSocketAuthenticated.bind(this));
     this.client.on('connected', this.handleServerConnected.bind(this));
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     this.client.auth.on('updated', this.handleAuthUpdated.bind(this));
@@ -74,6 +75,16 @@ class AccountApi extends ApiGroup {
       networkStatus: 'disconnected',
       network: null
     });
+  }
+
+  private handleSocketAuthenticated(data: { username: string; address: string }) {
+    // Populate account early from socket authenticated event (me() will overwrite with full data)
+    if (this.client.auth instanceof ApiKeyAuthManager) {
+      this.currentAccount._update({
+        username: data.username,
+        walletAddress: data.address
+      });
+    }
   }
 
   private handleAuthUpdated(isAuthenticated: boolean) {
@@ -145,7 +156,7 @@ class AccountApi extends ApiGroup {
     const auth = this.client.auth;
     if (auth instanceof TokenAuthManager) {
       await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
-    } else {
+    } else if (auth instanceof CookieAuthManager) {
       await auth.authenticate();
     }
     return res.data;
@@ -180,7 +191,7 @@ class AccountApi extends ApiGroup {
     const auth = this.client.auth;
     if (auth instanceof TokenAuthManager) {
       await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
-    } else {
+    } else if (auth instanceof CookieAuthManager) {
       await auth.authenticate();
     }
     return res.data;

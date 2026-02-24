@@ -1,5 +1,5 @@
 import { IWebSocketClient, SupernetType } from '../types';
-import { AuthManager, TokenAuthManager } from '../../../lib/AuthManager';
+import { AuthManager, CookieAuthManager, TokenAuthManager } from '../../../lib/AuthManager';
 import { Logger } from '../../../lib/DefaultLogger';
 import WebSocketClient from '../index';
 import RestClient from '../../../lib/RestClient';
@@ -200,9 +200,9 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       throw new Error('TokenAuthManager is not supported in multi client mode');
     }
     if (this.auth.isAuthenticated !== isAuthenticated) {
-      if (isAuthenticated) {
+      if (isAuthenticated && this.auth instanceof CookieAuthManager) {
         this.auth.authenticate();
-      } else {
+      } else if (!isAuthenticated) {
         this.auth.clear();
       }
     }

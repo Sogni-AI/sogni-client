@@ -7,6 +7,7 @@ import { ErrorCode, isNotRecoverable } from './WebSocketClient/ErrorCode';
 import { JSONValue } from '../types/json';
 import { IWebSocketClient, SupernetType } from './WebSocketClient/types';
 import { Logger } from '../lib/DefaultLogger';
+import ApiKeyAuthManager from '../lib/AuthManager/ApiKeyAuthManager';
 import CookieAuthManager from '../lib/AuthManager/CookieAuthManager';
 import { AuthManager, TokenAuthManager } from '../lib/AuthManager';
 import isNodejs from '../lib/isNodejs';
@@ -42,7 +43,7 @@ export interface ApiClientOptions {
   appId: string;
   networkType: SupernetType;
   logger: Logger;
-  authType: 'token' | 'cookies';
+  authType: 'token' | 'cookies' | 'apiKey';
   disableSocket?: boolean;
   multiInstance?: boolean;
 }
@@ -69,8 +70,13 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     super();
     this.appId = appId;
     this.logger = logger;
-    this._auth =
-      authType === 'token' ? new TokenAuthManager(baseUrl, logger) : new CookieAuthManager(logger);
+    if (authType === 'apiKey') {
+      this._auth = new ApiKeyAuthManager(logger);
+    } else if (authType === 'token') {
+      this._auth = new TokenAuthManager(baseUrl, logger);
+    } else {
+      this._auth = new CookieAuthManager(logger);
+    }
     this._rest = new RestClient(baseUrl, this._auth, logger);
     const supportMultiInstance = !isNodejs && this._auth instanceof CookieAuthManager;
     if (supportMultiInstance && multiInstance) {
