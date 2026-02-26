@@ -1,3 +1,10 @@
+# [4.0.0-alpha.68](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.67...v4.0.0-alpha.68) (2026-02-24)
+
+
+### Bug Fixes
+
+* add cost estimation, tokenType billing, and worker tracking to Chat API ([8c1059e](https://github.com/Sogni-AI/sogni-client/commit/8c1059ee2bb43505d1e77abc3bccdce73910cb38))
+
 # [4.0.0-alpha.67](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.66...v4.0.0-alpha.67) (2026-02-24)
 
 
