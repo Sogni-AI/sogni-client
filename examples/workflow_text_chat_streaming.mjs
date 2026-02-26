@@ -16,7 +16,7 @@
  *
  * Options:
  *   --model         LLM model ID (default: qwen3-30b-a3b-gptq-int4)
- *   --max-tokens    Maximum tokens to generate (default: 2048)
+ *   --max-tokens    Maximum tokens to generate (default: 4096)
  *   --temperature   Sampling temperature 0-2 (default: 0.7)
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
  *   --system        System prompt (default: "You are a helpful assistant.")
@@ -38,7 +38,7 @@ function parseArgs() {
   const options = {
     prompt: null,
     model: DEFAULT_MODEL,
-    maxTokens: 2048,
+    maxTokens: 4096,
     temperature: 0.7,
     topP: 0.9,
     system: DEFAULT_SYSTEM,
@@ -98,7 +98,7 @@ Usage:
 
 Options:
   --model         LLM model ID (default: ${DEFAULT_MODEL})
-  --max-tokens    Maximum tokens to generate (default: 2048)
+  --max-tokens    Maximum tokens to generate (default: 4096)
   --temperature   Sampling temperature 0-2 (default: 0.7)
   --top-p         Top-p sampling 0-1 (default: 0.9)
   --system        System prompt (default: "${DEFAULT_SYSTEM}")
