@@ -12,24 +12,26 @@
  * Usage:
  *   node workflow_text_chat.mjs                                    # Interactive
  *   node workflow_text_chat.mjs "What is the meaning of life?"     # With prompt
- *   node workflow_text_chat.mjs "Explain quantum computing" --model Qwen/Qwen3-30B-A3B-GPTQ-Int4
+ *   node workflow_text_chat.mjs "Explain quantum computing" --model qwen3-30b-a3b-gptq-int4
  *   node workflow_text_chat.mjs "Write a haiku" --max-tokens 100 --temperature 0.9
  *
  * Options:
- *   --model         LLM model ID (default: Qwen/Qwen3-30B-A3B-GPTQ-Int4)
+ *   --model         LLM model ID (default: qwen3-30b-a3b-gptq-int4)
  *   --max-tokens    Maximum tokens to generate (default: 1024)
  *   --temperature   Sampling temperature 0-2 (default: 0.7)
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
  *   --system        System prompt (default: "You are a helpful assistant.")
  *   --freq-penalty  Frequency penalty -2 to 2 (default: 0)
  *   --pres-penalty  Presence penalty -2 to 2 (default: 0)
+ *   --think         Enable model thinking/reasoning (shows <think> blocks)
+ *   --no-think      Disable model thinking (default)
  *   --help          Show this help message
  */
 
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 
-const DEFAULT_MODEL = 'Qwen/Qwen3-30B-A3B-GPTQ-Int4';
+const DEFAULT_MODEL = 'qwen3-30b-a3b-gptq-int4';
 const DEFAULT_SYSTEM = 'You are a helpful assistant.';
 
 function parseArgs() {
@@ -43,6 +45,7 @@ function parseArgs() {
     system: DEFAULT_SYSTEM,
     frequencyPenalty: 0,
     presencePenalty: 0,
+    think: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -64,6 +67,10 @@ function parseArgs() {
       options.frequencyPenalty = parseFloat(args[++i]);
     } else if (arg === '--pres-penalty' && args[i + 1]) {
       options.presencePenalty = parseFloat(args[++i]);
+    } else if (arg === '--think') {
+      options.think = true;
+    } else if (arg === '--no-think') {
+      options.think = false;
     } else if (!arg.startsWith('--') && !options.prompt) {
       options.prompt = arg;
     } else if (!arg.startsWith('--')) {
@@ -96,6 +103,8 @@ Options:
   --system        System prompt (default: "${DEFAULT_SYSTEM}")
   --freq-penalty  Frequency penalty -2 to 2 (default: 0)
   --pres-penalty  Presence penalty -2 to 2 (default: 0)
+  --think         Enable model thinking/reasoning (shows <think> blocks)
+  --no-think      Disable model thinking (default)
   --help          Show this help message
 `);
 }
@@ -158,6 +167,20 @@ async function main() {
   }
   console.log();
 
+  // Wait for LLM models to be received from the network
+  try {
+    const models = await sogni.chat.waitForModels();
+    console.log('Available LLM models:');
+    for (const [id, info] of Object.entries(models)) {
+      const workers = info.workers;
+      console.log(`  ${id} (${workers} worker${workers !== 1 ? 's' : ''})`);
+    }
+    console.log();
+  } catch {
+    console.log('Warning: No LLM models currently available on the network');
+    console.log();
+  }
+
   // Load token type preference
   const tokenType = loadTokenTypePreference() || 'sogni';
 
@@ -166,13 +189,15 @@ async function main() {
   if (options.system) {
     messages.push({ role: 'system', content: options.system });
   }
-  messages.push({ role: 'user', content: options.prompt });
+  const userContent = options.think ? options.prompt : `${options.prompt} /no_think`;
+  messages.push({ role: 'user', content: userContent });
 
   // Display request info
   const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
   console.log(`Model:       ${options.model}`);
   console.log(`Max Tokens:  ${options.maxTokens}`);
   console.log(`Temperature: ${options.temperature}`);
+  console.log(`Thinking:    ${options.think ? 'enabled' : 'disabled'}`);
   console.log(`Payment:     ${tokenLabel}`);
   console.log(`Prompt:      ${options.prompt.length > 80 ? options.prompt.slice(0, 80) + '...' : options.prompt}`);
   console.log();
@@ -205,7 +230,13 @@ async function main() {
 
   // Listen for job state events (worker assignment)
   sogni.chat.on('jobState', (event) => {
-    if (event.type === 'initiatingModel' && event.workerName) {
+    if (event.type === 'pending') {
+      console.log(`Status:       pending authorization`);
+    } else if (event.type === 'queued') {
+      console.log(`Status:       queued`);
+    } else if (event.type === 'assigned' && event.workerName) {
+      console.log(`Worker:       ${event.workerName} (assigned)`);
+    } else if (event.type === 'initiatingModel' && event.workerName) {
       console.log(`Worker:       ${event.workerName} (initiating)`);
     } else if (event.type === 'jobStarted' && event.workerName) {
       console.log(`Worker:       ${event.workerName} (started)`);

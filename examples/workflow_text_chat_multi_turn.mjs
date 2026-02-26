@@ -15,12 +15,12 @@
  *
  * Usage:
  *   node workflow_text_chat_multi_turn.mjs
- *   node workflow_text_chat_multi_turn.mjs --model Qwen/Qwen3-30B-A3B-GPTQ-Int4
+ *   node workflow_text_chat_multi_turn.mjs --model qwen3-30b-a3b-gptq-int4
  *   node workflow_text_chat_multi_turn.mjs --system "You are a pirate. Respond in pirate speak."
  *   node workflow_text_chat_multi_turn.mjs --max-tokens 4096 --temperature 0.9
  *
  * Options:
- *   --model         LLM model ID (default: Qwen/Qwen3-30B-A3B-GPTQ-Int4)
+ *   --model         LLM model ID (default: qwen3-30b-a3b-gptq-int4)
  *   --max-tokens    Maximum tokens per response (default: 2048)
  *   --temperature   Sampling temperature 0-2 (default: 0.7)
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
@@ -39,7 +39,7 @@ import { SogniClient } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 import * as readline from 'node:readline';
 
-const DEFAULT_MODEL = 'Qwen/Qwen3-30B-A3B-GPTQ-Int4';
+const DEFAULT_MODEL = 'qwen3-30b-a3b-gptq-int4';
 const DEFAULT_SYSTEM = 'You are a helpful assistant.';
 
 function parseArgs() {
@@ -157,7 +157,11 @@ async function main() {
 
   // Listen for job state events (worker assignment)
   sogni.chat.on('jobState', (event) => {
-    if (event.type === 'initiatingModel' && event.workerName) {
+    if (event.type === 'pending') {
+      process.stdout.write(`  [Pending authorization]\n`);
+    } else if (event.type === 'assigned' && event.workerName) {
+      process.stdout.write(`  [Worker: ${event.workerName} (assigned)]\n`);
+    } else if (event.type === 'initiatingModel' && event.workerName) {
       process.stdout.write(`\n  [Worker: ${event.workerName} (initiating)]\n`);
     } else if (event.type === 'jobStarted' && event.workerName) {
       process.stdout.write(`  [Worker: ${event.workerName} (started)]\n`);
