@@ -1,5 +1,6 @@
 import { SupernetType } from './types';
 import { Balances } from '../../Account/types';
+import { LLMJobCost, LLMModelInfo } from '../../Chat/types';
 
 export interface AuthenticatedData {
   id: string;
@@ -75,6 +76,11 @@ export type JobStateData =
       jobIndex?: number;
     }
   | {
+      type: 'assigned';
+      jobID: string;
+      workerName: string;
+    }
+  | {
       jobID: string;
       type: 'queued';
       queuePosition: number;
@@ -115,7 +121,7 @@ export type JobTokensData = {
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
-    total_tokens: number;
+    total_tokens?: number;
   };
 };
 
@@ -124,15 +130,21 @@ export type LLMJobResultData = {
   usage: {
     prompt_tokens: number;
     completion_tokens: number;
-    total_tokens: number;
+    total_tokens?: number;
   };
   timeTaken: number;
+  /** Actual cost breakdown from server settlement */
+  cost?: LLMJobCost;
+  /** Worker username that processed this request */
+  workerName?: string;
 };
 
 export type LLMJobErrorData = {
   jobID: string;
   error: string;
   error_message: string;
+  /** Worker username that was processing this request (if assigned) */
+  workerName?: string;
 };
 
 export type SocketEventMap = {
@@ -190,7 +202,7 @@ export type SocketEventMap = {
   /**
    * @event WebSocketClient#swarmLLMModels - Available LLM models with worker counts
    */
-  swarmLLMModels: Record<string, number>;
+  swarmLLMModels: Record<string, number | LLMModelInfo>;
   /**
    * @event WebSocketClient#connected - WebSocket connection opened
    */

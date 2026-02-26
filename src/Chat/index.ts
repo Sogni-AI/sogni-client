@@ -10,6 +10,7 @@ import {
   ChatMessage,
   LLMCostEstimation,
   LLMEstimateResponse,
+  LLMModelInfo,
 } from './types';
 import getUUID from '../lib/getUUID';
 
@@ -19,9 +20,11 @@ export interface ChatApiEvents {
   /** Emitted when a chat completion finishes */
   completed: ChatCompletionResult;
   /** Emitted when a chat completion fails */
-  error: { jobID: string; error: string; message: string };
+  error: { jobID: string; error: string; message: string; workerName?: string };
   /** Emitted when the job state changes (queued, assigned to worker, started, etc.) */
   jobState: ChatJobStateEvent;
+  /** Emitted when the available LLM models list is updated from the network */
+  modelsUpdated: Record<string, LLMModelInfo>;
 }
 
 /**
@@ -34,7 +37,7 @@ export interface ChatApiEvents {
  * ```typescript
  * // Streaming
  * const stream = await sogni.chat.completions.create({
- *   model: 'Qwen/Qwen3-30B-A3B-GPTQ-Int4',
+ *   model: 'qwen3-30b-a3b-gptq-int4',
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   stream: true,
  * });
@@ -44,7 +47,7 @@ export interface ChatApiEvents {
  *
  * // Non-streaming
  * const result = await sogni.chat.completions.create({
- *   model: 'Qwen/Qwen3-30B-A3B-GPTQ-Int4',
+ *   model: 'qwen3-30b-a3b-gptq-int4',
  *   messages: [{ role: 'user', content: 'Hello!' }],
  * });
  * console.log(result.content);
@@ -52,7 +55,7 @@ export interface ChatApiEvents {
  */
 class ChatApi extends ApiGroup<ChatApiEvents> {
   private activeStreams = new Map<string, ChatStream>();
-  private availableLLMModels: Record<string, number> = {};
+  private availableLLMModels: Record<string, LLMModelInfo> = {};
 
   completions: {
     create: ((params: ChatCompletionParams & { stream: true }) => Promise<ChatStream>) &
@@ -77,8 +80,40 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   }
 
   /** Available LLM models and their worker counts */
-  get models(): Record<string, number> {
+  get models(): Record<string, LLMModelInfo> {
     return { ...this.availableLLMModels };
+  }
+
+  /**
+   * Wait for available LLM models to be received from the network.
+   * Resolves immediately if models are already available.
+   * @param timeout - timeout in milliseconds until the promise is rejected (default: 10000)
+   */
+  waitForModels(timeout = 10000): Promise<Record<string, LLMModelInfo>> {
+    if (Object.keys(this.availableLLMModels).length > 0) {
+      return Promise.resolve({ ...this.availableLLMModels });
+    }
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const timeoutId = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          this.off('modelsUpdated', handler);
+          reject(new Error('Timeout waiting for LLM models'));
+        }
+      }, timeout);
+
+      const handler = (models: Record<string, LLMModelInfo>) => {
+        if (Object.keys(models).length > 0 && !settled) {
+          settled = true;
+          clearTimeout(timeoutId);
+          this.off('modelsUpdated', handler);
+          resolve(models);
+        }
+      };
+
+      this.on('modelsUpdated', handler);
+    });
   }
 
   /**
@@ -90,7 +125,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
    * @example
    * ```typescript
    * const estimate = await sogni.chat.estimateCost({
-   *   model: 'Qwen/Qwen3-30B-A3B-GPTQ-Int4',
+   *   model: 'qwen3-30b-a3b-gptq-int4',
    *   messages: [{ role: 'user', content: 'Hello!' }],
    *   max_tokens: 1024,
    * });
@@ -121,8 +156,18 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     };
   }
 
-  private handleSwarmLLMModels(data: Record<string, number>): void {
-    this.availableLLMModels = data;
+  private handleSwarmLLMModels(data: Record<string, number | LLMModelInfo>): void {
+    const models: Record<string, LLMModelInfo> = {};
+    for (const [modelId, value] of Object.entries(data)) {
+      if (typeof value === 'number') {
+        // Legacy format: { modelId: workerCount }
+        models[modelId] = { workers: value };
+      } else {
+        models[modelId] = value;
+      }
+    }
+    this.availableLLMModels = models;
+    this.emit('modelsUpdated', this.availableLLMModels);
   }
 
   private async createCompletion(params: ChatCompletionParams): Promise<ChatStream | ChatCompletionResult> {
@@ -205,6 +250,16 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
 
+    // Update worker name from result if available (may contain proper username/nftTokenId)
+    if (data.workerName) {
+      stream._setWorkerName(data.workerName);
+    }
+
+    // Capture actual cost breakdown from server settlement
+    if (data.cost) {
+      stream._setCost(data.cost);
+    }
+
     stream._complete(data.timeTaken || 0, data.usage);
 
     if (stream.finalResult) {
@@ -230,9 +285,13 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       type: data.type,
       workerName: data.workerName,
       queuePosition: data.queuePosition,
+      modelId: data.modelId,
+      estimatedCost: data.estimatedCost,
     });
 
-    if (data.type === 'queued') {
+    if (data.type === 'pending') {
+      this.client.logger.debug(`Chat job ${data.jobID} pending authorization`);
+    } else if (data.type === 'queued') {
       this.client.logger.debug(`Chat job ${data.jobID} queued`);
     } else if (data.type === 'assigned') {
       this.client.logger.debug(`Chat job ${data.jobID} assigned to worker`);
@@ -245,6 +304,11 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
 
+    // Capture worker name if available (worker may have been assigned before error)
+    if (data.workerName) {
+      stream._setWorkerName(data.workerName);
+    }
+
     const errorMsg = data.error_message || String(data.error);
     stream._fail(new Error(errorMsg));
     this.activeStreams.delete(data.jobID);
@@ -253,6 +317,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       jobID: data.jobID,
       error: String(data.error),
       message: errorMsg,
+      workerName: data.workerName,
     });
   }
 }

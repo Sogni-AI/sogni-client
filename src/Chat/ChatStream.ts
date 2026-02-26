@@ -1,4 +1,4 @@
-import { ChatCompletionChunk, ChatCompletionResult, TokenUsage } from './types';
+import { ChatCompletionChunk, ChatCompletionResult, LLMJobCost, TokenUsage } from './types';
 
 /**
  * Async iterable that yields chat completion chunks as they arrive.
@@ -24,6 +24,7 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
   private _usage: TokenUsage | null = null;
   private _timeTaken = 0;
   private _workerName?: string;
+  private _cost?: LLMJobCost;
 
   readonly jobID: string;
 
@@ -41,6 +42,11 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
     return this._workerName;
   }
 
+  /** Actual cost breakdown once stream is complete. Undefined if still streaming. */
+  get cost(): LLMJobCost | undefined {
+    return this._cost;
+  }
+
   /** Final result once stream is complete. Null if still streaming. */
   get finalResult(): ChatCompletionResult | null {
     if (!this.done || this.error) return null;
@@ -52,6 +58,7 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
       usage: this._usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
       timeTaken: this._timeTaken,
       workerName: this._workerName,
+      cost: this._cost,
     };
   }
 
@@ -105,6 +112,11 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
   /** @internal Set the worker name from a jobState event */
   _setWorkerName(workerName: string): void {
     this._workerName = workerName;
+  }
+
+  /** @internal Set the cost breakdown from the llmJobResult event */
+  _setCost(cost: LLMJobCost): void {
+    this._cost = cost;
   }
 
   [Symbol.asyncIterator](): AsyncIterator<ChatCompletionChunk> {

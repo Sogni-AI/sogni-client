@@ -42,7 +42,10 @@ import {
   ChatCompletionResult,
   ChatJobStateEvent,
   TokenUsage as ChatTokenUsage,
-  LLMCostEstimation
+  LLMCostEstimation,
+  LLMJobCost,
+  LLMModelInfo,
+  LLMParamConstraint,
 } from './Chat/types';
 // Stats API
 import StatsApi from './Stats';
@@ -64,6 +67,9 @@ export type {
   ChatMessage,
   ChatTokenUsage,
   LLMCostEstimation,
+  LLMJobCost,
+  LLMModelInfo,
+  LLMParamConstraint,
   ControlNetMode,
   ControlNetName,
   ControlNetParams,

@@ -43,7 +43,7 @@ export interface ChatCompletionChunk {
 export interface TokenUsage {
   prompt_tokens: number;
   completion_tokens: number;
-  total_tokens: number;
+  total_tokens?: number;
 }
 
 export interface ChatCompletionResult {
@@ -55,6 +55,8 @@ export interface ChatCompletionResult {
   timeTaken: number;
   /** Name of the worker that processed this request */
   workerName?: string;
+  /** Actual cost of the completed request (from server settlement) */
+  cost?: LLMJobCost;
 }
 
 export interface ChatJobStateEvent {
@@ -62,6 +64,42 @@ export interface ChatJobStateEvent {
   type: string;
   workerName?: string;
   queuePosition?: number;
+  /** Model ID (present in 'pending' and 'queued' states) */
+  modelId?: string;
+  /** Estimated cost in the requested token type, stringified BigNumber (present in 'pending' and 'queued' states) */
+  estimatedCost?: string;
+}
+
+export interface LLMParamConstraint {
+  min: number;
+  max: number;
+  decimals?: number;
+  default: number;
+}
+
+export interface LLMModelInfo {
+  workers: number;
+  maxContextLength?: number;
+  maxOutputTokens?: LLMParamConstraint;
+  temperature?: LLMParamConstraint;
+  top_p?: LLMParamConstraint;
+  frequency_penalty?: LLMParamConstraint;
+  presence_penalty?: LLMParamConstraint;
+}
+
+export interface LLMJobCost {
+  /** Actual cost in USD (stringified BigNumber) */
+  costInUSD: string;
+  /** Actual cost in the requested token type (stringified BigNumber) */
+  costInToken: string;
+  /** Actual cost in SOGNI tokens (stringified BigNumber) */
+  costInSogni: string;
+  /** Actual cost in Spark tokens (stringified BigNumber) */
+  costInSpark: string;
+  /** Input tokens used */
+  inputTokens: number;
+  /** Output tokens generated */
+  outputTokens: number;
 }
 
 export interface LLMCostEstimation {
