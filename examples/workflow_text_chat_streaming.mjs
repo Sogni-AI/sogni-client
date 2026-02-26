@@ -45,6 +45,7 @@ function parseArgs() {
     frequencyPenalty: 0,
     presencePenalty: 0,
     think: false,
+    thinkExplicit: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -68,8 +69,10 @@ function parseArgs() {
       options.presencePenalty = parseFloat(args[++i]);
     } else if (arg === '--think') {
       options.think = true;
+      options.thinkExplicit = true;
     } else if (arg === '--no-think') {
       options.think = false;
+      options.thinkExplicit = true;
     } else if (!arg.startsWith('--') && !options.prompt) {
       options.prompt = arg;
     } else if (!arg.startsWith('--')) {
@@ -135,6 +138,15 @@ async function main() {
     if (!options.prompt) {
       console.error('No prompt provided.');
       process.exit(1);
+    }
+
+    // Ask about thinking mode if not specified via CLI
+    if (!options.thinkExplicit) {
+      console.log();
+      console.log('Thinking mode lets the model reason step-by-step before answering.');
+      console.log('Best for: complex reasoning, math, logic puzzles, code debugging, analysis.');
+      const thinkAnswer = await askQuestion('Enable thinking mode? (y/N): ');
+      options.think = thinkAnswer.toLowerCase() === 'y' || thinkAnswer.toLowerCase() === 'yes';
     }
   }
 

@@ -25,12 +25,15 @@
  *   --temperature   Sampling temperature 0-2 (default: 0.7)
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
  *   --system        System prompt (default: "You are a helpful assistant.")
+ *   --think         Enable model thinking/reasoning (shows <think> blocks)
+ *   --no-think      Disable model thinking (default)
  *   --help          Show this help message
  *
  * Commands (during conversation):
  *   /clear          Clear conversation history (keep system prompt)
  *   /history        Show current message history
  *   /system <msg>   Change the system prompt
+ *   /think          Toggle thinking mode on/off
  *   /stats          Show session statistics
  *   exit / quit     End the conversation
  */
@@ -50,6 +53,8 @@ function parseArgs() {
     temperature: 0.7,
     topP: 0.9,
     system: DEFAULT_SYSTEM,
+    think: false,
+    thinkExplicit: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -67,6 +72,12 @@ function parseArgs() {
       options.topP = parseFloat(args[++i]);
     } else if (arg === '--system' && args[i + 1]) {
       options.system = args[++i];
+    } else if (arg === '--think') {
+      options.think = true;
+      options.thinkExplicit = true;
+    } else if (arg === '--no-think') {
+      options.think = false;
+      options.thinkExplicit = true;
     } else {
       console.error(`Unknown option: ${arg}`);
       showHelp();
@@ -92,15 +103,28 @@ Options:
   --temperature   Sampling temperature 0-2 (default: 0.7)
   --top-p         Top-p sampling 0-1 (default: 0.9)
   --system        System prompt (default: "${DEFAULT_SYSTEM}")
+  --think         Enable model thinking/reasoning (shows <think> blocks)
+  --no-think      Disable model thinking (default)
   --help          Show this help message
 
 In-conversation commands:
   /clear          Clear conversation history
   /history        Show message history
   /system <msg>   Change system prompt
+  /think          Toggle thinking mode on/off
   /stats          Show session statistics
   exit / quit     End conversation
 `);
+}
+
+async function askQuestion(question) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
 }
 
 async function main() {
@@ -143,15 +167,26 @@ async function main() {
   const tokenType = loadTokenTypePreference() || 'sogni';
   const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
 
+  // Ask about thinking mode if not specified via CLI
+  let think = options.think;
+  if (!options.thinkExplicit) {
+    console.log();
+    console.log('Thinking mode lets the model reason step-by-step before answering.');
+    console.log('Best for: complex reasoning, math, logic puzzles, code debugging, analysis.');
+    const thinkAnswer = await askQuestion('Enable thinking mode? (y/N): ');
+    think = thinkAnswer.toLowerCase() === 'y' || thinkAnswer.toLowerCase() === 'yes';
+  }
+
   console.log();
   console.log(`Model:       ${options.model}`);
   console.log(`Max Tokens:  ${options.maxTokens}`);
   console.log(`Temperature: ${options.temperature}`);
+  console.log(`Thinking:    ${think ? 'enabled' : 'disabled'}`);
   console.log(`Payment:     ${tokenLabel}`);
   console.log(`System:      ${options.system}`);
   console.log();
   console.log('Type your message and press Enter. Type "exit" to quit.');
-  console.log('Commands: /clear, /history, /system <msg>, /stats');
+  console.log('Commands: /clear, /history, /system <msg>, /think, /stats');
   console.log('-'.repeat(60));
   console.log();
 
@@ -257,6 +292,11 @@ async function main() {
           }
           continue;
 
+        case '/think':
+          think = !think;
+          console.log(`  (Thinking mode ${think ? 'enabled' : 'disabled'})\n`);
+          continue;
+
         case '/stats':
           printStats();
           console.log();
@@ -271,11 +311,17 @@ async function main() {
     // Add user message to history
     history.push({ role: 'user', content: trimmed });
 
-    // Build full messages array
+    // Build full messages array, applying thinking mode to the latest user message
     const messages = [
       { role: 'system', content: systemPrompt },
       ...history,
     ];
+    if (!think) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.role === 'user') {
+        messages[messages.length - 1] = { ...lastMsg, content: `${lastMsg.content} /no_think` };
+      }
+    }
 
     // Estimate cost and check balance before submitting
     try {
