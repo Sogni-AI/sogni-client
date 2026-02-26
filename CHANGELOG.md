@@ -1,3 +1,10 @@
+# [4.0.0-alpha.69](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.68...v4.0.0-alpha.69) (2026-02-26)
+
+
+### Features
+
+* add LLM model info, cost breakdown, and enhanced job state tracking to Chat API ([b27d743](https://github.com/Sogni-AI/sogni-client/commit/b27d74307a270724635f438d734e2663fafbe8b9))
+
 # [4.0.0-alpha.68](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.67...v4.0.0-alpha.68) (2026-02-24)
 
 
