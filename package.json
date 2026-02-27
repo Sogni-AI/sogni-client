@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "4.0.0-alpha.69",
+  "version": "4.0.0-alpha.70",
   "description": "Sogni SDK - AI image and video generation via the Sogni Supernet (Stable Diffusion, Flux, WAN 2.2, LTX-2)",
   "keywords": [
     "ai",
