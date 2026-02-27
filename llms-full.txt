@@ -16,13 +16,15 @@ TABLE OF CONTENTS
 5. Video Generation - WAN 2.2 Models
 6. Video Generation - LTX-2 Models
 7. Audio Generation - ACE-Step 1.5 Models
-8. Complete Parameter Reference
-9. Events & Progress Tracking
-10. Models, Presets & Options
-11. Cost Estimation
-12. Error Handling
-13. Advanced Patterns
-14. Type Definitions
+8. LLM Text Generation
+9. LLM Tool Calling & Sogni Platform Tools
+10. Complete Parameter Reference
+11. Events & Progress Tracking
+12. Models, Presets & Options
+13. Cost Estimation
+14. Error Handling
+15. Advanced Patterns
+16. Type Definitions
 
 ================================================================================
 1. OVERVIEW & INSTALLATION
@@ -34,6 +36,9 @@ for AI inference. It supports:
 - Image Generation: Stable Diffusion, Flux, Z-Image, Z-Image Turbo, Qwen Image Edit
 - Video Generation: WAN 2.2 (5 workflows), LTX-2 models
 - Audio Generation: ACE-Step 1.5 music generation (Turbo and SFT models)
+- LLM Text Generation: Chat completions with streaming, multi-turn, and thinking mode
+- LLM Tool Calling: OpenAI-compatible function calling with custom and platform tools
+- Sogni Platform Tools: Generate images, videos, and music via natural language chat
 - Real-time Progress: WebSocket-based event system
 - Multiple Networks: Fast (GPU) and Relaxed (Mac)
 
@@ -595,7 +600,225 @@ id (Indonesian), ko (Korean), uk (Ukrainian), hu (Hungarian), ar (Arabic),
 sv (Swedish), ro (Romanian), el (Greek), and more. Use 'unknown' for auto-detect.
 
 ================================================================================
-8. COMPLETE PARAMETER REFERENCE
+8. LLM TEXT GENERATION
+================================================================================
+
+The Sogni SDK supports LLM text generation through the Supernet, providing an
+OpenAI-compatible chat completions API with streaming, multi-turn conversations,
+thinking/reasoning mode, and tool calling.
+
+DEFAULT LLM MODEL: qwen3-30b-a3b-gptq-int4
+
+CHAT COMPLETION (Non-Streaming):
+```javascript
+const response = await sogni.projects.chatCompletion({
+  model: 'qwen3-30b-a3b-gptq-int4',
+  messages: [
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'Explain quantum computing briefly.' }
+  ],
+  max_tokens: 4096,
+  temperature: 0.7,
+  top_p: 0.9
+});
+
+console.log(response.choices[0].message.content);
+```
+
+STREAMING CHAT COMPLETION:
+```javascript
+const stream = await sogni.projects.chatCompletionStream({
+  model: 'qwen3-30b-a3b-gptq-int4',
+  messages: [{ role: 'user', content: 'Tell me a story about a cat' }],
+  max_tokens: 4096,
+  stream: true
+});
+
+for await (const chunk of stream) {
+  const content = chunk.choices[0].delta.content || '';
+  process.stdout.write(content);
+}
+```
+
+MULTI-TURN CONVERSATION:
+```javascript
+const messages = [
+  { role: 'system', content: 'You are a helpful assistant.' }
+];
+
+// Turn 1
+messages.push({ role: 'user', content: 'What is the Sogni Supernet?' });
+const response1 = await sogni.projects.chatCompletion({
+  model: 'qwen3-30b-a3b-gptq-int4',
+  messages
+});
+messages.push(response1.choices[0].message);
+
+// Turn 2 (with context from turn 1)
+messages.push({ role: 'user', content: 'How does it compare to centralized services?' });
+const response2 = await sogni.projects.chatCompletion({
+  model: 'qwen3-30b-a3b-gptq-int4',
+  messages
+});
+```
+
+THINKING MODE:
+Enable model reasoning/thinking via `chat_template_kwargs`:
+- When enabled, the model outputs `<think>...</think>` blocks showing its reasoning
+- When disabled (default), the model provides direct responses
+
+LLM CHAT PARAMETERS:
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| model | string | qwen3-30b-a3b-gptq-int4 | LLM model ID |
+| messages | array | - | Chat messages [{role, content}] |
+| max_tokens | number | 4096 | Maximum output tokens |
+| temperature | number | 0.7 | Sampling temperature (0-2) |
+| top_p | number | 0.9 | Nucleus sampling (0-1) |
+| frequency_penalty | number | 0 | Repetition penalty (-2 to 2) |
+| presence_penalty | number | 0 | Topic freshness penalty (-2 to 2) |
+| stream | boolean | false | Enable token-by-token streaming |
+| tools | array | - | Tool definitions for function calling |
+| tool_choice | string | auto | Tool selection: 'auto', 'none', or specific |
+
+MESSAGE ROLES:
+- 'system': System instructions (first message)
+- 'user': User input
+- 'assistant': Model responses (and tool call requests)
+- 'tool': Tool execution results (with tool_call_id)
+
+================================================================================
+9. LLM TOOL CALLING & SOGNI PLATFORM TOOLS
+================================================================================
+
+TOOL CALLING (Function Calling):
+Define custom tools the LLM can invoke during conversations. The LLM decides
+when to use a tool, returns structured arguments, and you execute the function
+locally before feeding results back for a natural language answer.
+
+DEFINING TOOLS (OpenAI-compatible format):
+```javascript
+const tools = [
+  {
+    type: 'function',
+    function: {
+      name: 'get_weather',
+      description: 'Get current weather for a location',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: { type: 'string', description: 'City name or location' }
+        },
+        required: ['location']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'calculate',
+      description: 'Evaluate a math expression',
+      parameters: {
+        type: 'object',
+        properties: {
+          expression: { type: 'string', description: 'Math expression to evaluate' }
+        },
+        required: ['expression']
+      }
+    }
+  }
+];
+```
+
+TOOL CALLING FLOW:
+```javascript
+// 1. Send message with tools
+const response = await sogni.projects.chatCompletion({
+  model: 'qwen3-30b-a3b-gptq-int4',
+  messages: [{ role: 'user', content: "What's the weather in Austin, TX?" }],
+  tools,
+  tool_choice: 'auto'
+});
+
+// 2. Check if LLM wants to call a tool
+const message = response.choices[0].message;
+if (message.tool_calls) {
+  for (const toolCall of message.tool_calls) {
+    const args = JSON.parse(toolCall.function.arguments);
+
+    // 3. Execute the tool locally
+    const result = await executeMyTool(toolCall.function.name, args);
+
+    // 4. Feed result back
+    messages.push(message); // assistant message with tool_calls
+    messages.push({
+      role: 'tool',
+      tool_call_id: toolCall.id,
+      content: JSON.stringify(result)
+    });
+  }
+
+  // 5. Get final natural language response
+  const finalResponse = await sogni.projects.chatCompletion({
+    model: 'qwen3-30b-a3b-gptq-int4',
+    messages,
+    tools
+  });
+}
+```
+
+MULTI-ROUND TOOL CALLING:
+The LLM may call multiple tools in sequence (e.g., get weather for two cities).
+Implement a loop that continues until the LLM returns a content response
+without tool calls, typically up to 5 rounds.
+
+SOGNI PLATFORM TOOLS — MEDIA GENERATION VIA CHAT:
+Combine LLM intelligence with Sogni's media generation capabilities. The LLM
+detects when a user wants to create media, enhances the prompt, and calls
+Sogni's generation APIs automatically:
+
+- Image Generation: "Create an image of a cyberpunk city at night"
+- Video Generation: "Generate a video of ocean waves crashing at sunset"
+- Music Generation: "Compose a jazz song about the rain"
+
+DEFAULT GENERATION MODELS (used by platform tools):
+| Media Type | Model ID | Description |
+|------------|----------|-------------|
+| Image | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step generation |
+| Video | ltx2-19b-fp8_t2v_distilled | LTX-2 text-to-video, fast distilled |
+| Audio | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music generation |
+
+PLATFORM TOOL WORKFLOW:
+1. User sends natural language request (e.g., "Make me an image of a dragon")
+2. LLM detects media generation intent
+3. LLM enhances the prompt for optimal output quality
+4. LLM calls the appropriate Sogni generation tool with structured parameters
+5. Your code executes the Sogni project creation (image/video/audio)
+6. Result URL is returned and opened automatically
+
+See `workflow_text_chat_sogni_tools.mjs` for the complete implementation with
+image, video, and music generation tools wired to Sogni's Projects API.
+
+EXAMPLE CLI USAGE:
+```bash
+# Generate an image through natural language
+node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city"
+
+# Generate a video through natural language
+node workflow_text_chat_sogni_tools.mjs "Generate a video of ocean waves at sunset"
+
+# Generate music through natural language
+node workflow_text_chat_sogni_tools.mjs "Compose a jazz song about the rain"
+
+# Generate multiple items
+node workflow_text_chat_sogni_tools.mjs -n 4 "Create images of fantasy landscapes"
+
+# Tool calling with external tools (weather, time, math, conversions)
+node workflow_text_chat_tool_calling.mjs "What's the weather in Austin, TX?"
+```
+
+================================================================================
+10. COMPLETE PARAMETER REFERENCE
 ================================================================================
 
 BASE PARAMETERS (Both Image and Video):
@@ -684,7 +907,7 @@ AUDIO-SPECIFIC PARAMETERS:
 ```
 
 ================================================================================
-9. EVENTS & PROGRESS TRACKING
+11. EVENTS & PROGRESS TRACKING
 ================================================================================
 
 PROMISE-BASED COMPLETION:
@@ -781,7 +1004,7 @@ const blob = await job.getResultData();
 ```
 
 ================================================================================
-10. MODELS, PRESETS & OPTIONS
+12. MODELS, PRESETS & OPTIONS
 ================================================================================
 
 WAIT FOR MODELS:
@@ -836,7 +1059,7 @@ Returns: {
 ```
 
 ================================================================================
-11. COST ESTIMATION
+13. COST ESTIMATION
 ================================================================================
 
 ESTIMATE IMAGE COST:
@@ -878,7 +1101,7 @@ console.log(balance.sogni, balance.spark);
 ```
 
 ================================================================================
-12. ERROR HANDLING
+14. ERROR HANDLING
 ================================================================================
 
 TRY-CATCH PATTERN:
@@ -924,7 +1147,7 @@ COMMON ERROR SCENARIOS:
 - Invalid dimensions or parameters
 
 ================================================================================
-13. ADVANCED PATTERNS
+15. ADVANCED PATTERNS
 ================================================================================
 
 BATCH PROCESSING:
@@ -984,7 +1207,7 @@ const project = await sogni.projects.create({
 ```
 
 ================================================================================
-14. TYPE DEFINITIONS
+16. TYPE DEFINITIONS
 ================================================================================
 
 PROJECT PARAMS:

@@ -62,11 +62,13 @@ console.log(urls[0]); // Video URL (valid 24 hours)
 3. **Video Generation (WAN 2.2)** - t2v, i2v, s2v, animate-move, animate-replace
 4. **Video Generation (LTX-2)** - Alternative video models with different fps behavior
 5. **Audio Generation (ACE-Step 1.5)** - Text-to-music with optional lyrics
-6. **Project Parameters** - Complete parameter reference
-7. **Events & Progress** - Real-time tracking, completion handling
-8. **Models & Presets** - Discovering available models, size presets, samplers
-9. **Error Handling** - Common errors and recovery
-10. **API Reference** - Full method signatures
+6. **LLM Text Generation** - Chat completions, streaming, multi-turn conversations
+7. **LLM Tool Calling** - Function calling with custom tools and Sogni platform tools
+8. **Project Parameters** - Complete parameter reference
+9. **Events & Progress** - Real-time tracking, completion handling
+10. **Models & Presets** - Discovering available models, size presets, samplers
+11. **Error Handling** - Common errors and recovery
+12. **API Reference** - Full method signatures
 
 ---
 
@@ -290,7 +292,106 @@ const project = await sogni.projects.create({
 
 ---
 
-## 6. Events & Progress
+## 6. LLM Text Generation
+
+The Sogni SDK supports LLM text generation via the Supernet, providing an OpenAI-compatible chat completions API.
+
+### Chat Completion (Non-Streaming)
+```javascript
+const response = await sogni.projects.chatCompletion({
+  model: 'qwen3-30b-a3b-gptq-int4',
+  messages: [
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'Explain quantum computing briefly.' }
+  ],
+  max_tokens: 4096,
+  temperature: 0.7,
+  top_p: 0.9
+});
+console.log(response.choices[0].message.content);
+```
+
+### Streaming Chat Completion
+```javascript
+const stream = await sogni.projects.chatCompletionStream({
+  model: 'qwen3-30b-a3b-gptq-int4',
+  messages: [{ role: 'user', content: 'Tell me a story' }],
+  max_tokens: 4096,
+  stream: true
+});
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0].delta.content || '');
+}
+```
+
+### Key Parameters
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| model | string | qwen3-30b-a3b-gptq-int4 | LLM model ID |
+| messages | array | - | Chat messages (system/user/assistant/tool roles) |
+| max_tokens | number | 4096 | Maximum output tokens |
+| temperature | number | 0.7 | Sampling temperature (0-2) |
+| top_p | number | 0.9 | Nucleus sampling (0-1) |
+| frequency_penalty | number | 0 | Repetition penalty (-2 to 2) |
+| presence_penalty | number | 0 | Topic penalty (-2 to 2) |
+| stream | boolean | false | Enable token-by-token streaming |
+
+### Thinking Mode
+Enable model reasoning/thinking with `chat_template_kwargs`:
+- Thinking enabled: Model shows `<think>` blocks with reasoning steps
+- Thinking disabled: Direct responses only
+
+---
+
+## 7. LLM Tool Calling (Function Calling)
+
+Define custom tools the LLM can invoke. The LLM returns structured tool call arguments; you execute the function and feed results back.
+
+### Tool Definition (OpenAI-compatible format)
+```javascript
+const tools = [{
+  type: 'function',
+  function: {
+    name: 'get_weather',
+    description: 'Get current weather for a city',
+    parameters: {
+      type: 'object',
+      properties: {
+        location: { type: 'string', description: 'City name' }
+      },
+      required: ['location']
+    }
+  }
+}];
+
+const response = await sogni.projects.chatCompletion({
+  model: 'qwen3-30b-a3b-gptq-int4',
+  messages: [{ role: 'user', content: "What's the weather in Austin?" }],
+  tools,
+  tool_choice: 'auto'
+});
+// Check response.choices[0].message.tool_calls for tool invocations
+```
+
+### Sogni Platform Tools — Media Generation via Chat
+Combine LLM tool calling with Sogni's generation APIs to create media from natural language:
+
+- **Image Generation** — "Create an image of a cyberpunk city at night"
+- **Video Generation** — "Generate a video of ocean waves at sunset"
+- **Music Generation** — "Compose a jazz song about the rain"
+
+The LLM detects media intent, enhances the prompt, and calls Sogni's image/video/audio generation APIs directly. See `workflow_text_chat_sogni_tools.mjs` for the complete implementation.
+
+Default generation models used by platform tools:
+| Media Type | Model | Description |
+|------------|-------|-------------|
+| Image | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step |
+| Video | ltx2-19b-fp8_t2v_distilled | LTX-2 text-to-video, fast |
+| Audio | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music |
+
+---
+
+## 8. Events & Progress
 
 ### Promise-based
 ```javascript
@@ -314,7 +415,7 @@ project.jobs[0].on('progress', ({ step, stepCount }) => {
 
 ---
 
-## 7. Discovering Models & Options
+## 9. Discovering Models & Options
 
 ### List Available Models
 ```javascript
@@ -337,7 +438,7 @@ console.log(options.scheduler.allowed);
 
 ---
 
-## 8. Cost Estimation
+## 10. Cost Estimation
 
 ```javascript
 const cost = await sogni.projects.estimate({
@@ -352,7 +453,7 @@ console.log(cost.sogni, cost.usd);
 
 ---
 
-## 9. Key Types Summary
+## 11. Key Types Summary
 
 ```typescript
 type ProjectParams = ImageProjectParams | VideoProjectParams | AudioProjectParams;

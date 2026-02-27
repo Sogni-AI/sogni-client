@@ -11,6 +11,7 @@ Welcome to the Sogni Client SDK examples! This directory contains working exampl
 - [Available Examples](#available-examples)
   - [Image Generation Workflow Examples](#image-generation-workflow-examples)
   - [Video Generation Workflow Examples](#video-generation-workflow-examples)
+  - [LLM Text Chat & Tool Calling Examples](#llm-text-chat--tool-calling-examples)
   - [Basic Examples](#basic-examples)
   - [Web Application Example](#web-application-example)
 - [Featured Models](#featured-models)
@@ -224,6 +225,23 @@ node workflow_image_to_video.mjs --image test-assets/placeholder.jpg
 node workflow_video_to_video.mjs  # Animate-Move / Animate-Replace
 ```
 
+**Chat with an LLM (streaming):**
+```bash
+node workflow_text_chat_streaming.mjs "Tell me a story about a cat"
+```
+
+**Generate images, videos, or music via natural language chat:**
+```bash
+node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city"
+node workflow_text_chat_sogni_tools.mjs "Generate a video of ocean waves at sunset"
+node workflow_text_chat_sogni_tools.mjs "Compose a jazz song about the rain"
+```
+
+**LLM tool calling (weather, time, math):**
+```bash
+node workflow_text_chat_tool_calling.mjs "What's the weather in Austin, TX?"
+```
+
 **Generate images (promise-based basic example):**
 ```bash
 node promise_based.mjs
@@ -244,6 +262,7 @@ The workflow examples showcase these powerful new models:
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning | Image Edit | Fast 4-step reference-based generation |
 | `qwen_image_edit_2511_fp8` | Qwen Image Edit | Image Edit | High-quality 20-step image editing with context |
 | `flux2_dev_fp8` | Flux.2 Dev | Image | Professional quality with context image support |
+| `qwen3-30b-a3b-gptq-int4` | Qwen3 30B | LLM | Text generation, chat, reasoning, and tool calling |
 
 **Try them out:**
 ```bash
@@ -440,6 +459,100 @@ node workflow_video_to_video.mjs --video source.mp4
 - Swap video subjects while preserving motion (Animate-Replace)
 - Animate illustrations with real human motion (Animate-Move)
 - Create puppeteer and motion-capture effects
+
+### LLM Text Chat & Tool Calling Examples
+
+The Sogni SDK provides LLM text generation through the Supernet, with streaming, multi-turn conversations, thinking/reasoning mode, and tool calling (function calling).
+
+#### `workflow_text_chat.mjs`
+Single-turn chat completion (non-streaming). Sends a prompt and receives the full response at once.
+
+**Usage:**
+```bash
+node workflow_text_chat.mjs "What is the meaning of life?"
+node workflow_text_chat.mjs "Explain quantum computing" --model qwen3-30b-a3b-gptq-int4
+node workflow_text_chat.mjs "Write a haiku" --max-tokens 100 --temperature 0.9
+```
+
+#### `workflow_text_chat_streaming.mjs`
+Streaming chat with token-by-token real-time output. Shows response speed (tokens/sec) after completion.
+
+**Usage:**
+```bash
+node workflow_text_chat_streaming.mjs "Tell me a story about a cat"
+node workflow_text_chat_streaming.mjs "Write a poem" --max-tokens 500 --temperature 1.0
+```
+
+#### `workflow_text_chat_multi_turn.mjs`
+Interactive multi-turn conversation with persistent history and in-chat commands.
+
+**Usage:**
+```bash
+node workflow_text_chat_multi_turn.mjs
+node workflow_text_chat_multi_turn.mjs --system "You are a pirate. Respond in pirate speak."
+```
+
+**In-Chat Commands:**
+| Command | Description |
+|---------|-------------|
+| `/clear` | Clear conversation history |
+| `/history` | Show message history |
+| `/system <msg>` | Change system prompt |
+| `/think` | Toggle thinking/reasoning mode |
+| `/stats` | Show session statistics (tokens, time, throughput) |
+| `exit` / `quit` | End the conversation |
+
+#### `workflow_text_chat_tool_calling.mjs`
+LLM tool calling (function calling) with built-in external tools. The LLM decides when to use a tool, you execute it locally, and feed results back.
+
+**Built-in Tools:**
+- **get_weather** - Live weather for any city (via wttr.in, no API key needed)
+- **get_time** - Current time in any timezone or city
+- **convert_units** - Temperature, distance, weight, and speed conversions
+- **calculate** - Math expression evaluator
+
+**Usage:**
+```bash
+node workflow_text_chat_tool_calling.mjs "What's the weather in Austin, TX?"
+node workflow_text_chat_tool_calling.mjs "What time is it in Tokyo and London?"
+node workflow_text_chat_tool_calling.mjs "Convert 72°F to celsius"
+node workflow_text_chat_tool_calling.mjs "What's 15% of 249.99?"
+```
+
+#### `workflow_text_chat_sogni_tools.mjs`
+Generate images, videos, and music through natural language via LLM tool calling. The LLM detects media generation intent, enhances prompts, and calls Sogni's generation APIs directly.
+
+**Sogni Platform Tools:**
+- **Image Generation** - Detects image intent, enhances prompt, generates via `z_image_turbo_bf16`
+- **Video Generation** - Detects video intent, generates via `ltx2-19b-fp8_t2v_distilled` (LTX-2)
+- **Music Generation** - Detects music intent, composes via `ace_step_1.5_turbo` (ACE-Step 1.5)
+
+**Usage:**
+```bash
+node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city at night"
+node workflow_text_chat_sogni_tools.mjs "Generate a video of ocean waves at sunset"
+node workflow_text_chat_sogni_tools.mjs "Compose a jazz song about the rain"
+node workflow_text_chat_sogni_tools.mjs -n 4 "Create images of fantasy landscapes"
+```
+
+**Options (available in `-n` / `--quantity`):**
+- `--quantity` / `-n` - Number of media items to generate per request (1-512, default: 1)
+
+#### Common LLM Chat Options
+
+All LLM chat scripts share these options:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--model` | LLM model ID | `qwen3-30b-a3b-gptq-int4` |
+| `--max-tokens` | Maximum tokens to generate | 4096 |
+| `--temperature` | Sampling temperature (0-2) | 0.7 |
+| `--top-p` | Top-p nucleus sampling (0-1) | 0.9 |
+| `--system` | Custom system prompt | Varies by script |
+| `--think` | Enable model thinking/reasoning | Off by default |
+| `--no-think` | Disable model thinking | Default |
+
+---
 
 ### Basic Examples
 
@@ -750,7 +863,10 @@ If you encounter issues not covered here:
 3. **Learn Events:** Try `event_driven.js` to understand real-time SDK events
 4. **Try Video:** Start with `workflow_text_to_video.mjs` for video generation
 5. **Advanced Workflows:** Explore image-to-video, sound-to-video (lip-sync), and video-to-video (motion transfer/character replacement)
-6. **Build Something:** Use the Express example as a template for your own app
+6. **Chat with LLMs:** Try `workflow_text_chat_streaming.mjs` for real-time text generation
+7. **Tool Calling:** Explore `workflow_text_chat_tool_calling.mjs` for LLM function calling with external tools
+8. **AI-Powered Media:** Use `workflow_text_chat_sogni_tools.mjs` to generate images, videos, and music through natural language
+9. **Build Something:** Use the Express example as a template for your own app
 
 ### Tips for Success
 
