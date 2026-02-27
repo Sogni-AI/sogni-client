@@ -1,6 +1,6 @@
 import { SupernetType } from './types';
 import { Balances } from '../../Account/types';
-import { LLMJobCost, LLMModelInfo } from '../../Chat/types';
+import { LLMJobCost, LLMModelInfo, ToolCallDelta } from '../../Chat/types';
 
 export interface AuthenticatedData {
   id: string;
@@ -123,6 +123,7 @@ export type JobTokensData = {
     completion_tokens: number;
     total_tokens?: number;
   };
+  tool_calls?: ToolCallDelta[];
 };
 
 export type LLMJobResultData = {

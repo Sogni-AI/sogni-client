@@ -1,4 +1,4 @@
-import { ChatCompletionChunk, ChatCompletionResult, LLMJobCost, TokenUsage } from './types';
+import { ChatCompletionChunk, ChatCompletionResult, LLMJobCost, TokenUsage, ToolCall, ToolCallDelta } from './types';
 
 /**
  * Async iterable that yields chat completion chunks as they arrive.
@@ -25,6 +25,7 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
   private _timeTaken = 0;
   private _workerName?: string;
   private _cost?: LLMJobCost;
+  private _toolCalls: Map<number, ToolCall> = new Map();
 
   readonly jobID: string;
 
@@ -47,10 +48,18 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
     return this._cost;
   }
 
+  /** Accumulated tool calls from the model. Empty array if no tool calls. */
+  get toolCalls(): ToolCall[] {
+    if (this._toolCalls.size === 0) return [];
+    return Array.from(this._toolCalls.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([, tc]) => tc);
+  }
+
   /** Final result once stream is complete. Null if still streaming. */
   get finalResult(): ChatCompletionResult | null {
     if (!this.done || this.error) return null;
-    return {
+    const result: ChatCompletionResult = {
       jobID: this.jobID,
       content: this._content,
       role: this._role,
@@ -60,6 +69,11 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
       workerName: this._workerName,
       cost: this._cost,
     };
+    const toolCalls = this.toolCalls;
+    if (toolCalls.length > 0) {
+      result.tool_calls = toolCalls;
+    }
+    return result;
   }
 
   /** @internal Push a chunk from the socket event handler */
@@ -69,6 +83,21 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
     if (chunk.role) this._role = chunk.role;
     if (chunk.finishReason) this._finishReason = chunk.finishReason;
     if (chunk.usage) this._usage = chunk.usage;
+
+    // Accumulate tool call deltas by index
+    if (chunk.tool_calls) {
+      for (const delta of chunk.tool_calls) {
+        const idx = delta.index;
+        let tc = this._toolCalls.get(idx);
+        if (!tc) {
+          tc = { id: delta.id || '', type: 'function', function: { name: delta.function?.name || '', arguments: '' } };
+          this._toolCalls.set(idx, tc);
+        }
+        if (delta.id) tc.id = delta.id;
+        if (delta.function?.name) tc.function.name = delta.function.name;
+        if (delta.function?.arguments) tc.function.arguments += delta.function.arguments;
+      }
+    }
 
     if (this.resolve) {
       const r = this.resolve;
@@ -100,6 +129,7 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
     if (this.done) return;
     this.done = true;
     this.error = error;
+    this._toolCalls.clear();
 
     if (this.reject) {
       const rej = this.reject;

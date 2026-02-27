@@ -1,6 +1,47 @@
+export interface ToolFunction {
+  name: string;
+  description?: string;
+  parameters?: Record<string, unknown>;
+}
+
+export interface ToolDefinition {
+  type: 'function';
+  function: ToolFunction;
+}
+
+export interface ToolCallFunction {
+  name: string;
+  arguments: string;
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: ToolCallFunction;
+}
+
+export interface ToolCallDelta {
+  index: number;
+  id?: string;
+  type?: string;
+  function?: {
+    name?: string;
+    arguments?: string;
+  };
+}
+
+export type ToolChoice =
+  | 'auto'
+  | 'none'
+  | 'required'
+  | { type: 'function'; function: { name: string } };
+
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+  name?: string;
 }
 
 export interface ChatCompletionParams {
@@ -15,6 +56,10 @@ export interface ChatCompletionParams {
   stop?: string | string[];
   /** Token type to use for billing. Defaults to 'sogni'. */
   tokenType?: 'sogni' | 'spark';
+  /** Tool definitions for function calling. */
+  tools?: ToolDefinition[];
+  /** Controls which (if any) tool is called by the model. */
+  tool_choice?: ToolChoice;
 }
 
 export interface ChatRequestMessage {
@@ -30,6 +75,8 @@ export interface ChatRequestMessage {
   presence_penalty?: number;
   stop?: string | string[];
   tokenType?: 'sogni' | 'spark';
+  tools?: ToolDefinition[];
+  tool_choice?: ToolChoice;
 }
 
 export interface ChatCompletionChunk {
@@ -38,6 +85,8 @@ export interface ChatCompletionChunk {
   role?: string;
   finishReason?: string | null;
   usage?: TokenUsage;
+  /** Tool call deltas streamed incrementally during function calling. */
+  tool_calls?: ToolCallDelta[];
 }
 
 export interface TokenUsage {
@@ -57,6 +106,8 @@ export interface ChatCompletionResult {
   workerName?: string;
   /** Actual cost of the completed request (from server settlement) */
   cost?: LLMJobCost;
+  /** Accumulated tool calls from the model (present when finishReason is 'tool_calls'). */
+  tool_calls?: ToolCall[];
 }
 
 export interface ChatJobStateEvent {

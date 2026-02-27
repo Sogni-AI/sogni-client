@@ -11,6 +11,9 @@ import {
   LLMCostEstimation,
   LLMEstimateResponse,
   LLMModelInfo,
+  ToolDefinition,
+  ToolCall,
+  ToolChoice,
 } from './types';
 import getUUID from '../lib/getUUID';
 
@@ -186,6 +189,8 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       presence_penalty: params.presence_penalty,
       stop: params.stop,
       tokenType: params.tokenType,
+      tools: params.tools,
+      tool_choice: params.tool_choice,
     };
 
     const stream = new ChatStream(jobID);
@@ -240,6 +245,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       role: data.role,
       finishReason: data.finishReason,
       usage: data.usage,
+      tool_calls: data.tool_calls,
     };
 
     stream._pushChunk(chunk);

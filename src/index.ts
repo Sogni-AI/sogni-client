@@ -46,7 +46,14 @@ import {
   LLMJobCost,
   LLMModelInfo,
   LLMParamConstraint,
+  ToolDefinition,
+  ToolCall,
+  ToolCallDelta,
+  ToolCallFunction,
+  ToolChoice,
+  ToolFunction,
 } from './Chat/types';
+import { SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
 // Stats API
 import StatsApi from './Stats';
 // Base Types
@@ -83,6 +90,12 @@ export type {
   ProjectStatus,
   SupernetType,
   TokenType,
+  ToolCall,
+  ToolCallDelta,
+  ToolCallFunction,
+  ToolChoice,
+  ToolDefinition,
+  ToolFunction,
   VideoControlNetName,
   VideoControlNetParams,
   VideoFormat,
@@ -91,7 +104,7 @@ export type {
   VideoWorkflowType
 };
 
-export { ApiError, ApiKeyAuthManager, ChatStream, CurrentAccount, Job, Project };
+export { ApiError, ApiKeyAuthManager, ChatStream, CurrentAccount, Job, Project, SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments };
 
 export interface SogniClientConfig {
   /**
