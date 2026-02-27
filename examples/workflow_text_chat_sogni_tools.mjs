@@ -285,7 +285,7 @@ Return ONLY the JSON object.`;
 const IMAGE_SYSTEM_PROMPT = `You are a prompt engineer for the Z-Image Turbo text-to-image model. This is a few-step distilled model. All constraints must be expressed positively ("crisp detail", "sharp focus", "clean background"). The model understands natural language sentences — write flowing prose, never comma-separated tag lists.
 
 Return ONLY a valid JSON object (no markdown fences, no commentary) with these fields:
-{"prompt":"...","image_size":"square_hd"}
+{"prompt":"...","image_size":"portrait_16_9"}
 
 PROMPT CONSTRUCTION — Write natural language sentences, 80-180 words (max 250). Focus on 3-5 key visual concepts. Follow this mandatory order:
 
@@ -459,12 +459,12 @@ async function composeVideo(sogni, userMessage, options, tokenType) {
 // ============================================================
 
 const IMAGE_SIZES = {
-  'square_hd': { width: 1024, height: 1024 },
-  'square': { width: 1024, height: 1024 },
-  'portrait_4_3': { width: 896, height: 1152 },
-  'portrait_16_9': { width: 768, height: 1344 },
-  'landscape_4_3': { width: 1152, height: 896 },
-  'landscape_16_9': { width: 1344, height: 768 },
+  'square_hd': { width: 1080, height: 1080 },
+  'square': { width: 1080, height: 1080 },
+  'portrait_4_3': { width: 1080, height: 1440 },
+  'portrait_16_9': { width: 1080, height: 1920 },
+  'landscape_4_3': { width: 1440, height: 1080 },
+  'landscape_16_9': { width: 1920, height: 1080 },
 };
 
 function parseImageJSON(raw, fallbackPrompt) {
@@ -486,7 +486,7 @@ function parseImageJSON(raw, fallbackPrompt) {
       if (parsed && parsed.prompt) {
         return {
           prompt: String(parsed.prompt),
-          image_size: IMAGE_SIZES[parsed.image_size] ? parsed.image_size : 'square_hd',
+          image_size: IMAGE_SIZES[parsed.image_size] ? parsed.image_size : 'portrait_16_9',
         };
       }
     } catch {
@@ -497,7 +497,7 @@ function parseImageJSON(raw, fallbackPrompt) {
   console.log('  (Could not parse image JSON from LLM, using defaults)');
   return {
     prompt: fallbackPrompt,
-    image_size: 'square_hd',
+    image_size: 'portrait_16_9',
   };
 }
 
@@ -553,7 +553,7 @@ async function composeImage(sogni, userMessage, options, tokenType) {
     console.log(`  (Image prompt composition failed: ${err.message}, using original)`);
     return {
       prompt: userMessage,
-      image_size: 'square_hd',
+      image_size: 'portrait_16_9',
     };
   } finally {
     sogni.chat.off('jobState', stateHandler);
@@ -783,7 +783,7 @@ function trackJobsAndDownload(project, quantity, mediaType) {
   }
 
   async function downloadAndOpen(resultUrl) {
-    const fileExt = ext || resultUrl.match(/\.(png|jpg|jpeg|webp)/i)?.[1] || 'png';
+    const fileExt = ext || resultUrl.match(/\.(png|jpg|jpeg|webp)/i)?.[1] || 'jpg';
     const filename = `${OUTPUT_DIR}/sogni_${mediaType}_${Date.now()}_${files.length + 1}.${fileExt}`;
     try {
       const response = await fetch(resultUrl);
@@ -872,7 +872,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
     case 'image': {
       const modelId = DEFAULT_IMAGE_MODEL;
       const imageParams = promptOrParams; // structured object for image
-      const size = IMAGE_SIZES[imageParams.image_size] || IMAGE_SIZES['square_hd'];
+      const size = IMAGE_SIZES[imageParams.image_size] || IMAGE_SIZES['portrait_16_9'];
 
       try {
         const estimate = await getImageJobEstimate(tokenType, modelId, 8, 1, size.width, size.height, quantity);
@@ -894,6 +894,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         seed: -1,
         width: size.width,
         height: size.height,
+        outputFormat: 'jpg',
         tokenType,
       });
 
@@ -926,8 +927,8 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
 
       const videoDuration = 10;
       const videoFps = 24;
-      const videoWidth = 1088;
-      const videoHeight = 1920;
+      const videoWidth = 1920;
+      const videoHeight = 1088;
       const videoSteps = 20;
       const frames = calculateVideoFrames(modelId, videoDuration, videoFps);
 
