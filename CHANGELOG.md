@@ -1,3 +1,10 @@
+# [4.0.0-alpha.70](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.69...v4.0.0-alpha.70) (2026-02-27)
+
+
+### Features
+
+* add LLM tool calling support with Sogni platform tools ([df9ceac](https://github.com/Sogni-AI/sogni-client/commit/df9ceac4f49c2ab7079e17198bdeb3b716e4f469))
+
 # [4.0.0-alpha.69](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.68...v4.0.0-alpha.69) (2026-02-26)
 
 
