@@ -20,7 +20,7 @@
  *   node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city at night"
  *   node workflow_text_chat_sogni_tools.mjs "Compose a jazz song about the rain"
  *   node workflow_text_chat_sogni_tools.mjs "Generate a video of ocean waves at sunset"
- *   node workflow_text_chat_sogni_tools.mjs --think "What is the meaning of life?"
+ *   node workflow_text_chat_sogni_tools.mjs "What is the meaning of life?"
  *
  * Options:
  *   --model         LLM model ID (default: qwen3-30b-a3b-gptq-int4)
@@ -29,8 +29,7 @@
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
  *   --system        System prompt override
  *   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
- *   --think         Enable model thinking/reasoning (shows <think> blocks)
- *   --no-think      Disable model thinking (default)
+ *   --no-think      Disable model thinking/reasoning (enabled by default)
  *   --help          Show this help message
  */
 
@@ -81,9 +80,6 @@ function parseArgs() {
       options.topP = parseFloat(args[++i]);
     } else if (arg === '--system' && args[i + 1]) {
       options.system = args[++i];
-    } else if (arg === '--think') {
-      options.think = true;
-      options.thinkExplicit = true;
     } else if (arg === '--no-think') {
       options.think = false;
       options.thinkExplicit = true;
@@ -119,8 +115,7 @@ Options:
   --top-p         Top-p sampling 0-1 (default: 0.9)
   --system        System prompt override
   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
-  --think         Enable model thinking/reasoning (shows <think> blocks)
-  --no-think      Disable model thinking (default)
+  --no-think      Disable model thinking/reasoning (enabled by default)
   --help          Show this help message
 
 Default Generation Models:
