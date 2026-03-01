@@ -712,6 +712,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `qwen_image_edit_2511_fp8` | **Qwen Image Edit** - High quality 20-step editing | Professional image editing with context awareness |
 | `wan_v2.2-14b-fp8_t2v_lightx2v` | **Wan 2.2 T2V** - Text-to-video | Generate videos from text prompts |
 | `qwen3-30b-a3b-gptq-int4` | **Qwen3 30B** - LLM chat & tool calling | Text generation, reasoning, and tool calling |
+| `qwen3.5-35b-a3b-gguf-q4km` | **Qwen3.5 35B** - LLM chat & tool calling | Latest model with 32K context, reasoning, and tool calling |
 
 All workflow examples include:
 - Interactive model and parameter selection

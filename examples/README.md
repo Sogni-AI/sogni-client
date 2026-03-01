@@ -263,6 +263,7 @@ The workflow examples showcase these powerful new models:
 | `qwen_image_edit_2511_fp8` | Qwen Image Edit | Image Edit | High-quality 20-step image editing with context |
 | `flux2_dev_fp8` | Flux.2 Dev | Image | Professional quality with context image support |
 | `qwen3-30b-a3b-gptq-int4` | Qwen3 30B | LLM | Text generation, chat, reasoning, and tool calling |
+| `qwen3.5-35b-a3b-gguf-q4km` | Qwen3.5 35B | LLM | Latest model with 32K context, reasoning, and tool calling |
 
 **Try them out:**
 ```bash

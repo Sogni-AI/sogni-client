@@ -163,6 +163,37 @@ async function main() {
   } else {
     console.log('Authenticated with API key');
   }
+
+  // Wait for LLM models to be received from the network
+  try {
+    const availableModels = await sogni.chat.waitForModels();
+    console.log();
+    console.log('Available LLM models:');
+    const modelIds = Object.keys(availableModels);
+    for (let i = 0; i < modelIds.length; i++) {
+      const id = modelIds[i];
+      const workers = availableModels[id].workers;
+      console.log(`  [${i + 1}] ${id} (${workers} worker${workers !== 1 ? 's' : ''})`);
+    }
+    console.log();
+
+    // If user didn't specify --model and there are multiple models, let them choose
+    if (options.model === DEFAULT_MODEL && modelIds.length > 1) {
+      const choice = await askQuestion(`Select model [1-${modelIds.length}] (default: 1): `);
+      const idx = parseInt(choice, 10);
+      if (idx >= 1 && idx <= modelIds.length) {
+        options.model = modelIds[idx - 1];
+      } else if (!choice) {
+        options.model = modelIds[0];
+      }
+    } else if (options.model === DEFAULT_MODEL && modelIds.length === 1) {
+      options.model = modelIds[0];
+    }
+  } catch {
+    console.log('Warning: No LLM models currently available on the network');
+    console.log();
+  }
+
   // Load token type preference
   const tokenType = loadTokenTypePreference() || 'sogni';
   const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
