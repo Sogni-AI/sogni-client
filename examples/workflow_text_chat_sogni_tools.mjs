@@ -29,6 +29,7 @@
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
  *   --system        System prompt override
  *   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
+ *   --duration      Video duration in seconds, 1-10 (default: 10)
  *   --no-think      Disable model thinking/reasoning (enabled by default)
  *   --help          Show this help message
  */
@@ -63,6 +64,7 @@ function parseArgs() {
     think: true,
     thinkExplicit: false,
     quantity: 1,
+    duration: 10,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -83,6 +85,8 @@ function parseArgs() {
     } else if (arg === '--no-think') {
       options.think = false;
       options.thinkExplicit = true;
+    } else if (arg === '--duration' && args[i + 1]) {
+      options.duration = Math.max(1, Math.min(10, parseFloat(args[++i]) || 10));
     } else if ((arg === '--quantity' || arg === '-n') && args[i + 1]) {
       options.quantity = Math.max(1, Math.min(512, parseInt(args[++i], 10) || 1));
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -115,6 +119,7 @@ Options:
   --top-p         Top-p sampling 0-1 (default: 0.9)
   --system        System prompt override
   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
+  --duration      Video duration in seconds, 1-10 (default: 10)
   --no-think      Disable model thinking/reasoning (enabled by default)
   --help          Show this help message
 
@@ -153,6 +158,44 @@ function detectMediaIntent(text) {
   if (hasAction) return 'image';
 
   return null;
+}
+
+// ============================================================
+// Strip LLM thinking tags before parsing (display is preserved via streaming)
+// ============================================================
+
+function stripThinkingTags(content) {
+  return content.replace(/^<think>[\s\S]*?<\/think>\s*/i, '');
+}
+
+// ============================================================
+// Duration-aware pacing hints for video prompts
+// (Ported from sogni-web AI Screenwriter)
+// ============================================================
+
+function computePacingHint(duration) {
+  const actionCount = Math.max(1, Math.min(10, Math.round(duration / 4)));
+
+  if (actionCount === 1) {
+    return (
+      `This clip is ${duration} seconds long. ` +
+      `Write EXACTLY 1 action. One single moment. ` +
+      `Do not describe anything before or after it. No setup, no resolution. ` +
+      `HARD STOP after the 1st action. Do not continue.`
+    );
+  }
+
+  const ordinals = { 2: '2nd', 3: '3rd' };
+  const ordinal = ordinals[actionCount] || `${actionCount}th`;
+
+  return (
+    `This clip is ${duration} seconds long. ` +
+    `Write EXACTLY ${actionCount} distinct actions — NO MORE THAN ${actionCount}. ` +
+    `Each action takes roughly ${Math.round(duration / actionCount)} seconds of screen time. ` +
+    `Do not add setup, backstory, or resolution beyond these ${actionCount} actions. ` +
+    `HARD STOP after the ${ordinal} action is complete. ` +
+    `Do not write a ${ordinals[actionCount + 1] || `${actionCount + 1}th`} action under any circumstances.`
+  );
 }
 
 // ============================================================
@@ -242,7 +285,7 @@ Return ONLY a valid JSON object (no markdown fences, no commentary) with these f
 
 PROMPT CONSTRUCTION — Write a single flowing paragraph of 4-8 sentences in present tense. A single continuous shot (no hard cuts, no "cut to", no montage). Follow this mandatory order:
 
-1. ESTABLISH THE SHOT: Shot scale (wide, medium, close-up) + genre/visual language. Example: "A medium close-up cinematic shot..."
+1. ESTABLISH THE SHOT: Shot scale (wide, medium, close-up) + genre/visual language. Match detail level to shot scale: close-ups need more physical detail, wide shots need more environmental detail. Example: "A medium close-up cinematic shot..."
 
 2. SET THE SCENE: Environment + time of day + atmosphere/weather + surface textures + one or two grounding details. Name light sources and their quality: "warm tungsten practical lights", "golden hour sun through dusty windows", "neon reflections shimmering across wet pavement".
 
@@ -250,19 +293,28 @@ PROMPT CONSTRUCTION — Write a single flowing paragraph of 4-8 sentences in pre
 
 4. DESCRIBE ACTION AS A NATURAL SEQUENCE: One main action thread that evolves beginning to end. Use temporal connectors ("as", "then", "while"). Prefer physically filmable behavior: a steady walk, a slow turn, a hand reaching forward, eyes shifting.
 
-5. DIALOGUE (when applicable): If the user's request involves a character speaking, pitching, narrating, or delivering lines, write the EXACT quoted dialogue the character says. Use direct quotes embedded in the action description, e.g.: He looks into the camera and says, "Welcome to the future of creative AI." Weave dialogue naturally into the action sequence — do not summarise or paraphrase what the character says; write the actual words.
+5. DIALOGUE (when applicable): If the user's request involves a character speaking, pitching, narrating, or delivering lines, write the EXACT quoted dialogue the character says. Write dialogue as inline prose woven into the action, attributed with delivery and physical action — exactly like a novel. The spoken words sit inside the sentence, not in a separate block. Examples of correct format:
+   'He leans back, satisfied, "I think I'll have to go back tomorrow for more," he chuckles, his eyes crinkling at the corners.'
+   '"Don't stop," she breathes, gripping the sheets, her voice barely above a whisper.'
+   'She turns to face him, "I've been waiting all day for this," her tone quiet and certain.'
+   NEVER use [DIALOGUE: ...] tags. NEVER write dialogue as a separate bracketed block. Dialogue flows inside the prose as part of the action.
 
-6. SPECIFY ONE COMMITTED CAMERA MOVEMENT: Pick exactly one from: "static tripod", "slow push-in", "slow pull-back", "smooth pan left", "smooth pan right", "slow tilt up", "slow tilt down", "slow arc left", "slow arc right", "tracking follow", "handheld subtle drift". Describe the camera's relationship to the subject and what is revealed by the move.
+6. AMBIENT SOUND: For each action beat, weave ambient sound naturally into the prose as a descriptive sentence or clause — never as a tag or label. Maximum 2 sounds active at any one time. The soundscape should evolve with the scene — each beat has its own sonic texture that matches its mood and energy. Examples of correct format: "the refrigerator hums steadily in the background as she moves", "rain begins to tap softly against the window", "birdsong drifts through the gap in the curtains, barely audible over her breathing". Never write [AMBIENT: ...] tags. Sound is part of the prose, always.
 
-7. EMOTIONAL SPECIFICITY VIA PHYSICAL CUES: Jaw tension, grip pressure, breathing pace, glance direction, weight shift, posture changes — express all emotion through visible physical behavior.
+7. SPECIFY ONE COMMITTED CAMERA MOVEMENT: Pick exactly one from: "static tripod", "slow push-in", "slow pull-back", "smooth pan left", "smooth pan right", "slow tilt up", "slow tilt down", "slow arc left", "slow arc right", "tracking follow", "handheld subtle drift". Describe the camera's relationship to the subject and what is revealed by the move.
 
-8. STABILITY + MOTION ANCHORS: Include at least one: "smooth and stabilised", "tripod-locked", "cinematic motion consistency", "natural motion blur", "steady pace".
+8. EMOTIONAL SPECIFICITY VIA PHYSICAL CUES: Jaw tension, grip pressure, breathing pace, glance direction, weight shift, posture changes — express all emotion through visible physical behavior.
+
+9. STABILITY + MOTION ANCHORS: Include at least one: "smooth and stabilised", "tripod-locked", "cinematic motion consistency", "natural motion blur", "steady pace".
 
 HARD CONSTRAINTS:
 - Exactly one camera movement per prompt
 - Present tense verbs throughout
 - All phrasing must be positive (express what IS present, visible, happening)
 - No on-screen text, logos, or signage directives (quoted dialogue is fine)
+- Do not use vague words like "beautiful", "nice", or "amazing" — describe exactly what makes it visually striking
+- Fill the full available prompt length — do not stop early
+- Write dense, flowing prose — not a bullet list
 
 camera_movement — Choose exactly one: "static tripod", "slow push-in", "slow pull-back", "smooth pan left", "smooth pan right", "slow tilt up", "slow tilt down", "slow arc left", "slow arc right", "tracking follow", "handheld subtle drift"
 
@@ -273,7 +325,7 @@ style_anchor — 0-2 short phrases (e.g., "cinematic nocturne", "documentary han
 stability_anchor — One stabiliser phrase (e.g., "smooth and stabilised", "tripod-locked", "cinematic motion consistency")
 
 REFERENCE (study the style and structure):
-{"prompt":"A medium close-up cinematic shot in a quiet, rain-soaked alley at night, neon reflections shimmering across wet pavement and brick. A man in his 30s with short dark hair and a worn leather jacket stands under a flickering sign, water beading on his collar and eyelashes. He exhales slowly, shoulders tightening as his fingers clamp around a small metal lighter, then he steadies his hand and clicks it once, watching the flame struggle against the damp air. The camera performs a slow push-in toward his face, keeping the lighter flame in the foreground as his eyes track a faint movement deeper in the alley. His jaw sets, the tendons in his neck rising as he shifts his weight forward by half a step, breathing measured and controlled. Smooth and stabilised with cinematic motion consistency and natural motion blur, lit by diffused neon glow and soft practical highlights.","camera_movement":"slow push-in","shot_scale":"medium","style_anchor":"cinematic nocturne","stability_anchor":"smooth and stabilised"}
+{"prompt":"A medium close-up cinematic shot in a quiet, rain-soaked alley at night, neon reflections shimmering across wet pavement and brick. A man in his 30s with short dark hair and a worn leather jacket stands under a flickering sign, water beading on his collar and eyelashes. He exhales slowly, shoulders tightening as his fingers clamp around a small metal lighter, then he steadies his hand and clicks it once, watching the flame struggle against the damp air, rain tapping softly against the awning above while a distant car horn echoes off the wet walls. The camera performs a slow push-in toward his face, keeping the lighter flame in the foreground as his eyes track a faint movement deeper in the alley. His jaw sets, the tendons in his neck rising as he shifts his weight forward by half a step, breathing measured and controlled. Smooth and stabilised with cinematic motion consistency and natural motion blur, lit by diffused neon glow and soft practical highlights.","camera_movement":"slow push-in","shot_scale":"medium","style_anchor":"cinematic nocturne","stability_anchor":"smooth and stabilised"}
 
 Return ONLY the JSON object.`;
 
@@ -386,8 +438,11 @@ function parseVideoJSON(raw, fallbackPrompt) {
   };
 }
 
-async function composeVideo(sogni, userMessage, options, tokenType) {
-  const userContent = options.think ? userMessage : `${userMessage} /no_think`;
+async function composeVideo(sogni, userMessage, options, tokenType, duration = 10) {
+  const pacingHint = computePacingHint(duration);
+  const userContent = options.think
+    ? `${userMessage}\n\n${pacingHint}`
+    : `${userMessage}\n\n${pacingHint} /no_think`;
   const messages = [
     { role: 'system', content: VIDEO_SYSTEM_PROMPT },
     { role: 'user', content: userContent },
@@ -427,7 +482,7 @@ async function composeVideo(sogni, userMessage, options, tokenType) {
     }
     console.log();
 
-    const videoParams = parseVideoJSON(raw, userMessage);
+    const videoParams = parseVideoJSON(stripThinkingTags(raw), userMessage);
 
     console.log(`  Camera:   ${videoParams.camera_movement}`);
     console.log(`  Scale:    ${videoParams.shot_scale}`);
@@ -537,7 +592,7 @@ async function composeImage(sogni, userMessage, options, tokenType) {
     }
     console.log();
 
-    const imageParams = parseImageJSON(raw, userMessage);
+    const imageParams = parseImageJSON(stripThinkingTags(raw), userMessage);
     const size = IMAGE_SIZES[imageParams.image_size];
 
     console.log(`  Size:   ${imageParams.image_size} (${size.width}x${size.height})`);
@@ -648,7 +703,7 @@ async function composeSong(sogni, userMessage, options, tokenType) {
     }
     console.log();
 
-    const songParams = parseSongJSON(raw, userMessage);
+    const songParams = parseSongJSON(stripThinkingTags(raw), userMessage);
 
     // Display composition summary
     const tsLabels = { '2': '2/4', '3': '3/4', '4': '4/4', '6': '6/8' };
@@ -860,7 +915,7 @@ function trackJobsAndDownload(project, quantity, mediaType) {
   });
 }
 
-async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quantity = 1) {
+async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quantity = 1, options = {}) {
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
   switch (mediaType) {
@@ -920,7 +975,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         finalPrompt += ` ${videoParams.stability_anchor}.`;
       }
 
-      const videoDuration = 10;
+      const videoDuration = options.duration || 10;
       const videoFps = 24;
       const videoWidth = 1920;
       const videoHeight = 1088;
@@ -935,7 +990,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         console.log(`  (Could not fetch cost estimate: ${e.message})`);
       }
 
-      console.log(`\n  Generating ${quantity > 1 ? quantity + ' videos' : 'video'} with ${modelId}...`);
+      console.log(`\n  Generating ${quantity > 1 ? quantity + ' videos' : 'video'} with ${modelId} (${videoDuration}s, ${videoFps}fps)...`);
 
       const project = await sogni.projects.create({
         type: 'video',
@@ -1181,15 +1236,15 @@ async function main() {
       if (mediaType === 'audio') {
         // Compose full song specification via LLM, then generate
         const songParams = await composeSong(sogni, userInput, options, tokenType);
-        if (songParams) result = await generateMedia(sogni, 'audio', songParams, tokenType, options.quantity);
+        if (songParams) result = await generateMedia(sogni, 'audio', songParams, tokenType, options.quantity, options);
       } else if (mediaType === 'image') {
         // Compose image specification via LLM (prompt + size), then generate
         const imageParams = await composeImage(sogni, userInput, options, tokenType);
-        if (imageParams) result = await generateMedia(sogni, 'image', imageParams, tokenType, options.quantity);
+        if (imageParams) result = await generateMedia(sogni, 'image', imageParams, tokenType, options.quantity, options);
       } else {
         // Compose video specification via LLM (prompt + camera/shot metadata), then generate
-        const videoParams = await composeVideo(sogni, userInput, options, tokenType);
-        if (videoParams) result = await generateMedia(sogni, 'video', videoParams, tokenType, options.quantity);
+        const videoParams = await composeVideo(sogni, userInput, options, tokenType, options.duration);
+        if (videoParams) result = await generateMedia(sogni, 'video', videoParams, tokenType, options.quantity, options);
       }
     } catch (err) {
       console.error(`\n  Media generation error: ${err.message}`);
