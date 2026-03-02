@@ -888,7 +888,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * Estimate image project cost
    */
   async estimateCost({
-    network,
+    network = 'fast',
     tokenType,
     model,
     imageCount,

@@ -450,10 +450,12 @@ export type MediaUrlParams = {
 export interface EstimateRequest {
   /**
    * Network to use. Can be 'fast' or 'relaxed'
+   * @default 'fast'
    */
-  network: SupernetType;
+  network?: SupernetType;
   /**
    * Token type
+   * @default 'sogni'
    */
   tokenType?: TokenType;
   /**

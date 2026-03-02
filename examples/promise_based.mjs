@@ -27,7 +27,7 @@ async function downloadImage(url) {
 
 const sogni = await SogniClient.createInstance({
   appId: `${USERNAME}-image-generator`,
-  network: 'relaxed' // or 'fast' for faster but more expensive processing
+  network: 'fast' // or 'relaxed' for slower but cheaper processing
 });
 
 await sogni.account.login(USERNAME, PASSWORD);
@@ -48,7 +48,9 @@ const project = await sogni.projects.create({
   stylePrompt: 'anime',
   numberOfMedia: 4,
   outputFormat: 'jpg', // Can be 'png' or 'jpg', defaults to 'png'
-  seed: -1 // Default to random seed
+  numberOfImages: 4,
+  tokenType: 'spark', // 'sogni' or 'spark'
+  network: 'fast' // 'fast' or 'relaxed'
 });
 
 project.on('progress', (progress) => {

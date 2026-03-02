@@ -35,7 +35,8 @@ getClient()
       numberOfPreviews: 2,
       numberOfMedia: 2,
       outputFormat: 'png', // Can be 'png' or 'jpg', defaults to 'png'
-      seed: -1 // Default to random seed
+      tokenType: 'spark', // 'sogni' or 'spark'
+      network: 'fast' // 'fast' or 'relaxed'
     });
 
     // Receive project completion percentage in real-time

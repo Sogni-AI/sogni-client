@@ -147,7 +147,9 @@ const project = await sogni.projects.create({
   steps: 20, 
   guidance: 7.5, 
   numberOfMedia: 1,
-  outputFormat: 'jpg' // Can be 'png' or 'jpg', defaults to 'png'
+  outputFormat: 'jpg', // Can be 'png' or 'jpg', defaults to 'png'
+  tokenType: 'spark', // 'sogni' or 'spark'
+  network: 'fast' // 'fast' or 'relaxed'
 });
 ```
 **Note:** Full project parameter list can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
@@ -168,7 +170,9 @@ const project = await sogni.projects.create({
   negativePrompt:
     'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
   stylePrompt: 'anime',
-  numberOfMedia: 4
+  numberOfMedia: 4,
+  tokenType: 'spark', // 'sogni' or 'spark'
+  network: 'fast' // 'fast' or 'relaxed'
 });
 
 project.on('progress', (progress) => {
@@ -192,7 +196,9 @@ const project = await sogni.projects.create({
   negativePrompt:
     'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
   stylePrompt: 'anime',
-  numberOfMedia: 4
+  numberOfMedia: 4,
+  tokenType: 'spark', // 'sogni' or 'spark'
+  network: 'fast' // 'fast' or 'relaxed'
 });
 
 // Fired when one of project jobs completed, you can get the resultUrl from the job

@@ -139,8 +139,9 @@ export interface SogniClientConfig {
   disableSocket?: boolean;
   /**
    * Which network to use after logging in. Can be 'fast' or 'relaxed'
+   * @default 'fast'
    */
-  network: SupernetType;
+  network?: SupernetType;
   /**
    * Logger to use. If not provided, a default console logger will be used
    */
