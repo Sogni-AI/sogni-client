@@ -42,6 +42,9 @@ import {
   ChatCompletionChunk,
   ChatCompletionResult,
   ChatJobStateEvent,
+  ContentPart,
+  TextContentPart,
+  ImageUrlContentPart,
   TokenUsage as ChatTokenUsage,
   LLMCostEstimation,
   LLMJobCost,
@@ -56,7 +59,7 @@ import {
   ToolExecutionProgress,
   ToolExecutionResult,
   ToolHistoryEntry,
-  ToolExecutionOptions,
+  ToolExecutionOptions
 } from './Chat/types';
 import { SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
 // Stats API
@@ -64,7 +67,12 @@ import StatsApi from './Stats';
 // Base Types
 import ErrorData from './types/ErrorData';
 import { TokenType } from './types/token';
-import { ApiKeyAuthManager, CookieAuthManager, TokenAuthData, TokenAuthManager } from './lib/AuthManager';
+import {
+  ApiKeyAuthManager,
+  CookieAuthManager,
+  TokenAuthData,
+  TokenAuthManager
+} from './lib/AuthManager';
 import { MeData } from './Account/types';
 
 export type {
@@ -78,6 +86,8 @@ export type {
   ChatJobStateEvent,
   ChatMessage,
   ChatTokenUsage,
+  ContentPart,
+  ImageUrlContentPart,
   LLMCostEstimation,
   LLMJobCost,
   LLMModelInfo,
@@ -85,6 +95,7 @@ export type {
   ControlNetMode,
   ControlNetName,
   ControlNetParams,
+  TextContentPart,
   ErrorData,
   ImageProjectParams,
   ImageOutputFormat,
@@ -113,7 +124,19 @@ export type {
   VideoWorkflowType
 };
 
-export { ApiError, ApiKeyAuthManager, ChatStream, ChatToolsApi, CurrentAccount, Job, Project, SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments };
+export {
+  ApiError,
+  ApiKeyAuthManager,
+  ChatStream,
+  ChatToolsApi,
+  CurrentAccount,
+  Job,
+  Project,
+  SogniTools,
+  buildSogniTools,
+  isSogniToolCall,
+  parseToolCallArguments
+};
 
 export interface SogniClientConfig {
   /**
@@ -254,7 +277,7 @@ export class SogniClient {
     const network = config.network || 'fast';
     const logger = config.logger || new DefaultLogger(config.logLevel || 'warn');
     const isTestnet = config.testnet !== undefined ? config.testnet : false;
-    const authType = config.apiKey ? 'apiKey' : (config.authType || 'token');
+    const authType = config.apiKey ? 'apiKey' : config.authType || 'token';
 
     const client = new ApiClient({
       baseUrl: restEndpoint,

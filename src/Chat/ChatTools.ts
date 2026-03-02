@@ -5,7 +5,7 @@ import {
   ToolCall,
   ToolExecutionOptions,
   ToolExecutionProgress,
-  ToolExecutionResult,
+  ToolExecutionResult
 } from './types';
 
 /** Default timeout for media generation: 10 minutes. */
@@ -53,7 +53,9 @@ class ChatToolsApi {
       );
     }
     if (!isSogniToolCall(toolCall)) {
-      throw new Error(`Not a Sogni tool call: ${toolCall.function.name}. Use isSogniToolCall() to check first.`);
+      throw new Error(
+        `Not a Sogni tool call: ${toolCall.function.name}. Use isSogniToolCall() to check first.`
+      );
     }
 
     const args = parseToolCallArguments(toolCall);
@@ -106,7 +108,7 @@ class ChatToolsApi {
           timeout: options?.timeout,
           onProgress: options?.onToolProgress
             ? (progress: ToolExecutionProgress) => options.onToolProgress!(toolCall, progress)
-            : options?.onProgress,
+            : options?.onProgress
         };
         results.push(await this.execute(toolCall, execOptions));
       } else if (options?.onToolCall) {
@@ -117,17 +119,19 @@ class ChatToolsApi {
             toolName: toolCall.function.name,
             success: true,
             resultUrls: [],
-            content,
+            content
           });
         } catch (err) {
           const error = err instanceof Error ? err.message : String(err);
           results.push(this.makeErrorResult(toolCall, error));
         }
       } else {
-        results.push(this.makeErrorResult(
-          toolCall,
-          `No handler for non-Sogni tool: ${toolCall.function.name}. Provide an onToolCall callback.`
-        ));
+        results.push(
+          this.makeErrorResult(
+            toolCall,
+            `No handler for non-Sogni tool: ${toolCall.function.name}. Provide an onToolCall callback.`
+          )
+        );
       }
     }
 
@@ -169,7 +173,7 @@ class ChatToolsApi {
     modelId: string,
     projectParams: Record<string, unknown>,
     prompt: string,
-    options?: ToolExecutionOptions,
+    options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
     options?.onProgress?.({ status: 'creating', percent: 0 });
 
@@ -192,7 +196,10 @@ class ChatToolsApi {
 
     // Track step-level progress via project progress event
     const onProgress = (percent: number) => {
-      options?.onProgress?.({ status: 'processing', percent: Number.isFinite(percent) ? percent : 0 });
+      options?.onProgress?.({
+        status: 'processing',
+        percent: Number.isFinite(percent) ? percent : 0
+      });
     };
 
     project.on('progress', onProgress);
@@ -206,13 +213,15 @@ class ChatToolsApi {
         project.waitForCompletion(),
         new Promise<never>((_, reject) => {
           timeoutId = setTimeout(() => {
-            reject(new Error(
-              `${mediaType} generation timed out after ${Math.round(timeout / 1000)}s ` +
-              `(project: ${project.id}, jobs: ${jobsCompleted}/${totalJobs} completed, ${jobsFailed} failed). ` +
-              `Increase the timeout option or check network worker availability.`
-            ));
+            reject(
+              new Error(
+                `${mediaType} generation timed out after ${Math.round(timeout / 1000)}s ` +
+                  `(project: ${project.id}, jobs: ${jobsCompleted}/${totalJobs} completed, ${jobsFailed} failed). ` +
+                  `Increase the timeout option or check network worker availability.`
+              )
+            );
           }, timeout);
-        }),
+        })
       ]);
 
       options?.onProgress?.({ status: 'completed', percent: 100, resultUrls });
@@ -227,12 +236,16 @@ class ChatToolsApi {
           media_type: mediaType,
           urls: resultUrls,
           model: modelId,
-          prompt,
-        }),
+          prompt
+        })
       };
     } catch (err) {
       // Attempt to cancel the project on timeout to free worker resources
-      try { await project.cancel(); } catch { /* best-effort */ }
+      try {
+        await project.cancel();
+      } catch {
+        /* best-effort */
+      }
 
       options?.onProgress?.({ status: 'failed', percent: 0 });
 
@@ -250,13 +263,13 @@ class ChatToolsApi {
     args: Record<string, unknown>,
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
-    const modelId = (args.model as string) || await this.getDefaultModel('image');
+    const modelId = (args.model as string) || (await this.getDefaultModel('image'));
 
     const projectParams: Record<string, unknown> = {
       type: 'image' as const,
       modelId,
       positivePrompt: args.prompt as string,
-      numberOfMedia: options?.numberOfMedia || 1,
+      numberOfMedia: options?.numberOfMedia || 1
     };
     if (args.negative_prompt) projectParams.negativePrompt = args.negative_prompt;
     if (args.width && args.height) {
@@ -269,7 +282,14 @@ class ChatToolsApi {
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;
 
-    return this.executeProject(toolCall, 'image', modelId, projectParams, args.prompt as string, options);
+    return this.executeProject(
+      toolCall,
+      'image',
+      modelId,
+      projectParams,
+      args.prompt as string,
+      options
+    );
   }
 
   private async executeVideoGeneration(
@@ -277,7 +297,7 @@ class ChatToolsApi {
     args: Record<string, unknown>,
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
-    const modelId = (args.model as string) || await this.getDefaultModel('video');
+    const modelId = (args.model as string) || (await this.getDefaultModel('video'));
 
     // LTX-2 defaults: 1920x1088 landscape, 24fps
     const isLtx2 = modelId.includes('ltx2');
@@ -292,7 +312,7 @@ class ChatToolsApi {
       numberOfMedia: options?.numberOfMedia || 1,
       width: (args.width as number) || defaultWidth,
       height: (args.height as number) || defaultHeight,
-      fps: (args.fps as number) || defaultFps,
+      fps: (args.fps as number) || defaultFps
     };
     if (args.negative_prompt) projectParams.negativePrompt = args.negative_prompt;
     if (args.duration !== undefined) projectParams.duration = args.duration;
@@ -300,7 +320,14 @@ class ChatToolsApi {
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;
 
-    return this.executeProject(toolCall, 'video', modelId, projectParams, args.prompt as string, options);
+    return this.executeProject(
+      toolCall,
+      'video',
+      modelId,
+      projectParams,
+      args.prompt as string,
+      options
+    );
   }
 
   private async executeMusicGeneration(
@@ -308,13 +335,13 @@ class ChatToolsApi {
     args: Record<string, unknown>,
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
-    const modelId = (args.model as string) || await this.getDefaultModel('audio');
+    const modelId = (args.model as string) || (await this.getDefaultModel('audio'));
 
     const projectParams: Record<string, unknown> = {
       type: 'audio' as const,
       modelId,
       positivePrompt: args.prompt as string,
-      numberOfMedia: options?.numberOfMedia || 1,
+      numberOfMedia: options?.numberOfMedia || 1
     };
     if (args.duration !== undefined) projectParams.duration = args.duration;
     if (args.bpm !== undefined) projectParams.bpm = args.bpm;
@@ -325,7 +352,14 @@ class ChatToolsApi {
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;
 
-    return this.executeProject(toolCall, 'audio', modelId, projectParams, args.prompt as string, options);
+    return this.executeProject(
+      toolCall,
+      'audio',
+      modelId,
+      projectParams,
+      args.prompt as string,
+      options
+    );
   }
 
   private makeErrorResult(toolCall: ToolCall, error: string): ToolExecutionResult {
@@ -335,7 +369,7 @@ class ChatToolsApi {
       success: false,
       resultUrls: [],
       content: JSON.stringify({ success: false, error }),
-      error,
+      error
     };
   }
 }

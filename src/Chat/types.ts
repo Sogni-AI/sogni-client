@@ -36,9 +36,29 @@ export type ToolChoice =
   | 'required'
   | { type: 'function'; function: { name: string } };
 
+/** Text content part for multimodal messages. */
+export interface TextContentPart {
+  type: 'text';
+  text: string;
+}
+
+/** Image URL content part for multimodal messages (vision). */
+export interface ImageUrlContentPart {
+  type: 'image_url';
+  image_url: {
+    /** Supports http(s) URLs and data URIs (e.g., `data:image/jpeg;base64,...`). */
+    url: string;
+    /** Controls how the model processes the image: 'auto' (default), 'low' (faster), 'high' (more detail). */
+    detail?: 'auto' | 'low' | 'high';
+  };
+}
+
+/** A single content part in a multimodal message. */
+export type ContentPart = TextContentPart | ImageUrlContentPart;
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
+  content: string | ContentPart[] | null;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
   name?: string;

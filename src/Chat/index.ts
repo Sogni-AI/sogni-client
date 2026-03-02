@@ -1,5 +1,9 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup';
-import { JobTokensData, LLMJobResultData, LLMJobErrorData } from '../ApiClient/WebSocketClient/events';
+import {
+  JobTokensData,
+  LLMJobResultData,
+  LLMJobErrorData
+} from '../ApiClient/WebSocketClient/events';
 import ChatStream from './ChatStream';
 import ChatToolsApi from './ChatTools';
 import { isSogniToolCall } from './tools';
@@ -14,7 +18,7 @@ import {
   LLMEstimateResponse,
   LLMModelInfo,
   ToolCall,
-  ToolHistoryEntry,
+  ToolHistoryEntry
 } from './types';
 import getUUID from '../lib/getUUID';
 import type ProjectsApi from '../Projects';
@@ -42,7 +46,7 @@ export interface ChatApiEvents {
  * ```typescript
  * // Streaming
  * const stream = await sogni.chat.completions.create({
- *   model: 'qwen3-30b-a3b-gptq-int4',
+ *   model: 'qwen3.5-35b-a3b-gguf-q4km',
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   stream: true,
  * });
@@ -52,7 +56,7 @@ export interface ChatApiEvents {
  *
  * // Non-streaming
  * const result = await sogni.chat.completions.create({
- *   model: 'qwen3-30b-a3b-gptq-int4',
+ *   model: 'qwen3.5-35b-a3b-gguf-q4km',
  *   messages: [{ role: 'user', content: 'Hello!' }],
  * });
  * console.log(result.content);
@@ -96,7 +100,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
 
     // Set up the completions namespace (mimics OpenAI SDK structure)
     this.completions = {
-      create: this.createCompletion.bind(this) as any,
+      create: this.createCompletion.bind(this) as any
     };
 
     // Set up the tools API (requires ProjectsApi for media generation).
@@ -150,7 +154,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
    * @example
    * ```typescript
    * const estimate = await sogni.chat.estimateCost({
-   *   model: 'qwen3-30b-a3b-gptq-int4',
+   *   model: 'qwen3.5-35b-a3b-gguf-q4km',
    *   messages: [{ role: 'user', content: 'Hello!' }],
    *   max_tokens: 1024,
    * });
@@ -164,20 +168,20 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     tokenType?: 'sogni' | 'spark';
   }): Promise<LLMCostEstimation> {
     const tokenType = params.tokenType || 'sogni';
-    const inputTokens = Math.ceil(JSON.stringify(params.messages).length / 4);
+    const inputTokens = Math.ceil(
+      JSON.stringify(this.stripImageDataForEstimation(params.messages)).length / 4
+    );
     const maxOutputTokens = params.max_tokens || 4096;
     const pathParams = [tokenType, params.model, inputTokens, maxOutputTokens];
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
-    const r = await this.client.socket.get<LLMEstimateResponse>(
-      `/api/v1/job-llm/estimate/${path}`
-    );
+    const r = await this.client.socket.get<LLMEstimateResponse>(`/api/v1/job-llm/estimate/${path}`);
     return {
       costInUSD: r.quote.costInUSD,
       costInSogni: r.quote.costInSogni,
       costInSpark: r.quote.costInSpark,
       costInToken: r.quote.costInToken,
       inputTokens: r.quote.inputTokens,
-      outputTokens: r.quote.outputTokens,
+      outputTokens: r.quote.outputTokens
     };
   }
 
@@ -196,6 +200,31 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   }
 
   /**
+   * Strip base64 image data from messages before token estimation.
+   * Prevents megabytes of base64 data from inflating the JSON.stringify().length / 4 calculation.
+   */
+  private stripImageDataForEstimation(messages: ChatMessage[]): ChatMessage[] {
+    return messages.map((msg) => {
+      if (!Array.isArray(msg.content)) return msg;
+      return {
+        ...msg,
+        content: msg.content.map((part) => {
+          if (part.type === 'image_url') {
+            return {
+              type: 'image_url' as const,
+              image_url: {
+                url: '[image]',
+                ...(part.image_url.detail && { detail: part.image_url.detail })
+              }
+            };
+          }
+          return part;
+        })
+      };
+    });
+  }
+
+  /**
    * Apply the `think` parameter by modifying messages.
    * When `think === false`, appends `/no_think` to the system message content.
    */
@@ -204,22 +233,24 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
 
     const result = messages.map((m) => ({ ...m }));
     const systemIdx = result.findIndex((m) => m.role === 'system');
-    if (systemIdx >= 0 && result[systemIdx].content) {
+    if (systemIdx >= 0 && typeof result[systemIdx].content === 'string') {
       result[systemIdx] = {
         ...result[systemIdx],
-        content: `${result[systemIdx].content} /no_think`,
+        content: `${result[systemIdx].content} /no_think`
       };
     }
     return result;
   }
 
-  private async createCompletion(params: ChatCompletionParams): Promise<ChatStream | ChatCompletionResult> {
+  private async createCompletion(
+    params: ChatCompletionParams
+  ): Promise<ChatStream | ChatCompletionResult> {
     // Handle autoExecuteTools (non-streaming only)
     if (params.autoExecuteTools) {
       if (params.stream) {
         throw new Error(
           'autoExecuteTools is not supported with stream: true. ' +
-          'Use chat.tools.executeAll() manually in your streaming loop instead.'
+            'Use chat.tools.executeAll() manually in your streaming loop instead.'
         );
       }
       return this.createCompletionWithAutoTools(params);
@@ -231,7 +262,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   /**
    * Send a single chat completion request (no auto tool execution).
    */
-  private async createSingleCompletion(params: ChatCompletionParams): Promise<ChatStream | ChatCompletionResult> {
+  private async createSingleCompletion(
+    params: ChatCompletionParams
+  ): Promise<ChatStream | ChatCompletionResult> {
     const jobID = getUUID();
 
     // Apply think parameter to messages
@@ -251,7 +284,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       stop: params.stop,
       tokenType: params.tokenType,
       tools: params.tools,
-      tool_choice: params.tool_choice,
+      tool_choice: params.tool_choice
     };
 
     const stream = new ChatStream(jobID);
@@ -300,18 +333,20 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
    * Multi-round auto tool execution loop (non-streaming).
    * Sends completion, executes tool calls, feeds results back, repeats.
    */
-  private async createCompletionWithAutoTools(params: ChatCompletionParams): Promise<ChatCompletionResult> {
+  private async createCompletionWithAutoTools(
+    params: ChatCompletionParams
+  ): Promise<ChatCompletionResult> {
     const maxRounds = params.maxToolRounds || 5;
     const toolHistory: ToolHistoryEntry[] = [];
     let messages = [...params.messages];
 
     for (let round = 0; round < maxRounds; round++) {
-      const result = await this.createSingleCompletion({
+      const result = (await this.createSingleCompletion({
         ...params,
         messages,
         stream: false,
-        autoExecuteTools: false,
-      }) as ChatCompletionResult;
+        autoExecuteTools: false
+      })) as ChatCompletionResult;
 
       // If model didn't request tools, return final result
       if (result.finishReason !== 'tool_calls' || !result.tool_calls?.length) {
@@ -325,14 +360,14 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       const toolResults = await this.tools.executeAll(result.tool_calls, {
         tokenType: params.tokenType,
         onToolCall: params.onToolCall,
-        onToolProgress: params.onToolProgress,
+        onToolProgress: params.onToolProgress
       });
 
       // Record history
       toolHistory.push({
         round,
         toolCalls: result.tool_calls,
-        toolResults,
+        toolResults
       });
 
       // Build messages for next round
@@ -341,14 +376,14 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         {
           role: 'assistant' as const,
           content: result.content || null,
-          tool_calls: result.tool_calls,
+          tool_calls: result.tool_calls
         },
         ...result.tool_calls.map((tc, i) => ({
           role: 'tool' as const,
           content: toolResults[i].content,
           tool_call_id: tc.id,
-          name: tc.function.name,
-        })),
+          name: tc.function.name
+        }))
       ];
     }
 
@@ -365,7 +400,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       role: data.role,
       finishReason: data.finishReason,
       usage: data.usage,
-      tool_calls: data.tool_calls,
+      tool_calls: data.tool_calls
     };
 
     stream._pushChunk(chunk);
@@ -412,7 +447,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       workerName: data.workerName,
       queuePosition: data.queuePosition,
       modelId: data.modelId,
-      estimatedCost: data.estimatedCost,
+      estimatedCost: data.estimatedCost
     });
 
     if (data.type === 'pending') {
@@ -443,7 +478,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       jobID: data.jobID,
       error: String(data.error),
       message: errorMsg,
-      workerName: data.workerName,
+      workerName: data.workerName
     });
   }
 }

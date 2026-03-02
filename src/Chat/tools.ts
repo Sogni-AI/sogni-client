@@ -12,7 +12,7 @@ import { ToolDefinition, ToolCall } from './types';
  * import { SogniTools } from '@sogni-ai/sogni-client';
  *
  * const stream = await sogni.chat.completions.create({
- *   model: 'qwen3-30b-a3b-gptq-int4',
+ *   model: 'qwen3.5-35b-a3b-gguf-q4km',
  *   messages: [{ role: 'user', content: 'Generate an image of a sunset' }],
  *   tools: SogniTools.all,
  *   tool_choice: 'auto',
@@ -34,38 +34,44 @@ export const generateImageTool: ToolDefinition = {
         prompt: {
           type: 'string',
           description:
-            'Detailed text description of the image to generate. Be specific about style, composition, lighting, colors, and subject matter.',
+            'Detailed text description of the image to generate. Be specific about style, composition, lighting, colors, and subject matter.'
         },
         negative_prompt: {
           type: 'string',
-          description: 'Things to avoid in the generated image (e.g., "blurry, low quality, distorted").',
+          description:
+            'Things to avoid in the generated image (e.g., "blurry, low quality, distorted").'
         },
         width: {
           type: 'number',
-          description: 'Image width in pixels. Must be a multiple of 16. Default: 1024. Max: 2048.',
+          description: 'Image width in pixels. Must be a multiple of 16. Default: 1024. Max: 2048.'
         },
         height: {
           type: 'number',
-          description: 'Image height in pixels. Must be a multiple of 16. Default: 1024. Max: 2048.',
+          description: 'Image height in pixels. Must be a multiple of 16. Default: 1024. Max: 2048.'
         },
         model: {
           type: 'string',
           description: 'Image generation model to use.',
-          enum: ['flux1-schnell-fp8', 'flux2-dev_fp8', 'chroma-v.46-flash_fp8', 'z_image_turbo_bf16'],
+          enum: [
+            'flux1-schnell-fp8',
+            'flux2-dev_fp8',
+            'chroma-v.46-flash_fp8',
+            'z_image_turbo_bf16'
+          ]
         },
         steps: {
           type: 'number',
           description:
-            'Number of inference steps. Higher = better quality but slower. Default depends on model (4-50).',
+            'Number of inference steps. Higher = better quality but slower. Default depends on model (4-50).'
         },
         seed: {
           type: 'number',
-          description: 'Random seed for reproducible generation. Use -1 for random.',
-        },
+          description: 'Random seed for reproducible generation. Use -1 for random.'
+        }
       },
-      required: ['prompt'],
-    },
-  },
+      required: ['prompt']
+    }
+  }
 };
 
 /** Tool definition: Generate a video using the Sogni Supernet */
@@ -81,40 +87,43 @@ export const generateVideoTool: ToolDefinition = {
         prompt: {
           type: 'string',
           description:
-            'Detailed text description of the video to generate. Write it as a flowing present-tense scene: describe the subject, action, camera movement, lighting, and atmosphere. Clear camera-to-subject relationship improves motion consistency. Be specific and vivid.',
+            'Detailed text description of the video to generate. Write it as a flowing present-tense scene: describe the subject, action, camera movement, lighting, and atmosphere. Clear camera-to-subject relationship improves motion consistency. Be specific and vivid.'
         },
         negative_prompt: {
           type: 'string',
-          description: 'Things to avoid in the generated video (e.g., "blurry, low quality, distorted, watermark").',
+          description:
+            'Things to avoid in the generated video (e.g., "blurry, low quality, distorted, watermark").'
         },
         width: {
           type: 'number',
-          description: 'Video width in pixels. Default: 1920. Standard resolutions: 1920x1088 (landscape), 1088x1920 (portrait), 1280x720.',
+          description:
+            'Video width in pixels. Default: 1920. Standard resolutions: 1920x1088 (landscape), 1088x1920 (portrait), 1280x720.'
         },
         height: {
           type: 'number',
-          description: 'Video height in pixels. Default: 1088. Must be a multiple of 16.',
+          description: 'Video height in pixels. Default: 1088. Must be a multiple of 16.'
         },
         duration: {
           type: 'number',
-          description: 'Video duration in seconds. Range: 1-20. Default: 5.',
+          description: 'Video duration in seconds. Range: 1-20. Default: 5.'
         },
         fps: {
           type: 'number',
-          description: 'Frames per second. Default: 24. Range: 1-60.',
+          description: 'Frames per second. Default: 24. Range: 1-60.'
         },
         model: {
           type: 'string',
-          description: 'Video generation model to use. Prefer LTX-2 text-to-video (t2v) models for best quality.',
+          description:
+            'Video generation model to use. Prefer LTX-2 text-to-video (t2v) models for best quality.'
         },
         seed: {
           type: 'number',
-          description: 'Random seed for reproducible generation. Use -1 for random.',
-        },
+          description: 'Random seed for reproducible generation. Use -1 for random.'
+        }
       },
-      required: ['prompt'],
-    },
-  },
+      required: ['prompt']
+    }
+  }
 };
 
 /** Tool definition: Generate music using the Sogni Supernet */
@@ -130,45 +139,45 @@ export const generateMusicTool: ToolDefinition = {
         prompt: {
           type: 'string',
           description:
-            'Description of the music to generate. Include genre, mood, tempo, instruments, and style. Can also include lyrics wrapped in [verse], [chorus], etc. tags.',
+            'Description of the music to generate. Include genre, mood, tempo, instruments, and style. Can also include lyrics wrapped in [verse], [chorus], etc. tags.'
         },
         duration: {
           type: 'number',
-          description: 'Duration of the generated music in seconds. Range: 10-600. Default: 30.',
+          description: 'Duration of the generated music in seconds. Range: 10-600. Default: 30.'
         },
         bpm: {
           type: 'number',
-          description: 'Beats per minute. Range: 30-300. Default: 120.',
+          description: 'Beats per minute. Range: 30-300. Default: 120.'
         },
         keyscale: {
           type: 'string',
           description:
-            'Musical key and scale (e.g., "C major", "A minor", "F# minor", "Bb major"). Default: "C major".',
+            'Musical key and scale (e.g., "C major", "A minor", "F# minor", "Bb major"). Default: "C major".'
         },
         timesignature: {
           type: 'string',
           description: 'Time signature. "4" for 4/4, "3" for 3/4, "2" for 2/4. Default: "4".',
-          enum: ['4', '3', '2'],
+          enum: ['4', '3', '2']
         },
         model: {
           type: 'string',
           description:
             'Music generation model. "ace_step_1.5_turbo" for fast/catchy, "ace_step_1.5_sft" for more control over lyrics.',
-          enum: ['ace_step_1.5_turbo', 'ace_step_1.5_sft'],
+          enum: ['ace_step_1.5_turbo', 'ace_step_1.5_sft']
         },
         output_format: {
           type: 'string',
           description: 'Audio output format. Default: "mp3".',
-          enum: ['mp3', 'flac', 'wav'],
+          enum: ['mp3', 'flac', 'wav']
         },
         seed: {
           type: 'number',
-          description: 'Random seed for reproducible generation. Use -1 for random.',
-        },
+          description: 'Random seed for reproducible generation. Use -1 for random.'
+        }
       },
-      required: ['prompt'],
-    },
-  },
+      required: ['prompt']
+    }
+  }
 };
 
 /**
@@ -184,7 +193,7 @@ export const SogniTools = {
   /** All Sogni tools combined — convenience array for `tools` param */
   get all(): ToolDefinition[] {
     return [generateImageTool, generateVideoTool, generateMusicTool];
-  },
+  }
 };
 
 /**
@@ -202,7 +211,7 @@ export const SogniTools = {
  * const tools = buildSogniTools(models);
  *
  * const stream = await sogni.chat.completions.create({
- *   model: 'qwen3-30b-a3b-gptq-int4',
+ *   model: 'qwen3.5-35b-a3b-gguf-q4km',
  *   messages,
  *   tools,
  *   stream: true,
@@ -235,7 +244,7 @@ export function buildSogniTools(
     (videoTool.function.parameters as any).properties.model = {
       type: 'string',
       description: 'Video generation model to use. Choose a text-to-video (t2v) model.',
-      enum: videoModels,
+      enum: videoModels
     };
   }
   tools.push(videoTool);
@@ -247,7 +256,7 @@ export function buildSogniTools(
       type: 'string',
       description:
         'Music generation model. "ace_step_1.5_turbo" for fast/catchy, "ace_step_1.5_sft" for more control over lyrics.',
-      enum: audioModels,
+      enum: audioModels
     };
   }
   tools.push(musicTool);

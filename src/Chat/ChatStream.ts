@@ -1,4 +1,11 @@
-import { ChatCompletionChunk, ChatCompletionResult, LLMJobCost, TokenUsage, ToolCall, ToolCallDelta } from './types';
+import {
+  ChatCompletionChunk,
+  ChatCompletionResult,
+  LLMJobCost,
+  TokenUsage,
+  ToolCall,
+  ToolCallDelta
+} from './types';
 
 /**
  * Async iterable that yields chat completion chunks as they arrive.
@@ -67,7 +74,7 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
       usage: this._usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
       timeTaken: this._timeTaken,
       workerName: this._workerName,
-      cost: this._cost,
+      cost: this._cost
     };
     const toolCalls = this.toolCalls;
     if (toolCalls.length > 0) {
@@ -90,7 +97,11 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
         const idx = delta.index;
         let tc = this._toolCalls.get(idx);
         if (!tc) {
-          tc = { id: delta.id || '', type: 'function', function: { name: delta.function?.name || '', arguments: '' } };
+          tc = {
+            id: delta.id || '',
+            type: 'function',
+            function: { name: delta.function?.name || '', arguments: '' }
+          };
           this._toolCalls.set(idx, tc);
         }
         if (delta.id) tc.id = delta.id;
@@ -180,7 +191,7 @@ class ChatStream implements AsyncIterable<ChatCompletionChunk> {
         this.resolve = null;
         this.reject = null;
         return Promise.resolve({ value: undefined as any, done: true });
-      },
+      }
     };
   }
 }
