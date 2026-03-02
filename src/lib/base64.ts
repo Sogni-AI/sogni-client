@@ -1,7 +1,12 @@
 export function base64Encode(str: string): string {
   const encoder = new TextEncoder();
   const uint8Array = encoder.encode(str);
-  const binaryString = String.fromCharCode(...uint8Array);
+  // Process in chunks to avoid "Maximum call stack size exceeded" with large payloads
+  const chunkSize = 8192;
+  let binaryString = '';
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    binaryString += String.fromCharCode(...uint8Array.subarray(i, i + chunkSize));
+  }
   return btoa(binaryString);
 }
 
