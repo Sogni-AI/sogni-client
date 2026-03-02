@@ -74,39 +74,38 @@ export const generateVideoTool: ToolDefinition = {
   function: {
     name: 'sogni_generate_video',
     description:
-      'Generate a short video using AI video generation on the Sogni Supernet. Returns a URL to the generated video. Use this tool EVERY TIME the user asks to create, generate, or make a video, clip, or animation. Do NOT generate URLs yourself — you MUST call this tool.',
+      'Generate a short video using AI video generation on the Sogni Supernet. Returns a URL to the generated video. Use this tool EVERY TIME the user asks to create, generate, or make a video, clip, or animation. Do NOT generate URLs yourself — you MUST call this tool. Write the prompt as a cohesive mini-scene in present tense, describing motion, camera movement, lighting, and atmosphere in flowing prose.',
     parameters: {
       type: 'object',
       properties: {
         prompt: {
           type: 'string',
           description:
-            'Detailed text description of the video to generate. Describe the scene, motion, camera movement, and style.',
+            'Detailed text description of the video to generate. Write it as a flowing present-tense scene: describe the subject, action, camera movement, lighting, and atmosphere. Clear camera-to-subject relationship improves motion consistency. Be specific and vivid.',
         },
         negative_prompt: {
           type: 'string',
-          description: 'Things to avoid in the generated video.',
+          description: 'Things to avoid in the generated video (e.g., "blurry, low quality, distorted, watermark").',
         },
         width: {
           type: 'number',
-          description: 'Video width in pixels. Default: 848.',
+          description: 'Video width in pixels. Default: 1920. Standard resolutions: 1920x1088 (landscape), 1088x1920 (portrait), 1280x720.',
         },
         height: {
           type: 'number',
-          description: 'Video height in pixels. Default: 480.',
+          description: 'Video height in pixels. Default: 1088. Must be a multiple of 16.',
         },
         duration: {
           type: 'number',
-          description: 'Video duration in seconds. Range: 1-10. Default: 5.',
+          description: 'Video duration in seconds. Range: 1-20. Default: 5.',
         },
         fps: {
           type: 'number',
-          description:
-            'Frames per second. For WAN 2.2 models: 16 or 32 (16 = native, 32 = interpolated). For LTX-2 models: 1-60. Default: 16.',
+          description: 'Frames per second. Default: 24. Range: 1-60.',
         },
         model: {
           type: 'string',
-          description: 'Video generation model to use. Choose a text-to-video (t2v) model.',
+          description: 'Video generation model to use. Prefer LTX-2 text-to-video (t2v) models for best quality.',
         },
         seed: {
           type: 'number',

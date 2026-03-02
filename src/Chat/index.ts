@@ -1,6 +1,8 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup';
 import { JobTokensData, LLMJobResultData, LLMJobErrorData } from '../ApiClient/WebSocketClient/events';
 import ChatStream from './ChatStream';
+import ChatToolsApi from './ChatTools';
+import { isSogniToolCall } from './tools';
 import {
   ChatCompletionParams,
   ChatCompletionChunk,
@@ -11,11 +13,11 @@ import {
   LLMCostEstimation,
   LLMEstimateResponse,
   LLMModelInfo,
-  ToolDefinition,
   ToolCall,
-  ToolChoice,
+  ToolHistoryEntry,
 } from './types';
 import getUUID from '../lib/getUUID';
+import type ProjectsApi from '../Projects';
 
 export interface ChatApiEvents {
   /** Emitted for each token chunk received during streaming */
@@ -60,13 +62,29 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private activeStreams = new Map<string, ChatStream>();
   private availableLLMModels: Record<string, LLMModelInfo> = {};
 
+  /**
+   * Tool execution API for Sogni platform tools (image, video, music generation).
+   *
+   * @example
+   * ```typescript
+   * // Execute a single Sogni tool call
+   * const result = await sogni.chat.tools.execute(toolCall);
+   *
+   * // Execute all tool calls from a completion
+   * const results = await sogni.chat.tools.executeAll(toolCalls, {
+   *   onToolCall: async (tc) => customHandler(tc), // for non-Sogni tools
+   * });
+   * ```
+   */
+  tools: ChatToolsApi;
+
   completions: {
     create: ((params: ChatCompletionParams & { stream: true }) => Promise<ChatStream>) &
       ((params: ChatCompletionParams & { stream?: false }) => Promise<ChatCompletionResult>) &
       ((params: ChatCompletionParams) => Promise<ChatStream | ChatCompletionResult>);
   };
 
-  constructor(config: ApiConfig) {
+  constructor(config: ApiConfig, projects?: ProjectsApi) {
     super(config);
 
     // Bind the socket events — use llmJobResult/llmJobError to avoid conflicting with ProjectsApi handlers
@@ -80,6 +98,10 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     this.completions = {
       create: this.createCompletion.bind(this) as any,
     };
+
+    // Set up the tools API (requires ProjectsApi for media generation).
+    // When ProjectsApi is not provided, tool execution methods will throw at runtime.
+    this.tools = new ChatToolsApi(projects!);
   }
 
   /** Available LLM models and their worker counts */
@@ -173,14 +195,53 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     this.emit('modelsUpdated', this.availableLLMModels);
   }
 
+  /**
+   * Apply the `think` parameter by modifying messages.
+   * When `think === false`, appends `/no_think` to the system message content.
+   */
+  private applyThinkParam(messages: ChatMessage[], think?: boolean): ChatMessage[] {
+    if (think !== false) return messages;
+
+    const result = messages.map((m) => ({ ...m }));
+    const systemIdx = result.findIndex((m) => m.role === 'system');
+    if (systemIdx >= 0 && result[systemIdx].content) {
+      result[systemIdx] = {
+        ...result[systemIdx],
+        content: `${result[systemIdx].content} /no_think`,
+      };
+    }
+    return result;
+  }
+
   private async createCompletion(params: ChatCompletionParams): Promise<ChatStream | ChatCompletionResult> {
+    // Handle autoExecuteTools (non-streaming only)
+    if (params.autoExecuteTools) {
+      if (params.stream) {
+        throw new Error(
+          'autoExecuteTools is not supported with stream: true. ' +
+          'Use chat.tools.executeAll() manually in your streaming loop instead.'
+        );
+      }
+      return this.createCompletionWithAutoTools(params);
+    }
+
+    return this.createSingleCompletion(params);
+  }
+
+  /**
+   * Send a single chat completion request (no auto tool execution).
+   */
+  private async createSingleCompletion(params: ChatCompletionParams): Promise<ChatStream | ChatCompletionResult> {
     const jobID = getUUID();
+
+    // Apply think parameter to messages
+    const messages = this.applyThinkParam(params.messages, params.think);
 
     const request: ChatRequestMessage = {
       jobID,
       type: 'llm',
       model: params.model,
-      messages: params.messages,
+      messages,
       max_tokens: params.max_tokens,
       temperature: params.temperature,
       top_p: params.top_p,
@@ -233,6 +294,65 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         }
       });
     });
+  }
+
+  /**
+   * Multi-round auto tool execution loop (non-streaming).
+   * Sends completion, executes tool calls, feeds results back, repeats.
+   */
+  private async createCompletionWithAutoTools(params: ChatCompletionParams): Promise<ChatCompletionResult> {
+    const maxRounds = params.maxToolRounds || 5;
+    const toolHistory: ToolHistoryEntry[] = [];
+    let messages = [...params.messages];
+
+    for (let round = 0; round < maxRounds; round++) {
+      const result = await this.createSingleCompletion({
+        ...params,
+        messages,
+        stream: false,
+        autoExecuteTools: false,
+      }) as ChatCompletionResult;
+
+      // If model didn't request tools, return final result
+      if (result.finishReason !== 'tool_calls' || !result.tool_calls?.length) {
+        if (toolHistory.length > 0) {
+          result.toolHistory = toolHistory;
+        }
+        return result;
+      }
+
+      // Execute tool calls
+      const toolResults = await this.tools.executeAll(result.tool_calls, {
+        tokenType: params.tokenType,
+        onToolCall: params.onToolCall,
+        onToolProgress: params.onToolProgress,
+      });
+
+      // Record history
+      toolHistory.push({
+        round,
+        toolCalls: result.tool_calls,
+        toolResults,
+      });
+
+      // Build messages for next round
+      messages = [
+        ...messages,
+        {
+          role: 'assistant' as const,
+          content: result.content || null,
+          tool_calls: result.tool_calls,
+        },
+        ...result.tool_calls.map((tc, i) => ({
+          role: 'tool' as const,
+          content: toolResults[i].content,
+          tool_call_id: tc.id,
+          name: tc.function.name,
+        })),
+      ];
+    }
+
+    throw new Error(`Max tool calling rounds (${maxRounds}) exceeded`);
   }
 
   private handleJobTokens(data: JobTokensData): void {

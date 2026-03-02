@@ -35,6 +35,7 @@ import {
 // Chat API
 import ChatApi from './Chat';
 import ChatStream from './Chat/ChatStream';
+import ChatToolsApi from './Chat/ChatTools';
 import {
   ChatMessage,
   ChatCompletionParams,
@@ -52,6 +53,10 @@ import {
   ToolCallFunction,
   ToolChoice,
   ToolFunction,
+  ToolExecutionProgress,
+  ToolExecutionResult,
+  ToolHistoryEntry,
+  ToolExecutionOptions,
 } from './Chat/types';
 import { SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
 // Stats API
@@ -95,7 +100,11 @@ export type {
   ToolCallFunction,
   ToolChoice,
   ToolDefinition,
+  ToolExecutionOptions,
+  ToolExecutionProgress,
+  ToolExecutionResult,
   ToolFunction,
+  ToolHistoryEntry,
   VideoControlNetName,
   VideoControlNetParams,
   VideoFormat,
@@ -104,7 +113,7 @@ export type {
   VideoWorkflowType
 };
 
-export { ApiError, ApiKeyAuthManager, ChatStream, CurrentAccount, Job, Project, SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments };
+export { ApiError, ApiKeyAuthManager, ChatStream, ChatToolsApi, CurrentAccount, Job, Project, SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments };
 
 export interface SogniClientConfig {
   /**
@@ -186,7 +195,7 @@ export class SogniClient {
     this.account = new AccountApi(config);
     this.projects = new ProjectsApi(config);
     this.stats = new StatsApi(config);
-    this.chat = new ChatApi(config);
+    this.chat = new ChatApi(config, this.projects);
 
     this.apiClient = config.client;
   }
