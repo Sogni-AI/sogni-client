@@ -19,6 +19,7 @@ Behind the scenes this SDK uses a WebSocket connection for communication between
 - 🤖 **LLM Text Generation** - Chat completions with streaming, multi-turn conversations, and thinking/reasoning mode via OpenAI-compatible API
 - 🔧 **LLM Tool Calling** - Define custom tools (functions) that the LLM can invoke during conversations for real-time data and actions
 - 🎨🎬🎵 **Sogni Platform Tools** - Generate images, videos, and music through natural language chat — the LLM detects media intent, enhances prompts, and calls Sogni's generation APIs automatically
+- 👁️ **Vision Chat** - Multimodal image understanding with scene description, OCR, object detection, visual analysis, and multi-image comparison via Qwen3.5 VLM
 ## Migration notes
 ### v3.x.x to v4.x.x
 Version 4 adds support for video generation, including the new **Wan 2.2 14B FP8** model family with five workflow types (text-to-video, image-to-video, sound-to-video, animate-move, and animate-replace). There are the following breaking changes:
@@ -629,7 +630,7 @@ Send prompts to LLM workers on the Sogni network and receive text responses — 
 ```javascript
 // Non-streaming chat completion
 const response = await sogni.projects.chatCompletion({
-  model: 'qwen3-30b-a3b-gptq-int4',
+  model: 'qwen3.5-35b-a3b-gguf-q4km',
   messages: [
     { role: 'system', content: 'You are a helpful assistant.' },
     { role: 'user', content: 'What is the Sogni Supernet?' }
@@ -664,7 +665,7 @@ const tools = [
 ];
 
 const response = await sogni.projects.chatCompletion({
-  model: 'qwen3-30b-a3b-gptq-int4',
+  model: 'qwen3.5-35b-a3b-gguf-q4km',
   messages: [{ role: 'user', content: "What's the weather in Austin?" }],
   tools: tools,
   tool_choice: 'auto'
@@ -695,10 +696,11 @@ The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) dire
 - **`workflow_sound_to_video.mjs`** - Audio-synchronized video generation with lip-sync
 - **`workflow_video_to_video.mjs`** - Motion transfer and character replacement (Animate-Move/Animate-Replace)
 
-### LLM Text Chat & Tool Calling Examples
+### LLM Text Chat, Vision & Tool Calling Examples
 - **`workflow_text_chat.mjs`** - Single-turn chat completion (non-streaming)
 - **`workflow_text_chat_streaming.mjs`** - Streaming chat with token-by-token output
 - **`workflow_text_chat_multi_turn.mjs`** - Multi-turn conversation with history, in-chat commands, and session stats
+- **`workflow_text_chat_vision.mjs`** - Vision chat with multimodal image understanding (scene description, OCR, object detection, visual analysis, multi-image comparison)
 - **`workflow_text_chat_tool_calling.mjs`** - LLM tool calling with built-in tools (weather, time, unit conversion, math)
 - **`workflow_text_chat_sogni_tools.mjs`** - Generate images, videos, and music through natural language via LLM tool calling
 
@@ -717,8 +719,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing | Rapid reference-based image generation |
 | `qwen_image_edit_2511_fp8` | **Qwen Image Edit** - High quality 20-step editing | Professional image editing with context awareness |
 | `wan_v2.2-14b-fp8_t2v_lightx2v` | **Wan 2.2 T2V** - Text-to-video | Generate videos from text prompts |
-| `qwen3-30b-a3b-gptq-int4` | **Qwen3 30B** - LLM chat & tool calling | Text generation, reasoning, and tool calling |
-| `qwen3.5-35b-a3b-gguf-q4km` | **Qwen3.5 35B** - LLM chat & tool calling | Latest model with 32K context, reasoning, and tool calling |
+| `qwen3.5-35b-a3b-gguf-q4km` | **Qwen3.5 35B VLM** - LLM chat, tool calling & vision | Latest model with 32K context, reasoning, tool calling, and multimodal image understanding |
 
 All workflow examples include:
 - Interactive model and parameter selection
@@ -736,6 +737,7 @@ node workflow_image_edit.mjs
 node workflow_text_to_video.mjs
 node workflow_text_chat_streaming.mjs "Tell me a story"
 node workflow_text_chat_sogni_tools.mjs "Create an image of a sunset over mountains"
+node workflow_text_chat_vision.mjs --image photo.jpg
 ```
 
 ## AI Assistant Resources
@@ -759,7 +761,8 @@ When helping users generate images, videos, or use LLM features with Sogni:
 3. **Audio generation**: Use `type: 'audio'` with ACE-Step 1.5 models
 4. **LLM text chat**: Use `sogni.projects.chatCompletion()` for text generation with streaming and tool calling
 5. **Sogni Platform Tools**: Combine LLM tool calling with Sogni media generation to create images, videos, and music from natural language
-6. **WAN 2.2 vs LTX-2**: These model families have different FPS behaviors - see `llms-full.txt` for details
+6. **Vision chat**: Use `qwen3.5-35b-a3b-gguf-q4km` VLM for multimodal image understanding with `image_url` content type
+7. **WAN 2.2 vs LTX-2**: These model families have different FPS behaviors - see `llms-full.txt` for details
 
 ## API Documentation
 

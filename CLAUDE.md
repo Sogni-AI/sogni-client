@@ -15,7 +15,7 @@ When helping users with Sogni SDK tasks, consult `llms-full.txt` for complete pa
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, etc.) and video generation (WAN 2.2 and LTX-2 models) via WebSocket communication.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, etc.), video generation (WAN 2.2 and LTX-2 models), audio generation (ACE-Step 1.5), LLM chat with tool calling, and multimodal vision chat (Qwen3.5 VLM) via WebSocket communication.
 
 ## Build & Development Commands
 

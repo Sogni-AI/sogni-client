@@ -18,13 +18,14 @@ TABLE OF CONTENTS
 7. Audio Generation - ACE-Step 1.5 Models
 8. LLM Text Generation
 9. LLM Tool Calling & Sogni Platform Tools
-10. Complete Parameter Reference
-11. Events & Progress Tracking
-12. Models, Presets & Options
-13. Cost Estimation
-14. Error Handling
-15. Advanced Patterns
-16. Type Definitions
+10. Vision Chat (Multimodal Image Understanding)
+11. Complete Parameter Reference
+12. Events & Progress Tracking
+13. Models, Presets & Options
+14. Cost Estimation
+15. Error Handling
+16. Advanced Patterns
+17. Type Definitions
 
 ================================================================================
 1. OVERVIEW & INSTALLATION
@@ -39,6 +40,7 @@ for AI inference. It supports:
 - LLM Text Generation: Chat completions with streaming, multi-turn, and thinking mode
 - LLM Tool Calling: OpenAI-compatible function calling with custom and platform tools
 - Sogni Platform Tools: Generate images, videos, and music via natural language chat
+- Vision Chat: Multimodal image understanding via VLM (scene description, OCR, object detection, visual analysis)
 - Real-time Progress: WebSocket-based event system
 - Multiple Networks: Fast (GPU) and Relaxed (Mac)
 
@@ -607,12 +609,12 @@ The Sogni SDK supports LLM text generation through the Supernet, providing an
 OpenAI-compatible chat completions API with streaming, multi-turn conversations,
 thinking/reasoning mode, and tool calling.
 
-DEFAULT LLM MODEL: qwen3-30b-a3b-gptq-int4
+DEFAULT LLM MODEL: qwen3.5-35b-a3b-gguf-q4km
 
 CHAT COMPLETION (Non-Streaming):
 ```javascript
 const response = await sogni.projects.chatCompletion({
-  model: 'qwen3-30b-a3b-gptq-int4',
+  model: 'qwen3.5-35b-a3b-gguf-q4km',
   messages: [
     { role: 'system', content: 'You are a helpful assistant.' },
     { role: 'user', content: 'Explain quantum computing briefly.' }
@@ -628,7 +630,7 @@ console.log(response.choices[0].message.content);
 STREAMING CHAT COMPLETION:
 ```javascript
 const stream = await sogni.projects.chatCompletionStream({
-  model: 'qwen3-30b-a3b-gptq-int4',
+  model: 'qwen3.5-35b-a3b-gguf-q4km',
   messages: [{ role: 'user', content: 'Tell me a story about a cat' }],
   max_tokens: 4096,
   stream: true
@@ -649,7 +651,7 @@ const messages = [
 // Turn 1
 messages.push({ role: 'user', content: 'What is the Sogni Supernet?' });
 const response1 = await sogni.projects.chatCompletion({
-  model: 'qwen3-30b-a3b-gptq-int4',
+  model: 'qwen3.5-35b-a3b-gguf-q4km',
   messages
 });
 messages.push(response1.choices[0].message);
@@ -657,7 +659,7 @@ messages.push(response1.choices[0].message);
 // Turn 2 (with context from turn 1)
 messages.push({ role: 'user', content: 'How does it compare to centralized services?' });
 const response2 = await sogni.projects.chatCompletion({
-  model: 'qwen3-30b-a3b-gptq-int4',
+  model: 'qwen3.5-35b-a3b-gguf-q4km',
   messages
 });
 ```
@@ -670,7 +672,7 @@ Enable model reasoning/thinking via `chat_template_kwargs`:
 LLM CHAT PARAMETERS:
 | Parameter | Type | Default | Notes |
 |-----------|------|---------|-------|
-| model | string | qwen3-30b-a3b-gptq-int4 | LLM model ID |
+| model | string | qwen3.5-35b-a3b-gguf-q4km | LLM model ID |
 | messages | array | - | Chat messages [{role, content}] |
 | max_tokens | number | 4096 | Maximum output tokens |
 | temperature | number | 0.7 | Sampling temperature (0-2) |
@@ -734,7 +736,7 @@ TOOL CALLING FLOW:
 ```javascript
 // 1. Send message with tools
 const response = await sogni.projects.chatCompletion({
-  model: 'qwen3-30b-a3b-gptq-int4',
+  model: 'qwen3.5-35b-a3b-gguf-q4km',
   messages: [{ role: 'user', content: "What's the weather in Austin, TX?" }],
   tools,
   tool_choice: 'auto'
@@ -760,7 +762,7 @@ if (message.tool_calls) {
 
   // 5. Get final natural language response
   const finalResponse = await sogni.projects.chatCompletion({
-    model: 'qwen3-30b-a3b-gptq-int4',
+    model: 'qwen3.5-35b-a3b-gguf-q4km',
     messages,
     tools
   });
@@ -818,7 +820,102 @@ node workflow_text_chat_tool_calling.mjs "What's the weather in Austin, TX?"
 ```
 
 ================================================================================
-10. COMPLETE PARAMETER REFERENCE
+10. VISION CHAT (MULTIMODAL IMAGE UNDERSTANDING)
+================================================================================
+
+The Sogni SDK supports multimodal vision chat via VLM (Vision-Language Model)
+workers on the Sogni network. Send images alongside text messages for scene
+description, OCR/text extraction, object detection, structured visual analysis,
+and multi-image comparison.
+
+VLM MODEL:
+| Model ID | Name | Description |
+|----------|------|-------------|
+| qwen3.5-35b-a3b-gguf-q4km | Qwen3.5 35B VLM | Vision-language model with 32K context |
+
+MULTIMODAL MESSAGE FORMAT:
+Images are sent as base64-encoded data URIs using the OpenAI-compatible
+`image_url` content type within a multipart user message:
+
+```javascript
+// Build a multimodal user message with image + text
+const messages = [
+  { role: 'system', content: 'You are a visual analysis assistant.' },
+  {
+    role: 'user',
+    content: [
+      { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,...' } },
+      { type: 'text', text: 'Describe this image in detail.' }
+    ]
+  }
+];
+
+const stream = await sogni.chat.completions.create({
+  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  messages,
+  max_tokens: 4096,
+  stream: true,
+  think: false
+});
+
+for await (const chunk of stream) {
+  if (chunk.content) process.stdout.write(chunk.content);
+}
+```
+
+MULTI-IMAGE COMPARISON:
+Send two images in the same message for side-by-side analysis:
+```javascript
+const userMessage = {
+  role: 'user',
+  content: [
+    { type: 'image_url', image_url: { url: imageDataUri1 } },
+    { type: 'image_url', image_url: { url: imageDataUri2 } },
+    { type: 'text', text: 'Compare these two images in detail.' }
+  ]
+};
+```
+
+LOADING LOCAL IMAGES:
+```javascript
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+const buffer = fs.readFileSync('./photo.jpg');
+const base64 = buffer.toString('base64');
+const dataUri = `data:image/jpeg;base64,${base64}`;
+```
+
+SUPPORTED IMAGE FORMATS: JPEG, PNG, WebP, GIF (max 20MB recommended)
+
+VISION CAPABILITIES:
+- Scene description: Main subject, background, colors, lighting, mood, spatial
+  relationships, composition, and visible text
+- OCR / Text extraction: All visible text with approximate location and layout
+  preservation, multi-language identification
+- Object detection: Object identification with location (top-left, center, etc.),
+  relative size, visual attributes, and spatial relationships
+- Structured analysis: Subject, composition, lighting, color palette, technical
+  aspects, mood, artistic style, and contextual elements
+- Multi-image comparison: Side-by-side analysis of subject matter, color palette,
+  composition, mood, quality, and notable differences
+
+EXAMPLE CLI USAGE:
+```bash
+# Interactive vision chat
+node workflow_text_chat_vision.mjs
+
+# Pre-load an image
+node workflow_text_chat_vision.mjs --image photo.jpg
+
+# In-chat commands: /describe, /ocr, /objects, /analyze, /compare <path>
+```
+
+See `workflow_text_chat_vision.mjs` for a complete interactive vision chat
+implementation with all commands and multi-turn conversation support.
+
+================================================================================
+11. COMPLETE PARAMETER REFERENCE
 ================================================================================
 
 BASE PARAMETERS (Both Image and Video):
@@ -907,7 +1004,7 @@ AUDIO-SPECIFIC PARAMETERS:
 ```
 
 ================================================================================
-11. EVENTS & PROGRESS TRACKING
+12. EVENTS & PROGRESS TRACKING
 ================================================================================
 
 PROMISE-BASED COMPLETION:
@@ -1004,7 +1101,7 @@ const blob = await job.getResultData();
 ```
 
 ================================================================================
-12. MODELS, PRESETS & OPTIONS
+13. MODELS, PRESETS & OPTIONS
 ================================================================================
 
 WAIT FOR MODELS:
@@ -1059,7 +1156,7 @@ Returns: {
 ```
 
 ================================================================================
-13. COST ESTIMATION
+14. COST ESTIMATION
 ================================================================================
 
 ESTIMATE IMAGE COST:
@@ -1101,7 +1198,7 @@ console.log(balance.sogni, balance.spark);
 ```
 
 ================================================================================
-14. ERROR HANDLING
+15. ERROR HANDLING
 ================================================================================
 
 TRY-CATCH PATTERN:
@@ -1147,7 +1244,7 @@ COMMON ERROR SCENARIOS:
 - Invalid dimensions or parameters
 
 ================================================================================
-15. ADVANCED PATTERNS
+16. ADVANCED PATTERNS
 ================================================================================
 
 BATCH PROCESSING:
@@ -1207,7 +1304,7 @@ const project = await sogni.projects.create({
 ```
 
 ================================================================================
-16. TYPE DEFINITIONS
+17. TYPE DEFINITIONS
 ================================================================================
 
 PROJECT PARAMS:
