@@ -1,0 +1,23 @@
+{
+  "name": "sogni-examples",
+  "version": "1.0.0",
+  "description": "Examples for Sogni Client SDK",
+  "type": "module",
+  "scripts": {
+    "t2v": "node workflow_text_to_video.mjs",
+    "i2v": "node workflow_image_to_video.mjs",
+    "s2v": "node workflow_sound_to_video.mjs",
+    "v2v": "node workflow_video_to_video.mjs",
+    "batch": "node workflow_batch_i2v.mjs",
+    "t2i": "node workflow_text_to_image.mjs",
+    "edit": "node workflow_image_edit.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "image-size": "^1.1.1",
+    "sharp": "^0.34.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,19 +1,19 @@
 import { MessageType, SocketMessageMap } from './messages';
 import { SocketEventMap } from './events';
 import RestClient from '../../lib/RestClient';
-import { SupernetType } from './types';
+import { IWebSocketClient, SupernetType } from './types';
 import WebSocket, { CloseEvent, ErrorEvent, MessageEvent } from 'isomorphic-ws';
 import { base64Decode, base64Encode } from '../../lib/base64';
 import isNodejs from '../../lib/isNodejs';
 import { LIB_VERSION } from '../../version';
 import { Logger } from '../../lib/DefaultLogger';
-import AuthManager from '../../lib/AuthManager';
+import { AuthManager } from '../../lib/AuthManager';
 
 const PROTOCOL_VERSION = '3.0.0';
 
 const PING_INTERVAL = 15000;
 
-class WebSocketClient extends RestClient<SocketEventMap> {
+class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketClient {
   appId: string;
   baseUrl: string;
   private socket: WebSocket | null = null;
@@ -67,16 +67,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     url.searchParams.set('clientType', 'artist');
     //At this point 'relaxed' does not work as expected, so we use 'fast' or empty
     url.searchParams.set('forceWorkerId', this._supernetType === 'fast' ? 'fast' : '');
-    let params;
-    // In Node.js, ws package is used, so we need to set the auth header
-    if (isNodejs) {
-      params = {
-        headers: {
-          Authorization: await this.auth.getToken(),
-          'User-Agent': userAgent
-        }
-      };
-    }
+    const params = await this.auth.socketOptions();
     this.socket = new WebSocket(url.toString(), params);
     this.socket.onerror = this.handleError.bind(this);
     this.socket.onmessage = this.handleMessage.bind(this);
@@ -95,7 +86,7 @@ class WebSocketClient extends RestClient<SocketEventMap> {
     socket.onmessage = null;
     socket.onopen = null;
     this.stopPing();
-    socket.close();
+    socket.close(1000, 'Client disconnected');
   }
 
   private startPing(socket: WebSocket) {
@@ -157,9 +148,16 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   }
 
   private handleClose(e: CloseEvent) {
-    if (e.target === this.socket) {
+    const socket = e.target;
+    socket.onerror = null;
+    socket.onmessage = null;
+    socket.onopen = null;
+    if (socket === this.socket || !this.socket) {
       this._logger.info('WebSocket disconnected, cleanup', e);
-      this.disconnect();
+      if (socket === this.socket) {
+        this.stopPing();
+        this.socket = null;
+      }
       this.emit('disconnected', {
         code: e.code,
         reason: e.reason
@@ -202,6 +200,9 @@ class WebSocketClient extends RestClient<SocketEventMap> {
   }
 
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]) {
+    if (!this.isConnected) {
+      await this.connect();
+    }
     await this.waitForConnection();
     this._logger.debug('WebSocket send:', messageType, data);
     this.socket!.send(

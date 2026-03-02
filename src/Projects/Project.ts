@@ -1,6 +1,6 @@
 import Job, { JobData } from './Job';
 import DataEntity, { EntityEvents } from '../lib/DataEntity';
-import { ProjectParams } from './types';
+import { isImageParams, ProjectParams } from './types';
 import cloneDeep from 'lodash/cloneDeep';
 import ErrorData from '../types/ErrorData';
 import getUUID from '../lib/getUUID';
@@ -8,8 +8,8 @@ import { RawJob, RawProject } from './types/RawProject';
 import ProjectsApi from './index';
 import { Logger } from '../lib/DefaultLogger';
 
-// If project is not finished and had no updates for 1 minute, force refresh
-const PROJECT_TIMEOUT = 60 * 1000;
+// If project is not finished and had no updates for 2 minutes, force refresh
+const PROJECT_TIMEOUT = 2 * 60 * 1000;
 const MAX_FAILED_SYNC_ATTEMPTS = 3;
 
 export type ProjectStatus =
@@ -39,6 +39,11 @@ export interface ProjectData {
   params: ProjectParams;
   queuePosition: number;
   status: ProjectStatus;
+  /**
+   * Estimated completion time of the project (for long-running projects like video generation).
+   * Is equal to maximum job ETA
+   */
+  eta?: Date;
   error?: ErrorData;
 }
 /** @inline */
@@ -93,8 +98,20 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     return this.data.params;
   }
 
+  get type() {
+    return this.params.type;
+  }
+
   get status() {
     return this.data.status;
+  }
+
+  /**
+   * Estimated time of completion in seconds (for long-running projects like video generation).
+   * Updated by ComfyUI workers during inference.
+   */
+  get eta() {
+    return this.data.eta;
   }
 
   get finished() {
@@ -110,10 +127,10 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    */
   get progress() {
     // Worker can reduce the number of steps in the job, so we need to calculate the progress based on the actual number of steps
-    const stepsPerJob = this.jobs.length ? this.jobs[0].stepCount : this.data.params.steps;
-    const jobCount = this.data.params.numberOfImages;
+    const stepsPerJob = this.jobs.length ? this.jobs[0].stepCount : (this.data.params.steps ?? 0);
+    const jobCount = this.data.params.numberOfMedia;
     const stepsDone = this._jobs.reduce((acc, job) => acc + job.step, 0);
-    return Math.round((stepsDone / (stepsPerJob * jobCount)) * 100);
+    return Math.round((stepsDone / ((stepsPerJob ?? 1) * jobCount)) * 100);
   }
 
   get queuePosition() {
@@ -156,10 +173,10 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     }
 
     return new Promise((resolve, reject) => {
-      this.on('completed', (images) => {
+      this.once('completed', (images) => {
         resolve(images);
       });
-      this.on('failed', (error) => {
+      this.once('failed', (error) => {
         reject(error);
       });
     });
@@ -192,7 +209,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       this._timeout = null;
     }
     if (keys.includes('status') || keys.includes('jobs')) {
-      const allJobsStarted = this.jobs.length >= this.params.numberOfImages;
+      const allJobsStarted = this.jobs.length >= this.params.numberOfMedia;
       const allJobsDone = this.jobs.every((job) => job.finished);
       if (this.data.status === 'completed' && allJobsStarted && allJobsDone) {
         return this.emit('completed', this.resultUrls);
@@ -201,6 +218,16 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
         this.emit('failed', this.data.error!);
       }
     }
+  }
+
+  /**
+   * Refresh the lastUpdated timestamp to prevent timeout.
+   * Used when receiving socket events that indicate the project is still active
+   * (e.g., jobETA events during long-running video generation).
+   * @internal
+   */
+  _keepAlive() {
+    this.lastUpdated = new Date();
   }
 
   /**
@@ -231,7 +258,11 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   private _checkForTimeout() {
     if (this.lastUpdated.getTime() + PROJECT_TIMEOUT < Date.now()) {
       this._syncToServer().catch((error) => {
-        this._logger.error(error);
+        // 404 errors are expected when project is still initializing and not yet available via REST API
+        // Only log non-404 errors to avoid confusing users
+        if (error.status !== 404) {
+          this._logger.error(error);
+        }
         this._failedSyncAttempts++;
         if (this._failedSyncAttempts >= MAX_FAILED_SYNC_ATTEMPTS) {
           this._logger.error(
@@ -298,11 +329,13 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     const delta: Partial<ProjectData> = {
       params: {
         ...this.data.params,
-        numberOfImages: data.imageCount,
-        steps: data.stepCount,
-        numberOfPreviews: data.previewCount
+        numberOfMedia: data.imageCount,
+        steps: data.stepCount
       }
     };
+    if (delta.params && isImageParams(delta.params)) {
+      delta.params.numberOfPreviews = data.previewCount;
+    }
     if (PROJECT_STATUS_MAP[data.status]) {
       delta.status = PROJECT_STATUS_MAP[data.status];
     }

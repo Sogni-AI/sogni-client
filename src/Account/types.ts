@@ -24,6 +24,18 @@ export interface LoginData {
   username: string;
 }
 
+export interface MeData {
+  currentEmail: string;
+  discord2FA: boolean;
+  discordLinked: boolean;
+  discordServerMember: boolean;
+  discordUsername: string;
+  emailVerified: boolean;
+  requestedUpdatedEmail: string;
+  username: string;
+  walletAddress: string;
+}
+
 export interface BalanceData {
   settled: string;
   credit: string;
@@ -33,7 +45,12 @@ export interface BalanceData {
    * Unclaimed worker earnings amount
    * @experimental Socket messages do not provide this field yet, so it may not be available in all cases.
    */
-  unclaimed?: string;
+  relaxedUnclaimed?: string;
+  /**
+   * Unclaimed worker earnings amount
+   * @experimental Socket messages do not provide this field yet, so it may not be available in all cases.
+   */
+  fastUnclaimed?: string;
 }
 
 export interface SparkBalanceData extends BalanceData {

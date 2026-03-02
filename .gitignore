@@ -7,3 +7,5 @@ dist
 .npmrc
 /package-lock.json
 .DS_Store
+examples/output
+examples/toprocess

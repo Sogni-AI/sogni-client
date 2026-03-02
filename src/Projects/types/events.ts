@@ -48,6 +48,11 @@ export interface JobProgress extends JobEventBase {
   stepCount: number;
 }
 
+export interface JobETA extends JobEventBase {
+  type: 'jobETA';
+  etaSeconds: number;
+}
+
 export interface JobPreview extends JobEventBase {
   type: 'preview';
   url: string;
@@ -75,6 +80,7 @@ export type JobEvent =
   | JobInitiating
   | JobStarted
   | JobProgress
+  | JobETA
   | JobPreview
   | JobCompleted
   | JobError;

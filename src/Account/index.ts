@@ -5,6 +5,7 @@ import {
   ClaimOptions,
   FullBalances,
   LoginData,
+  MeData,
   Nonce,
   Reward,
   RewardRaw,
@@ -18,8 +19,8 @@ import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
 import { ApiError, ApiResponse } from '../ApiClient';
 import CurrentAccount from './CurrentAccount';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
-import { AuthUpdatedEvent, Tokens } from '../lib/AuthManager';
 import { delay } from '../lib/utils';
+import { ApiKeyAuthManager, CookieAuthManager, TokenAuthManager } from '../lib/AuthManager';
 
 const MAX_DEPOSIT_ATTEMPTS = 4;
 enum ErrorCode {
@@ -28,11 +29,11 @@ enum ErrorCode {
 }
 /**
  * Account API methods that let you interact with the user's account.
- * Can be accessed via `client.account`. Look for more samples below.
+ * Can be accessed via `sogni.account`. Look for more samples below.
  *
  * @example Retrieve the current account balance
  * ```typescript
- * const balance = await client.account.refreshBalance();
+ * const balance = await sogni.account.refreshBalance();
  * console.log(balance);
  * ```
  *
@@ -42,7 +43,13 @@ class AccountApi extends ApiGroup {
 
   constructor(config: ApiConfig) {
     super(config);
+    this.currentAccount._update({
+      networkStatus: this.client.socket.isConnected ? 'connected' : 'disconnected',
+      network: this.client.socket.supernetType
+    });
     this.client.socket.on('balanceUpdate', this.handleBalanceUpdate.bind(this));
+    this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
+    this.client.socket.on('authenticated', this.handleSocketAuthenticated.bind(this));
     this.client.on('connected', this.handleServerConnected.bind(this));
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     this.client.auth.on('updated', this.handleAuthUpdated.bind(this));
@@ -50,6 +57,10 @@ class AccountApi extends ApiGroup {
 
   private handleBalanceUpdate(data: Balances) {
     this.currentAccount._update({ balance: data });
+  }
+
+  private handleChangeNetwork({ network }: { network: SupernetType }) {
+    this.currentAccount._update({ network, networkStatus: 'connected' });
   }
 
   private handleServerConnected({ network }: { network: SupernetType }) {
@@ -60,14 +71,27 @@ class AccountApi extends ApiGroup {
   }
 
   private handleServerDisconnected() {
-    this.currentAccount._clear();
+    this.currentAccount._update({
+      networkStatus: 'disconnected',
+      network: null
+    });
   }
 
-  private handleAuthUpdated({ refreshToken, token, walletAddress }: AuthUpdatedEvent) {
-    if (!refreshToken) {
+  private handleSocketAuthenticated(data: { username: string; address: string }) {
+    // Populate account early from socket authenticated event (me() will overwrite with full data)
+    if (this.client.auth instanceof ApiKeyAuthManager) {
+      this.currentAccount._update({
+        username: data.username,
+        walletAddress: data.address
+      });
+    }
+  }
+
+  private handleAuthUpdated(isAuthenticated: boolean) {
+    if (!isAuthenticated) {
       this.currentAccount._clear();
     } else {
-      this.currentAccount._update({ walletAddress, token, refreshToken });
+      this.me();
     }
   }
 
@@ -90,7 +114,7 @@ class AccountApi extends ApiGroup {
    *
    * @example Create a wallet from username and password
    * ```typescript
-   * const wallet = client.account.getWallet('username', 'password');
+   * const wallet = sogni.account.getWallet('username', 'password');
    * console.log(wallet.address);
    * ```
    *
@@ -108,14 +132,10 @@ class AccountApi extends ApiGroup {
    * Create a new account with the given username, email, and password.
    * @internal
    */
-  async create({
-    username,
-    email,
-    password,
-    subscribe,
-    turnstileToken,
-    referralCode
-  }: AccountCreateParams): Promise<AccountCreateData> {
+  async create(
+    { username, email, password, subscribe, turnstileToken, referralCode }: AccountCreateParams,
+    rememberMe = false
+  ): Promise<AccountCreateData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
     const payload = {
@@ -130,45 +150,16 @@ class AccountApi extends ApiGroup {
     const res = await this.client.rest.post<ApiResponse<AccountCreateData>>('/v1/account/create', {
       ...payload,
       referralCode,
-      signature
+      signature,
+      rememberMe
     });
-    await this.setToken(username, { refreshToken: res.data.refreshToken, token: res.data.token });
+    const auth = this.client.auth;
+    if (auth instanceof TokenAuthManager) {
+      await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
+    } else if (auth instanceof CookieAuthManager) {
+      await auth.authenticate();
+    }
     return res.data;
-  }
-
-  /**
-   * Restore session with username and refresh token.
-   *
-   * You can save access token that you get from the login method and restore the session with this method.
-   *
-   * @example Store access token to local storage
-   * ```typescript
-   * const { username, token, refreshToken } = await client.account.login('username', 'password');
-   * localStorage.setItem('sogni-username', username);
-   * localStorage.setItem('sogni-token', token);
-   * localStorage.setItem('sogni-refresh-token', refreshToken);
-   * ```
-   *
-   * @example Restore session from local storage
-   * ```typescript
-   * const username = localStorage.getItem('sogni-username');
-   * const token = localStorage.getItem('sogni-token');
-   * const refreshToken = localStorage.getItem('sogni-refresh-token');
-   * if (username && refreshToken) {
-   *  client.account.setToken(username, {token, refreshToken});
-   *  console.log('Session restored');
-   * }
-   * ```
-   *
-   * @param username
-   * @param tokens - Refresh token, access token pair { refreshToken: string, token: string }
-   */
-  async setToken(username: string, tokens: Tokens): Promise<void> {
-    await this.client.authenticate(tokens);
-    this.currentAccount._update({
-      username,
-      walletAddress: this.client.auth.walletAddress
-    });
   }
 
   /**
@@ -176,14 +167,16 @@ class AccountApi extends ApiGroup {
    *
    * @example Login with username and password
    * ```typescript
-   * await client.account.login('username', 'password');
+   * await sogni.account.login('username', 'password');
    * console.log('Logged in');
    * ```
    *
    * @param username
    * @param password
+   * @param rememberMe - Whether to establish a long-lived session. Default is false. Only
+   * applicable for cookie-based authentication.
    */
-  async login(username: string, password: string): Promise<LoginData> {
+  async login(username: string, password: string, rememberMe = false): Promise<LoginData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
     const signature = await this.eip712.signTypedData(wallet, 'authentication', {
@@ -192,9 +185,15 @@ class AccountApi extends ApiGroup {
     });
     const res = await this.client.rest.post<ApiResponse<LoginData>>('/v1/account/login', {
       walletAddress: wallet.address,
-      signature
+      signature,
+      rememberMe
     });
-    await this.setToken(username, { refreshToken: res.data.refreshToken, token: res.data.token });
+    const auth = this.client.auth;
+    if (auth instanceof TokenAuthManager) {
+      await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
+    } else if (auth instanceof CookieAuthManager) {
+      await auth.authenticate();
+    }
     return res.data;
   }
 
@@ -203,16 +202,21 @@ class AccountApi extends ApiGroup {
    *
    * @example Logout the user
    * ```typescript
-   * await client.account.logout();
+   * await sogni.account.logout();
    * console.log('Logged out');
    * ```
    */
   async logout(): Promise<void> {
-    this.client.rest.post('/v1/account/logout').catch((e) => {
-      this.client.logger.error('Failed to logout', e);
-    });
-    this.client.removeAuth();
-    this.currentAccount._clear();
+    try {
+      await this.client.rest.post('/v1/account/logout');
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        this.client.logger.warn('Failed to logout, probably already logged out');
+      } else {
+        throw e;
+      }
+    }
+    this.client.auth.clear();
   }
 
   /**
@@ -224,7 +228,7 @@ class AccountApi extends ApiGroup {
    *
    * @example Refresh user account balance
    * ```typescript
-   * const balance = await client.account.refreshBalance();
+   * const balance = await sogni.account.refreshBalance();
    * console.log(balance);
    * ```
    */
@@ -240,12 +244,12 @@ class AccountApi extends ApiGroup {
    *
    * @example Get the account balance of the current user
    * ```typescript
-   * const balance = await client.account.accountBalance();
+   * const balance = await sogni.account.accountBalance();
    * console.log(balance);
    * ```
    */
   async accountBalance(): Promise<FullBalances> {
-    const res = await this.client.rest.get<ApiResponse<FullBalances>>('/v3/account/balance');
+    const res = await this.client.rest.get<ApiResponse<FullBalances>>('/v4/account/balance');
     return res.data;
   }
 
@@ -256,19 +260,31 @@ class AccountApi extends ApiGroup {
    *
    * @example Get the balance of the wallet address
    * ```typescript
-   * const address = client.account.currentAccount.walletAddress;
-   * const balance = await client.account.walletBalance(address);
+   * const address = sogni.account.currentAccount.walletAddress;
+   * const balance = await sogni.account.walletBalance(address);
    * console.log(balance);
    * // { token: '100.000000', ether: '0.000000' }
    * ```
    *
    * @param walletAddress
+   * @param provider - blockchain provider, 'base' or 'etherlink' defaults to 'base'
    */
-  async walletBalance(walletAddress: string) {
+  async walletBalance(walletAddress: string, provider: 'base' | 'etherlink' = 'base') {
     const res = await this.client.rest.get<
       ApiResponse<{ sogni: string; spark: string; ether: string }>
     >('/v2/wallet/balance', {
-      walletAddress
+      walletAddress,
+      provider
+    });
+    return res.data;
+  }
+
+  async me() {
+    const res = await this.client.rest.get<ApiResponse<MeData>>('/v1/account/me');
+    this.currentAccount._update({
+      username: res.data.username,
+      email: res.data.currentEmail,
+      walletAddress: res.data.walletAddress
     });
     return res.data;
   }
@@ -301,9 +317,9 @@ class AccountApi extends ApiGroup {
    *
    * @example Switch to the fast network
    * ```typescript
-   * await client.account.switchNetwork('fast');
+   * await sogni.account.switchNetwork('fast');
    * console.log('Switched to the fast network, now lets wait until we get list of models');
-   * await client.projects.waitForModels();
+   * await sogni.projects.waitForModels();
    * ```
    * @param network - Network type to switch to
    */
@@ -325,10 +341,10 @@ class AccountApi extends ApiGroup {
    *
    * @example Get the transaction history
    * ```typescript
-   * const { entries, next } = await client.account.transactionHistory({
+   * const { entries, next } = await sogni.account.transactionHistory({
    *  status: 'completed',
    *  limit: 10,
-   *  address: client.account.currentAccount.walletAddress
+   *  address: sogni.account.currentAccount.walletAddress
    * });
    * ```
    *
@@ -434,19 +450,25 @@ class AccountApi extends ApiGroup {
    * Withdraw funds from the current account to wallet.
    * @example withdraw to current wallet address
    * ```typescript
-   * await client.account.withdraw('your-account-password', 100);
+   * await sogni.account.withdraw('your-account-password', 100, 'etherlink');
    * ```
    *
    * @param password - account password
    * @param amount - amount of tokens to withdraw from account to wallet
+   * @param provider - blockchain provider, 'base' or 'etherlink' defaults to 'base'
    */
-  async withdraw(password: string, amount: number | string): Promise<void> {
+  async withdraw(
+    password: string,
+    amount: number | string,
+    provider: string = 'base'
+  ): Promise<void> {
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const walletAddress = wallet.address;
-    const nonce = await this.getNonce(walletAddress);
+    //const nonce = await this.getNonce(walletAddress);
     const payload = {
-      walletAddress: walletAddress,
-      amount: parseEther(amount.toString()).toString()
+      walletAddress,
+      amount: parseEther(amount.toString()).toString(),
+      provider
     };
     if (walletAddress !== this.currentAccount.walletAddress) {
       throw new ApiError(400, {
@@ -455,10 +477,15 @@ class AccountApi extends ApiGroup {
         errorCode: 0
       });
     }
-    const signature = await this.eip712.signTypedData(wallet, 'withdraw', { ...payload, nonce });
-    await this.client.rest.post('/v1/account/token/withdraw', {
+    const permitR = await this.client.rest.post<{ data: Record<string, any> }>(
+      '/v1/account/token/withdraw/permit',
+      payload
+    );
+    const { domain, types, message } = permitR.data;
+    const signature = await wallet.signTypedData(domain, types, message);
+    await this.client.rest.post('/v2/account/token/withdraw', {
       ...payload,
-      signature: signature
+      signature
     });
   }
 
@@ -466,19 +493,25 @@ class AccountApi extends ApiGroup {
    * Deposit tokens from wallet to account
    * @example withdraw to current wallet address
    * ```typescript
-   * await client.account.deposit('your-account-password', 100);
+   * await sogni.account.deposit('your-account-password', 100, 'base');
    * ```
    *
    * @param password - account password
    * @param amount - amount to transfer
+   * @param provider - blockchain provider, 'base' or 'etherlink' defaults to 'base'
    */
-  async deposit(password: string, amount: number | string): Promise<void> {
-    return this._deposit(password, amount, 1);
+  async deposit(
+    password: string,
+    amount: number | string,
+    provider: string = 'base'
+  ): Promise<void> {
+    return this._deposit(password, amount, provider, 1);
   }
 
   private async _deposit(
     password: string,
     amount: number | string,
+    provider: string = 'base',
     attemptCount: number = 1
   ): Promise<void> {
     const wallet = this.getWallet(this.currentAccount.username!, password);
@@ -493,7 +526,7 @@ class AccountApi extends ApiGroup {
       await this.client.rest.post('/v3/account/token/deposit', {
         walletAddress: wallet.address,
         amount: parseEther(amount.toString()).toString(),
-        provider: 'base'
+        provider: provider
       });
     } catch (error) {
       if (error instanceof ApiError) {
@@ -501,13 +534,13 @@ class AccountApi extends ApiGroup {
           // If this is the first attempt, we need to approve the token usage,
           // otherwise we can retry the deposit directly.
           if (attemptCount === 1) {
-            await this.approveTokenUsage(password, 'account');
+            await this.approveTokenUsage(password, 'account', provider);
           }
           if (attemptCount >= MAX_DEPOSIT_ATTEMPTS) {
             throw error;
           }
           await delay(10000); // Wait for the approval transaction to be processed
-          await this._deposit(password, amount, attemptCount + 1);
+          await this._deposit(password, amount, provider, attemptCount + 1);
           return;
         }
         throw error;

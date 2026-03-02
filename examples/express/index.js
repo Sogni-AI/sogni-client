@@ -6,15 +6,15 @@ const USERNAME = 'your-username';
 const PASSWORD = 'your-password';
 const APP_ID = 'your-app-id';
 
-let client;
+let sogni;
 SogniClient.createInstance({
   appId: APP_ID,
   network: 'fast' // 'fast' or 'relaxed'
 })
   .then(async (clientInstance) => {
-    client = clientInstance;
-    await client.account.login(USERNAME, PASSWORD);
-    await client.projects.waitForModels();
+    sogni = clientInstance;
+    await sogni.account.login(USERNAME, PASSWORD);
+    await sogni.projects.waitForModels();
     console.log('SogniClient instance created');
     app.listen(3000);
   })
@@ -37,13 +37,14 @@ app.get('/', function (req, res) {
 app.post('/api/generate', async function (req, res) {
   const { prompt, style } = req.body;
   try {
-    const project = await client.projects.create({
+    const project = await sogni.projects.create({
+      type: 'image',
       modelId: 'flux1-schnell-fp8',
       positivePrompt: prompt,
       stylePrompt: style,
       steps: 4,
       guidance: 1,
-      numberOfImages: 1,
+      numberOfMedia: 1,
       tokenType: 'spark', // 'sogni' or 'spark'
       network: 'fast' // 'fast' or 'relaxed'
     });

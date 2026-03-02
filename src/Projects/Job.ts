@@ -9,6 +9,7 @@ import Project from './Project';
 import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import { getEnhacementStrength } from './utils';
 import { TokenType } from '../types/token';
+import has from 'lodash/has';
 
 export const enhancementDefaults = {
   network: 'fast' as SupernetType,
@@ -19,7 +20,7 @@ export const enhancementDefaults = {
   startingImageStrength: 0.5,
   steps: 5,
   guidance: 1,
-  numberOfImages: 1,
+  numberOfMedia: 1,
   numberOfPreviews: 0
 };
 
@@ -61,6 +62,17 @@ export interface JobData {
   positivePrompt?: string;
   negativePrompt?: string;
   jobIndex?: number;
+  /**
+   * Estimated time remaining in seconds (for long-running jobs like video generation).
+   * Updated by ComfyUI workers during inference.
+   * @deprecated Use `eta` instead.
+   */
+  etaSeconds?: number;
+  /**
+   * Estimate completion time of the job (for long-running jobs like video generation).
+   * Updated by ComfyUI workers during inference.
+   */
+  eta?: Date;
 }
 
 export interface JobEventMap extends EntityEvents {
@@ -178,8 +190,21 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.data.error;
   }
 
-  get hasResultImage() {
+  /**
+   * Whether this job has a result media file available for download.
+   * Returns true if completed and not NSFW filtered.
+   */
+  get hasResultMedia() {
     return this.status === 'completed' && !this.isNSFW;
+  }
+
+  /**
+   * Media type produced by this job's model
+   */
+  get type(): 'image' | 'video' | 'audio' {
+    if (this._api.isVideoModelId(this._project.params.modelId)) return 'video';
+    if (this._api.isAudioModelId(this._project.params.modelId)) return 'audio';
+    return 'image';
   }
 
   get enhancedImage() {
@@ -198,18 +223,63 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
+   * Get the MIME content type for audio downloads based on the project's output format.
+   */
+  private get _audioContentType(): string {
+    const format = (this._project.params as any).outputFormat;
+    switch (format) {
+      case 'flac':
+        return 'audio/flac';
+      case 'wav':
+        return 'audio/wav';
+      default:
+        return 'audio/mpeg';
+    }
+  }
+
+  /**
+   * Get the MIME content type for image downloads based on the project's output format.
+   */
+  private get _imageContentType(): string | undefined {
+    const format = (this._project.params as any).outputFormat;
+    switch (format) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'webp':
+        return 'image/webp';
+      case 'png':
+        return 'image/png';
+      default:
+        return undefined;
+    }
+  }
+
+  /**
    * Get the result URL of the job. This method will make a request to the API to get signed URL.
-   * IMPORTANT: URL expires after 30 minutes, so make sure to download the image as soon as possible.
+   * IMPORTANT: URL expires after 30 minutes, so make sure to download the result as soon as possible.
+   * For video jobs, this returns a video URL. For image jobs, this returns an image URL.
    */
   async getResultUrl(): Promise<string> {
     if (this.data.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
-    const url = await this._api.downloadUrl({
-      jobId: this.projectId,
-      imageId: this.id,
-      type: 'complete'
-    });
+    let url: string;
+    if (this.type === 'video' || this.type === 'audio') {
+      url = await this._api.mediaDownloadUrl({
+        jobId: this.projectId,
+        id: this.id,
+        type: 'complete',
+        ...(this.type === 'audio' ? { contentType: this._audioContentType } : {})
+      });
+    } else {
+      url = await this._api.downloadUrl({
+        jobId: this.projectId,
+        imageId: this.id,
+        type: 'complete',
+        ...(this._imageContentType ? { contentType: this._imageContentType } : {})
+      });
+    }
     this._update({ resultUrl: url });
     return url;
   }
@@ -231,6 +301,26 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
+   * Estimated time remaining in seconds for long-running jobs (e.g., video generation).
+   * Only available for ComfyUI-based workers during inference.
+   * Returns undefined if no ETA has been received.
+   * @deprecated Use `timeLeft` instead.
+   */
+  get etaSeconds() {
+    return this.data.etaSeconds;
+  }
+
+  /**
+   * Estimate completion time of the job.
+   * Only available for ComfyUI-based workers during inference.
+   * Is useful when data is persisted
+   * Returns undefined if no ETA has been received.
+   */
+  get eta() {
+    return this.data.eta;
+  }
+
+  /**
    * Syncs the job data with the data received from the REST API.
    * @internal
    * @param data
@@ -247,16 +337,41 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
     if (!this.data.resultUrl && delta.status === 'completed' && !data.triggeredNSFWFilter) {
       try {
-        delta.resultUrl = await this._api.downloadUrl({
-          jobId: this.projectId,
-          imageId: this.id,
-          type: 'complete'
-        });
+        if (this.type === 'video' || this.type === 'audio') {
+          delta.resultUrl = await this._api.mediaDownloadUrl({
+            jobId: this.projectId,
+            id: this.id,
+            type: 'complete',
+            ...(this.type === 'audio' ? { contentType: this._audioContentType } : {})
+          });
+        } else {
+          delta.resultUrl = await this._api.downloadUrl({
+            jobId: this.projectId,
+            imageId: this.id,
+            type: 'complete',
+            ...(this._imageContentType ? { contentType: this._imageContentType } : {})
+          });
+        }
       } catch (error) {
         this._logger.error(error);
       }
     }
     this._update(delta);
+  }
+
+  /**
+   * Updates the job data with the provided delta.
+   * @internal
+   * @param delta
+   */
+  _update(delta: Partial<JobData>) {
+    if (has(delta, 'eta')) {
+      // Keeping etaSeconds for backwards compatibility
+      if (delta.eta) {
+        delta.etaSeconds = Math.round((delta.eta.getTime() - Date.now()) / 1000);
+      }
+    }
+    super._update(delta);
   }
 
   private handleUpdated(keys: string[]) {
@@ -276,8 +391,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   async getResultData() {
-    if (!this.hasResultImage) {
-      throw new Error('No result image available');
+    if (!this.hasResultMedia) {
+      throw new Error('No result media available');
     }
     const url = await this.getResultUrl();
     const response = await fetch(url);
@@ -297,6 +412,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
     strength: EnhancementStrength,
     overrides: { positivePrompt?: string; stylePrompt?: string; tokenType?: TokenType } = {}
   ) {
+    const parentProjectParams = this._project.params;
+    if (parentProjectParams.type !== 'image') {
+      throw new Error('Enhancement is only available for images');
+    }
     if (this.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
@@ -309,6 +428,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
     const imageData = await this.getResultData();
     const project = await this._api.create({
+      type: 'image',
       ...enhancementDefaults,
       positivePrompt: overrides.positivePrompt || this._project.params.positivePrompt,
       stylePrompt: overrides.stylePrompt || this._project.params.stylePrompt,
@@ -316,7 +436,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       seed: this.seed || this._project.params.seed,
       startingImage: imageData,
       startingImageStrength: 1 - getEnhacementStrength(strength),
-      sizePreset: this._project.params.sizePreset
+      sizePreset: parentProjectParams.sizePreset
     });
     this._enhancementProject = project;
     this._enhancementProject.on('updated', this.handleEnhancementUpdate);

@@ -3,11 +3,15 @@ import WebSocketClient from './WebSocketClient';
 import TypedEventEmitter from '../lib/TypedEventEmitter';
 import { ApiClientEvents } from './events';
 import { ServerConnectData, ServerDisconnectData } from './WebSocketClient/events';
-import { isNotRecoverable } from './WebSocketClient/ErrorCode';
+import { ErrorCode, isNotRecoverable } from './WebSocketClient/ErrorCode';
 import { JSONValue } from '../types/json';
-import { SupernetType } from './WebSocketClient/types';
+import { IWebSocketClient, SupernetType } from './WebSocketClient/types';
 import { Logger } from '../lib/DefaultLogger';
-import AuthManager, { Tokens } from '../lib/AuthManager';
+import ApiKeyAuthManager from '../lib/AuthManager/ApiKeyAuthManager';
+import CookieAuthManager from '../lib/AuthManager/CookieAuthManager';
+import { AuthManager, TokenAuthManager } from '../lib/AuthManager';
+import isNodejs from '../lib/isNodejs';
+import BrowserWebSocketClient from './WebSocketClient/BrowserWebSocketClient';
 
 const WS_RECONNECT_ATTEMPTS = 5;
 
@@ -33,32 +37,56 @@ export class ApiError extends Error {
   }
 }
 
+export interface ApiClientOptions {
+  baseUrl: string;
+  socketUrl: string;
+  appId: string;
+  networkType: SupernetType;
+  logger: Logger;
+  authType: 'token' | 'cookies' | 'apiKey';
+  disableSocket?: boolean;
+  multiInstance?: boolean;
+}
+
 class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   readonly appId: string;
   readonly logger: Logger;
   private _rest: RestClient;
-  private _socket: WebSocketClient;
+  private _socket: IWebSocketClient;
   private _auth: AuthManager;
   private _reconnectAttempts = WS_RECONNECT_ATTEMPTS;
   private _disableSocket: boolean = false;
 
-  constructor(
-    baseUrl: string,
-    socketUrl: string,
-    appId: string,
-    networkType: SupernetType,
-    logger: Logger,
-    disableSocket: boolean = false
-  ) {
+  constructor({
+    baseUrl,
+    socketUrl,
+    appId,
+    networkType,
+    authType,
+    logger,
+    disableSocket = false,
+    multiInstance = false
+  }: ApiClientOptions) {
     super();
     this.appId = appId;
     this.logger = logger;
-    this._auth = new AuthManager(baseUrl, logger);
+    if (authType === 'apiKey') {
+      this._auth = new ApiKeyAuthManager(logger);
+    } else if (authType === 'token') {
+      this._auth = new TokenAuthManager(baseUrl, logger);
+    } else {
+      this._auth = new CookieAuthManager(logger);
+    }
     this._rest = new RestClient(baseUrl, this._auth, logger);
-    this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+    const supportMultiInstance = !isNodejs && this._auth instanceof CookieAuthManager;
+    if (supportMultiInstance && multiInstance) {
+      // Use coordinated WebSocket client to share single connection between tabs
+      this._socket = new BrowserWebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+    } else {
+      this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+    }
     this._disableSocket = disableSocket;
-
-    this._auth.on('refreshFailed', this.handleRefreshFailed.bind(this));
+    this._auth.on('updated', this.handleAuthUpdated.bind(this));
     this._socket.on('connected', this.handleSocketConnect.bind(this));
     this._socket.on('disconnected', this.handleSocketDisconnect.bind(this));
   }
@@ -67,11 +95,11 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     return this.auth.isAuthenticated;
   }
 
-  get auth(): AuthManager {
+  get auth() {
     return this._auth;
   }
 
-  get socket(): WebSocketClient {
+  get socket(): IWebSocketClient {
     return this._socket;
   }
 
@@ -83,34 +111,32 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     return !this._disableSocket;
   }
 
-  async authenticate(tokens: Tokens) {
-    await this.auth.setTokens(tokens);
-    if (!this._disableSocket) {
-      await this.socket.connect();
-    }
-  }
-
-  removeAuth() {
-    this.auth.clear();
-    if (this.socket.isConnected) {
-      this.socket.disconnect();
-    }
-  }
-
   handleSocketConnect({ network }: ServerConnectData) {
     this._reconnectAttempts = WS_RECONNECT_ATTEMPTS;
     this.emit('connected', { network });
   }
 
   handleSocketDisconnect(data: ServerDisconnectData) {
+    // If user is not authenticated, we don't need to reconnect
+    if (!this.auth.isAuthenticated || data.code === 1000) {
+      this.emit('disconnected', data);
+      return;
+    }
     if (!data.code || isNotRecoverable(data.code)) {
-      this.removeAuth();
+      // If this is browser, another tab is probably claiming the connection, so we don't need to reconnect
+      if (
+        this._socket instanceof BrowserWebSocketClient &&
+        data.code === ErrorCode.SWITCH_CONNECTION
+      ) {
+        this.logger.debug('Switching network connection, not reconnecting');
+        return;
+      }
+      this.auth.clear();
       this.emit('disconnected', data);
       this.logger.error('Not recoverable socket error', data);
       return;
     }
     if (this._reconnectAttempts <= 0) {
-      this.removeAuth();
       this.emit('disconnected', data);
       this._reconnectAttempts = WS_RECONNECT_ATTEMPTS;
       return;
@@ -119,8 +145,14 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     setTimeout(() => this.socket.connect(), 1000);
   }
 
-  handleRefreshFailed() {
-    this.removeAuth();
+  handleAuthUpdated(isAuthenticated: boolean) {
+    if (!isAuthenticated) {
+      if (this.socket.isConnected) {
+        this.socket.disconnect();
+      }
+    } else if (!this._disableSocket && !this.socket.isConnected) {
+      this.socket.connect();
+    }
   }
 }
 

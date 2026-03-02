@@ -1,5 +1,6 @@
 import { SupernetType } from './types';
 import { Balances } from '../../Account/types';
+import { LLMJobCost, LLMModelInfo, ToolCallDelta } from '../../Chat/types';
 
 export interface AuthenticatedData {
   id: string;
@@ -48,6 +49,12 @@ export type JobProgressData = {
   stepCount: number;
 };
 
+export type JobETAData = {
+  jobID: string;
+  imgID?: string;
+  etaSeconds: number;
+};
+
 export type JobResultData = {
   jobID: string;
   imgID: string;
@@ -55,6 +62,7 @@ export type JobResultData = {
   lastSeed: string;
   userCanceled: boolean;
   triggeredNSFWFilter: boolean;
+  resultUrl?: string;
 };
 
 export type JobStateData =
@@ -66,6 +74,11 @@ export type JobStateData =
       positivePrompt?: string;
       negativePrompt?: string;
       jobIndex?: number;
+    }
+  | {
+      type: 'assigned';
+      jobID: string;
+      workerName: string;
     }
   | {
       jobID: string;
@@ -100,6 +113,41 @@ export type ArtistCancelConfirmation = {
   jobID: string;
 };
 
+export type JobTokensData = {
+  jobID: string;
+  content?: string;
+  role?: string;
+  finishReason?: string | null;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens?: number;
+  };
+  tool_calls?: ToolCallDelta[];
+};
+
+export type LLMJobResultData = {
+  jobID: string;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens?: number;
+  };
+  timeTaken: number;
+  /** Actual cost breakdown from server settlement */
+  cost?: LLMJobCost;
+  /** Worker username that processed this request */
+  workerName?: string;
+};
+
+export type LLMJobErrorData = {
+  jobID: string;
+  error: string;
+  error_message: string;
+  /** Worker username that was processing this request (if assigned) */
+  workerName?: string;
+};
+
 export type SocketEventMap = {
   /**
    * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
@@ -122,6 +170,11 @@ export type SocketEventMap = {
    */
   jobProgress: JobProgressData;
   /**
+   * @event WebSocketClient#jobETA - Job ETA update (sent every second during inference by ComfyUI workers)
+   * Note: Only available for ComfyUI-based workers during video generation
+   */
+  jobETA: JobETAData;
+  /**
    * @event WebSocketClient#jobResult - Job result received
    */
   jobResult: JobResultData;
@@ -130,9 +183,27 @@ export type SocketEventMap = {
    */
   jobState: JobStateData;
   /**
+   * @event WebSocketClient#jobTokens - LLM token stream chunk received
+   * Sent by LLM workers during chat completion streaming
+   */
+  jobTokens: JobTokensData;
+  /**
+   * @event WebSocketClient#llmJobResult - LLM job completed with usage data
+   * Sent by LLM workers when a chat completion finishes
+   */
+  llmJobResult: LLMJobResultData;
+  /**
+   * @event WebSocketClient#llmJobError - LLM job error
+   */
+  llmJobError: LLMJobErrorData;
+  /**
    * @event WebSocketClient#swarmModels - Received swarm model count
    */
   swarmModels: Record<string, number>;
+  /**
+   * @event WebSocketClient#swarmLLMModels - Available LLM models with worker counts
+   */
+  swarmLLMModels: Record<string, number | LLMModelInfo>;
   /**
    * @event WebSocketClient#connected - WebSocket connection opened
    */
@@ -148,3 +219,5 @@ export type SocketEventMap = {
 
   artistCancelConfirmation: ArtistCancelConfirmation;
 };
+
+export type SocketEventName = keyof SocketEventMap;
