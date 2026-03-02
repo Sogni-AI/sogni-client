@@ -489,7 +489,7 @@ async function main() {
 
     // Get cost estimate
     log('💵', 'Fetching cost estimate...');
-    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, guidance || 0, OPTIONS.width, OPTIONS.height, OPTIONS.batch, OPTIONS.previews);
+    const estimate = await getImageJobEstimate(tokenType, modelConfig.id, steps, guidance || 0, OPTIONS.width, OPTIONS.height, OPTIONS.batch, OPTIONS.previews, OPTIONS.sampler);
     console.log();
     console.log('📊 Cost Estimate:');
 
@@ -846,12 +846,12 @@ async function main() {
 /**
  * Get image job cost estimate
  */
-async function getImageJobEstimate(tokenType, modelId, steps, guidance = 0, width = 1024, height = 1024, imageCount = 1, previewCount = 5) {
+async function getImageJobEstimate(tokenType, modelId, steps, guidance = 0, width = 1024, height = 1024, imageCount = 1, previewCount = 5, sampler = 'euler') {
   const network = 'fast';
   const stepCount = steps;
   const cnEnabled = false;
   const denoiseStrength = 1.0;
-  const scheduler = 'euler';
+  const scheduler = sampler;
   const contextCount = 0;
 
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
