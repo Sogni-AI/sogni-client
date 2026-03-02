@@ -3,9 +3,19 @@
  * Text Chat with Sogni Platform Tools
  *
  * Single-turn chat that generates images, videos, and music through natural
- * language. Detects media generation intent from the user's message, uses the
- * LLM to enhance prompts (or compose full songs), then generates media directly
- * via the Sogni Projects API and opens the result.
+ * language. Uses LLM tool calling to detect media generation intent, then
+ * routes through specialized composition pipelines (IMAGE_SYSTEM_PROMPT,
+ * VIDEO_SYSTEM_PROMPT, AUDIO_SYSTEM_PROMPT) for prompt engineering before
+ * generating media via the Sogni Projects API.
+ *
+ * Architecture: Hybrid Tool Calling + Composition Pipeline
+ *   1. LLM receives user message with tool definitions (tool_choice: 'auto')
+ *   2. If media requested → LLM emits tool call with raw user intent
+ *   3. Script intercepts tool call → routes to compose*() pipeline
+ *   4. Composition pipeline enhances prompt via specialized LLM call
+ *   5. generateMedia() creates project, tracks progress, downloads result
+ *   6. Tool result fed back to LLM for natural language summary
+ *   If no tool call → normal conversation response
  *
  * Default Generation Models:
  *   Image: z_image_turbo_bf16
@@ -21,6 +31,7 @@
  *   node workflow_text_chat_sogni_tools.mjs "Compose a jazz song about the rain"
  *   node workflow_text_chat_sogni_tools.mjs "Generate a video of ocean waves at sunset"
  *   node workflow_text_chat_sogni_tools.mjs "What is the meaning of life?"
+ *   node workflow_text_chat_sogni_tools.mjs "Tell me about ocean waves"  (conversation, no generation)
  *
  * Options:
  *   --model         LLM model ID (default: qwen3-30b-a3b-gptq-int4)
@@ -34,7 +45,7 @@
  *   --help          Show this help message
  */
 
-import { SogniClient } from '../dist/index.js';
+import { SogniClient, isSogniToolCall, parseToolCallArguments } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 import { askQuestion, calculateVideoFrames } from './workflow-helpers.mjs';
 import * as fs from 'node:fs';
@@ -64,7 +75,7 @@ function parseArgs() {
     think: true,
     thinkExplicit: false,
     quantity: 1,
-    duration: 10,
+    duration: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -131,32 +142,62 @@ Default Generation Models:
 }
 
 // ============================================================
-// Media intent detection
+// Hybrid tool definitions (intent detection via LLM tool calling)
 // ============================================================
 
-// Detect what type of media the user wants from their message.
-// Returns 'image' | 'video' | 'audio' | null.
-function detectMediaIntent(text) {
-  const lower = text.toLowerCase();
+// Simplified tool definitions that tell the LLM to pass raw user intent.
+// The composition pipeline (composeVideo, composeImage, composeSong) handles
+// all prompt engineering — these tools just capture what the user asked for.
+const HYBRID_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'sogni_generate_image',
+      description: 'Generate an image. Call this when the user wants to create, draw, or make an image or picture.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: { type: 'string', description: "The user's image request in their own words. Pass through what they asked for — do NOT add style, lighting, or composition details." },
+        },
+        required: ['prompt'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'sogni_generate_video',
+      description: 'Generate a short video. Call this when the user wants to create, make, or generate a video, clip, or animation.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: { type: 'string', description: "The user's video request in their own words. Pass through what they asked for — do NOT add camera, lighting, or scene details." },
+          duration: { type: 'number', description: 'Video duration in seconds (1-10). Only set if the user specifies a duration.' },
+        },
+        required: ['prompt'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'sogni_generate_music',
+      description: 'Generate a music track or song. Call this when the user wants to create, compose, or make music, a song, a beat, or audio.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: { type: 'string', description: "The user's music request in their own words. Pass through what they asked for — do NOT add instrument, tempo, or production details." },
+        },
+        required: ['prompt'],
+      },
+    },
+  },
+];
 
-  const videoWords = ['video', 'clip', 'animation', 'animate', 'movie', 'film'];
-  const audioWords = ['music', 'song', 'track', 'beat', 'melody', 'tune', 'audio', 'compose', 'composition'];
-  const imageWords = ['image', 'picture', 'photo', 'illustration', 'artwork', 'portrait', 'drawing', 'painting'];
-  const actionWords = ['generate', 'create', 'make', 'draw', 'paint', 'sketch', 'render', 'produce', 'design', 'write'];
-
-  const hasAction = actionWords.some(w => lower.includes(w));
-  const hasVideo = videoWords.some(w => lower.includes(w));
-  const hasAudio = audioWords.some(w => lower.includes(w));
-  const hasImage = imageWords.some(w => lower.includes(w));
-
-  // Explicit type mention takes priority
-  if (hasVideo) return 'video';
-  if (hasAudio) return 'audio';
-  if (hasImage) return 'image';
-
-  // Action words alone (e.g., "draw me a dog") imply image
-  if (hasAction) return 'image';
-
+function toolNameToMediaType(name) {
+  if (name === 'sogni_generate_image') return 'image';
+  if (name === 'sogni_generate_video') return 'video';
+  if (name === 'sogni_generate_music') return 'audio';
   return null;
 }
 
@@ -1072,7 +1113,13 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
 // ============================================================
 
 function buildSystemPrompt(customPrompt) {
-  return customPrompt || `You generate tool-call JSON for a media generation platform.\nReturn ONLY valid JSON that matches the provided schema. No extra text.\nDo not include system rules or meta-instructions inside generated fields.`;
+  if (customPrompt) return customPrompt;
+  return [
+    'You are a creative assistant with access to the Sogni Supernet for generating images, videos, and music.',
+    'When the user asks to create, generate, draw, compose, or produce any media, call the appropriate tool immediately. Do not describe what you plan to create — just call the tool.',
+    'For the tool\'s "prompt" argument, pass the user\'s creative intent as a concise description. Do NOT rewrite or elaborate the prompt yourself — a specialist will enhance it.',
+    'When the user is having a conversation and not requesting media, respond normally without calling tools.',
+  ].join('\n');
 }
 
 async function chatWithLLM(sogni, messages, options, tokenType) {
@@ -1125,6 +1172,64 @@ async function chatWithLLM(sogni, messages, options, tokenType) {
   } finally {
     sogni.chat.off('jobState', stateHandler);
   }
+}
+
+// ============================================================
+// Handle tool calls — bridge to composition pipeline
+// ============================================================
+
+async function handleToolCalls(sogni, toolCalls, options, tokenType) {
+  const results = [];
+
+  for (const toolCall of toolCalls) {
+    if (!isSogniToolCall(toolCall)) {
+      results.push({ tool_call_id: toolCall.id, content: JSON.stringify({ success: false, error: `Unknown tool: ${toolCall.function.name}` }) });
+      continue;
+    }
+
+    const args = parseToolCallArguments(toolCall);
+    const mediaType = toolNameToMediaType(toolCall.function.name);
+    const rawPrompt = args.prompt || options.prompt;
+    const startTime = Date.now();
+
+    console.log(`\n  Tool call: ${toolCall.function.name}`);
+    console.log(`  Intent: ${rawPrompt.substring(0, 120)}${rawPrompt.length > 120 ? '...' : ''}`);
+
+    let result = null;
+    try {
+      if (mediaType === 'audio') {
+        const songParams = await composeSong(sogni, rawPrompt, options, tokenType);
+        if (songParams) result = await generateMedia(sogni, 'audio', songParams, tokenType, options.quantity, options);
+      } else if (mediaType === 'image') {
+        const imageParams = await composeImage(sogni, rawPrompt, options, tokenType);
+        if (imageParams) result = await generateMedia(sogni, 'image', imageParams, tokenType, options.quantity, options);
+      } else if (mediaType === 'video') {
+        const duration = options.duration || args.duration || 10;
+        const videoParams = await composeVideo(sogni, rawPrompt, options, tokenType, duration);
+        if (videoParams) result = await generateMedia(sogni, 'video', videoParams, tokenType, options.quantity, { ...options, duration });
+      }
+    } catch (err) {
+      console.error(`\n  Media generation error: ${err.message}`);
+    }
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(); console.log('-'.repeat(60));
+    console.log(`Type:        ${mediaType}`);
+    if (result) {
+      console.log(`Model:       ${result.model}`);
+      if (result.files?.length > 1) console.log(`Files:       ${result.files.filter(f => f.localPath).length} saved`);
+      else if (result.localPath) console.log(`File:        ${result.localPath}`);
+    }
+    console.log(`Time:        ${elapsed}s`);
+
+    results.push({
+      tool_call_id: toolCall.id,
+      content: JSON.stringify(result
+        ? { success: true, media_type: mediaType, model: result.model, prompt: result.prompt, files_saved: result.files?.filter(f => f.localPath).length || (result.localPath ? 1 : 0) }
+        : { success: false, media_type: mediaType, error: 'Generation cancelled or failed' }),
+    });
+  }
+  return results;
 }
 
 // ============================================================
@@ -1224,55 +1329,80 @@ async function main() {
   const userInput = options.prompt;
   console.log(`Prompt: ${userInput}`);
 
-  const mediaType = detectMediaIntent(userInput);
+  // Build messages with tool-aware system prompt
+  const systemPrompt = buildSystemPrompt(options.system);
+  const userContent = options.think ? userInput : `${userInput} /no_think`;
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userContent },
+  ];
 
-  if (mediaType) {
-    console.log(`Detected: ${mediaType} generation request`);
+  // LLM call: let the model decide intent via tool calling
+  const stateHandler = (event) => {
+    if (event.type === 'pending') console.log(`Status:      pending authorization`);
+    else if (event.type === 'queued') console.log(`Status:      queued`);
+    else if (event.type === 'assigned' && event.workerName) console.log(`Worker:      ${event.workerName} (assigned)`);
+    else if (event.type === 'jobStarted' && event.workerName) console.log(`Worker:      ${event.workerName} (started)`);
+  };
+  sogni.chat.on('jobState', stateHandler);
 
-    const startTime = Date.now();
+  try {
+    const stream = await sogni.chat.completions.create({
+      model: options.model,
+      messages,
+      max_tokens: options.maxTokens,
+      temperature: options.temperature,
+      top_p: options.topP,
+      stream: true,
+      tokenType,
+      tools: HYBRID_TOOLS,
+      tool_choice: 'auto',
+    });
 
-    let result;
-    try {
-      if (mediaType === 'audio') {
-        // Compose full song specification via LLM, then generate
-        const songParams = await composeSong(sogni, userInput, options, tokenType);
-        if (songParams) result = await generateMedia(sogni, 'audio', songParams, tokenType, options.quantity, options);
-      } else if (mediaType === 'image') {
-        // Compose image specification via LLM (prompt + size), then generate
-        const imageParams = await composeImage(sogni, userInput, options, tokenType);
-        if (imageParams) result = await generateMedia(sogni, 'image', imageParams, tokenType, options.quantity, options);
-      } else {
-        // Compose video specification via LLM (prompt + camera/shot metadata), then generate
-        const videoParams = await composeVideo(sogni, userInput, options, tokenType, options.duration);
-        if (videoParams) result = await generateMedia(sogni, 'video', videoParams, tokenType, options.quantity, options);
+    // Stream response (text for conversation, empty for tool calls)
+    let content = '';
+    let hasContent = false;
+    for await (const chunk of stream) {
+      if (chunk.content) {
+        if (!hasContent) { process.stdout.write('\nAssistant: '); hasContent = true; }
+        process.stdout.write(chunk.content);
+        content += chunk.content;
       }
-    } catch (err) {
-      console.error(`\n  Media generation error: ${err.message}`);
-      result = null;
     }
+    if (hasContent) console.log();
 
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log();
-    console.log('-'.repeat(60));
-    console.log(`Type:        ${mediaType}`);
-    if (result) {
-      console.log(`Model:       ${result.model}`);
-      if (result.files && result.files.length > 1) {
-        console.log(`Files:       ${result.files.filter(f => f.localPath).length} saved`);
-      } else if (result.localPath) {
-        console.log(`File:        ${result.localPath}`);
+    const result = stream.finalResult;
+    const toolCalls = stream.toolCalls;
+
+    if (toolCalls.length > 0) {
+      // ---- TOOL CALLING PATH ----
+      console.log(`\n  LLM requested ${toolCalls.length} tool call${toolCalls.length > 1 ? 's' : ''}`);
+
+      const toolResults = await handleToolCalls(sogni, toolCalls, options, tokenType);
+
+      // Feed results back to LLM for summary (no tools — pure text response)
+      const followUpMessages = [
+        ...messages,
+        { role: 'assistant', content: content || null, tool_calls: toolCalls },
+        ...toolResults.map(tr => ({ role: 'tool', content: tr.content, tool_call_id: tr.tool_call_id })),
+      ];
+      await chatWithLLM(sogni, followUpMessages, options, tokenType);
+    } else {
+      // ---- CONVERSATION PATH ----
+      if (result) {
+        const elapsed = result.timeTaken.toFixed(2);
+        console.log(); console.log('-'.repeat(60));
+        if (result.workerName) console.log(`Worker:      ${result.workerName}`);
+        console.log(`Time:        ${elapsed}s`);
+        if (result.usage) {
+          const tps = result.usage.completion_tokens / result.timeTaken;
+          console.log(`Tokens:      ${result.usage.prompt_tokens} prompt + ${result.usage.completion_tokens} completion = ${result.usage.total_tokens} total`);
+          console.log(`Speed:       ${tps.toFixed(1)} tokens/sec`);
+        }
       }
     }
-    console.log(`Time:        ${elapsed}s`);
-  } else {
-    // Normal conversation (no media detected)
-    const systemPrompt = buildSystemPrompt(options.system);
-    const userContent = options.think ? userInput : `${userInput} /no_think`;
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userContent },
-    ];
-    await chatWithLLM(sogni, messages, options, tokenType);
+  } finally {
+    sogni.chat.off('jobState', stateHandler);
   }
 
   process.exit(0);
