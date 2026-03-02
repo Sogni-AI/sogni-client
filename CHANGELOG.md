@@ -1,3 +1,10 @@
+# [4.0.0-alpha.72](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.71...v4.0.0-alpha.72) (2026-03-02)
+
+
+### Features
+
+* add ChatToolsApi with auto tool execution and think parameter ([2e79672](https://github.com/Sogni-AI/sogni-client/commit/2e79672c1596e022c84582ae5ae6805a3d7698ff))
+
 # [4.0.0-alpha.71](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.70...v4.0.0-alpha.71) (2026-02-27)
 
 
