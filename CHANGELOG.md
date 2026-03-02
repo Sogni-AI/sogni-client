@@ -1,3 +1,15 @@
+# [4.1.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0...v4.1.0-alpha.1) (2026-03-02)
+
+
+### Bug Fixes
+
+* Prevent stack overflow in base64Encode for large payloads ([14e21be](https://github.com/Sogni-AI/sogni-client/commit/14e21beb4ded5114886e9e949c102666d25536af))
+
+
+### Features
+
+* Add vision chat support with multimodal image understanding ([8253c1b](https://github.com/Sogni-AI/sogni-client/commit/8253c1b5c84d7c14b834d9e01d86bf832c1574e8))
+
 # [4.0.0](https://github.com/Sogni-AI/sogni-client/compare/v3.3.1...v4.0.0) (2026-03-02)
 
 
