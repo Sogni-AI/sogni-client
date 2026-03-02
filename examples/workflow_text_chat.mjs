@@ -171,6 +171,15 @@ async function main() {
     ...(restEndpoint && { restEndpoint }),
   });
 
+  // Guard against stale SDK builds in local development.
+  if (!sogni.chat || typeof sogni.chat.completions?.create !== 'function') {
+    console.error('This example requires the Chat API, but the loaded SDK build does not expose `sogni.chat`.');
+    console.error('If you are running from a local checkout, rebuild the SDK from repository root:');
+    console.error('  npm run build');
+    console.error('Then run this example again from the examples directory.');
+    process.exit(1);
+  }
+
   if (!credentials.apiKey) {
     await sogni.account.login(credentials.username, credentials.password);
     console.log(`Logged in as: ${credentials.username}`);
@@ -257,19 +266,21 @@ async function main() {
   }
 
   // Listen for job state events (worker assignment)
-  sogni.chat.on('jobState', (event) => {
-    if (event.type === 'pending') {
-      console.log(`Status:       pending authorization`);
-    } else if (event.type === 'queued') {
-      console.log(`Status:       queued`);
-    } else if (event.type === 'assigned' && event.workerName) {
-      console.log(`Worker:       ${event.workerName} (assigned)`);
-    } else if (event.type === 'initiatingModel' && event.workerName) {
-      console.log(`Worker:       ${event.workerName} (initiating)`);
-    } else if (event.type === 'jobStarted' && event.workerName) {
-      console.log(`Worker:       ${event.workerName} (started)`);
-    }
-  });
+  if (typeof sogni.chat.on === 'function') {
+    sogni.chat.on('jobState', (event) => {
+      if (event.type === 'pending') {
+        console.log(`Status:       pending authorization`);
+      } else if (event.type === 'queued') {
+        console.log(`Status:       queued`);
+      } else if (event.type === 'assigned' && event.workerName) {
+        console.log(`Worker:       ${event.workerName} (assigned)`);
+      } else if (event.type === 'initiatingModel' && event.workerName) {
+        console.log(`Worker:       ${event.workerName} (initiating)`);
+      } else if (event.type === 'jobStarted' && event.workerName) {
+        console.log(`Worker:       ${event.workerName} (started)`);
+      }
+    });
+  }
 
   console.log('Waiting for response...');
   console.log();
