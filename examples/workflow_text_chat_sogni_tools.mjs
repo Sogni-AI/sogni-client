@@ -40,14 +40,14 @@
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
  *   --system        System prompt override
  *   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
- *   --duration      Video duration in seconds, 1-10 (default: 10)
+ *   --duration      Video duration in seconds, 1-20 (default: 10)
  *   --no-think      Disable model thinking/reasoning (enabled by default)
  *   --help          Show this help message
  */
 
 import { SogniClient, isSogniToolCall, parseToolCallArguments } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
-import { askQuestion, calculateVideoFrames } from './workflow-helpers.mjs';
+import { askQuestion, calculateVideoFrames, MODELS } from './workflow-helpers.mjs';
 import * as fs from 'node:fs';
 import { execFile } from 'node:child_process';
 import { platform } from 'node:os';
@@ -97,7 +97,7 @@ function parseArgs() {
       options.think = false;
       options.thinkExplicit = true;
     } else if (arg === '--duration' && args[i + 1]) {
-      options.duration = Math.max(1, Math.min(10, parseFloat(args[++i]) || 10));
+      options.duration = Math.max(1, Math.min(20, parseFloat(args[++i]) || 10));
     } else if ((arg === '--quantity' || arg === '-n') && args[i + 1]) {
       options.quantity = Math.max(1, Math.min(512, parseInt(args[++i], 10) || 1));
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -130,7 +130,7 @@ Options:
   --top-p         Top-p sampling 0-1 (default: 0.9)
   --system        System prompt override
   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
-  --duration      Video duration in seconds, 1-10 (default: 10)
+  --duration      Video duration in seconds, 1-20 (default: 10)
   --no-think      Disable model thinking/reasoning (enabled by default)
   --help          Show this help message
 
@@ -172,7 +172,7 @@ const HYBRID_TOOLS = [
         type: 'object',
         properties: {
           prompt: { type: 'string', description: "The user's video request in their own words. Pass through what they asked for — do NOT add camera, lighting, or scene details." },
-          duration: { type: 'number', description: 'Video duration in seconds (1-10). Only set if the user specifies a duration.' },
+          duration: { type: 'number', description: 'Video duration in seconds (1-20). Only set if the user specifies a duration.' },
         },
         required: ['prompt'],
       },
@@ -1016,11 +1016,12 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         finalPrompt += ` ${videoParams.stability_anchor}.`;
       }
 
+      const modelConfig = MODELS.t2v?.[modelId];
       const videoDuration = options.duration || 10;
-      const videoFps = 24;
-      const videoWidth = 1920;
-      const videoHeight = 1088;
-      const videoSteps = 20;
+      const videoFps = modelConfig?.defaultFps || 24;
+      const videoWidth = modelConfig?.defaultWidth || 1920;
+      const videoHeight = modelConfig?.defaultHeight || 1088;
+      const videoSteps = modelConfig?.defaultSteps || 20;
       const frames = calculateVideoFrames(modelId, videoDuration, videoFps);
 
       try {
@@ -1044,6 +1045,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         height: videoHeight,
         duration: videoDuration,
         fps: videoFps,
+        steps: videoSteps,
         tokenType,
       });
 
