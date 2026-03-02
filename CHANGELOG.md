@@ -1,3 +1,123 @@
+# [4.0.0](https://github.com/Sogni-AI/sogni-client/compare/v3.3.1...v4.0.0) (2026-03-02)
+
+
+### Bug Fixes
+
+* Accept raw samplers and schedulers for backward compatibility ([8c04552](https://github.com/Sogni-AI/sogni-client/commit/8c04552667fe054e9a330a3aab8fd776060a0ed6))
+* Add 'Discrete Flow Sampler (SD3)' to sampler alias ([460b3c2](https://github.com/Sogni-AI/sogni-client/commit/460b3c21c516b1f395041ff588f06f793480cdb1))
+* Add `AudioProjectParams` to exports in `index.ts` ([bdbbca7](https://github.com/Sogni-AI/sogni-client/commit/bdbbca7dfe5dde5dd3e379a8209db1b1c41eaaa4))
+* add cost estimation, tokenType billing, and worker tracking to Chat API ([8c1059e](https://github.com/Sogni-AI/sogni-client/commit/8c1059ee2bb43505d1e77abc3bccdce73910cb38))
+* Add ForgeSampler, ComfySampler, ForgeScheduler, and ComfyScheduler to exports ([ad24b32](https://github.com/Sogni-AI/sogni-client/commit/ad24b326904f7ad67f43c34a0b758ce64e84a8f1))
+* Add LTX-2 video model detection support ([7a312d5](https://github.com/Sogni-AI/sogni-client/commit/7a312d560f4169c2593719cefb4b4abf0878bf9b))
+* Add numberOfMedia parameter to video project estimation request ([b762e61](https://github.com/Sogni-AI/sogni-client/commit/b762e6130c94a1aa192047c9b14f54dc1acb0191))
+* Add sample parameters for Flux ([8e25924](https://github.com/Sogni-AI/sogni-client/commit/8e25924476a1faf1ac432a6490b4d52ac0cf4898))
+* Allow 20 seconds duration videos for LTX-2 ([d7ad669](https://github.com/Sogni-AI/sogni-client/commit/d7ad669fd56c0f64f9a8f2a0fa4b4dbe5c4a9683))
+* allow i2v workflow to use either referenceImage or referenceImageEnd ([b9f08ef](https://github.com/Sogni-AI/sogni-client/commit/b9f08efa91e92f58280b923c5815c9b6645c5452))
+* allow optional referenceImage for v2v pose control ([183b324](https://github.com/Sogni-AI/sogni-client/commit/183b324c0e1c74f27041c46e666771a95102061c))
+* Avoid double initialization for WSCoordinator.ts ([1b7e973](https://github.com/Sogni-AI/sogni-client/commit/1b7e973cebd6b35667fa248656127b60125dd4f9))
+* Better socket coordinator implementation. Handle socket disconnection properly ([2a1a922](https://github.com/Sogni-AI/sogni-client/commit/2a1a922a0dd41446c1dcf6ffeaccfe54556af5bb))
+* Code cleanup ([7b482dd](https://github.com/Sogni-AI/sogni-client/commit/7b482dd5c0667b3ad57e0fec75811f8bf5a14bee))
+* Comfy / Video jobs leverage jobETA for lastUpdate to ensure jobs do not have a client-side timeout prematurely ([db5e2a6](https://github.com/Sogni-AI/sogni-client/commit/db5e2a62256ccb0f704a50fdf7e1e0556e2aecaa))
+* Connect socket if client tries to send the message ([b5fa7bc](https://github.com/Sogni-AI/sogni-client/commit/b5fa7bc9599f30ff575521e76d76d42f031769fc))
+* Correct video frame calculation for WAN vs LTX-2 models ([9127498](https://github.com/Sogni-AI/sogni-client/commit/9127498935e68f352850871ed9f4115234df9e0d))
+* Fix cost estimation call ([920981c](https://github.com/Sogni-AI/sogni-client/commit/920981c86a3b1217c8dc6437e0fcdc26f50fe4ec))
+* fix for passing video s2v audioStart and audioDuration. Fix for broken animate-replace in examples due to default sam2 coordinates ([7b525cd](https://github.com/Sogni-AI/sogni-client/commit/7b525cd50d60ec8b3884db80ee39dca25e1aca97))
+* Fix project estimation. Export supported samplers and schedulers list ([502d4d1](https://github.com/Sogni-AI/sogni-client/commit/502d4d19529883b5272466a122720f2c6fd01e2e))
+* Fix TypeScript error ([30ff62a](https://github.com/Sogni-AI/sogni-client/commit/30ff62ad5ccb3624bf8a26b70f65b4c0daa9c6ff))
+* Handle logout errors gracefully and log warnings for 401 responses ([ba9b2ac](https://github.com/Sogni-AI/sogni-client/commit/ba9b2acc990e684fb59d7ba17e23dc7a3bebadf4))
+* Hide samplers that are not well tested ([0522bed](https://github.com/Sogni-AI/sogni-client/commit/0522bed6cfad5f8bc9c37d65c30b63b31aa0168a))
+* Improve error logging for failed job result URL generation ([e69ae09](https://github.com/Sogni-AI/sogni-client/commit/e69ae0970fc995adcdf4625246eb029c45cb5ea4))
+* Initialization bug ([42b4e26](https://github.com/Sogni-AI/sogni-client/commit/42b4e26dad8f634eb6c17d172081d6c3d03a3d41))
+* Lora schema update, LTX-2 video new default props ([bf1593f](https://github.com/Sogni-AI/sogni-client/commit/bf1593fa6c819aef6565bc096ba55e166bb8cc52))
+* make negativePrompt and stylePrompt optional ([5e422c3](https://github.com/Sogni-AI/sogni-client/commit/5e422c3d310df2f87edee3ad19df1ed57efff088))
+* Make shared socket connection optional ([7ee2311](https://github.com/Sogni-AI/sogni-client/commit/7ee2311354071bbcc3087cad0a8c321cea28cd25))
+* Move type definitions to dependencies from devDependencies ([95b5201](https://github.com/Sogni-AI/sogni-client/commit/95b520191593913bd0b74cd8cf41241eac16dd8e))
+* Optimize lodash imports ([86479d0](https://github.com/Sogni-AI/sogni-client/commit/86479d0713bbb361811c98445b0c330cdc49bcc2))
+* Pass error iin message ack ([7b73d87](https://github.com/Sogni-AI/sogni-client/commit/7b73d87fdd27634b75fe5aa0bbba43415d6e7dce))
+* Prevent potential memory leak in Project.waitForCompletion ([010a1de](https://github.com/Sogni-AI/sogni-client/commit/010a1decd1f5168275c34f95ccdb7ca8092ac3e5))
+* refactor Video controlnet schema to match existing image controlnet schema ([b9e01f5](https://github.com/Sogni-AI/sogni-client/commit/b9e01f5c21449259e47f45b16eb4f7e65fdf7c51))
+* Replace frames with duration in project cost estimation ([b6c576e](https://github.com/Sogni-AI/sogni-client/commit/b6c576e70b66d2604441e1bd8e013fa435c0c099))
+* res_multistep support in SupportedComfySamplers to fix support for z-image. /examples script enhancements ([332e7b1](https://github.com/Sogni-AI/sogni-client/commit/332e7b1280272e05c7d897de22edea61482f5b7c))
+* Update docs ([d486f44](https://github.com/Sogni-AI/sogni-client/commit/d486f448f3d55098449ba676dd77148c6a7104c4))
+* Update docs ([7f28fe7](https://github.com/Sogni-AI/sogni-client/commit/7f28fe7f651937f244a3b5f56a92aac5d3b637a5))
+* update duration default to null for LLM tool call passthrough ([881f6ad](https://github.com/Sogni-AI/sogni-client/commit/881f6ad9254095937a12964d3554896c656b695c))
+* Update lodash types to 4.17.23 ([336e382](https://github.com/Sogni-AI/sogni-client/commit/336e382d9f85aecfa69ae11e21b80758c8c08575))
+* very long running video progress jobs aborting prematurely ([8860ae8](https://github.com/Sogni-AI/sogni-client/commit/8860ae87bfb8104a64585c3107f6d4da1c3b4615))
+* videoStart release ([d9dd123](https://github.com/Sogni-AI/sogni-client/commit/d9dd1234c75e5166a94ef2aa7a705f6679c3d3ec))
+* wan sample scripts for s2v and animate should all support custom prompts ([5a2dbf9](https://github.com/Sogni-AI/sogni-client/commit/5a2dbf963c8ff411dece0dec87b52117a0baea23))
+
+
+### Features
+
+* Add ability to query balance for Etherlink wallet ([60ef11b](https://github.com/Sogni-AI/sogni-client/commit/60ef11beec443837a044e24c11014bef8f804275))
+* Add ACE-Step 1.5 audio generation documentation ([c02c80b](https://github.com/Sogni-AI/sogni-client/commit/c02c80be31067c6b929fea85bec1898cd26aff3a))
+* add API key authentication support ([b7c1187](https://github.com/Sogni-AI/sogni-client/commit/b7c11879315e311afa6a668423de0e848e41c2fc))
+* Add audio cost estimation API and image download content type support ([784ccca](https://github.com/Sogni-AI/sogni-client/commit/784ccca38c8b4031415ba18158dbdda53dbb0ed2))
+* Add audio generation support and LTX-2 ia2v/a2v/v2v workflows ([7d1f2dc](https://github.com/Sogni-AI/sogni-client/commit/7d1f2dcd4cac6c8750b46d88f04fb87077d379a6))
+* add ChatToolsApi with auto tool execution and think parameter ([2e79672](https://github.com/Sogni-AI/sogni-client/commit/2e79672c1596e022c84582ae5ae6805a3d7698ff))
+* Add credential management system for video examples ([e7fc1ab](https://github.com/Sogni-AI/sogni-client/commit/e7fc1abf85d32995c64c48a5f861cb3f99a4793b))
+* Add img2img support for Qwen Image 2512 models and improve workflows ([46324fd](https://github.com/Sogni-AI/sogni-client/commit/46324fde6043cd241bc41ee40e480a7064664575))
+* add LLM model info, cost breakdown, and enhanced job state tracking to Chat API ([b27d743](https://github.com/Sogni-AI/sogni-client/commit/b27d74307a270724635f438d734e2663fafbe8b9))
+* add LLM tool calling support with Sogni platform tools ([df9ceac](https://github.com/Sogni-AI/sogni-client/commit/df9ceac4f49c2ab7079e17198bdeb3b716e4f469))
+* add LTX-2 video-to-video ControlNet workflow support ([2dc2169](https://github.com/Sogni-AI/sogni-client/commit/2dc2169190e2adfb94a452eecfe209105dba95dd))
+* Add project and job ETA properties ([66024cc](https://github.com/Sogni-AI/sogni-client/commit/66024cc26dac51bbd45dc5b4d7e68c5963f8c178))
+* Add rememberMe parameter for login and signup API to allow long lived cookie-based session ([e0c1395](https://github.com/Sogni-AI/sogni-client/commit/e0c13957c3ff8d548e40453f9c57d72390fdd9d7))
+* Add support for token and cookie authentication with updated AuthManager and REST client enhancements ([a5a2bd2](https://github.com/Sogni-AI/sogni-client/commit/a5a2bd2f005ea298e07773f0954b99ea2c43bc5d))
+* add support for up to 6 context images for Flux.2 Dev ([3096fe6](https://github.com/Sogni-AI/sogni-client/commit/3096fe62f155939e7a044a07f7696066e9f1e6d7))
+* add support for up to 6 contextImage for flux.2 [dev], add example script starting-image option for z-image and image size cap to ~4mp for new image models ([57c902c](https://github.com/Sogni-AI/sogni-client/commit/57c902c1b5d29c702a13ce58759af21f5e815eb4))
+* Add support for video duration options with validation and deprecate frames property ([fa11d79](https://github.com/Sogni-AI/sogni-client/commit/fa11d7905ef249a2e75a6d96c8a2bedda24005df))
+* add trimEndFrame parameter for video stitching ([985d13b](https://github.com/Sogni-AI/sogni-client/commit/985d13bad9576b01388d1e58450cec8d585d9134))
+* Add video project cost estimation ([33c7533](https://github.com/Sogni-AI/sogni-client/commit/33c7533b90bfe7c23c465b38867d184b00561112))
+* Add VideoProjectParams optional teacacheThreshold support ([7a68d4c](https://github.com/Sogni-AI/sogni-client/commit/7a68d4ccc8db8fa1ed410452321468d434927bd1))
+* Enhance video example scripts with improved UX ([6a70c26](https://github.com/Sogni-AI/sogni-client/commit/6a70c26e2b30b5be7bcae88171bbd3956bbe91af))
+* ensure video model passed with and height are at least 480 ([d0156aa](https://github.com/Sogni-AI/sogni-client/commit/d0156aa84785f98c60ee09e7c733e62940eb0b9e))
+* example script workflow enhancements ([94d14e4](https://github.com/Sogni-AI/sogni-client/commit/94d14e42a121976b1090fe797734f2f76e57da02))
+* Expose array of projects that SogniClient instance is tracking currently ([38b6c0e](https://github.com/Sogni-AI/sogni-client/commit/38b6c0ec7ab3e6f621e42f9e512ede98f4b3a9da))
+* Expose project cost in both Spark Points and Sogni tokens when estimating ([9d5f556](https://github.com/Sogni-AI/sogni-client/commit/9d5f556154013ae15e49e93e9941533e730502c5))
+* final round of doc / example enhancements with new steps support for Wan video models ([95d5dfb](https://github.com/Sogni-AI/sogni-client/commit/95d5dfb61d5ed2878c04cd6cf7a0d75d9d0754e1))
+* include credentials in REST API wrapper ([5ccdbab](https://github.com/Sogni-AI/sogni-client/commit/5ccdbabd66f9ad6fb1cb07682c3b8975ceb45fca))
+* LTX-2 variable FPS 1-60 with improved UX flow ([8cf63fd](https://github.com/Sogni-AI/sogni-client/commit/8cf63fd790e7890baaeffb861e618c641bcaf7c7))
+* Make logout synchronous. That is important for cookie auth ([5c39cd1](https://github.com/Sogni-AI/sogni-client/commit/5c39cd1589b25fe95eb77ace716f78d9933b303d))
+* Official support for LLM Tool Calling & Sogni Platform Tools, doc updates ([c6614d3](https://github.com/Sogni-AI/sogni-client/commit/c6614d325fb6c126f14d81ccc7e71fe236b2a8b1))
+* Refactor sampler and scheduler handling; remove legacy definitions and centralize validation ([29b0905](https://github.com/Sogni-AI/sogni-client/commit/29b09056ba578e577d557754bae05bbb1671af00))
+* sam2Coordinates option for Animate Replace workflow ([9275249](https://github.com/Sogni-AI/sogni-client/commit/9275249370fe1bb34732dece0e2c814c35d56dcf))
+* Support Etherlink ([57eaee3](https://github.com/Sogni-AI/sogni-client/commit/57eaee39c18efd26732f9ce735a42b414bf34e87))
+* Support Qwen, Z Image and Flux 2 models ([fd3acb7](https://github.com/Sogni-AI/sogni-client/commit/fd3acb7bdce5d7c81750e58fb79d14cf4f5f0b2f))
+* Update schedulers and samplers options. ([7971cdc](https://github.com/Sogni-AI/sogni-client/commit/7971cdc7b1114840196fdada5adbf22cf867053e))
+* Video support added ([e00e1e7](https://github.com/Sogni-AI/sogni-client/commit/e00e1e7879962047a6950013d53aa83748a66021))
+* When using cookies auth in browser environment allow sharing one socket connection between multiple tabs ([794d6e1](https://github.com/Sogni-AI/sogni-client/commit/794d6e18d960c8758094f09b2bc516b8b08175d0))
+
+
+### BREAKING CHANGES
+
+* Account balance data format changed, instead of `unclaimed`, now it will be `relaxedUnclaimed` and `fastUnclaimed`
+* Enums and type definitions for sampler and scheduler params are removed
+
+Now scheduler and sampler params are strings. `const modelOptions = await sogni.projects.getModelOptions(modelId)` can be used to pull options for each model.
+* `SupportedSamplers` and `SupportedSchedulers` removed
+`SupportedSamplers` and `SupportedSchedulers` are replaced with `SupportedComfySchedulers`, `SupportedComfySamplers`, `SupportedForgeSchedulers`, `SupportedForgeSamplers`
+
+* fix: Prettier formatting
+* Project creation parameters changed
+- `type` is required when calling `sogni.projects.create(params)`, valid values are `image` and `video`. See code examples below.
+- `numberOfImages` renamed to `numberOfMedia`
+- `hasResultImage` in `Job` class is now `hasResultMedia`
+- `Job` and `Project` classes now have `type` property  that can be `image` or `video`
+* `scheduler` and `timeStepSpacing` options renamed
+
+ - `scheduler` option renamed to `sampler`
+ - `timeStepSpacing` is now `scheduler`
+ - Options are now referenced by short aliases
+* Various changes in ApiClient, AuthManager and CurrentAccount.
+
+Most notable:
+1. `client.apiClient.authenticate` replaced with `client.setTokens`
+2. Added `client.checkAuth` to check if client is authenticated when using cookie authentication
+3. Added `authType` to `SogniClient.createInstance` to switch between token and cookie authentication
+4. Removed `token` and `refreshToken` keys from `client.account.currentAccount`
+5. Added `email` to `client.account.currentAccount`
+6. Added `client.account.me()` method to refresh current account data
+
 # [4.0.0-alpha.74](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.73...v4.0.0-alpha.74) (2026-03-02)
 
 
