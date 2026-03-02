@@ -47,7 +47,7 @@
 
 import { SogniClient, isSogniToolCall, parseToolCallArguments } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
-import { askQuestion, calculateVideoFrames, MODELS } from './workflow-helpers.mjs';
+import { askQuestion, calculateVideoFrames, formatDuration, MODELS } from './workflow-helpers.mjs';
 import * as fs from 'node:fs';
 import { execFile } from 'node:child_process';
 import { platform } from 'node:os';
@@ -187,6 +187,7 @@ const HYBRID_TOOLS = [
         type: 'object',
         properties: {
           prompt: { type: 'string', description: "The user's music request in their own words. Pass through what they asked for — do NOT add instrument, tempo, or production details." },
+          duration: { type: 'number', description: 'Song duration in seconds (10-600). Only set if the user specifies a duration.' },
         },
         required: ['prompt'],
       },
@@ -206,7 +207,7 @@ function toolNameToMediaType(name) {
 // ============================================================
 
 function stripThinkingTags(content) {
-  return content.replace(/^<think>[\s\S]*?<\/think>\s*/i, '');
+  return content.replace(/<think>[\s\S]*?<\/think>\s*/gi, '');
 }
 
 // ============================================================
@@ -272,7 +273,7 @@ const AUDIO_SYSTEM_PROMPT = `You are an expert music producer and songwriter. Th
 
 Return ONLY a valid JSON object (no markdown fences, no commentary) with these fields:
 
-{"positivePrompt":"...","lyrics":"...","bpm":120,"keyscale":"C major","timesignature":"4","duration":60,"language":"en"}
+{"positivePrompt":"...","lyrics":"...","bpm":120,"keyscale":"C major","timesignature":"4","duration":30,"language":"en"}
 
 FIELD GUIDELINES:
 
@@ -307,7 +308,7 @@ keyscale — Minor keys for dark/emotional/intense (D minor, A minor, E minor, C
 
 timesignature — "4" for 4/4 (most genres), "3" for 3/4 (waltzes, some ballads), "6" for 6/8 (compound time, folk)
 
-duration — Default to 60s unless the user explicitly requests shorter or longer. 30-45s short pieces, 60s standard songs, 90-120s full compositions
+duration — Default to 30s unless the user explicitly requests shorter or longer. 10-20s short pieces, 30s standard songs, 60-120s full compositions
 
 language — ISO code: "en", "ja", "zh", "es", "fr", "de", "ko", "ar", "pt", "ru", "it", etc.
 
@@ -412,7 +413,7 @@ async function estimateLLMAndConfirm(sogni, messages, options, tokenType, label)
     const estimate = await sogni.chat.estimateCost({
       model: options.model,
       messages,
-      max_tokens: 4096,
+      max_tokens: options.maxTokens || 4096,
       tokenType,
     });
 
@@ -681,7 +682,7 @@ function parseSongJSON(raw, fallbackPrompt) {
           bpm: Math.max(30, Math.min(300, parseInt(parsed.bpm) || 120)),
           keyscale: String(parsed.keyscale || 'C major'),
           timesignature: String(parsed.timesignature || '4'),
-          duration: Math.max(10, Math.min(600, parseInt(parsed.duration) || 60)),
+          duration: Math.max(10, Math.min(600, parseInt(parsed.duration) || 30)),
           language: String(parsed.language || 'en'),
         };
       }
@@ -698,7 +699,7 @@ function parseSongJSON(raw, fallbackPrompt) {
     bpm: 120,
     keyscale: 'C major',
     timesignature: '4',
-    duration: 60,
+    duration: 30,
     language: 'en',
   };
 }
@@ -770,7 +771,7 @@ async function composeSong(sogni, userMessage, options, tokenType) {
       bpm: 120,
       keyscale: 'C major',
       timesignature: '4',
-      duration: 60,
+      duration: 30,
       language: 'en',
     };
   } finally {
@@ -789,8 +790,8 @@ function getEstimateBaseUrl() {
   return baseUrl;
 }
 
-async function getImageJobEstimate(tokenType, modelId, steps, guidance = 0, width = 1024, height = 1024, imageCount = 1, previewCount = 0) {
-  const url = `${getEstimateBaseUrl()}/api/v3/job/estimate/${tokenType}/fast/${encodeURIComponent(modelId)}/${imageCount}/${steps}/${previewCount}/false/1.0/${width}/${height}/${guidance}/euler/0`;
+async function getImageJobEstimate(tokenType, modelId, steps, guidance = 0, width = 1024, height = 1024, imageCount = 1, previewCount = 0, sampler = 'euler') {
+  const url = `${getEstimateBaseUrl()}/api/v3/job/estimate/${tokenType}/fast/${encodeURIComponent(modelId)}/${imageCount}/${steps}/${previewCount}/false/1.0/${width}/${height}/${guidance}/${sampler}/0`;
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to get cost estimate: ${response.statusText}`);
   return response.json();
@@ -841,13 +842,14 @@ async function displayEstimateAndConfirm(estimate, tokenType) {
 // Per-job progress tracking with incremental download/open
 // ============================================================
 
-function trackJobsAndDownload(project, quantity, mediaType) {
+function trackJobsAndDownload(project, quantity, mediaType, sogni) {
   const ext = mediaType === 'video' ? 'mp4' : mediaType === 'audio' ? 'mp3' : null;
   const files = [];
   const pendingDownloads = []; // track in-flight downloads
-  const jobLines = new Map(); // jobId -> display info
+  const jobLines = new Map(); // jobId -> { index, pct, status, workerName, startTime, lastStep, lastStepCount, lastETA, lastETAUpdate }
   let nextLineIndex = 0;
   let linesWritten = 0;
+  let countdownInterval = null;
 
   function redrawProgress() {
     // Move cursor up to overwrite previous lines
@@ -857,12 +859,31 @@ function trackJobsAndDownload(project, quantity, mediaType) {
     linesWritten = 0;
     for (const [, info] of jobLines) {
       const bar = renderBar(info.pct);
-      const status = info.status === 'done' ? 'done'
-        : info.status === 'failed' ? 'FAILED'
-        : `${info.pct}%`;
-      const worker = info.workerName ? ` [${info.workerName}]` : '';
       const label = quantity > 1 ? `  Job ${info.index}/${quantity}: ` : '  Progress: ';
-      process.stdout.write(`\x1B[K${label}${bar} ${status}${worker}\n`);
+      let statusStr;
+      if (info.status === 'done') {
+        statusStr = 'done';
+      } else if (info.status === 'failed') {
+        statusStr = 'FAILED';
+      } else {
+        // Build status with step info, ETA, and elapsed
+        const parts = [];
+        if (info.lastStep !== undefined && info.lastStepCount !== undefined) {
+          parts.push(`Step ${info.lastStep}/${info.lastStepCount} (${info.pct}%)`);
+        } else {
+          parts.push(`${info.pct}%`);
+        }
+        if (info.lastETA !== undefined && info.lastETAUpdate) {
+          const elapsedSinceUpdate = (Date.now() - info.lastETAUpdate) / 1000;
+          const adjustedETA = Math.max(1, info.lastETA - elapsedSinceUpdate);
+          parts.push(`ETA: ${formatDuration(adjustedETA)}`);
+        }
+        const elapsed = (Date.now() - info.startTime) / 1000;
+        parts.push(`${formatDuration(elapsed)} elapsed`);
+        statusStr = parts.join(' ');
+      }
+      const worker = info.workerName ? ` [${info.workerName}]` : '';
+      process.stdout.write(`\x1B[K${label}${bar} ${statusStr}${worker}\n`);
       linesWritten++;
     }
   }
@@ -894,7 +915,15 @@ function trackJobsAndDownload(project, quantity, mediaType) {
     project.on('jobStarted', (job) => {
       const index = nextLineIndex + 1;
       nextLineIndex++;
-      jobLines.set(job.id, { index, pct: 0, status: 'running', workerName: job.workerName || '' });
+      jobLines.set(job.id, {
+        index, pct: 0, status: 'running', workerName: job.workerName || '',
+        startTime: Date.now(), lastStep: undefined, lastStepCount: undefined,
+        lastETA: undefined, lastETAUpdate: null,
+      });
+      // Start countdown interval on first job to keep ETA ticking
+      if (!countdownInterval) {
+        countdownInterval = setInterval(redrawProgress, 1000);
+      }
       redrawProgress();
 
       job.on('updated', (keys) => {
@@ -935,7 +964,37 @@ function trackJobsAndDownload(project, quantity, mediaType) {
       });
     });
 
+    // Listen for job-level events (jobETA and step progress)
+    const jobEventHandler = (event) => {
+      if (event.projectId !== project.id) return;
+      const info = jobLines.get(event.jobId);
+      if (!info) return;
+
+      switch (event.type) {
+        case 'jobETA':
+          info.lastETA = event.etaSeconds;
+          info.lastETAUpdate = Date.now();
+          break;
+        case 'progress':
+          if (event.step !== undefined && event.stepCount !== undefined) {
+            info.lastStep = event.step;
+            info.lastStepCount = event.stepCount;
+          }
+          break;
+      }
+    };
+    sogni.projects.on('job', jobEventHandler);
+
+    function cleanup() {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+      sogni.projects.off('job', jobEventHandler);
+    }
+
     project.on('completed', async () => {
+      cleanup();
       // Wait for all in-flight downloads to finish before resolving
       await Promise.all(pendingDownloads);
       if (files.length < quantity) {
@@ -945,6 +1004,7 @@ function trackJobsAndDownload(project, quantity, mediaType) {
     });
 
     project.on('failed', async (error) => {
+      cleanup();
       await Promise.all(pendingDownloads);
       if (files.length > 0) {
         console.log(`  Warning: project failed after ${files.length}/${quantity} completed`);
@@ -964,9 +1024,14 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
       const modelId = DEFAULT_IMAGE_MODEL;
       const imageParams = promptOrParams; // structured object for image
       const size = IMAGE_SIZES[imageParams.image_size] || IMAGE_SIZES['portrait_16_9'];
+      const imageModelConfig = Object.values(MODELS.image).find(m => m.id === modelId);
+      const imageSteps = imageModelConfig?.defaultSteps || 8;
+      const imageGuidance = imageModelConfig?.defaultGuidance ?? 1;
+      const imageSampler = imageModelConfig?.defaultComfySampler || 'euler';
+      const imageScheduler = imageModelConfig?.defaultComfyScheduler || 'simple';
 
       try {
-        const estimate = await getImageJobEstimate(tokenType, modelId, 8, 1, size.width, size.height, quantity);
+        const estimate = await getImageJobEstimate(tokenType, modelId, imageSteps, imageGuidance, size.width, size.height, quantity, 0, imageSampler);
         const confirmed = await displayEstimateAndConfirm(estimate, tokenType);
         if (!confirmed) return null;
       } catch (e) {
@@ -980,8 +1045,10 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         modelId,
         positivePrompt: imageParams.prompt,
         numberOfMedia: quantity,
-        steps: 8,
-        guidance: 1,
+        steps: imageSteps,
+        guidance: imageGuidance,
+        sampler: imageSampler,
+        scheduler: imageScheduler,
         seed: -1,
         width: size.width,
         height: size.height,
@@ -989,7 +1056,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         tokenType,
       });
 
-      const files = await trackJobsAndDownload(project, quantity, 'image');
+      const files = await trackJobsAndDownload(project, quantity, 'image', sogni);
       if (!files.length) {
         console.error('  Image generation failed or was filtered');
         return null;
@@ -1046,10 +1113,13 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         duration: videoDuration,
         fps: videoFps,
         steps: videoSteps,
+        guidance: modelConfig?.defaultGuidance || 1.0,
+        sampler: modelConfig?.defaultComfySampler,
+        scheduler: modelConfig?.defaultComfyScheduler,
         tokenType,
       });
 
-      const files = await trackJobsAndDownload(project, quantity, 'video');
+      const files = await trackJobsAndDownload(project, quantity, 'video', sogni);
       if (!files.length) {
         console.error('  Video generation failed');
         return null;
@@ -1061,7 +1131,12 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
     case 'audio': {
       const modelId = DEFAULT_AUDIO_MODEL;
       const songParams = promptOrParams; // structured object for audio
-      const audioSteps = 8;
+      const AUDIO_MODEL_DEFAULTS = {
+        'ace_step_1.5_turbo': { steps: 8, sampler: 'euler', scheduler: 'simple' },
+        'ace_step_1.5_sft': { steps: 50, sampler: 'er_sde', scheduler: 'linear_quadratic' },
+      };
+      const audioDefaults = AUDIO_MODEL_DEFAULTS[modelId] || AUDIO_MODEL_DEFAULTS['ace_step_1.5_turbo'];
+      const audioSteps = audioDefaults.steps;
 
       try {
         const estimate = await getAudioJobEstimate(tokenType, modelId, songParams.duration, audioSteps, quantity);
@@ -1075,6 +1150,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
 
       const createParams = {
         type: 'audio',
+        network: 'fast',
         modelId,
         positivePrompt: songParams.positivePrompt,
         language: songParams.language,
@@ -1084,6 +1160,8 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         keyscale: songParams.keyscale,
         timesignature: songParams.timesignature,
         steps: audioSteps,
+        sampler: audioDefaults.sampler,
+        scheduler: audioDefaults.scheduler,
         seed: -1,
         outputFormat: 'mp3',
         tokenType,
@@ -1096,7 +1174,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
 
       const project = await sogni.projects.create(createParams);
 
-      const files = await trackJobsAndDownload(project, quantity, 'audio');
+      const files = await trackJobsAndDownload(project, quantity, 'audio', sogni);
       if (!files.length) {
         console.error('  Music generation failed');
         return null;
@@ -1206,7 +1284,8 @@ async function handleToolCalls(sogni, toolCalls, options, tokenType) {
         const imageParams = await composeImage(sogni, rawPrompt, options, tokenType);
         if (imageParams) result = await generateMedia(sogni, 'image', imageParams, tokenType, options.quantity, options);
       } else if (mediaType === 'video') {
-        const duration = options.duration || args.duration || 10;
+        const rawDuration = options.duration || args.duration || 10;
+        const duration = Math.max(1, Math.min(20, parseFloat(rawDuration) || 10));
         const videoParams = await composeVideo(sogni, rawPrompt, options, tokenType, duration);
         if (videoParams) result = await generateMedia(sogni, 'video', videoParams, tokenType, options.quantity, { ...options, duration });
       }
