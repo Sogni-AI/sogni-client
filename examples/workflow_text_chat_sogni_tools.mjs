@@ -34,7 +34,7 @@
  *   node workflow_text_chat_sogni_tools.mjs "Tell me about ocean waves"  (conversation, no generation)
  *
  * Options:
- *   --model         LLM model ID (default: qwen3-30b-a3b-gptq-int4)
+ *   --model         LLM model ID (default: qwen3.5-35b-a3b-gguf-q4km)
  *   --max-tokens    Maximum tokens to generate (default: 4096)
  *   --temperature   Sampling temperature 0-2 (default: 0.7)
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
@@ -54,7 +54,7 @@ import { execFile } from 'node:child_process';
 import { platform } from 'node:os';
 import { resolve } from 'node:path';
 
-const DEFAULT_LLM_MODEL = 'qwen3-30b-a3b-gptq-int4';
+const DEFAULT_LLM_MODEL = 'qwen3.5-35b-a3b-gguf-q4km';
 const DEFAULT_IMAGE_MODEL = 'z_image_turbo_bf16';
 const DEFAULT_VIDEO_MODEL = 'ltx2-19b-fp8_t2v_distilled';
 const DEFAULT_AUDIO_MODEL = 'ace_step_1.5_turbo';

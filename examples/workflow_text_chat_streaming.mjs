@@ -15,7 +15,7 @@
  *   node workflow_text_chat_streaming.mjs "Write a poem" --max-tokens 500 --temperature 1.0
  *
  * Options:
- *   --model         LLM model ID (default: qwen3-30b-a3b-gptq-int4)
+ *   --model         LLM model ID (default: qwen3.5-35b-a3b-gguf-q4km)
  *   --max-tokens    Maximum tokens to generate (default: 4096)
  *   --temperature   Sampling temperature 0-2 (default: 0.7)
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
@@ -31,7 +31,7 @@
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 
-const DEFAULT_MODEL = 'qwen3-30b-a3b-gptq-int4';
+const DEFAULT_MODEL = 'qwen3.5-35b-a3b-gguf-q4km';
 const DEFAULT_SYSTEM = 'You are a helpful assistant.';
 
 function parseArgs() {

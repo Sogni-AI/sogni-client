@@ -11,7 +11,7 @@ Welcome to the Sogni Client SDK examples! This directory contains working exampl
 - [Available Examples](#available-examples)
   - [Image Generation Workflow Examples](#image-generation-workflow-examples)
   - [Video Generation Workflow Examples](#video-generation-workflow-examples)
-  - [LLM Text Chat & Tool Calling Examples](#llm-text-chat--tool-calling-examples)
+  - [LLM Text Chat, Vision & Tool Calling Examples](#llm-text-chat-vision--tool-calling-examples)
   - [Basic Examples](#basic-examples)
   - [Web Application Example](#web-application-example)
 - [Featured Models](#featured-models)
@@ -230,6 +230,11 @@ node workflow_video_to_video.mjs  # Animate-Move / Animate-Replace
 node workflow_text_chat_streaming.mjs "Tell me a story about a cat"
 ```
 
+**Vision chat — analyze images with AI:**
+```bash
+node workflow_text_chat_vision.mjs --image photo.jpg
+```
+
 **Generate images, videos, or music via natural language chat:**
 ```bash
 node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city"
@@ -262,8 +267,7 @@ The workflow examples showcase these powerful new models:
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning | Image Edit | Fast 4-step reference-based generation |
 | `qwen_image_edit_2511_fp8` | Qwen Image Edit | Image Edit | High-quality 20-step image editing with context |
 | `flux2_dev_fp8` | Flux.2 Dev | Image | Professional quality with context image support |
-| `qwen3-30b-a3b-gptq-int4` | Qwen3 30B | LLM | Text generation, chat, reasoning, and tool calling |
-| `qwen3.5-35b-a3b-gguf-q4km` | Qwen3.5 35B | LLM | Latest model with 32K context, reasoning, and tool calling |
+| `qwen3.5-35b-a3b-gguf-q4km` | Qwen3.5 35B | LLM + Vision | Text generation, chat, reasoning, tool calling, and multimodal image understanding |
 
 **Try them out:**
 ```bash
@@ -461,9 +465,9 @@ node workflow_video_to_video.mjs --video source.mp4
 - Animate illustrations with real human motion (Animate-Move)
 - Create puppeteer and motion-capture effects
 
-### LLM Text Chat & Tool Calling Examples
+### LLM Text Chat, Vision & Tool Calling Examples
 
-The Sogni SDK provides LLM text generation through the Supernet, with streaming, multi-turn conversations, thinking/reasoning mode, and tool calling (function calling).
+The Sogni SDK provides LLM text generation through the Supernet, with streaming, multi-turn conversations, thinking/reasoning mode, tool calling (function calling), and multimodal vision understanding.
 
 #### `workflow_text_chat.mjs`
 Single-turn chat completion (non-streaming). Sends a prompt and receives the full response at once.
@@ -471,7 +475,7 @@ Single-turn chat completion (non-streaming). Sends a prompt and receives the ful
 **Usage:**
 ```bash
 node workflow_text_chat.mjs "What is the meaning of life?"
-node workflow_text_chat.mjs "Explain quantum computing" --model qwen3-30b-a3b-gptq-int4
+node workflow_text_chat.mjs "Explain quantum computing" --model qwen3.5-35b-a3b-gguf-q4km
 node workflow_text_chat.mjs "Write a haiku" --max-tokens 100 --temperature 0.9
 ```
 
@@ -502,6 +506,34 @@ node workflow_text_chat_multi_turn.mjs --system "You are a pirate. Respond in pi
 | `/think` | Toggle thinking/reasoning mode |
 | `/stats` | Show session statistics (tokens, time, throughput) |
 | `exit` / `quit` | End the conversation |
+
+#### `workflow_text_chat_vision.mjs`
+Multimodal vision chat powered by Qwen3.5 VLM (Vision-Language Model). Load local images and ask questions about them — supports scene description, OCR/text extraction, object detection, structured visual analysis, and multi-image comparison.
+
+**Usage:**
+```bash
+node workflow_text_chat_vision.mjs                           # Interactive mode
+node workflow_text_chat_vision.mjs --image photo.jpg         # Pre-load an image
+node workflow_text_chat_vision.mjs --image photo.jpg --max-tokens 8192
+```
+
+**In-Chat Commands:**
+| Command | Description |
+|---------|-------------|
+| `/image <path>` | Load a local image (JPEG, PNG, WebP, GIF; max 20MB) |
+| `/describe` | Rich detailed description of current image |
+| `/ocr` | Extract all visible text with layout preservation |
+| `/objects` | Detect and locate objects with spatial relationships |
+| `/analyze` | Deep structured analysis (subject, composition, lighting, etc.) |
+| `/compare <path>` | Load a second image and compare both in detail |
+| `/clear-image` | Remove image from context (text-only mode) |
+| `/clear` | Clear conversation history |
+| `/history` | Show message history |
+| `/system <msg>` | Change system prompt |
+| `/stats` | Show session statistics |
+| `exit` / `quit` | End the conversation |
+
+**Supported Image Formats:** JPEG, PNG, WebP, GIF (max 20MB)
 
 #### `workflow_text_chat_tool_calling.mjs`
 LLM tool calling (function calling) with built-in external tools. The LLM decides when to use a tool, you execute it locally, and feed results back.
@@ -545,7 +577,7 @@ All LLM chat scripts share these options:
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--model` | LLM model ID | `qwen3-30b-a3b-gptq-int4` |
+| `--model` | LLM model ID | `qwen3.5-35b-a3b-gguf-q4km` |
 | `--max-tokens` | Maximum tokens to generate | 4096 |
 | `--temperature` | Sampling temperature (0-2) | 0.7 |
 | `--top-p` | Top-p nucleus sampling (0-1) | 0.9 |
@@ -865,9 +897,10 @@ If you encounter issues not covered here:
 4. **Try Video:** Start with `workflow_text_to_video.mjs` for video generation
 5. **Advanced Workflows:** Explore image-to-video, sound-to-video (lip-sync), and video-to-video (motion transfer/character replacement)
 6. **Chat with LLMs:** Try `workflow_text_chat_streaming.mjs` for real-time text generation
-7. **Tool Calling:** Explore `workflow_text_chat_tool_calling.mjs` for LLM function calling with external tools
-8. **AI-Powered Media:** Use `workflow_text_chat_sogni_tools.mjs` to generate images, videos, and music through natural language
-9. **Build Something:** Use the Express example as a template for your own app
+7. **Vision Chat:** Explore `workflow_text_chat_vision.mjs` for multimodal image understanding
+8. **Tool Calling:** Explore `workflow_text_chat_tool_calling.mjs` for LLM function calling with external tools
+9. **AI-Powered Media:** Use `workflow_text_chat_sogni_tools.mjs` to generate images, videos, and music through natural language
+10. **Build Something:** Use the Express example as a template for your own app
 
 ### Tips for Success
 
