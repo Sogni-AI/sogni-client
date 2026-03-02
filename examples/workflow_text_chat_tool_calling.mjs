@@ -792,17 +792,9 @@ async function main() {
     }
     console.log();
 
-    // If user didn't specify --model and there are multiple models, let them choose
-    if (options.model === DEFAULT_MODEL && modelIds.length > 1) {
-      const choice = await askQuestion(`Select model [1-${modelIds.length}] (default: 1): `);
-      const idx = parseInt(choice, 10);
-      if (idx >= 1 && idx <= modelIds.length) {
-        options.model = modelIds[idx - 1];
-      } else if (!choice) {
-        options.model = modelIds[0];
-      }
-    } else if (options.model === DEFAULT_MODEL && modelIds.length === 1) {
-      options.model = modelIds[0];
+    // Validate that the selected model is available
+    if (!modelIds.includes(options.model)) {
+      console.log(`Note: Selected model "${options.model}" is not currently available. Request will be queued.`);
     }
   } catch {
     console.log('Warning: No LLM models currently available on the network');
