@@ -1,3 +1,10 @@
+# [4.0.0-alpha.73](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.72...v4.0.0-alpha.73) (2026-03-02)
+
+
+### Bug Fixes
+
+* update duration default to null for LLM tool call passthrough ([881f6ad](https://github.com/Sogni-AI/sogni-client/commit/881f6ad9254095937a12964d3554896c656b695c))
+
 # [4.0.0-alpha.72](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0-alpha.71...v4.0.0-alpha.72) (2026-03-02)
 
 
