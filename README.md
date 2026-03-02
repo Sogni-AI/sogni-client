@@ -22,10 +22,10 @@ Behind the scenes this SDK uses a WebSocket connection for communication between
 ## Migration notes
 ### v3.x.x to v4.x.x
 Version 4 adds support for video generation, including the new **Wan 2.2 14B FP8** model family with five workflow types (text-to-video, image-to-video, sound-to-video, animate-move, and animate-replace). There are the following breaking changes:
-- `type` is required when calling `sogni.projects.create(params)`, valid values are `image` and `video`. See code examples below.
+- `type` is required when calling `sogni.projects.create(params)`, valid values are `image`, `video` and `audio`. See code examples below.
 - `numberOfImages` renamed to `numberOfMedia`
 - `hasResultImage` in `Job` class is now `hasResultMedia`
-- `Job` and `Project` classes now have `type` property that can be `image` or `video`
+- `Job` and `Project` classes now have `type` property that can be `image`, `video` or `audio`
 
 ## Installation
 Add library to your project using npm or yarn:
