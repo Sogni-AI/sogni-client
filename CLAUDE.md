@@ -215,3 +215,26 @@ const urls = await project.waitForCompletion();
 | Audio-to-Video | `*_a2v*` (LTX-2 only) | `referenceAudio` |
 | Animate-Move | `*_animate-move*` | `referenceImage` + `referenceVideo` |
 | Animate-Replace | `*_animate-replace*` | `referenceImage` + `referenceVideo` |
+
+## LLM Chat — Thinking Models & Tool Calling
+
+### Model Capabilities via `sogni.chat.waitForModels()`
+
+The SDK receives `LLMModelInfo` per model including `maxContextLength`, `maxOutputTokens` (min/max/default), and parameter constraints. Use these to configure `max_tokens` and display limits to users.
+
+**Caution**: `maxContextLength` from the server may not reflect the actual per-request limit on the worker (see sogni-socket and sogni-llm-nvidia CLAUDE.md for the llama-server `--parallel` slot division issue).
+
+### Thinking Models (Qwen3/3.5) — `reasoning_content` Split
+
+Qwen3/3.5 models generate thinking output in a separate `reasoning_content` field (OpenAI-compatible). The LLM worker wraps this in `<think>` tags inside `content` for the SDK, or strips it when `/no_think` is in the messages. **However**, the SDK's `ChatCompletionChunk` type has NO `reasoning_content` field — only `content` and `tool_calls`.
+
+**The problem**: Even with `think: false` (which appends `/no_think`), the model still generates thinking tokens internally, consuming output budget. If the context window is tight, the model exhausts its output tokens on thinking before producing content or tool calls → `finishReason=length` with empty content and no tool calls.
+
+**The solution for structured output**: Use **tool calling** (`tools` + `tool_choice: 'required'`). Tool call arguments are always forwarded by the worker regardless of thinking mode. The `workflow_text_chat_sogni_tools.mjs` example uses this pattern for all composition pipelines (video/image/audio prompt engineering).
+
+### Composition Pipeline Architecture
+
+The example's composition pipelines (composeVideo, composeImage, composeSong) use:
+1. **Tool calling as the primary output mechanism** — `tool_choice: 'required'` with a structured tool schema
+2. **Trimmed system prompts** — Creative guidance only; structural/format info is in the tool schema (reduces input tokens for tight context windows)
+3. **Model info from `waitForModels()`** — `maxOutputTokens.default` for `max_tokens`

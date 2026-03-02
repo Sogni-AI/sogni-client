@@ -31,6 +31,7 @@
  *   --system        System prompt override
  *   --think         Enable model thinking/reasoning (shows <think> blocks)
  *   --no-think      Disable model thinking (default)
+ *   --show-thinking  Show <think> blocks in output (hidden by default even when thinking is enabled)
  *   --help          Show this help message
  */
 
@@ -55,6 +56,7 @@ function parseArgs() {
     system: DEFAULT_SYSTEM,
     think: false,
     thinkExplicit: false,
+    showThinking: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -78,6 +80,8 @@ function parseArgs() {
     } else if (arg === '--no-think') {
       options.think = false;
       options.thinkExplicit = true;
+    } else if (arg === '--show-thinking') {
+      options.showThinking = true;
     } else if (!arg.startsWith('--') && !options.prompt) {
       options.prompt = arg;
     } else if (!arg.startsWith('--')) {
@@ -117,6 +121,7 @@ Options:
   --system        System prompt override
   --think         Enable model thinking/reasoning (shows <think> blocks)
   --no-think      Disable model thinking (default)
+  --show-thinking  Show <think> blocks in output (hidden by default)
   --help          Show this help message
 `);
 }
@@ -130,6 +135,60 @@ async function askQuestion(question) {
       resolve(answer.trim());
     });
   });
+}
+
+/**
+ * Create a streaming writer that filters <think>...</think> blocks from display.
+ * Returns { write(text), flush() } — call write() for each chunk, flush() when done.
+ */
+function createThinkingFilter(showThinking) {
+  let insideThink = false;
+  let buffer = '';
+
+  return {
+    write(text) {
+      if (showThinking) {
+        process.stdout.write(text);
+        return;
+      }
+
+      buffer += text;
+
+      while (buffer.length > 0) {
+        if (insideThink) {
+          const endIdx = buffer.indexOf('</think>');
+          if (endIdx === -1) {
+            buffer = '';
+            break;
+          }
+          buffer = buffer.slice(endIdx + 8);
+          insideThink = false;
+        } else {
+          const startIdx = buffer.indexOf('<think>');
+          if (startIdx === -1) {
+            const safeLen = Math.max(0, buffer.length - 6);
+            if (safeLen > 0) {
+              process.stdout.write(buffer.slice(0, safeLen));
+              buffer = buffer.slice(safeLen);
+            }
+            break;
+          }
+          if (startIdx > 0) {
+            process.stdout.write(buffer.slice(0, startIdx));
+          }
+          buffer = buffer.slice(startIdx + 7);
+          insideThink = true;
+        }
+      }
+    },
+
+    flush() {
+      if (!showThinking && buffer.length > 0) {
+        process.stdout.write(buffer);
+        buffer = '';
+      }
+    },
+  };
 }
 
 // ============================================================
@@ -663,7 +722,7 @@ async function main() {
   console.log('  Sogni Chat — Tool Calling Demo');
   console.log('  (Weather, Time, Unit Conversion, Calculator)');
   console.log('='.repeat(60));
-  console.log();
+  showHelp();
 
   // Load credentials
   const credentials = await loadCredentials();
@@ -837,11 +896,13 @@ async function main() {
 
       // Stream the response
       process.stdout.write('\nAssistant: ');
+      const filter = createThinkingFilter(options.showThinking);
       for await (const chunk of stream) {
         if (chunk.content) {
-          process.stdout.write(chunk.content);
+          filter.write(chunk.content);
         }
       }
+      filter.flush();
       console.log();
 
       const result = stream.finalResult;

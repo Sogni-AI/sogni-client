@@ -42,6 +42,7 @@
  *   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
  *   --duration      Video duration in seconds, 1-20 (default: 10)
  *   --no-think      Disable model thinking/reasoning (enabled by default)
+ *   --show-thinking  Show <think> blocks in output (hidden by default even when thinking is enabled)
  *   --help          Show this help message
  */
 
@@ -74,6 +75,7 @@ function parseArgs() {
     system: null,
     think: true,
     thinkExplicit: false,
+    showThinking: false,
     quantity: 1,
     duration: null,
   };
@@ -96,6 +98,8 @@ function parseArgs() {
     } else if (arg === '--no-think') {
       options.think = false;
       options.thinkExplicit = true;
+    } else if (arg === '--show-thinking') {
+      options.showThinking = true;
     } else if (arg === '--duration' && args[i + 1]) {
       options.duration = Math.max(1, Math.min(20, parseFloat(args[++i]) || 10));
     } else if ((arg === '--quantity' || arg === '-n') && args[i + 1]) {
@@ -132,6 +136,7 @@ Options:
   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
   --duration      Video duration in seconds, 1-20 (default: 10)
   --no-think      Disable model thinking/reasoning (enabled by default)
+  --show-thinking  Show <think> blocks in output (hidden by default)
   --help          Show this help message
 
 Default Generation Models:
@@ -207,7 +212,136 @@ function toolNameToMediaType(name) {
 // ============================================================
 
 function stripThinkingTags(content) {
-  return content.replace(/<think>[\s\S]*?<\/think>\s*/gi, '');
+  // Strip complete <think>...</think> blocks
+  content = content.replace(/<think>[\s\S]*?<\/think>\s*/gi, '');
+  // Strip unclosed <think> blocks (model hit token limit mid-thinking)
+  content = content.replace(/<think>[\s\S]*$/gi, '');
+  return content.trim();
+}
+
+/**
+ * Create a streaming writer that filters <think>...</think> blocks from display.
+ * Returns { write(text), flush() } — call write() for each chunk, flush() when done.
+ * The raw text (including thinking) is always accumulated regardless of showThinking.
+ */
+function createThinkingFilter(showThinking) {
+  let insideThink = false;
+  let buffer = '';
+
+  return {
+    write(text) {
+      if (showThinking) {
+        process.stdout.write(text);
+        return;
+      }
+
+      buffer += text;
+
+      while (buffer.length > 0) {
+        if (insideThink) {
+          const endIdx = buffer.indexOf('</think>');
+          if (endIdx === -1) {
+            // Still inside thinking, consume entire buffer
+            buffer = '';
+            break;
+          }
+          // Skip past closing tag
+          buffer = buffer.slice(endIdx + 8);
+          insideThink = false;
+        } else {
+          const startIdx = buffer.indexOf('<think>');
+          if (startIdx === -1) {
+            // No think tag — check if buffer ends with a partial '<think>' match
+            // Keep up to 6 chars (length of '<think' minus 1) as potential partial
+            const safeLen = Math.max(0, buffer.length - 6);
+            if (safeLen > 0) {
+              process.stdout.write(buffer.slice(0, safeLen));
+              buffer = buffer.slice(safeLen);
+            }
+            break;
+          }
+          // Output everything before the tag
+          if (startIdx > 0) {
+            process.stdout.write(buffer.slice(0, startIdx));
+          }
+          buffer = buffer.slice(startIdx + 7);
+          insideThink = true;
+        }
+      }
+    },
+
+    flush() {
+      if (!showThinking && buffer.length > 0) {
+        process.stdout.write(buffer);
+        buffer = '';
+      }
+    },
+  };
+}
+
+// ============================================================
+// Stream an LLM composition call.
+//
+// Thinking is always disabled for composition calls. The detailed
+// system prompts (9-step structure, examples, constraints) already
+// serve as the chain-of-thought — adding model thinking on top
+// deterministically overruns the token budget with these prompts.
+// ============================================================
+
+async function streamComposition(sogni, messages, options, tokenType, tools) {
+  const maxAttempts = 3;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const stateHandler = (event) => {
+      if (event.type === 'pending') console.log(`  Composing: Status: pending authorization`);
+      else if (event.type === 'queued') console.log(`  Composing: Status: queued`);
+      else if (event.type === 'assigned' && event.workerName) console.log(`  Composing: Worker: ${event.workerName} (assigned)`);
+      else if (event.type === 'jobStarted' && event.workerName) console.log(`  Composing: Worker: ${event.workerName} (started)`);
+    };
+    sogni.chat.on('jobState', stateHandler);
+
+    try {
+      // Composition uses tool calling so that structured output is captured
+      // via tool_calls (which are always forwarded) rather than content
+      // (which thinking-mode LLM servers route to reasoning_content,
+      // making it invisible to the SDK).
+      const stream = await sogni.chat.completions.create({
+        model: options.model,
+        messages,
+        max_tokens: options.maxTokens || 4096,
+        temperature: 0.7,
+        top_p: options.topP,
+        stream: true,
+        tokenType,
+        think: false,
+        tools,
+        tool_choice: 'required',
+      });
+
+      for await (const chunk of stream) {
+        // drain the stream (content may be empty for thinking-mode LLMs)
+      }
+
+      if (stream.toolCalls.length > 0) {
+        return stream.toolCalls[0].function.arguments;
+      }
+
+      throw new Error('LLM did not return a tool call');
+    } catch (err) {
+      lastError = err;
+      sogni.chat.off('jobState', stateHandler);
+      if (attempt < maxAttempts && err.message && err.message.includes('timed out')) {
+        console.log(`  (Attempt ${attempt}/${maxAttempts} timed out, retrying...)`);
+        continue;
+      }
+      throw err;
+    } finally {
+      sogni.chat.off('jobState', stateHandler);
+    }
+  }
+
+  throw lastError;
 }
 
 // ============================================================
@@ -269,50 +403,18 @@ function openFile(filepath) {
 // Media-specific LLM System Prompts
 // ============================================================
 
-const AUDIO_SYSTEM_PROMPT = `You are an expert music producer and songwriter. The user wants to generate a song using the ACE-Step 1.5 AI music model. Craft a complete song specification.
+const AUDIO_SYSTEM_PROMPT = `You are an expert music producer. Craft a song specification using the compose_song tool.
 
-Return ONLY a valid JSON object (no markdown fences, no commentary) with these fields:
+positivePrompt — Write a dense paragraph like a producer's brief covering: genre/subgenre, each instrument with ROLE+TEXTURE+BEHAVIOR, vocal character (gender, quality, delivery, processing), arrangement arc (open→build→peak→conclude), production aesthetic (polished, raw, gritty, airy). Do NOT include BPM or key in this field — use tempo feel words instead ("driving", "languid").
 
-{"positivePrompt":"...","lyrics":"...","bpm":120,"keyscale":"C major","timesignature":"4","duration":30,"language":"en"}
+GOOD: "A driving post-punk arrangement with layered electric guitars--one clean arpeggiated, the other distorted chordal--over solid bassline and powerful drums. Male vocal delivered with angsty strained quality building into anthemic shouted chorus. Guitar solo with feedback and bends, then breakdown to core rhythmic elements."
+BAD: "Funk, Soul, Groove, Male Vocals" (tag list — write flowing sentences)
 
-FIELD GUIDELINES:
+lyrics — Use enriched section headers: [Intro - Arpeggiated Guitar], [Verse 1 - Slap Bass with soft male vocal], [Chorus - Horn Section staccato]. Write story/emotion with dynamic contrast. Empty string for instrumentals. Use \\n for newlines.
 
-positivePrompt — Write a single dense paragraph describing the sound like a producer's brief. Cover these dimensions:
-1. Genre and subgenre identity
-2. Each key instrument with its ROLE, TEXTURE, and BEHAVIOR (not just a list of names)
-3. Vocal character: gender, tonal quality adjectives (warm, crisp, raspy, breathy, strained), delivery style (sung, rapped, whispered, chanted), and any processing (reverb, lo-fi saturation, distortion)
-4. Arrangement arc: how the track opens, builds, peaks, and concludes
-5. Production aesthetic: texture words like polished, raw, gritty, airy, punchy, lo-fi, overdriven
-6. Mood and energy
-
-GOOD positivePrompt example:
-"A driving post-punk arrangement kicks off with layered electric guitars--one clean and arpeggiated, the other providing distorted chordal texture--over a solid bassline and powerful live drums. The male lead vocal is delivered with an angsty, strained quality that builds into an anthemic, shouted chorus where his voice cracks with emotion. Following a melodic yet noisy guitar solo filled with feedback and expressive bends, the track breaks down to its core rhythmic elements before fading out on lingering guitar noise."
-
-Another GOOD example:
-"A dark ominous high energy aggressive drum and bass intro driven by heavily processed vocal chops and synth melody that serve as both rhythmic and melodic hooks. The song opens with layered, pitched-down crisp deep female-sounding vocal samples creating an atmospheric texture before slamming into a high-tempo breakbeat. A powerful bassline underpins the driving rhythm section. The arrangement is dynamic, featuring intense build-ups where filters sweep open to create tension, followed by impactful drops that reintroduce the core groove."
-
-BAD positivePrompt: "contemporary R&B" (too vague, gives model no guidance)
-BAD positivePrompt: "Funk, Soul, Groove, Male Vocals, Slap Bass" (tag list — write flowing sentences instead)
-
-IMPORTANT: Do NOT include BPM numbers, key signatures, or tempo numbers in the positivePrompt. Use the dedicated bpm and keyscale fields for those. Use texture adjectives for tempo feel: "driving", "laid-back", "relentless", "languid".
-
-lyrics — Use enriched section headers that embed instrumental and vocal directions:
-GOOD headers: [Intro - Arpeggiated Electric Guitar], [Verse 1 - Slap Bass riff with soft male vocal], [Chorus - Horn Section hitting sharp staccato accents], [Bridge - Hammond B3 Organ percussive stabs], [Breakdown - Heavy half time trap phonk style groove]
-GOOD vocal direction: [Female Vocal - Soprano, haunting and clear], [Male Vocal - Baritone, gritty], [Pre-Chorus - Call and Response], [whispered]
-For instrumentals: [Intro Industrial drones, metallic clangs, building tension], [Build-Up Steady percussion, rising arpeggios], [Climax Peak intensity, layered metallic sounds]
-Write lyrics that tell a story or convey emotion with dynamic contrast. Match density to genre: sparse for ambient, dense for rap, catchy hooks for pop/EDM. Use \\n for newlines.
-
-bpm — Match genre: Ballad 60-80, R&B/Hip-hop 80-100, Pop/Country/Funk 100-130, Rock/EDM 120-140, Metal/Trap/Dubstep 130-160, DnB 170-180
-
-keyscale — Minor keys for dark/emotional/intense (D minor, A minor, E minor, C minor). Major keys for bright/upbeat (C major, G major, E major, Bb major, Ab major).
-
-timesignature — "4" for 4/4 (most genres), "3" for 3/4 (waltzes, some ballads), "6" for 6/8 (compound time, folk)
-
-duration — Default to 30s unless the user explicitly requests shorter or longer. 10-20s short pieces, 30s standard songs, 60-120s full compositions
-
-language — ISO code: "en", "ja", "zh", "es", "fr", "de", "ko", "ar", "pt", "ru", "it", etc.
-
-Return ONLY the JSON object.`;
+bpm — Ballad 60-80, R&B/Hip-hop 80-100, Pop/Funk 100-130, Rock/EDM 120-140, DnB 170-180.
+keyscale — Minor for dark/intense, Major for bright/upbeat.
+duration — Default 30s unless user specifies otherwise.`;
 
 const CAMERA_MOVEMENTS = [
   'static tripod', 'slow push-in', 'slow pull-back',
@@ -320,89 +422,110 @@ const CAMERA_MOVEMENTS = [
   'slow arc left', 'slow arc right', 'tracking follow', 'handheld subtle drift',
 ];
 
-const VIDEO_SYSTEM_PROMPT = `You are an expert cinematographer writing prompts for the LTX-2 AI video generation model. LTX-2 performs best when the prompt reads like a cohesive mini-scene: a complete story beat described in present tense. Clear camera-to-subject relationship improves motion consistency.
+const VIDEO_SYSTEM_PROMPT = `You are an expert cinematographer writing prompts for the LTX-2 AI video model. Write a cohesive mini-scene in present tense. Use the compose_video tool to return your result.
 
-Return ONLY a valid JSON object (no markdown fences, no commentary) with these fields:
-{"prompt":"...","camera_movement":"slow push-in","shot_scale":"medium","style_anchor":"cinematic nocturne","stability_anchor":"smooth and stabilised"}
+PROMPT CONSTRUCTION — 4-8 flowing present-tense sentences. One continuous shot (no cuts, no montage):
 
-PROMPT CONSTRUCTION — Write a single flowing paragraph of 4-8 sentences in present tense. A single continuous shot (no hard cuts, no "cut to", no montage). Follow this mandatory order:
+1. ESTABLISH: Shot scale + genre/visual language. Close-ups need physical detail, wide shots need environmental detail.
+2. SCENE: Environment, time of day, atmosphere, surface textures. Name light sources: "warm tungsten practicals", "golden hour sun through dusty windows".
+3. CHARACTER(S): Age, hair, clothing, notable features. Keep identity stable throughout.
+4. ACTION SEQUENCE: One main thread evolving start to end. Temporal connectors ("as", "then", "while"). Physically filmable behavior.
+5. DIALOGUE (if applicable): Weave quoted speech into prose like a novel — attributed with delivery and action. Example: 'He leans back, "I think I'll go back tomorrow," he chuckles, eyes crinkling.' NEVER use [DIALOGUE: ...] tags.
+6. AMBIENT SOUND: Weave 1-2 sounds naturally into prose per beat. Example: "rain tapping softly against the awning as a distant car horn echoes." NEVER use [AMBIENT: ...] tags.
+7. EMOTIONAL CUES: Jaw tension, grip pressure, breathing pace, posture — express emotion through visible physical behavior.
 
-1. ESTABLISH THE SHOT: Shot scale (wide, medium, close-up) + genre/visual language. Match detail level to shot scale: close-ups need more physical detail, wide shots need more environmental detail. Example: "A medium close-up cinematic shot..."
+CONSTRAINTS: Present tense only. Positive phrasing (describe what IS, not what isn't). No on-screen text/logos. No vague words ("beautiful", "nice"). Dense flowing prose, not bullet lists.
 
-2. SET THE SCENE: Environment + time of day + atmosphere/weather + surface textures + one or two grounding details. Name light sources and their quality: "warm tungsten practical lights", "golden hour sun through dusty windows", "neon reflections shimmering across wet pavement".
+REFERENCE PROMPT (study the style):
+"A medium close-up cinematic shot in a quiet rain-soaked alley at night, neon reflections shimmering across wet pavement. A man in his 30s with short dark hair and a worn leather jacket stands under a flickering sign, water beading on his collar. He exhales slowly, shoulders tightening as his fingers clamp around a small metal lighter, then steadies his hand and clicks it once, watching the flame struggle against the damp air, rain tapping softly against the awning while a distant car horn echoes. The camera performs a slow push-in toward his face as his jaw sets, tendons rising, weight shifting forward by half a step, breathing measured. Smooth and stabilised with cinematic motion consistency."`;
 
-3. DEFINE CHARACTER(S): Age range, hair, clothing, notable features. Keep identity stable and coherent throughout.
+const IMAGE_SYSTEM_PROMPT = `You are a prompt engineer for a text-to-image model. Write flowing prose, never tag lists. All phrasing positive. Use the compose_image tool to return your result.
 
-4. DESCRIBE ACTION AS A NATURAL SEQUENCE: One main action thread that evolves beginning to end. Use temporal connectors ("as", "then", "while"). Prefer physically filmable behavior: a steady walk, a slow turn, a hand reaching forward, eyes shifting.
+PROMPT CONSTRUCTION — 80-180 words of natural language sentences:
 
-5. DIALOGUE (when applicable): If the user's request involves a character speaking, pitching, narrating, or delivering lines, write the EXACT quoted dialogue the character says. Write dialogue as inline prose woven into the action, attributed with delivery and physical action — exactly like a novel. The spoken words sit inside the sentence, not in a separate block. Examples of correct format:
-   'He leans back, satisfied, "I think I'll have to go back tomorrow for more," he chuckles, his eyes crinkling at the corners.'
-   '"Don't stop," she breathes, gripping the sheets, her voice barely above a whisper.'
-   'She turns to face him, "I've been waiting all day for this," her tone quiet and certain.'
-   NEVER use [DIALOGUE: ...] tags. NEVER write dialogue as a separate bracketed block. Dialogue flows inside the prose as part of the action.
+1. SUBJECT (front-load): Identity, distinctive traits, clothing/materials, action/state. Be concrete.
+2. ENVIRONMENT: Location, time of day, atmosphere, background elements.
+3. COMPOSITION: Shot type, focal priority, depth of field, composition rule.
+4. LIGHTING (name it): "soft afternoon window light", "golden hour backlight", "Rembrandt lighting with delicate shadows".
+5. CAMERA/LENS (optional): "Canon 5D 85mm f/1.8", "Kodak Portra 400 film grain look".
+6. STYLE ANCHORS (max 2): "editorial raw portrait", "Spider-Verse animation style".
+7. QUALITY: "crisp details", "natural skin texture", "sharp focus".
 
-6. AMBIENT SOUND: For each action beat, weave ambient sound naturally into the prose as a descriptive sentence or clause — never as a tag or label. Maximum 2 sounds active at any one time. The soundscape should evolve with the scene — each beat has its own sonic texture that matches its mood and energy. Examples of correct format: "the refrigerator hums steadily in the background as she moves", "rain begins to tap softly against the window", "birdsong drifts through the gap in the curtains, barely audible over her breathing". Never write [AMBIENT: ...] tags. Sound is part of the prose, always.
+image_size guide: square_hd for centered/products, portrait_4_3 for people, portrait_16_9 for full-body/tall, landscape_4_3 for scenes/groups, landscape_16_9 for panoramic/cinematic.
 
-7. SPECIFY ONE COMMITTED CAMERA MOVEMENT: Pick exactly one from: "static tripod", "slow push-in", "slow pull-back", "smooth pan left", "smooth pan right", "slow tilt up", "slow tilt down", "slow arc left", "slow arc right", "tracking follow", "handheld subtle drift". Describe the camera's relationship to the subject and what is revealed by the move.
+REFERENCE PROMPT: "A 65-year-old Asian woman with silver hair sits in a cozy library, wearing a hand-knitted cardigan and reading glasses, holding an open book. Warm shelves and blurred book spines fill the background as dust motes drift. Tight portrait framing with shallow depth of field, rule of thirds. Soft afternoon window light, Canon 5D 85mm f/1.8, Kodak Portra 400 grain, crisp details and natural skin texture."`;
 
-8. EMOTIONAL SPECIFICITY VIA PHYSICAL CUES: Jaw tension, grip pressure, breathing pace, glance direction, weight shift, posture changes — express all emotion through visible physical behavior.
+// ============================================================
+// Composition tools — structured output via tool calling.
+//
+// Tool call arguments are always forwarded by the LLM worker
+// regardless of thinking mode (unlike content, which may be
+// routed to reasoning_content and lost). This makes tool calling
+// the reliable way to get structured JSON from composition LLMs.
+// ============================================================
 
-9. STABILITY + MOTION ANCHORS: Include at least one: "smooth and stabilised", "tripod-locked", "cinematic motion consistency", "natural motion blur", "steady pace".
+const VIDEO_COMPOSITION_TOOL = {
+  type: 'function',
+  function: {
+    name: 'compose_video',
+    description: 'Output the composed video generation specification',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: '4-8 present-tense sentences describing a single continuous camera shot' },
+        camera_movement: {
+          type: 'string',
+          enum: ['static tripod', 'slow push-in', 'slow pull-back', 'smooth pan left', 'smooth pan right',
+                 'slow tilt up', 'slow tilt down', 'slow arc left', 'slow arc right', 'tracking follow', 'handheld subtle drift'],
+        },
+        shot_scale: { type: 'string', enum: ['wide', 'medium', 'close-up'] },
+        style_anchor: { type: 'string', description: '0-2 short style phrases' },
+        stability_anchor: { type: 'string', description: 'e.g. smooth and stabilised, tripod-locked' },
+      },
+      required: ['prompt', 'camera_movement', 'shot_scale'],
+    },
+  },
+};
 
-HARD CONSTRAINTS:
-- Exactly one camera movement per prompt
-- Present tense verbs throughout
-- All phrasing must be positive (express what IS present, visible, happening)
-- No on-screen text, logos, or signage directives (quoted dialogue is fine)
-- Do not use vague words like "beautiful", "nice", or "amazing" — describe exactly what makes it visually striking
-- Fill the full available prompt length — do not stop early
-- Write dense, flowing prose — not a bullet list
+const IMAGE_COMPOSITION_TOOL = {
+  type: 'function',
+  function: {
+    name: 'compose_image',
+    description: 'Output the composed image generation specification',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: '80-180 words of flowing prose describing the image' },
+        image_size: {
+          type: 'string',
+          enum: ['square_hd', 'portrait_4_3', 'portrait_16_9', 'landscape_4_3', 'landscape_16_9'],
+        },
+      },
+      required: ['prompt', 'image_size'],
+    },
+  },
+};
 
-camera_movement — Choose exactly one: "static tripod", "slow push-in", "slow pull-back", "smooth pan left", "smooth pan right", "slow tilt up", "slow tilt down", "slow arc left", "slow arc right", "tracking follow", "handheld subtle drift"
-
-shot_scale — "wide", "medium", or "close-up"
-
-style_anchor — 0-2 short phrases (e.g., "cinematic nocturne", "documentary handheld feel")
-
-stability_anchor — One stabiliser phrase (e.g., "smooth and stabilised", "tripod-locked", "cinematic motion consistency")
-
-REFERENCE (study the style and structure):
-{"prompt":"A medium close-up cinematic shot in a quiet, rain-soaked alley at night, neon reflections shimmering across wet pavement and brick. A man in his 30s with short dark hair and a worn leather jacket stands under a flickering sign, water beading on his collar and eyelashes. He exhales slowly, shoulders tightening as his fingers clamp around a small metal lighter, then he steadies his hand and clicks it once, watching the flame struggle against the damp air, rain tapping softly against the awning above while a distant car horn echoes off the wet walls. The camera performs a slow push-in toward his face, keeping the lighter flame in the foreground as his eyes track a faint movement deeper in the alley. His jaw sets, the tendons in his neck rising as he shifts his weight forward by half a step, breathing measured and controlled. Smooth and stabilised with cinematic motion consistency and natural motion blur, lit by diffused neon glow and soft practical highlights.","camera_movement":"slow push-in","shot_scale":"medium","style_anchor":"cinematic nocturne","stability_anchor":"smooth and stabilised"}
-
-Return ONLY the JSON object.`;
-
-const IMAGE_SYSTEM_PROMPT = `You are a prompt engineer for the Z-Image Turbo text-to-image model. This is a few-step distilled model. All constraints must be expressed positively ("crisp detail", "sharp focus", "clean background"). The model understands natural language sentences — write flowing prose, never comma-separated tag lists.
-
-Return ONLY a valid JSON object (no markdown fences, no commentary) with these fields:
-{"prompt":"...","image_size":"portrait_16_9"}
-
-PROMPT CONSTRUCTION — Write natural language sentences, 80-180 words (max 250). Focus on 3-5 key visual concepts. Follow this mandatory order:
-
-1. SUBJECT (front-load): Identity + distinctive traits + clothing/materials + action/state. Be concrete: age range, specific features, materials, surface conditions.
-
-2. ENVIRONMENT: Location + time of day + atmosphere/weather + background elements.
-
-3. COMPOSITION & FRAMING: Shot type (close-up, wide, top-down), focal priority, depth of field intent, composition rule if relevant (rule of thirds, centered).
-
-4. LIGHTING (name the setup): "soft natural afternoon window light", "three-point studio lighting", "golden hour backlight with long shadows", "overcast diffused light", "Rembrandt lighting with delicate shadows".
-
-5. CAMERA/LENS (optional, efficient aesthetic shortcut): "Canon 5D with 85mm f/1.8", "Hasselblad X2D with 90mm at f/4", "Leica M11 with 35mm Summilux", "Kodak Portra 400 film grain look", "iPhone 15 Pro ProRAW".
-
-6. STYLE ANCHORS (max 2): Short and specific. "vintage Japanese woodblock print style", "editorial raw portrait", "Spider-Verse animation style", "intimate documentary style".
-
-7. POSITIVE QUALITY CONSTRAINTS: "crisp details", "clean edges", "natural skin texture", "realistic reflections", "high micro-contrast", "sharp focus".
-
-image_size — Choose based on the subject:
-- "square_hd": general purpose, products, centered compositions
-- "portrait_4_3": portraits, people, vertical subjects
-- "portrait_16_9": full-body, tall architecture, story format
-- "landscape_4_3": environmental scenes, groups, interiors
-- "landscape_16_9": wide landscapes, panoramic, cinematic framing
-
-REFERENCE (study the style):
-{"prompt":"A 65-year-old Asian woman with silver hair and gentle wrinkles sits in a cozy library, wearing a hand-knitted cardigan and thin reading glasses, holding an open book close to her chest. Warm wooden shelves and softly blurred book spines fill the background as dust motes drift through the air. Tight portrait framing with shallow depth of field keeps her eyes and hands in sharp focus, following the rule of thirds. Soft natural afternoon window light creates delicate shadows and a calm glow. Shot on a Canon 5D with an 85mm f/1.8 lens, subtle Kodak Portra 400 film grain look, crisp details and natural skin texture.","image_size":"portrait_4_3"}
-
-Return ONLY the JSON object.`;
+const AUDIO_COMPOSITION_TOOL = {
+  type: 'function',
+  function: {
+    name: 'compose_song',
+    description: 'Output the composed music generation specification',
+    parameters: {
+      type: 'object',
+      properties: {
+        positivePrompt: { type: 'string', description: 'Dense paragraph describing the sound' },
+        lyrics: { type: 'string', description: 'Song lyrics with section headers, or empty string for instrumentals' },
+        bpm: { type: 'number', description: 'Beats per minute (60-300)' },
+        keyscale: { type: 'string', description: 'Key and scale, e.g. D minor' },
+        timesignature: { type: 'string', enum: ['2', '3', '4', '6'] },
+        duration: { type: 'number', description: 'Duration in seconds (10-600)' },
+        language: { type: 'string', description: 'ISO language code' },
+      },
+      required: ['positivePrompt', 'lyrics', 'bpm', 'keyscale', 'timesignature', 'duration', 'language'],
+    },
+  },
+};
 
 // ============================================================
 // LLM cost estimate + confirmation
@@ -470,7 +593,8 @@ function parseVideoJSON(raw, fallbackPrompt) {
     }
   }
 
-  console.log('  (Could not parse video JSON from LLM, using defaults)');
+  const preview = raw.substring(0, 200).replace(/\n/g, '\\n');
+  console.log(`  (Could not parse video JSON from LLM — raw ${raw.length} chars: ${preview}${raw.length > 200 ? '...' : ''})`);
   return {
     prompt: fallbackPrompt,
     camera_movement: 'slow push-in',
@@ -482,9 +606,7 @@ function parseVideoJSON(raw, fallbackPrompt) {
 
 async function composeVideo(sogni, userMessage, options, tokenType, duration = 10) {
   const pacingHint = computePacingHint(duration);
-  const userContent = options.think
-    ? `${userMessage}\n\n${pacingHint}`
-    : `${userMessage}\n\n${pacingHint} /no_think`;
+  const userContent = `${userMessage}\n\n${pacingHint} /no_think`;
   const messages = [
     { role: 'system', content: VIDEO_SYSTEM_PROMPT },
     { role: 'user', content: userContent },
@@ -495,54 +617,19 @@ async function composeVideo(sogni, userMessage, options, tokenType, duration = 1
 
   console.log('\n  Composing video prompt via LLM...');
 
-  const stateHandler = (event) => {
-    if (event.type === 'pending') console.log(`  Status: pending authorization`);
-    else if (event.type === 'queued') console.log(`  Status: queued`);
-    else if (event.type === 'assigned' && event.workerName) console.log(`  Worker: ${event.workerName} (assigned)`);
-    else if (event.type === 'jobStarted' && event.workerName) console.log(`  Worker: ${event.workerName} (started)`);
-  };
-  sogni.chat.on('jobState', stateHandler);
-
   try {
-    const stream = await sogni.chat.completions.create({
-      model: options.model,
-      messages,
-      max_tokens: 4096,
-      temperature: 0.7,
-      top_p: options.topP,
-      stream: true,
-      tokenType,
-    });
-
-    let raw = '';
-    process.stdout.write('  Composing: ');
-    for await (const chunk of stream) {
-      if (chunk.content) {
-        process.stdout.write(chunk.content);
-        raw += chunk.content;
-      }
-    }
-    console.log();
-
-    const videoParams = parseVideoJSON(stripThinkingTags(raw), userMessage);
+    const raw = await streamComposition(sogni, messages, options, tokenType, [VIDEO_COMPOSITION_TOOL]);
+    const videoParams = parseVideoJSON(raw, userMessage);
 
     console.log(`  Camera:   ${videoParams.camera_movement}`);
     console.log(`  Scale:    ${videoParams.shot_scale}`);
     if (videoParams.style_anchor) console.log(`  Style:    ${videoParams.style_anchor}`);
-    console.log(`  Prompt:   ${videoParams.prompt.substring(0, 120)}${videoParams.prompt.length > 120 ? '...' : ''}`);
+    console.log(`  Prompt:   ${videoParams.prompt}`);
 
     return videoParams;
   } catch (err) {
-    console.log(`  (Video prompt composition failed: ${err.message}, using original)`);
-    return {
-      prompt: userMessage,
-      camera_movement: 'slow push-in',
-      shot_scale: 'medium',
-      style_anchor: '',
-      stability_anchor: 'smooth and stabilised',
-    };
-  } finally {
-    sogni.chat.off('jobState', stateHandler);
+    console.log(`  (Video prompt composition failed: ${err.message})`);
+    return null;
   }
 }
 
@@ -586,7 +673,8 @@ function parseImageJSON(raw, fallbackPrompt) {
     }
   }
 
-  console.log('  (Could not parse image JSON from LLM, using defaults)');
+  const preview = raw.substring(0, 200).replace(/\n/g, '\\n');
+  console.log(`  (Could not parse image JSON from LLM — raw ${raw.length} chars: ${preview}${raw.length > 200 ? '...' : ''})`);
   return {
     prompt: fallbackPrompt,
     image_size: 'portrait_16_9',
@@ -594,7 +682,7 @@ function parseImageJSON(raw, fallbackPrompt) {
 }
 
 async function composeImage(sogni, userMessage, options, tokenType) {
-  const userContent = options.think ? userMessage : `${userMessage} /no_think`;
+  const userContent = `${userMessage} /no_think`;
   const messages = [
     { role: 'system', content: IMAGE_SYSTEM_PROMPT },
     { role: 'user', content: userContent },
@@ -605,56 +693,36 @@ async function composeImage(sogni, userMessage, options, tokenType) {
 
   console.log('\n  Composing image prompt via LLM...');
 
-  const stateHandler = (event) => {
-    if (event.type === 'pending') console.log(`  Status: pending authorization`);
-    else if (event.type === 'queued') console.log(`  Status: queued`);
-    else if (event.type === 'assigned' && event.workerName) console.log(`  Worker: ${event.workerName} (assigned)`);
-    else if (event.type === 'jobStarted' && event.workerName) console.log(`  Worker: ${event.workerName} (started)`);
-  };
-  sogni.chat.on('jobState', stateHandler);
-
   try {
-    const stream = await sogni.chat.completions.create({
-      model: options.model,
-      messages,
-      max_tokens: 4096,
-      temperature: 0.7,
-      top_p: options.topP,
-      stream: true,
-      tokenType,
-    });
-
-    let raw = '';
-    process.stdout.write('  Composing: ');
-    for await (const chunk of stream) {
-      if (chunk.content) {
-        process.stdout.write(chunk.content);
-        raw += chunk.content;
-      }
-    }
-    console.log();
-
-    const imageParams = parseImageJSON(stripThinkingTags(raw), userMessage);
+    const raw = await streamComposition(sogni, messages, options, tokenType, [IMAGE_COMPOSITION_TOOL]);
+    const imageParams = parseImageJSON(raw, userMessage);
     const size = IMAGE_SIZES[imageParams.image_size];
 
     console.log(`  Size:   ${imageParams.image_size} (${size.width}x${size.height})`);
-    console.log(`  Prompt: ${imageParams.prompt.substring(0, 120)}${imageParams.prompt.length > 120 ? '...' : ''}`);
+    console.log(`  Prompt: ${imageParams.prompt}`);
 
     return imageParams;
   } catch (err) {
-    console.log(`  (Image prompt composition failed: ${err.message}, using original)`);
-    return {
-      prompt: userMessage,
-      image_size: 'portrait_16_9',
-    };
-  } finally {
-    sogni.chat.off('jobState', stateHandler);
+    console.log(`  (Image prompt composition failed: ${err.message})`);
+    return null;
   }
 }
 
 // ============================================================
 // LLM: Compose a complete song specification for ACE-Step 1.5
 // ============================================================
+
+function normalizeKeyscale(keyscale) {
+  // Server expects "C major", "A# minor", etc. — note uppercase, scale lowercase.
+  // LLMs may return "C Major", "c major", "C MAJOR", etc.
+  const parts = keyscale.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    const note = parts.slice(0, -1).join(' ');
+    const scale = parts[parts.length - 1].toLowerCase();
+    return `${note} ${scale}`;
+  }
+  return keyscale;
+}
 
 function parseSongJSON(raw, fallbackPrompt) {
   const attempts = [
@@ -680,7 +748,7 @@ function parseSongJSON(raw, fallbackPrompt) {
           positivePrompt: String(parsed.positivePrompt),
           lyrics: String(parsed.lyrics || ''),
           bpm: Math.max(30, Math.min(300, parseInt(parsed.bpm) || 120)),
-          keyscale: String(parsed.keyscale || 'C major'),
+          keyscale: normalizeKeyscale(String(parsed.keyscale || 'C major')),
           timesignature: String(parsed.timesignature || '4'),
           duration: Math.max(10, Math.min(600, parseInt(parsed.duration) || 30)),
           language: String(parsed.language || 'en'),
@@ -692,7 +760,8 @@ function parseSongJSON(raw, fallbackPrompt) {
   }
 
   // Fallback: use raw text as prompt with defaults
-  console.log('  (Could not parse song JSON from LLM, using defaults)');
+  const preview = raw.substring(0, 200).replace(/\n/g, '\\n');
+  console.log(`  (Could not parse song JSON from LLM — raw ${raw.length} chars: ${preview}${raw.length > 200 ? '...' : ''})`);
   return {
     positivePrompt: fallbackPrompt,
     lyrics: '',
@@ -705,7 +774,7 @@ function parseSongJSON(raw, fallbackPrompt) {
 }
 
 async function composeSong(sogni, userMessage, options, tokenType) {
-  const userContent = options.think ? userMessage : `${userMessage} /no_think`;
+  const userContent = `${userMessage} /no_think`;
   const messages = [
     { role: 'system', content: AUDIO_SYSTEM_PROMPT },
     { role: 'user', content: userContent },
@@ -716,42 +785,14 @@ async function composeSong(sogni, userMessage, options, tokenType) {
 
   console.log('\n  Composing song via LLM...');
 
-  const stateHandler = (event) => {
-    if (event.type === 'pending') console.log(`  Status: pending authorization`);
-    else if (event.type === 'queued') console.log(`  Status: queued`);
-    else if (event.type === 'assigned' && event.workerName) console.log(`  Worker: ${event.workerName} (assigned)`);
-    else if (event.type === 'jobStarted' && event.workerName) console.log(`  Worker: ${event.workerName} (started)`);
-  };
-  sogni.chat.on('jobState', stateHandler);
-
   try {
-    const stream = await sogni.chat.completions.create({
-      model: options.model,
-      messages,
-      max_tokens: 4096,
-      temperature: 0.7,
-      top_p: options.topP,
-      stream: true,
-      tokenType,
-    });
+    const raw = await streamComposition(sogni, messages, options, tokenType, [AUDIO_COMPOSITION_TOOL]);
+    const songParams = parseSongJSON(raw, userMessage);
 
-    let raw = '';
-    process.stdout.write('  Composing: ');
-    for await (const chunk of stream) {
-      if (chunk.content) {
-        process.stdout.write(chunk.content);
-        raw += chunk.content;
-      }
-    }
-    console.log();
-
-    const songParams = parseSongJSON(stripThinkingTags(raw), userMessage);
-
-    // Display composition summary
     const tsLabels = { '2': '2/4', '3': '3/4', '4': '4/4', '6': '6/8' };
     console.log();
     console.log('  Song Composition:');
-    console.log(`  Style:     ${songParams.positivePrompt.substring(0, 120)}${songParams.positivePrompt.length > 120 ? '...' : ''}`);
+    console.log(`  Style:     ${songParams.positivePrompt}`);
     console.log(`  BPM:       ${songParams.bpm}`);
     console.log(`  Key:       ${songParams.keyscale}`);
     console.log(`  Time:      ${tsLabels[songParams.timesignature] || songParams.timesignature}`);
@@ -760,22 +801,16 @@ async function composeSong(sogni, userMessage, options, tokenType) {
     if (songParams.lyrics) {
       const lineCount = songParams.lyrics.split('\n').filter(l => l.trim()).length;
       console.log(`  Lyrics:    ${lineCount} lines`);
+      console.log();
+      for (const line of songParams.lyrics.split('\n')) {
+        console.log(`    ${line}`);
+      }
     }
 
     return songParams;
   } catch (err) {
-    console.log(`  (Song composition failed: ${err.message}, using defaults)`);
-    return {
-      positivePrompt: userMessage,
-      lyrics: '',
-      bpm: 120,
-      keyscale: 'C major',
-      timesignature: '4',
-      duration: 30,
-      language: 'en',
-    };
-  } finally {
-    sogni.chat.off('jobState', stateHandler);
+    console.log(`  (Song composition failed: ${err.message})`);
+    return null;
   }
 }
 
@@ -1199,6 +1234,7 @@ function buildSystemPrompt(customPrompt) {
     'When the user asks to create, generate, draw, compose, or produce any media, call the appropriate tool immediately. Do not describe what you plan to create — just call the tool.',
     'For the tool\'s "prompt" argument, pass the user\'s creative intent as a concise description. Do NOT rewrite or elaborate the prompt yourself — a specialist will enhance it.',
     'When the user is having a conversation and not requesting media, respond normally without calling tools.',
+    'After media generation, summarize what was created. NEVER include URLs, links, or download paths — the user already has the file locally.',
   ].join('\n');
 }
 
@@ -1223,13 +1259,15 @@ async function chatWithLLM(sogni, messages, options, tokenType) {
     });
 
     let content = '';
+    const filter = createThinkingFilter(options.showThinking);
     process.stdout.write('\nAssistant: ');
     for await (const chunk of stream) {
       if (chunk.content) {
-        process.stdout.write(chunk.content);
+        filter.write(chunk.content);
         content += chunk.content;
       }
     }
+    filter.flush();
     console.log();
 
     const result = stream.finalResult;
@@ -1273,7 +1311,7 @@ async function handleToolCalls(sogni, toolCalls, options, tokenType) {
     const startTime = Date.now();
 
     console.log(`\n  Tool call: ${toolCall.function.name}`);
-    console.log(`  Intent: ${rawPrompt.substring(0, 120)}${rawPrompt.length > 120 ? '...' : ''}`);
+    console.log(`  Intent: ${rawPrompt}`);
 
     let result = null;
     try {
@@ -1306,7 +1344,15 @@ async function handleToolCalls(sogni, toolCalls, options, tokenType) {
     results.push({
       tool_call_id: toolCall.id,
       content: JSON.stringify(result
-        ? { success: true, media_type: mediaType, model: result.model, prompt: result.prompt, files_saved: result.files?.filter(f => f.localPath).length || (result.localPath ? 1 : 0) }
+        ? {
+            success: true,
+            media_type: mediaType,
+            model: result.model,
+            prompt: result.prompt,
+            local_file: result.localPath || result.files?.[0]?.localPath || null,
+            files_saved: result.files?.filter(f => f.localPath).length || (result.localPath ? 1 : 0),
+            note: 'The file has been saved locally and shown to the user. Do NOT include any URLs or links in your response — the user already has the file.',
+          }
         : { success: false, media_type: mediaType, error: 'Generation cancelled or failed' }),
     });
   }
@@ -1331,7 +1377,7 @@ async function main() {
   console.log('  Sogni Chat — Platform Tools');
   console.log('  (Image, Video, and Music Generation)');
   console.log('='.repeat(60));
-  console.log();
+  showHelp();
 
   // Load credentials
   const credentials = await loadCredentials();
@@ -1363,15 +1409,18 @@ async function main() {
   const tokenType = loadTokenTypePreference() || 'sogni';
   const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
 
-  // Wait for LLM models
+  // Wait for LLM models and read capabilities
+  let modelInfo = null;
   try {
     const availableModels = await sogni.chat.waitForModels();
     console.log('Available LLM models:');
     const modelIds = Object.keys(availableModels);
     for (let i = 0; i < modelIds.length; i++) {
       const id = modelIds[i];
-      const workers = availableModels[id].workers;
-      console.log(`  [${i + 1}] ${id} (${workers} worker${workers !== 1 ? 's' : ''})`);
+      const info = availableModels[id];
+      const ctx = info.maxContextLength ? `, ${(info.maxContextLength / 1024).toFixed(0)}K ctx` : '';
+      const maxOut = info.maxOutputTokens ? `, max ${info.maxOutputTokens.max} out` : '';
+      console.log(`  [${i + 1}] ${id} (${info.workers} worker${info.workers !== 1 ? 's' : ''}${ctx}${maxOut})`);
     }
     console.log();
 
@@ -1387,6 +1436,15 @@ async function main() {
     } else if (options.model === DEFAULT_LLM_MODEL && modelIds.length === 1) {
       options.model = modelIds[0];
     }
+
+    // Store selected model's capabilities
+    modelInfo = availableModels[options.model] || null;
+    if (modelInfo) {
+      // Use server-reported max output tokens if user didn't override --max-tokens
+      if (options.maxTokens === 4096 && modelInfo.maxOutputTokens) {
+        options.maxTokens = modelInfo.maxOutputTokens.default || 4096;
+      }
+    }
   } catch {
     console.log('Warning: No LLM models currently available');
   }
@@ -1401,6 +1459,12 @@ async function main() {
 
   // Display config
   console.log(`LLM Model:   ${options.model}`);
+  if (modelInfo?.maxContextLength) {
+    console.log(`Context:     ${modelInfo.maxContextLength} tokens (${(modelInfo.maxContextLength / 1024).toFixed(0)}K)`);
+  }
+  if (modelInfo?.maxOutputTokens) {
+    console.log(`Max Output:  ${modelInfo.maxOutputTokens.max} tokens (default: ${modelInfo.maxOutputTokens.default})`);
+  }
   console.log(`Thinking:    ${options.think ? 'enabled' : 'disabled'}`);
   console.log(`Payment:     ${tokenLabel}`);
   if (options.quantity > 1) console.log(`Quantity:    ${options.quantity}`);
@@ -1443,13 +1507,15 @@ async function main() {
     // Stream response (text for conversation, empty for tool calls)
     let content = '';
     let hasContent = false;
+    const filter = createThinkingFilter(options.showThinking);
     for await (const chunk of stream) {
       if (chunk.content) {
         if (!hasContent) { process.stdout.write('\nAssistant: '); hasContent = true; }
-        process.stdout.write(chunk.content);
+        filter.write(chunk.content);
         content += chunk.content;
       }
     }
+    filter.flush();
     if (hasContent) console.log();
 
     const result = stream.finalResult;
@@ -1457,6 +1523,8 @@ async function main() {
 
     if (toolCalls.length > 0) {
       // ---- TOOL CALLING PATH ----
+      // Remove main stateHandler so composition functions can manage their own
+      sogni.chat.off('jobState', stateHandler);
       console.log(`\n  LLM requested ${toolCalls.length} tool call${toolCalls.length > 1 ? 's' : ''}`);
 
       const toolResults = await handleToolCalls(sogni, toolCalls, options, tokenType);
