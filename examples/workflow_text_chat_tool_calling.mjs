@@ -784,7 +784,11 @@ async function main() {
   try {
     availableModels = await sogni.chat.waitForModels();
     console.log('Available LLM models:');
-    const modelIds = Object.keys(availableModels);
+    const modelIds = Object.keys(availableModels).sort((a, b) => {
+      if (a === options.model) return -1;
+      if (b === options.model) return 1;
+      return 0;
+    });
     for (let i = 0; i < modelIds.length; i++) {
       const id = modelIds[i];
       const workers = availableModels[id].workers;
@@ -801,18 +805,21 @@ async function main() {
     console.log();
   }
 
-  // Resolve max tokens: CLI override > model-reported default > fallback
+  // Resolve max tokens: CLI override > model default > fallback
+  // When thinking is enabled, use max output tokens to give the model room for reasoning
   const modelInfo = availableModels[options.model];
-  options.maxTokens = options.maxTokens || modelInfo?.maxOutputTokens?.default || 8192;
+  options.maxTokens = options.maxTokens
+    || (options.think ? modelInfo?.maxOutputTokens?.max : undefined)
+    || modelInfo?.maxOutputTokens?.default
+    || 8192;
 
   // Load token type preference
   const tokenType = loadTokenTypePreference() || 'sogni';
   const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
 
   // Build messages
-  const systemContent = options.think ? options.system : `${options.system} /no_think`;
   const messages = [
-    { role: 'system', content: systemContent },
+    { role: 'system', content: options.system },
     { role: 'user', content: options.prompt },
   ];
 
@@ -872,11 +879,14 @@ async function main() {
   const MAX_ROUNDS = 5;
   const startTime = Date.now();
   let lastResult = null;
+  let firstTokenTime = null;
 
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       console.log('-'.repeat(60));
       console.log(`[Round ${round + 1}] Sending to LLM...`);
+
+      const roundStart = Date.now();
 
       const stream = await sogni.chat.completions.create({
         model: options.model,
@@ -888,13 +898,17 @@ async function main() {
         top_p: options.topP,
         stream: true,
         tokenType,
+        think: options.think,
       });
 
       // Stream the response
       process.stdout.write('\nAssistant: ');
       const filter = createThinkingFilter(options.showThinking);
+      let roundFirstToken = null;
       for await (const chunk of stream) {
         if (chunk.content) {
+          if (!roundFirstToken) roundFirstToken = Date.now();
+          if (!firstTokenTime) firstTokenTime = Date.now();
           filter.write(chunk.content);
         }
       }
@@ -903,6 +917,17 @@ async function main() {
 
       const result = stream.finalResult;
       lastResult = result;
+
+      // Print per-round timing
+      const roundElapsed = ((Date.now() - roundStart) / 1000).toFixed(2);
+      const roundTtft = roundFirstToken ? ((roundFirstToken - roundStart) / 1000).toFixed(2) : 'n/a';
+      if (result?.usage) {
+        const tps = result.usage.completion_tokens / result.timeTaken;
+        console.log(`  [Round ${round + 1}: ${roundElapsed}s, TTFT ${roundTtft}s, ${result.usage.completion_tokens} tokens, ${tps.toFixed(0)} tok/s]`);
+      } else {
+        console.log(`  [Round ${round + 1}: ${roundElapsed}s, TTFT ${roundTtft}s]`);
+      }
+
       if (!result) break;
 
       // If the model called tools, execute them and loop back
@@ -956,11 +981,13 @@ async function main() {
 
   // Print final stats
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+  const ttft = firstTokenTime ? ((firstTokenTime - startTime) / 1000).toFixed(2) : 'n/a';
   console.log();
   console.log('-'.repeat(60));
   if (lastResult?.workerName) {
     console.log(`Worker:      ${lastResult.workerName}`);
   }
+  console.log(`TTFT:        ${ttft}s`);
   console.log(`Time:        ${elapsed}s${lastResult ? ` (server: ${lastResult.timeTaken.toFixed(2)}s)` : ''}`);
   console.log(`Finish:      ${lastResult?.finishReason || 'unknown'}`);
   if (lastResult?.usage) {
@@ -969,6 +996,11 @@ async function main() {
       `Tokens:      ${lastResult.usage.prompt_tokens} prompt + ${lastResult.usage.completion_tokens} completion = ${lastResult.usage.total_tokens} total`,
     );
     console.log(`Speed:       ${tps.toFixed(1)} tokens/sec`);
+  }
+  if (lastResult?.finishReason === 'length' && options.think) {
+    console.log();
+    console.log(`Warning: Response hit max_tokens (${options.maxTokens}). Thinking may have consumed the entire token budget.`);
+    console.log(`Try increasing --max-tokens or disabling thinking mode.`);
   }
   console.log();
 

@@ -606,7 +606,7 @@ function parseVideoJSON(raw, fallbackPrompt) {
 
 async function composeVideo(sogni, userMessage, options, tokenType, duration = 10) {
   const pacingHint = computePacingHint(duration);
-  const userContent = `${userMessage}\n\n${pacingHint} /no_think`;
+  const userContent = `${userMessage}\n\n${pacingHint}`;
   const messages = [
     { role: 'system', content: VIDEO_SYSTEM_PROMPT },
     { role: 'user', content: userContent },
@@ -682,10 +682,9 @@ function parseImageJSON(raw, fallbackPrompt) {
 }
 
 async function composeImage(sogni, userMessage, options, tokenType) {
-  const userContent = `${userMessage} /no_think`;
   const messages = [
     { role: 'system', content: IMAGE_SYSTEM_PROMPT },
-    { role: 'user', content: userContent },
+    { role: 'user', content: userMessage },
   ];
 
   const confirmed = await estimateLLMAndConfirm(sogni, messages, options, tokenType, 'image prompt');
@@ -774,10 +773,9 @@ function parseSongJSON(raw, fallbackPrompt) {
 }
 
 async function composeSong(sogni, userMessage, options, tokenType) {
-  const userContent = `${userMessage} /no_think`;
   const messages = [
     { role: 'system', content: AUDIO_SYSTEM_PROMPT },
-    { role: 'user', content: userContent },
+    { role: 'user', content: userMessage },
   ];
 
   const confirmed = await estimateLLMAndConfirm(sogni, messages, options, tokenType, 'song composition');
@@ -1248,6 +1246,9 @@ async function chatWithLLM(sogni, messages, options, tokenType) {
   sogni.chat.on('jobState', stateHandler);
 
   try {
+    const startTime = Date.now();
+    let firstTokenTime = null;
+
     const stream = await sogni.chat.completions.create({
       model: options.model,
       messages,
@@ -1263,6 +1264,7 @@ async function chatWithLLM(sogni, messages, options, tokenType) {
     process.stdout.write('\nAssistant: ');
     for await (const chunk of stream) {
       if (chunk.content) {
+        if (!firstTokenTime) firstTokenTime = Date.now();
         filter.write(chunk.content);
         content += chunk.content;
       }
@@ -1272,11 +1274,13 @@ async function chatWithLLM(sogni, messages, options, tokenType) {
 
     const result = stream.finalResult;
     if (result) {
-      const elapsed = result.timeTaken.toFixed(2);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+      const ttft = firstTokenTime ? ((firstTokenTime - startTime) / 1000).toFixed(2) : 'n/a';
       console.log();
       console.log('-'.repeat(60));
       if (result.workerName) console.log(`Worker:      ${result.workerName}`);
-      console.log(`Time:        ${elapsed}s`);
+      console.log(`TTFT:        ${ttft}s`);
+      console.log(`Time:        ${elapsed}s (server: ${result.timeTaken.toFixed(2)}s)`);
       if (result.usage) {
         const tps = result.usage.completion_tokens / result.timeTaken;
         console.log(
@@ -1414,7 +1418,11 @@ async function main() {
   try {
     const availableModels = await sogni.chat.waitForModels();
     console.log('Available LLM models:');
-    const modelIds = Object.keys(availableModels);
+    const modelIds = Object.keys(availableModels).sort((a, b) => {
+      if (a === options.model) return -1;
+      if (b === options.model) return 1;
+      return 0;
+    });
     for (let i = 0; i < modelIds.length; i++) {
       const id = modelIds[i];
       const info = availableModels[id];
@@ -1435,8 +1443,12 @@ async function main() {
     console.log('Warning: No LLM models currently available');
   }
 
-  // Resolve max tokens: CLI override > model-reported default > fallback
-  options.maxTokens = options.maxTokens || modelInfo?.maxOutputTokens?.default || 8192;
+  // Resolve max tokens: CLI override > model default > fallback
+  // When thinking is enabled, use max output tokens to give the model room for reasoning
+  options.maxTokens = options.maxTokens
+    || (options.think ? modelInfo?.maxOutputTokens?.max : undefined)
+    || modelInfo?.maxOutputTokens?.default
+    || 8192;
 
   // Wait for media models to be available
   try {
@@ -1465,10 +1477,9 @@ async function main() {
 
   // Build messages with tool-aware system prompt
   const systemPrompt = buildSystemPrompt(options.system);
-  const userContent = options.think ? userInput : `${userInput} /no_think`;
   const messages = [
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: userContent },
+    { role: 'user', content: userInput },
   ];
 
   // LLM call: let the model decide intent via tool calling
@@ -1481,6 +1492,9 @@ async function main() {
   sogni.chat.on('jobState', stateHandler);
 
   try {
+    const mainStartTime = Date.now();
+    let mainFirstTokenTime = null;
+
     const stream = await sogni.chat.completions.create({
       model: options.model,
       messages,
@@ -1489,6 +1503,7 @@ async function main() {
       top_p: options.topP,
       stream: true,
       tokenType,
+      think: options.think,
       tools: HYBRID_TOOLS,
       tool_choice: 'auto',
     });
@@ -1499,6 +1514,7 @@ async function main() {
     const filter = createThinkingFilter(options.showThinking);
     for await (const chunk of stream) {
       if (chunk.content) {
+        if (!mainFirstTokenTime) mainFirstTokenTime = Date.now();
         if (!hasContent) { process.stdout.write('\nAssistant: '); hasContent = true; }
         filter.write(chunk.content);
         content += chunk.content;
@@ -1514,7 +1530,8 @@ async function main() {
       // ---- TOOL CALLING PATH ----
       // Remove main stateHandler so composition functions can manage their own
       sogni.chat.off('jobState', stateHandler);
-      console.log(`\n  LLM requested ${toolCalls.length} tool call${toolCalls.length > 1 ? 's' : ''}`);
+      const intentElapsed = ((Date.now() - mainStartTime) / 1000).toFixed(2);
+      console.log(`\n  LLM requested ${toolCalls.length} tool call${toolCalls.length > 1 ? 's' : ''} (${intentElapsed}s)`);
 
       const toolResults = await handleToolCalls(sogni, toolCalls, options, tokenType);
 
@@ -1528,10 +1545,12 @@ async function main() {
     } else {
       // ---- CONVERSATION PATH ----
       if (result) {
-        const elapsed = result.timeTaken.toFixed(2);
+        const elapsed = ((Date.now() - mainStartTime) / 1000).toFixed(2);
+        const ttft = mainFirstTokenTime ? ((mainFirstTokenTime - mainStartTime) / 1000).toFixed(2) : 'n/a';
         console.log(); console.log('-'.repeat(60));
         if (result.workerName) console.log(`Worker:      ${result.workerName}`);
-        console.log(`Time:        ${elapsed}s`);
+        console.log(`TTFT:        ${ttft}s`);
+        console.log(`Time:        ${elapsed}s (server: ${result.timeTaken.toFixed(2)}s)`);
         if (result.usage) {
           const tps = result.usage.completion_tokens / result.timeTaken;
           console.log(`Tokens:      ${result.usage.prompt_tokens} prompt + ${result.usage.completion_tokens} completion = ${result.usage.total_tokens} total`);

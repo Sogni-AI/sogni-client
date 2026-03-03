@@ -360,6 +360,8 @@ async function main() {
   let totalCompletionTokens = 0;
   let totalRequests = 0;
   let totalTime = 0;
+  let totalTTFT = 0;
+  let ttftCount = 0;
 
   // Pre-load image if specified via CLI
   if (options.image) {
@@ -432,6 +434,9 @@ async function main() {
     console.log(`  Total Time:       ${totalTime.toFixed(2)}s`);
     if (totalCompletionTokens > 0 && totalTime > 0) {
       console.log(`  Avg Speed:        ${(totalCompletionTokens / totalTime).toFixed(1)} tokens/sec`);
+    }
+    if (ttftCount > 0) {
+      console.log(`  Avg TTFT:         ${(totalTTFT / ttftCount).toFixed(2)}s`);
     }
     console.log(`  History Length:   ${history.length} messages`);
     console.log(`  Image:            ${currentImage ? currentImage.fileName : '(none)'}`);
@@ -625,6 +630,7 @@ async function main() {
 
     try {
       const startTime = Date.now();
+      let firstTokenTime = null;
 
       process.stdout.write('\nAssistant: ');
 
@@ -644,6 +650,7 @@ async function main() {
 
       for await (const chunk of stream) {
         if (chunk.content) {
+          if (!firstTokenTime) firstTokenTime = Date.now();
           filter.write(chunk.content);
           rawContent += chunk.content;
         }
@@ -671,14 +678,19 @@ async function main() {
       // Update stats
       totalRequests++;
       totalTime += result?.timeTaken || elapsed;
+      if (firstTokenTime) {
+        totalTTFT += (firstTokenTime - startTime) / 1000;
+        ttftCount++;
+      }
       if (result?.usage) {
         totalPromptTokens += result.usage.prompt_tokens;
         totalCompletionTokens += result.usage.completion_tokens;
       }
 
       // Print detailed stats
+      const ttft = firstTokenTime ? ((firstTokenTime - startTime) / 1000).toFixed(2) : 'n/a';
       console.log();
-      console.log(`  [Time: ${elapsed.toFixed(2)}s${result ? ` (server: ${result.timeTaken.toFixed(2)}s)` : ''} | Finish: ${result?.finishReason || 'unknown'}]`);
+      console.log(`  [TTFT: ${ttft}s | Time: ${elapsed.toFixed(2)}s${result ? ` (server: ${result.timeTaken.toFixed(2)}s)` : ''} | Finish: ${result?.finishReason || 'unknown'}]`);
       if (result?.usage) {
         const tps = result.usage.completion_tokens / (result.timeTaken || elapsed);
         console.log(

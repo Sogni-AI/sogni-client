@@ -241,7 +241,11 @@ async function main() {
   try {
     availableModels = await sogni.chat.waitForModels();
     console.log('Available LLM models:');
-    const modelIds = Object.keys(availableModels);
+    const modelIds = Object.keys(availableModels).sort((a, b) => {
+      if (a === options.model) return -1;
+      if (b === options.model) return 1;
+      return 0;
+    });
     for (let i = 0; i < modelIds.length; i++) {
       const id = modelIds[i];
       const workers = availableModels[id].workers;
@@ -258,9 +262,13 @@ async function main() {
     console.log();
   }
 
-  // Resolve max tokens: CLI override > model-reported default > fallback
+  // Resolve max tokens: CLI override > model default > fallback
+  // When thinking is enabled, use max output tokens to give the model room for reasoning
   const modelInfo = availableModels[options.model];
-  options.maxTokens = options.maxTokens || modelInfo?.maxOutputTokens?.default || 8192;
+  options.maxTokens = options.maxTokens
+    || (options.think ? modelInfo?.maxOutputTokens?.max : undefined)
+    || modelInfo?.maxOutputTokens?.default
+    || 8192;
 
   // Load token type preference
   const tokenType = loadTokenTypePreference() || 'sogni';
@@ -270,8 +278,7 @@ async function main() {
   if (options.system) {
     messages.push({ role: 'system', content: options.system });
   }
-  const userContent = options.think ? options.prompt : `${options.prompt} /no_think`;
-  messages.push({ role: 'user', content: userContent });
+  messages.push({ role: 'user', content: options.prompt });
 
   // Display request info
   const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
@@ -327,6 +334,7 @@ async function main() {
   try {
     const startTime = Date.now();
     let tokenCount = 0;
+    let firstTokenTime = null;
 
     console.log('-'.repeat(60));
     console.log('Assistant:');
@@ -342,12 +350,14 @@ async function main() {
       presence_penalty: options.presencePenalty,
       stream: true,
       tokenType,
+      think: options.think,
     });
 
     // Stream tokens as they arrive
     const filter = createThinkingFilter(options.showThinking);
     for await (const chunk of stream) {
       if (chunk.content) {
+        if (!firstTokenTime) firstTokenTime = Date.now();
         filter.write(chunk.content);
         tokenCount++;
       }
@@ -364,12 +374,19 @@ async function main() {
     if (result?.workerName) {
       console.log(`Worker:       ${result.workerName}`);
     }
+    const ttft = firstTokenTime ? ((firstTokenTime - startTime) / 1000).toFixed(2) : 'n/a';
+    console.log(`TTFT:         ${ttft}s`);
     console.log(`Time:         ${elapsed}s${result ? ` (server: ${result.timeTaken.toFixed(2)}s)` : ''}`);
     console.log(`Finish:       ${result?.finishReason || 'unknown'}`);
     if (result?.usage) {
       const tps = result.usage.completion_tokens / result.timeTaken;
       console.log(`Tokens:       ${result.usage.prompt_tokens} prompt + ${result.usage.completion_tokens} completion = ${result.usage.total_tokens} total`);
       console.log(`Speed:        ${tps.toFixed(1)} tokens/sec`);
+    }
+    if (result?.finishReason === 'length' && options.think) {
+      console.log();
+      console.log(`Warning: Response hit max_tokens (${options.maxTokens}). Thinking may have consumed the entire token budget.`);
+      console.log(`Try increasing --max-tokens or disabling thinking mode.`);
     }
     console.log();
   } catch (err) {

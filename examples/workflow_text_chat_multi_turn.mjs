@@ -229,7 +229,11 @@ async function main() {
     availableModels = await sogni.chat.waitForModels();
     console.log();
     console.log('Available LLM models:');
-    const modelIds = Object.keys(availableModels);
+    const modelIds = Object.keys(availableModels).sort((a, b) => {
+      if (a === options.model) return -1;
+      if (b === options.model) return 1;
+      return 0;
+    });
     for (let i = 0; i < modelIds.length; i++) {
       const id = modelIds[i];
       const workers = availableModels[id].workers;
@@ -246,15 +250,9 @@ async function main() {
     console.log();
   }
 
-  // Resolve max tokens: CLI override > model-reported default > fallback
   const modelInfo = availableModels[options.model];
-  options.maxTokens = options.maxTokens || modelInfo?.maxOutputTokens?.default || 8192;
 
-  // Load token type preference
-  const tokenType = loadTokenTypePreference() || 'sogni';
-  const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
-
-  // Ask about thinking mode if not specified via CLI
+  // Ask about thinking mode if not specified via CLI (before resolving max tokens)
   let think = options.think;
   if (!options.thinkExplicit) {
     console.log();
@@ -263,6 +261,17 @@ async function main() {
     const thinkAnswer = await askQuestion('Enable thinking mode? (y/N): ');
     think = thinkAnswer.toLowerCase() === 'y' || thinkAnswer.toLowerCase() === 'yes';
   }
+
+  // Resolve max tokens: CLI override > model default > fallback
+  // When thinking is enabled, use max output tokens to give the model room for reasoning
+  options.maxTokens = options.maxTokens
+    || (think ? modelInfo?.maxOutputTokens?.max : undefined)
+    || modelInfo?.maxOutputTokens?.default
+    || 8192;
+
+  // Load token type preference
+  const tokenType = loadTokenTypePreference() || 'sogni';
+  const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
 
   console.log();
   console.log(`Model:       ${options.model}`);
@@ -297,6 +306,8 @@ async function main() {
   let totalCompletionTokens = 0;
   let totalRequests = 0;
   let totalTime = 0;
+  let totalTTFT = 0;
+  let ttftCount = 0;
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -328,6 +339,9 @@ async function main() {
     console.log(`  Total Time:       ${totalTime.toFixed(2)}s`);
     if (totalCompletionTokens > 0 && totalTime > 0) {
       console.log(`  Avg Speed:        ${(totalCompletionTokens / totalTime).toFixed(1)} tokens/sec`);
+    }
+    if (ttftCount > 0) {
+      console.log(`  Avg TTFT:         ${(totalTTFT / ttftCount).toFixed(2)}s`);
     }
     console.log(`  History Length:   ${history.length} messages`);
     console.log('-'.repeat(40));
@@ -398,17 +412,11 @@ async function main() {
     // Add user message to history
     history.push({ role: 'user', content: trimmed });
 
-    // Build full messages array, applying thinking mode to the latest user message
+    // Build full messages array
     const messages = [
       { role: 'system', content: systemPrompt },
       ...history,
     ];
-    if (!think) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg.role === 'user') {
-        messages[messages.length - 1] = { ...lastMsg, content: `${lastMsg.content} /no_think` };
-      }
-    }
 
     // Estimate cost and check balance before submitting
     try {
@@ -434,6 +442,7 @@ async function main() {
 
     try {
       const startTime = Date.now();
+      let firstTokenTime = null;
 
       process.stdout.write('\nAssistant: ');
 
@@ -445,6 +454,7 @@ async function main() {
         top_p: options.topP,
         stream: true,
         tokenType,
+        think,
       });
 
       let responseContent = '';
@@ -452,6 +462,7 @@ async function main() {
 
       for await (const chunk of stream) {
         if (chunk.content) {
+          if (!firstTokenTime) firstTokenTime = Date.now();
           filter.write(chunk.content);
           responseContent += chunk.content;
         }
@@ -467,6 +478,10 @@ async function main() {
       // Update stats
       totalRequests++;
       totalTime += result?.timeTaken || elapsed;
+      if (firstTokenTime) {
+        totalTTFT += (firstTokenTime - startTime) / 1000;
+        ttftCount++;
+      }
       if (result?.usage) {
         totalPromptTokens += result.usage.prompt_tokens;
         totalCompletionTokens += result.usage.completion_tokens;
@@ -474,9 +489,16 @@ async function main() {
 
       // Print brief stats
       console.log();
+      const ttft = firstTokenTime ? ((firstTokenTime - startTime) / 1000).toFixed(2) : 'n/a';
       if (result?.usage) {
         const tps = result.usage.completion_tokens / (result.timeTaken || elapsed);
-        console.log(`  [${result.usage.completion_tokens} tokens, ${(result.timeTaken || elapsed).toFixed(1)}s, ${tps.toFixed(0)} tok/s]`);
+        console.log(`  [${result.usage.completion_tokens} tokens, ${(result.timeTaken || elapsed).toFixed(1)}s, ${tps.toFixed(0)} tok/s, TTFT ${ttft}s]`);
+      } else {
+        console.log(`  [${elapsed.toFixed(1)}s, TTFT ${ttft}s]`);
+      }
+      if (result?.finishReason === 'length' && think) {
+        console.log(`  Warning: Response hit max_tokens (${options.maxTokens}). Thinking may have consumed the entire token budget.`);
+        console.log(`  Try increasing --max-tokens or disabling thinking mode.`);
       }
       console.log();
     } catch (err) {

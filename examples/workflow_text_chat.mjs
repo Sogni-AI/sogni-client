@@ -193,7 +193,11 @@ async function main() {
   try {
     availableModels = await sogni.chat.waitForModels();
     console.log('Available LLM models:');
-    const modelIds = Object.keys(availableModels);
+    const modelIds = Object.keys(availableModels).sort((a, b) => {
+      if (a === options.model) return -1;
+      if (b === options.model) return 1;
+      return 0;
+    });
     for (let i = 0; i < modelIds.length; i++) {
       const id = modelIds[i];
       const workers = availableModels[id].workers;
@@ -210,9 +214,13 @@ async function main() {
     console.log();
   }
 
-  // Resolve max tokens: CLI override > model-reported default > fallback
+  // Resolve max tokens: CLI override > model default > fallback
+  // When thinking is enabled, use max output tokens to give the model room for reasoning
   const modelInfo = availableModels[options.model];
-  options.maxTokens = options.maxTokens || modelInfo?.maxOutputTokens?.default || 8192;
+  options.maxTokens = options.maxTokens
+    || (options.think ? modelInfo?.maxOutputTokens?.max : undefined)
+    || modelInfo?.maxOutputTokens?.default
+    || 8192;
 
   // Load token type preference
   const tokenType = loadTokenTypePreference() || 'sogni';
@@ -222,8 +230,7 @@ async function main() {
   if (options.system) {
     messages.push({ role: 'system', content: options.system });
   }
-  const userContent = options.think ? options.prompt : `${options.prompt} /no_think`;
-  messages.push({ role: 'user', content: userContent });
+  messages.push({ role: 'user', content: options.prompt });
 
   // Display request info
   const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
@@ -294,6 +301,7 @@ async function main() {
       presence_penalty: options.presencePenalty,
       stream: false,
       tokenType,
+      think: options.think,
     });
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -312,6 +320,8 @@ async function main() {
     console.log(`Finish:       ${result.finishReason}`);
     if (result.usage) {
       console.log(`Tokens:       ${result.usage.prompt_tokens} prompt + ${result.usage.completion_tokens} completion = ${result.usage.total_tokens} total`);
+      const tps = result.usage.completion_tokens / result.timeTaken;
+      console.log(`Speed:        ${tps.toFixed(1)} tokens/sec`);
     }
     console.log();
   } catch (err) {

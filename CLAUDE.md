@@ -224,11 +224,16 @@ The SDK receives `LLMModelInfo` per model including `maxContextLength`, `maxOutp
 
 **Caution**: `maxContextLength` from the server may not reflect the actual per-request limit on the worker (see sogni-socket and sogni-llm-nvidia CLAUDE.md for the llama-server `--parallel` slot division issue).
 
-### Thinking Models (Qwen3/3.5) — `reasoning_content` Split
+### Thinking Models (Qwen3/3.5) — `chat_template_kwargs`
 
-Qwen3/3.5 models generate thinking output in a separate `reasoning_content` field (OpenAI-compatible). The LLM worker wraps this in `<think>` tags inside `content` for the SDK, or strips it when `/no_think` is in the messages. **However**, the SDK's `ChatCompletionChunk` type has NO `reasoning_content` field — only `content` and `tool_calls`.
+Thinking mode is controlled via llama.cpp's `chat_template_kwargs: { enable_thinking }` per-request parameter. The SDK's `think` param maps to this:
+- `think: false` → `chat_template_kwargs: { enable_thinking: false }` (no thinking)
+- `think: true` → `chat_template_kwargs: { enable_thinking: true }` (explicit thinking)
+- `think: undefined` → omitted (server defaults apply)
 
-**The problem**: Even with `think: false` (which appends `/no_think`), the model still generates thinking tokens internally, consuming output budget. If the context window is tight, the model exhausts its output tokens on thinking before producing content or tool calls → `finishReason=length` with empty content and no tool calls.
+The llama-server should run with default `--reasoning-budget -1` (unrestricted) so per-request control works.
+
+Qwen3/3.5 models generate thinking output in a separate `reasoning_content` field (OpenAI-compatible). The LLM worker wraps this in `<think>` tags inside `content` for the SDK. The SDK's `ChatCompletionChunk` type has NO `reasoning_content` field — only `content` and `tool_calls`.
 
 **The solution for structured output**: Use **tool calling** (`tools` + `tool_choice: 'required'`). Tool call arguments are always forwarded by the worker regardless of thinking mode. The `workflow_text_chat_sogni_tools.mjs` example uses this pattern for all composition pipelines (video/image/audio prompt engineering).
 
