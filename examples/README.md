@@ -578,7 +578,7 @@ All LLM chat scripts share these options:
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--model` | LLM model ID | `qwen3.5-35b-a3b-gguf-q4km` |
-| `--max-tokens` | Maximum tokens to generate | 4096 |
+| `--max-tokens` | Maximum tokens to generate | from model, or 8192 |
 | `--temperature` | Sampling temperature (0-2) | 0.7 |
 | `--top-p` | Top-p nucleus sampling (0-1) | 0.9 |
 | `--system` | Custom system prompt | Varies by script |

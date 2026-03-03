@@ -16,7 +16,7 @@
  *
  * Options:
  *   --model         LLM model ID (default: qwen3.5-35b-a3b-gguf-q4km)
- *   --max-tokens    Maximum tokens to generate (default: 4096)
+ *   --max-tokens    Maximum tokens to generate (default: from model, or 8192)
  *   --temperature   Sampling temperature 0-2 (default: 0.7)
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
  *   --system        System prompt (default: "You are a helpful assistant.")
@@ -39,7 +39,7 @@ function parseArgs() {
   const options = {
     prompt: null,
     model: DEFAULT_MODEL,
-    maxTokens: 4096,
+    maxTokens: null,
     temperature: 0.7,
     topP: 0.9,
     system: DEFAULT_SYSTEM,
@@ -102,7 +102,7 @@ Usage:
 
 Options:
   --model         LLM model ID (default: ${DEFAULT_MODEL})
-  --max-tokens    Maximum tokens to generate (default: 4096)
+  --max-tokens    Maximum tokens to generate (default: from model, or 8192)
   --temperature   Sampling temperature 0-2 (default: 0.7)
   --top-p         Top-p sampling 0-1 (default: 0.9)
   --system        System prompt (default: "${DEFAULT_SYSTEM}")
@@ -257,6 +257,10 @@ async function main() {
     console.log('Warning: No LLM models currently available on the network');
     console.log();
   }
+
+  // Resolve max tokens: CLI override > model-reported default > fallback
+  const modelInfo = availableModels[options.model];
+  options.maxTokens = options.maxTokens || modelInfo?.maxOutputTokens?.default || 8192;
 
   // Load token type preference
   const tokenType = loadTokenTypePreference() || 'sogni';

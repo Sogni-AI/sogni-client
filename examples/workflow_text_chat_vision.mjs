@@ -18,7 +18,7 @@
  *
  * Options:
  *   --image         Pre-load an image file at startup
- *   --max-tokens    Maximum tokens per response (default: 4096)
+ *   --max-tokens    Maximum tokens per response (default: from model, or 8192)
  *   --temperature   Sampling temperature 0-2 (default: 0.7)
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
  *   --system        Custom system prompt
@@ -110,7 +110,7 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
     image: null,
-    maxTokens: 4096,
+    maxTokens: null,
     temperature: 0.7,
     topP: 0.9,
     system: DEFAULT_SYSTEM,
@@ -151,7 +151,7 @@ Usage:
 
 Options:
   --image         Pre-load an image file at startup
-  --max-tokens    Maximum tokens per response (default: 4096)
+  --max-tokens    Maximum tokens per response (default: from model, or 8192)
   --temperature   Sampling temperature 0-2 (default: 0.7)
   --top-p         Top-p sampling 0-1 (default: 0.9)
   --system        Custom system prompt
@@ -328,8 +328,9 @@ async function main() {
   }
 
   // Wait for VLM model to be available
+  let availableModels = {};
   try {
-    const availableModels = await sogni.chat.waitForModels();
+    availableModels = await sogni.chat.waitForModels();
     if (availableModels[VLM_MODEL]) {
       const workers = availableModels[VLM_MODEL].workers;
       console.log(`VLM model online: ${VLM_MODEL} (${workers} worker${workers !== 1 ? 's' : ''})`);
@@ -342,6 +343,10 @@ async function main() {
     console.log('Warning: Could not retrieve available models from the network.');
     console.log('The request will be queued until a VLM worker comes online.');
   }
+
+  // Resolve max tokens: CLI override > model-reported default > fallback
+  const modelInfo = availableModels[VLM_MODEL];
+  options.maxTokens = options.maxTokens || modelInfo?.maxOutputTokens?.default || 8192;
 
   // Load token type preference
   const tokenType = loadTokenTypePreference() || 'sogni';

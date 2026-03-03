@@ -35,7 +35,7 @@
  *
  * Options:
  *   --model         LLM model ID (default: qwen3.5-35b-a3b-gguf-q4km)
- *   --max-tokens    Maximum tokens to generate (default: 4096)
+ *   --max-tokens    Maximum tokens to generate (default: from model, or 8192)
  *   --temperature   Sampling temperature 0-2 (default: 0.7)
  *   --top-p         Top-p sampling 0-1 (default: 0.9)
  *   --system        System prompt override
@@ -69,7 +69,7 @@ function parseArgs() {
   const options = {
     prompt: null,
     model: DEFAULT_LLM_MODEL,
-    maxTokens: 4096,
+    maxTokens: null,
     temperature: 0.7,
     topP: 0.9,
     system: null,
@@ -129,7 +129,7 @@ Usage:
 
 Options:
   --model         LLM model ID (default: ${DEFAULT_LLM_MODEL})
-  --max-tokens    Maximum tokens to generate (default: 4096)
+  --max-tokens    Maximum tokens to generate (default: from model, or 8192)
   --temperature   Sampling temperature 0-2 (default: 0.7)
   --top-p         Top-p sampling 0-1 (default: 0.9)
   --system        System prompt override
@@ -309,7 +309,7 @@ async function streamComposition(sogni, messages, options, tokenType, tools) {
       const stream = await sogni.chat.completions.create({
         model: options.model,
         messages,
-        max_tokens: options.maxTokens || 4096,
+        max_tokens: options.maxTokens || 8192,
         temperature: 0.7,
         top_p: options.topP,
         stream: true,
@@ -536,7 +536,7 @@ async function estimateLLMAndConfirm(sogni, messages, options, tokenType, label)
     const estimate = await sogni.chat.estimateCost({
       model: options.model,
       messages,
-      max_tokens: options.maxTokens || 4096,
+      max_tokens: options.maxTokens || 8192,
       tokenType,
     });
 
@@ -1431,15 +1431,12 @@ async function main() {
 
     // Store selected model's capabilities
     modelInfo = availableModels[options.model] || null;
-    if (modelInfo) {
-      // Use server-reported max output tokens if user didn't override --max-tokens
-      if (options.maxTokens === 4096 && modelInfo.maxOutputTokens) {
-        options.maxTokens = modelInfo.maxOutputTokens.default || 4096;
-      }
-    }
   } catch {
     console.log('Warning: No LLM models currently available');
   }
+
+  // Resolve max tokens: CLI override > model-reported default > fallback
+  options.maxTokens = options.maxTokens || modelInfo?.maxOutputTokens?.default || 8192;
 
   // Wait for media models to be available
   try {
