@@ -225,21 +225,12 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   }
 
   /**
-   * Apply the `think` parameter by modifying messages.
-   * When `think === false`, appends `/no_think` to the system message content.
+   * Build `chat_template_kwargs` from the `think` parameter.
+   * Returns `undefined` when `think` is omitted (server defaults apply).
    */
-  private applyThinkParam(messages: ChatMessage[], think?: boolean): ChatMessage[] {
-    if (think !== false) return messages;
-
-    const result = messages.map((m) => ({ ...m }));
-    const systemIdx = result.findIndex((m) => m.role === 'system');
-    if (systemIdx >= 0 && typeof result[systemIdx].content === 'string') {
-      result[systemIdx] = {
-        ...result[systemIdx],
-        content: `${result[systemIdx].content} /no_think`
-      };
-    }
-    return result;
+  private buildChatTemplateKwargs(think?: boolean): Record<string, unknown> | undefined {
+    if (think === undefined) return undefined;
+    return { enable_thinking: think };
   }
 
   private async createCompletion(
@@ -267,14 +258,14 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   ): Promise<ChatStream | ChatCompletionResult> {
     const jobID = getUUID();
 
-    // Apply think parameter to messages
-    const messages = this.applyThinkParam(params.messages, params.think);
+    // Build chat_template_kwargs from think parameter
+    const chatTemplateKwargs = this.buildChatTemplateKwargs(params.think);
 
     const request: ChatRequestMessage = {
       jobID,
       type: 'llm',
       model: params.model,
-      messages,
+      messages: params.messages,
       max_tokens: params.max_tokens,
       temperature: params.temperature,
       top_p: params.top_p,
@@ -284,7 +275,8 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       stop: params.stop,
       tokenType: params.tokenType,
       tools: params.tools,
-      tool_choice: params.tool_choice
+      tool_choice: params.tool_choice,
+      ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs })
     };
 
     const stream = new ChatStream(jobID);

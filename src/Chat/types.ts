@@ -81,9 +81,10 @@ export interface ChatCompletionParams {
   /** Controls which (if any) tool is called by the model. */
   tool_choice?: ToolChoice;
   /**
-   * Control thinking/reasoning mode. When `false`, appends `/no_think` to the system
-   * message so the model skips its internal reasoning step. When `true` or omitted,
-   * thinking is enabled (default behavior for supported models like Qwen3).
+   * Control thinking/reasoning mode for supported models (e.g. Qwen3/3.5).
+   * When `false`, sends `chat_template_kwargs: { enable_thinking: false }` so
+   * the model skips its internal reasoning step. When `true`, explicitly enables
+   * thinking. When omitted, server defaults apply.
    */
   think?: boolean;
   /**
@@ -128,6 +129,8 @@ export interface ChatRequestMessage {
   tokenType?: 'sogni' | 'spark';
   tools?: ToolDefinition[];
   tool_choice?: ToolChoice;
+  /** Per-request chat template arguments (e.g. `{ enable_thinking: false }` for llama.cpp). */
+  chat_template_kwargs?: Record<string, unknown>;
 }
 
 export interface ChatCompletionChunk {
