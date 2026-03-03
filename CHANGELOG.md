@@ -1,3 +1,10 @@
+# [4.1.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.1...v4.1.0-alpha.2) (2026-03-03)
+
+
+### Features
+
+* Use chat_template_kwargs for thinking mode control ([9387ca4](https://github.com/Sogni-AI/sogni-client/commit/9387ca45f2cd38b6ec0e552ec25c1c4ecfc72c27))
+
 # [4.1.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0...v4.1.0-alpha.1) (2026-03-02)
 
 
