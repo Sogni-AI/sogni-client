@@ -158,6 +158,7 @@ export async function loadCredentials() {
   console.log('No credentials found in .env file.');
   console.log('Please enter your Sogni account credentials:');
   console.log('(Tip: set SOGNI_API_KEY in .env for API key auth)');
+  console.log('(Get your API key at dashboard.sogni.ai → Username dropdown)');
   console.log();
 
   // Check if we're in a TTY (interactive terminal)

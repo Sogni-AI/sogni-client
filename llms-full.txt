@@ -114,6 +114,9 @@ const sogni = await SogniClient.createInstance({
 ```
 
 AUTHENTICATION - API KEY (Recommended):
+Get your API key: Log in to dashboard.sogni.ai and click your Username
+dropdown in the top-right corner to provision your key.
+
 ```javascript
 // API key auth — auto-authenticates via WebSocket, no login() needed
 const sogni = await SogniClient.createInstance({

@@ -41,6 +41,8 @@ yarn add @sogni-ai/sogni-client
 In order to use Sogni Supernet, you need an active Sogni account with a positive SOGNI or Spark token balance. You can authenticate using either an **API key** (recommended) or **username and password**.
 You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio) which will give you tokens just for signing up and confirming your email. You can get daily bonus tokens by claiming them (under rewards) each 24-hours.
 
+**To get your API key:** Log in to [dashboard.sogni.ai](https://dashboard.sogni.ai), click your **Username** dropdown in the top-right corner, and provision your API key.
+
 Spark tokens can be purchased with a credit card in a Mac or Web app.
 
 Your account is tied to a [Base](https://www.base.org/) Wallet that is created during signup.
@@ -65,6 +67,8 @@ To initialize a client, you need to provide `appId`, and account credentials.
 ### Option 1: API Key Authentication (Recommended)
 
 API key authentication is the simplest way to connect. The client auto-authenticates via the WebSocket connection — no separate `login()` call is needed.
+
+> **Get your API key:** Log in to [dashboard.sogni.ai](https://dashboard.sogni.ai) and click your **Username** dropdown in the top-right corner to provision your key.
 
 ```javascript
 import { SogniClient } from '@sogni-ai/sogni-client';

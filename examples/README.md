@@ -124,6 +124,8 @@ The examples need your Sogni account credentials to authenticate with the API.
 
 **Option 1: API Key (Recommended)**
 
+To get your API key, log in to [dashboard.sogni.ai](https://dashboard.sogni.ai) and click your **Username** dropdown in the top-right corner.
+
 Set your API key in a `.env` file in the `examples` directory:
 
 ```env

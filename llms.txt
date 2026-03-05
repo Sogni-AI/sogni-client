@@ -76,6 +76,9 @@ console.log(urls[0]); // Video URL (valid 24 hours)
 ## 1. Authentication & Setup
 
 ### Client Creation with API Key (Recommended)
+
+Get your API key: Log in to dashboard.sogni.ai and click your Username dropdown in the top-right corner.
+
 ```javascript
 const sogni = await SogniClient.createInstance({
   appId: 'unique-uuid',     // Required - identifies your app
