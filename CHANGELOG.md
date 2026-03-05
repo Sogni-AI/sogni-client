@@ -1,3 +1,10 @@
+# [4.1.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.2...v4.1.0-alpha.3) (2026-03-05)
+
+
+### Bug Fixes
+
+* add several references to where your API Key can be provisioned ([45f8648](https://github.com/Sogni-AI/sogni-client/commit/45f8648a16816fd9a93bc549639c35b88ee0586c))
+
 # [4.1.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.1...v4.1.0-alpha.2) (2026-03-03)
 
 
