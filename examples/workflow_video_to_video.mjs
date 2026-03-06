@@ -52,6 +52,7 @@
  *   --negative    Negative prompt (default: none)
  *   --style       Style prompt (default: none)
  *   --output      Output directory (default: ./output)
+ *   --disable-safe-content-filter  Disable NSFW/safety filter
  *   --no-interactive  Skip interactive prompts
  *   --help        Show this help message
  */
@@ -134,7 +135,8 @@ async function parseArgs() {
     sampler: null,
     scheduler: null,
     output: './output',
-    interactive: true
+    interactive: true,
+    disableSafeContentFilter: false
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -190,6 +192,8 @@ async function parseArgs() {
       options.scheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
+    } else if (arg === '--disable-safe-content-filter') {
+      options.disableSafeContentFilter = true;
     } else if (!arg.startsWith('--') && !options.prompt) {
       options.prompt = arg;
     } else {
@@ -252,6 +256,7 @@ Options:
   --comfy-sampler   ComfyUI sampler name (default: euler)
   --comfy-scheduler ComfyUI scheduler name (default: simple)
   --output        Output directory (default: ./output)
+  --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
   --help          Show this help message
 
@@ -927,6 +932,7 @@ async function main() {
     // Video models only support ComfyUI sampler/scheduler
     configDisplay['Comfy Sampler'] = OPTIONS.sampler;
     configDisplay['Comfy Scheduler'] = OPTIONS.scheduler;
+    configDisplay['Safety'] = OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled';
 
     if (modelConfig.supportsSam2Coordinates && OPTIONS.sam2Coordinates) {
       const coords = JSON.parse(OPTIONS.sam2Coordinates);
@@ -1028,6 +1034,7 @@ async function main() {
       steps: OPTIONS.steps,
       seed: OPTIONS.seed,
       referenceVideo: referenceVideoBuffer,
+      disableNSFWFilter: OPTIONS.disableSafeContentFilter,
       tokenType: tokenType
     };
 

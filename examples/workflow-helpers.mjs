@@ -48,7 +48,7 @@ export function isWanModel(modelId) {
  * @returns {boolean} True if this is an LTX-2 model
  */
 export function isLtx2Model(modelId) {
-  return modelId?.startsWith('ltx2-') || false;
+  return modelId?.startsWith('ltx2-') || modelId?.startsWith('ltx23-') || false;
 }
 
 /**
@@ -590,6 +590,38 @@ export const MODELS = {
       isLightning: false,
       isComfyModel: true,
       hasAudio: true
+    },
+    'ltx23-22b-fp8_t2v_distilled': {
+      id: 'ltx23-22b-fp8_t2v_distilled',
+      name: 'LTX-2.3 22B FP8 T2V Distilled',
+      description: 'Fast 8-step generation with audio, 22B model (~4-20s video)',
+      defaultWidth: 1920,
+      defaultHeight: 1088,
+      minWidth: 640,
+      maxWidth: 3840,
+      minHeight: 640,
+      maxHeight: 3840,
+      dimensionStep: 64,
+      defaultSteps: 8,
+      minSteps: 4,
+      maxSteps: 12,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 2.0,
+      defaultComfySampler: 'euler_ancestral',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      minFrames: 25,
+      maxFrames: 505,
+      defaultFrames: 97,
+      frameStep: 8,
+      defaultFps: 24,
+      minFps: 1,
+      maxFps: 60,
+      isLightning: true,
+      isComfyModel: true,
+      hasAudio: true
     }
   },
 
@@ -726,6 +758,41 @@ export const MODELS = {
       minFps: 1,
       maxFps: 60,
       isLightning: false,
+      isComfyModel: true,
+      hasAudio: true
+    },
+    'ltx23-22b-fp8_i2v_distilled': {
+      id: 'ltx23-22b-fp8_i2v_distilled',
+      name: 'LTX-2.3 22B FP8 I2V Distilled',
+      description: 'Fast 8-step image animation with audio, 22B model (~4-20s video)',
+      defaultWidth: 1920,
+      defaultHeight: 1088,
+      minWidth: 640,
+      maxWidth: 3840,
+      minHeight: 640,
+      maxHeight: 3840,
+      dimensionStep: 64,
+      defaultSteps: 8,
+      minSteps: 4,
+      maxSteps: 12,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 2.0,
+      defaultStrength: 0.6,
+      minStrength: 0.3,
+      maxStrength: 1.0,
+      defaultComfySampler: 'euler',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      minFrames: 25,
+      maxFrames: 505,
+      defaultFrames: 97,
+      frameStep: 8,
+      defaultFps: 24,
+      minFps: 1,
+      maxFps: 60,
+      isLightning: true,
       isComfyModel: true,
       hasAudio: true
     }
@@ -1024,6 +1091,7 @@ export function ensureDimensionsDivisibleBy16(width, height) {
  * @param {Object} options - Optional overrides
  * @param {number} options.targetWidth - Target width (optional, auto-detected if not provided)
  * @param {number} options.targetHeight - Target height (optional, auto-detected if not provided)
+ * @param {number} options.dimensionStep - Dimension alignment step (default: 16, use 64 for LTX-2.3)
  * @returns {Promise<{buffer: Buffer, width: number, height: number, wasResized: boolean, originalWidth: number, originalHeight: number}>}
  */
 export async function processImageForVideo(imagePath, frames, options = {}) {
@@ -1040,6 +1108,7 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
   let targetHeight = options.targetHeight || originalHeight;
   let needsResize = false;
   let resizeReason = '';
+  const step = options.dimensionStep || 16;
 
   const maxDimension = VIDEO_CONSTRAINTS.width.max;
 
@@ -1083,25 +1152,26 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
     }
   }
 
-  // Ensure dimensions are divisible by 16 (video encoder requirement)
-  const aligned = ensureDimensionsDivisibleBy16(targetWidth, targetHeight);
+  // Ensure dimensions are divisible by step (16 for WAN, 64 for LTX-2.3)
+  const alignedWidth = Math.floor(targetWidth / step) * step;
+  const alignedHeight = Math.floor(targetHeight / step) * step;
 
   // Check if alignment changed dimensions
-  if (aligned.width !== targetWidth || aligned.height !== targetHeight) {
+  if (alignedWidth !== targetWidth || alignedHeight !== targetHeight) {
     needsResize = true;
     if (!resizeReason) resizeReason = 'alignment';
   }
 
-  targetWidth = aligned.width;
-  targetHeight = aligned.height;
+  targetWidth = alignedWidth;
+  targetHeight = alignedHeight;
 
   // Ensure dimensions don't go below minimum after alignment
   if (targetWidth < VIDEO_CONSTRAINTS.width.min) {
-    targetWidth = Math.ceil(VIDEO_CONSTRAINTS.width.min / 16) * 16;
+    targetWidth = Math.ceil(VIDEO_CONSTRAINTS.width.min / step) * step;
     needsResize = true;
   }
   if (targetHeight < VIDEO_CONSTRAINTS.height.min) {
-    targetHeight = Math.ceil(VIDEO_CONSTRAINTS.height.min / 16) * 16;
+    targetHeight = Math.ceil(VIDEO_CONSTRAINTS.height.min / step) * step;
     needsResize = true;
   }
 

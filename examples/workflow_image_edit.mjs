@@ -33,6 +33,7 @@
  *   --negative    Negative prompt (default: none)
  *   --style       Style prompt (default: none)
  *   --output      Output directory (default: ./output)
+ *   --disable-safe-content-filter  Disable NSFW/safety filter
  *   --no-interactive  Skip interactive prompts
  *   --help        Show this help message
  *
@@ -92,7 +93,8 @@ async function parseArgs() {
     width: null,
     height: null,
     output: './output',
-    interactive: true
+    interactive: true,
+    disableSafeContentFilter: false
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -140,6 +142,8 @@ async function parseArgs() {
       options.height = parseInt(args[++i], 10);
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
+    } else if (arg === '--disable-safe-content-filter') {
+      options.disableSafeContentFilter = true;
     } else if (!arg.startsWith('--') && !options.prompt) {
       options.prompt = arg;
     } else {
@@ -188,6 +192,7 @@ Options:
   --sampler     Sampler name (default: euler)
   --scheduler   Scheduler name (default: simple)
   --output      Output directory (default: ./output)
+  --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
   --help        Show this help message
 
@@ -540,7 +545,8 @@ async function main() {
       'Dimensions': `${outputWidth} x ${outputHeight}`,
       'Batch': OPTIONS.batch,
       'Steps': steps,
-      'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1
+      'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
     };
 
     // Add reference images to display
@@ -648,7 +654,8 @@ async function main() {
       sizePreset: 'custom',
       width: outputWidth,
       height: outputHeight,
-      outputFormat: OPTIONS.outputFormat
+      outputFormat: OPTIONS.outputFormat,
+      disableNSFWFilter: OPTIONS.disableSafeContentFilter
     };
 
     // Add guidance for Flux2
@@ -773,9 +780,9 @@ async function main() {
           if (!event.jobId) return;
           clearProgress();
 
-          if (event.isNSFW) {
+          if (event.isNSFW && !OPTIONS.disableSafeContentFilter) {
             failedImages++;
-            displaySafeContentFilterMessage({ showDisableHint: false });
+            displaySafeContentFilterMessage({ showDisableHint: true });
             checkWorkflowCompletion();
             return;
           }
@@ -816,8 +823,8 @@ async function main() {
               })
               .catch((error) => {
                 failedImages++;
-                if (error.message?.includes('Not Found')) {
-                  displaySafeContentFilterMessage({ showDisableHint: false });
+                if (error.message?.includes('Not Found') && !OPTIONS.disableSafeContentFilter) {
+                  displaySafeContentFilterMessage({ showDisableHint: true });
                 } else {
                   log('❌', `Download failed for ${imageId}: ${error.message}`);
                 }
@@ -835,8 +842,8 @@ async function main() {
                     clearProgress();
           projectFailed = true;
           failedImages++;
-          if (isSensitiveContentError(event)) {
-            displaySafeContentFilterMessage({ showDisableHint: false });
+          if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
+            displaySafeContentFilterMessage({ showDisableHint: true });
           } else {
             const errorMsg = event.error?.message || event.error || 'Unknown error';
             const errorCode = event.error?.code;

@@ -32,6 +32,7 @@
  *   --negative    Negative prompt (default: none)
  *   --output      Output directory (default: ./output)
  *   --skip-existing  Skip images that already have output videos (default: true)
+ *   --disable-safe-content-filter  Disable NSFW/safety filter
  *   --no-interactive  Skip interactive prompts
  *   --help        Show this help message
  */
@@ -94,7 +95,8 @@ async function parseArgs() {
     scheduler: null,
     output: './output',
     skipExisting: true,
-    interactive: true
+    interactive: true,
+    disableSafeContentFilter: false
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -136,6 +138,8 @@ async function parseArgs() {
       options.skipExisting = true;
     } else if (arg === '--no-skip-existing') {
       options.skipExisting = false;
+    } else if (arg === '--disable-safe-content-filter') {
+      options.disableSafeContentFilter = true;
     } else if (!arg.startsWith('--') && !options.prompt) {
       options.prompt = arg;
     } else {
@@ -177,6 +181,7 @@ Options:
   --output      Output directory (default: ./output)
   --skip-existing  Skip images that already have output videos (default)
   --no-skip-existing  Re-process all images
+  --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
   --help        Show this help message
 
@@ -354,8 +359,9 @@ async function main() {
   log('🎬', `Selected model: ${modelConfig.name}`);
 
   // Set default dimensions
-  modelConfig.defaultWidth = initialDimensions.width;
-  modelConfig.defaultHeight = initialDimensions.height;
+  const dimStep = modelConfig.dimensionStep || 16;
+  modelConfig.defaultWidth = Math.floor(initialDimensions.width / dimStep) * dimStep;
+  modelConfig.defaultHeight = Math.floor(initialDimensions.height / dimStep) * dimStep;
 
   // Interactive mode: prompt for options
   if (OPTIONS.interactive) {
@@ -507,7 +513,8 @@ async function main() {
       Frames: OPTIONS.frames,
       Guidance: OPTIONS.guidance,
       Shift: OPTIONS.shift,
-      Seed: OPTIONS.seed !== null ? OPTIONS.seed : 'random each'
+      Seed: OPTIONS.seed !== null ? OPTIONS.seed : 'random each',
+      Safety: OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
     });
 
     if (OPTIONS.negative) {
@@ -615,7 +622,8 @@ async function main() {
         // Process the image with memory budget constraints
         const processedImage = await processImageForVideo(imageFile.path, OPTIONS.frames, {
           targetWidth: OPTIONS.width,
-          targetHeight: OPTIONS.height
+          targetHeight: OPTIONS.height,
+          dimensionStep: modelConfig.dimensionStep || 16
         });
 
         log('📐', `Video dimensions: ${processedImage.width}x${processedImage.height}`);
@@ -644,6 +652,7 @@ async function main() {
           referenceImage: imageBlob,
           sampler: OPTIONS.sampler,
           scheduler: OPTIONS.scheduler,
+          disableNSFWFilter: OPTIONS.disableSafeContentFilter,
           tokenType: tokenType
         };
 

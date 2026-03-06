@@ -19,7 +19,7 @@
  *
  * Default Generation Models:
  *   Image: z_image_turbo_bf16
- *   Video: ltx2-19b-fp8_t2v_distilled (LTX-2)
+ *   Video: ltx23-22b-fp8_t2v_distilled (LTX-2.3)
  *   Audio: ace_step_1.5_turbo (ACE-Step 1.5)
  *
  * Prerequisites:
@@ -41,6 +41,7 @@
  *   --system        System prompt override
  *   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
  *   --duration      Video duration in seconds, 1-20 (default: 10)
+ *   --aspect-ratio, --ar  Video aspect ratio: portrait, landscape, square, widescreen (default: portrait)
  *   --no-think      Disable model thinking/reasoning (enabled by default)
  *   --show-thinking  Show <think> blocks in output (hidden by default even when thinking is enabled)
  *   --help          Show this help message
@@ -56,7 +57,7 @@ import { resolve } from 'node:path';
 
 const DEFAULT_LLM_MODEL = 'qwen3.5-35b-a3b-gguf-q4km';
 const DEFAULT_IMAGE_MODEL = 'z_image_turbo_bf16';
-const DEFAULT_VIDEO_MODEL = 'ltx2-19b-fp8_t2v_distilled';
+const DEFAULT_VIDEO_MODEL = 'ltx23-22b-fp8_t2v_distilled';
 const DEFAULT_AUDIO_MODEL = 'ace_step_1.5_turbo';
 const OUTPUT_DIR = './output';
 
@@ -78,6 +79,7 @@ function parseArgs() {
     showThinking: false,
     quantity: 1,
     duration: null,
+    aspect_ratio: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -104,6 +106,13 @@ function parseArgs() {
       options.duration = Math.max(1, Math.min(20, parseFloat(args[++i]) || 10));
     } else if ((arg === '--quantity' || arg === '-n') && args[i + 1]) {
       options.quantity = Math.max(1, Math.min(512, parseInt(args[++i], 10) || 1));
+    } else if ((arg === '--aspect-ratio' || arg === '--ar') && args[i + 1]) {
+      const ar = args[++i].toLowerCase().replace(/[:\s]/g, '_');
+      // Accept common aliases: 16:9, 9:16, 4:3, 3:4, vertical, horizontal, cinematic
+      const AR_ALIASES = { 'vertical': 'portrait', '9_16': 'portrait', 'tall': 'portrait',
+        'horizontal': 'landscape', '16_9': 'landscape', 'cinematic': 'widescreen', 'wide': 'widescreen',
+        '4_3': 'landscape_4_3', '3_4': 'portrait_4_3', '1_1': 'square' };
+      options.aspect_ratio = AR_ALIASES[ar] || ar;
     } else if (!arg.startsWith('--') && !options.prompt) {
       options.prompt = arg;
     } else if (!arg.startsWith('--')) {
@@ -135,13 +144,15 @@ Options:
   --system        System prompt override
   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
   --duration      Video duration in seconds, 1-20 (default: 10)
+  --aspect-ratio, --ar  Video aspect ratio: portrait, landscape, square, widescreen,
+                  portrait_4_3, landscape_4_3, or shortcuts like 16:9, 9:16, 4:3 (default: portrait)
   --no-think      Disable model thinking/reasoning (enabled by default)
   --show-thinking  Show <think> blocks in output (hidden by default)
   --help          Show this help message
 
 Default Generation Models:
   Image: ${DEFAULT_IMAGE_MODEL}
-  Video: ${DEFAULT_VIDEO_MODEL} (LTX-2)
+  Video: ${DEFAULT_VIDEO_MODEL} (LTX-2.3)
   Audio: ${DEFAULT_AUDIO_MODEL} (ACE-Step 1.5)
 `);
 }
@@ -163,6 +174,7 @@ const HYBRID_TOOLS = [
         type: 'object',
         properties: {
           prompt: { type: 'string', description: "The user's image request in their own words. Pass through what they asked for — do NOT add style, lighting, or composition details." },
+          quantity: { type: 'number', description: 'Number of images/variations to generate (1-512). Only set if the user explicitly asks for multiple images or variations.' },
         },
         required: ['prompt'],
       },
@@ -178,6 +190,8 @@ const HYBRID_TOOLS = [
         properties: {
           prompt: { type: 'string', description: "The user's video request in their own words. Pass through what they asked for — do NOT add camera, lighting, or scene details." },
           duration: { type: 'number', description: 'Video duration in seconds (1-20). Only set if the user specifies a duration.' },
+          quantity: { type: 'number', description: 'Number of videos/variations to generate (1-512). Only set if the user explicitly asks for multiple videos or variations.' },
+          aspect_ratio: { type: 'string', enum: ['portrait', 'landscape', 'square', 'portrait_4_3', 'landscape_4_3', 'widescreen'], description: "Video aspect ratio. Only set if the user specifies a size, orientation, or aspect ratio (e.g. 'vertical', 'portrait', 'widescreen', '16:9 landscape', 'square'). Map vertical/tall to portrait, horizontal/wide/cinematic to landscape or widescreen." },
         },
         required: ['prompt'],
       },
@@ -193,6 +207,7 @@ const HYBRID_TOOLS = [
         properties: {
           prompt: { type: 'string', description: "The user's music request in their own words. Pass through what they asked for — do NOT add instrument, tempo, or production details." },
           duration: { type: 'number', description: 'Song duration in seconds (10-600). Only set if the user specifies a duration.' },
+          quantity: { type: 'number', description: 'Number of tracks/variations to generate (1-512). Only set if the user explicitly asks for multiple tracks or variations.' },
         },
         required: ['prompt'],
       },
@@ -422,7 +437,9 @@ const CAMERA_MOVEMENTS = [
   'slow arc left', 'slow arc right', 'tracking follow', 'handheld subtle drift',
 ];
 
-const VIDEO_SYSTEM_PROMPT = `You are an expert cinematographer writing prompts for the LTX-2 AI video model. Write a cohesive mini-scene in present tense. Use the compose_video tool to return your result.
+const VIDEO_SYSTEM_PROMPT = `You are an expert cinematographer writing prompts for the LTX-2.3 AI video model. Write a cohesive mini-scene in present tense. Use the compose_video tool to return your result.
+
+FORMAT — The prompt MUST be ONE SINGLE PARAGRAPH with NO linebreaks. All sentences flow continuously with no blank lines, no numbered lists, no section headers. The video model parses a flat block of text; linebreaks degrade output quality.
 
 PROMPT CONSTRUCTION — 4-8 flowing present-tense sentences. One continuous shot (no cuts, no montage):
 
@@ -430,13 +447,13 @@ PROMPT CONSTRUCTION — 4-8 flowing present-tense sentences. One continuous shot
 2. SCENE: Environment, time of day, atmosphere, surface textures. Name light sources: "warm tungsten practicals", "golden hour sun through dusty windows".
 3. CHARACTER(S): Age, hair, clothing, notable features. Keep identity stable throughout.
 4. ACTION SEQUENCE: One main thread evolving start to end. Temporal connectors ("as", "then", "while"). Physically filmable behavior.
-5. DIALOGUE (if applicable): Weave quoted speech into prose like a novel — attributed with delivery and action. Example: 'He leans back, "I think I'll go back tomorrow," he chuckles, eyes crinkling.' NEVER use [DIALOGUE: ...] tags.
+5. DIALOGUE: Weave ALL spoken words into the prose as attributed inline speech — always clarify WHO is speaking, HOW they deliver it, and WHAT they are doing while speaking. Example: 'The woman turns toward him and says "We should leave now," her voice low and urgent as she grips his sleeve, then the man nods and replies "Give me one more minute," exhaling steadily while his fingers work the lock.' NEVER use script formatting, character name headers, parentheticals like (V.O.), [DIALOGUE: ...] tags, or any structural markup. Every line of dialogue must read like a sentence in a novel with the speaker identified by description or action.
 6. AMBIENT SOUND: Weave 1-2 sounds naturally into prose per beat. Example: "rain tapping softly against the awning as a distant car horn echoes." NEVER use [AMBIENT: ...] tags.
 7. EMOTIONAL CUES: Jaw tension, grip pressure, breathing pace, posture — express emotion through visible physical behavior.
 
-CONSTRAINTS: Present tense only. Positive phrasing (describe what IS, not what isn't). No on-screen text/logos. No vague words ("beautiful", "nice"). Dense flowing prose, not bullet lists.
+CONSTRAINTS: Present tense only. Positive phrasing (describe what IS, not what isn't). No on-screen text/logos. No vague words ("beautiful", "nice"). Dense flowing prose, not bullet lists. Output the prompt as ONE UNBROKEN PARAGRAPH — no newlines within the prompt string.
 
-REFERENCE PROMPT (study the style):
+REFERENCE PROMPT (study the style — notice it is one continuous paragraph):
 "A medium close-up cinematic shot in a quiet rain-soaked alley at night, neon reflections shimmering across wet pavement. A man in his 30s with short dark hair and a worn leather jacket stands under a flickering sign, water beading on his collar. He exhales slowly, shoulders tightening as his fingers clamp around a small metal lighter, then steadies his hand and clicks it once, watching the flame struggle against the damp air, rain tapping softly against the awning while a distant car horn echoes. The camera performs a slow push-in toward his face as his jaw sets, tendons rising, weight shifting forward by half a step, breathing measured. Smooth and stabilised with cinematic motion consistency."`;
 
 const IMAGE_SYSTEM_PROMPT = `You are a prompt engineer for a text-to-image model. Write flowing prose, never tag lists. All phrasing positive. Use the compose_image tool to return your result.
@@ -472,7 +489,7 @@ const VIDEO_COMPOSITION_TOOL = {
     parameters: {
       type: 'object',
       properties: {
-        prompt: { type: 'string', description: '4-8 present-tense sentences describing a single continuous camera shot' },
+        prompt: { type: 'string', description: 'One unbroken paragraph of 4-8 present-tense sentences describing a single continuous camera shot. No linebreaks. Dialogue must be attributed inline with speaker identity and delivery woven into the prose.' },
         camera_movement: {
           type: 'string',
           enum: ['static tripod', 'slow push-in', 'slow pull-back', 'smooth pan left', 'smooth pan right',
@@ -560,7 +577,7 @@ async function estimateLLMAndConfirm(sogni, messages, options, tokenType, label)
 }
 
 // ============================================================
-// LLM: Compose a video specification for LTX-2
+// LLM: Compose a video specification for LTX-2.3
 // ============================================================
 
 function parseVideoJSON(raw, fallbackPrompt) {
@@ -580,8 +597,10 @@ function parseVideoJSON(raw, fallbackPrompt) {
     try {
       const parsed = attempt();
       if (parsed && parsed.prompt) {
+        // Collapse any linebreaks into a single flowing paragraph
+        const cleanPrompt = String(parsed.prompt).replace(/\s*[\r\n]+\s*/g, ' ').trim();
         return {
-          prompt: String(parsed.prompt),
+          prompt: cleanPrompt,
           camera_movement: CAMERA_MOVEMENTS.includes(parsed.camera_movement) ? parsed.camera_movement : 'slow push-in',
           shot_scale: ['wide', 'medium', 'close-up'].includes(parsed.shot_scale) ? parsed.shot_scale : 'medium',
           style_anchor: String(parsed.style_anchor || ''),
@@ -644,6 +663,16 @@ const IMAGE_SIZES = {
   'portrait_16_9': { width: 1080, height: 1920 },
   'landscape_4_3': { width: 1440, height: 1080 },
   'landscape_16_9': { width: 1920, height: 1080 },
+};
+
+// Video aspect ratio presets — all dimensions are multiples of 64 (LTX dimensionStep)
+const VIDEO_ASPECT_RATIOS = {
+  'portrait':      { width: 1088, height: 1920 },  // 9:16 vertical
+  'landscape':     { width: 1920, height: 1088 },  // 16:9 horizontal
+  'widescreen':    { width: 1920, height: 1088 },  // 16:9 alias
+  'square':        { width: 1088, height: 1088 },  // 1:1
+  'portrait_4_3':  { width: 832,  height: 1088 },  // ~3:4 vertical
+  'landscape_4_3': { width: 1088, height: 832  },  // ~4:3 horizontal
 };
 
 function parseImageJSON(raw, fallbackPrompt) {
@@ -1119,8 +1148,10 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
       const modelConfig = MODELS.t2v?.[modelId];
       const videoDuration = options.duration || 10;
       const videoFps = modelConfig?.defaultFps || 24;
-      const videoWidth = modelConfig?.defaultWidth || 1920;
-      const videoHeight = modelConfig?.defaultHeight || 1088;
+      // Resolve dimensions: user aspect ratio > default portrait (1088x1920)
+      const aspectSize = VIDEO_ASPECT_RATIOS[options.aspect_ratio] || VIDEO_ASPECT_RATIOS['portrait'];
+      const videoWidth = aspectSize.width;
+      const videoHeight = aspectSize.height;
       const videoSteps = modelConfig?.defaultSteps || 20;
       const frames = calculateVideoFrames(modelId, videoDuration, videoFps);
 
@@ -1132,7 +1163,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         console.log(`  (Could not fetch cost estimate: ${e.message})`);
       }
 
-      console.log(`\n  Generating ${quantity > 1 ? quantity + ' videos' : 'video'} with ${modelId} (${videoDuration}s, ${videoFps}fps)...`);
+      console.log(`\n  Generating ${quantity > 1 ? quantity + ' videos' : 'video'} with ${modelId} (${videoDuration}s, ${videoFps}fps, ${videoWidth}x${videoHeight})...`);
 
       const project = await sogni.projects.create({
         type: 'video',
@@ -1312,24 +1343,31 @@ async function handleToolCalls(sogni, toolCalls, options, tokenType) {
     const args = parseToolCallArguments(toolCall);
     const mediaType = toolNameToMediaType(toolCall.function.name);
     const rawPrompt = args.prompt || options.prompt;
+    // LLM-specified quantity (from user's natural language) takes priority over CLI flag
+    const quantity = Math.max(1, Math.min(512, parseInt(args.quantity, 10) || options.quantity || 1));
     const startTime = Date.now();
 
     console.log(`\n  Tool call: ${toolCall.function.name}`);
     console.log(`  Intent: ${rawPrompt}`);
+    if (quantity > 1) console.log(`  Quantity: ${quantity}`);
 
     let result = null;
     try {
       if (mediaType === 'audio') {
         const songParams = await composeSong(sogni, rawPrompt, options, tokenType);
-        if (songParams) result = await generateMedia(sogni, 'audio', songParams, tokenType, options.quantity, options);
+        if (songParams) result = await generateMedia(sogni, 'audio', songParams, tokenType, quantity, options);
       } else if (mediaType === 'image') {
         const imageParams = await composeImage(sogni, rawPrompt, options, tokenType);
-        if (imageParams) result = await generateMedia(sogni, 'image', imageParams, tokenType, options.quantity, options);
+        if (imageParams) result = await generateMedia(sogni, 'image', imageParams, tokenType, quantity, options);
       } else if (mediaType === 'video') {
-        const rawDuration = options.duration || args.duration || 10;
+        const rawDuration = args.duration || options.duration || 10;
         const duration = Math.max(1, Math.min(20, parseFloat(rawDuration) || 10));
+        // Resolve aspect ratio: LLM-extracted > CLI option > default portrait
+        const aspect_ratio = (args.aspect_ratio && VIDEO_ASPECT_RATIOS[args.aspect_ratio]) ? args.aspect_ratio : (options.aspect_ratio || 'portrait');
+        const arSize = VIDEO_ASPECT_RATIOS[aspect_ratio];
+        if (arSize) console.log(`  Aspect:  ${aspect_ratio} (${arSize.width}x${arSize.height})`);
         const videoParams = await composeVideo(sogni, rawPrompt, options, tokenType, duration);
-        if (videoParams) result = await generateMedia(sogni, 'video', videoParams, tokenType, options.quantity, { ...options, duration });
+        if (videoParams) result = await generateMedia(sogni, 'video', videoParams, tokenType, quantity, { ...options, duration, aspect_ratio });
       }
     } catch (err) {
       console.error(`\n  Media generation error: ${err.message}`);

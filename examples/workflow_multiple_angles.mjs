@@ -34,6 +34,7 @@
  *   --seed          Random seed for reproducibility (default: -1)
  *   --steps         Inference steps (default: 20)
  *   --output        Output directory (default: ./output)
+ *   --disable-safe-content-filter  Disable NSFW/safety filter
  *   --no-interactive  Skip interactive prompts
  *   --help          Show this help message
  */
@@ -117,7 +118,8 @@ async function parseArgs() {
     width: 1024,
     height: 1024,
     output: './output',
-    interactive: true
+    interactive: true,
+    disableSafeContentFilter: false
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -155,6 +157,8 @@ async function parseArgs() {
       options.height = parseInt(args[++i], 10);
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
+    } else if (arg === '--disable-safe-content-filter') {
+      options.disableSafeContentFilter = true;
     } else if (!arg.startsWith('--') && !options.description) {
       options.description = arg;
     } else {
@@ -210,6 +214,7 @@ Options:
   --seed          Random seed (default: -1)
   --steps         Inference steps (default: model-specific)
   --output        Output directory (default: ./output)
+  --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
   --help          Show this help
 
@@ -552,7 +557,8 @@ async function main() {
       'Steps': OPTIONS.steps,
       'Guidance': OPTIONS.guidance,
       'Batch': OPTIONS.batch,
-      'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1
+      'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1,
+      'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
     };
 
     if (OPTIONS.description) {
@@ -620,6 +626,7 @@ async function main() {
       // LoRA configuration - using LoRA IDs (resolved to filenames by worker via config API)
       loras: [LORA_ID],
       loraStrengths: [OPTIONS.strength],
+      disableNSFWFilter: OPTIONS.disableSafeContentFilter,
     };
 
     const project = await sogni.projects.create(projectParams);
@@ -675,9 +682,9 @@ async function main() {
                     if (!event.jobId) return;
           clearProgress();
 
-          if (event.isNSFW) {
+          if (event.isNSFW && !OPTIONS.disableSafeContentFilter) {
             failedImages++;
-            displaySafeContentFilterMessage({ showDisableHint: false });
+            displaySafeContentFilterMessage({ showDisableHint: true });
             checkWorkflowCompletion();
             return;
           }
@@ -716,8 +723,8 @@ async function main() {
               })
               .catch((error) => {
                 failedImages++;
-                if (error.message?.includes('Not Found')) {
-                  displaySafeContentFilterMessage({ showDisableHint: false });
+                if (error.message?.includes('Not Found') && !OPTIONS.disableSafeContentFilter) {
+                  displaySafeContentFilterMessage({ showDisableHint: true });
                 } else {
                   log('❌', `Download failed: ${error.message}`);
                 }
@@ -735,8 +742,8 @@ async function main() {
                     clearProgress();
           projectFailed = true;
           failedImages++;
-          if (isSensitiveContentError(event)) {
-            displaySafeContentFilterMessage({ showDisableHint: false });
+          if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
+            displaySafeContentFilterMessage({ showDisableHint: true });
           } else {
             const errorMsg = event.error?.message || event.error || 'Unknown error';
             log('❌', `Job failed: ${errorMsg}`);

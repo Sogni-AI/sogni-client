@@ -19,9 +19,9 @@
  *   --width     Video width (WAN: 480-1536 step 16, LTX-2: 640-3840 step 64)
  *   --height    Video height (WAN: 480-1536 step 16, LTX-2: 640-3840 step 64)
  *   --duration  Duration in seconds (WAN: 1-10s default 5, LTX-2: 4-10/20s default 4)
- *   --fps       Frames per second (WAN: 16/32, LTX-2: 25/50)
+ *   --fps       Frames per second (WAN: 16/32, LTX-2/2.3: 25/50)
  *
- * LTX-2 VRAM-based resolution limits (enforced during job assignment):
+ * LTX-2/2.3 VRAM-based resolution limits (enforced during job assignment):
  *   Jobs are only assigned to workers with sufficient VRAM for the requested resolution:
  *   - <30GB VRAM workers: 1080p tier (~2.2MP max, e.g., 1920x1152)
  *   - <40GB VRAM workers: 1440p tier (~4.0MP max, e.g., 2560x1600)
@@ -35,6 +35,7 @@
  *   --negative  Negative prompt (default: none)
  *   --style     Style prompt (default: none)
  *   --output    Output directory (default: ./output)
+ *   --disable-safe-content-filter  Disable NSFW/safety filter
  *   --no-interactive  Skip interactive prompts
  *   --help      Show this help message
  */
@@ -98,7 +99,8 @@ async function parseArgs() {
     sampler: null,
     scheduler: null,
     output: './output',
-    interactive: true
+    interactive: true,
+    disableSafeContentFilter: false
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -138,6 +140,8 @@ async function parseArgs() {
       options.scheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
+    } else if (arg === '--disable-safe-content-filter') {
+      options.disableSafeContentFilter = true;
     } else if (!arg.startsWith('--') && !options.prompt) {
       options.prompt = arg;
     } else {
@@ -158,16 +162,19 @@ Usage:
   node workflow_text_to_video.mjs                           # Interactive mode
   node workflow_text_to_video.mjs "your prompt here"        # With prompt
   node workflow_text_to_video.mjs "Dancing" --model ltx2-19b-fp8_t2v # LTX-2 model
+  node workflow_text_to_video.mjs "Dancing" --model ltx23-22b-fp8_t2v_distilled # LTX-2.3 model
 
 Available Models:
   wan_v2.2-14b-fp8_t2v_lightx2v  (WAN 2.2, fast 4-step, 1-10s, default)
   wan_v2.2-14b-fp8_t2v           (WAN 2.2, high quality 20-step, 1-10s)
   ltx2-19b-fp8_t2v_distilled     (LTX-2, fast 8-step, 4-20s, 2x upscaled output)
   ltx2-19b-fp8_t2v               (LTX-2, high quality 20-step, 4-10s, 2x upscaled output)
+  ltx23-22b-fp8_t2v_distilled              (LTX-2.3, fast 8-step, 22B model, 4-10s, 2x upscaled output)
 
 Model-Specific Constraints:
-  WAN models:   480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
-  LTX-2 models: 640-1920px (step 64), 25/50 fps, 4-10/20s, no shift, guidance 1-7
+  WAN models:     480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
+  LTX-2 models:   640-1920px (step 64), 25/50 fps, 4-10/20s, no shift, guidance 1-7
+  LTX-2.3 models: 640-3840px (step 64), 25/50 fps, 4-10s, no shift, guidance 1-2
 
 Options:
   --model     Model ID (default: wan_v2.2-14b-fp8_t2v_lightx2v)
@@ -184,6 +191,7 @@ Options:
   --comfy-sampler  ComfyUI sampler (default: euler)
   --comfy-scheduler ComfyUI scheduler (default: simple)
   --output    Output directory (default: ./output)
+  --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
   --help      Show this help message
 `);
@@ -214,7 +222,7 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'wan_v2.2-14b-fp8_t2v_lightx2v';
     modelConfig = MODELS.t2v[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_t2v_lightx2v, wan_v2.2-14b-fp8_t2v, ltx2-19b-fp8_t2v_distilled, ltx2-19b-fp8_t2v`);
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_t2v_lightx2v, wan_v2.2-14b-fp8_t2v, ltx2-19b-fp8_t2v_distilled, ltx2-19b-fp8_t2v, ltx23-22b-fp8_t2v_distilled`);
       process.exit(1);
     }
   }
@@ -417,7 +425,8 @@ async function main() {
       Shift: OPTIONS.shift,
       Seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
       'Comfy Sampler': OPTIONS.sampler,
-      'Comfy Scheduler': OPTIONS.scheduler
+      'Comfy Scheduler': OPTIONS.scheduler,
+      'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
     });
 
     if (OPTIONS.negative) {
@@ -526,6 +535,7 @@ async function main() {
       // Use sampler/scheduler for video models (ComfyUI format)
       sampler: OPTIONS.sampler,
       scheduler: OPTIONS.scheduler,
+      disableNSFWFilter: OPTIONS.disableSafeContentFilter,
       tokenType: tokenType
     };
 

@@ -21,11 +21,11 @@
  *   --width     Video width (WAN: 480-1536 step 16, LTX-2: 640-3840 step 64)
  *   --height    Video height (WAN: 480-1536 step 16, LTX-2: 640-3840 step 64)
  *   --duration  Duration in seconds (WAN: 1-10s default 5, LTX-2: 4-10/20s default 4)
- *   --fps       Frames per second (WAN: 16/32, LTX-2: 25/50)
+ *   --fps       Frames per second (WAN: 16/32, LTX-2/2.3: 25/50)
  *   --first-frame-strength  LTX-2 keyframes: first frame match strength 0-1 (default: 1.0, 0=disable)
  *   --last-frame-strength   LTX-2 keyframes: last frame match strength 0-1 (default: 1.0)
  *
- * LTX-2 VRAM-based resolution limits (enforced during job assignment):
+ * LTX-2/2.3 VRAM-based resolution limits (enforced during job assignment):
  *   Jobs are only assigned to workers with sufficient VRAM for the requested resolution:
  *   - <30GB VRAM workers: 1080p tier (~2.2MP max, e.g., 1920x1152)
  *   - <40GB VRAM workers: 1440p tier (~4.0MP max, e.g., 2560x1600)
@@ -41,6 +41,7 @@
  *   --negative  Negative prompt (default: none)
  *   --style     Style prompt (default: none)
  *   --output    Output directory (default: ./output)
+ *   --disable-safe-content-filter  Disable NSFW/safety filter
  *   --no-interactive  Skip interactive prompts
  *   --help      Show this help message
  */
@@ -116,7 +117,8 @@ async function parseArgs() {
     sampler: null,
     scheduler: null,
     output: './output',
-    interactive: true
+    interactive: true,
+    disableSafeContentFilter: false
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -164,6 +166,8 @@ async function parseArgs() {
       options.scheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
+    } else if (arg === '--disable-safe-content-filter') {
+      options.disableSafeContentFilter = true;
     } else if (!arg.startsWith('--') && !options.prompt) {
       options.prompt = arg;
     } else {
@@ -190,13 +194,15 @@ Available Models:
   wan_v2.2-14b-fp8_i2v                (WAN 2.2, high quality 20-step, 1-10s)
   ltx2-19b-fp8_i2v_distilled          (LTX-2, fast 8-step, 4-20s, 2x upscaled output)
   ltx2-19b-fp8_i2v                    (LTX-2, high quality 20-step, 4-10s, 2x upscaled output)
+  ltx23-22b-fp8_i2v_distilled                   (LTX-2.3, fast 8-step, 22B model, 4-10s, 2x upscaled output)
 
 Note: LTX-2 models automatically use keyframe interpolation when --end-image is provided.
 
 Model-Specific Constraints:
-  WAN models:   480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
-  LTX-2 models: 384-960px input (step 32), 25/50 fps, 4-10/20s, no shift, guidance 1-7
-                Note: LTX-2 outputs at 2x input resolution (768x512 → 1536x1024)
+  WAN models:     480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
+  LTX-2 models:   384-960px input (step 32), 25/50 fps, 4-10/20s, no shift, guidance 1-7
+                   Note: LTX-2 outputs at 2x input resolution (768x512 → 1536x1024)
+  LTX-2.3 models: 640-3840px (step 64), 25/50 fps, 4-10s, no shift, guidance 1-2
 
 Options:
   --image     Input image path (required)
@@ -217,6 +223,7 @@ Options:
   --comfy-sampler  ComfyUI sampler (default: euler)
   --comfy-scheduler ComfyUI scheduler (default: simple)
   --output    Output directory (default: ./output)
+  --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
   --help      Show this help message
 `);
@@ -298,7 +305,7 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'wan_v2.2-14b-fp8_i2v_lightx2v';
     modelConfig = MODELS.i2v[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx2-19b-fp8_i2v_distilled, ltx2-19b-fp8_i2v`);
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx2-19b-fp8_i2v_distilled, ltx2-19b-fp8_i2v, ltx23-22b-fp8_i2v_distilled`);
       process.exit(1);
     }
   }
@@ -306,7 +313,7 @@ async function main() {
   log('🎬', `Selected model: ${modelConfig.name}`);
 
   // Prompt for frame strength values when end image is provided (LTX-2 keyframes only)
-  const isLtx2Model = OPTIONS.modelKey.startsWith('ltx2-');
+  const isLtx2Model = OPTIONS.modelKey.startsWith('ltx2-') || OPTIONS.modelKey.startsWith('ltx23-');
   if (OPTIONS.interactive && OPTIONS.endImage && isLtx2Model) {
     console.log('\n📊 Frame Strength Settings (0.0-1.0, higher = more exact match):');
 
@@ -345,9 +352,10 @@ async function main() {
     log('⚙️', `Frame strengths: first=${OPTIONS.firstFrameStrength}, last=${OPTIONS.lastFrameStrength}`);
   }
 
-  // Set default dimensions from image
-  modelConfig.defaultWidth = initialImageDimensions.width;
-  modelConfig.defaultHeight = initialImageDimensions.height;
+  // Set default dimensions from image, aligned to model's dimension step
+  const dimStep = modelConfig.dimensionStep || 16;
+  modelConfig.defaultWidth = Math.floor(initialImageDimensions.width / dimStep) * dimStep;
+  modelConfig.defaultHeight = Math.floor(initialImageDimensions.height / dimStep) * dimStep;
 
   // Interactive mode: prompt for core options
   if (OPTIONS.interactive) {
@@ -401,7 +409,8 @@ async function main() {
   try {
     processedImage = await processImageForVideo(OPTIONS.image, OPTIONS.frames, {
       targetWidth: OPTIONS.width || initialImageDimensions.width,
-      targetHeight: OPTIONS.height || initialImageDimensions.height
+      targetHeight: OPTIONS.height || initialImageDimensions.height,
+      dimensionStep: modelConfig.dimensionStep || 16
     });
     log('📐', `Final video dimensions: ${processedImage.width}x${processedImage.height}`);
   } catch (error) {
@@ -550,6 +559,7 @@ async function main() {
     // Video models only support ComfyUI sampler/scheduler
     configDisplay['Comfy Sampler'] = OPTIONS.sampler;
     configDisplay['Comfy Scheduler'] = OPTIONS.scheduler;
+    configDisplay['Safety'] = OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled';
     displayConfig('Video Generation Configuration', configDisplay);
 
     if (OPTIONS.negative) {
@@ -660,6 +670,7 @@ async function main() {
       shift: OPTIONS.shift,
       seed: OPTIONS.seed,
       referenceImage: referenceImageBlob,
+      disableNSFWFilter: OPTIONS.disableSafeContentFilter,
       tokenType: tokenType
     };
 
@@ -672,7 +683,8 @@ async function main() {
       // Process end image to match the target video dimensions using "cover" mode (scale to fill, crop overflow)
       const processedEndImage = await processImageForVideo(OPTIONS.endImage, OPTIONS.frames, {
         targetWidth: OPTIONS.width,
-        targetHeight: OPTIONS.height
+        targetHeight: OPTIONS.height,
+        dimensionStep: modelConfig.dimensionStep || 16
       });
       projectParams.referenceImageEnd = processedEndImage.buffer;
       if (processedEndImage.wasResized) {
