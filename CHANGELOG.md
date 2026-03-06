@@ -1,3 +1,10 @@
+# [4.1.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.3...v4.1.0-alpha.4) (2026-03-06)
+
+
+### Features
+
+* Add LTX-2.3 model prefix support ([4498827](https://github.com/Sogni-AI/sogni-client/commit/449882721ad9c7d0137814d2d9da830d11194b44))
+
 # [4.1.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.2...v4.1.0-alpha.3) (2026-03-05)
 
 
