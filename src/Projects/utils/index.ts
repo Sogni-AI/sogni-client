@@ -17,7 +17,7 @@ export function getEnhacementStrength(strength: EnhancementStrength): number {
  * Video models produce MP4 output; image models produce PNG/JPG output.
  */
 export function isVideoModel(modelId: string): boolean {
-  return modelId.startsWith('wan_') || modelId.startsWith('ltx2-');
+  return modelId.startsWith('wan_') || modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
 }
 
 /**
@@ -53,7 +53,7 @@ export function isWanModel(modelId: string): boolean {
  * the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, 41, ...)
  */
 export function isLtx2Model(modelId: string): boolean {
-  return modelId.startsWith('ltx2-');
+  return modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
 }
 
 /**
@@ -127,7 +127,7 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
 
   // Check for supported video model prefixes
   const isWan = modelId.startsWith('wan_');
-  const isLtx2 = modelId.startsWith('ltx2-');
+  const isLtx2 = modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
 
   if (!isWan && !isLtx2) return null;
 
