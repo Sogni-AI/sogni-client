@@ -63,7 +63,9 @@ import {
   getUniqueFilename,
   generateVideoFilename,
   generateRandomSeed,
-  calculateVideoFrames
+  calculateVideoFrames,
+  displaySafeContentFilterMessage,
+  isSensitiveContentError
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -727,7 +729,10 @@ async function main() {
 
         // Check result
         const jobs = project.jobs;
-        if (jobs.length > 0 && jobs[0].resultUrl) {
+        if (jobs.length > 0 && jobs[0].isNSFW && !OPTIONS.disableSafeContentFilter) {
+          displaySafeContentFilterMessage();
+          failCount++;
+        } else if (jobs.length > 0 && jobs[0].resultUrl) {
           // Calculate generation time and generate output filename
           const elapsedSeconds = (Date.now() - imageStartTime) / 1000;
           const desiredPath = generateVideoFilename({

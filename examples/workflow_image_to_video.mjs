@@ -77,7 +77,9 @@ import {
   getUniqueFilename,
   generateVideoFilename,
   generateRandomSeed,
-  calculateVideoFrames
+  calculateVideoFrames,
+  displaySafeContentFilterMessage,
+  isSensitiveContentError
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -885,6 +887,14 @@ async function main() {
           const completedLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
 
+          if (event.isNSFW && !OPTIONS.disableSafeContentFilter) {
+            failedVideos++;
+            displaySafeContentFilterMessage();
+            jobStates.delete(jobId);
+            checkWorkflowCompletion();
+            return;
+          }
+
           if (!event.resultUrl || event.error) {
             failedVideos++;
             log('❌', `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`);
@@ -942,12 +952,16 @@ async function main() {
           stopJobProgress(jobId);
           projectFailed = true;
           failedVideos++;
-          const errorMsg = event.error?.message || event.error || 'Unknown error';
-          const errorCode = event.error?.code;
-          if (errorCode !== undefined && errorCode !== null) {
-            log('❌', `${errorLabel}Job failed: ${errorMsg} (Error code: ${errorCode})`);
+          if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
+            displaySafeContentFilterMessage();
           } else {
-            log('❌', `${errorLabel}Job failed: ${errorMsg}`);
+            const errorMsg = event.error?.message || event.error || 'Unknown error';
+            const errorCode = event.error?.code;
+            if (errorCode !== undefined && errorCode !== null) {
+              log('❌', `${errorLabel}Job failed: ${errorMsg} (Error code: ${errorCode})`);
+            } else {
+              log('❌', `${errorLabel}Job failed: ${errorMsg}`);
+            }
           }
           jobStates.delete(jobId);
           checkWorkflowCompletion();

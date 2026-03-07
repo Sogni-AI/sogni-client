@@ -6,6 +6,8 @@
  * - WAN 2.2 S2V: Sound-to-video with reference image (lip-sync/motion-sync)
  * - LTX-2 IA2V: Image+audio to video with reference image (audio-reactive)
  * - LTX-2 A2V: Audio to video without reference image (audio-reactive generation)
+ * - LTX-2.3 IA2V: Image+audio to video with 22B model (audio-reactive)
+ * - LTX-2.3 A2V: Audio to video with 22B model (audio-reactive generation)
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
@@ -21,7 +23,7 @@
  *   --audio       Audio file path (required, m4a/mp3/wav)
  *   --audio-start Start position in audio in seconds (default: 0)
  *   --audio-duration  Duration of audio to use in seconds (default: auto from video)
- *   --model       Model: lightx2v, quality, ltx2-ia2v-distilled, ltx2-a2v-distilled (default: prompts)
+ *   --model       Model: lightx2v, quality, ltx2-ia2v-distilled, ltx2-a2v-distilled, ltx23-ia2v-distilled, ltx23-a2v-distilled (default: prompts)
  *   --width       Video width (default: auto from image, min: 480)
  *   --height      Video height (default: auto from image, min: 480)
  *   --duration    Duration in seconds (default: 5, converts to frames)
@@ -72,7 +74,9 @@ import {
   getUniqueFilename,
   generateVideoFilename,
   generateRandomSeed,
-  calculateVideoFrames
+  calculateVideoFrames,
+  displaySafeContentFilterMessage,
+  isSensitiveContentError
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -183,10 +187,12 @@ Usage:
   node workflow_sound_to_video.mjs "A music visualizer" --audio music.mp3 --model ltx2-a2v-distilled
 
 Available Models:
-  lightx2v          - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
-  quality           - WAN 2.2 14B S2V (high quality, 20-step)
+  lightx2v            - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
+  quality             - WAN 2.2 14B S2V (high quality, 20-step)
   ltx2-ia2v-distilled - LTX-2 19B Image+Audio to Video (fast, 8-step, requires image)
   ltx2-a2v-distilled  - LTX-2 19B Audio to Video (fast, 8-step, no image needed)
+  ltx23-ia2v-distilled - LTX-2.3 22B Image+Audio to Video (fast, 8-step, requires image)
+  ltx23-a2v-distilled  - LTX-2.3 22B Audio to Video (fast, 8-step, no image needed)
 
 Options:
   --image       Reference image path (required for s2v/ia2v, not used for a2v)
@@ -889,6 +895,14 @@ async function main() {
           const completedLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
 
+          if (event.isNSFW && !OPTIONS.disableSafeContentFilter) {
+            failedVideos++;
+            displaySafeContentFilterMessage();
+            jobStates.delete(jobId);
+            checkWorkflowCompletion();
+            return;
+          }
+
           if (!event.resultUrl || event.error) {
             failedVideos++;
             log('❌', `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`);
@@ -946,12 +960,16 @@ async function main() {
           stopJobProgress(jobId);
           projectFailed = true;
           failedVideos++;
-          const errorMsg = event.error?.message || event.error || 'Unknown error';
-          const errorCode = event.error?.code;
-          if (errorCode !== undefined && errorCode !== null) {
-            log('❌', `${errorLabel}Job failed: ${errorMsg} (Error code: ${errorCode})`);
+          if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
+            displaySafeContentFilterMessage();
           } else {
-            log('❌', `${errorLabel}Job failed: ${errorMsg}`);
+            const errorMsg = event.error?.message || event.error || 'Unknown error';
+            const errorCode = event.error?.code;
+            if (errorCode !== undefined && errorCode !== null) {
+              log('❌', `${errorLabel}Job failed: ${errorMsg} (Error code: ${errorCode})`);
+            } else {
+              log('❌', `${errorLabel}Job failed: ${errorMsg}`);
+            }
           }
           jobStates.delete(jobId);
           checkWorkflowCompletion();
