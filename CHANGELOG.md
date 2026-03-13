@@ -1,3 +1,10 @@
+## [4.0.2](https://github.com/Sogni-AI/sogni-client/compare/v4.0.1...v4.0.2) (2026-03-13)
+
+
+### Bug Fixes
+
+* Incorrect video project estimation for non-Wan models ([8ffc93a](https://github.com/Sogni-AI/sogni-client/commit/8ffc93ab727ed38e50dc56c96a603cd75a9021bb))
+
 # [4.1.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.3...v4.1.0-alpha.4) (2026-03-06)
 
 
