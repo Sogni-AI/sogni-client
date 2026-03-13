@@ -31,6 +31,13 @@
 
 * Add vision chat support with multimodal image understanding ([8253c1b](https://github.com/Sogni-AI/sogni-client/commit/8253c1b5c84d7c14b834d9e01d86bf832c1574e8))
 
+## [4.0.1](https://github.com/Sogni-AI/sogni-client/compare/v4.0.0...v4.0.1) (2026-03-02)
+
+
+### Bug Fixes
+
+* Minor doc update ([5b240fa](https://github.com/Sogni-AI/sogni-client/commit/5b240fa43632f8cb024ab98a222ef3b00f186511))
+
 # [4.0.0](https://github.com/Sogni-AI/sogni-client/compare/v3.3.1...v4.0.0) (2026-03-02)
 
 
