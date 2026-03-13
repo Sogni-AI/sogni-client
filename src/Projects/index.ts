@@ -34,6 +34,7 @@ import { SupernetType } from '../ApiClient/WebSocketClient/types';
 import Cache from '../lib/Cache';
 import { enhancementDefaults } from './Job';
 import {
+  calculateVideoFrames,
   getEnhacementStrength,
   getVideoWorkflowType,
   isAudioModel,
@@ -985,7 +986,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       params.model,
       params.width,
       params.height,
-      params.frames ? params.frames : params.duration * 16 + 1,
+      params.frames
+        ? params.frames
+        : calculateVideoFrames(params.model, params.duration, params.fps),
       params.fps,
       params.steps,
       params.numberOfMedia
