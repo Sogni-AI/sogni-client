@@ -559,7 +559,7 @@ Generate images, videos, and music through natural language via LLM tool calling
 
 **Sogni Platform Tools:**
 - **Image Generation** - Detects image intent, enhances prompt, generates via `z_image_turbo_bf16`
-- **Video Generation** - Detects video intent, generates via `ltx2-19b-fp8_t2v_distilled` (LTX-2)
+- **Video Generation** - Detects video intent, generates via `ltx23-22b-fp8_t2v_distilled` (LTX-2.3)
 - **Music Generation** - Detects music intent, composes via `ace_step_1.5_turbo` (ACE-Step 1.5)
 
 **Usage:**

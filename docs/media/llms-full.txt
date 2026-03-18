@@ -14,7 +14,7 @@ TABLE OF CONTENTS
 3. Client Initialization
 4. Image Generation
 5. Video Generation - WAN 2.2 Models
-6. Video Generation - LTX-2 Models
+6. Video Generation - LTX-2.3 / LTX-2 Models
 7. Audio Generation - ACE-Step 1.5 Models
 8. LLM Text Generation
 9. LLM Tool Calling & Sogni Platform Tools
@@ -34,7 +34,7 @@ The Sogni SDK provides access to the Sogni Supernet - a decentralized network
 for AI inference. It supports:
 
 - Image Generation: Stable Diffusion, Flux, Z-Image, Z-Image Turbo, Qwen Image Edit
-- Video Generation: WAN 2.2 (5 workflows), LTX-2 models
+- Video Generation: WAN 2.2 (5 workflows), LTX-2.3 / LTX-2 models
 - Audio Generation: ACE-Step 1.5 music generation (Turbo and SFT models)
 - LLM Text Generation: Chat completions with streaming, multi-turn, and thinking mode
 - LLM Tool Calling: OpenAI-compatible function calling with custom and platform tools
@@ -430,12 +430,12 @@ WAN 2.2 VIDEO PARAMETERS:
 | videoStart | number | 0+ | 0 | animate: video start position |
 
 ================================================================================
-6. VIDEO GENERATION - LTX-2 MODELS
+6. VIDEO GENERATION - LTX-2.3 / LTX-2 MODELS
 ================================================================================
 
-CRITICAL: LTX-2 FPS BEHAVIOR (Different from WAN!)
+CRITICAL: LTX FPS BEHAVIOR (Different from WAN!)
 --------------------------------------------------
-LTX-2 models generate at the ACTUAL specified FPS (1-60 range).
+LTX-2.3 and LTX-2 models generate at the ACTUAL specified FPS (1-60 range).
 There is NO post-render interpolation.
 
 Frame calculation: duration * fps + 1
@@ -444,22 +444,28 @@ The SDK automatically snaps to valid frame counts.
 
 Example: 5 seconds at 24fps = 121 frames (1 + 15*8 = 121)
 
-LTX-2 MODELS:
+LTX-2.3 22B MODELS (Recommended):
 - Speed models (with _distilled suffix): 8-step, faster, good quality
-- Quality models (without suffix): 20-step, slower, best quality
+- Quality models (with _dev suffix): 20-step, slower, best quality
 
 | Workflow | Model ID (Fast) | Model ID (Quality) |
 |----------|-----------------|---------------------|
-| Text-to-Video | ltx2-19b-fp8_t2v_distilled | ltx2-19b-fp8_t2v |
-| Image-to-Video | ltx2-19b-fp8_i2v_distilled | ltx2-19b-fp8_i2v |
+| Text-to-Video | ltx23-22b-fp8_t2v_distilled | ltx23-22b-fp8_t2v_dev |
+| Image-to-Video | ltx23-22b-fp8_i2v_distilled | ltx23-22b-fp8_i2v_dev |
+| Audio-to-Video | ltx23-22b-fp8_a2v_distilled | ltx23-22b-fp8_a2v_dev |
+| Image+Audio-to-Video | ltx23-22b-fp8_ia2v_distilled | ltx23-22b-fp8_ia2v_dev |
+
+VIDEO-TO-VIDEO CONTROLNET (LTX-2 only, no LTX-2.3 equivalent):
+| Workflow | Model ID (Fast) | Model ID (Quality) |
+|----------|-----------------|---------------------|
 | Video-to-Video (ControlNet) | ltx2-19b-fp8_v2v_distilled | ltx2-19b-fp8_v2v |
 
-LTX-2 TEXT-TO-VIDEO:
+LTX-2.3 TEXT-TO-VIDEO:
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'ltx2-19b-fp8_t2v',
+  modelId: 'ltx23-22b-fp8_t2v_dev',
   positivePrompt: 'A butterfly landing on a flower',
   numberOfMedia: 1,
   duration: 8,
@@ -467,12 +473,12 @@ const project = await sogni.projects.create({
 });
 ```
 
-LTX-2 IMAGE-TO-VIDEO WITH KEYFRAMES:
+LTX-2.3 IMAGE-TO-VIDEO WITH KEYFRAMES:
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'ltx2-19b-fp8_i2v',
+  modelId: 'ltx23-22b-fp8_i2v_dev',
   positivePrompt: 'Smooth camera movement',
   referenceImage: fs.readFileSync('./start.jpg'),
   referenceImageEnd: fs.readFileSync('./end.jpg'),
@@ -484,7 +490,7 @@ const project = await sogni.projects.create({
 });
 ```
 
-LTX-2 VIDEO-TO-VIDEO WITH CONTROLNET:
+LTX-2 VIDEO-TO-VIDEO WITH CONTROLNET (LTX-2 only, no LTX-2.3 equivalent):
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
@@ -502,7 +508,7 @@ const project = await sogni.projects.create({
 });
 ```
 
-LTX-2 VIDEO PARAMETERS:
+LTX VIDEO PARAMETERS:
 | Parameter | Type | Range | Default | Notes |
 |-----------|------|-------|---------|-------|
 | duration | number | 4-20 | - | Seconds of video |
@@ -785,7 +791,7 @@ DEFAULT GENERATION MODELS (used by platform tools):
 | Media Type | Model ID | Description |
 |------------|----------|-------------|
 | Image | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step generation |
-| Video | ltx2-19b-fp8_t2v_distilled | LTX-2 text-to-video, fast distilled |
+| Video | ltx23-22b-fp8_t2v_distilled | LTX-2.3 text-to-video, fast distilled |
 | Audio | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music generation |
 
 PLATFORM TOOL WORKFLOW:

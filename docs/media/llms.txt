@@ -60,7 +60,7 @@ console.log(urls[0]); // Video URL (valid 24 hours)
 1. **Authentication & Setup** - Client initialization, login, network types
 2. **Image Generation** - Text-to-image, img2img, ControlNets
 3. **Video Generation (WAN 2.2)** - t2v, i2v, s2v, animate-move, animate-replace
-4. **Video Generation (LTX-2)** - Alternative video models with different fps behavior
+4. **Video Generation (LTX-2.3 / LTX-2)** - Recommended video models with different fps behavior
 5. **Audio Generation (ACE-Step 1.5)** - Text-to-music with optional lyrics
 6. **LLM Text Generation** - Chat completions, streaming, multi-turn conversations
 7. **LLM Tool Calling** - Function calling with custom tools and Sogni platform tools
@@ -209,23 +209,30 @@ const project = await sogni.projects.create({
 
 ---
 
-## 4. Video Generation (LTX-2)
+## 4. Video Generation (LTX-2.3 / LTX-2)
 
-### LTX-2 FPS Behavior (Different from WAN!)
-LTX-2 generates at the actual specified FPS (1-60 range). No interpolation.
+### LTX FPS Behavior (Different from WAN!)
+LTX models generate at the actual specified FPS (1-60 range). No interpolation.
 - Frame calculation: `duration * fps + 1`
 - Frame count must follow: `1 + n*8` (1, 9, 17, 25, 33, ...)
 
 Example: 5 seconds at 24fps = 121 frames
 
-### LTX-2 Model IDs
+### LTX Model IDs
 - Speed models (`_distilled` suffix): 8-step, faster
-- Quality models (no suffix): 20-step, best quality
+- Quality models (`_dev` suffix or no suffix): 20-step, best quality
 
+**LTX-2.3 22B (Recommended):**
 | Workflow | Fast | Quality |
 |----------|------|---------|
-| Text-to-Video | `ltx2-19b-fp8_t2v_distilled` | `ltx2-19b-fp8_t2v` |
-| Image-to-Video | `ltx2-19b-fp8_i2v_distilled` | `ltx2-19b-fp8_i2v` |
+| Text-to-Video | `ltx23-22b-fp8_t2v_distilled` | `ltx23-22b-fp8_t2v_dev` |
+| Image-to-Video | `ltx23-22b-fp8_i2v_distilled` | `ltx23-22b-fp8_i2v_dev` |
+| Audio-to-Video | `ltx23-22b-fp8_a2v_distilled` | `ltx23-22b-fp8_a2v_dev` |
+| Image+Audio-to-Video | `ltx23-22b-fp8_ia2v_distilled` | `ltx23-22b-fp8_ia2v_dev` |
+
+**Video-to-Video ControlNet (LTX-2 only):**
+| Workflow | Fast | Quality |
+|----------|------|---------|
 | Video-to-Video (ControlNet) | `ltx2-19b-fp8_v2v_distilled` | `ltx2-19b-fp8_v2v` |
 
 IMPORTANT: ControlNet (canny/pose/depth/detailer) requires a `_v2v` model, NOT `_i2v`.
@@ -386,7 +393,7 @@ Default generation models used by platform tools:
 | Media Type | Model | Description |
 |------------|-------|-------------|
 | Image | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step |
-| Video | ltx2-19b-fp8_t2v_distilled | LTX-2 text-to-video, fast |
+| Video | ltx23-22b-fp8_t2v_distilled | LTX-2.3 text-to-video, fast |
 | Audio | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music |
 
 ---

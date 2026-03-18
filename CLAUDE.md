@@ -101,9 +101,9 @@ src/
 
 The SDK supports two families of video models with **fundamentally different FPS and frame count behavior**.
 
-### Standard Behavior (LTX-2 and future models)
+### Standard Behavior (LTX-2, LTX-2.3, and future models)
 
-**LTX-2 Models (`ltx2-*`)** represent the standard behavior going forward:
+**LTX-2 / LTX-2.3 Models (`ltx2-*`, `ltx23-*`)** represent the standard behavior going forward. **LTX-2.3 (22B)** is the recommended video model family:
 - **Generate at the actual specified FPS** (1-60 fps range)
 - No post-render interpolation - fps directly affects generation
 - **Frame calculation**: `duration * fps + 1`
@@ -167,16 +167,16 @@ const project = await sogni.projects.create({
 const urls = await project.waitForCompletion();
 ```
 
-### Generate a Video (WAN 2.2)
+### Generate a Video (LTX-2.3)
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',  // Required for video
-  modelId: 'wan_v2.2-14b-fp8_t2v_lightx2v',
+  modelId: 'ltx23-22b-fp8_t2v_distilled',
   positivePrompt: 'Your prompt here',
   numberOfMedia: 1,
   duration: 5,  // seconds
-  fps: 16
+  fps: 24
 });
 const urls = await project.waitForCompletion();
 ```
@@ -211,8 +211,8 @@ const urls = await project.waitForCompletion();
 | Image-to-Video | `*_i2v*` | `referenceImage` (and/or `referenceImageEnd`) |
 | Video-to-Video | `*_v2v*` (LTX-2 only) | `referenceVideo` + `controlNet` |
 | Sound-to-Video | `*_s2v*` (WAN only) | `referenceImage` + `referenceAudio` |
-| Image+Audio-to-Video | `*_ia2v*` (LTX-2 only) | `referenceImage` + `referenceAudio` |
-| Audio-to-Video | `*_a2v*` (LTX-2 only) | `referenceAudio` |
+| Image+Audio-to-Video | `*_ia2v*` (LTX-2 / LTX-2.3) | `referenceImage` + `referenceAudio` |
+| Audio-to-Video | `*_a2v*` (LTX-2 / LTX-2.3) | `referenceAudio` |
 | Animate-Move | `*_animate-move*` | `referenceImage` + `referenceVideo` |
 | Animate-Replace | `*_animate-replace*` | `referenceImage` + `referenceVideo` |
 

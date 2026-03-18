@@ -573,8 +573,8 @@ async function main() {
     console.error(`Error: Format must be one of: ${AUDIO_CONSTRAINTS.outputFormat.allowed.join(', ')}`);
     process.exit(1);
   }
-  if (OPTIONS.batch < 1 || OPTIONS.batch > 4) {
-    console.error('Error: Batch count must be between 1 and 4');
+  if (OPTIONS.batch < 1 || OPTIONS.batch > 512) {
+    console.error('Error: Batch count must be between 1 and 512');
     process.exit(1);
   }
 

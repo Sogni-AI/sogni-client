@@ -2,7 +2,7 @@
 /**
  * Image-to-Video Workflow
  *
- * This script generates videos from input images using WAN 2.2 models.
+ * This script generates videos from input images using WAN 2.2 and LTX-2.3 models.
  * Takes an image and animates it based on a text prompt.
  *
  * Prerequisites:
@@ -18,24 +18,24 @@
  *   --image     Input image path (required)
  *   --end-image Optional end image for keyframe interpolation (i2v only)
  *   --model     Model ID (default: wan_v2.2-14b-fp8_i2v_lightx2v)
- *   --width     Video width (WAN: 480-1536 step 16, LTX-2: 640-3840 step 64)
- *   --height    Video height (WAN: 480-1536 step 16, LTX-2: 640-3840 step 64)
- *   --duration  Duration in seconds (WAN: 1-10s default 5, LTX-2: 4-10/20s default 4)
- *   --fps       Frames per second (WAN: 16/32, LTX-2/2.3: 25/50)
- *   --first-frame-strength  LTX-2 keyframes: first frame match strength 0-1 (default: 1.0, 0=disable)
- *   --last-frame-strength   LTX-2 keyframes: last frame match strength 0-1 (default: 1.0)
+ *   --width     Video width (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
+ *   --height    Video height (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
+ *   --duration  Duration in seconds (WAN: 1-10s default 5, LTX-2.3: 4-20s default 4)
+ *   --fps       Frames per second (WAN: 16/32, LTX-2.3: 25/50)
+ *   --first-frame-strength  LTX keyframes: first frame match strength 0-1 (default: 1.0, 0=disable)
+ *   --last-frame-strength   LTX keyframes: last frame match strength 0-1 (default: 1.0)
  *
- * LTX-2/2.3 VRAM-based resolution limits (enforced during job assignment):
+ * LTX VRAM-based resolution limits (enforced during job assignment):
  *   Jobs are only assigned to workers with sufficient VRAM for the requested resolution:
  *   - <30GB VRAM workers: 1080p tier (~2.2MP max, e.g., 1920x1152)
  *   - <40GB VRAM workers: 1440p tier (~4.0MP max, e.g., 2560x1600)
  *   - >=40GB VRAM workers: Full 4K (up to 3840x3840)
  *   --batch     Number of videos to generate (default: 1)
  *   --seed      Random seed for reproducibility (default: -1 for random)
- *   --guidance  Guidance scale (WAN: 0.7-8, LTX-2: 1-7)
- *   --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2)
- *   --first-frame-strength  First frame strength 0-1 (keyframe models, 0=disable)
- *   --last-frame-strength   Last frame strength 0-1 (keyframe models)
+ *   --guidance  Guidance scale (WAN: 0.7-8, LTX-2.3: 1-10)
+ *   --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2.3)
+ *   --first-frame-strength  First frame strength 0-1 (LTX keyframe models, 0=disable)
+ *   --last-frame-strength   Last frame strength 0-1 (LTX keyframe models)
  *   --comfy-sampler  ComfyUI sampler name (default: euler)
  *   --comfy-scheduler ComfyUI scheduler name (default: simple)
  *   --negative  Negative prompt (default: none)
@@ -91,7 +91,7 @@ const DEFAULT_PROMPT =
 // Default image for this workflow
 const DEFAULT_IMAGE = './test-assets/placeholder6.jpg';
 
-// Video dimension constraints (WAN: 1536, LTX-2: 3840)
+// Video dimension constraints (WAN: 1536, LTX: 3840)
 const MAX_VIDEO_DIMENSION = 3840;
 
 // ============================================
@@ -194,17 +194,15 @@ Usage:
 Available Models:
   wan_v2.2-14b-fp8_i2v_lightx2v       (WAN 2.2, fast 4-step, 1-10s, default)
   wan_v2.2-14b-fp8_i2v                (WAN 2.2, high quality 20-step, 1-10s)
-  ltx2-19b-fp8_i2v_distilled          (LTX-2, fast 8-step, 4-20s, 2x upscaled output)
-  ltx2-19b-fp8_i2v                    (LTX-2, high quality 20-step, 4-10s, 2x upscaled output)
-  ltx23-22b-fp8_i2v_distilled                   (LTX-2.3, fast 8-step, 22B model, 4-10s, 2x upscaled output)
+  ltx23-22b-fp8_i2v_distilled         (LTX-2.3, fast 8-step, 22B model, 4-20s, 2x upscaled output)
+  ltx23-22b-fp8_i2v_dev               (LTX-2.3, high quality 25-step, 22B model, 4-20s, 2x upscaled output)
 
-Note: LTX-2 models automatically use keyframe interpolation when --end-image is provided.
+Note: LTX models automatically use keyframe interpolation when --end-image is provided.
 
 Model-Specific Constraints:
-  WAN models:     480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
-  LTX-2 models:   384-960px input (step 32), 25/50 fps, 4-10/20s, no shift, guidance 1-7
-                   Note: LTX-2 outputs at 2x input resolution (768x512 → 1536x1024)
-  LTX-2.3 models: 640-3840px (step 64), 25/50 fps, 4-10s, no shift, guidance 1-2
+  WAN models:         480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
+  LTX-2.3 distilled:  640-3840px (step 64), 25/50 fps, 4-20s, no shift, guidance 1-2
+  LTX-2.3 dev:        640-3840px (step 64), 25/50 fps, 4-20s, no shift, guidance 1-10
 
 Options:
   --image     Input image path (required)
@@ -212,16 +210,16 @@ Options:
   --model     Model ID (default: wan_v2.2-14b-fp8_i2v_lightx2v)
   --negative  Negative prompt (default: none)
   --style     Style prompt (default: none)
-  --width     Video width (default: auto from image or WAN 640, LTX-2 768)
-  --height    Video height (default: auto from image or WAN 640, LTX-2 512)
-  --duration  Duration in seconds (default: WAN 5s, LTX-2 4s)
-  --fps       Frames per second (default: WAN 16, LTX-2 25)
+  --width     Video width (default: auto from image or WAN 640, LTX-2.3 768)
+  --height    Video height (default: auto from image or WAN 640, LTX-2.3 512)
+  --duration  Duration in seconds (default: WAN 5s, LTX-2.3 4s)
+  --fps       Frames per second (default: WAN 16, LTX-2.3 25)
   --batch     Number of videos to generate (default: 1)
   --seed      Random seed (default: -1 for random)
   --guidance  Guidance scale (default: model-specific)
-  --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2)
-  --first-frame-strength  First frame strength 0-1 (LTX-2 with end-image, default: 1.0, 0=disable)
-  --last-frame-strength   Last frame strength 0-1 (LTX-2 with end-image, default: 1.0)
+  --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2.3)
+  --first-frame-strength  First frame strength 0-1 (LTX with end-image, default: 1.0, 0=disable)
+  --last-frame-strength   Last frame strength 0-1 (LTX with end-image, default: 1.0)
   --comfy-sampler  ComfyUI sampler (default: euler)
   --comfy-scheduler ComfyUI scheduler (default: simple)
   --output    Output directory (default: ./output)
@@ -307,14 +305,14 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'wan_v2.2-14b-fp8_i2v_lightx2v';
     modelConfig = MODELS.i2v[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx2-19b-fp8_i2v_distilled, ltx2-19b-fp8_i2v, ltx23-22b-fp8_i2v_distilled`);
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx23-22b-fp8_i2v_distilled, ltx23-22b-fp8_i2v_dev`);
       process.exit(1);
     }
   }
 
   log('🎬', `Selected model: ${modelConfig.name}`);
 
-  // Prompt for frame strength values when end image is provided (LTX-2 keyframes only)
+  // Prompt for frame strength values when end image is provided (LTX keyframes only)
   const isLtx2Model = OPTIONS.modelKey.startsWith('ltx2-') || OPTIONS.modelKey.startsWith('ltx23-');
   if (OPTIONS.interactive && OPTIONS.endImage && isLtx2Model) {
     console.log('\n📊 Frame Strength Settings (0.0-1.0, higher = more exact match):');
@@ -396,7 +394,7 @@ async function main() {
   const minFrames = modelConfig.minFrames || VIDEO_CONSTRAINTS.frames.min;
 
   // Calculate frames from duration if not explicitly set (need this before processing image)
-  // Uses model-aware calculation: WAN = 16fps internal, LTX-2 = actual fps
+  // Uses model-aware calculation: WAN = 16fps internal, LTX = actual fps
   if (!OPTIONS.frames) {
     const duration = OPTIONS.duration || 5;
     OPTIONS.frames = calculateVideoFrames(modelConfig.id, duration, OPTIONS.fps, {
@@ -426,7 +424,7 @@ async function main() {
 
   // Validate FPS - use model-specific range or allowed values
   if (modelConfig.minFps !== undefined && modelConfig.maxFps !== undefined) {
-    // Range-based validation (LTX-2 models)
+    // Range-based validation (LTX models)
     if (OPTIONS.fps < modelConfig.minFps || OPTIONS.fps > modelConfig.maxFps) {
       console.error(`Error: FPS must be between ${modelConfig.minFps} and ${modelConfig.maxFps}`);
       process.exit(1);
@@ -694,7 +692,7 @@ async function main() {
       }
     }
 
-    // Add first/last frame strengths for LTX-2 keyframe interpolation (used when end-image is provided)
+    // Add first/last frame strengths for LTX keyframe interpolation (used when end-image is provided)
     if (OPTIONS.firstFrameStrength !== undefined) {
       projectParams.firstFrameStrength = OPTIONS.firstFrameStrength;
     }

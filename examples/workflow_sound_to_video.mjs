@@ -4,10 +4,8 @@
  *
  * This script generates videos from audio files using various audio-driven models:
  * - WAN 2.2 S2V: Sound-to-video with reference image (lip-sync/motion-sync)
- * - LTX-2 IA2V: Image+audio to video with reference image (audio-reactive)
- * - LTX-2 A2V: Audio to video without reference image (audio-reactive generation)
- * - LTX-2.3 IA2V: Image+audio to video with 22B model (audio-reactive)
- * - LTX-2.3 A2V: Audio to video with 22B model (audio-reactive generation)
+ * - LTX-2.3 IA2V: Image+audio to video with 22B model (audio-reactive, distilled/dev)
+ * - LTX-2.3 A2V: Audio to video with 22B model (audio-reactive generation, distilled/dev)
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
@@ -16,14 +14,14 @@
  * Usage:
  *   node workflow_sound_to_video.mjs --image person.jpg --audio speech.m4a
  *   node workflow_sound_to_video.mjs "A person speaking" --image face.jpg --audio voice.mp3
- *   node workflow_sound_to_video.mjs "A music visualizer" --audio music.mp3 --model ltx2-a2v-distilled
+ *   node workflow_sound_to_video.mjs "A music visualizer" --audio music.mp3 --model ltx23-a2v-distilled
  *
  * Options:
  *   --image       Reference image path (required for s2v/ia2v, not used for a2v)
  *   --audio       Audio file path (required, m4a/mp3/wav)
  *   --audio-start Start position in audio in seconds (default: 0)
  *   --audio-duration  Duration of audio to use in seconds (default: auto from video)
- *   --model       Model: lightx2v, quality, ltx2-ia2v-distilled, ltx2-a2v-distilled, ltx23-ia2v-distilled, ltx23-a2v-distilled (default: prompts)
+ *   --model       Model: lightx2v, quality, ltx23-ia2v-distilled, ltx23-a2v-distilled, ltx23-ia2v-dev, ltx23-a2v-dev (default: prompts)
  *   --width       Video width (default: auto from image, min: 480)
  *   --height      Video height (default: auto from image, min: 480)
  *   --duration    Duration in seconds (default: 5, converts to frames)
@@ -184,15 +182,15 @@ Sound-to-Video Workflow
 Usage:
   node workflow_sound_to_video.mjs --image person.jpg --audio speech.m4a
   node workflow_sound_to_video.mjs "A person speaking" --image face.jpg --audio voice.mp3
-  node workflow_sound_to_video.mjs "A music visualizer" --audio music.mp3 --model ltx2-a2v-distilled
+  node workflow_sound_to_video.mjs "A music visualizer" --audio music.mp3 --model ltx23-a2v-distilled
 
 Available Models:
-  lightx2v            - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
-  quality             - WAN 2.2 14B S2V (high quality, 20-step)
-  ltx2-ia2v-distilled - LTX-2 19B Image+Audio to Video (fast, 8-step, requires image)
-  ltx2-a2v-distilled  - LTX-2 19B Audio to Video (fast, 8-step, no image needed)
+  lightx2v             - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
+  quality              - WAN 2.2 14B S2V (high quality, 20-step)
   ltx23-ia2v-distilled - LTX-2.3 22B Image+Audio to Video (fast, 8-step, requires image)
+  ltx23-ia2v-dev       - LTX-2.3 22B Image+Audio to Video (quality, 25-step, requires image)
   ltx23-a2v-distilled  - LTX-2.3 22B Audio to Video (fast, 8-step, no image needed)
+  ltx23-a2v-dev        - LTX-2.3 22B Audio to Video (quality, 25-step, no image needed)
 
 Options:
   --image       Reference image path (required for s2v/ia2v, not used for a2v)
@@ -415,7 +413,7 @@ async function main() {
   // Calculate frames from duration if not explicitly set
   // Default duration: match audio length (rounded down to fit frame constraints)
   // WAN S2V: always uses 16fps internal generation
-  // LTX-2 IA2V/A2V: uses actual fps with frame step constraint
+  // LTX IA2V/A2V: uses actual fps with frame step constraint
   if (!OPTIONS.frames) {
     const duration = OPTIONS.duration || audioDuration || 5;
     OPTIONS.frames = calculateVideoFrames(modelConfig.id, duration, OPTIONS.fps, {
@@ -426,7 +424,7 @@ async function main() {
     });
   }
 
-  // Validate FPS - LTX-2 models use a continuous range, WAN uses discrete values
+  // Validate FPS - LTX models use a continuous range, WAN uses discrete values
   if (modelConfig.minFps !== undefined && modelConfig.maxFps !== undefined) {
     if (OPTIONS.fps < modelConfig.minFps || OPTIONS.fps > modelConfig.maxFps) {
       console.error(`Error: FPS must be between ${modelConfig.minFps} and ${modelConfig.maxFps}`);
