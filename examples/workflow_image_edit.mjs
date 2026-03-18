@@ -840,7 +840,6 @@ async function main() {
         case 'error':
         case 'failed':
                     clearProgress();
-          projectFailed = true;
           failedImages++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
             displaySafeContentFilterMessage({ showDisableHint: true });
@@ -905,12 +904,9 @@ async function main() {
       checkCompletion();
     });
 
-    if (projectFailed || failedImages > 0) {
-      const failureCount = projectFailed ? totalImages : failedImages;
-      log('❌', `Image generation failed with ${failureCount} failed job${failureCount > 1 ? 's' : ''}`);
+    // If checkWorkflowCompletion didn't already exit (e.g. project-level error before all jobs reported)
+    if (projectFailed) {
       process.exit(1);
-    } else {
-      log('✅', 'Image generation completed successfully!');
     }
 
   } catch (error) {

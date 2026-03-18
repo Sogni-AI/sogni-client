@@ -956,7 +956,6 @@ async function main() {
         case 'failed': {
                     const errorLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
-          projectFailed = true;
           failedVideos++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
             displaySafeContentFilterMessage();
@@ -1013,12 +1012,9 @@ async function main() {
       checkCompletion();
     });
 
-    if (projectFailed || failedVideos > 0) {
-      const failureCount = projectFailed ? totalVideos : failedVideos;
-      log('❌', `Workflow failed with ${failureCount} failed video${failureCount > 1 ? 's' : ''}`);
+    // If checkWorkflowCompletion didn't already exit (e.g. project-level error before all jobs reported)
+    if (projectFailed) {
       process.exit(1);
-    } else {
-      log('✅', 'Workflow completed successfully!');
     }
   } catch (error) {
     log('❌', `Error: ${error.message}`);

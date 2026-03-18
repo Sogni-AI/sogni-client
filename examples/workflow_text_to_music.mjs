@@ -1016,7 +1016,6 @@ async function main() {
         case 'failed': {
           const errorLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
-          projectFailed = true;
           failedTracks++;
           const errorMsg = event.error?.message || event.error || 'Unknown error';
           const errorCode = event.error?.code;
@@ -1068,12 +1067,9 @@ async function main() {
       poll();
     });
 
-    if (projectFailed || failedTracks > 0) {
-      const failureCount = projectFailed ? totalTracks : failedTracks;
-      log('❌', `Workflow failed with ${failureCount} failed track${failureCount > 1 ? 's' : ''}`);
+    // If checkCompletion didn't already exit (e.g. project-level error before all jobs reported)
+    if (projectFailed) {
       process.exit(1);
-    } else {
-      log('✅', 'Workflow completed successfully!');
     }
   } catch (error) {
     log('❌', `Error: ${error.message}`);

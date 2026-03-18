@@ -740,7 +740,6 @@ async function main() {
         case 'error':
         case 'failed':
                     clearProgress();
-          projectFailed = true;
           failedImages++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
             displaySafeContentFilterMessage({ showDisableHint: true });

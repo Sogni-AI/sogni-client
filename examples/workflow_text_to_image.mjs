@@ -754,8 +754,7 @@ async function main() {
 
         case 'error':
         case 'failed':
-                    projectFailed = true;
-          failedImages++;
+                    failedImages++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
             displaySafeContentFilterMessage();
           } else {
