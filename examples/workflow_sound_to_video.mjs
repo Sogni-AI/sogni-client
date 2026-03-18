@@ -188,9 +188,9 @@ Available Models:
   lightx2v             - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
   quality              - WAN 2.2 14B S2V (high quality, 20-step)
   ltx23-ia2v-distilled - LTX-2.3 22B Image+Audio to Video (fast, 8-step, requires image)
-  ltx23-ia2v-dev       - LTX-2.3 22B Image+Audio to Video (quality, 25-step, requires image)
+  ltx23-ia2v-dev       - LTX-2.3 22B Image+Audio to Video (quality, 30-step, requires image)
   ltx23-a2v-distilled  - LTX-2.3 22B Audio to Video (fast, 8-step, no image needed)
-  ltx23-a2v-dev        - LTX-2.3 22B Audio to Video (quality, 25-step, no image needed)
+  ltx23-a2v-dev        - LTX-2.3 22B Audio to Video (quality, 30-step, no image needed)
 
 Options:
   --image       Reference image path (required for s2v/ia2v, not used for a2v)

@@ -170,7 +170,7 @@ Available Models:
   wan_v2.2-14b-fp8_t2v_lightx2v  (WAN 2.2, fast 4-step, 1-10s, default)
   wan_v2.2-14b-fp8_t2v           (WAN 2.2, high quality 20-step, 1-10s)
   ltx23-22b-fp8_t2v_distilled    (LTX-2.3, fast 8-step, 22B model, 4-20s, 2x upscaled output)
-  ltx23-22b-fp8_t2v_dev          (LTX-2.3, high quality 25-step, 22B model, 4-20s, 2x upscaled output)
+  ltx23-22b-fp8_t2v_dev          (LTX-2.3, high quality 30-step, 22B model, 4-20s, 2x upscaled output)
 
 Model-Specific Constraints:
   WAN models:         480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8

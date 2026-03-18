@@ -195,7 +195,7 @@ Available Models:
   wan_v2.2-14b-fp8_i2v_lightx2v       (WAN 2.2, fast 4-step, 1-10s, default)
   wan_v2.2-14b-fp8_i2v                (WAN 2.2, high quality 20-step, 1-10s)
   ltx23-22b-fp8_i2v_distilled         (LTX-2.3, fast 8-step, 22B model, 4-20s, 2x upscaled output)
-  ltx23-22b-fp8_i2v_dev               (LTX-2.3, high quality 25-step, 22B model, 4-20s, 2x upscaled output)
+  ltx23-22b-fp8_i2v_dev               (LTX-2.3, high quality 30-step, 22B model, 4-20s, 2x upscaled output)
 
 Note: LTX models automatically use keyframe interpolation when --end-image is provided.
 
