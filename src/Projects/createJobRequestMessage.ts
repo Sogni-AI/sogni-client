@@ -28,7 +28,8 @@ import {
   isVideoModel,
   VIDEO_WORKFLOW_ASSETS,
   calculateVideoFrames,
-  isLtx2Model
+  isLtx2Model,
+  isWanAnimateModel
 } from './utils';
 import { ApiError } from '../ApiClient';
 import {
@@ -308,7 +309,7 @@ function applyVideoParams(
     const duration = validateVideoDuration(
       params.duration,
       1,
-      isLtx2Model(params.modelId) ? 20 : 10
+      isLtx2Model(params.modelId) || isWanAnimateModel(params.modelId) ? 20 : 10
     );
     // Use fps from params or default based on model type:
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)

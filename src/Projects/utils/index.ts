@@ -43,6 +43,14 @@ export function isWanModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model ID is a WAN animate model (animate-move or animate-replace).
+ * These models support up to 321 frames (20s at 16fps).
+ */
+export function isWanAnimateModel(modelId: string): boolean {
+  return modelId.includes('_animate-move') || modelId.includes('_animate-replace');
+}
+
+/**
  * Check if a model ID is an LTX-2 video model.
  *
  * LTX-2 models generate video at the actual specified FPS (1-60 fps range).
