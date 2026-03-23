@@ -1,3 +1,11 @@
+# [4.1.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.5...v4.1.0-alpha.6) (2026-03-23)
+
+
+### Bug Fixes
+
+* allow up to 20s duration for Wan Animate Move/Replace models (321 frames) ([23897fa](https://github.com/Sogni-AI/sogni-client/commit/23897fa3eeacc997548390d4a41569a424ba1485))
+* update LTX-2.3 dev defaults to match tuned workflow parameters ([7ca69ab](https://github.com/Sogni-AI/sogni-client/commit/7ca69ab828bf821cf19438687d0eecd090a7e54c))
+
 # [4.1.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.4...v4.1.0-alpha.5) (2026-03-13)
 
 
