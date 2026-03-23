@@ -1,3 +1,18 @@
+# [4.1.0](https://github.com/Sogni-AI/sogni-client/compare/v4.0.2...v4.1.0) (2026-03-23)
+
+
+### Bug Fixes
+
+* add several references to where your API Key can be provisioned ([45f8648](https://github.com/Sogni-AI/sogni-client/commit/45f8648a16816fd9a93bc549639c35b88ee0586c))
+* Prevent stack overflow in base64Encode for large payloads ([14e21be](https://github.com/Sogni-AI/sogni-client/commit/14e21beb4ded5114886e9e949c102666d25536af))
+
+
+### Features
+
+* Add LTX-2.3 model prefix support ([4498827](https://github.com/Sogni-AI/sogni-client/commit/449882721ad9c7d0137814d2d9da830d11194b44))
+* Add vision chat support with multimodal image understanding ([8253c1b](https://github.com/Sogni-AI/sogni-client/commit/8253c1b5c84d7c14b834d9e01d86bf832c1574e8))
+* Use chat_template_kwargs for thinking mode control ([9387ca4](https://github.com/Sogni-AI/sogni-client/commit/9387ca45f2cd38b6ec0e552ec25c1c4ecfc72c27))
+
 # [4.1.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.4...v4.1.0-alpha.5) (2026-03-13)
 
 
