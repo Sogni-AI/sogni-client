@@ -50,6 +50,18 @@ abstract class TypedEventEmitter<E extends EventMap> {
   }
 
   /**
+   * Remove all event listeners, optionally for a specific event
+   * @param event
+   */
+  removeAllListeners<T extends keyof E>(event?: T) {
+    if (event) {
+      delete this.listeners[event];
+    } else {
+      this.listeners = {};
+    }
+  }
+
+  /**
    * Dispatch an event to all listeners
    * @param event
    * @param data

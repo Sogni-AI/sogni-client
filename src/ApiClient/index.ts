@@ -154,6 +154,18 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
       this.socket.connect();
     }
   }
+
+  /**
+   * Dispose of this client, disconnecting the socket and removing all event listeners.
+   * After calling this method, the client should not be used.
+   */
+  dispose() {
+    this._socket.disconnect();
+    this._socket.removeAllListeners();
+    this._auth.removeAllListeners();
+    this.removeAllListeners();
+    this._auth.clear();
+  }
 }
 
 export default ApiClient;
