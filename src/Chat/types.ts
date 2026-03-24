@@ -70,6 +70,7 @@ export interface ChatCompletionParams {
   max_tokens?: number;
   temperature?: number;
   top_p?: number;
+  top_k?: number;
   stream?: boolean;
   frequency_penalty?: number;
   presence_penalty?: number;
@@ -122,6 +123,7 @@ export interface ChatRequestMessage {
   max_tokens?: number;
   temperature?: number;
   top_p?: number;
+  top_k?: number;
   stream?: boolean;
   frequency_penalty?: number;
   presence_penalty?: number;
@@ -184,14 +186,27 @@ export interface LLMParamConstraint {
   default: number;
 }
 
+/** Recommended sampling defaults for a specific thinking mode. */
+export interface LLMSamplingDefaults {
+  temperature: number;
+  top_p: number;
+  top_k: number;
+  presence_penalty: number;
+}
+
 export interface LLMModelInfo {
   workers: number;
   maxContextLength?: number;
   maxOutputTokens?: LLMParamConstraint;
   temperature?: LLMParamConstraint;
   top_p?: LLMParamConstraint;
+  top_k?: LLMParamConstraint;
   frequency_penalty?: LLMParamConstraint;
   presence_penalty?: LLMParamConstraint;
+  /** Recommended defaults when thinking mode is enabled. */
+  defaultsThinking?: LLMSamplingDefaults;
+  /** Recommended defaults when thinking mode is disabled. */
+  defaultsNonThinking?: LLMSamplingDefaults;
 }
 
 export interface LLMJobCost {

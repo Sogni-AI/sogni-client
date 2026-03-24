@@ -269,6 +269,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       max_tokens: params.max_tokens,
       temperature: params.temperature,
       top_p: params.top_p,
+      top_k: params.top_k,
       stream: params.stream,
       frequency_penalty: params.frequency_penalty,
       presence_penalty: params.presence_penalty,
