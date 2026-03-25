@@ -1,3 +1,10 @@
+## [4.1.1](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0...v4.1.1) (2026-03-25)
+
+
+### Bug Fixes
+
+* Add dispose() method for server-side instance cleanup ([982ceec](https://github.com/Sogni-AI/sogni-client/commit/982ceec0b066dabd16b6a7136f0ec6f41895e44b))
+
 # [4.1.0](https://github.com/Sogni-AI/sogni-client/compare/v4.0.2...v4.1.0) (2026-03-23)
 
 
