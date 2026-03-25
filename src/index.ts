@@ -268,6 +268,14 @@ export class SogniClient {
   }
 
   /**
+   * Dispose of this client instance, disconnecting the socket and cleaning up resources.
+   * After calling this method, the instance should not be used.
+   */
+  dispose() {
+    this.apiClient.dispose();
+  }
+
+  /**
    * Create client instance, with default configuration
    * @param config
    */
