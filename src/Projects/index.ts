@@ -651,6 +651,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (data?.referenceAudio && data.referenceAudio !== true) {
       await this.uploadReferenceAudio(project.id, data.referenceAudio);
     }
+    if (data?.referenceAudioIdentity && data.referenceAudioIdentity !== true) {
+      await this.uploadReferenceAudio(project.id, data.referenceAudioIdentity);
+    }
     if (data?.referenceVideo && data.referenceVideo !== true) {
       await this.uploadReferenceVideo(project.id, data.referenceVideo);
     }
@@ -824,7 +827,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Upload reference audio for s2v workflows
+   * Upload reference audio for s2v/ia2v/a2v workflows and ID-LoRA identity audio.
+   * Shared S3 path — referenceAudio and referenceAudioIdentity are mutually exclusive by workflow type.
    * Supported formats: mp3, m4a, wav
    * @internal
    */

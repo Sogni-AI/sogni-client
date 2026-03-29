@@ -296,9 +296,15 @@ function applyVideoParams(
   if (params.referenceVideo) {
     keyFrame.hasReferenceVideo = true;
   }
+  if (params.referenceAudioIdentity) {
+    keyFrame.hasReferenceAudioIdentity = true;
+  }
+  if (params.audioIdentityStrength !== undefined) {
+    keyFrame.identityGuidanceScale = params.audioIdentityStrength;
+  }
 
   // Video generation parameters
-  // Note: fps must be processed before duration to correctly calculate frames for LTX-2 models
+  // Note: fps must be processed before duration to correctly calculate frames for LTX-2.3 models
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;
   }
@@ -313,7 +319,7 @@ function applyVideoParams(
     );
     // Use fps from params or default based on model type:
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
-    // - LTX-2: fps directly affects frame count (default 24fps if not specified)
+    // - LTX-2.3: fps directly affects frame count (default 24fps if not specified)
     const fps = params.fps ?? 24;
     keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
   }
@@ -350,7 +356,7 @@ function applyVideoParams(
     keyFrame.trimEndFrame = true;
   }
 
-  // First/last frame strengths for LTX-2 keyframe interpolation (when referenceImageEnd is provided)
+  // First/last frame strengths for LTX-2.3 keyframe interpolation (when referenceImageEnd is provided)
   if (params.firstFrameStrength !== undefined) {
     keyFrame.firstFrameStrength = params.firstFrameStrength;
   }
@@ -358,12 +364,12 @@ function applyVideoParams(
     keyFrame.lastFrameStrength = params.lastFrameStrength;
   }
 
-  // ControlNet parameters for LTX-2 v2v workflows
+  // ControlNet parameters for LTX-2.3 v2v workflows
   if (params.controlNet) {
     keyFrame.currentControlNetsJob = getVideoControlNet(params.controlNet);
   }
 
-  // Detailer LoRA strength for LTX-2 v2v IC-Control workflows
+  // Detailer LoRA strength for LTX-2.3 v2v IC-Control workflows
   if (params.detailerStrength !== undefined) {
     keyFrame.detailerStrength = params.detailerStrength;
   }

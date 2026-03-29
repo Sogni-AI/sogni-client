@@ -51,21 +51,24 @@ export function isWanAnimateModel(modelId: string): boolean {
 }
 
 /**
- * Check if a model ID is an LTX-2 video model.
+ * Check if a model ID is an LTX-2/LTX-2.3 video model.
  *
- * LTX-2 models generate video at the actual specified FPS (1-60 fps range).
+ * LTX-2.3 models generate video at the actual specified FPS (1-60 fps range).
  * There is no post-render interpolation - fps directly affects generation.
  *
  * Frame count should be calculated as: duration * fps + 1
- * Additionally, LTX-2 has a frame step constraint where frames must follow
+ * Additionally, LTX-2.3 has a frame step constraint where frames must follow
  * the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, 41, ...)
+ *
+ * Note: `ltx2-` prefix is kept for backwards compatibility (server translates
+ * ltx2- model IDs to ltx23- equivalents).
  */
 export function isLtx2Model(modelId: string): boolean {
   return modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
 }
 
 /**
- * LTX-2 frame step constraint.
+ * LTX-2.3 frame step constraint.
  * Valid frame counts follow the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, ...)
  */
 export const LTX2_FRAME_STEP = 8;
@@ -73,10 +76,10 @@ export const LTX2_FRAME_STEP = 8;
 /**
  * Calculate the frame count for a given duration and fps based on the video model.
  *
- * ## Standard Behavior (LTX-2 and future models)
+ * ## Standard Behavior (LTX-2.3 and future models)
  * - Generate at the actual specified FPS (no interpolation)
  * - Formula: duration * fps + 1
- * - LTX-2 specific: Frame count must follow the pattern: 1 + n*8
+ * - LTX-2.3 specific: Frame count must follow the pattern: 1 + n*8
  *
  * ## Legacy Behavior (WAN 2.2 only)
  * - Always generate at 16fps internally, regardless of the fps parameter
@@ -104,11 +107,11 @@ export function calculateVideoFrames(
     // This is legacy behavior specific to WAN models
     frames = Math.round(duration * 16) + 1;
   } else {
-    // LTX-2 and future models: Generate at actual fps
+    // LTX-2.3 and future models: Generate at actual fps
     // This is the standard behavior going forward
     frames = Math.round(duration * fps) + 1;
 
-    // LTX-2 specific: snap to frame step constraint (1 + n*8)
+    // LTX-2.3 specific: snap to frame step constraint (1 + n*8)
     if (isLtx2Model(modelId)) {
       const n = Math.round((frames - 1) / LTX2_FRAME_STEP);
       frames = n * LTX2_FRAME_STEP + 1;
@@ -139,14 +142,14 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
 
   if (!isWan && !isLtx2) return null;
 
-  // WAN and LTX-2 models share similar workflow type suffixes
+  // WAN and LTX-2.3 models share similar workflow type suffixes
   if (modelId.includes('_i2v')) return 'i2v';
   if (modelId.includes('_t2v')) return 't2v';
 
-  // LTX-2 v2v ControlNet workflows (model IDs use underscore: ltx2-19b-fp8_v2v_distilled)
+  // LTX-2.3 v2v ControlNet workflows (model IDs use underscore: ltx23-22b-fp8_v2v_distilled)
   if (isLtx2 && modelId.includes('_v2v')) return 'v2v';
 
-  // LTX-2 audio-to-video workflows
+  // LTX-2.3 audio-to-video workflows
   // ia2v = image+audio to video (requires referenceImage + referenceAudio)
   // a2v = audio to video (requires referenceAudio only)
   // Note: Check _ia2v before _a2v since _ia2v contains _a2v as a substring
@@ -177,48 +180,56 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceImage: 'forbidden',
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'optional',
     referenceVideo: 'forbidden'
   },
   i2v: {
     referenceImage: 'optional',
     referenceImageEnd: 'optional',
     referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'optional',
     referenceVideo: 'forbidden'
   },
   s2v: {
     referenceImage: 'required',
-    referenceAudio: 'required',
     referenceImageEnd: 'forbidden',
+    referenceAudio: 'required',
+    referenceAudioIdentity: 'forbidden',
     referenceVideo: 'forbidden'
   },
   ia2v: {
     referenceImage: 'required',
-    referenceAudio: 'required',
     referenceImageEnd: 'forbidden',
+    referenceAudio: 'required',
+    referenceAudioIdentity: 'forbidden',
     referenceVideo: 'forbidden'
   },
   a2v: {
     referenceImage: 'forbidden',
-    referenceAudio: 'required',
     referenceImageEnd: 'forbidden',
+    referenceAudio: 'required',
+    referenceAudioIdentity: 'forbidden',
     referenceVideo: 'forbidden'
   },
   'animate-move': {
     referenceImage: 'required',
-    referenceVideo: 'required',
     referenceImageEnd: 'forbidden',
-    referenceAudio: 'forbidden'
+    referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'forbidden',
+    referenceVideo: 'required'
   },
   'animate-replace': {
     referenceImage: 'required',
-    referenceVideo: 'required',
     referenceImageEnd: 'forbidden',
-    referenceAudio: 'forbidden'
+    referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'forbidden',
+    referenceVideo: 'required'
   },
   v2v: {
     referenceImage: 'optional', // Required for pose control, optional for other control types
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'optional',
     referenceVideo: 'required'
   }
 };

@@ -105,7 +105,7 @@ export type InputMedia = File | Buffer | Blob | boolean;
 
 /**
  * Video-specific parameters for video workflows (t2v, i2v, s2v, ia2v, a2v, animate).
- * Only applicable when using video models like wan_v2.2-14b-fp8_t2v or ltx2-19b-fp8_t2v.
+ * Only applicable when using video models like wan_v2.2-14b-fp8_t2v or ltx23-22b-fp8_t2v_distilled.
  * Includes frame count, fps, shift, and reference assets (image, audio, video).
  *
  * ## Important: FPS and Frame Count Behavior Differs by Model
@@ -117,7 +117,7 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Frame count is always calculated as: `duration * 16 + 1`
  * - Example: 5 seconds at 32fps = 81 frames generated, then interpolated to 161 output frames
  *
- * ### LTX-2 Models (ltx2-*)
+ * ### LTX-2.3 Models (ltx2-*, ltx23-*)
  * - Generate video at the actual specified FPS (1-60 fps range)
  * - No post-render interpolation - fps directly affects generation
  * - Frame count is calculated as: `duration * fps + 1`
@@ -133,11 +133,11 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   frames?: number;
   /**
-   * Duration of the video in seconds. Supported range 1 to 10 (WAN) or 4 to 20 (LTX-2).
+   * Duration of the video in seconds. Supported range 1 to 10 (WAN) or 4 to 20 (LTX-2.3).
    *
    * The SDK automatically calculates the correct frame count based on the model:
    * - WAN 2.2: `duration * 16 + 1` (always 16fps generation)
-   * - LTX-2: `duration * fps + 1`, snapped to frame step constraint
+   * - LTX-2.3: `duration * fps + 1`, snapped to frame step constraint
    */
   duration?: number;
   /**
@@ -146,7 +146,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * **WAN 2.2 Models:** Only 16 or 32 fps allowed. The 32fps option is post-render
    * frame interpolation that doubles the output frames. Internal generation is always 16fps.
    *
-   * **LTX-2 Models:** Any value from 1-60 fps. This directly controls the generation
+   * **LTX-2.3 Models:** Any value from 1-60 fps. This directly controls the generation
    * frame rate - there is no post-render interpolation.
    */
   fps?: number;
@@ -177,6 +177,21 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceAudio?: InputMedia;
   /**
+   * Reference audio for ID-LoRA speaker identity transfer (LTX-2.3 only).
+   * Provide a ~5 second audio clip of the target speaker's voice.
+   * The model uses this to transfer vocal identity into the generated video.
+   * Available on t2v, i2v, and v2v LTX-2.3 workflows.
+   * Not compatible with audio-driven workflows (s2v, ia2v, a2v).
+   */
+  referenceAudioIdentity?: InputMedia;
+  /**
+   * Controls how strongly the speaker's vocal identity is applied.
+   * Uses an extra forward pass per denoising step to amplify identity features.
+   * Range: 0-10. Default: 3.0. Set to 0 to disable (skips extra forward pass).
+   * Only used when referenceAudioIdentity is provided.
+   */
+  audioIdentityStrength?: number;
+  /**
    * Audio start position in seconds for audio-driven workflows (s2v, ia2v, a2v).
    * Specifies where to begin reading from the audio file.
    * Default: 0
@@ -194,12 +209,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceVideo?: InputMedia;
   /**
-   * ControlNet parameters for LTX-2 v2v workflows.
+   * ControlNet parameters for LTX-2.3 v2v workflows.
    * Specifies which control signal to extract from the reference video.
    */
   controlNet?: VideoControlNetParams;
   /**
-   * Detailer LoRA strength for LTX-2 v2v IC-Control workflows.
+   * Detailer LoRA strength for LTX-2.3 v2v IC-Control workflows.
    * The detailer LoRA is always loaded alongside the control LoRA (canny/pose/depth).
    * Range: 0.0-1.0, default 0.6.
    */
@@ -236,13 +251,13 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   scheduler?: string;
   /**
-   * First frame strength for LTX-2 keyframe interpolation (when referenceImageEnd is provided).
+   * First frame strength for LTX-2.3 keyframe interpolation (when referenceImageEnd is provided).
    * Controls how strictly the first frame is matched.
    * Range: 0.0-1.0, default 0.6. Set to 0 to disable first frame (last-frame-only mode).
    */
   firstFrameStrength?: number;
   /**
-   * Last frame strength for LTX-2 keyframe interpolation (when referenceImageEnd is provided).
+   * Last frame strength for LTX-2.3 keyframe interpolation (when referenceImageEnd is provided).
    * Controls how strictly the last frame is matched.
    * Range: 0.0-1.0, default 0.6.
    */
@@ -552,7 +567,7 @@ export interface CostEstimation {
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
 
 /**
- * Video workflow types for WAN and LTX-2 models
+ * Video workflow types for WAN and LTX-2.3 models
  */
 export type VideoWorkflowType =
   | 't2v'
@@ -571,4 +586,5 @@ export type VideoAssetKey =
   | 'referenceImage'
   | 'referenceImageEnd'
   | 'referenceAudio'
+  | 'referenceAudioIdentity'
   | 'referenceVideo';
