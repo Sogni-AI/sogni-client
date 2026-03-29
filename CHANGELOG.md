@@ -1,3 +1,10 @@
+# [4.1.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.6...v4.1.0-alpha.7) (2026-03-24)
+
+
+### Features
+
+* add top_k parameter and server-provided sampling defaults for thinking modes ([ad4ac85](https://github.com/Sogni-AI/sogni-client/commit/ad4ac85e75fad0c7d18af976fe03d4d90c6c5f3d))
+
 # [4.1.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.5...v4.1.0-alpha.6) (2026-03-23)
 
 
