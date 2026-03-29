@@ -1,3 +1,10 @@
+# [4.1.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.7...v4.1.0-alpha.8) (2026-03-29)
+
+
+### Features
+
+* add ID-LoRA speaker identity transfer support (referenceAudioIdentity) ([4969cce](https://github.com/Sogni-AI/sogni-client/commit/4969cce72c46d7527a8d66ff251adc1e9d022013))
+
 # [4.1.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.6...v4.1.0-alpha.7) (2026-03-24)
 
 
