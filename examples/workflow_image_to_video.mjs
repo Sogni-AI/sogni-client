@@ -36,6 +36,8 @@
  *   --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2.3)
  *   --first-frame-strength  First frame strength 0-1 (LTX keyframe models, 0=disable)
  *   --last-frame-strength   Last frame strength 0-1 (LTX keyframe models)
+ *   --identity-audio  Reference audio for speaker identity (ID-LoRA, LTX-2.3 only, ~5s clip)
+ *   --audio-identity-strength  Identity strength 0-10 (default: 3.0, 0=disabled, LTX-2.3 only)
  *   --comfy-sampler  ComfyUI sampler name (default: euler)
  *   --comfy-scheduler ComfyUI scheduler name (default: simple)
  *   --negative  Negative prompt (default: none)
@@ -66,6 +68,7 @@ import {
   promptVideoDuration,
   promptAdvancedOptions,
   promptBatchCount,
+  promptIdentityAudio,
   pickImageFile,
   readFileAsBuffer,
   processImageForVideo,
@@ -120,7 +123,9 @@ async function parseArgs() {
     scheduler: null,
     output: './output',
     interactive: true,
-    disableSafeContentFilter: false
+    disableSafeContentFilter: false,
+    identityAudio: null,
+    audioIdentityStrength: null
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -168,6 +173,10 @@ async function parseArgs() {
       options.scheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
+    } else if (arg === '--identity-audio' && args[i + 1]) {
+      options.identityAudio = args[++i];
+    } else if (arg === '--audio-identity-strength' && args[i + 1]) {
+      options.audioIdentityStrength = parseFloat(args[++i]);
     } else if (arg === '--disable-safe-content-filter') {
       options.disableSafeContentFilter = true;
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -220,6 +229,8 @@ Options:
   --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2.3)
   --first-frame-strength  First frame strength 0-1 (LTX with end-image, default: 1.0, 0=disable)
   --last-frame-strength   Last frame strength 0-1 (LTX with end-image, default: 1.0)
+  --identity-audio  Reference audio for speaker identity (ID-LoRA, LTX-2.3 only, ~5s clip)
+  --audio-identity-strength  Identity strength 0-10 (default: 3.0, 0=disabled, LTX-2.3 only)
   --comfy-sampler  ComfyUI sampler (default: euler)
   --comfy-scheduler ComfyUI scheduler (default: simple)
   --output    Output directory (default: ./output)
@@ -373,6 +384,9 @@ async function main() {
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: true });
     }
+
+    // ID-LoRA speaker identity (LTX-2.3 i2v only, not a2v/ia2v)
+    await promptIdentityAudio(OPTIONS, modelConfig);
 
     console.log('\n✅ Configuration complete!\n');
   }
@@ -560,6 +574,12 @@ async function main() {
     configDisplay['Comfy Sampler'] = OPTIONS.sampler;
     configDisplay['Comfy Scheduler'] = OPTIONS.scheduler;
     configDisplay['Safety'] = OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled';
+    if (OPTIONS.identityAudio) {
+      configDisplay['Identity Audio'] = OPTIONS.identityAudio;
+      if (OPTIONS.audioIdentityStrength !== null && OPTIONS.audioIdentityStrength !== undefined) {
+        configDisplay['Identity Strength'] = OPTIONS.audioIdentityStrength;
+      }
+    }
     displayConfig('Video Generation Configuration', configDisplay);
 
     if (OPTIONS.negative) {
@@ -711,6 +731,15 @@ async function main() {
     }
     if (OPTIONS.style) {
       projectParams.stylePrompt = OPTIONS.style;
+    }
+
+    // ID-LoRA speaker identity audio
+    if (OPTIONS.identityAudio) {
+      const identityAudioBuffer = readFileAsBuffer(OPTIONS.identityAudio);
+      projectParams.referenceAudioIdentity = identityAudioBuffer;
+      if (OPTIONS.audioIdentityStrength !== null && OPTIONS.audioIdentityStrength !== undefined) {
+        projectParams.audioIdentityStrength = OPTIONS.audioIdentityStrength;
+      }
     }
 
     project = await sogni.projects.create(projectParams);

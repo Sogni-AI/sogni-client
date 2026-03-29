@@ -139,7 +139,7 @@ class ChatToolsApi {
   }
 
   /**
-   * Get the default model for a media type. For video, prefers LTX-2 t2v models.
+   * Get the default model for a media type. For video, prefers LTX-2.3 t2v models.
    * Falls back to the model with the most available workers.
    */
   private async getDefaultModel(mediaType: 'image' | 'video' | 'audio'): Promise<string> {
@@ -149,7 +149,7 @@ class ChatToolsApi {
       throw new Error(`No ${mediaType} models currently available on the network`);
     }
 
-    // For video, prefer LTX-2 text-to-video models
+    // For video, prefer LTX-2.3 text-to-video models
     if (mediaType === 'video') {
       const ltx2 = candidates.filter((m) => m.id.includes('ltx2') && m.id.includes('t2v'));
       if (ltx2.length > 0) {
@@ -299,7 +299,7 @@ class ChatToolsApi {
   ): Promise<ToolExecutionResult> {
     const modelId = (args.model as string) || (await this.getDefaultModel('video'));
 
-    // LTX-2 defaults: 1920x1088 landscape, 24fps
+    // LTX-2.3 defaults: 1920x1088 landscape, 24fps
     const isLtx2 = modelId.includes('ltx2');
     const defaultWidth = isLtx2 ? 1920 : 848;
     const defaultHeight = isLtx2 ? 1088 : 480;

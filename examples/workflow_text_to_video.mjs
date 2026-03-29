@@ -34,6 +34,8 @@
  *   --comfy-scheduler ComfyUI scheduler name (default: simple)
  *   --negative  Negative prompt (default: none)
  *   --style     Style prompt (default: none)
+ *   --identity-audio  Reference audio for speaker identity (ID-LoRA, LTX-2.3 only, ~5s clip)
+ *   --audio-identity-strength  Identity strength 0-10 (default: 3.0, 0=disabled, LTX-2.3 only)
  *   --output    Output directory (default: ./output)
  *   --disable-safe-content-filter  Disable NSFW/safety filter
  *   --no-interactive  Skip interactive prompts
@@ -60,6 +62,8 @@ import {
   promptVideoDuration,
   promptAdvancedOptions,
   promptBatchCount,
+  promptIdentityAudio,
+  readFileAsBuffer,
   log,
   formatDuration,
   displayConfig,
@@ -102,7 +106,9 @@ async function parseArgs() {
     scheduler: null,
     output: './output',
     interactive: true,
-    disableSafeContentFilter: false
+    disableSafeContentFilter: false,
+    identityAudio: null,
+    audioIdentityStrength: null
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -142,6 +148,10 @@ async function parseArgs() {
       options.scheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
+    } else if (arg === '--identity-audio' && args[i + 1]) {
+      options.identityAudio = args[++i];
+    } else if (arg === '--audio-identity-strength' && args[i + 1]) {
+      options.audioIdentityStrength = parseFloat(args[++i]);
     } else if (arg === '--disable-safe-content-filter') {
       options.disableSafeContentFilter = true;
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -191,6 +201,8 @@ Options:
   --shift     Motion intensity 1-8 (WAN models only, ignored for LTX-2.3)
   --comfy-sampler  ComfyUI sampler (default: euler)
   --comfy-scheduler ComfyUI scheduler (default: simple)
+  --identity-audio  Reference audio for speaker identity (ID-LoRA, LTX-2.3 only, ~5s clip)
+  --audio-identity-strength  Identity strength 0-10 (default: 3.0, 0=disabled, LTX-2.3 only)
   --output    Output directory (default: ./output)
   --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
@@ -247,6 +259,9 @@ async function main() {
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: true });
     }
+
+    // ID-LoRA speaker identity (LTX-2.3 t2v only, not a2v/ia2v)
+    await promptIdentityAudio(OPTIONS, modelConfig);
 
     console.log('\n✅ Configuration complete!\n');
   }
@@ -413,7 +428,7 @@ async function main() {
 
     // Show configuration
     const videoDuration = (OPTIONS.frames - 1) / OPTIONS.fps;
-    displayConfig('Video Generation Configuration', {
+    const configDisplay = {
       Model: modelConfig.name,
       Prompt: OPTIONS.prompt,
       Resolution: `${OPTIONS.width}x${OPTIONS.height}`,
@@ -428,7 +443,14 @@ async function main() {
       'Comfy Sampler': OPTIONS.sampler,
       'Comfy Scheduler': OPTIONS.scheduler,
       'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
-    });
+    };
+    if (OPTIONS.identityAudio) {
+      configDisplay['Identity Audio'] = OPTIONS.identityAudio;
+      if (OPTIONS.audioIdentityStrength !== null && OPTIONS.audioIdentityStrength !== undefined) {
+        configDisplay['Identity Strength'] = OPTIONS.audioIdentityStrength;
+      }
+    }
+    displayConfig('Video Generation Configuration', configDisplay);
 
     if (OPTIONS.negative) {
       console.log(`   Negative prompt: ${OPTIONS.negative}`);
@@ -551,6 +573,15 @@ async function main() {
     // Add guidance
     if (OPTIONS.guidance !== undefined && OPTIONS.guidance !== null) {
       projectParams.guidance = OPTIONS.guidance;
+    }
+
+    // ID-LoRA speaker identity audio
+    if (OPTIONS.identityAudio) {
+      const identityAudioBuffer = readFileAsBuffer(OPTIONS.identityAudio);
+      projectParams.referenceAudioIdentity = identityAudioBuffer;
+      if (OPTIONS.audioIdentityStrength !== null && OPTIONS.audioIdentityStrength !== undefined) {
+        projectParams.audioIdentityStrength = OPTIONS.audioIdentityStrength;
+      }
     }
 
     project = await sogni.projects.create(projectParams);

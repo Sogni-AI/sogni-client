@@ -14,7 +14,7 @@ TABLE OF CONTENTS
 3. Client Initialization
 4. Image Generation
 5. Video Generation - WAN 2.2 Models
-6. Video Generation - LTX-2.3 / LTX-2 Models
+6. Video Generation - LTX-2.3 Models
 7. Audio Generation - ACE-Step 1.5 Models
 8. LLM Text Generation
 9. LLM Tool Calling & Sogni Platform Tools
@@ -35,7 +35,7 @@ The Sogni SDK provides access to the Sogni Supernet - a decentralized network
 for AI inference. It supports:
 
 - Image Generation: Stable Diffusion, Flux, Z-Image, Z-Image Turbo, Qwen Image Edit
-- Video Generation: WAN 2.2 (5 workflows), LTX-2.3 / LTX-2 models
+- Video Generation: WAN 2.2 (5 workflows), LTX-2.3 models
 - Audio Generation: ACE-Step 1.5 music generation (Turbo and SFT models)
 - LLM Text Generation: Chat completions with streaming, multi-turn, and thinking mode
 - LLM Tool Calling: OpenAI-compatible function calling with custom and platform tools
@@ -435,12 +435,12 @@ WAN 2.2 VIDEO PARAMETERS:
 | videoStart | number | 0+ | 0 | animate: video start position |
 
 ================================================================================
-6. VIDEO GENERATION - LTX-2.3 / LTX-2 MODELS
+6. VIDEO GENERATION - LTX-2.3 MODELS
 ================================================================================
 
 CRITICAL: LTX FPS BEHAVIOR (Different from WAN!)
 --------------------------------------------------
-LTX-2.3 and LTX-2 models generate at the ACTUAL specified FPS (1-60 range).
+LTX-2.3 models generate at the ACTUAL specified FPS (1-60 range).
 There is NO post-render interpolation.
 
 Frame calculation: duration * fps + 1
@@ -460,10 +460,10 @@ LTX-2.3 22B MODELS (Recommended):
 | Audio-to-Video | ltx23-22b-fp8_a2v_distilled | ltx23-22b-fp8_a2v_dev |
 | Image+Audio-to-Video | ltx23-22b-fp8_ia2v_distilled | ltx23-22b-fp8_ia2v_dev |
 
-VIDEO-TO-VIDEO CONTROLNET (LTX-2 only, no LTX-2.3 equivalent):
+VIDEO-TO-VIDEO CONTROLNET (LTX-2.3):
 | Workflow | Model ID (Fast) | Model ID (Quality) |
 |----------|-----------------|---------------------|
-| Video-to-Video (ControlNet) | ltx2-19b-fp8_v2v_distilled | ltx2-19b-fp8_v2v |
+| Video-to-Video (ControlNet) | ltx23-22b-fp8_v2v_distilled | ltx23-22b-fp8_v2v_dev |
 
 LTX-2.3 TEXT-TO-VIDEO:
 ```javascript
@@ -495,12 +495,12 @@ const project = await sogni.projects.create({
 });
 ```
 
-LTX-2 VIDEO-TO-VIDEO WITH CONTROLNET (LTX-2 only, no LTX-2.3 equivalent):
+LTX-2.3 VIDEO-TO-VIDEO WITH CONTROLNET:
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'ltx2-19b-fp8_v2v_distilled',  // Must use v2v model for ControlNet
+  modelId: 'ltx23-22b-fp8_v2v_distilled',  // Must use v2v model for ControlNet
   positivePrompt: 'Transform into anime style',
   referenceVideo: fs.readFileSync('./source-video.mp4'),
   controlNet: {
@@ -984,10 +984,10 @@ VIDEO-SPECIFIC PARAMETERS:
   audioStart?: number;       // Seconds into audio
   audioDuration?: number;    // Seconds of audio
   videoStart?: number;       // Seconds into video
-  firstFrameStrength?: number;  // LTX-2 only (0-1)
-  lastFrameStrength?: number;   // LTX-2 only (0-1)
+  firstFrameStrength?: number;  // LTX-2.3 only (0-1)
+  lastFrameStrength?: number;   // LTX-2.3 only (0-1)
   trimEndFrame?: boolean;
-  controlNet?: VideoControlNetParams;  // LTX-2 only
+  controlNet?: VideoControlNetParams;  // LTX-2.3 only
   outputFormat?: 'mp4';
 }
 ```

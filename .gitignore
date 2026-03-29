@@ -9,3 +9,4 @@ dist
 .DS_Store
 examples/output
 examples/toprocess
+docs/superpowers/

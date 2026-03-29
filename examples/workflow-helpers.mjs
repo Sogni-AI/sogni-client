@@ -35,24 +35,27 @@ export function isWanModel(modelId) {
 }
 
 /**
- * Check if a model ID is an LTX-2 video model.
+ * Check if a model ID is an LTX-2/LTX-2.3 video model.
  *
- * LTX-2 models generate video at the actual specified FPS (1-60 fps range).
+ * LTX-2.3 models generate video at the actual specified FPS (1-60 fps range).
  * There is no post-render interpolation - fps directly affects generation.
  *
  * Frame count should be calculated as: duration * fps + 1
- * Additionally, LTX-2 has a frame step constraint where frames must follow
+ * Additionally, LTX-2.3 has a frame step constraint where frames must follow
  * the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, 41, ...)
  *
+ * Note: `ltx2-` prefix is kept for backwards compatibility (server translates
+ * ltx2- model IDs to ltx23- equivalents).
+ *
  * @param {string} modelId - The model ID to check
- * @returns {boolean} True if this is an LTX-2 model
+ * @returns {boolean} True if this is an LTX-2.3 model
  */
 export function isLtx2Model(modelId) {
   return modelId?.startsWith('ltx2-') || modelId?.startsWith('ltx23-') || false;
 }
 
 /**
- * LTX-2 frame step constraint.
+ * LTX-2.3 frame step constraint.
  * Valid frame counts follow the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, ...)
  */
 export const LTX2_FRAME_STEP = 8;
@@ -65,18 +68,18 @@ export const LTX2_FRAME_STEP = 8;
  * - fps=32 is post-render interpolation that doubles frames
  * - Formula: duration * 16 + 1
  *
- * ## LTX-2 Models
+ * ## LTX-2.3 Models
  * - Generate at the actual specified FPS (no interpolation)
  * - Frame count must follow the pattern: 1 + n*8
  * - Formula: duration * fps + 1, snapped to frame step constraint
  *
  * @param {string} modelId - The video model ID
  * @param {number} duration - Duration in seconds
- * @param {number} fps - Frames per second (only affects LTX-2 models)
+ * @param {number} fps - Frames per second (only affects LTX-2.3 models)
  * @param {Object} options - Optional constraints
  * @param {number} options.minFrames - Minimum frame count
  * @param {number} options.maxFrames - Maximum frame count
- * @param {number} options.frameStep - Frame step for LTX-2 (default: 8)
+ * @param {number} options.frameStep - Frame step for LTX-2.3 (default: 8)
  * @returns {number} The calculated frame count
  */
 export function calculateVideoFrames(modelId, duration, fps, options = {}) {
@@ -89,11 +92,11 @@ export function calculateVideoFrames(modelId, duration, fps, options = {}) {
     // This is legacy behavior specific to WAN models
     frames = snap(duration * 16) + 1;
   } else {
-    // LTX-2 and future models: Generate at actual fps
+    // LTX-2.3 and future models: Generate at actual fps
     // This is the standard behavior going forward
     frames = snap(duration * fps) + 1;
 
-    // LTX-2 specific: snap to frame step constraint (1 + n*frameStep)
+    // LTX-2.3 specific: snap to frame step constraint (1 + n*frameStep)
     if (isLtx2Model(modelId) && frameStep > 1) {
       const n = snap((frames - 1) / frameStep);
       frames = n * frameStep + 1;
@@ -922,16 +925,16 @@ export const MODELS = {
   },
 
   // Video-to-Video Models (ComfyUI workflow)
-  // Includes WAN animate models and LTX-2 ControlNet models
+  // Includes WAN animate models and LTX-2.3 ControlNet models
   animate: {
-    // LTX-2 V2V ControlNet Models (video-only, no reference image needed)
-    'ltx2-v2v-distilled': {
-      id: 'ltx2-19b-fp8_v2v_distilled',
-      name: 'LTX-2 V2V ControlNet (Fast)',
+    // LTX-2.3 V2V ControlNet Models (video-only, no reference image needed)
+    'ltx23-v2v-distilled': {
+      id: 'ltx23-22b-fp8_v2v_distilled',
+      name: 'LTX-2.3 V2V ControlNet (Fast)',
       description: 'Fast 8-step with canny/pose/depth/detailer control',
       workflowType: 'v2v-controlnet',
-      defaultWidth: 1280,
-      defaultHeight: 768,
+      defaultWidth: 1920,
+      defaultHeight: 1088,
       minWidth: 640,
       maxWidth: 3840,
       minHeight: 640,
@@ -944,17 +947,17 @@ export const MODELS = {
       minGuidance: 1.0,
       maxGuidance: 2.0,
       defaultStrength: 0.85,
-      minStrength: 0.5,
+      minStrength: 0.3,
       maxStrength: 1.0,
-      defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      defaultComfySampler: 'euler_ancestral',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'euler_ancestral_cfg_pp'],
       defaultComfyScheduler: 'simple',
-      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      allowedComfySchedulers: ['simple'],
       minFrames: 25,
-      maxFrames: 513,
+      maxFrames: 505,
       defaultFrames: 97,
       frameStep: 8,
-      defaultFps: 24,
+      defaultFps: 25,
       minFps: 1,
       maxFps: 60,
       isLightning: true,
@@ -964,36 +967,36 @@ export const MODELS = {
       supportsControlNet: true,
       controlNetTypes: ['canny', 'pose', 'depth', 'detailer']
     },
-    'ltx2-v2v': {
-      id: 'ltx2-19b-fp8_v2v',
-      name: 'LTX-2 V2V ControlNet (Quality)',
-      description: 'High quality 20-step with canny/pose/depth/detailer control',
+    'ltx23-v2v-dev': {
+      id: 'ltx23-22b-fp8_v2v_dev',
+      name: 'LTX-2.3 V2V ControlNet (Quality)',
+      description: 'High quality 30-step with canny/pose/depth/detailer control',
       workflowType: 'v2v-controlnet',
-      defaultWidth: 1280,
-      defaultHeight: 768,
+      defaultWidth: 1920,
+      defaultHeight: 1088,
       minWidth: 640,
       maxWidth: 3840,
       minHeight: 640,
       maxHeight: 3840,
       dimensionStep: 64,
-      defaultSteps: 20,
-      minSteps: 15,
-      maxSteps: 30,
+      defaultSteps: 30,
+      minSteps: 10,
+      maxSteps: 50,
       defaultGuidance: 3.0,
       minGuidance: 1.0,
       maxGuidance: 7.0,
       defaultStrength: 0.85,
-      minStrength: 0.5,
+      minStrength: 0.3,
       maxStrength: 1.0,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      allowedComfySamplers: ['euler', 'euler_ancestral'],
       defaultComfyScheduler: 'simple',
-      allowedComfySchedulers: ['simple', 'normal', 'sgm_uniform', 'beta'],
+      allowedComfySchedulers: ['simple'],
       minFrames: 25,
-      maxFrames: 257,
+      maxFrames: 505,
       defaultFrames: 97,
       frameStep: 8,
-      defaultFps: 24,
+      defaultFps: 25,
       minFps: 1,
       maxFps: 60,
       isLightning: false,
@@ -1059,19 +1062,19 @@ export const MODELS = {
 // ============================================
 
 // Base constraints - note that frames.max may be overridden by model-specific maxFrames
-// WAN models use 16/32 fps, LTX-2 supports 1-60 fps (native, not interpolated)
-// LTX-2 supports up to 4K (3840x3840) with VRAM-based restrictions enforced server-side
+// WAN models use 16/32 fps, LTX-2.3 supports 1-60 fps (native, not interpolated)
+// LTX-2.3 supports up to 4K (3840x3840) with VRAM-based restrictions enforced server-side
 export const VIDEO_CONSTRAINTS = {
   width: { min: 416, max: 3840, default: 832, step: 16 },
   height: { min: 416, max: 3840, default: 480, step: 16 },
-  frames: { min: 17, max: 505, default: 81 }, // WAN max: 161/321, LTX-2 max: 257/505
-  fps: { min: 1, max: 60, default: 25 }, // LTX-2: 1-60, WAN: 16/32 (model-specific overrides)
+  frames: { min: 17, max: 505, default: 81 }, // WAN max: 161/321, LTX-2.3 max: 257/505
+  fps: { min: 1, max: 60, default: 25 }, // LTX-2.3: 1-60, WAN: 16/32 (model-specific overrides)
   shift: { min: 1.0, max: 8.0, default: 8.0, step: 0.1 },
   // Guidance ranges differ by model type:
   // WAN Quality: min: 1.5, max: 8.0
   // WAN Lightning: min: 0.7, max: 1.6
-  // LTX-2 Quality: min: 2.0, max: 7.0
-  // LTX-2 Distilled: min: 1.0, max: 2.0
+  // LTX-2.3 Quality: min: 2.0, max: 7.0
+  // LTX-2.3 Distilled: min: 1.0, max: 2.0
   guidance: {
     quality: { min: 1.5, max: 8.0, step: 0.01 },
     lightning: { min: 0.7, max: 1.6, step: 0.01 }
@@ -1358,8 +1361,7 @@ export async function askMultilinePrompt(question, defaultValue = '', { consecut
   }
   if (defaultValue) {
     const flat = defaultValue.replace(/\n+/g, ' ').trim();
-    const preview = flat.length > 60 ? flat.substring(0, 60) + '...' : flat;
-    console.log(`  Default: "${preview}"`);
+    console.log(`  Default: "${flat}"`);
   }
   console.log();
 
@@ -1698,7 +1700,7 @@ export async function promptVideoFps(options, modelConfig = {}) {
   console.log('\n🎞️  Select frame rate (FPS):\n');
 
   if (hasRangeFps) {
-    // Range-based FPS (LTX-2 models: 1-60)
+    // Range-based FPS (LTX-2.3 models: 1-60)
     // Build menu with common options, including defaultFps if not already present
     let menuFps = [24, 25, 30, 50, 60].filter(f => f >= modelConfig.minFps && f <= modelConfig.maxFps);
 
@@ -1780,7 +1782,7 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
 
   // Determine model type for frame calculation
   // WAN models: always generate at 16fps (fps param is for post-render interpolation)
-  // LTX-2 models: generate at actual fps with frame step constraint
+  // LTX-2.3 models: generate at actual fps with frame step constraint
   const modelId = modelConfig.id || '';
   const isWan = isWanModel(modelId);
 
@@ -1791,12 +1793,12 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
    * Convert duration to valid frame count.
    *
    * WAN 2.2 Models: Always use 16fps for calculation (fps is interpolation only)
-   * LTX-2 Models: Use actual fps, snap to frame step constraint (1 + n*8)
+   * LTX-2.3 Models: Use actual fps, snap to frame step constraint (1 + n*8)
    */
   function durationToFrames(durationSec) {
     let frames = Math.round(durationSec * effectiveFps) + 1;
     if (frameStep > 1) {
-      // LTX-2: Round to nearest n*frameStep + 1
+      // LTX-2.3: Round to nearest n*frameStep + 1
       const n = Math.round((frames - 1) / frameStep);
       frames = n * frameStep + 1;
     }
@@ -1804,7 +1806,7 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
   }
 
   // Calculate min/max duration based on valid frame counts
-  // Use effectiveFps (16 for WAN, actual for LTX-2)
+  // Use effectiveFps (16 for WAN, actual for LTX-2.3)
   const minDurationExact = (minFrames - 1) / effectiveFps;
   const maxDurationExact = (maxFrames - 1) / effectiveFps;
 
@@ -1917,7 +1919,7 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
   console.log('\n🔧 Advanced Options\n');
 
   // Video-specific advanced options (FPS is now asked before duration via promptVideoFps)
-  // Only show shift prompt for models that use it (WAN models have defaultShift, LTX-2 models don't)
+  // Only show shift prompt for models that use it (WAN models have defaultShift, LTX-2.3 models don't)
   if (isVideo && modelConfig.defaultShift !== undefined) {
     // Shift
     const defaultShift = modelConfig.defaultShift || VIDEO_CONSTRAINTS.shift.default;
@@ -2102,6 +2104,47 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
  * @param {boolean} config.isVideo - Whether this is for video generation
  * @returns {Promise<Object>} Updated options
  */
+/**
+ * Prompt for ID-LoRA speaker identity audio (LTX-2.3 only).
+ * Asks if the user wants to provide a ~5s reference audio clip for speaker identity transfer,
+ * then prompts for the audio file and identity strength.
+ *
+ * Only applicable to LTX-2.3 models that are NOT a2v or ia2v workflows
+ * (those already use referenceAudio for a different purpose).
+ *
+ * @param {Object} options - The options object to modify (sets identityAudio and audioIdentityStrength)
+ * @param {Object} modelConfig - The model configuration object
+ */
+export async function promptIdentityAudio(options, modelConfig) {
+  // Only offer for LTX-2.3 models, excluding a2v/ia2v (which already use referenceAudio)
+  if (!modelConfig.id?.startsWith('ltx23-') || modelConfig.id?.includes('_a2v') || modelConfig.id?.includes('_ia2v')) {
+    return;
+  }
+
+  if (!options.interactive || options.identityAudio) {
+    return;
+  }
+
+  const useIdentity = await askQuestion('\nProvide reference audio for speaker identity (ID-LoRA)? [y/N]: ');
+  if (useIdentity.toLowerCase() === 'y' || useIdentity.toLowerCase() === 'yes') {
+    try {
+      options.identityAudio = await pickAudioFile(null, 'identity reference audio (~5s voice clip)');
+    } catch (error) {
+      log('⚠️', `Could not select identity audio: ${error.message}`);
+      return;
+    }
+    if (options.identityAudio && options.audioIdentityStrength === null) {
+      const strengthInput = await askQuestion('  Audio identity strength (0-10, default: 3.0, 0=disabled): ');
+      if (strengthInput.trim()) {
+        const s = parseFloat(strengthInput.trim());
+        if (!isNaN(s) && s >= 0 && s <= 10) {
+          options.audioIdentityStrength = s;
+        }
+      }
+    }
+  }
+}
+
 export async function promptBatchCount(options, config = {}) {
   const { isVideo = false } = config;
   const maxBatch = 512;
@@ -2188,7 +2231,7 @@ export async function promptAnimateReplaceOptions(options) {
 }
 
 /**
- * Control type descriptions for LTX-2 V2V ControlNet
+ * Control type descriptions for LTX-2.3 V2V ControlNet
  */
 export const CONTROL_NET_TYPES = {
   canny: {
@@ -2210,7 +2253,7 @@ export const CONTROL_NET_TYPES = {
 };
 
 /**
- * Prompt for ControlNet type selection (LTX-2 V2V)
+ * Prompt for ControlNet type selection (LTX-2.3 V2V)
  * @param {Object} options - Current options object
  * @param {Object} modelConfig - Selected model configuration
  * @returns {Promise<Object>} Updated options
@@ -2373,9 +2416,7 @@ export function displayPrompts(prompts) {
   console.log();
   console.log('📝 Prompts:');
   if (prompts.positive) {
-    const truncated =
-      prompts.positive.length > 100 ? prompts.positive.substring(0, 100) + '...' : prompts.positive;
-    console.log(`   Positive: ${truncated}`);
+    console.log(`   Positive: ${prompts.positive}`);
   }
   if (prompts.negative) {
     console.log(`   Negative: ${prompts.negative}`);

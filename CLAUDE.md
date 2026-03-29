@@ -11,11 +11,11 @@ For AI coding assistants working with this SDK, the following resources are avai
 - **`dist/index.d.ts`** - TypeScript type definitions (after build)
 - **API Docs**: https://sdk-docs.sogni.ai
 
-When helping users with Sogni SDK tasks, consult `llms-full.txt` for complete parameter references, especially for video generation where WAN 2.2 and LTX-2 models have different behaviors.
+When helping users with Sogni SDK tasks, consult `llms-full.txt` for complete parameter references, especially for video generation where WAN 2.2 and LTX-2.3 models have different behaviors.
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, etc.), video generation (WAN 2.2 and LTX-2 models), audio generation (ACE-Step 1.5), LLM chat with tool calling, and multimodal vision chat (Qwen3.5 VLM) via WebSocket communication.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, etc.), video generation (WAN 2.2 and LTX-2.3 models), audio generation (ACE-Step 1.5), LLM chat with tool calling, and multimodal vision chat (Qwen3.5 VLM) via WebSocket communication.
 
 ## Build & Development Commands
 
@@ -101,9 +101,9 @@ src/
 
 The SDK supports two families of video models with **fundamentally different FPS and frame count behavior**.
 
-### Standard Behavior (LTX-2, LTX-2.3, and future models)
+### Standard Behavior (LTX-2.3 and future models)
 
-**LTX-2 / LTX-2.3 Models (`ltx2-*`, `ltx23-*`)** represent the standard behavior going forward. **LTX-2.3 (22B)** is the recommended video model family:
+**LTX-2.3 Models (`ltx2-*`, `ltx23-*`)** represent the standard behavior going forward. **LTX-2.3 (22B)** is the recommended video model family:
 - **Generate at the actual specified FPS** (1-60 fps range)
 - No post-render interpolation - fps directly affects generation
 - **Frame calculation**: `duration * fps + 1`
@@ -146,7 +146,7 @@ This repository uses **conventional commits** for semantic versioning of the npm
 **Examples:**
 ```
 feat: Add support for new video model
-fix: Correct frame calculation for LTX-2 models
+fix: Correct frame calculation for LTX-2.3 models
 chore: Update example scripts for video generation
 ```
 
@@ -209,10 +209,10 @@ const urls = await project.waitForCompletion();
 |----------|---------------|-----------------|
 | Text-to-Video | `*_t2v*` | None |
 | Image-to-Video | `*_i2v*` | `referenceImage` (and/or `referenceImageEnd`) |
-| Video-to-Video | `*_v2v*` (LTX-2 only) | `referenceVideo` + `controlNet` |
+| Video-to-Video | `*_v2v*` (LTX-2.3) | `referenceVideo` + `controlNet` |
 | Sound-to-Video | `*_s2v*` (WAN only) | `referenceImage` + `referenceAudio` |
-| Image+Audio-to-Video | `*_ia2v*` (LTX-2 / LTX-2.3) | `referenceImage` + `referenceAudio` |
-| Audio-to-Video | `*_a2v*` (LTX-2 / LTX-2.3) | `referenceAudio` |
+| Image+Audio-to-Video | `*_ia2v*` (LTX-2.3) | `referenceImage` + `referenceAudio` |
+| Audio-to-Video | `*_a2v*` (LTX-2.3) | `referenceAudio` |
 | Animate-Move | `*_animate-move*` | `referenceImage` + `referenceVideo` |
 | Animate-Replace | `*_animate-replace*` | `referenceImage` + `referenceVideo` |
 

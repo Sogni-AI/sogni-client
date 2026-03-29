@@ -114,7 +114,7 @@ export const generateVideoTool: ToolDefinition = {
         model: {
           type: 'string',
           description:
-            'Video generation model to use. Prefer LTX-2 text-to-video (t2v) models for best quality.'
+            'Video generation model to use. Prefer LTX-2.3 text-to-video (t2v) models for best quality.'
         },
         seed: {
           type: 'number',

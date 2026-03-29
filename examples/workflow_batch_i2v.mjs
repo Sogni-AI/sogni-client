@@ -23,7 +23,7 @@
  *   --width       Video width (default: auto from first image, min: 480)
  *   --height      Video height (default: auto from first image, min: 480)
  *   --duration    Duration in seconds (default: 5, converts to frames)
- *   --fps         Frames per second: 16, 24, 30, or 32 (default: model-specific, 24 for LTX-2)
+ *   --fps         Frames per second: 16, 24, 30, or 32 (default: model-specific, 24 for LTX-2.3)
  *   --seed        Random seed for all videos, or -1 for random each (default: -1)
  *   --guidance    Guidance scale (default: model-specific)
  *   --shift       Motion intensity 1.0-8.0 (default: model-specific)
@@ -399,7 +399,7 @@ async function main() {
   const minFrames = modelConfig.minFrames || VIDEO_CONSTRAINTS.frames.min;
 
   // Calculate frames from duration if not explicitly set
-  // Uses model-aware calculation: WAN = 16fps internal, LTX-2 = actual fps
+  // Uses model-aware calculation: WAN = 16fps internal, LTX-2.3 = actual fps
   if (!OPTIONS.frames) {
     const duration = OPTIONS.duration || 5;
     OPTIONS.frames = calculateVideoFrames(modelConfig.id, duration, OPTIONS.fps, {

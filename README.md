@@ -766,7 +766,7 @@ When helping users generate images, videos, or use LLM features with Sogni:
 4. **LLM text chat**: Use `sogni.projects.chatCompletion()` for text generation with streaming and tool calling
 5. **Sogni Platform Tools**: Combine LLM tool calling with Sogni media generation to create images, videos, and music from natural language
 6. **Vision chat**: Use `qwen3.5-35b-a3b-gguf-q4km` VLM for multimodal image understanding with `image_url` content type
-7. **WAN 2.2 vs LTX-2**: These model families have different FPS behaviors - see `llms-full.txt` for details
+7. **WAN 2.2 vs LTX-2.3**: These model families have different FPS behaviors - see `llms-full.txt` for details
 
 ## API Documentation
 

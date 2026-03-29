@@ -60,7 +60,7 @@ console.log(urls[0]); // Video URL (valid 24 hours)
 1. **Authentication & Setup** - Client initialization, login, network types
 2. **Image Generation** - Text-to-image, img2img, ControlNets
 3. **Video Generation (WAN 2.2)** - t2v, i2v, s2v, animate-move, animate-replace
-4. **Video Generation (LTX-2.3 / LTX-2)** - Recommended video models with different fps behavior
+4. **Video Generation (LTX-2.3)** - Recommended video models with different fps behavior
 5. **Audio Generation (ACE-Step 1.5)** - Text-to-music with optional lyrics
 6. **LLM Text Generation** - Chat completions, streaming, multi-turn conversations
 7. **LLM Tool Calling** - Function calling with custom tools and Sogni platform tools
@@ -209,7 +209,7 @@ const project = await sogni.projects.create({
 
 ---
 
-## 4. Video Generation (LTX-2.3 / LTX-2)
+## 4. Video Generation (LTX-2.3)
 
 ### LTX FPS Behavior (Different from WAN!)
 LTX models generate at the actual specified FPS (1-60 range). No interpolation.
@@ -230,10 +230,10 @@ Example: 5 seconds at 24fps = 121 frames
 | Audio-to-Video | `ltx23-22b-fp8_a2v_distilled` | `ltx23-22b-fp8_a2v_dev` |
 | Image+Audio-to-Video | `ltx23-22b-fp8_ia2v_distilled` | `ltx23-22b-fp8_ia2v_dev` |
 
-**Video-to-Video ControlNet (LTX-2 only):**
+**Video-to-Video ControlNet (LTX-2.3):**
 | Workflow | Fast | Quality |
 |----------|------|---------|
-| Video-to-Video (ControlNet) | `ltx2-19b-fp8_v2v_distilled` | `ltx2-19b-fp8_v2v` |
+| Video-to-Video (ControlNet) | `ltx23-22b-fp8_v2v_distilled` | `ltx23-22b-fp8_v2v_dev` |
 
 IMPORTANT: ControlNet (canny/pose/depth/detailer) requires a `_v2v` model, NOT `_i2v`.
 
