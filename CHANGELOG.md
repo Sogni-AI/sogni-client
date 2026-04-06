@@ -1,3 +1,17 @@
+# [4.2.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v4.1.1...v4.2.0-alpha.1) (2026-04-06)
+
+
+### Bug Fixes
+
+* allow up to 20s duration for Wan Animate Move/Replace models (321 frames) ([23897fa](https://github.com/Sogni-AI/sogni-client/commit/23897fa3eeacc997548390d4a41569a424ba1485))
+* update LTX-2.3 dev defaults to match tuned workflow parameters ([7ca69ab](https://github.com/Sogni-AI/sogni-client/commit/7ca69ab828bf821cf19438687d0eecd090a7e54c))
+
+
+### Features
+
+* add ID-LoRA speaker identity transfer support (referenceAudioIdentity) ([4969cce](https://github.com/Sogni-AI/sogni-client/commit/4969cce72c46d7527a8d66ff251adc1e9d022013))
+* add top_k parameter and server-provided sampling defaults for thinking modes ([ad4ac85](https://github.com/Sogni-AI/sogni-client/commit/ad4ac85e75fad0c7d18af976fe03d4d90c6c5f3d))
+
 # [4.1.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.7...v4.1.0-alpha.8) (2026-03-29)
 
 
