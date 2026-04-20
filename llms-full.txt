@@ -840,7 +840,7 @@ and multi-image comparison.
 VLM MODEL:
 | Model ID | Name | Description |
 |----------|------|-------------|
-| qwen3.6-35b-a3b-gguf-iq4xs | Qwen3.6 35B VLM | Vision-language model with 128K context target |
+| qwen3.6-35b-a3b-gguf-iq4xs | Qwen3.6 35B VLM | Vision-language model with 262,144 native context length |
 
 MULTIMODAL MESSAGE FORMAT:
 Images are sent as base64-encoded data URIs using the OpenAI-compatible

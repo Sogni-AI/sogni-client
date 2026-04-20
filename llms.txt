@@ -409,7 +409,7 @@ The SDK supports multimodal vision chat via VLM (Vision-Language Model) workers 
 ### VLM Model
 | Model ID | Name | Description |
 |----------|------|-------------|
-| `qwen3.6-35b-a3b-gguf-iq4xs` | Qwen3.6 35B VLM | Vision-language model with 128K context target |
+| `qwen3.6-35b-a3b-gguf-iq4xs` | Qwen3.6 35B VLM | Vision-language model with 262,144 native context length |
 
 ### Multimodal Message Format
 ```javascript
