@@ -12,7 +12,7 @@ import { ToolDefinition, ToolCall } from './types';
  * import { SogniTools } from '@sogni-ai/sogni-client';
  *
  * const stream = await sogni.chat.completions.create({
- *   model: 'qwen3.5-35b-a3b-gguf-q4km',
+ *   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
  *   messages: [{ role: 'user', content: 'Generate an image of a sunset' }],
  *   tools: SogniTools.all,
  *   tool_choice: 'auto',
@@ -211,7 +211,7 @@ export const SogniTools = {
  * const tools = buildSogniTools(models);
  *
  * const stream = await sogni.chat.completions.create({
- *   model: 'qwen3.5-35b-a3b-gguf-q4km',
+ *   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
  *   messages,
  *   tools,
  *   stream: true,

@@ -269,7 +269,7 @@ The workflow examples showcase these powerful new models:
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning | Image Edit | Fast 4-step reference-based generation |
 | `qwen_image_edit_2511_fp8` | Qwen Image Edit | Image Edit | High-quality 20-step image editing with context |
 | `flux2_dev_fp8` | Flux.2 Dev | Image | Professional quality with context image support |
-| `qwen3.5-35b-a3b-gguf-q4km` | Qwen3.5 35B | LLM + Vision | Text generation, chat, reasoning, tool calling, and multimodal image understanding |
+| `qwen3.6-35b-a3b-gguf-iq4xs` | Qwen3.6 35B | LLM + Vision | Text generation, chat, reasoning, tool calling, and multimodal image understanding |
 
 **Try them out:**
 ```bash
@@ -477,7 +477,7 @@ Single-turn chat completion (non-streaming). Sends a prompt and receives the ful
 **Usage:**
 ```bash
 node workflow_text_chat.mjs "What is the meaning of life?"
-node workflow_text_chat.mjs "Explain quantum computing" --model qwen3.5-35b-a3b-gguf-q4km
+node workflow_text_chat.mjs "Explain quantum computing" --model qwen3.6-35b-a3b-gguf-iq4xs
 node workflow_text_chat.mjs "Write a haiku" --max-tokens 100 --temperature 0.9
 ```
 
@@ -510,7 +510,7 @@ node workflow_text_chat_multi_turn.mjs --system "You are a pirate. Respond in pi
 | `exit` / `quit` | End the conversation |
 
 #### `workflow_text_chat_vision.mjs`
-Multimodal vision chat powered by Qwen3.5 VLM (Vision-Language Model). Load local images and ask questions about them — supports scene description, OCR/text extraction, object detection, structured visual analysis, and multi-image comparison.
+Multimodal vision chat powered by Qwen3.6 VLM (Vision-Language Model). Load local images and ask questions about them — supports scene description, OCR/text extraction, object detection, structured visual analysis, and multi-image comparison.
 
 **Usage:**
 ```bash
@@ -579,7 +579,7 @@ All LLM chat scripts share these options:
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--model` | LLM model ID | `qwen3.5-35b-a3b-gguf-q4km` |
+| `--model` | LLM model ID | `qwen3.6-35b-a3b-gguf-iq4xs` |
 | `--max-tokens` | Maximum tokens to generate | from model, or 8192 |
 | `--temperature` | Sampling temperature (0-2) | 0.7 |
 | `--top-p` | Top-p nucleus sampling (0-1) | 0.9 |
@@ -932,4 +932,3 @@ Found a bug in an example or want to add a new one? Contributions are welcome!
 **Happy Creating! 🎨🎬**
 
 For questions or support, visit [docs.sogni.ai](https://docs.sogni.ai) or the Sogni community channels.
-

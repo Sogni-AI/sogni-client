@@ -71,7 +71,9 @@ export interface ChatCompletionParams {
   temperature?: number;
   top_p?: number;
   top_k?: number;
+  min_p?: number;
   stream?: boolean;
+  repetition_penalty?: number;
   frequency_penalty?: number;
   presence_penalty?: number;
   stop?: string | string[];
@@ -88,6 +90,8 @@ export interface ChatCompletionParams {
    * thinking. When omitted, server defaults apply.
    */
   think?: boolean;
+  /** Hint for server-side preset selection. */
+  taskProfile?: 'general' | 'coding' | 'reasoning';
   /**
    * Automatically execute Sogni tool calls (image/video/music generation) when the
    * model requests them. The SDK handles the full multi-round tool calling loop:
@@ -124,13 +128,16 @@ export interface ChatRequestMessage {
   temperature?: number;
   top_p?: number;
   top_k?: number;
+  min_p?: number;
   stream?: boolean;
+  repetition_penalty?: number;
   frequency_penalty?: number;
   presence_penalty?: number;
   stop?: string | string[];
   tokenType?: 'sogni' | 'spark';
   tools?: ToolDefinition[];
   tool_choice?: ToolChoice;
+  taskProfile?: 'general' | 'coding' | 'reasoning';
   /** Per-request chat template arguments (e.g. `{ enable_thinking: false }` for llama.cpp). */
   chat_template_kwargs?: Record<string, unknown>;
 }
@@ -191,6 +198,8 @@ export interface LLMSamplingDefaults {
   temperature: number;
   top_p: number;
   top_k: number;
+  min_p?: number;
+  repetition_penalty?: number;
   presence_penalty: number;
 }
 
@@ -201,12 +210,18 @@ export interface LLMModelInfo {
   temperature?: LLMParamConstraint;
   top_p?: LLMParamConstraint;
   top_k?: LLMParamConstraint;
+  min_p?: LLMParamConstraint;
+  repetition_penalty?: LLMParamConstraint;
   frequency_penalty?: LLMParamConstraint;
   presence_penalty?: LLMParamConstraint;
   /** Recommended defaults when thinking mode is enabled. */
   defaultsThinking?: LLMSamplingDefaults;
+  /** Recommended defaults when thinking mode is enabled for precise coding tasks. */
+  defaultsThinkingCoding?: LLMSamplingDefaults;
   /** Recommended defaults when thinking mode is disabled. */
   defaultsNonThinking?: LLMSamplingDefaults;
+  /** Recommended defaults when thinking mode is disabled for analytical reasoning tasks. */
+  defaultsNonThinkingReasoning?: LLMSamplingDefaults;
 }
 
 export interface LLMJobCost {

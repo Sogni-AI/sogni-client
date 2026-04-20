@@ -3,7 +3,7 @@
  * Vision Chat Workflow — Multimodal Image Understanding
  *
  * Interactive multi-turn conversation with vision capabilities powered by
- * Qwen3.5 VLM (Vision-Language Model) on the Sogni Supernet.
+ * Qwen3.6 VLM (Vision-Language Model) on the Sogni Supernet.
  *
  * Supports: scene description, OCR/text extraction, object detection,
  * document/chart analysis, visual reasoning, and multi-image comparison.
@@ -46,7 +46,7 @@ import * as readline from 'node:readline';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const VLM_MODEL = 'qwen3.5-35b-a3b-gguf-q4km';
+const VLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_SYSTEM =
   'You are a visual analysis assistant with expert-level image understanding. ' +
   'When given an image, analyze it thoroughly and provide specific, detailed observations. ' +
@@ -655,6 +655,7 @@ async function main() {
         stream: true,
         tokenType,
         think: false,
+        taskProfile: 'reasoning',
       });
 
       let rawContent = '';

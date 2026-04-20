@@ -618,12 +618,12 @@ The Sogni SDK supports LLM text generation through the Supernet, providing an
 OpenAI-compatible chat completions API with streaming, multi-turn conversations,
 thinking/reasoning mode, and tool calling.
 
-DEFAULT LLM MODEL: qwen3.5-35b-a3b-gguf-q4km
+DEFAULT LLM MODEL: qwen3.6-35b-a3b-gguf-iq4xs
 
 CHAT COMPLETION (Non-Streaming):
 ```javascript
 const response = await sogni.projects.chatCompletion({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [
     { role: 'system', content: 'You are a helpful assistant.' },
     { role: 'user', content: 'Explain quantum computing briefly.' }
@@ -639,7 +639,7 @@ console.log(response.choices[0].message.content);
 STREAMING CHAT COMPLETION:
 ```javascript
 const stream = await sogni.projects.chatCompletionStream({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [{ role: 'user', content: 'Tell me a story about a cat' }],
   max_tokens: 4096,
   stream: true
@@ -660,7 +660,7 @@ const messages = [
 // Turn 1
 messages.push({ role: 'user', content: 'What is the Sogni Supernet?' });
 const response1 = await sogni.projects.chatCompletion({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages
 });
 messages.push(response1.choices[0].message);
@@ -668,7 +668,7 @@ messages.push(response1.choices[0].message);
 // Turn 2 (with context from turn 1)
 messages.push({ role: 'user', content: 'How does it compare to centralized services?' });
 const response2 = await sogni.projects.chatCompletion({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages
 });
 ```
@@ -681,7 +681,7 @@ Enable model reasoning/thinking via `chat_template_kwargs`:
 LLM CHAT PARAMETERS:
 | Parameter | Type | Default | Notes |
 |-----------|------|---------|-------|
-| model | string | qwen3.5-35b-a3b-gguf-q4km | LLM model ID |
+| model | string | qwen3.6-35b-a3b-gguf-iq4xs | LLM model ID |
 | messages | array | - | Chat messages [{role, content}] |
 | max_tokens | number | 4096 | Maximum output tokens |
 | temperature | number | 0.7 | Sampling temperature (0-2) |
@@ -745,7 +745,7 @@ TOOL CALLING FLOW:
 ```javascript
 // 1. Send message with tools
 const response = await sogni.projects.chatCompletion({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [{ role: 'user', content: "What's the weather in Austin, TX?" }],
   tools,
   tool_choice: 'auto'
@@ -771,7 +771,7 @@ if (message.tool_calls) {
 
   // 5. Get final natural language response
   const finalResponse = await sogni.projects.chatCompletion({
-    model: 'qwen3.5-35b-a3b-gguf-q4km',
+    model: 'qwen3.6-35b-a3b-gguf-iq4xs',
     messages,
     tools
   });
@@ -840,7 +840,7 @@ and multi-image comparison.
 VLM MODEL:
 | Model ID | Name | Description |
 |----------|------|-------------|
-| qwen3.5-35b-a3b-gguf-q4km | Qwen3.5 35B VLM | Vision-language model with 32K context |
+| qwen3.6-35b-a3b-gguf-iq4xs | Qwen3.6 35B VLM | Vision-language model with 128K context target |
 
 MULTIMODAL MESSAGE FORMAT:
 Images are sent as base64-encoded data URIs using the OpenAI-compatible
@@ -860,17 +860,29 @@ const messages = [
 ];
 
 const stream = await sogni.chat.completions.create({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages,
   max_tokens: 4096,
   stream: true,
-  think: false
+  think: false,
+  taskProfile: 'general'
 });
 
 for await (const chunk of stream) {
   if (chunk.content) process.stdout.write(chunk.content);
 }
 ```
+
+QWEN3.6 PRESET SELECTION:
+- `think: true, taskProfile: 'general'` -> thinking mode for general tasks
+- `think: true, taskProfile: 'coding'` -> thinking mode for precise coding
+- `think: false, taskProfile: 'general'` -> instruct / non-thinking general
+- `think: false, taskProfile: 'reasoning'` -> instruct / non-thinking reasoning
+
+MANUAL OVERRIDES:
+You can override the preset with explicit sampling params:
+`temperature`, `top_p`, `top_k`, `min_p`, `presence_penalty`,
+`repetition_penalty`.
 
 MULTI-IMAGE COMPARISON:
 Send two images in the same message for side-by-side analysis:

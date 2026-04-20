@@ -310,7 +310,7 @@ The Sogni SDK supports LLM text generation via the Supernet, providing an OpenAI
 ### Chat Completion (Non-Streaming)
 ```javascript
 const response = await sogni.projects.chatCompletion({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [
     { role: 'system', content: 'You are a helpful assistant.' },
     { role: 'user', content: 'Explain quantum computing briefly.' }
@@ -325,7 +325,7 @@ console.log(response.choices[0].message.content);
 ### Streaming Chat Completion
 ```javascript
 const stream = await sogni.projects.chatCompletionStream({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [{ role: 'user', content: 'Tell me a story' }],
   max_tokens: 4096,
   stream: true
@@ -338,7 +338,7 @@ for await (const chunk of stream) {
 ### Key Parameters
 | Parameter | Type | Default | Notes |
 |-----------|------|---------|-------|
-| model | string | qwen3.5-35b-a3b-gguf-q4km | LLM model ID |
+| model | string | qwen3.6-35b-a3b-gguf-iq4xs | LLM model ID |
 | messages | array | - | Chat messages (system/user/assistant/tool roles) |
 | max_tokens | number | 4096 | Maximum output tokens |
 | temperature | number | 0.7 | Sampling temperature (0-2) |
@@ -376,7 +376,7 @@ const tools = [{
 }];
 
 const response = await sogni.projects.chatCompletion({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [{ role: 'user', content: "What's the weather in Austin?" }],
   tools,
   tool_choice: 'auto'
@@ -409,7 +409,7 @@ The SDK supports multimodal vision chat via VLM (Vision-Language Model) workers 
 ### VLM Model
 | Model ID | Name | Description |
 |----------|------|-------------|
-| `qwen3.5-35b-a3b-gguf-q4km` | Qwen3.5 35B VLM | Vision-language model with 32K context |
+| `qwen3.6-35b-a3b-gguf-iq4xs` | Qwen3.6 35B VLM | Vision-language model with 128K context target |
 
 ### Multimodal Message Format
 ```javascript
@@ -425,12 +425,24 @@ const messages = [
 ];
 
 const stream = await sogni.chat.completions.create({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages,
   max_tokens: 4096,
-  stream: true
+  stream: true,
+  think: false,
+  taskProfile: 'general'
 });
 ```
+
+QWEN3.6 PRESET HINTS:
+- General thoughtful work: `think: true, taskProfile: 'general'`
+- Precise coding: `think: true, taskProfile: 'coding'`
+- Everyday direct responses: `think: false, taskProfile: 'general'`
+- Analytical non-thinking tasks: `think: false, taskProfile: 'reasoning'`
+
+OPTIONAL SAMPLING OVERRIDES:
+- `temperature`, `top_p`, `top_k`, `min_p`, `presence_penalty`,
+  `repetition_penalty`
 
 ### Supported Capabilities
 - **Scene description** — Detailed image descriptions including subjects, colors, lighting, mood

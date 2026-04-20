@@ -46,7 +46,7 @@ export interface ChatApiEvents {
  * ```typescript
  * // Streaming
  * const stream = await sogni.chat.completions.create({
- *   model: 'qwen3.5-35b-a3b-gguf-q4km',
+ *   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   stream: true,
  * });
@@ -56,7 +56,7 @@ export interface ChatApiEvents {
  *
  * // Non-streaming
  * const result = await sogni.chat.completions.create({
- *   model: 'qwen3.5-35b-a3b-gguf-q4km',
+ *   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
  *   messages: [{ role: 'user', content: 'Hello!' }],
  * });
  * console.log(result.content);
@@ -154,7 +154,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
    * @example
    * ```typescript
    * const estimate = await sogni.chat.estimateCost({
-   *   model: 'qwen3.5-35b-a3b-gguf-q4km',
+   *   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
    *   messages: [{ role: 'user', content: 'Hello!' }],
    *   max_tokens: 1024,
    * });
@@ -270,13 +270,16 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       temperature: params.temperature,
       top_p: params.top_p,
       top_k: params.top_k,
+      min_p: params.min_p,
       stream: params.stream,
+      repetition_penalty: params.repetition_penalty,
       frequency_penalty: params.frequency_penalty,
       presence_penalty: params.presence_penalty,
       stop: params.stop,
       tokenType: params.tokenType,
       tools: params.tools,
       tool_choice: params.tool_choice,
+      taskProfile: params.taskProfile,
       ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs })
     };
 

@@ -34,7 +34,7 @@
  *   node workflow_text_chat_sogni_tools.mjs "Tell me about ocean waves"  (conversation, no generation)
  *
  * Options:
- *   --model         LLM model ID (default: qwen3.5-35b-a3b-gguf-q4km)
+ *   --model         LLM model ID (default: qwen3.6-35b-a3b-gguf-iq4xs)
  *   --max-tokens    Maximum tokens to generate (default: from model, or 8192)
  *   --temperature   Sampling temperature 0-2 (default: from model, or 0.7)
  *   --top-p         Top-p sampling 0-1 (default: from model, or 0.9)
@@ -56,7 +56,7 @@ import { execFile } from 'node:child_process';
 import { platform } from 'node:os';
 import { resolve } from 'node:path';
 
-const DEFAULT_LLM_MODEL = 'qwen3.5-35b-a3b-gguf-q4km';
+const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_IMAGE_MODEL = 'z_image_turbo_bf16';
 const DEFAULT_VIDEO_MODEL = 'ltx23-22b-fp8_t2v_distilled';
 const DEFAULT_AUDIO_MODEL = 'ace_step_1.5_turbo';
@@ -335,6 +335,7 @@ async function streamComposition(sogni, messages, options, tokenType, tools) {
         stream: true,
         tokenType,
         think: false,
+        taskProfile: 'reasoning',
         tools,
         tool_choice: 'required',
       });
@@ -1294,6 +1295,7 @@ async function chatWithLLM(sogni, messages, options, tokenType) {
       ...(options.topK != null && { top_k: options.topK }),
       stream: true,
       tokenType,
+      taskProfile: 'general',
     });
 
     let content = '';
@@ -1555,6 +1557,7 @@ async function main() {
       stream: true,
       tokenType,
       think: options.think,
+      taskProfile: 'reasoning',
       tools: HYBRID_TOOLS,
       tool_choice: 'auto',
     });
