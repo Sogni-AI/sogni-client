@@ -1,3 +1,10 @@
+# [4.2.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.1...v4.2.0-alpha.2) (2026-04-20)
+
+
+### Features
+
+* update qwen3.6 chat presets and examples ([96b3e23](https://github.com/Sogni-AI/sogni-client/commit/96b3e23169780874ca8273305e2fd4171d0d8dd3))
+
 # [4.2.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v4.1.1...v4.2.0-alpha.1) (2026-04-06)
 
 
