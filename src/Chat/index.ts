@@ -156,7 +156,8 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
    * const estimate = await sogni.chat.estimateCost({
    *   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
    *   messages: [{ role: 'user', content: 'Hello!' }],
-   *   max_tokens: 1024,
+   *   think: true,
+   *   taskProfile: 'reasoning',
    * });
    * console.log(`Estimated cost: ${estimate.costInToken.toFixed(6)}`);
    * ```
@@ -166,12 +167,14 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     messages: ChatMessage[];
     max_tokens?: number;
     tokenType?: 'sogni' | 'spark';
+    think?: boolean;
+    taskProfile?: 'general' | 'coding' | 'reasoning';
   }): Promise<LLMCostEstimation> {
     const tokenType = params.tokenType || 'sogni';
     const inputTokens = Math.ceil(
       JSON.stringify(this.stripImageDataForEstimation(params.messages)).length / 4
     );
-    const maxOutputTokens = params.max_tokens || 4096;
+    const maxOutputTokens = this.resolveEstimatedMaxOutputTokens(params);
     const pathParams = [tokenType, params.model, inputTokens, maxOutputTokens];
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
     const r = await this.client.socket.get<LLMEstimateResponse>(`/api/v1/job-llm/estimate/${path}`);
@@ -183,6 +186,33 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       inputTokens: r.quote.inputTokens,
       outputTokens: r.quote.outputTokens
     };
+  }
+
+  private resolveEstimatedMaxOutputTokens(params: {
+    model: string;
+    max_tokens?: number;
+    think?: boolean;
+    taskProfile?: 'general' | 'coding' | 'reasoning';
+  }): number {
+    if (typeof params.max_tokens === 'number' && Number.isFinite(params.max_tokens)) {
+      return params.max_tokens;
+    }
+
+    const modelInfo = this.availableLLMModels[params.model];
+    const defaultFromModel = modelInfo?.maxOutputTokens?.default;
+    const thinkingComplexDefault = modelInfo?.maxOutputTokens?.thinkingComplexDefault;
+    const isComplexThinking = params.think === true
+      && (params.taskProfile === 'coding' || params.taskProfile === 'reasoning');
+
+    if (isComplexThinking && typeof thinkingComplexDefault === 'number' && Number.isFinite(thinkingComplexDefault)) {
+      return thinkingComplexDefault;
+    }
+
+    if (typeof defaultFromModel === 'number' && Number.isFinite(defaultFromModel)) {
+      return defaultFromModel;
+    }
+
+    return 4096;
   }
 
   private handleSwarmLLMModels(data: Record<string, number | LLMModelInfo>): void {

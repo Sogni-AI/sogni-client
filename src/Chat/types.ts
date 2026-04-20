@@ -191,6 +191,7 @@ export interface LLMParamConstraint {
   max: number;
   decimals?: number;
   default: number;
+  thinkingComplexDefault?: number;
 }
 
 /** Recommended sampling defaults for a specific thinking mode. */
