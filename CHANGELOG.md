@@ -1,3 +1,10 @@
+# [4.2.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.2...v4.2.0-alpha.3) (2026-04-20)
+
+
+### Bug Fixes
+
+* use thinkingComplexDefault in LLMModelInfo cost estimates ([162011f](https://github.com/Sogni-AI/sogni-client/commit/162011f698b56229629cea8d09fad1b3e313294f))
+
 # [4.2.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.1...v4.2.0-alpha.2) (2026-04-20)
 
 
