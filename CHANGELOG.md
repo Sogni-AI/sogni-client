@@ -1,3 +1,10 @@
+# [4.2.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.4...v4.2.0-alpha.5) (2026-04-22)
+
+
+### Bug Fixes
+
+* validate inline media inputs for tools and vision requests ([c4bd7c1](https://github.com/Sogni-AI/sogni-client/commit/c4bd7c15cd530896065cf5ed41cd280b5db63938))
+
 # [4.2.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.3...v4.2.0-alpha.4) (2026-04-22)
 
 
