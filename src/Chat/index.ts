@@ -22,6 +22,50 @@ import {
 } from './types';
 import getUUID from '../lib/getUUID';
 import type ProjectsApi from '../Projects';
+import { parseInlineMediaDataUri } from '../lib/mediaValidation';
+
+const MAX_VISION_IMAGE_COUNT = 20;
+const MAX_VISION_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_VISION_IMAGE_LONGEST_SIDE = 1024;
+
+function normalizeVisionImageDataUri(input: string): string {
+  parseInlineMediaDataUri(input, 'image', {
+    maxBytes: MAX_VISION_IMAGE_BYTES,
+    maxImageLongestSide: MAX_VISION_IMAGE_LONGEST_SIDE
+  });
+  return input.trim();
+}
+
+function normalizeVisionMessages(messages: ChatMessage[]): ChatMessage[] {
+  let imageCount = 0;
+  return messages.map((msg) => {
+    if (!Array.isArray(msg.content)) {
+      return msg;
+    }
+
+    return {
+      ...msg,
+      content: msg.content.map((part) => {
+        if (part.type !== 'image_url') {
+          return part;
+        }
+
+        imageCount += 1;
+        if (imageCount > MAX_VISION_IMAGE_COUNT) {
+          throw new Error(`A maximum of ${MAX_VISION_IMAGE_COUNT} vision images is allowed per request`);
+        }
+
+        return {
+          type: 'image_url' as const,
+          image_url: {
+            url: normalizeVisionImageDataUri(part.image_url.url),
+            ...(part.image_url.detail && { detail: part.image_url.detail })
+          }
+        };
+      })
+    };
+  });
+}
 
 export interface ChatApiEvents {
   /** Emitted for each token chunk received during streaming */
@@ -170,9 +214,10 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     think?: boolean;
     taskProfile?: 'general' | 'coding' | 'reasoning';
   }): Promise<LLMCostEstimation> {
+    const normalizedMessages = normalizeVisionMessages(params.messages);
     const tokenType = params.tokenType || 'sogni';
     const inputTokens = Math.ceil(
-      JSON.stringify(this.stripImageDataForEstimation(params.messages)).length / 4
+      JSON.stringify(this.stripImageDataForEstimation(normalizedMessages)).length / 4
     );
     const maxOutputTokens = this.resolveEstimatedMaxOutputTokens(params);
     const pathParams = [tokenType, params.model, inputTokens, maxOutputTokens];
@@ -287,6 +332,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     params: ChatCompletionParams
   ): Promise<ChatStream | ChatCompletionResult> {
     const jobID = getUUID();
+    const normalizedMessages = normalizeVisionMessages(params.messages);
 
     // Build chat_template_kwargs from think parameter
     const chatTemplateKwargs = this.buildChatTemplateKwargs(params.think);
@@ -295,7 +341,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       jobID,
       type: 'llm',
       model: params.model,
-      messages: params.messages,
+      messages: normalizedMessages,
       max_tokens: params.max_tokens,
       temperature: params.temperature,
       top_p: params.top_p,

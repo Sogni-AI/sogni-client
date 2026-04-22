@@ -803,6 +803,7 @@ MEDIA-CONDITIONED TOOL INPUTS:
 - `reference_image_url`, `reference_image_end_url`
 - `reference_audio_url`, `reference_audio_identity_url`
 - `reference_video_url`
+All media-conditioned tool inputs must be inline base64-encoded `data:` URIs. Remote `http(s)` URLs are not allowed. Tool image inputs accept PNG/JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
 
 DEFAULT GENERATION MODELS (used by platform tools):
 | Tool | Model ID | Description |

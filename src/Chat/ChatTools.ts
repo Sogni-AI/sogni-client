@@ -2,6 +2,8 @@ import type ProjectsApi from '../Projects';
 import type { AvailableModel } from '../Projects/types';
 import { getVideoWorkflowType } from '../Projects/utils';
 import { getMaxContextImages } from '../lib/validation';
+import { parseInlineMediaDataUri } from '../lib/mediaValidation';
+import type { MediaType } from '../lib/mediaValidation';
 import { isSogniToolCall, parseToolCallArguments } from './tools';
 import {
   ToolCall,
@@ -11,8 +13,8 @@ import {
 } from './types';
 
 const DEFAULT_TIMEOUT = 10 * 60 * 1000;
+const MAX_SOGNI_TOOL_CALLS_PER_ROUND = 8;
 
-type MediaType = 'image' | 'video' | 'audio';
 type VideoWorkflow =
   | 't2v'
   | 'i2v'
@@ -23,6 +25,12 @@ type VideoWorkflow =
   | 'animate-move'
   | 'animate-replace';
 type VideoControlMode = 'animate-move' | 'animate-replace' | 'canny' | 'pose' | 'depth' | 'detailer';
+
+const MAX_INPUT_MEDIA_BYTES: Record<MediaType, number> = {
+  image: 20 * 1024 * 1024,
+  audio: 50 * 1024 * 1024,
+  video: 100 * 1024 * 1024
+};
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
@@ -100,14 +108,6 @@ function getVariationCount(
   return clampVariationCount(options?.numberOfMedia, 1);
 }
 
-async function fetchInputMedia(url: string): Promise<Blob> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch input media: ${response.status} ${response.statusText}`);
-  }
-  return response.blob();
-}
-
 class ChatToolsApi {
   private projects: ProjectsApi;
 
@@ -160,6 +160,13 @@ class ChatToolsApi {
       onToolProgress?: (toolCall: ToolCall, progress: ToolExecutionProgress) => void;
     }
   ): Promise<ToolExecutionResult[]> {
+    const sogniToolCallCount = toolCalls.filter((toolCall) => isSogniToolCall(toolCall)).length;
+    if (sogniToolCallCount > MAX_SOGNI_TOOL_CALLS_PER_ROUND) {
+      throw new Error(
+        `Too many Sogni tool calls in a single round (${sogniToolCallCount}); maximum is ${MAX_SOGNI_TOOL_CALLS_PER_ROUND}`
+      );
+    }
+
     const results: ToolExecutionResult[] = [];
 
     for (const toolCall of toolCalls) {
@@ -406,7 +413,9 @@ class ChatToolsApi {
     });
     const maxContextImages = getMaxContextImages(modelId);
     const contextImages = await Promise.all(
-      inputUrls.slice(0, maxContextImages).map((url) => fetchInputMedia(url))
+      inputUrls.slice(0, maxContextImages).map((url) => parseInlineMediaDataUri(url, 'image', {
+        maxBytes: MAX_INPUT_MEDIA_BYTES.image
+      }).blob)
     );
 
     const projectParams: Record<string, unknown> = {
@@ -471,13 +480,19 @@ class ChatToolsApi {
     if (args.duration !== undefined) projectParams.duration = args.duration;
     if (args.seed !== undefined) projectParams.seed = args.seed;
     if (isNonEmptyString(args.reference_image_url)) {
-      projectParams.referenceImage = await fetchInputMedia(args.reference_image_url);
+      projectParams.referenceImage = parseInlineMediaDataUri(args.reference_image_url, 'image', {
+        maxBytes: MAX_INPUT_MEDIA_BYTES.image
+      }).blob;
     }
     if (isNonEmptyString(args.reference_image_end_url)) {
-      projectParams.referenceImageEnd = await fetchInputMedia(args.reference_image_end_url);
+      projectParams.referenceImageEnd = parseInlineMediaDataUri(args.reference_image_end_url, 'image', {
+        maxBytes: MAX_INPUT_MEDIA_BYTES.image
+      }).blob;
     }
     if (isNonEmptyString(args.reference_audio_identity_url)) {
-      projectParams.referenceAudioIdentity = await fetchInputMedia(args.reference_audio_identity_url);
+      projectParams.referenceAudioIdentity = parseInlineMediaDataUri(args.reference_audio_identity_url, 'audio', {
+        maxBytes: MAX_INPUT_MEDIA_BYTES.audio
+      }).blob;
     }
     if (args.audio_identity_strength !== undefined) {
       projectParams.audioIdentityStrength = args.audio_identity_strength;
@@ -529,7 +544,9 @@ class ChatToolsApi {
       modelId,
       positivePrompt: args.prompt as string,
       numberOfMedia: getVariationCount(args, options),
-      referenceAudio: await fetchInputMedia(args.reference_audio_url),
+      referenceAudio: parseInlineMediaDataUri(args.reference_audio_url, 'audio', {
+        maxBytes: MAX_INPUT_MEDIA_BYTES.audio
+      }).blob,
       width: (args.width as number) || defaults.width,
       height: (args.height as number) || defaults.height,
       fps: defaults.fps,
@@ -538,7 +555,9 @@ class ChatToolsApi {
     };
 
     if (isNonEmptyString(args.reference_image_url)) {
-      projectParams.referenceImage = await fetchInputMedia(args.reference_image_url);
+      projectParams.referenceImage = parseInlineMediaDataUri(args.reference_image_url, 'image', {
+        maxBytes: MAX_INPUT_MEDIA_BYTES.image
+      }).blob;
     }
     if (args.audio_start !== undefined) projectParams.audioStart = args.audio_start;
     if (args.seed !== undefined) projectParams.seed = args.seed;
@@ -591,7 +610,9 @@ class ChatToolsApi {
       modelId,
       positivePrompt: args.prompt as string,
       numberOfMedia: getVariationCount(args, options),
-      referenceVideo: await fetchInputMedia(args.reference_video_url),
+      referenceVideo: parseInlineMediaDataUri(args.reference_video_url, 'video', {
+        maxBytes: MAX_INPUT_MEDIA_BYTES.video
+      }).blob,
       width: (args.width as number) || defaults.width,
       height: (args.height as number) || defaults.height,
       fps: defaults.fps,
@@ -601,10 +622,14 @@ class ChatToolsApi {
     if (args.negative_prompt) projectParams.negativePrompt = args.negative_prompt;
     if (args.seed !== undefined) projectParams.seed = args.seed;
     if (isNonEmptyString(args.reference_image_url)) {
-      projectParams.referenceImage = await fetchInputMedia(args.reference_image_url);
+      projectParams.referenceImage = parseInlineMediaDataUri(args.reference_image_url, 'image', {
+        maxBytes: MAX_INPUT_MEDIA_BYTES.image
+      }).blob;
     }
     if (isNonEmptyString(args.reference_audio_identity_url)) {
-      projectParams.referenceAudioIdentity = await fetchInputMedia(args.reference_audio_identity_url);
+      projectParams.referenceAudioIdentity = parseInlineMediaDataUri(args.reference_audio_identity_url, 'audio', {
+        maxBytes: MAX_INPUT_MEDIA_BYTES.audio
+      }).blob;
     }
     if (args.audio_identity_strength !== undefined) {
       projectParams.audioIdentityStrength = args.audio_identity_strength;

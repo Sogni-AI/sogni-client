@@ -46,7 +46,7 @@ export interface TextContentPart {
 export interface ImageUrlContentPart {
   type: 'image_url';
   image_url: {
-    /** Supports http(s) URLs and data URIs (e.g., `data:image/jpeg;base64,...`). */
+    /** Supports inline base64-encoded JPEG or PNG data URIs only (e.g., `data:image/jpeg;base64,...`) for vision-model inputs. Max 20 images per request, 10MB each, longest side 1024px. */
     url: string;
     /** Controls how the model processes the image: 'auto' (default), 'low' (faster), 'high' (more detail). */
     detail?: 'auto' | 'low' | 'high';

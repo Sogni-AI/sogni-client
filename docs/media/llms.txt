@@ -399,7 +399,7 @@ Built-in public tool names:
 - `sogni_video_to_video`
 - `sogni_generate_music`
 
-Media-conditioned tools accept explicit asset URLs or data URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`.
+Media-conditioned tools accept explicit inline base64 `data:` URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`. Remote `http(s)` URLs are not allowed for these tool inputs. Tool image inputs accept PNG/JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. For the full built-in tool surface, use `SogniTools.all` with `sogni.chat.tools.executeAll()` or `autoExecuteTools`.
 

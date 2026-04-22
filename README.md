@@ -702,7 +702,7 @@ Combine LLM intelligence with Sogni's media generation capabilities. The SDK exp
 
 Use `SogniTools.all` to expose the full tool surface, then execute tool calls with `sogni.chat.tools.execute()` / `executeAll()` or `autoExecuteTools: true` for non-streaming flows.
 
-Media-conditioned workflows use explicit asset URLs or data URIs, including `source_image_url`, `reference_image_url`, `reference_audio_url`, `reference_audio_identity_url`, and `reference_video_url`.
+Media-conditioned workflows use explicit inline base64 `data:` URIs, including `source_image_url`, `reference_image_url`, `reference_audio_url`, `reference_audio_identity_url`, and `reference_video_url`. Remote `http(s)` URLs are not allowed for these tool inputs. Tool image inputs accept PNG or JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
 
@@ -785,7 +785,7 @@ When helping users generate images, videos, or use LLM features with Sogni:
 3. **Audio generation**: Use `type: 'audio'` with ACE-Step 1.5 models
 4. **LLM text chat**: Use `sogni.projects.chatCompletion()` for text generation with streaming and tool calling
 5. **Sogni Platform Tools**: Combine LLM tool calling with Sogni media generation to create images, image edits, videos, audio-driven videos, video transforms, and music from natural language
-6. **Vision chat**: Use `qwen3.6-35b-a3b-gguf-iq4xs` VLM for multimodal image understanding with `image_url` content type
+6. **Vision chat**: Use `qwen3.6-35b-a3b-gguf-iq4xs` VLM for multimodal image understanding with `image_url` content parts carrying inline base64 JPEG/PNG `data:` URIs. Vision requests allow up to 20 images, 10MB each, with longest side capped at 1024px. This 1024px dimension cap applies only to the vision `image_url` path, not to media-generation tool image inputs.
 7. **WAN 2.2 vs LTX-2.3**: These model families have different FPS behaviors - see `llms-full.txt` for details
 
 ## API Documentation

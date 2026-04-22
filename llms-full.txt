@@ -808,6 +808,7 @@ MEDIA-CONDITIONED TOOL INPUTS:
 - `reference_image_url`, `reference_image_end_url`
 - `reference_audio_url`, `reference_audio_identity_url`
 - `reference_video_url`
+All media-conditioned tool inputs must be inline base64-encoded `data:` URIs. Remote `http(s)` URLs are not allowed. Tool image inputs accept PNG/JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
 
 DEFAULT GENERATION MODELS (used by platform tools):
 | Tool | Model ID | Description |
@@ -864,7 +865,7 @@ VLM MODEL:
 | qwen3.6-35b-a3b-gguf-iq4xs | Qwen3.6 35B VLM | Vision-language model with 262,144 native context length |
 
 MULTIMODAL MESSAGE FORMAT:
-Images are sent as base64-encoded data URIs using the OpenAI-compatible
+Images are sent as base64-encoded JPEG or PNG data URIs using the OpenAI-compatible
 `image_url` content type within a multipart user message:
 
 ```javascript
@@ -928,7 +929,7 @@ const base64 = buffer.toString('base64');
 const dataUri = `data:image/jpeg;base64,${base64}`;
 ```
 
-SUPPORTED IMAGE FORMATS: JPEG, PNG, WebP, GIF (max 20MB recommended)
+VISION INPUT LIMITS: JPEG or PNG only, max 20 images per request, max 10MB per image, longest side capped at 1024px. This 1024px dimension cap applies only to vision `image_url` inputs, not to media-generation tool image inputs.
 
 VISION CAPABILITIES:
 - Scene description: Main subject, background, colors, lighting, mood, spatial

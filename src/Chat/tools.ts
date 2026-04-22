@@ -112,12 +112,12 @@ export const editImageTool: ToolDefinition = {
         source_image_url: {
           type: 'string',
           description:
-            'Primary image to edit or use as the main identity/composition reference. Supports http(s) URLs and data URIs.'
+            'Primary image to edit or use as the main identity/composition reference. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed.'
         },
         reference_image_urls: {
           type: 'array',
           description:
-            'Additional reference images to guide identity, pose, clothing, style, or background. Supports http(s) URLs and data URIs. Combined with source_image_url, up to 6 images total are used.',
+            'Additional reference images to guide identity, pose, clothing, style, or background. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed. Combined with source_image_url, up to 6 images total are used.',
           items: {
             type: 'string'
           }
@@ -183,17 +183,17 @@ export const generateVideoTool: ToolDefinition = {
         reference_image_url: {
           type: 'string',
           description:
-            'Optional starting image for image-to-video generation. Supports http(s) URLs and data URIs.'
+            'Optional starting image for image-to-video generation. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed.'
         },
         reference_image_end_url: {
           type: 'string',
           description:
-            'Optional ending image for keyframe interpolation. Supports http(s) URLs and data URIs.'
+            'Optional ending image for keyframe interpolation. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed.'
         },
         reference_audio_identity_url: {
           type: 'string',
           description:
-            'Optional voice identity clip for LTX-2.3 text-to-video or image-to-video workflows. Supports http(s) URLs and data URIs.'
+            'Optional voice identity clip for LTX-2.3 text-to-video or image-to-video workflows. Supports inline base64-encoded MP3, M4A, or WAV data URIs only; remote http(s) URLs are not allowed.'
         },
         audio_identity_strength: {
           type: 'number',
@@ -263,12 +263,12 @@ export const soundToVideoTool: ToolDefinition = {
         },
         reference_audio_url: {
           type: 'string',
-          description: 'Audio file to drive the video. Supports http(s) URLs and data URIs.'
+          description: 'Audio file to drive the video. Supports inline base64-encoded MP3, M4A, or WAV data URIs only; remote http(s) URLs are not allowed.'
         },
         reference_image_url: {
           type: 'string',
           description:
-            'Optional image to use as the subject or first frame. Supports http(s) URLs and data URIs.'
+            'Optional image to use as the subject or first frame. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed.'
         },
         audio_start: {
           type: 'number',
@@ -325,7 +325,7 @@ export const videoToVideoTool: ToolDefinition = {
         },
         reference_video_url: {
           type: 'string',
-          description: 'Source video to transform. Supports http(s) URLs and data URIs.'
+          description: 'Source video to transform. Supports inline base64-encoded MP4 or MOV/QuickTime data URIs only; remote http(s) URLs are not allowed.'
         },
         negative_prompt: {
           type: 'string',
@@ -341,12 +341,12 @@ export const videoToVideoTool: ToolDefinition = {
         reference_image_url: {
           type: 'string',
           description:
-            'Optional reference image for animate workflows or pose-guided appearance control. Supports http(s) URLs and data URIs.'
+            'Optional reference image for animate workflows or pose-guided appearance control. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed.'
         },
         reference_audio_identity_url: {
           type: 'string',
           description:
-            'Optional voice identity clip for LTX-2.3 v2v workflows. Supports http(s) URLs and data URIs.'
+            'Optional voice identity clip for LTX-2.3 v2v workflows. Supports inline base64-encoded MP3, M4A, or WAV data URIs only; remote http(s) URLs are not allowed.'
         },
         audio_identity_strength: {
           type: 'number',

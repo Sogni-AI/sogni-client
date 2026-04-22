@@ -563,9 +563,9 @@ Generate the core text-to-image, text-to-video, and text-to-music flows through 
 - **Music Generation** - Detects music intent, composes via `ace_step_1.5_turbo` (ACE-Step 1.5)
 
 **SDK built-ins beyond this example:**
-- `sogni_edit_image` - Reference-guided image editing with explicit image URLs
-- `sogni_sound_to_video` - Audio-driven video generation with explicit audio URLs
-- `sogni_video_to_video` - Video transformation and motion transfer with explicit video URLs
+- `sogni_edit_image` - Reference-guided image editing with explicit inline image data URIs
+- `sogni_sound_to_video` - Audio-driven video generation with explicit inline audio data URIs
+- `sogni_video_to_video` - Video transformation and motion transfer with explicit inline video data URIs
 
 **Usage:**
 ```bash
