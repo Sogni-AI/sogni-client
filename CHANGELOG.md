@@ -1,3 +1,10 @@
+# [4.2.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.3...v4.2.0-alpha.4) (2026-04-22)
+
+
+### Features
+
+* expand chat sogni media tools ([fb0d6c7](https://github.com/Sogni-AI/sogni-client/commit/fb0d6c77e4b73fbbe57d8b64b4a37bb610eb8c68))
+
 # [4.2.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.2...v4.2.0-alpha.3) (2026-04-20)
 
 
