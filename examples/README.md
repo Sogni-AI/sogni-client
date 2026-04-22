@@ -555,12 +555,17 @@ node workflow_text_chat_tool_calling.mjs "What's 15% of 249.99?"
 ```
 
 #### `workflow_text_chat_sogni_tools.mjs`
-Generate images, videos, and music through natural language via LLM tool calling. The LLM detects media generation intent, enhances prompts, and calls Sogni's generation APIs directly.
+Generate the core text-to-image, text-to-video, and text-to-music flows through natural language via LLM tool calling. The LLM detects media generation intent, enhances prompts, and calls Sogni's generation APIs directly.
 
 **Sogni Platform Tools:**
 - **Image Generation** - Detects image intent, enhances prompt, generates via `z_image_turbo_bf16`
 - **Video Generation** - Detects video intent, generates via `ltx23-22b-fp8_t2v_distilled` (LTX-2.3)
 - **Music Generation** - Detects music intent, composes via `ace_step_1.5_turbo` (ACE-Step 1.5)
+
+**SDK built-ins beyond this example:**
+- `sogni_edit_image` - Reference-guided image editing with explicit image URLs
+- `sogni_sound_to_video` - Audio-driven video generation with explicit audio URLs
+- `sogni_video_to_video` - Video transformation and motion transfer with explicit video URLs
 
 **Usage:**
 ```bash
@@ -901,7 +906,7 @@ If you encounter issues not covered here:
 6. **Chat with LLMs:** Try `workflow_text_chat_streaming.mjs` for real-time text generation
 7. **Vision Chat:** Explore `workflow_text_chat_vision.mjs` for multimodal image understanding
 8. **Tool Calling:** Explore `workflow_text_chat_tool_calling.mjs` for LLM function calling with external tools
-9. **AI-Powered Media:** Use `workflow_text_chat_sogni_tools.mjs` to generate images, videos, and music through natural language
+9. **AI-Powered Media:** Use `workflow_text_chat_sogni_tools.mjs` for core image/video/music generation through natural language
 10. **Build Something:** Use the Express example as a template for your own app
 
 ### Tips for Success

@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 /**
- * Text Chat with Sogni Platform Tools
+ * Text Chat with Core Sogni Platform Tool Pipelines
  *
  * Single-turn chat that generates images, videos, and music through natural
  * language. Uses LLM tool calling to detect media generation intent, then
  * routes through specialized composition pipelines (IMAGE_SYSTEM_PROMPT,
  * VIDEO_SYSTEM_PROMPT, AUDIO_SYSTEM_PROMPT) for prompt engineering before
  * generating media via the Sogni Projects API.
+ *
+ * This example intentionally focuses on the core text-to-image, text-to-video,
+ * and text-to-music flows. The SDK's built-in public SogniTools surface also
+ * includes `sogni_edit_image`, `sogni_sound_to_video`, and
+ * `sogni_video_to_video` for explicit asset-backed workflows.
  *
  * Architecture: Hybrid Tool Calling + Composition Pipeline
  *   1. LLM receives user message with tool definitions (tool_choice: 'auto')
@@ -133,7 +138,7 @@ function parseArgs() {
 
 function showHelp() {
   console.log(`
-Text Chat with Sogni Platform Tools (Image, Video, Music Generation)
+Text Chat with Core Sogni Platform Tool Pipelines (Image, Video, Music Generation)
 
 Usage:
   node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city at night"

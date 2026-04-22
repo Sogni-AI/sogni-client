@@ -388,17 +388,34 @@ const response = await sogni.projects.chatCompletion({
 Combine LLM tool calling with Sogni's generation APIs to create media from natural language:
 
 - **Image Generation** — "Create an image of a cyberpunk city at night"
+- **Image Editing / Reference-Guided Images** — "Edit this portrait to look like a renaissance painting"
 - **Video Generation** — "Generate a video of ocean waves at sunset"
+- **Sound-to-Video** — "Turn this song into a music video"
+- **Video-to-Video** — "Restyle this video as anime"
 - **Music Generation** — "Compose a jazz song about the rain"
 
-The LLM detects media intent, enhances the prompt, and calls Sogni's image/video/audio generation APIs directly. See `workflow_text_chat_sogni_tools.mjs` for the complete implementation.
+Built-in public tool names:
+
+- `sogni_generate_image`
+- `sogni_edit_image`
+- `sogni_generate_video`
+- `sogni_sound_to_video`
+- `sogni_video_to_video`
+- `sogni_generate_music`
+
+Media-conditioned tools accept explicit asset URLs or data URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`.
+
+The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. For the full built-in tool surface, use `SogniTools.all` with `sogni.chat.tools.executeAll()` or `autoExecuteTools`.
 
 Default generation models used by platform tools:
-| Media Type | Model | Description |
-|------------|-------|-------------|
-| Image | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step |
-| Video | ltx23-22b-fp8_t2v_distilled | LTX-2.3 text-to-video, fast |
-| Audio | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music |
+| Tool | Model | Description |
+|------|-------|-------------|
+| `sogni_generate_image` | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step |
+| `sogni_edit_image` | workflow/model-dependent | Reference-guided image editing with edit-capable Qwen/Flux models |
+| `sogni_generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled | Text-to-video or image-to-video |
+| `sogni_sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
+| `sogni_video_to_video` | ltx23-22b-fp8_v2v_distilled / WAN animate models | Video transformation / motion transfer |
+| `sogni_generate_music` | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music |
 
 ---
 

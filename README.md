@@ -18,7 +18,7 @@ Behind the scenes this SDK uses a WebSocket connection for communication between
 - 🎯 **Advanced Controls** - Fine-tune generation with samplers, schedulers, ControlNets, and more
 - 🤖 **LLM Text Generation** - Chat completions with streaming, multi-turn conversations, and thinking/reasoning mode via OpenAI-compatible API
 - 🔧 **LLM Tool Calling** - Define custom tools (functions) that the LLM can invoke during conversations for real-time data and actions
-- 🎨🎬🎵 **Sogni Platform Tools** - Generate images, videos, and music through natural language chat — the LLM detects media intent, enhances prompts, and calls Sogni's generation APIs automatically
+- 🎨🎬🎵 **Sogni Platform Tools** - Generate images, reference-guided image edits, videos, audio-driven videos, video transforms, and music through natural language chat
 - 👁️ **Vision Chat** - Multimodal image understanding with scene description, OCR, object detection, visual analysis, and multi-image comparison via Qwen3.6 VLM
 ## Migration notes
 ### v3.x.x to v4.x.x
@@ -691,13 +691,20 @@ const response = await sogni.chat.completions.create({
 
 ### Sogni Platform Tools — Generate Media via Chat
 
-Combine LLM intelligence with Sogni's media generation capabilities. The LLM detects when a user wants to create an image, video, or music, enhances the prompt, and calls Sogni's generation APIs — turning natural language into creative output:
+Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes six built-in public platform tools for chat completions:
 
-- **Image Generation** via tool call — "Create an image of a cyberpunk city at night"
-- **Video Generation** via tool call — "Generate a video of ocean waves at sunset"
-- **Music Generation** via tool call — "Compose a jazz song about the rain"
+- **`sogni_generate_image`** — text-to-image generation
+- **`sogni_edit_image`** — reference-guided image editing using `source_image_url` and `reference_image_urls`
+- **`sogni_generate_video`** — text-to-video and image-to-video generation
+- **`sogni_sound_to_video`** — audio-driven video generation using `reference_audio_url`
+- **`sogni_video_to_video`** — video transformation / motion transfer using `reference_video_url`
+- **`sogni_generate_music`** — music generation with optional lyrics and advanced controls
 
-See the `workflow_text_chat_sogni_tools.mjs` example for a complete implementation that wires LLM tool calling to Sogni's image, video, and audio generation APIs.
+Use `SogniTools.all` to expose the full tool surface, then execute tool calls with `sogni.chat.tools.execute()` / `executeAll()` or `autoExecuteTools: true` for non-streaming flows.
+
+Media-conditioned workflows use explicit asset URLs or data URIs, including `source_image_url`, `reference_image_url`, `reference_audio_url`, `reference_audio_identity_url`, and `reference_video_url`.
+
+The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
 
 ## Code Examples
 
@@ -719,7 +726,7 @@ The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) dire
 - **`workflow_text_chat_multi_turn.mjs`** - Multi-turn conversation with history, in-chat commands, and session stats
 - **`workflow_text_chat_vision.mjs`** - Vision chat with multimodal image understanding (scene description, OCR, object detection, visual analysis, multi-image comparison)
 - **`workflow_text_chat_tool_calling.mjs`** - LLM tool calling with built-in tools (weather, time, unit conversion, math)
-- **`workflow_text_chat_sogni_tools.mjs`** - Generate images, videos, and music through natural language via LLM tool calling
+- **`workflow_text_chat_sogni_tools.mjs`** - Core image/video/music generation through natural language via LLM tool calling
 
 ### Basic Examples
 - **`promise_based.mjs`** - Image generation using promises/async-await
@@ -777,7 +784,7 @@ When helping users generate images, videos, or use LLM features with Sogni:
 2. **Video generation**: Use `type: 'video'` with `network: 'fast'` (required)
 3. **Audio generation**: Use `type: 'audio'` with ACE-Step 1.5 models
 4. **LLM text chat**: Use `sogni.projects.chatCompletion()` for text generation with streaming and tool calling
-5. **Sogni Platform Tools**: Combine LLM tool calling with Sogni media generation to create images, videos, and music from natural language
+5. **Sogni Platform Tools**: Combine LLM tool calling with Sogni media generation to create images, image edits, videos, audio-driven videos, video transforms, and music from natural language
 6. **Vision chat**: Use `qwen3.6-35b-a3b-gguf-iq4xs` VLM for multimodal image understanding with `image_url` content type
 7. **WAN 2.2 vs LTX-2.3**: These model families have different FPS behaviors - see `llms-full.txt` for details
 

@@ -39,7 +39,7 @@ for AI inference. It supports:
 - Audio Generation: ACE-Step 1.5 music generation (Turbo and SFT models)
 - LLM Text Generation: Chat completions with streaming, multi-turn, and thinking mode
 - LLM Tool Calling: OpenAI-compatible function calling with custom and platform tools
-- Sogni Platform Tools: Generate images, videos, and music via natural language chat
+- Sogni Platform Tools: Generate images, image edits, videos, audio-driven videos, video transforms, and music via natural language chat
 - Vision Chat: Multimodal image understanding via VLM (scene description, OCR, object detection, visual analysis)
 - Real-time Progress: WebSocket-based event system
 - Multiple Networks: Fast (GPU) and Relaxed (Mac)
@@ -789,15 +789,35 @@ detects when a user wants to create media, enhances the prompt, and calls
 Sogni's generation APIs automatically:
 
 - Image Generation: "Create an image of a cyberpunk city at night"
+- Image Editing / Reference-Guided Images: "Edit this portrait to look like a renaissance painting"
 - Video Generation: "Generate a video of ocean waves crashing at sunset"
+- Sound-to-Video: "Turn this song into a music video"
+- Video-to-Video: "Restyle this video as anime"
 - Music Generation: "Compose a jazz song about the rain"
 
+BUILT-IN PUBLIC TOOL NAMES:
+- `sogni_generate_image`
+- `sogni_edit_image`
+- `sogni_generate_video`
+- `sogni_sound_to_video`
+- `sogni_video_to_video`
+- `sogni_generate_music`
+
+MEDIA-CONDITIONED TOOL INPUTS:
+- `source_image_url`, `reference_image_urls`
+- `reference_image_url`, `reference_image_end_url`
+- `reference_audio_url`, `reference_audio_identity_url`
+- `reference_video_url`
+
 DEFAULT GENERATION MODELS (used by platform tools):
-| Media Type | Model ID | Description |
-|------------|----------|-------------|
-| Image | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step generation |
-| Video | ltx23-22b-fp8_t2v_distilled | LTX-2.3 text-to-video, fast distilled |
-| Audio | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music generation |
+| Tool | Model ID | Description |
+|------|----------|-------------|
+| `sogni_generate_image` | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step generation |
+| `sogni_edit_image` | workflow/model-dependent | Reference-guided image editing with edit-capable Qwen/Flux models |
+| `sogni_generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled | Text-to-video or image-to-video |
+| `sogni_sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
+| `sogni_video_to_video` | ltx23-22b-fp8_v2v_distilled / WAN animate models | Video transformation / motion transfer |
+| `sogni_generate_music` | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music generation |
 
 PLATFORM TOOL WORKFLOW:
 1. User sends natural language request (e.g., "Make me an image of a dragon")
@@ -807,8 +827,9 @@ PLATFORM TOOL WORKFLOW:
 5. Your code executes the Sogni project creation (image/video/audio)
 6. Result URL is returned and opened automatically
 
-See `workflow_text_chat_sogni_tools.mjs` for the complete implementation with
-image, video, and music generation tools wired to Sogni's Projects API.
+See `workflow_text_chat_sogni_tools.mjs` for a composition-pipeline example
+covering the core image/video/music flows. For the full built-in tool surface,
+use `SogniTools.all` with `sogni.chat.tools.executeAll()` or `autoExecuteTools`.
 
 EXAMPLE CLI USAGE:
 ```bash

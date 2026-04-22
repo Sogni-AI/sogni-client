@@ -1,27 +1,48 @@
+import { getVideoWorkflowType } from '../Projects/utils';
 import { ToolDefinition, ToolCall } from './types';
+
+function cloneTool(tool: ToolDefinition): ToolDefinition {
+  return structuredClone(tool);
+}
+
+function isEditImageModel(modelId: string): boolean {
+  return modelId.startsWith('qwen_image_edit_')
+    || modelId.startsWith('flux2_')
+    || modelId.includes('kontext');
+}
+
+function filterVideoModelsByWorkflow(
+  availableModels: Array<{ id: string; media?: string }>,
+  workflows: string[]
+): string[] {
+  return availableModels
+    .filter((model) => model.media === 'video')
+    .filter((model) => {
+      const workflow = getVideoWorkflowType(model.id);
+      return workflow !== null && workflows.includes(workflow);
+    })
+    .map((model) => model.id);
+}
+
+function setModelEnum(tool: ToolDefinition, modelIds: string[], description: string): ToolDefinition {
+  if (modelIds.length === 0) {
+    return tool;
+  }
+  (tool.function.parameters as any).properties.model = {
+    type: 'string',
+    description,
+    enum: modelIds
+  };
+  return tool;
+}
 
 /**
  * Built-in Sogni platform tool definitions for use with LLM tool calling.
  *
- * These tools allow the LLM to generate images, videos, and music
- * through the Sogni Supernet. Include them in your `tools` array when
- * calling `sogni.chat.completions.create()`.
- *
- * @example
- * ```typescript
- * import { SogniTools } from '@sogni-ai/sogni-client';
- *
- * const stream = await sogni.chat.completions.create({
- *   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
- *   messages: [{ role: 'user', content: 'Generate an image of a sunset' }],
- *   tools: SogniTools.all,
- *   tool_choice: 'auto',
- *   stream: true,
- * });
- * ```
+ * These tools allow the LLM to generate images, edit images, generate videos,
+ * transform videos, and generate music through the Sogni Supernet.
  */
 
-/** Tool definition: Generate an image using the Sogni Supernet */
 export const generateImageTool: ToolDefinition = {
   type: 'function',
   function: {
@@ -74,13 +95,78 @@ export const generateImageTool: ToolDefinition = {
   }
 };
 
-/** Tool definition: Generate a video using the Sogni Supernet */
+export const editImageTool: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'sogni_edit_image',
+    description:
+      'Generate an edited or reference-guided image using 1-6 input images on the Sogni Supernet. Returns URLs to the generated images. Use this tool when the user wants to edit an existing image, preserve a person\'s likeness, combine multiple references, or transform a source image while keeping key visual traits.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description:
+            'Describe the desired edit or new image while clearly stating what should be preserved from the provided reference images.'
+        },
+        source_image_url: {
+          type: 'string',
+          description:
+            'Primary image to edit or use as the main identity/composition reference. Supports http(s) URLs and data URIs.'
+        },
+        reference_image_urls: {
+          type: 'array',
+          description:
+            'Additional reference images to guide identity, pose, clothing, style, or background. Supports http(s) URLs and data URIs. Combined with source_image_url, up to 6 images total are used.',
+          items: {
+            type: 'string'
+          }
+        },
+        negative_prompt: {
+          type: 'string',
+          description:
+            'Things to avoid in the edited image (e.g., "blurry, low quality, distorted").'
+        },
+        width: {
+          type: 'number',
+          description:
+            'Output image width in pixels. Must be a multiple of 16. Default depends on the model.'
+        },
+        height: {
+          type: 'number',
+          description:
+            'Output image height in pixels. Must be a multiple of 16. Default depends on the model.'
+        },
+        model: {
+          type: 'string',
+          description: 'Image editing model to use.',
+          enum: [
+            'qwen_image_edit_2511_fp8_lightning',
+            'qwen_image_edit_2511_fp8',
+            'flux2_dev_fp8',
+            'flux1-dev-kontext_fp8_scaled'
+          ]
+        },
+        number_of_variations: {
+          type: 'number',
+          description: 'Number of edited image variations to generate. Range: 1-16. Default: 1.'
+        },
+        seed: {
+          type: 'number',
+          description: 'Random seed for reproducible generation. Use -1 for random.'
+        }
+      },
+      required: ['prompt']
+    }
+  }
+};
+
 export const generateVideoTool: ToolDefinition = {
   type: 'function',
   function: {
     name: 'sogni_generate_video',
     description:
-      'Generate a short video using AI video generation on the Sogni Supernet. Returns a URL to the generated video. Use this tool EVERY TIME the user asks to create, generate, or make a video, clip, or animation. Do NOT generate URLs yourself — you MUST call this tool. Write the prompt as a cohesive mini-scene in present tense, describing motion, camera movement, lighting, and atmosphere in flowing prose.',
+      'Generate a short video using AI video generation on the Sogni Supernet. Returns URLs to the generated videos. Use this tool EVERY TIME the user asks to create, generate, or make a video, clip, or animation. Do NOT generate URLs yourself — you MUST call this tool. Write the prompt as a cohesive mini-scene in present tense, describing motion, camera movement, lighting, and atmosphere in flowing prose.',
     parameters: {
       type: 'object',
       properties: {
@@ -94,14 +180,45 @@ export const generateVideoTool: ToolDefinition = {
           description:
             'Things to avoid in the generated video (e.g., "blurry, low quality, distorted, watermark").'
         },
+        reference_image_url: {
+          type: 'string',
+          description:
+            'Optional starting image for image-to-video generation. Supports http(s) URLs and data URIs.'
+        },
+        reference_image_end_url: {
+          type: 'string',
+          description:
+            'Optional ending image for keyframe interpolation. Supports http(s) URLs and data URIs.'
+        },
+        reference_audio_identity_url: {
+          type: 'string',
+          description:
+            'Optional voice identity clip for LTX-2.3 text-to-video or image-to-video workflows. Supports http(s) URLs and data URIs.'
+        },
+        audio_identity_strength: {
+          type: 'number',
+          description:
+            'How strongly to apply the reference_audio_identity_url voice identity. Range: 0-10. Default depends on the model.'
+        },
+        first_frame_strength: {
+          type: 'number',
+          description:
+            'How strictly to match the starting frame when using reference_image_end_url. Range: 0-1.'
+        },
+        last_frame_strength: {
+          type: 'number',
+          description:
+            'How strictly to match the ending frame when using reference_image_end_url. Range: 0-1.'
+        },
         width: {
           type: 'number',
           description:
-            'Video width in pixels. Default: 1920. Standard resolutions: 1920x1088 (landscape), 1088x1920 (portrait), 1280x720.'
+            'Video width in pixels. Default depends on the selected workflow. Standard resolutions include 1920x1088, 1088x1920, and 1280x720.'
         },
         height: {
           type: 'number',
-          description: 'Video height in pixels. Default: 1088. Must be a multiple of 16.'
+          description:
+            'Video height in pixels. Default depends on the selected workflow. Must be a multiple of 16.'
         },
         duration: {
           type: 'number',
@@ -109,12 +226,16 @@ export const generateVideoTool: ToolDefinition = {
         },
         fps: {
           type: 'number',
-          description: 'Frames per second. Default: 24. Range: 1-60.'
+          description: 'Frames per second. Default depends on the model. Range: 1-60.'
         },
         model: {
           type: 'string',
           description:
-            'Video generation model to use. Prefer LTX-2.3 text-to-video (t2v) models for best quality.'
+            'Video generation model to use. Prefer LTX-2.3 models: use t2v for text-only generation and i2v when reference images are supplied.'
+        },
+        number_of_variations: {
+          type: 'number',
+          description: 'Number of video variations to generate. Range: 1-16. Default: 1.'
         },
         seed: {
           type: 'number',
@@ -126,20 +247,177 @@ export const generateVideoTool: ToolDefinition = {
   }
 };
 
-/** Tool definition: Generate music using the Sogni Supernet */
-export const generateMusicTool: ToolDefinition = {
+export const soundToVideoTool: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'sogni_generate_music',
+    name: 'sogni_sound_to_video',
     description:
-      'Generate a music track using AI music generation on the Sogni Supernet. Returns a URL to the generated audio file. Use this tool EVERY TIME the user asks to create, generate, compose, or make music, a song, a beat, or audio. Do NOT generate URLs yourself — you MUST call this tool.',
+      'Generate a short video synchronized to an input audio clip on the Sogni Supernet. Returns URLs to the generated videos. Use this when the user wants a music video, lip-sync style clip, or audio-reactive visuals driven by a specific audio file.',
     parameters: {
       type: 'object',
       properties: {
         prompt: {
           type: 'string',
           description:
-            'Description of the music to generate. Include genre, mood, tempo, instruments, and style. Can also include lyrics wrapped in [verse], [chorus], etc. tags.'
+            'Describe the visuals to generate in present tense while letting the supplied audio drive the timing and rhythm.'
+        },
+        reference_audio_url: {
+          type: 'string',
+          description: 'Audio file to drive the video. Supports http(s) URLs and data URIs.'
+        },
+        reference_image_url: {
+          type: 'string',
+          description:
+            'Optional image to use as the subject or first frame. Supports http(s) URLs and data URIs.'
+        },
+        audio_start: {
+          type: 'number',
+          description: 'Start offset in seconds into the reference audio. Default: 0.'
+        },
+        duration: {
+          type: 'number',
+          description: 'Output video duration in seconds. Range: 1-20. Default: 5.'
+        },
+        width: {
+          type: 'number',
+          description: 'Video width in pixels. Default depends on the selected workflow.'
+        },
+        height: {
+          type: 'number',
+          description: 'Video height in pixels. Default depends on the selected workflow.'
+        },
+        model: {
+          type: 'string',
+          description: 'Audio-driven video model to use.',
+          enum: [
+            'ltx23-22b-fp8_ia2v_distilled',
+            'ltx23-22b-fp8_a2v_distilled',
+            'wan_v2.2-14b-fp8_s2v_lightx2v'
+          ]
+        },
+        number_of_variations: {
+          type: 'number',
+          description: 'Number of video variations to generate. Range: 1-16. Default: 1.'
+        },
+        seed: {
+          type: 'number',
+          description: 'Random seed for reproducible generation. Use -1 for random.'
+        }
+      },
+      required: ['prompt', 'reference_audio_url']
+    }
+  }
+};
+
+export const videoToVideoTool: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'sogni_video_to_video',
+    description:
+      'Transform an existing video using AI video-to-video workflows on the Sogni Supernet. Returns URLs to the generated videos. Use this when the user wants to restyle a video, preserve motion while changing the look, or animate/replace a subject using a reference image.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description:
+            'Describe the target appearance or transformation in present tense. For detail enhancement, describe the existing scene and the desired quality improvement rather than inventing new content.'
+        },
+        reference_video_url: {
+          type: 'string',
+          description: 'Source video to transform. Supports http(s) URLs and data URIs.'
+        },
+        negative_prompt: {
+          type: 'string',
+          description:
+            'Things to avoid in the generated video (e.g., "blurry, low quality, distorted, watermark").'
+        },
+        control_mode: {
+          type: 'string',
+          description:
+            'How to use the source video. animate-move and animate-replace use WAN animate workflows. canny, pose, depth, and detailer use LTX-2.3 v2v ControlNet.',
+          enum: ['animate-move', 'animate-replace', 'canny', 'pose', 'depth', 'detailer']
+        },
+        reference_image_url: {
+          type: 'string',
+          description:
+            'Optional reference image for animate workflows or pose-guided appearance control. Supports http(s) URLs and data URIs.'
+        },
+        reference_audio_identity_url: {
+          type: 'string',
+          description:
+            'Optional voice identity clip for LTX-2.3 v2v workflows. Supports http(s) URLs and data URIs.'
+        },
+        audio_identity_strength: {
+          type: 'number',
+          description:
+            'How strongly to apply the reference_audio_identity_url voice identity. Range: 0-10. Default depends on the model.'
+        },
+        video_start: {
+          type: 'number',
+          description: 'Start offset in seconds into the source video.'
+        },
+        duration: {
+          type: 'number',
+          description: 'Output video duration in seconds. Range: 1-20. Default: 5.'
+        },
+        width: {
+          type: 'number',
+          description: 'Output video width in pixels. Default depends on the selected workflow.'
+        },
+        height: {
+          type: 'number',
+          description: 'Output video height in pixels. Default depends on the selected workflow.'
+        },
+        detailer_strength: {
+          type: 'number',
+          description:
+            'Optional detailer LoRA strength for LTX-2.3 v2v control workflows. Range: 0-1.'
+        },
+        model: {
+          type: 'string',
+          description: 'Video-to-video model to use.',
+          enum: [
+            'ltx23-22b-fp8_v2v_distilled',
+            'wan_v2.2-14b-fp8_animate-move_lightx2v',
+            'wan_v2.2-14b-fp8_animate-replace_lightx2v'
+          ]
+        },
+        number_of_variations: {
+          type: 'number',
+          description: 'Number of video variations to generate. Range: 1-16. Default: 1.'
+        },
+        seed: {
+          type: 'number',
+          description: 'Random seed for reproducible generation. Use -1 for random.'
+        }
+      },
+      required: ['prompt', 'reference_video_url']
+    }
+  }
+};
+
+export const generateMusicTool: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'sogni_generate_music',
+    description:
+      'Generate a music track using AI music generation on the Sogni Supernet. Returns URLs to the generated audio files. Use this tool EVERY TIME the user asks to create, generate, compose, or make music, a song, a beat, or audio. Do NOT generate URLs yourself — you MUST call this tool.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description:
+            'Description of the music to generate. Include genre, mood, tempo, instruments, and style.'
+        },
+        lyrics: {
+          type: 'string',
+          description: 'Song lyrics to sing. Omit for instrumental music.'
+        },
+        language: {
+          type: 'string',
+          description: 'Lyrics language code, such as "en" or "es".'
         },
         duration: {
           type: 'number',
@@ -156,19 +434,35 @@ export const generateMusicTool: ToolDefinition = {
         },
         timesignature: {
           type: 'string',
-          description: 'Time signature. "4" for 4/4, "3" for 3/4, "2" for 2/4. Default: "4".',
-          enum: ['4', '3', '2']
+          description: 'Time signature. Common values: "4", "3", "2", or "6". Default: "4".',
+          enum: ['4', '3', '2', '6']
+        },
+        composer_mode: {
+          type: 'boolean',
+          description: 'Enable AI composer mode for richer arrangements. Default depends on the model.'
+        },
+        prompt_strength: {
+          type: 'number',
+          description: 'How closely the model should follow the prompt. Higher values increase prompt adherence.'
+        },
+        creativity: {
+          type: 'number',
+          description: 'Composition variation / temperature. Higher values are more creative.'
         },
         model: {
           type: 'string',
           description:
-            'Music generation model. "ace_step_1.5_turbo" for fast/catchy, "ace_step_1.5_sft" for more control over lyrics.',
+            'Music generation model. "ace_step_1.5_turbo" is the default and preferred model — highest quality output. "ace_step_1.5_sft" is an experimental model with lower fidelity but best lyric handling support.',
           enum: ['ace_step_1.5_turbo', 'ace_step_1.5_sft']
         },
         output_format: {
           type: 'string',
           description: 'Audio output format. Default: "mp3".',
           enum: ['mp3', 'flac', 'wav']
+        },
+        number_of_variations: {
+          type: 'number',
+          description: 'Number of audio variations to generate. Range: 1-16. Default: 1.'
         },
         seed: {
           type: 'number',
@@ -180,44 +474,25 @@ export const generateMusicTool: ToolDefinition = {
   }
 };
 
-/**
- * Collection of all Sogni platform tool definitions.
- */
 export const SogniTools = {
-  /** Generate an image */
   generateImage: generateImageTool,
-  /** Generate a video */
+  editImage: editImageTool,
   generateVideo: generateVideoTool,
-  /** Generate music */
+  soundToVideo: soundToVideoTool,
+  videoToVideo: videoToVideoTool,
   generateMusic: generateMusicTool,
-  /** All Sogni tools combined — convenience array for `tools` param */
   get all(): ToolDefinition[] {
-    return [generateImageTool, generateVideoTool, generateMusicTool];
+    return [
+      generateImageTool,
+      editImageTool,
+      generateVideoTool,
+      soundToVideoTool,
+      videoToVideoTool,
+      generateMusicTool
+    ];
   }
 };
 
-/**
- * Build Sogni tool definitions with dynamically populated model enums
- * based on currently available models on the network.
- *
- * @param availableModels - Result of `sogni.projects.waitForModels()`. If omitted, returns
- *   the default tool definitions with static model lists.
- *
- * @example
- * ```typescript
- * import { buildSogniTools } from '@sogni-ai/sogni-client';
- *
- * const models = await sogni.projects.waitForModels();
- * const tools = buildSogniTools(models);
- *
- * const stream = await sogni.chat.completions.create({
- *   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
- *   messages,
- *   tools,
- *   stream: true,
- * });
- * ```
- */
 export function buildSogniTools(
   availableModels?: Array<{ id: string; media?: string }>
 ): ToolDefinition[] {
@@ -225,56 +500,52 @@ export function buildSogniTools(
     return SogniTools.all;
   }
 
-  const imageModels = availableModels.filter((m) => m.media === 'image').map((m) => m.id);
-  const videoModels = availableModels.filter((m) => m.media === 'video').map((m) => m.id);
-  const audioModels = availableModels.filter((m) => m.media === 'audio').map((m) => m.id);
+  const imageModels = availableModels.filter((model) => model.media === 'image').map((model) => model.id);
+  const editImageModels = availableModels
+    .filter((model) => model.media === 'image' && isEditImageModel(model.id))
+    .map((model) => model.id);
+  const videoModels = filterVideoModelsByWorkflow(availableModels, ['t2v', 'i2v']);
+  const soundToVideoModels = filterVideoModelsByWorkflow(availableModels, ['s2v', 'ia2v', 'a2v']);
+  const videoToVideoModels = filterVideoModelsByWorkflow(
+    availableModels,
+    ['animate-move', 'animate-replace', 'v2v']
+  );
+  const audioModels = availableModels.filter((model) => model.media === 'audio').map((model) => model.id);
 
-  const tools: ToolDefinition[] = [];
-
-  // Image tool — override model enum if image models are available
-  const imageTool = structuredClone(generateImageTool);
-  if (imageModels.length > 0) {
-    (imageTool.function.parameters as any).properties.model.enum = imageModels;
-  }
-  tools.push(imageTool);
-
-  // Video tool — override model enum if video models are available
-  const videoTool = structuredClone(generateVideoTool);
-  if (videoModels.length > 0) {
-    (videoTool.function.parameters as any).properties.model = {
-      type: 'string',
-      description: 'Video generation model to use. Choose a text-to-video (t2v) model.',
-      enum: videoModels
-    };
-  }
-  tools.push(videoTool);
-
-  // Music tool — override model enum if audio models are available
-  const musicTool = structuredClone(generateMusicTool);
-  if (audioModels.length > 0) {
-    (musicTool.function.parameters as any).properties.model = {
-      type: 'string',
-      description:
-        'Music generation model. "ace_step_1.5_turbo" for fast/catchy, "ace_step_1.5_sft" for more control over lyrics.',
-      enum: audioModels
-    };
-  }
-  tools.push(musicTool);
-
-  return tools;
+  return [
+    setModelEnum(cloneTool(generateImageTool), imageModels, 'Image generation model to use.'),
+    setModelEnum(
+      cloneTool(editImageTool),
+      editImageModels,
+      'Image editing model to use. These models support reference-guided editing.'
+    ),
+    setModelEnum(
+      cloneTool(generateVideoTool),
+      videoModels,
+      'Video generation model to use. Prefer t2v models for text-only generation and i2v models when reference images are supplied.'
+    ),
+    setModelEnum(
+      cloneTool(soundToVideoTool),
+      soundToVideoModels,
+      'Audio-driven video model to use.'
+    ),
+    setModelEnum(
+      cloneTool(videoToVideoTool),
+      videoToVideoModels,
+      'Video-to-video model to use.'
+    ),
+    setModelEnum(
+      cloneTool(generateMusicTool),
+      audioModels,
+      'Music generation model to use.'
+    )
+  ];
 }
 
-/**
- * Check if a tool call is a Sogni platform tool.
- */
 export function isSogniToolCall(toolCall: ToolCall): boolean {
   return toolCall.function.name.startsWith('sogni_');
 }
 
-/**
- * Parse arguments from a tool call's JSON string.
- * Returns the parsed object or an empty object if parsing fails.
- */
 export function parseToolCallArguments(toolCall: ToolCall): Record<string, unknown> {
   try {
     return JSON.parse(toolCall.function.arguments);
