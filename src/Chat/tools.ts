@@ -1,30 +1,20 @@
-import { getVideoWorkflowType } from '../Projects/utils';
 import { ToolDefinition, ToolCall } from './types';
+import {
+  filterVideoModelsByWorkflow,
+  isEditImageModel,
+  PREFERRED_MODEL_IDS,
+  VideoWorkflow
+} from './modelRouting';
 
 function cloneTool(tool: ToolDefinition): ToolDefinition {
   return structuredClone(tool);
 }
 
-function isEditImageModel(modelId: string): boolean {
-  return modelId.startsWith('qwen_image_edit_')
-    || modelId.startsWith('flux2_')
-    || modelId.includes('kontext');
-}
-
-function filterVideoModelsByWorkflow(
-  availableModels: Array<{ id: string; media?: string }>,
-  workflows: string[]
-): string[] {
-  return availableModels
-    .filter((model) => model.media === 'video')
-    .filter((model) => {
-      const workflow = getVideoWorkflowType(model.id);
-      return workflow !== null && workflows.includes(workflow);
-    })
-    .map((model) => model.id);
-}
-
-function setModelEnum(tool: ToolDefinition, modelIds: string[], description: string): ToolDefinition {
+function setModelEnum(
+  tool: ToolDefinition,
+  modelIds: string[],
+  description: string
+): ToolDefinition {
   if (modelIds.length === 0) {
     return tool;
   }
@@ -74,10 +64,10 @@ export const generateImageTool: ToolDefinition = {
           type: 'string',
           description: 'Image generation model to use.',
           enum: [
-            'flux1-schnell-fp8',
-            'flux2-dev_fp8',
-            'chroma-v.46-flash_fp8',
-            'z_image_turbo_bf16'
+            PREFERRED_MODEL_IDS.image.flux1Schnell,
+            PREFERRED_MODEL_IDS.image.flux2,
+            PREFERRED_MODEL_IDS.image.chromaFlash,
+            PREFERRED_MODEL_IDS.image.zTurbo
           ]
         },
         steps: {
@@ -100,7 +90,7 @@ export const editImageTool: ToolDefinition = {
   function: {
     name: 'sogni_edit_image',
     description:
-      'Generate an edited or reference-guided image using 1-6 input images on the Sogni Supernet. Returns URLs to the generated images. Use this tool when the user wants to edit an existing image, preserve a person\'s likeness, combine multiple references, or transform a source image while keeping key visual traits.',
+      "Generate an edited or reference-guided image using 1-6 input images on the Sogni Supernet. Returns URLs to the generated images. Use this tool when the user wants to edit an existing image, preserve a person's likeness, combine multiple references, or transform a source image while keeping key visual traits.",
     parameters: {
       type: 'object',
       properties: {
@@ -263,7 +253,8 @@ export const soundToVideoTool: ToolDefinition = {
         },
         reference_audio_url: {
           type: 'string',
-          description: 'Audio file to drive the video. Supports inline base64-encoded MP3, M4A, or WAV data URIs only; remote http(s) URLs are not allowed.'
+          description:
+            'Audio file to drive the video. Supports inline base64-encoded MP3, M4A, or WAV data URIs only; remote http(s) URLs are not allowed.'
         },
         reference_image_url: {
           type: 'string',
@@ -325,7 +316,8 @@ export const videoToVideoTool: ToolDefinition = {
         },
         reference_video_url: {
           type: 'string',
-          description: 'Source video to transform. Supports inline base64-encoded MP4 or MOV/QuickTime data URIs only; remote http(s) URLs are not allowed.'
+          description:
+            'Source video to transform. Supports inline base64-encoded MP4 or MOV/QuickTime data URIs only; remote http(s) URLs are not allowed.'
         },
         negative_prompt: {
           type: 'string',
@@ -439,11 +431,13 @@ export const generateMusicTool: ToolDefinition = {
         },
         composer_mode: {
           type: 'boolean',
-          description: 'Enable AI composer mode for richer arrangements. Default depends on the model.'
+          description:
+            'Enable AI composer mode for richer arrangements. Default depends on the model.'
         },
         prompt_strength: {
           type: 'number',
-          description: 'How closely the model should follow the prompt. Higher values increase prompt adherence.'
+          description:
+            'How closely the model should follow the prompt. Higher values increase prompt adherence.'
         },
         creativity: {
           type: 'number',
@@ -500,17 +494,22 @@ export function buildSogniTools(
     return SogniTools.all;
   }
 
-  const imageModels = availableModels.filter((model) => model.media === 'image').map((model) => model.id);
+  const imageModels = availableModels
+    .filter((model) => model.media === 'image')
+    .map((model) => model.id);
   const editImageModels = availableModels
     .filter((model) => model.media === 'image' && isEditImageModel(model.id))
     .map((model) => model.id);
   const videoModels = filterVideoModelsByWorkflow(availableModels, ['t2v', 'i2v']);
   const soundToVideoModels = filterVideoModelsByWorkflow(availableModels, ['s2v', 'ia2v', 'a2v']);
-  const videoToVideoModels = filterVideoModelsByWorkflow(
-    availableModels,
-    ['animate-move', 'animate-replace', 'v2v']
-  );
-  const audioModels = availableModels.filter((model) => model.media === 'audio').map((model) => model.id);
+  const videoToVideoModels = filterVideoModelsByWorkflow(availableModels, [
+    'animate-move',
+    'animate-replace',
+    'v2v'
+  ] as VideoWorkflow[]);
+  const audioModels = availableModels
+    .filter((model) => model.media === 'audio')
+    .map((model) => model.id);
 
   return [
     setModelEnum(cloneTool(generateImageTool), imageModels, 'Image generation model to use.'),
@@ -529,16 +528,8 @@ export function buildSogniTools(
       soundToVideoModels,
       'Audio-driven video model to use.'
     ),
-    setModelEnum(
-      cloneTool(videoToVideoTool),
-      videoToVideoModels,
-      'Video-to-video model to use.'
-    ),
-    setModelEnum(
-      cloneTool(generateMusicTool),
-      audioModels,
-      'Music generation model to use.'
-    )
+    setModelEnum(cloneTool(videoToVideoTool), videoToVideoModels, 'Video-to-video model to use.'),
+    setModelEnum(cloneTool(generateMusicTool), audioModels, 'Music generation model to use.')
   ];
 }
 
