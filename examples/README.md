@@ -567,6 +567,16 @@ Generate the core text-to-image, text-to-video, and text-to-music flows through 
 - `sogni_sound_to_video` - Audio-driven video generation with explicit inline audio data URIs
 - `sogni_video_to_video` - Video transformation and motion transfer with explicit inline video data URIs
 
+**Rich Creative-Agent Tool Family:**
+The Sogni API also exposes a richer 14-tool family for agentic chat experiences. Pass `sogni_tools: "creative-agent"` (or `"rich"`) in the request body to swap the 6 hosted `sogni_*` tools for `generate_image`, `edit_image`, `restore_photo`, `apply_style`, `refine_result`, `animate_photo` (with multi-source fan-out), `change_angle`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`, plus three composition tools that return a single stitched MP4: `stitch_video`, `orbit_video`, and `dance_montage`. See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
+
+**Durable Creative Workflows:**
+For multi-step workflows that need to survive client disconnect, persist state, or be observed from a second client, use the durable workflow API directly:
+- `POST /v1/creative-agent/workflows` — start (`kind: "image_to_video"` is the first supported plan)
+- `GET /v1/creative-agent/workflows/:id/events/stream` — SSE feed (use `fetch` + `ReadableStream`; `EventSource` cannot carry the `Authorization` header)
+- `POST /v1/creative-agent/workflows/:id/cancel` — cooperative cancellation
+See the [durable workflows reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#durable-creative-agent-workflows) for full details.
+
 **Usage:**
 ```bash
 node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city at night"

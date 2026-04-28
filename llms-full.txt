@@ -795,13 +795,29 @@ Sogni's generation APIs automatically:
 - Video-to-Video: "Restyle this video as anime"
 - Music Generation: "Compose a jazz song about the rain"
 
-BUILT-IN PUBLIC TOOL NAMES:
+BUILT-IN PUBLIC TOOL NAMES (default `sogni_tools: true`):
 - `sogni_generate_image`
 - `sogni_edit_image`
 - `sogni_generate_video`
 - `sogni_sound_to_video`
 - `sogni_video_to_video`
 - `sogni_generate_music`
+
+RICH CREATIVE-AGENT TOOL FAMILY (opt in with `sogni_tools: "creative-agent"` / `"rich"`):
+The Sogni API can also inject a 14-tool family that mirrors the creative-agent surface used by chat.sogni.ai. Same chat completions endpoint, different tool set:
+
+- `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video` — direct hosted aliases of the `sogni_*` family above.
+- `restore_photo`, `apply_style`, `refine_result`, `change_angle` — image-edit adapters (each routes through `sogni_edit_image` server-side).
+- `animate_photo` — image-to-video, with multi-source fan-out via `sourceImageIndices`. Fan-out (>1 source image) is composed into one MP4 by default; opt out with `stitched: false` for a flat clip list.
+- `stitch_video` — concatenate selected video clips (with optional audio overlay via `audioIndex`) into one MP4.
+- `orbit_video` — generate orbit clips around a subject and stitch them into one MP4.
+- `dance_montage` — generate dance clips and stitch when multi-clip.
+
+PER-REQUEST MEDIA CONTEXT (rich tools only):
+Generated images, videos, and audio are addressable by stable indices across tool rounds. Every rich tool result returns `startIndex` and `indices` in its envelope so a later tool can target the result with `sourceImageIndex`, `videoIndices`, `audioIndex`, etc., without the model having to copy URLs back into prompt text.
+
+COMPOSITION TOOLS:
+`stitch_video`, `orbit_video`, `dance_montage`, and `animate_photo` fan-out return a single composed MP4 URL. Per-clip source URLs are preserved on the result envelope for inspection.
 
 MEDIA-CONDITIONED TOOL INPUTS:
 - `source_image_url`, `reference_image_urls`

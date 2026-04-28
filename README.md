@@ -19,6 +19,8 @@ Behind the scenes this SDK uses a WebSocket connection for communication between
 - 🤖 **LLM Text Generation** - Chat completions with streaming, multi-turn conversations, and thinking/reasoning mode via OpenAI-compatible API
 - 🔧 **LLM Tool Calling** - Define custom tools (functions) that the LLM can invoke during conversations for real-time data and actions
 - 🎨🎬🎵 **Sogni Platform Tools** - Generate images, reference-guided image edits, videos, audio-driven videos, video transforms, and music through natural language chat
+- 🤖 **Rich Creative-Agent Tools** - Opt into a 14-tool agentic family (`restore_photo`, `animate_photo` with multi-source fan-out, `stitch_video`, `orbit_video`, `dance_montage`, etc.) by setting `sogni_tools: "creative-agent"`
+- ⏱️ **Durable Creative Workflows** - Persistent server-side multi-step workflows with SSE event streaming, `Last-Event-ID` resume, and cooperative cancellation via `/v1/creative-agent/workflows`
 - 👁️ **Vision Chat** - Multimodal image understanding with scene description, OCR, object detection, visual analysis, and multi-image comparison via Qwen3.6 VLM
 ## Migration notes
 ### v3.x.x to v4.x.x
@@ -705,6 +707,44 @@ Use `SogniTools.all` to expose the full tool surface, then execute tool calls wi
 Media-conditioned workflows use explicit inline base64 `data:` URIs, including `source_image_url`, `reference_image_url`, `reference_audio_url`, `reference_audio_identity_url`, and `reference_video_url`. Remote `http(s)` URLs are not allowed for these tool inputs. Tool image inputs accept PNG or JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
+
+### Rich Creative-Agent Tool Family (server-side)
+
+For agentic experiences that mirror `chat.sogni.ai`, the Sogni API can inject a richer 14-tool family instead of the 6 hosted `sogni_*` tools above. Pass `sogni_tools: "creative-agent"` (or `"rich"`) in the chat completion request body — the server expands the injected tool set to the full creative-agent surface and threads a per-request media context across rounds so generated artifacts can be referenced by index.
+
+Tools added on top of the hosted six:
+
+| Tool | Behavior |
+|------|----------|
+| `restore_photo`, `apply_style`, `refine_result`, `change_angle` | Image-edit adapters (each routes through `sogni_edit_image` server-side) |
+| `animate_photo` | Image-to-video, with multi-source fan-out via `sourceImageIndices` (composed into one MP4 by default; opt out with `stitched: false`) |
+| `stitch_video` | Compose selected video clips into one MP4 (with optional audio overlay) |
+| `orbit_video` | Generate orbit clips around a subject and stitch them |
+| `dance_montage` | Generate dance clips and stitch when multi-clip |
+
+Composition tools (`stitch_video`, `orbit_video`, `dance_montage`, and `animate_photo` fan-out) return a single composed MP4 URL. See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
+
+```javascript
+// Opt into the rich tool family at request time:
+const result = await sogni.chat.completions.create({
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
+  messages: [{ role: 'user', content: 'Create an orbit video around the subject in this photo' }],
+  // SDK fields like `autoExecuteTools` work the same with rich tools.
+  // Pass server-side fields through if your transport supports `extra_body`,
+  // or call `/v1/chat/completions` directly with the OpenAI SDK.
+});
+```
+
+### Durable Creative Workflows (server-side)
+
+Long-running multi-step creative workflows can be persisted on the server and observed independently of the chat completion that started them. The Sogni API exposes:
+
+- `POST /v1/creative-agent/workflows` — start a durable workflow (currently `kind: "image_to_video"`)
+- `GET /v1/creative-agent/workflows/:id/events/stream` — Server-Sent Events feed with `Last-Event-ID` resume + `?after=` query
+- `POST /v1/creative-agent/workflows/:id/cancel` — cooperative cancellation (idempotent)
+- Plus list / snapshot / event-poll variants
+
+These are HTTP endpoints rather than SDK methods today; see the [LLM API durable workflows reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#durable-creative-agent-workflows) for the full surface. They require API-key auth (chat session JWTs are explicitly rejected) so a key acts on behalf of the wallet.
 
 ## Code Examples
 

@@ -394,7 +394,7 @@ Combine LLM tool calling with Sogni's generation APIs to create media from natur
 - **Video-to-Video** — "Restyle this video as anime"
 - **Music Generation** — "Compose a jazz song about the rain"
 
-Built-in public tool names:
+Built-in public tool names (default `sogni_tools: true`):
 
 - `sogni_generate_image`
 - `sogni_edit_image`
@@ -403,9 +403,20 @@ Built-in public tool names:
 - `sogni_video_to_video`
 - `sogni_generate_music`
 
+Rich creative-agent tool family (opt in with `sogni_tools: "creative-agent"` / `"rich"`):
+
+- `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video`
+- `restore_photo`, `apply_style`, `refine_result`, `change_angle` (image-edit adapters)
+- `animate_photo` (image-to-video with multi-source fan-out via `sourceImageIndices`; composed into one MP4 by default — opt out with `stitched: false`)
+- `stitch_video`, `orbit_video`, `dance_montage` (server-side composition into a single MP4)
+
+Per-request media context: when rich tools are injected, generated images / videos / audio are addressable by stable indices across tool rounds (each tool result envelope returns `startIndex` and `indices`).
+
 Media-conditioned tools accept explicit inline base64 `data:` URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`. Remote `http(s)` URLs are not allowed for these tool inputs. Tool image inputs accept PNG/JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. For the full built-in tool surface, use `SogniTools.all` with `sogni.chat.tools.executeAll()` or `autoExecuteTools`.
+
+Durable creative workflows: the Sogni API also exposes persistent multi-step workflows at `/v1/creative-agent/workflows` (start / list / snapshot / events / events-stream / cancel) for flows that need to survive client disconnect. SSE streaming uses `Last-Event-ID` resume; `EventSource` cannot carry the required `Authorization` header, so use `fetch` + `ReadableStream` and parse SSE manually.
 
 Default generation models used by platform tools:
 | Tool | Model | Description |
