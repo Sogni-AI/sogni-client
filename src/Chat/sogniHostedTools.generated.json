@@ -36,6 +36,10 @@
                 "z_image_turbo_bf16"
               ]
             },
+            "number_of_variations": {
+              "type": "number",
+              "description": "Number of image variations to generate. Range: 1-16. Default: 1."
+            },
             "steps": {
               "type": "number",
               "description": "Number of inference steps. Higher = better quality but slower. Default depends on model (4-50)."

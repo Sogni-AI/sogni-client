@@ -41,6 +41,7 @@
     "clean": "rimraf ./dist",
     "prepublishOnly": "npm run build",
     "build": "npm run clean && tsc --project tsconfig.json",
+    "test:chat-routing": "npm run build && node scripts/check-chat-model-routing.cjs",
     "watch": "npm run clean && tsc --watch --project tsconfig.json",
     "watch:esm": "npm run clean && tsc --watch --project tsconfig.esm.json",
     "prettier": "prettier --check ./src",

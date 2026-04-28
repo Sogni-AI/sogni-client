@@ -4,14 +4,23 @@ import { getMaxContextImages } from '../lib/validation';
 import { parseInlineMediaDataUri } from '../lib/mediaValidation';
 import type { MediaType } from '../lib/mediaValidation';
 import {
+  assertHostedToolArguments,
+  asBooleanValue,
+  asFiniteNumber,
+  asStringArray,
+  getHostedVariationCount,
   getVideoDefaults,
-  getVideoWorkflowType,
   isEditImageModel,
+  isNonEmptyString,
+  normalizeTimeSignature,
+  normalizeVideoControlMode,
   PREFERRED_MODEL_IDS,
-  VideoControlMode,
+  resolveHostedToolModelSelector,
+  selectBackboneModel,
+  serializeUnknownError,
   VideoWorkflow
 } from './modelRouting';
-import { isSogniToolCall, parseToolCallArguments } from './tools';
+import { SogniTools, isSogniToolCall, parseToolCallArguments } from './tools';
 import {
   ToolCall,
   ToolExecutionOptions,
@@ -28,58 +37,8 @@ const MAX_INPUT_MEDIA_BYTES: Record<MediaType, number> = {
   video: 100 * 1024 * 1024
 };
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
-function asNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-function asBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined;
-}
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter(isNonEmptyString);
-}
-
-function clampVariationCount(value: unknown, fallback = 1): number {
-  const count = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-  return Math.max(1, Math.min(16, Math.round(count)));
-}
-
-function normalizeTimeSignature(value: unknown): string | undefined {
-  if (typeof value === 'string' && value.length > 0) {
-    return value;
-  }
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return String(Math.round(value));
-  }
-  return undefined;
-}
-
-function normalizeVideoControlMode(value: unknown): VideoControlMode {
-  switch (value) {
-    case 'animate-replace':
-    case 'canny':
-    case 'pose':
-    case 'depth':
-    case 'detailer':
-      return value;
-    default:
-      return 'animate-move';
-  }
-}
-
 function getVariationCount(args: Record<string, unknown>, options?: ToolExecutionOptions): number {
-  if (args.number_of_variations !== undefined) {
-    return clampVariationCount(args.number_of_variations);
-  }
-  return clampVariationCount(options?.numberOfMedia, 1);
+  return getHostedVariationCount(args, options?.numberOfMedia);
 }
 
 class ChatToolsApi {
@@ -105,6 +64,8 @@ class ChatToolsApi {
     const name = toolCall.function.name;
 
     try {
+      assertHostedToolArguments(SogniTools.all, name, args);
+
       switch (name) {
         case 'sogni_generate_image':
           return await this.executeImageGeneration(toolCall, args, options);
@@ -122,7 +83,7 @@ class ChatToolsApi {
           return this.makeErrorResult(toolCall, `Unknown Sogni tool: ${name}`);
       }
     } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
+      const error = serializeUnknownError(err);
       return this.makeErrorResult(toolCall, error);
     }
   }
@@ -166,7 +127,7 @@ class ChatToolsApi {
             content
           });
         } catch (err) {
-          const error = err instanceof Error ? err.message : String(err);
+          const error = serializeUnknownError(err);
           results.push(this.makeErrorResult(toolCall, error));
         }
       } else {
@@ -194,54 +155,7 @@ class ChatToolsApi {
     preferredModelIds?: string[];
   }): Promise<string> {
     const models = await this.getAvailableModels();
-    const byMedia = models.filter((model) => model.media === options.mediaType);
-
-    if (byMedia.length === 0) {
-      throw new Error(`No ${options.mediaType} models currently available on the network`);
-    }
-
-    const compatible = byMedia.filter((model) => {
-      if (options.filter && !options.filter(model.id)) {
-        return false;
-      }
-      if (options.workflows) {
-        const workflow = getVideoWorkflowType(model.id);
-        return workflow !== null && options.workflows.includes(workflow as VideoWorkflow);
-      }
-      return true;
-    });
-
-    if (options.requestedModel) {
-      const requested = compatible.find((model) => model.id === options.requestedModel);
-      if (requested) {
-        return requested.id;
-      }
-    }
-
-    if (compatible.length === 0) {
-      if (options.workflows) {
-        throw new Error(
-          `No compatible ${options.mediaType} models available for workflows: ${options.workflows.join(', ')}`
-        );
-      }
-      throw new Error(
-        `No compatible ${options.mediaType} models currently available on the network`
-      );
-    }
-
-    if (options.preferredModelIds) {
-      for (const preferredId of options.preferredModelIds) {
-        const preferred = compatible
-          .filter((model) => model.id === preferredId)
-          .sort((a, b) => b.workerCount - a.workerCount)[0];
-        if (preferred) {
-          return preferred.id;
-        }
-      }
-    }
-
-    compatible.sort((a, b) => b.workerCount - a.workerCount);
-    return compatible[0].id;
+    return selectBackboneModel(models, options).modelId;
   }
 
   private async executeProject(
@@ -338,7 +252,7 @@ class ChatToolsApi {
   ): Promise<ToolExecutionResult> {
     const modelId = await this.selectModel({
       mediaType: 'image',
-      requestedModel: args.model as string | undefined
+      requestedModel: resolveHostedToolModelSelector('sogni_generate_image', args)
     });
 
     const projectParams: Record<string, unknown> = {
@@ -384,7 +298,7 @@ class ChatToolsApi {
 
     const modelId = await this.selectModel({
       mediaType: 'image',
-      requestedModel: args.model as string | undefined,
+      requestedModel: resolveHostedToolModelSelector('sogni_edit_image', args),
       filter: isEditImageModel
     });
     const maxContextImages = getMaxContextImages(modelId);
@@ -439,7 +353,7 @@ class ChatToolsApi {
 
     const modelId = await this.selectModel({
       mediaType: 'video',
-      requestedModel: args.model as string | undefined,
+      requestedModel: resolveHostedToolModelSelector('sogni_generate_video', args),
       workflows: workflowPreference,
       preferredModelIds
     });
@@ -519,12 +433,12 @@ class ChatToolsApi {
       : [PREFERRED_MODEL_IDS.video.a2v];
     const modelId = await this.selectModel({
       mediaType: 'video',
-      requestedModel: args.model as string | undefined,
+      requestedModel: resolveHostedToolModelSelector('sogni_sound_to_video', args),
       workflows,
       preferredModelIds
     });
     const defaults = getVideoDefaults(modelId);
-    const duration = asNumber(args.duration) ?? 5;
+    const duration = asFiniteNumber(args.duration) ?? 5;
 
     const projectParams: Record<string, unknown> = {
       type: 'video' as const,
@@ -582,7 +496,7 @@ class ChatToolsApi {
       : [PREFERRED_MODEL_IDS.video.v2v];
     const modelId = await this.selectModel({
       mediaType: 'video',
-      requestedModel: args.model as string | undefined,
+      requestedModel: resolveHostedToolModelSelector('sogni_video_to_video', args),
       workflows,
       preferredModelIds
     });
@@ -603,7 +517,7 @@ class ChatToolsApi {
       width: (args.width as number) || defaults.width,
       height: (args.height as number) || defaults.height,
       fps: defaults.fps,
-      duration: asNumber(args.duration) ?? 5
+      duration: asFiniteNumber(args.duration) ?? 5
     };
 
     if (args.negative_prompt) projectParams.negativePrompt = args.negative_prompt;
@@ -657,7 +571,7 @@ class ChatToolsApi {
   ): Promise<ToolExecutionResult> {
     const modelId = await this.selectModel({
       mediaType: 'audio',
-      requestedModel: args.model as string | undefined,
+      requestedModel: resolveHostedToolModelSelector('sogni_generate_music', args),
       preferredModelIds: [
         PREFERRED_MODEL_IDS.audio.aceStepTurbo,
         PREFERRED_MODEL_IDS.audio.aceStepSft
@@ -681,13 +595,13 @@ class ChatToolsApi {
     const timeSignature = normalizeTimeSignature(args.timesignature);
     if (timeSignature) projectParams.timesignature = timeSignature;
 
-    const composerMode = asBoolean(args.composer_mode);
+    const composerMode = asBooleanValue(args.composer_mode);
     if (composerMode !== undefined) projectParams.composerMode = composerMode;
 
-    const promptStrength = asNumber(args.prompt_strength);
+    const promptStrength = asFiniteNumber(args.prompt_strength);
     if (promptStrength !== undefined) projectParams.promptStrength = promptStrength;
 
-    const creativity = asNumber(args.creativity);
+    const creativity = asFiniteNumber(args.creativity);
     if (creativity !== undefined) projectParams.creativity = creativity;
 
     if (args.seed !== undefined) projectParams.seed = args.seed;
