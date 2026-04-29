@@ -4,7 +4,7 @@
     "access": "public"
   },
   "version": "4.2.0-alpha.5",
-  "description": "Sogni SDK - AI image, video & audio generation plus LLM chat with vision via the Sogni Supernet (Stable Diffusion, Flux, WAN 2.2, LTX-2, Qwen VLM)",
+  "description": "Sogni SDK - AI image, video & audio generation plus LLM chat with vision via the Sogni Supernet (Stable Diffusion, Flux, WAN 2.2, LTX-2, Seedance, Qwen VLM)",
   "keywords": [
     "ai",
     "image-generation",
@@ -13,6 +13,7 @@
     "flux",
     "wan",
     "ltx",
+    "seedance",
     "text-to-image",
     "text-to-video",
     "image-to-video",

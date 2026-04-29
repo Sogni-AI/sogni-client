@@ -161,7 +161,7 @@
             },
             "duration": {
               "type": "number",
-              "description": "Video duration in seconds. Range: 1-20. Default: 5."
+              "description": "Video duration in seconds. Range: 1-20 generally; Seedance supports 4-15. Default: 5."
             },
             "fps": {
               "type": "number",
@@ -169,7 +169,7 @@
             },
             "model": {
               "type": "string",
-              "description": "Video generation model to use. Prefer LTX-2.3 models: use t2v for text-only generation and i2v when reference images are supplied."
+              "description": "Video generation model to use. Supported selectors include ltx23, wan22, seedance2 and seedance2-fast. Use t2v models for text-only generation and i2v when reference images are supplied. seedance2-fast caps at 720p."
             },
             "number_of_variations": {
               "type": "number",
@@ -210,7 +210,7 @@
             },
             "duration": {
               "type": "number",
-              "description": "Output video duration in seconds. Range: 1-20. Default: 5."
+              "description": "Output video duration in seconds. Range: 1-20 generally; Seedance supports 4-15. Default: 5."
             },
             "width": {
               "type": "number",
@@ -222,8 +222,10 @@
             },
             "model": {
               "type": "string",
-              "description": "Audio-driven video model to use.",
+              "description": "Audio-driven video model to use. seedance2 is image+audio only and requires reference_image_url.",
               "enum": [
+                "seedance2",
+                "seedance-2-0_ia2v",
                 "ltx23-22b-fp8_ia2v_distilled",
                 "ltx23-22b-fp8_a2v_distilled",
                 "wan_v2.2-14b-fp8_s2v_lightx2v"
@@ -264,8 +266,16 @@
             },
             "control_mode": {
               "type": "string",
-              "description": "How to use the source video. animate-move and animate-replace use WAN animate workflows. canny, pose, depth, and detailer use LTX-2.3 v2v ControlNet.",
-              "enum": ["animate-move", "animate-replace", "canny", "pose", "depth", "detailer"]
+              "description": "How to use the source video. seedance-v2v uses Seedance 2.0 holistic V2V. animate-move and animate-replace use WAN animate workflows. canny, pose, depth, and detailer use LTX-2.3 v2v ControlNet.",
+              "enum": [
+                "animate-move",
+                "animate-replace",
+                "seedance-v2v",
+                "canny",
+                "pose",
+                "depth",
+                "detailer"
+              ]
             },
             "reference_image_url": {
               "type": "string",
@@ -285,7 +295,7 @@
             },
             "duration": {
               "type": "number",
-              "description": "Output video duration in seconds. Range: 1-20. Default: 5."
+              "description": "Output video duration in seconds. Range: 1-20 generally; Seedance supports 4-15. Default: 5."
             },
             "width": {
               "type": "number",
@@ -301,9 +311,13 @@
             },
             "model": {
               "type": "string",
-              "description": "Video-to-video model to use.",
+              "description": "Video-to-video model to use. Supported selectors include ltx23, ltx23-v2v, and seedance2. Use control_mode=seedance-v2v for Seedance 2.0 video-to-video.",
               "enum": [
+                "ltx23",
+                "ltx23-v2v",
+                "seedance2",
                 "ltx23-22b-fp8_v2v_distilled",
+                "seedance-2-0_v2v",
                 "wan_v2.2-14b-fp8_animate-move_lightx2v",
                 "wan_v2.2-14b-fp8_animate-replace_lightx2v"
               ]

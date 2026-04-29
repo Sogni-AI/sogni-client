@@ -29,7 +29,8 @@ import {
   VIDEO_WORKFLOW_ASSETS,
   calculateVideoFrames,
   isLtx2Model,
-  isWanAnimateModel
+  isWanAnimateModel,
+  isSeedanceModel
 } from './utils';
 import { ApiError } from '../ApiClient';
 import {
@@ -92,6 +93,16 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
       });
     }
   }
+}
+
+function getMaxVideoDuration(modelId: string): number {
+  if (isSeedanceModel(modelId)) {
+    return 15;
+  }
+  if (isLtx2Model(modelId) || isWanAnimateModel(modelId)) {
+    return 20;
+  }
+  return 10;
 }
 
 // Mac worker can't process the data if some of the fields are missing, so we need to provide a default template
@@ -307,19 +318,23 @@ function applyVideoParams(
   // Note: fps must be processed before duration to correctly calculate frames for LTX-2.3 models
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;
+  } else if (isSeedanceModel(params.modelId)) {
+    keyFrame.fps = 24;
   }
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
   }
   if (params.duration !== undefined) {
+    const isSeedance = isSeedanceModel(params.modelId);
     const duration = validateVideoDuration(
       params.duration,
-      1,
-      isLtx2Model(params.modelId) || isWanAnimateModel(params.modelId) ? 20 : 10
+      isSeedance ? 4 : 1,
+      getMaxVideoDuration(params.modelId)
     );
     // Use fps from params or default based on model type:
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
     // - LTX-2.3: fps directly affects frame count (default 24fps if not specified)
+    // - Seedance: fixed 24fps external API generation
     const fps = params.fps ?? 24;
     keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
   }

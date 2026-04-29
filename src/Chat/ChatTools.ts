@@ -486,6 +486,7 @@ class ChatToolsApi {
 
     const controlMode = normalizeVideoControlMode(args.control_mode);
     const isAnimateMode = controlMode === 'animate-move' || controlMode === 'animate-replace';
+    const isSeedanceMode = controlMode === 'seedance-v2v';
     const workflows: VideoWorkflow[] = isAnimateMode ? [controlMode] : ['v2v'];
     const preferredModelIds = isAnimateMode
       ? [
@@ -493,7 +494,9 @@ class ChatToolsApi {
             ? PREFERRED_MODEL_IDS.video.animateMove
             : PREFERRED_MODEL_IDS.video.animateReplace
         ]
-      : [PREFERRED_MODEL_IDS.video.v2v];
+      : isSeedanceMode
+        ? [PREFERRED_MODEL_IDS.video.seedanceV2v, PREFERRED_MODEL_IDS.video.v2v]
+        : [PREFERRED_MODEL_IDS.video.v2v];
     const modelId = await this.selectModel({
       mediaType: 'video',
       requestedModel: resolveHostedToolModelSelector('sogni_video_to_video', args),
@@ -501,6 +504,7 @@ class ChatToolsApi {
       preferredModelIds
     });
     const defaults = getVideoDefaults(modelId);
+    const isSeedanceModel = modelId.startsWith('seedance-2-0');
 
     if (isAnimateMode && !isNonEmptyString(args.reference_image_url)) {
       throw new Error(`${controlMode} requires reference_image_url`);
@@ -542,13 +546,13 @@ class ChatToolsApi {
     if (args.video_start !== undefined) {
       projectParams.videoStart = args.video_start;
     }
-    if (!isAnimateMode) {
+    if (!isAnimateMode && !isSeedanceModel) {
       projectParams.controlNet = {
         name: controlMode,
         strength: controlMode === 'detailer' ? 1 : 0.85
       };
     }
-    if (args.detailer_strength !== undefined) {
+    if (!isSeedanceModel && args.detailer_strength !== undefined) {
       projectParams.detailerStrength = args.detailer_strength;
     }
     if (options?.tokenType) projectParams.tokenType = options.tokenType;

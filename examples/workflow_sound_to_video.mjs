@@ -4,6 +4,7 @@
  *
  * This script generates videos from audio files using various audio-driven models:
  * - WAN 2.2 S2V: Sound-to-video with reference image (lip-sync/motion-sync)
+ * - Seedance 2.0 IA2V: Image+audio to video through external API (4-15s, cinematic motion)
  * - LTX-2.3 IA2V: Image+audio to video with 22B model (audio-reactive, distilled/dev)
  * - LTX-2.3 A2V: Audio to video with 22B model (audio-reactive generation, distilled/dev)
  *
@@ -21,7 +22,7 @@
  *   --audio       Audio file path (required, m4a/mp3/wav)
  *   --audio-start Start position in audio in seconds (default: 0)
  *   --audio-duration  Duration of audio to use in seconds (default: auto from video)
- *   --model       Model: lightx2v, quality, ltx23-ia2v-distilled, ltx23-a2v-distilled, ltx23-ia2v-dev, ltx23-a2v-dev (default: prompts)
+ *   --model       Model: lightx2v, quality, seedance2, ltx23-ia2v-distilled, ltx23-a2v-distilled, ltx23-ia2v-dev, ltx23-a2v-dev (default: prompts)
  *   --width       Video width (default: auto from image, min: 480)
  *   --height      Video height (default: auto from image, min: 480)
  *   --duration    Duration in seconds (default: 5, converts to frames)
@@ -187,6 +188,7 @@ Usage:
 Available Models:
   lightx2v             - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
   quality              - WAN 2.2 14B S2V (high quality, 20-step)
+  seedance2            - Seedance 2.0 Image+Audio (external API, 4-15s, requires image)
   ltx23-ia2v-distilled - LTX-2.3 22B Image+Audio to Video (fast, 8-step, requires image)
   ltx23-ia2v-dev       - LTX-2.3 22B Image+Audio to Video (quality, 30-step, requires image)
   ltx23-a2v-distilled  - LTX-2.3 22B Audio to Video (fast, 8-step, no image needed)
@@ -331,7 +333,10 @@ async function main() {
   }
 
   // Get image dimensions (if image is provided)
-  let imageInfo = { width: modelConfig.defaultWidth || 832, height: modelConfig.defaultHeight || 480 };
+  let imageInfo = {
+    width: modelConfig.defaultWidth || 832,
+    height: modelConfig.defaultHeight || 480
+  };
   if (OPTIONS.image) {
     try {
       const dimensions = imageSize(OPTIONS.image);
@@ -439,8 +444,8 @@ async function main() {
   }
 
   // Validate frames
-  if (OPTIONS.frames < VIDEO_CONSTRAINTS.frames.min || OPTIONS.frames > maxFrames) {
-    console.error(`Error: Frames must be between ${VIDEO_CONSTRAINTS.frames.min} and ${maxFrames}`);
+  if (OPTIONS.frames < minFrames || OPTIONS.frames > maxFrames) {
+    console.error(`Error: Frames must be between ${minFrames} and ${maxFrames}`);
     process.exit(1);
   }
 
@@ -613,9 +618,7 @@ async function main() {
       }
       if (balance) {
         const currentBalance = parseFloat(balance.spark.net || 0);
-        console.log(
-          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
-        );
+        console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`);
       }
       console.log(`   USD: $${(totalCost * 0.005).toFixed(4)}`);
     } else {
@@ -629,9 +632,7 @@ async function main() {
       }
       if (balance) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
-        console.log(
-          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
-        );
+        console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`);
       }
       console.log(`   USD: $${(totalCost * 0.05).toFixed(4)}`);
     }
@@ -793,13 +794,13 @@ async function main() {
 
       switch (event.type) {
         case 'queued': {
-                    const queuedLabel = getJobLabel(event, jobId);
+          const queuedLabel = getJobLabel(event, jobId);
           log('📋', `${queuedLabel}Job queued at position: ${event.queuePosition}`);
           break;
         }
 
         case 'initiating': {
-                    // Pre-create job state with jobIndex if provided
+          // Pre-create job state with jobIndex if provided
           if (!jobStates.has(jobId) && event.jobIndex !== undefined) {
             jobStates.set(jobId, {
               startTime: null,
@@ -819,7 +820,7 @@ async function main() {
         }
 
         case 'started': {
-                    // Initialize or update state for this job
+          // Initialize or update state for this job
           let jobState = jobStates.get(jobId);
           if (!jobState) {
             jobState = {
@@ -871,7 +872,7 @@ async function main() {
         }
 
         case 'jobETA': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state) {
             state.lastETA = event.etaSeconds;
             state.lastETAUpdate = Date.now();
@@ -880,7 +881,7 @@ async function main() {
         }
 
         case 'progress': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state && event.step !== undefined && event.stepCount !== undefined) {
             state.lastStep = event.step;
             state.lastStepCount = event.stepCount;
@@ -889,7 +890,7 @@ async function main() {
         }
 
         case 'completed': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           const completedLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
 
@@ -903,7 +904,10 @@ async function main() {
 
           if (!event.resultUrl || event.error) {
             failedVideos++;
-            log('❌', `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`);
+            log(
+              '❌',
+              `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`
+            );
             jobStates.delete(jobId);
             checkWorkflowCompletion();
           } else {
@@ -918,7 +922,7 @@ async function main() {
             const jobElapsed = jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?';
 
             // Use actual seed from job completion event (server generates unique seeds for batch items)
-            const jobSeed = event.seed ?? (OPTIONS.seed + (state?.jobIndex || 0));
+            const jobSeed = event.seed ?? OPTIONS.seed + (state?.jobIndex || 0);
 
             const desiredPath = generateVideoFilename({
               modelId: modelConfig.id,
@@ -954,7 +958,7 @@ async function main() {
 
         case 'error':
         case 'failed': {
-                    const errorLabel = getJobLabel(event, jobId);
+          const errorLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
           failedVideos++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
@@ -1041,7 +1045,16 @@ async function main() {
   }
 }
 
-async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps, videoCount = 1) {
+async function getVideoJobEstimate(
+  tokenType,
+  modelId,
+  width,
+  height,
+  frames,
+  fps,
+  steps,
+  videoCount = 1
+) {
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');

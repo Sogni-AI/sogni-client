@@ -1,10 +1,12 @@
 # Sogni SDK for JavaScript & Node.js
+
 This library provides an easy way to interact with the [Sogni Supernet](https://www.sogni.ai/supernet) - a DePIN protocol for creative AI inference. It is written in TypeScript and can be used
 in both TypeScript and JavaScript projects such as backend Node.js and browser environments.
 
 Behind the scenes this SDK uses a WebSocket connection for communication between clients, server, and workers. It harnesses an event-based API to interact with Supernet to make things super efficient.
 
 ## Features
+
 - 🎨 **Image Generation** - Create images with the latest frontier Open Source models like Stable Diffusion, Qwen Image, Z-Image Turbo, and Flux
 - 🎨 **Image Edit** - Modify, merge, restyle, and transform images using prompts and/or multiple reference images using powerful models like Qwen Image Edit.
 - 🎬 **Video Generation** - Generate videos using **Wan 2.2 14B FP8** models with five workflow types:
@@ -22,24 +24,34 @@ Behind the scenes this SDK uses a WebSocket connection for communication between
 - 🤖 **Rich Creative-Agent Tools** - Opt into a 14-tool agentic family (`restore_photo`, `animate_photo` with multi-source fan-out, `stitch_video`, `orbit_video`, `dance_montage`, etc.) by setting `sogni_tools: "creative-agent"`
 - ⏱️ **Durable Creative Workflows** - Persistent server-side multi-step workflows with SSE event streaming, `Last-Event-ID` resume, and cooperative cancellation via `/v1/creative-agent/workflows`
 - 👁️ **Vision Chat** - Multimodal image understanding with scene description, OCR, object detection, visual analysis, and multi-image comparison via Qwen3.6 VLM
+
 ## Migration notes
+
 ### v3.x.x to v4.x.x
+
 Version 4 adds support for video generation, including the new **Wan 2.2 14B FP8** model family with five workflow types (text-to-video, image-to-video, sound-to-video, animate-move, and animate-replace). There are the following breaking changes:
+
 - `type` is required when calling `sogni.projects.create(params)`, valid values are `image`, `video` and `audio`. See code examples below.
 - `numberOfImages` renamed to `numberOfMedia`
 - `hasResultImage` in `Job` class is now `hasResultMedia`
 - `Job` and `Project` classes now have `type` property that can be `image`, `video` or `audio`
 
 ## Installation
+
 Add library to your project using npm or yarn:
+
 ```bash
 npm install @sogni-ai/sogni-client
 ```
+
 or
+
 ```bash
 yarn add @sogni-ai/sogni-client
 ```
+
 ## Core concepts
+
 In order to use Sogni Supernet, you need an active Sogni account with a positive SOGNI or Spark token balance. You can authenticate using either an **API key** (recommended) or **username and password**.
 You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio) which will give you tokens just for signing up and confirming your email. You can get daily bonus tokens by claiming them (under rewards) each 24-hours.
 
@@ -50,13 +62,16 @@ Spark tokens can be purchased with a credit card in a Mac or Web app.
 Your account is tied to a [Base](https://www.base.org/) Wallet that is created during signup.
 
 ### Supernet Types
+
 There are 2 worker network types available:
+
 - `fast` - this network runs on high-end GPUs and is optimized for speed. It is more expensive than `relaxed` network. **Required for video generation**.
 - `relaxed` - this network runs on Apple Mac devices and is optimized for cost. It is cheaper than `fast` network. Supports image generation only.
 
 In both options, the more complex your query is (the more steps), the higher the cost in tokens.
 
 ### Inference definitions: Projects and Jobs
+
 One request for image or video generation is called a **Project**. A project can generate one or more images or videos.
 Each generated image or video is represented by a **Job**.
 
@@ -64,6 +79,7 @@ When you send a project to Supernet, it will be processed by one or more workers
 uploaded to Sogni servers where it will be stored for 24 hours. After this period, media files will be auto-deleted.
 
 ## Client initialization
+
 To initialize a client, you need to provide `appId`, and account credentials.
 
 ### Option 1: API Key Authentication (Recommended)
@@ -77,7 +93,7 @@ import { SogniClient } from '@sogni-ai/sogni-client';
 
 const sogni = await SogniClient.createInstance({
   appId: 'your-app-id', // Required, must be unique string, UUID is recommended
-  network: 'fast',       // Network to use, 'fast' or 'relaxed'
+  network: 'fast', // Network to use, 'fast' or 'relaxed'
   apiKey: 'your-api-key' // API key for authentication
 });
 
@@ -94,7 +110,7 @@ import { SogniClient } from '@sogni-ai/sogni-client';
 
 const sogni = await SogniClient.createInstance({
   appId: 'your-app-id',
-  network: 'fast',
+  network: 'fast'
 });
 
 await sogni.account.login('your-username', 'your-password');
@@ -102,42 +118,47 @@ const models = await sogni.projects.waitForModels();
 ```
 
 **Important Note:**
+
 - These samples assume you are using ES modules, which allow `await` on the top level, if you are CommonJS you will need to wrap `await` calls in an async function.
 - `appId` must be unique string, UUID is recommended. It is used to identify your application.
 - Only one connection per `appId` is allowed. If you try to connect with the same `appId` multiple times, the previous connection will be closed.
 
 ## Usage
+
 After authentication, the client will have an active WebSocket connection to Sogni Supernet. Within a short period of time the
 client will receive the current balance and list of available models. After this you can start using the client to generate images or videos.
 
 It is advised to watch for `connected` and `disconnected` events on the client instance to be notified when the connection is established or lost:
+
 ```typescript
 // Will be triggered when the client is connected to Supernet
-sogni.client.on('connected', ({network}) => {
+sogni.client.on('connected', ({ network }) => {
   console.log('Connected to Supernet:', network);
 });
 
 // Will be triggered when websocket connection is lost or the client is disconnected from Supernet
-sogni.client.on('disconnected', ({code, reason}) => {
+sogni.client.on('disconnected', ({ code, reason }) => {
   console.log('Disconnected from Supernet:', code, reason);
 });
 ```
 
 ## Image Generation
 
-Sogni supports a wide range of models for image generation. You can find a list of available models in 
+Sogni supports a wide range of models for image generation. You can find a list of available models in
 `sogni.projects.availableModels` property during runtime or query it using `sogni.projects.getAvailableModels()` method.
 
 For a start, you can try FLUX.1 \[schnell\] with the following parameters:
+
 ```javascript
 const fluxDefaults = {
   modelId: 'flux1-schnell-fp8',
   steps: 4,
   guidance: 1
-}
+};
 ```
 
 ### Creating an image project
+
 ```javascript
 // Find model that has the most workers
 const mostPopularModel = sogni.projects.availableModels.reduce((a, b) =>
@@ -151,22 +172,26 @@ const project = await sogni.projects.create({
   negativePrompt:
     'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
   stylePrompt: 'anime',
-  steps: 20, 
-  guidance: 7.5, 
+  steps: 20,
+  guidance: 7.5,
   numberOfMedia: 1,
   outputFormat: 'jpg', // Can be 'png' or 'jpg', defaults to 'png'
   tokenType: 'spark', // 'sogni' or 'spark'
   network: 'fast' // 'fast' or 'relaxed'
 });
 ```
+
 **Note:** Full project parameter list can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 
 ### Getting project status and results
+
 In general, there are 2 ways to work with API:
+
 1. Using promises or `async/await` syntax.
 2. Listening to events on `Project` and `Job` class instances.
 
 #### Using promises
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'image',
@@ -187,12 +212,13 @@ project.on('progress', (progress) => {
 });
 
 const imageUrls = await project.waitForCompletion();
-// Now you can use image URLs to download images. 
+// Now you can use image URLs to download images.
 // Note that images will be available for 24 hours only!
 console.log('Image URLs:', imageUrls);
 ```
 
 #### Using events
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'image',
@@ -236,27 +262,29 @@ project.on('failed', async (errorData) => {
 ```
 
 ### Project parameters
+
 Here is a full list of project parameters that you can use:
+
 - `modelId` - ID of the model to use for image generation.
 - `positivePrompt` - text prompt that describes what you want to see in the image. Can be an empty string.
 - `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be an empty string.
 - `stylePrompt` - text prompt that describes the style of the image. Can be an empty string.
 - `numberOfImages` - number of images to generate.
 - `tokenType` - select token type to pay for render. Can be either `sogni` or `spark`.
-- `sizePreset` - optionally pass the ID of a size preset to use. If not passed, the default output is a square at 
-either 512x512, 768x768 or 1024x1024 (SDXL and Flux) based on the default resolution of the selected model. 
-See **Detecting available output presets** section below for available presets for your model. The token cost and 
-render time of the job is heavily influenced by total pixel count where a 2048x2048 image is 4x the cost and render 
-time of a 1024x1024 image as it is 4x the generated pixel count. You may also pass `custom` along with `width` and 
-`height` project parameters to request a custom dimension. Note that not all size presets and custom aspect ratios 
-produce consistently good results with all models. If your output features skewed anatomy or doubling of features 
-you should experiment with a different model or output size.
+- `sizePreset` - optionally pass the ID of a size preset to use. If not passed, the default output is a square at
+  either 512x512, 768x768 or 1024x1024 (SDXL and Flux) based on the default resolution of the selected model.
+  See **Detecting available output presets** section below for available presets for your model. The token cost and
+  render time of the job is heavily influenced by total pixel count where a 2048x2048 image is 4x the cost and render
+  time of a 1024x1024 image as it is 4x the generated pixel count. You may also pass `custom` along with `width` and
+  `height` project parameters to request a custom dimension. Note that not all size presets and custom aspect ratios
+  produce consistently good results with all models. If your output features skewed anatomy or doubling of features
+  you should experiment with a different model or output size.
 - `width` - if 'sizePreset' is set to 'custom' you may pass a custom pixel width between 256 and 2048
 - `height` - if 'sizePreset' is set to 'custom' you may pass a custom pixel height between 256 and 2048
-- `steps` - number of inference steps between random pixels to final image. Higher steps generally lead to higher 
-quality images and more details but varies by model, prompt, guidance, and desired look. For most Stable Diffusion 
-models 20-40 steps is ideal with 20 being 2x faster to render than 40. For Flux 4 steps is optimal. Lightning, 
-Turbo and LCM models are designed for quality output in as little as 1 step. ([More info](https://docs.sogni.ai/learn/basics/inference-steps)).
+- `steps` - number of inference steps between random pixels to final image. Higher steps generally lead to higher
+  quality images and more details but varies by model, prompt, guidance, and desired look. For most Stable Diffusion
+  models 20-40 steps is ideal with 20 being 2x faster to render than 40. For Flux 4 steps is optimal. Lightning,
+  Turbo and LCM models are designed for quality output in as little as 1 step. ([More info](https://docs.sogni.ai/learn/basics/inference-steps)).
 - `guidance` - guidance scale. For most Stable Diffusion models, optimal value is 7.5 ([More info](https://docs.sogni.ai/learn/basics/guidance-scale)).
 - `network` - network type to use, `fast` or `relaxed`. This parameter allows to override default network type for this project.
 - `disableNSFWFilter` - disable NSFW filter for this project. NSFW filter is enabled by default and workers won't upload resulting images if they are detected as NSFW.
@@ -265,108 +293,114 @@ Turbo and LCM models are designed for quality output in as little as 1 step. ([M
 - `sampler` - sampler algorithm ([More info](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers)). For available options, see the **"Samplers"** section below.
 - `scheduler` - scheduler to use ([More info](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers)). For available options, see the **"Schedulers"** section below.
 - `startingImage` - guide image in PNG format. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
-- `startingImageStrength` - strong effect of starting image should be. From 0 to 1, default 0.5. 
+- `startingImageStrength` - strong effect of starting image should be. From 0 to 1, default 0.5.
 - `controlNet` - Stable Diffusion ControlNet parameters. See **ControlNets** section below for more info.
 - `outputFormat` - output image format. Can be `png` or `jpg`. If not specified, `png` will be used. JPG format results in smaller file sizes but may have slightly lower quality due to compression.
 
 TypeScript type definitions for project parameters can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 
 ### Detecting available output presets
+
 You can get a list of available output presets for a specific network and model using `sogni.projects.getOutputPresets` method.
+
 ```javascript
 const presets = await sogni.projects.getSizePresets('fast', 'flux1-schnell-fp8');
 console.log('Available output presets:', presets);
 ```
+
 Sample response:
+
 ```json
 [
-    {
-        "label": "Square",
-        "id": "square",
-        "width": 512,
-        "height": 512,
-        "ratio": "1:1",
-        "aspect": "1"
-    },
-    {
-        "label": "Square HD",
-        "id": "square_hd",
-        "width": 1024,
-        "height": 1024,
-        "ratio": "1:1",
-        "aspect": "1"
-    },
-    {
-        "label": "Portrait: Standard",
-        "id": "portrait_7_9",
-        "width": 896,
-        "height": 1152,
-        "ratio": "7:9",
-        "aspect": "0.78"
-    },
-    {
-        "label": "Portrait: 35mm",
-        "id": "portrait_13_19",
-        "width": 832,
-        "height": 1216,
-        "ratio": "13:19",
-        "aspect": "0.68"
-    },
-    {
-        "label": "Portrait: Mobile",
-        "id": "portrait_4_7",
-        "width": 768,
-        "height": 1344,
-        "ratio": "4:7",
-        "aspect": "0.57"
-    },
-    {
-        "label": "Portrait: Extended",
-        "id": "portrait_5_12",
-        "width": 640,
-        "height": 1536,
-        "ratio": "5:12",
-        "aspect": "0.42"
-    },
-    {
-        "label": "Landscape: Standard",
-        "id": "landscape_9_7",
-        "width": 1152,
-        "height": 896,
-        "ratio": "9:7",
-        "aspect": "1.28"
-    },
-    {
-        "label": "Landscape: 35mm",
-        "id": "landscape_19_13",
-        "width": 1216,
-        "height": 832,
-        "ratio": "19:13",
-        "aspect": "1.46"
-    },
-    {
-        "label": "Landscape: Widescreen",
-        "id": "landscape_7_4",
-        "width": 1344,
-        "height": 768,
-        "ratio": "7:4",
-        "aspect": "1.75"
-    },
-    {
-        "label": "Landscape: Ultrawide",
-        "id": "landscape_12_5",
-        "width": 1536,
-        "height": 640,
-        "ratio": "12:5",
-        "aspect": "2.4"
-    }
+  {
+    "label": "Square",
+    "id": "square",
+    "width": 512,
+    "height": 512,
+    "ratio": "1:1",
+    "aspect": "1"
+  },
+  {
+    "label": "Square HD",
+    "id": "square_hd",
+    "width": 1024,
+    "height": 1024,
+    "ratio": "1:1",
+    "aspect": "1"
+  },
+  {
+    "label": "Portrait: Standard",
+    "id": "portrait_7_9",
+    "width": 896,
+    "height": 1152,
+    "ratio": "7:9",
+    "aspect": "0.78"
+  },
+  {
+    "label": "Portrait: 35mm",
+    "id": "portrait_13_19",
+    "width": 832,
+    "height": 1216,
+    "ratio": "13:19",
+    "aspect": "0.68"
+  },
+  {
+    "label": "Portrait: Mobile",
+    "id": "portrait_4_7",
+    "width": 768,
+    "height": 1344,
+    "ratio": "4:7",
+    "aspect": "0.57"
+  },
+  {
+    "label": "Portrait: Extended",
+    "id": "portrait_5_12",
+    "width": 640,
+    "height": 1536,
+    "ratio": "5:12",
+    "aspect": "0.42"
+  },
+  {
+    "label": "Landscape: Standard",
+    "id": "landscape_9_7",
+    "width": 1152,
+    "height": 896,
+    "ratio": "9:7",
+    "aspect": "1.28"
+  },
+  {
+    "label": "Landscape: 35mm",
+    "id": "landscape_19_13",
+    "width": 1216,
+    "height": 832,
+    "ratio": "19:13",
+    "aspect": "1.46"
+  },
+  {
+    "label": "Landscape: Widescreen",
+    "id": "landscape_7_4",
+    "width": 1344,
+    "height": 768,
+    "ratio": "7:4",
+    "aspect": "1.75"
+  },
+  {
+    "label": "Landscape: Ultrawide",
+    "id": "landscape_12_5",
+    "width": 1536,
+    "height": 640,
+    "ratio": "12:5",
+    "aspect": "2.4"
+  }
 ]
 ```
 
 ### Samplers
+
 Samplers control the denoising process — the sequence of steps that transforms random noise into your final image.
 
 Avaliable sampler options depend on a model. You can use api to get available samplers for a specific model:
+
 ```javascript
 const modelOptions = await sogni.projects.getModelOptions('flux1-schnell-fp8');
 console.log(modelOptions.sampler);
@@ -377,12 +411,15 @@ console.log(modelOptions.sampler);
  }
  */
 ```
+
 See [Samplers and Schedulers](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers) docs for more info.
 
 ### Schedulers
+
 Control how steps are distributed. For more info see [Schedulers and Samplers](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers#schedulers) docs.
 
 Available scheduler options depend on a model. You can use api to get available schedulers for a specific model:
+
 ```javascript
 const modelOptions = await sogni.projects.getModelOptions(modelId);
 console.log(modelOptions.scheduler);
@@ -404,12 +441,14 @@ console.log(modelOptions.scheduler);
 ```
 
 ### ControlNets
+
 **EXPERIMENTAL FEATURE:** This feature is still in development and may not work as expected. Use at your own risk.
 
-ControlNet is a neural network that controls image generation in Stable Diffusion by adding extra conditions. See more 
+ControlNet is a neural network that controls image generation in Stable Diffusion by adding extra conditions. See more
 info and usage samples in [ControlNets](https://docs.sogni.ai/learn/basics/controlnet) docs for Sogni Studio.
 
 To use ControlNet in your project, you need to provide `controlNet` object with the following properties:
+
 - `name` - name of the ControlNet to use. Currently supported:
   - `canny`
   - `depth`
@@ -436,6 +475,7 @@ To use ControlNet in your project, you need to provide `controlNet` object with 
 - `guidanceEnd` - step when ControlNet last applied, 0 means first step, 1 means last step. Must be greater than guidanceStart
 
 Example:
+
 ```javascript
 const cnImage = fs.readFileSync('./cn.jpg');
 const project = await sogni.projects.create({
@@ -452,7 +492,9 @@ const project = await sogni.projects.create({
   }
 });
 ```
+
 Full ControlNet type definition:
+
 ```typescript
 export type ControlNetName =
   | 'canny'
@@ -482,7 +524,6 @@ export interface ControlNetParams {
 }
 ```
 
-
 ## Video Generation with Wan 2.2 Models
 
 The Sogni SDK supports advanced video generation workflows powered by **Wan 2.2 14B FP8** models. These models are available on the `fast` network and support various video generation workflows.
@@ -499,12 +540,15 @@ The Wan 2.2 model family supports five distinct video generation workflows:
 
 ### Model Variants
 
-Each workflow has two model variants optimized for different use cases:
+WAN workflows have two model variants optimized for different use cases:
 
 - **Speed variant** (with `_lightx2v` suffix) - Faster inference (4-step), good quality
 - **Quality variant** (without `_lightx2v`) - Slower inference, best quality
 
+LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available for text-to-video, image-to-video, image+audio-to-video, and video-to-video. Seedance 2.0 Fast is text/image-to-video only and caps output at 720p.
+
 Example model IDs:
+
 - `wan_v2.2-14b-fp8_t2v_lightx2v` (Text-to-Video, speed)
 - `wan_v2.2-14b-fp8_t2v` (Text-to-Video, quality)
 - `wan_v2.2-14b-fp8_i2v_lightx2v` (Image-to-Video, speed)
@@ -513,19 +557,29 @@ Example model IDs:
 - `wan_v2.2-14b-fp8_s2v` (Sound-to-Video, quality)
 - `wan_v2.2-14b-fp8_animate-move_lightx2v` (Animate-Move, speed)
 - `wan_v2.2-14b-fp8_animate-replace_lightx2v` (Animate-Replace, speed)
+- `ltx23-22b-fp8_t2v_distilled` (LTX-2.3 Text-to-Video, fast)
+- `ltx23-22b-fp8_i2v_distilled` (LTX-2.3 Image-to-Video, fast)
+- `ltx23-22b-fp8_v2v_distilled` (LTX-2.3 Video-to-Video ControlNet, fast)
+- `seedance-2-0_t2v` (Seedance 2.0 Text-to-Video, external API)
+- `seedance-2-0_i2v` (Seedance 2.0 Image-to-Video, external API)
+- `seedance-2-0_ia2v` (Seedance 2.0 Image+Audio-to-Video, external API)
+- `seedance-2-0_v2v` (Seedance 2.0 Video-to-Video, external API)
+- `seedance-2-0-fast_t2v` (Seedance 2.0 Fast Text-to-Video, external API, 720p cap)
+- `seedance-2-0-fast_i2v` (Seedance 2.0 Fast Image-to-Video, external API, 720p cap)
 
 ### Video Parameters
 
 When creating video projects, you can specify:
 
-- `fps` - Frames per second: 16 or 32 (default: 16)
-- `frames` - Number of frames: 17-161 (default: 81, which is ~5 seconds at 16fps)
+- `duration` - Duration in seconds. WAN supports 1-10s, LTX-2.3 supports 4-20s, Seedance direct SDK projects currently support 4-15s.
+- `fps` - Frames per second. WAN supports 16/32 output, LTX-2.3 supports 1-60 native FPS, Seedance is fixed at 24fps.
+- `frames` - Number of frames. Prefer `duration`; the SDK calculates model-correct frame counts.
 - `width` - Video width in pixels
 - `height` - Video height in pixels
 - `steps` - Increase inference steps to increase quality
 - `seed` - Random seed for reproducibility
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
-- `referenceVideo` - Reference video for animate workflows (animate-move, animate-replace)
+- `referenceVideo` - Reference video for animate and v2v workflows
 - `referenceAudio` - Reference audio for sound-to-video workflow
 
 ### Text-to-Video Example
@@ -544,6 +598,24 @@ const project = await sogni.projects.create({
 
 const videoUrls = await project.waitForCompletion();
 console.log('Video URL:', videoUrls[0]);
+```
+
+Seedance 2.0 example:
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'seedance-2-0_t2v',
+  positivePrompt: 'A cinematic neon skyline time lapse, sweeping camera motion',
+  duration: 5,
+  fps: 24,
+  width: 1920,
+  height: 1088,
+  tokenType: 'spark'
+});
+
+const videoUrls = await project.waitForCompletion();
 ```
 
 ### Image-to-Video Example
@@ -704,7 +776,7 @@ Combine LLM intelligence with Sogni's media generation capabilities. The SDK exp
 
 Use `SogniTools.all` to expose the full tool surface, then execute tool calls with `sogni.chat.tools.execute()` / `executeAll()` or `autoExecuteTools: true` for non-streaming flows.
 
-Media-conditioned workflows use explicit inline base64 `data:` URIs, including `source_image_url`, `reference_image_url`, `reference_audio_url`, `reference_audio_identity_url`, and `reference_video_url`. Remote `http(s)` URLs are not allowed for these tool inputs. Tool image inputs accept PNG or JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
+For direct `/v1/chat/completions` hosted-tool execution, media-bearing tool arguments are intentionally constrained to inline `data:` URIs so the chat API remains OpenAI-compatible and does not implicitly fetch arbitrary user URLs. For user-uploaded image/audio/video inputs, use the SDK video project examples or `/v1/creative-agent/workflows` hosted tool sequences, which run outside the chat tool-selection loop and can consume HTTPS artifact URLs produced by Sogni's upload endpoints.
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
 
@@ -714,61 +786,116 @@ For agentic experiences that mirror `chat.sogni.ai`, the Sogni API can inject a 
 
 Tools added on top of the hosted six:
 
-| Tool | Behavior |
-|------|----------|
-| `restore_photo`, `apply_style`, `refine_result`, `change_angle` | Image-edit adapters (each routes through `sogni_edit_image` server-side) |
-| `animate_photo` | Image-to-video, with multi-source fan-out via `sourceImageIndices` (composed into one MP4 by default; opt out with `stitched: false`) |
-| `stitch_video` | Compose selected video clips into one MP4 (with optional audio overlay) |
-| `orbit_video` | Generate orbit clips around a subject and stitch them |
-| `dance_montage` | Generate dance clips and stitch when multi-clip |
+| Tool                                                            | Behavior                                                                                                                              |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `restore_photo`, `apply_style`, `refine_result`, `change_angle` | Image-edit adapters (each routes through `sogni_edit_image` server-side)                                                              |
+| `animate_photo`                                                 | Image-to-video, with multi-source fan-out via `sourceImageIndices` (composed into one MP4 by default; opt out with `stitched: false`) |
+| `stitch_video`                                                  | Compose selected video clips into one MP4 (with optional audio overlay)                                                               |
+| `orbit_video`                                                   | Generate orbit clips around a subject and stitch them                                                                                 |
+| `dance_montage`                                                 | Generate dance clips and stitch when multi-clip                                                                                       |
 
 Composition tools (`stitch_video`, `orbit_video`, `dance_montage`, and `animate_photo` fan-out) return a single composed MP4 URL. See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
 
 ```javascript
-// Opt into the rich tool family at request time:
-const result = await sogni.chat.completions.create({
-  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
-  messages: [{ role: 'user', content: 'Create an orbit video around the subject in this photo' }],
-  // SDK fields like `autoExecuteTools` work the same with rich tools.
-  // Pass server-side fields through if your transport supports `extra_body`,
-  // or call `/v1/chat/completions` directly with the OpenAI SDK.
+const response = await fetch('https://api.sogni.ai/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'api-key': process.env.SOGNI_API_KEY
+  },
+  body: JSON.stringify({
+    model: 'qwen3.6-35b-a3b-gguf-iq4xs',
+    messages: [{ role: 'user', content: 'Create an orbit video around this product concept' }],
+    sogni_tools: 'creative-agent',
+    sogni_tool_execution: true,
+    token_type: 'spark'
+  })
 });
+
+const result = await response.json();
 ```
+
+See `examples/workflow_creative_agent_tools.mjs` for a runnable API-key example that can toggle hosted vs rich tools and server-side execution.
+
+For focused Seedance endpoint tests, `examples/workflow_seedance_endpoint.mjs` uses `/v1/chat/completions` for text-to-video tool selection and `/v1/creative-agent/workflows` for exact media-bearing hosted tool sequences. Both paths let `sogni-api` apply shared Seedance prompt expansion before dispatch:
+
+```bash
+node examples/workflow_seedance_endpoint.mjs "A glass whale swimming through a neon city" --fast --duration 4
+node examples/workflow_seedance_endpoint.mjs "slow cinematic reveal" --mode i2v
+node examples/workflow_seedance_endpoint.mjs "the portrait sings with stage lighting" --mode ia2v
+node examples/workflow_seedance_endpoint.mjs "turn the clip into a polished perfume commercial" --mode v2v
+```
+
+T2V defaults to `/v1/chat/completions`. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `examples/test-assets` automatically. Pass `--image`, `--audio`, or `--video` to use your own local files, or pass HTTPS media URLs. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs.
 
 ### Durable Creative Workflows (server-side)
 
-Long-running multi-step creative workflows can be persisted on the server and observed independently of the chat completion that started them. The Sogni API exposes:
+Long-running multi-step creative workflows can be persisted on the server and observed independently of the chat completion that started them. The SDK exposes these API-key-only endpoints through `sogni.creativeWorkflows`:
 
-- `POST /v1/creative-agent/workflows` — start a durable workflow (currently `kind: "image_to_video"`)
-- `GET /v1/creative-agent/workflows/:id/events/stream` — Server-Sent Events feed with `Last-Event-ID` resume + `?after=` query
-- `POST /v1/creative-agent/workflows/:id/cancel` — cooperative cancellation (idempotent)
-- Plus list / snapshot / event-poll variants
+- `sogni.creativeWorkflows.startImageToVideo(input, options)` — start a durable workflow
+- `sogni.creativeWorkflows.startHostedToolSequence(input, options)` — run exact hosted Sogni tool steps as a durable backend workflow
+- `sogni.creativeWorkflows.get(workflowId)` and `.list()` — inspect snapshots
+- `sogni.creativeWorkflows.events(workflowId)` — poll event history
+- `sogni.creativeWorkflows.streamEvents(workflowId, { after, lastEventId })` — SSE event stream with resume support
+- `sogni.creativeWorkflows.cancel(workflowId)` — cooperative cancellation
 
-These are HTTP endpoints rather than SDK methods today; see the [LLM API durable workflows reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#durable-creative-agent-workflows) for the full surface. They require API-key auth (chat session JWTs are explicitly rejected) so a key acts on behalf of the wallet.
+```javascript
+const sogni = await SogniClient.createInstance({
+  appId: 'creative-workflow-demo',
+  apiKey: process.env.SOGNI_API_KEY,
+  disableSocket: true
+});
+
+const workflow = await sogni.creativeWorkflows.startImageToVideo(
+  {
+    prompt: 'A graphite sketch of a robot pianist in a smoky jazz club',
+    videoPrompt: 'slow dolly-in, warm stage lights, subtle hand motion',
+    imageModel: 'flux2',
+    videoModel: 'seedance2',
+    duration: 5
+  },
+  { tokenType: 'spark' }
+);
+
+for await (const event of sogni.creativeWorkflows.streamEvents(workflow.workflowId)) {
+  console.log(event.event, event.data);
+}
+```
+
+Use `videoModel: 'seedance2-fast'` for the 720p Seedance Fast path on API deployments that expose the fast selector.
+
+See `examples/workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage. The underlying REST endpoints remain documented in the [LLM API durable workflows reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#durable-creative-agent-workflows).
 
 ## Code Examples
 
 The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) directory contains working examples for all workflows:
 
 ### Image Workflow Examples
+
 - **`workflow_text_to_image.mjs`** - Text-to-image generation with multiple model options
 - **`workflow_image_edit.mjs`** - Reference-based image generation using context images
 
 ### Video Workflow Examples
-- **`workflow_text_to_video.mjs`** - Text-to-video generation with WAN 2.2 models
-- **`workflow_image_to_video.mjs`** - Animate static images into videos
+
+- **`workflow_text_to_video.mjs`** - Text-to-video generation with WAN 2.2, LTX-2.3, and Seedance
+- **`workflow_image_to_video.mjs`** - Animate static images into videos, including Seedance I2V
 - **`workflow_sound_to_video.mjs`** - Audio-synchronized video generation with lip-sync
-- **`workflow_video_to_video.mjs`** - Motion transfer and character replacement (Animate-Move/Animate-Replace)
+- **`workflow_video_to_video.mjs`** - Motion transfer, ControlNet v2v, and Seedance V2V
 
 ### LLM Text Chat, Vision & Tool Calling Examples
+
 - **`workflow_text_chat.mjs`** - Single-turn chat completion (non-streaming)
 - **`workflow_text_chat_streaming.mjs`** - Streaming chat with token-by-token output
 - **`workflow_text_chat_multi_turn.mjs`** - Multi-turn conversation with history, in-chat commands, and session stats
 - **`workflow_text_chat_vision.mjs`** - Vision chat with multimodal image understanding (scene description, OCR, object detection, visual analysis, multi-image comparison)
 - **`workflow_text_chat_tool_calling.mjs`** - LLM tool calling with built-in tools (weather, time, unit conversion, math)
 - **`workflow_text_chat_sogni_tools.mjs`** - Core image/video/music generation through natural language via LLM tool calling
+- **`workflow_creative_agent_tools.mjs`** - Rich server-side creative-agent tool injection for `/v1/chat/completions`
+- **`workflow_creative_agent_workflows.mjs`** - Durable `/v1/creative-agent/workflows` start/list/get/events/stream/cancel through the SDK
+- **`workflow_seedance_endpoint.mjs`** - Focused Seedance endpoint coverage: chat-completions T2V plus hosted-workflow I2V, IA2V, and V2V with uploaded media
 
 ### Basic Examples
+
 - **`promise_based.mjs`** - Image generation using promises/async-await
 - **`event_driven.js`** - Image generation using event listeners
 
@@ -776,16 +903,19 @@ The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) dire
 
 The workflow examples showcase a few powerful open-source frontier models supported by Sogni Supernet:
 
-| Model ID | Description | Use Case |
-|----------|-------------|----------|
-| `z_image_turbo_bf16` | **Z-Image Turbo** - Ultra-fast 8-step generation | Quick text-to-image prototyping and iteration |
-| `z_image_bf16` | **Z-Image** - High quality 20-step generation | Detailed, high quality image output |
-| `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing | Rapid reference-based image generation |
-| `qwen_image_edit_2511_fp8` | **Qwen Image Edit** - High quality 20-step editing | Professional image editing with context awareness |
-| `wan_v2.2-14b-fp8_t2v_lightx2v` | **Wan 2.2 T2V** - Text-to-video | Generate videos from text prompts |
-| `qwen3.6-35b-a3b-gguf-iq4xs` | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
+| Model ID                             | Description                                                 | Use Case                                                                                                     |
+| ------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `z_image_turbo_bf16`                 | **Z-Image Turbo** - Ultra-fast 8-step generation            | Quick text-to-image prototyping and iteration                                                                |
+| `z_image_bf16`                       | **Z-Image** - High quality 20-step generation               | Detailed, high quality image output                                                                          |
+| `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing         | Rapid reference-based image generation                                                                       |
+| `qwen_image_edit_2511_fp8`           | **Qwen Image Edit** - High quality 20-step editing          | Professional image editing with context awareness                                                            |
+| `wan_v2.2-14b-fp8_t2v_lightx2v`      | **Wan 2.2 T2V** - Text-to-video                             | Generate videos from text prompts                                                                            |
+| `seedance-2-0_t2v`                   | **Seedance 2.0 T2V** - External API text-to-video           | Full Seedance 2.0 24fps video generation                                                                     |
+| `seedance-2-0-fast_t2v`              | **Seedance 2.0 Fast T2V** - 720p external API text-to-video | Faster 24fps video generation where fast tiers are enabled                                                   |
+| `qwen3.6-35b-a3b-gguf-iq4xs`         | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision       | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
 
 All workflow examples include:
+
 - Interactive model and parameter selection
 - Balance checking and cost confirmation
 - Real-time progress tracking with ETA
@@ -793,6 +923,7 @@ All workflow examples include:
 - Automatic file download and preview
 
 Run any workflow example:
+
 ```bash
 cd examples
 npm install
@@ -808,11 +939,11 @@ node workflow_text_chat_vision.mjs --image photo.jpg
 
 This SDK provides documentation optimized for AI coding assistants like Claude Code, GitHub Copilot, Cursor, and [Open Claw](https://openclaw.ai/):
 
-| File | Description |
-|------|-------------|
-| [`llms.txt`](./llms.txt) | Indexed quick reference with code examples |
+| File                               | Description                                             |
+| ---------------------------------- | ------------------------------------------------------- |
+| [`llms.txt`](./llms.txt)           | Indexed quick reference with code examples              |
 | [`llms-full.txt`](./llms-full.txt) | Comprehensive documentation with complete API reference |
-| [`CLAUDE.md`](./CLAUDE.md) | Claude Code-specific guidance and project context |
+| [`CLAUDE.md`](./CLAUDE.md)         | Claude Code-specific guidance and project context       |
 
 These files follow the [llms.txt convention](https://llmstxt.org/) for LLM-friendly documentation.
 
@@ -826,7 +957,7 @@ When helping users generate images, videos, or use LLM features with Sogni:
 4. **LLM text chat**: Use `sogni.projects.chatCompletion()` for text generation with streaming and tool calling
 5. **Sogni Platform Tools**: Combine LLM tool calling with Sogni media generation to create images, image edits, videos, audio-driven videos, video transforms, and music from natural language
 6. **Vision chat**: Use `qwen3.6-35b-a3b-gguf-iq4xs` VLM for multimodal image understanding with `image_url` content parts carrying inline base64 JPEG/PNG `data:` URIs. Vision requests allow up to 20 images, 10MB each, with longest side capped at 1024px. This 1024px dimension cap applies only to the vision `image_url` path, not to media-generation tool image inputs.
-7. **WAN 2.2 vs LTX-2.3**: These model families have different FPS behaviors - see `llms-full.txt` for details
+7. **WAN 2.2, LTX-2.3, and Seedance**: These video families have different duration/FPS behaviors - see `llms-full.txt` for details
 
 ## API Documentation
 

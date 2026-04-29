@@ -2,7 +2,7 @@
 /**
  * Image-to-Video Workflow
  *
- * This script generates videos from input images using WAN 2.2 and LTX-2.3 models.
+ * This script generates videos from input images using WAN 2.2, LTX-2.3, and Seedance models.
  * Takes an image and animates it based on a text prompt.
  *
  * Prerequisites:
@@ -13,6 +13,7 @@
  *   node workflow_image_to_video.mjs --image input.jpg       # Interactive mode
  *   node workflow_image_to_video.mjs "zoom in" --image pic.jpg
  *   node workflow_image_to_video.mjs --image img.jpg --end-image img2.jpg  # transition
+ *   node workflow_image_to_video.mjs "slow push-in" --image pic.jpg --model seedance2
  *
  * Options:
  *   --image     Input image path (required)
@@ -20,8 +21,8 @@
  *   --model     Model ID (default: wan_v2.2-14b-fp8_i2v_lightx2v)
  *   --width     Video width (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
  *   --height    Video height (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
- *   --duration  Duration in seconds (WAN: 1-10s default 5, LTX-2.3: 4-20s default 4)
- *   --fps       Frames per second (WAN: 16/32, LTX-2.3: 25/50)
+ *   --duration  Duration in seconds (WAN: 1-10s, LTX-2.3: 4-20s, Seedance: 4-15s)
+ *   --fps       Frames per second (WAN: 16/32, LTX-2.3: 1-60, Seedance: 24)
  *   --first-frame-strength  LTX keyframes: first frame match strength 0-1 (default: 1.0, 0=disable)
  *   --last-frame-strength   LTX keyframes: last frame match strength 0-1 (default: 1.0)
  *
@@ -205,13 +206,17 @@ Available Models:
   wan_v2.2-14b-fp8_i2v                (WAN 2.2, high quality 20-step, 1-10s)
   ltx23-22b-fp8_i2v_distilled         (LTX-2.3, fast 8-step, 22B model, 4-20s, 2x upscaled output)
   ltx23-22b-fp8_i2v_dev               (LTX-2.3, high quality 30-step, 22B model, 4-20s, 2x upscaled output)
+  seedance2                           (Seedance 2.0, external API, 4-15s, 24fps)
+  seedance2-fast                      (Seedance 2.0 Fast, external API, 4-15s, 24fps, 720p cap)
 
 Note: LTX models automatically use keyframe interpolation when --end-image is provided.
 
 Model-Specific Constraints:
   WAN models:         480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
-  LTX-2.3 distilled:  640-3840px (step 64), 25/50 fps, 4-20s, no shift, guidance 1-2
-  LTX-2.3 dev:        640-3840px (step 64), 25/50 fps, 4-20s, no shift, guidance 1-10
+  LTX-2.3 distilled:  640-3840px (step 64), 1-60 fps, 4-20s, no shift, guidance 1-2
+  LTX-2.3 dev:        640-3840px (step 64), 1-60 fps, 4-20s, no shift, guidance 1-10
+  Seedance 2.0:   480-1920px (step 8), 24 fps, 4-15s, external API
+  Seedance 2.0 Fast:  480-1280px (step 8), 24 fps, 4-15s, external API
 
 Options:
   --image     Input image path (required)
@@ -221,8 +226,8 @@ Options:
   --style     Style prompt (default: none)
   --width     Video width (default: auto from image or WAN 640, LTX-2.3 768)
   --height    Video height (default: auto from image or WAN 640, LTX-2.3 512)
-  --duration  Duration in seconds (default: WAN 5s, LTX-2.3 4s)
-  --fps       Frames per second (default: WAN 16, LTX-2.3 25)
+  --duration  Duration in seconds (default: 5s)
+  --fps       Frames per second (default: WAN 16, LTX-2.3 24, Seedance 24)
   --batch     Number of videos to generate (default: 1)
   --seed      Random seed (default: -1 for random)
   --guidance  Guidance scale (default: model-specific)
@@ -239,7 +244,6 @@ Options:
   --help      Show this help message
 `);
 }
-
 
 // ============================================
 // Main Logic
@@ -316,7 +320,9 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'wan_v2.2-14b-fp8_i2v_lightx2v';
     modelConfig = MODELS.i2v[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx23-22b-fp8_i2v_distilled, ltx23-22b-fp8_i2v_dev`);
+      console.error(
+        `Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx23-22b-fp8_i2v_distilled, ltx23-22b-fp8_i2v_dev`
+      );
       process.exit(1);
     }
   }
@@ -360,7 +366,10 @@ async function main() {
       }
     }
 
-    log('⚙️', `Frame strengths: first=${OPTIONS.firstFrameStrength}, last=${OPTIONS.lastFrameStrength}`);
+    log(
+      '⚙️',
+      `Frame strengths: first=${OPTIONS.firstFrameStrength}, last=${OPTIONS.lastFrameStrength}`
+    );
   }
 
   // Set default dimensions from image, aligned to model's dimension step
@@ -616,9 +625,7 @@ async function main() {
       }
       if (balance) {
         const currentBalance = parseFloat(balance.spark.net || 0);
-        console.log(
-          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
-        );
+        console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`);
       }
       console.log(`   USD: $${(totalCost * 0.005).toFixed(4)}`);
     } else {
@@ -632,9 +639,7 @@ async function main() {
       }
       if (balance) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
-        console.log(
-          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
-        );
+        console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`);
       }
       console.log(`   USD: $${(totalCost * 0.05).toFixed(4)}`);
     }
@@ -708,7 +713,10 @@ async function main() {
       });
       projectParams.referenceImageEnd = processedEndImage.buffer;
       if (processedEndImage.wasResized) {
-        log('🔄', `End image resized from ${processedEndImage.originalWidth}x${processedEndImage.originalHeight} to ${processedEndImage.width}x${processedEndImage.height}`);
+        log(
+          '🔄',
+          `End image resized from ${processedEndImage.originalWidth}x${processedEndImage.originalHeight} to ${processedEndImage.width}x${processedEndImage.height}`
+        );
       }
     }
 
@@ -814,13 +822,13 @@ async function main() {
 
       switch (event.type) {
         case 'queued': {
-                    const queuedLabel = getJobLabel(event, jobId);
+          const queuedLabel = getJobLabel(event, jobId);
           log('📋', `${queuedLabel}Job queued at position: ${event.queuePosition}`);
           break;
         }
 
         case 'initiating': {
-                    // Pre-create job state with jobIndex if provided
+          // Pre-create job state with jobIndex if provided
           if (!jobStates.has(jobId) && event.jobIndex !== undefined) {
             jobStates.set(jobId, {
               startTime: null,
@@ -840,7 +848,7 @@ async function main() {
         }
 
         case 'started': {
-                    // Initialize or update state for this job
+          // Initialize or update state for this job
           let jobState = jobStates.get(jobId);
           if (!jobState) {
             jobState = {
@@ -892,7 +900,7 @@ async function main() {
         }
 
         case 'jobETA': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state) {
             state.lastETA = event.etaSeconds;
             state.lastETAUpdate = Date.now();
@@ -901,7 +909,7 @@ async function main() {
         }
 
         case 'progress': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state && event.step !== undefined && event.stepCount !== undefined) {
             state.lastStep = event.step;
             state.lastStepCount = event.stepCount;
@@ -910,7 +918,7 @@ async function main() {
         }
 
         case 'completed': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           const completedLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
 
@@ -924,7 +932,10 @@ async function main() {
 
           if (!event.resultUrl || event.error) {
             failedVideos++;
-            log('❌', `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`);
+            log(
+              '❌',
+              `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`
+            );
             jobStates.delete(jobId);
             checkWorkflowCompletion();
           } else {
@@ -939,7 +950,7 @@ async function main() {
             const jobElapsed = jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?';
 
             // Use actual seed from job completion event (server generates unique seeds for batch items)
-            const jobSeed = event.seed ?? (OPTIONS.seed + (state?.jobIndex || 0));
+            const jobSeed = event.seed ?? OPTIONS.seed + (state?.jobIndex || 0);
 
             const desiredPath = generateVideoFilename({
               modelId: modelConfig.id,
@@ -975,7 +986,7 @@ async function main() {
 
         case 'error':
         case 'failed': {
-                    const errorLabel = getJobLabel(event, jobId);
+          const errorLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
           failedVideos++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
@@ -1062,7 +1073,16 @@ async function main() {
   }
 }
 
-async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps, videoCount = 1) {
+async function getVideoJobEstimate(
+  tokenType,
+  modelId,
+  width,
+  height,
+  frames,
+  fps,
+  steps,
+  videoCount = 1
+) {
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');
@@ -1113,4 +1133,3 @@ main().catch((error) => {
   console.error('Fatal error:', error);
   process.exit(1);
 });
-

@@ -19,6 +19,7 @@ const {
   serializeUnknownError,
   validateHostedToolArguments
 } = require('../dist/Chat/modelRouting.js');
+const { parseCreativeWorkflowSseChunk } = require('../dist/CreativeWorkflows/index.js');
 const { SogniTools } = require('../dist/Chat/tools.js');
 
 function stableValue(value) {
@@ -33,13 +34,15 @@ function stableValue(value) {
 }
 
 function sha256(value) {
-  return createHash('sha256').update(JSON.stringify(stableValue(value))).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(stableValue(value)))
+    .digest('hex');
 }
 
 const sdkHostedToolsByName = new Map(SogniTools.all.map((tool) => [tool.function.name, tool]));
 
 assert.deepEqual(
-  hostedAliasParityVector.tools.map((tool) => tool.hostedToolName),
+  [...new Set(hostedAliasParityVector.tools.map((tool) => tool.hostedToolName))],
   SogniTools.all.map((tool) => tool.function.name)
 );
 
@@ -77,6 +80,12 @@ const models = [
   { id: PREFERRED_MODEL_IDS.video.s2v, media: 'video', workerCount: 9 },
   { id: PREFERRED_MODEL_IDS.video.animateMove, media: 'video', workerCount: 6 },
   { id: PREFERRED_MODEL_IDS.video.v2v, media: 'video', workerCount: 2 },
+  { id: PREFERRED_MODEL_IDS.video.seedanceT2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.video.seedanceI2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.video.seedanceIa2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.video.seedanceFastT2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.video.seedanceFastI2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.video.seedanceV2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.audio.aceStepTurbo, media: 'audio', workerCount: 1 },
   { id: PREFERRED_MODEL_IDS.audio.aceStepSft, media: 'audio', workerCount: 10 }
 ];
@@ -113,6 +122,16 @@ assert.equal(
 assert.equal(
   selectBackboneModel(models, {
     mediaType: 'video',
+    requestedModel: PREFERRED_MODEL_IDS.video.seedanceFastT2v,
+    workflows: ['t2v'],
+    preferredModelIds: [PREFERRED_MODEL_IDS.video.t2v]
+  }).modelId,
+  PREFERRED_MODEL_IDS.video.seedanceFastT2v
+);
+
+assert.equal(
+  selectBackboneModel(models, {
+    mediaType: 'video',
     workflows: ['ia2v', 's2v'],
     preferredModelIds: [PREFERRED_MODEL_IDS.video.ia2v, PREFERRED_MODEL_IDS.video.s2v]
   }).modelId,
@@ -131,7 +150,10 @@ assert.equal(
 assert.equal(
   selectBackboneModel(models, {
     mediaType: 'audio',
-    preferredModelIds: [PREFERRED_MODEL_IDS.audio.aceStepTurbo, PREFERRED_MODEL_IDS.audio.aceStepSft]
+    preferredModelIds: [
+      PREFERRED_MODEL_IDS.audio.aceStepTurbo,
+      PREFERRED_MODEL_IDS.audio.aceStepSft
+    ]
   }).modelId,
   PREFERRED_MODEL_IDS.audio.aceStepTurbo
 );
@@ -159,9 +181,22 @@ assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.s2v), {
   height: 480,
   fps: 16
 });
+assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceT2v), {
+  width: 1920,
+  height: 1088,
+  fps: 24
+});
+assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceFastT2v), {
+  width: 1280,
+  height: 720,
+  fps: 24
+});
 
 assert.equal(serializeUnknownError(new Error('plain failure')), 'plain failure');
-assert.equal(serializeUnknownError({ message: 'message field wins', code: 400 }), 'message field wins');
+assert.equal(
+  serializeUnknownError({ message: 'message field wins', code: 400 }),
+  'message field wins'
+);
 assert.equal(serializeUnknownError({ error: { message: 'nested failure' } }), 'nested failure');
 assert.equal(serializeUnknownError({ reason: 'reason fallback' }), 'reason fallback');
 assert.equal(
@@ -182,6 +217,7 @@ assert.equal(asBooleanValue('false'), undefined);
 assert.equal(normalizeTimeSignature('7/8'), '7/8');
 assert.equal(normalizeTimeSignature(3.8), '4');
 assert.equal(normalizeVideoControlMode('depth'), 'depth');
+assert.equal(normalizeVideoControlMode('seedance-v2v'), 'seedance-v2v');
 assert.equal(normalizeVideoControlMode('unknown'), 'animate-move');
 assert.equal(getHostedVariationCount({ number_of_variations: 20 }), 16);
 assert.equal(getHostedVariationCount({}, 4.2), 4);
@@ -205,8 +241,38 @@ assert.equal(
   PREFERRED_MODEL_IDS.video.i2v
 );
 assert.equal(
+  resolveHostedToolModelSelector('sogni_generate_video', { model: 'seedance2' }),
+  PREFERRED_MODEL_IDS.video.seedanceT2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('sogni_generate_video', { model: 'seedance2-fast' }),
+  PREFERRED_MODEL_IDS.video.seedanceFastT2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('sogni_generate_video', {
+    model: 'seedance2',
+    reference_image_url: 'data:image/png;base64,aaa'
+  }),
+  PREFERRED_MODEL_IDS.video.seedanceI2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('sogni_generate_video', {
+    model: 'seedance2-fast',
+    reference_image_url: 'data:image/png;base64,aaa'
+  }),
+  PREFERRED_MODEL_IDS.video.seedanceFastI2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('sogni_video_to_video', { model: 'seedance2' }),
+  PREFERRED_MODEL_IDS.video.seedanceV2v
+);
+assert.equal(
   resolveHostedToolModelSelector('sogni_sound_to_video', { model: 'wan-s2v' }),
   PREFERRED_MODEL_IDS.video.s2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('sogni_sound_to_video', { model: 'seedance2' }),
+  PREFERRED_MODEL_IDS.video.seedanceIa2v
 );
 assert.equal(
   resolveHostedToolModelSelector('sogni_generate_music', { model: 'turbo' }),
@@ -222,10 +288,10 @@ assert.deepEqual(
   }),
   { ok: true, errors: [] }
 );
-assert.deepEqual(
-  validateHostedToolArguments(SogniTools.all, 'sogni_generate_image', null),
-  { ok: false, errors: ['Tool arguments must be a JSON object'] }
-);
+assert.deepEqual(validateHostedToolArguments(SogniTools.all, 'sogni_generate_image', null), {
+  ok: false,
+  errors: ['Tool arguments must be a JSON object']
+});
 assert.deepEqual(
   validateHostedToolArguments(SogniTools.all, 'sogni_sound_to_video', { prompt: 'music video' }),
   { ok: false, errors: ['Missing required argument "reference_audio_url"'] }
@@ -245,15 +311,32 @@ assert.deepEqual(
   }),
   {
     ok: false,
-    errors: ['Argument "control_mode" must be one of "animate-move", "animate-replace", "canny", "pose", "depth", "detailer"']
+    errors: [
+      'Argument "control_mode" must be one of "animate-move", "animate-replace", "seedance-v2v", "canny", "pose", "depth", "detailer"'
+    ]
   }
 );
 assert.throws(
-  () => assertHostedToolArguments(SogniTools.all, 'sogni_generate_music', {
-    prompt: 'song',
-    composer_mode: 'true'
-  }),
+  () =>
+    assertHostedToolArguments(SogniTools.all, 'sogni_generate_music', {
+      prompt: 'song',
+      composer_mode: 'true'
+    }),
   /Invalid sogni_generate_music arguments: Argument "composer_mode" must be boolean/
+);
+
+assert.deepEqual(
+  parseCreativeWorkflowSseChunk(
+    'id: 7\nevent: workflow_status\ndata: {"workflowId":"wf_1","status":"completed"}\n\n'
+  ),
+  [
+    {
+      id: '7',
+      event: 'workflow_status',
+      data: { workflowId: 'wf_1', status: 'completed' },
+      raw: 'id: 7\nevent: workflow_status\ndata: {"workflowId":"wf_1","status":"completed"}'
+    }
+  ]
 );
 
 console.log('chat model routing parity checks passed');

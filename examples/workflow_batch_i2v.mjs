@@ -19,11 +19,11 @@
  *
  * Options:
  *   --folder      Input folder containing images (default: ./toprocess)
- *   --model       Model: lightx2v or quality (default: prompts for selection)
+ *   --model       Model key or ID (try lightx2v, quality, ltx23-22b-fp8_i2v_distilled, seedance2, seedance2-fast)
  *   --width       Video width (default: auto from first image, min: 480)
  *   --height      Video height (default: auto from first image, min: 480)
- *   --duration    Duration in seconds (default: 5, converts to frames)
- *   --fps         Frames per second: 16, 24, 30, or 32 (default: model-specific, 24 for LTX-2.3)
+ *   --duration    Duration in seconds (default: 5; Seedance supports 4-15s)
+ *   --fps         Frames per second (default: model-specific, Seedance fixed at 24)
  *   --seed        Random seed for all videos, or -1 for random each (default: -1)
  *   --guidance    Guidance scale (default: model-specific)
  *   --shift       Motion intensity 1.0-8.0 (default: model-specific)
@@ -73,6 +73,15 @@ const streamPipeline = promisify(pipeline);
 // Default prompt for this workflow
 const DEFAULT_PROMPT =
   'A cinematic camera movement that brings the image to life with smooth, natural motion';
+const DEFAULT_I2V_MODEL_KEY = 'wan_v2.2-14b-fp8_i2v_lightx2v';
+const I2V_MODEL_ALIASES = {
+  lightx2v: DEFAULT_I2V_MODEL_KEY,
+  quality: 'wan_v2.2-14b-fp8_i2v'
+};
+
+function resolveI2VModelKey(modelKey) {
+  return I2V_MODEL_ALIASES[modelKey] || modelKey;
+}
 
 // ============================================
 // Parse Command Line Arguments
@@ -166,15 +175,17 @@ Usage:
 Available Models:
   lightx2v - WAN 2.2 14B I2V LightX2V (fast, 4-step, default)
   quality  - WAN 2.2 14B I2V (high quality, 20-step)
+  seedance2 - Seedance 2.0 I2V (external API, 4-15s, 24fps)
+  seedance2-fast - Seedance 2.0 Fast I2V (external API, 4-15s, 24fps, 720p cap)
 
 Options:
   --folder      Input folder containing images (default: ./toprocess)
-  --model       Model: lightx2v or quality (default: prompts for selection)
+  --model       Model key or ID (try lightx2v, quality, seedance2, seedance2-fast)
   --negative    Negative prompt (default: none)
   --width       Video width (default: auto from first image, min: 480)
   --height      Video height (default: auto from first image, min: 480)
-  --duration    Duration in seconds (default: 5)
-  --fps         Frames per second: 16, 24, 30, or 32 (default: model-specific)
+  --duration    Duration in seconds (default: 5; Seedance supports 4-15s)
+  --fps         Frames per second (default: model-specific, Seedance fixed at 24)
   --seed        Random seed for all, or -1 for random each (default: -1)
   --guidance    Guidance scale (default: model-specific)
   --shift       Motion intensity 1.0-8.0 (default: model-specific)
@@ -230,7 +241,16 @@ function videoExists(basename, outputDir) {
 /**
  * Get video job cost estimate
  */
-async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps, videoCount = 1) {
+async function getVideoJobEstimate(
+  tokenType,
+  modelId,
+  width,
+  height,
+  frames,
+  fps,
+  steps,
+  videoCount = 1
+) {
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');
@@ -346,14 +366,16 @@ async function main() {
   // Interactive mode: select model and options
   let modelConfig;
   if (OPTIONS.interactive && !OPTIONS.modelKey) {
-    const selection = await selectModel(MODELS.i2v, 'lightx2v');
+    const selection = await selectModel(MODELS.i2v, DEFAULT_I2V_MODEL_KEY);
     OPTIONS.modelKey = selection.key;
     modelConfig = selection.config;
   } else {
-    OPTIONS.modelKey = OPTIONS.modelKey || 'lightx2v';
+    OPTIONS.modelKey = resolveI2VModelKey(OPTIONS.modelKey || 'lightx2v');
     modelConfig = MODELS.i2v[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'lightx2v' or 'quality'.`);
+      console.error(
+        `Error: Unknown model '${OPTIONS.modelKey}'. Use 'lightx2v', 'quality', 'seedance2', 'seedance2-fast', or a MODELS.i2v key.`
+      );
       process.exit(1);
     }
   }
@@ -546,7 +568,9 @@ async function main() {
       console.log(`   Total (${filesToProcess.length} videos): ${totalCost.toFixed(2)} Spark`);
       if (balance) {
         const currentBalance = parseFloat(balance.spark.net || 0);
-        console.log(`   Balance: ${currentBalance.toFixed(2)} → ${(currentBalance - totalCost).toFixed(2)} Spark`);
+        console.log(
+          `   Balance: ${currentBalance.toFixed(2)} → ${(currentBalance - totalCost).toFixed(2)} Spark`
+        );
       }
       console.log(`   USD: ~$${(totalCost * 0.005).toFixed(2)}`);
 
@@ -566,7 +590,9 @@ async function main() {
       console.log(`   Total (${filesToProcess.length} videos): ${totalCost.toFixed(2)} Sogni`);
       if (balance) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
-        console.log(`   Balance: ${currentBalance.toFixed(2)} → ${(currentBalance - totalCost).toFixed(2)} Sogni`);
+        console.log(
+          `   Balance: ${currentBalance.toFixed(2)} → ${(currentBalance - totalCost).toFixed(2)} Sogni`
+        );
       }
       console.log(`   USD: ~$${(totalCost * 0.05).toFixed(2)}`);
 
@@ -631,9 +657,8 @@ async function main() {
         log('📐', `Video dimensions: ${processedImage.width}x${processedImage.height}`);
 
         // Generate seed for this video
-        const seed = OPTIONS.seed !== null && OPTIONS.seed !== -1
-          ? OPTIONS.seed
-          : generateRandomSeed();
+        const seed =
+          OPTIONS.seed !== null && OPTIONS.seed !== -1 ? OPTIONS.seed : generateRandomSeed();
 
         log('🎲', `Seed: ${seed}`);
 
@@ -686,7 +711,9 @@ async function main() {
                 const elapsed = (Date.now() - imageStartTime) / 1000;
                 let progressStr = `\r  Generating...`;
                 if (project._lastStep !== undefined && project._lastStepCount !== undefined) {
-                  const stepPercent = Math.round((project._lastStep / project._lastStepCount) * 100);
+                  const stepPercent = Math.round(
+                    (project._lastStep / project._lastStepCount) * 100
+                  );
                   progressStr += ` Step ${project._lastStep}/${project._lastStepCount} (${stepPercent}%)`;
                 }
                 if (project._lastETA !== undefined) {
@@ -806,4 +833,3 @@ main().catch((error) => {
   console.error('Fatal error:', error);
   process.exit(1);
 });
-

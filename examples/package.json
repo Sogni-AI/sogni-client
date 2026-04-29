@@ -10,7 +10,13 @@
     "v2v": "node workflow_video_to_video.mjs",
     "batch": "node workflow_batch_i2v.mjs",
     "t2i": "node workflow_text_to_image.mjs",
-    "edit": "node workflow_image_edit.mjs"
+    "edit": "node workflow_image_edit.mjs",
+    "creative-tools": "node workflow_creative_agent_tools.mjs",
+    "creative-workflow": "node workflow_creative_agent_workflows.mjs",
+    "seedance-endpoint": "node workflow_seedance_endpoint.mjs",
+    "seedance-workflow:i2v": "node workflow_seedance_endpoint.mjs \"slow cinematic reveal\" --mode i2v --no-execute",
+    "seedance-workflow:ia2v": "node workflow_seedance_endpoint.mjs \"the portrait sings with stage lighting\" --mode ia2v --no-execute",
+    "seedance-workflow:v2v": "node workflow_seedance_endpoint.mjs \"turn the clip into a polished perfume commercial\" --mode v2v --no-execute"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

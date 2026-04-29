@@ -123,6 +123,12 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Frame count is calculated as: `duration * fps + 1`
  * - Frame count must follow the pattern: `1 + n*8` (i.e., 1, 9, 17, 25, 33, ...)
  * - Example: 5 seconds at 24fps = 121 frames (since 121 = 1 + 15*8)
+ *
+ * ### Seedance 2.0 Models (seedance-2-0*)
+ * - External API-backed video models for text-to-video, image-to-video, and video-to-video
+ * - Generate at fixed 24fps
+ * - Direct SDK project duration range is 4 to 15 seconds
+ * - Frame count is calculated as: `duration * 24 + 1`
  */
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
@@ -133,11 +139,13 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   frames?: number;
   /**
-   * Duration of the video in seconds. Supported range 1 to 10 (WAN) or 4 to 20 (LTX-2.3).
+   * Duration of the video in seconds. Supported range 1 to 10 (WAN), 4 to 20 (LTX-2.3),
+   * or 4 to 15 (Seedance direct SDK projects).
    *
    * The SDK automatically calculates the correct frame count based on the model:
    * - WAN 2.2: `duration * 16 + 1` (always 16fps generation)
    * - LTX-2.3: `duration * fps + 1`, snapped to frame step constraint
+   * - Seedance: `duration * 24 + 1`
    */
   duration?: number;
   /**
@@ -148,6 +156,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    *
    * **LTX-2.3 Models:** Any value from 1-60 fps. This directly controls the generation
    * frame rate - there is no post-render interpolation.
+   *
+   * **Seedance Models:** Fixed 24fps external API generation.
    */
   fps?: number;
   /**
@@ -538,7 +548,7 @@ export interface VideoEstimateRequest {
    */
   frames?: number;
   fps: number;
-  steps: number;
+  steps?: number;
   numberOfMedia: number;
 }
 
@@ -567,7 +577,7 @@ export interface CostEstimation {
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
 
 /**
- * Video workflow types for WAN and LTX-2.3 models
+ * Video workflow types for WAN, LTX-2.3, and Seedance models
  */
 export type VideoWorkflowType =
   | 't2v'

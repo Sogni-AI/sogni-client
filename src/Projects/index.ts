@@ -985,18 +985,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - sogni: Cost in Sogni.
    */
   async estimateVideoCost(params: VideoEstimateRequest) {
-    const pathParams = [
+    const frames = params.frames
+      ? params.frames
+      : calculateVideoFrames(params.model, params.duration, params.fps);
+    const numberOfMedia = params.numberOfMedia ?? 1;
+    const pathParams: Array<string | number> = [
       params.tokenType,
       params.model,
       params.width,
       params.height,
-      params.frames
-        ? params.frames
-        : calculateVideoFrames(params.model, params.duration, params.fps),
-      params.fps,
-      params.steps,
-      params.numberOfMedia
+      frames,
+      params.fps
     ];
+    if (params.steps !== undefined && params.steps !== null) {
+      pathParams.push(params.steps);
+      pathParams.push(numberOfMedia);
+    } else if (numberOfMedia !== 1) {
+      pathParams.push(0);
+      pathParams.push(numberOfMedia);
+    }
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-video/estimate/${path}`

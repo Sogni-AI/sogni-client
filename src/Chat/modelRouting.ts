@@ -23,6 +23,7 @@ export type VideoWorkflow =
 export type VideoControlMode =
   | 'animate-move'
   | 'animate-replace'
+  | 'seedance-v2v'
   | 'canny'
   | 'pose'
   | 'depth'
@@ -84,6 +85,12 @@ export const PREFERRED_MODEL_IDS = {
     ia2v: 'ltx23-22b-fp8_ia2v_distilled',
     s2v: 'wan_v2.2-14b-fp8_s2v_lightx2v',
     v2v: 'ltx23-22b-fp8_v2v_distilled',
+    seedanceT2v: 'seedance-2-0_t2v',
+    seedanceI2v: 'seedance-2-0_i2v',
+    seedanceIa2v: 'seedance-2-0_ia2v',
+    seedanceFastT2v: 'seedance-2-0-fast_t2v',
+    seedanceFastI2v: 'seedance-2-0-fast_i2v',
+    seedanceV2v: 'seedance-2-0_v2v',
     animateMove: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
@@ -125,16 +132,27 @@ const EDIT_IMAGE_MODEL_SELECTORS: Record<string, string> = {
 
 const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.t2v,
-  wan22: 'wan_v2.2-14b-fp8_t2v_lightx2v'
+  wan22: 'wan_v2.2-14b-fp8_t2v_lightx2v',
+  seedance2: PREFERRED_MODEL_IDS.video.seedanceT2v,
+  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastT2v
 };
 
 const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.i2v,
-  wan22: 'wan_v2.2-14b-fp8_i2v_lightx2v'
+  wan22: 'wan_v2.2-14b-fp8_i2v_lightx2v',
+  seedance2: PREFERRED_MODEL_IDS.video.seedanceI2v,
+  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastI2v
+};
+
+const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
+  ltx23: PREFERRED_MODEL_IDS.video.v2v,
+  'ltx23-v2v': PREFERRED_MODEL_IDS.video.v2v,
+  seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v
 };
 
 const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'wan-s2v': PREFERRED_MODEL_IDS.video.s2v,
+  seedance2: PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'ltx23-ia2v': PREFERRED_MODEL_IDS.video.ia2v,
   'ltx23-a2v': PREFERRED_MODEL_IDS.video.a2v
 };
@@ -181,6 +199,7 @@ export function normalizeTimeSignature(value: unknown): string | undefined {
 export function normalizeVideoControlMode(value: unknown): VideoControlMode {
   switch (value) {
     case 'animate-replace':
+    case 'seedance-v2v':
     case 'canny':
     case 'pose':
     case 'depth':
@@ -191,7 +210,10 @@ export function normalizeVideoControlMode(value: unknown): VideoControlMode {
   }
 }
 
-export function getHostedVariationCount(args: Record<string, unknown>, fallback: unknown = 1): number {
+export function getHostedVariationCount(
+  args: Record<string, unknown>,
+  fallback: unknown = 1
+): number {
   if (args.number_of_variations !== undefined) {
     return clampVariationCount(args.number_of_variations);
   }
@@ -220,13 +242,16 @@ export function resolveHostedToolModelSelector(
       selectors = EDIT_IMAGE_MODEL_SELECTORS;
       break;
     case 'sogni_generate_video':
-      selectors = isNonEmptyString(args.reference_image_url) ||
-        isNonEmptyString(args.reference_image_end_url)
-        ? IMAGE_VIDEO_MODEL_SELECTORS
-        : TEXT_VIDEO_MODEL_SELECTORS;
+      selectors =
+        isNonEmptyString(args.reference_image_url) || isNonEmptyString(args.reference_image_end_url)
+          ? IMAGE_VIDEO_MODEL_SELECTORS
+          : TEXT_VIDEO_MODEL_SELECTORS;
       break;
     case 'sogni_sound_to_video':
       selectors = SOUND_TO_VIDEO_MODEL_SELECTORS;
+      break;
+    case 'sogni_video_to_video':
+      selectors = VIDEO_TO_VIDEO_MODEL_SELECTORS;
       break;
     case 'sogni_generate_music':
       selectors = MUSIC_MODEL_SELECTORS;
@@ -443,9 +468,16 @@ export function filterVideoModelsByWorkflow(
 export function getVideoDefaults(modelId: string): { width: number; height: number; fps: number } {
   const workflow = getVideoWorkflowType(modelId);
   const isLtx2 = modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
+  const isSeedance = modelId.startsWith('seedance-2-0');
 
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
+  }
+  if (modelId.includes('seedance-2-0-fast')) {
+    return { width: 1280, height: 720, fps: 24 };
+  }
+  if (isSeedance) {
+    return { width: 1920, height: 1088, fps: 24 };
   }
   if (isLtx2) {
     return { width: 1920, height: 1088, fps: 24 };

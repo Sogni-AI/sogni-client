@@ -1,5 +1,5 @@
 {
-  "version": "2026-04-27.1",
+  "version": "2026-04-28.1",
   "source": {
     "aliases": "src/backbone/knowledge/tool-aliases.json",
     "hostedTools": "src/backbone/openai-tools/sogni-hosted-tools.json",
@@ -70,7 +70,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_generate_video",
       "sdkToolName": "sogni_generate_video",
-      "hostedSchemaSha256": "717c641d4dd1bdde3fbf71536ac42dcab35a8824e6645c67e2343b0cb43d9e10",
+      "hostedSchemaSha256": "612b63a5cb6e6532de784d9fd75278e133291e93361a2ddb6d8939cd9927a8e5",
       "hostedRequired": ["prompt"],
       "hostedPropertyNames": [
         "prompt",
@@ -102,11 +102,53 @@
       "mediaAliasTargets": []
     },
     {
+      "creativeToolName": "animate_photo",
+      "executionMode": "direct",
+      "hostedToolName": "sogni_generate_video",
+      "sdkToolName": "sogni_generate_video",
+      "hostedSchemaSha256": "612b63a5cb6e6532de784d9fd75278e133291e93361a2ddb6d8939cd9927a8e5",
+      "hostedRequired": ["prompt"],
+      "hostedPropertyNames": [
+        "prompt",
+        "negative_prompt",
+        "reference_image_url",
+        "reference_image_end_url",
+        "reference_audio_identity_url",
+        "audio_identity_strength",
+        "first_frame_strength",
+        "last_frame_strength",
+        "width",
+        "height",
+        "duration",
+        "fps",
+        "model",
+        "number_of_variations",
+        "seed"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "prompt",
+        "negative_prompt",
+        "duration",
+        "model",
+        "number_of_variations",
+        "width",
+        "height",
+        "seed"
+      ],
+      "mediaAliasTargets": [
+        "reference_image_url",
+        "reference_image_url",
+        "reference_image_end_url",
+        "reference_image_end_url"
+      ]
+    },
+    {
       "creativeToolName": "sound_to_video",
       "executionMode": "direct",
       "hostedToolName": "sogni_sound_to_video",
       "sdkToolName": "sogni_sound_to_video",
-      "hostedSchemaSha256": "75b53ce5b546026497a7d02eb7d032f00ec9cfacba5834fa7d16c8feede9507a",
+      "hostedSchemaSha256": "5bd2da37f7123ff541c1ab7d59be8a01f47d7e3a700d4d00f015f8fe94101c11",
       "hostedRequired": ["prompt", "reference_audio_url"],
       "hostedPropertyNames": [
         "prompt",
@@ -136,7 +178,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_video_to_video",
       "sdkToolName": "sogni_video_to_video",
-      "hostedSchemaSha256": "7de4f0ff57f5dda7d01178aa2b9ff2da1f72a88814c0847a341b23d914b81ef2",
+      "hostedSchemaSha256": "893bffa42052582cba8064475de13e5fc536913e47290fa4c01fdc603d25d517",
       "hostedRequired": ["prompt", "reference_video_url"],
       "hostedPropertyNames": [
         "prompt",
