@@ -1,3 +1,13 @@
+# [4.2.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.5...v4.2.0-alpha.6) (2026-04-30)
+
+
+### Features
+
+* centralize chat model routing ([51a0841](https://github.com/Sogni-AI/sogni-client/commit/51a084119966fa2239512fdad1e2b549b83bd098))
+* **chat:** align hosted tool routing helpers ([bf57eca](https://github.com/Sogni-AI/sogni-client/commit/bf57eca06e255429dd43a4e2614006be774967f3))
+* **chat:** expose server-side Sogni tool controls ([7218ee7](https://github.com/Sogni-AI/sogni-client/commit/7218ee7f7cd11b85e2f3c7c1dd42fc68c89734bf))
+* generate hosted chat tool definitions ([2e56f57](https://github.com/Sogni-AI/sogni-client/commit/2e56f57a9f1acb72ce6c2d4744edaa291fc19582))
+
 # [4.2.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.4...v4.2.0-alpha.5) (2026-04-22)
 
 
