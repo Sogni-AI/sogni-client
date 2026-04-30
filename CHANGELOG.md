@@ -1,3 +1,15 @@
+# [4.2.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.7...v4.2.0-alpha.8) (2026-04-30)
+
+
+### Bug Fixes
+
+* **projects:** share negative prompt params ([9545e95](https://github.com/Sogni-AI/sogni-client/commit/9545e956ccedecff499d00e8ad02b8c877aacf11))
+
+
+### Features
+
+* **seedance:** support multimodal context references ([4f1a0ec](https://github.com/Sogni-AI/sogni-client/commit/4f1a0ecfbb958bfc8f5d4e2e43f79fee718314dc))
+
 # [4.2.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.6...v4.2.0-alpha.7) (2026-04-30)
 
 
