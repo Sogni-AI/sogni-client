@@ -29,9 +29,9 @@ export interface ImageModelOptions {
 
 export interface VideoModelOptions {
   type: 'video';
-  steps: NumRange;
-  guidance: NumRange;
-  fps: Options<number>;
+  steps?: NumRange;
+  guidance?: NumRange;
+  fps?: Options<number>;
   sampler: Options<string>;
   scheduler: Options<string>;
 }
@@ -98,14 +98,21 @@ export function mapComfyImageTier(tier: ComfyImageTier): ImageModelOptions {
 }
 
 export function mapVideoTier(tier: VideoTier): VideoModelOptions {
-  return {
+  const options: VideoModelOptions = {
     type: 'video',
-    steps: mapRange(tier.steps),
-    guidance: mapRange(tier.guidance),
     scheduler: mapOptions(tier.comfyScheduler, schedulerValueToAlias),
-    sampler: mapOptions(tier.comfySampler, samplerValueToAlias),
-    fps: tier.fps
+    sampler: mapOptions(tier.comfySampler, samplerValueToAlias)
   };
+  if (tier.steps) {
+    options.steps = mapRange(tier.steps);
+  }
+  if (tier.guidance) {
+    options.guidance = mapRange(tier.guidance);
+  }
+  if (tier.fps) {
+    options.fps = tier.fps;
+  }
+  return options;
 }
 
 export function mapAudioTier(tier: AudioTier): AudioModelOptions {

@@ -73,6 +73,7 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -111,7 +112,7 @@ async function parseArgs() {
     shift: null,
     sampler: null,
     scheduler: null,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
     disableSafeContentFilter: false
   };
@@ -331,7 +332,10 @@ async function main() {
   }
 
   // Get image dimensions (if image is provided)
-  let imageInfo = { width: modelConfig.defaultWidth || 832, height: modelConfig.defaultHeight || 480 };
+  let imageInfo = {
+    width: modelConfig.defaultWidth || 832,
+    height: modelConfig.defaultHeight || 480
+  };
   if (OPTIONS.image) {
     try {
       const dimensions = imageSize(OPTIONS.image);
@@ -439,8 +443,8 @@ async function main() {
   }
 
   // Validate frames
-  if (OPTIONS.frames < VIDEO_CONSTRAINTS.frames.min || OPTIONS.frames > maxFrames) {
-    console.error(`Error: Frames must be between ${VIDEO_CONSTRAINTS.frames.min} and ${maxFrames}`);
+  if (OPTIONS.frames < minFrames || OPTIONS.frames > maxFrames) {
+    console.error(`Error: Frames must be between ${minFrames} and ${maxFrames}`);
     process.exit(1);
   }
 
@@ -613,9 +617,7 @@ async function main() {
       }
       if (balance) {
         const currentBalance = parseFloat(balance.spark.net || 0);
-        console.log(
-          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
-        );
+        console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`);
       }
       console.log(`   USD: $${(totalCost * 0.005).toFixed(4)}`);
     } else {
@@ -629,9 +631,7 @@ async function main() {
       }
       if (balance) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
-        console.log(
-          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
-        );
+        console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`);
       }
       console.log(`   USD: $${(totalCost * 0.05).toFixed(4)}`);
     }
@@ -793,13 +793,13 @@ async function main() {
 
       switch (event.type) {
         case 'queued': {
-                    const queuedLabel = getJobLabel(event, jobId);
+          const queuedLabel = getJobLabel(event, jobId);
           log('📋', `${queuedLabel}Job queued at position: ${event.queuePosition}`);
           break;
         }
 
         case 'initiating': {
-                    // Pre-create job state with jobIndex if provided
+          // Pre-create job state with jobIndex if provided
           if (!jobStates.has(jobId) && event.jobIndex !== undefined) {
             jobStates.set(jobId, {
               startTime: null,
@@ -819,7 +819,7 @@ async function main() {
         }
 
         case 'started': {
-                    // Initialize or update state for this job
+          // Initialize or update state for this job
           let jobState = jobStates.get(jobId);
           if (!jobState) {
             jobState = {
@@ -871,7 +871,7 @@ async function main() {
         }
 
         case 'jobETA': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state) {
             state.lastETA = event.etaSeconds;
             state.lastETAUpdate = Date.now();
@@ -880,7 +880,7 @@ async function main() {
         }
 
         case 'progress': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state && event.step !== undefined && event.stepCount !== undefined) {
             state.lastStep = event.step;
             state.lastStepCount = event.stepCount;
@@ -889,7 +889,7 @@ async function main() {
         }
 
         case 'completed': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           const completedLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
 
@@ -903,7 +903,10 @@ async function main() {
 
           if (!event.resultUrl || event.error) {
             failedVideos++;
-            log('❌', `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`);
+            log(
+              '❌',
+              `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`
+            );
             jobStates.delete(jobId);
             checkWorkflowCompletion();
           } else {
@@ -918,7 +921,7 @@ async function main() {
             const jobElapsed = jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?';
 
             // Use actual seed from job completion event (server generates unique seeds for batch items)
-            const jobSeed = event.seed ?? (OPTIONS.seed + (state?.jobIndex || 0));
+            const jobSeed = event.seed ?? OPTIONS.seed + (state?.jobIndex || 0);
 
             const desiredPath = generateVideoFilename({
               modelId: modelConfig.id,
@@ -954,7 +957,7 @@ async function main() {
 
         case 'error':
         case 'failed': {
-                    const errorLabel = getJobLabel(event, jobId);
+          const errorLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
           failedVideos++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
@@ -1041,7 +1044,16 @@ async function main() {
   }
 }
 
-async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps, videoCount = 1) {
+async function getVideoJobEstimate(
+  tokenType,
+  modelId,
+  width,
+  height,
+  frames,
+  fps,
+  steps,
+  videoCount = 1
+) {
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');

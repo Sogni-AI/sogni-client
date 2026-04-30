@@ -8,10 +8,19 @@
 import * as readline from 'node:readline';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { exec } from 'node:child_process';
 import imageSize from 'image-size';
 import sharp from 'sharp';
 import { SogniClient } from '../dist/index.js';
+
+const EXAMPLES_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+export function defaultExamplesOutputDir(...segments) {
+  const outputPath = path.join(EXAMPLES_DIR, 'output', ...segments);
+  const relativePath = path.relative(process.cwd(), outputPath);
+  return relativePath || '.';
+}
 
 // ============================================
 // Video Model FPS/Frame Calculation Helpers
@@ -270,7 +279,8 @@ export const MODELS = {
       supportsDenoise: true,
       defaultDenoise: 0.7,
       supportsStartingImage: true,
-      defaultNegativePrompt: 'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
+      defaultNegativePrompt:
+        'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
       isComfyModel: true,
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
@@ -293,7 +303,8 @@ export const MODELS = {
       supportsDenoise: true,
       defaultDenoise: 0.7,
       supportsStartingImage: true,
-      defaultNegativePrompt: 'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
+      defaultNegativePrompt:
+        'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
       isComfyModel: true,
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
@@ -316,7 +327,8 @@ export const MODELS = {
       supportsDenoise: true,
       defaultDenoise: 0.7,
       supportsStartingImage: true,
-      defaultNegativePrompt: 'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
+      defaultNegativePrompt:
+        'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
       isComfyModel: true,
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
@@ -487,9 +499,37 @@ export const MODELS = {
       minGuidance: 0.7,
       maxGuidance: 1.6,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'heun', 'lms', 'dpm_2', 'dpm_2_ancestral', 'dpm_fast', 'dpm_adaptive', 'dpmpp_2s_ancestral', 'dpmpp_sde', 'dpmpp_sde_gpu', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_2m_sde_gpu', 'dpmpp_3m_sde', 'dpmpp_3m_sde_gpu', 'ddpm', 'uni_pc', 'lcm'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'heun',
+        'lms',
+        'dpm_2',
+        'dpm_2_ancestral',
+        'dpm_fast',
+        'dpm_adaptive',
+        'dpmpp_2s_ancestral',
+        'dpmpp_sde',
+        'dpmpp_sde_gpu',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_2m_sde_gpu',
+        'dpmpp_3m_sde',
+        'dpmpp_3m_sde_gpu',
+        'ddpm',
+        'uni_pc',
+        'lcm'
+      ],
       defaultComfyScheduler: 'simple',
-      allowedComfySchedulers: ['simple', 'normal', 'karras', 'exponential', 'sgm_uniform', 'ddim_uniform', 'beta'],
+      allowedComfySchedulers: [
+        'simple',
+        'normal',
+        'karras',
+        'exponential',
+        'sgm_uniform',
+        'ddim_uniform',
+        'beta'
+      ],
       minFrames: 17,
       maxFrames: 161,
       defaultFrames: 81,
@@ -519,9 +559,37 @@ export const MODELS = {
       minGuidance: 1.5,
       maxGuidance: 8.0,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'heun', 'lms', 'dpm_2', 'dpm_2_ancestral', 'dpm_fast', 'dpm_adaptive', 'dpmpp_2s_ancestral', 'dpmpp_sde', 'dpmpp_sde_gpu', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_2m_sde_gpu', 'dpmpp_3m_sde', 'dpmpp_3m_sde_gpu', 'ddpm', 'uni_pc', 'lcm'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'heun',
+        'lms',
+        'dpm_2',
+        'dpm_2_ancestral',
+        'dpm_fast',
+        'dpm_adaptive',
+        'dpmpp_2s_ancestral',
+        'dpmpp_sde',
+        'dpmpp_sde_gpu',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_2m_sde_gpu',
+        'dpmpp_3m_sde',
+        'dpmpp_3m_sde_gpu',
+        'ddpm',
+        'uni_pc',
+        'lcm'
+      ],
       defaultComfyScheduler: 'simple',
-      allowedComfySchedulers: ['simple', 'normal', 'karras', 'exponential', 'sgm_uniform', 'ddim_uniform', 'beta'],
+      allowedComfySchedulers: [
+        'simple',
+        'normal',
+        'karras',
+        'exponential',
+        'sgm_uniform',
+        'ddim_uniform',
+        'beta'
+      ],
       minFrames: 17,
       maxFrames: 161,
       defaultFrames: 81,
@@ -548,7 +616,15 @@ export const MODELS = {
       minGuidance: 1.0,
       maxGuidance: 2.0,
       defaultComfySampler: 'euler_ancestral',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_3m_sde',
+        'ddim',
+        'uni_pc'
+      ],
       defaultComfyScheduler: 'normal',
       allowedComfySchedulers: [],
       minFrames: 25,
@@ -580,7 +656,15 @@ export const MODELS = {
       minGuidance: 1.0,
       maxGuidance: 10.0,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_3m_sde',
+        'ddim',
+        'uni_pc'
+      ],
       defaultComfyScheduler: 'normal',
       allowedComfySchedulers: [],
       minFrames: 25,
@@ -619,9 +703,37 @@ export const MODELS = {
       minGuidance: 0.7,
       maxGuidance: 1.6,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'heun', 'lms', 'dpm_2', 'dpm_2_ancestral', 'dpm_fast', 'dpm_adaptive', 'dpmpp_2s_ancestral', 'dpmpp_sde', 'dpmpp_sde_gpu', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_2m_sde_gpu', 'dpmpp_3m_sde', 'dpmpp_3m_sde_gpu', 'ddpm', 'uni_pc', 'lcm'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'heun',
+        'lms',
+        'dpm_2',
+        'dpm_2_ancestral',
+        'dpm_fast',
+        'dpm_adaptive',
+        'dpmpp_2s_ancestral',
+        'dpmpp_sde',
+        'dpmpp_sde_gpu',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_2m_sde_gpu',
+        'dpmpp_3m_sde',
+        'dpmpp_3m_sde_gpu',
+        'ddpm',
+        'uni_pc',
+        'lcm'
+      ],
       defaultComfyScheduler: 'simple',
-      allowedComfySchedulers: ['simple', 'normal', 'karras', 'exponential', 'sgm_uniform', 'ddim_uniform', 'beta'],
+      allowedComfySchedulers: [
+        'simple',
+        'normal',
+        'karras',
+        'exponential',
+        'sgm_uniform',
+        'ddim_uniform',
+        'beta'
+      ],
       minFrames: 17,
       maxFrames: 161,
       defaultFrames: 81,
@@ -651,9 +763,37 @@ export const MODELS = {
       minGuidance: 1.5,
       maxGuidance: 8.0,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'heun', 'lms', 'dpm_2', 'dpm_2_ancestral', 'dpm_fast', 'dpm_adaptive', 'dpmpp_2s_ancestral', 'dpmpp_sde', 'dpmpp_sde_gpu', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_2m_sde_gpu', 'dpmpp_3m_sde', 'dpmpp_3m_sde_gpu', 'ddpm', 'uni_pc', 'lcm'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'heun',
+        'lms',
+        'dpm_2',
+        'dpm_2_ancestral',
+        'dpm_fast',
+        'dpm_adaptive',
+        'dpmpp_2s_ancestral',
+        'dpmpp_sde',
+        'dpmpp_sde_gpu',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_2m_sde_gpu',
+        'dpmpp_3m_sde',
+        'dpmpp_3m_sde_gpu',
+        'ddpm',
+        'uni_pc',
+        'lcm'
+      ],
       defaultComfyScheduler: 'simple',
-      allowedComfySchedulers: ['simple', 'normal', 'karras', 'exponential', 'sgm_uniform', 'ddim_uniform', 'beta'],
+      allowedComfySchedulers: [
+        'simple',
+        'normal',
+        'karras',
+        'exponential',
+        'sgm_uniform',
+        'ddim_uniform',
+        'beta'
+      ],
       minFrames: 17,
       maxFrames: 161,
       defaultFrames: 81,
@@ -683,7 +823,15 @@ export const MODELS = {
       minStrength: 0.3,
       maxStrength: 1.0,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_3m_sde',
+        'ddim',
+        'uni_pc'
+      ],
       defaultComfyScheduler: 'normal',
       allowedComfySchedulers: [],
       minFrames: 25,
@@ -718,7 +866,15 @@ export const MODELS = {
       minStrength: 0.3,
       maxStrength: 1.0,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_3m_sde',
+        'ddim',
+        'uni_pc'
+      ],
       defaultComfyScheduler: 'normal',
       allowedComfySchedulers: [],
       minFrames: 25,
@@ -799,7 +955,15 @@ export const MODELS = {
       minStrength: 0.3,
       maxStrength: 1.0,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_3m_sde',
+        'ddim',
+        'uni_pc'
+      ],
       defaultComfyScheduler: 'normal',
       allowedComfySchedulers: [],
       minFrames: 25,
@@ -837,7 +1001,15 @@ export const MODELS = {
       minStrength: 0.3,
       maxStrength: 1.0,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_3m_sde',
+        'ddim',
+        'uni_pc'
+      ],
       defaultComfyScheduler: 'normal',
       allowedComfySchedulers: [],
       minFrames: 25,
@@ -872,7 +1044,15 @@ export const MODELS = {
       minGuidance: 1.0,
       maxGuidance: 2.0,
       defaultComfySampler: 'euler_ancestral',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_3m_sde',
+        'ddim',
+        'uni_pc'
+      ],
       defaultComfyScheduler: 'normal',
       allowedComfySchedulers: [],
       minFrames: 25,
@@ -907,7 +1087,15 @@ export const MODELS = {
       minGuidance: 1.0,
       maxGuidance: 10.0,
       defaultComfySampler: 'euler',
-      allowedComfySamplers: ['euler', 'euler_ancestral', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_3m_sde', 'ddim', 'uni_pc'],
+      allowedComfySamplers: [
+        'euler',
+        'euler_ancestral',
+        'dpmpp_2m',
+        'dpmpp_2m_sde',
+        'dpmpp_3m_sde',
+        'ddim',
+        'uni_pc'
+      ],
       defaultComfyScheduler: 'normal',
       allowedComfySchedulers: [],
       minFrames: 25,
@@ -1052,7 +1240,7 @@ export const MODELS = {
       supportsSam2Coordinates: true,
       isComfyModel: true,
       requiresReferenceImage: true
-    },
+    }
     // NOTE: No official full quality animate-replace exists - only lightx2v version available
   }
 };
@@ -1130,10 +1318,7 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
     resizeReason = 'exceeds max';
 
     // Calculate scaling factor to fit within max dimensions while maintaining aspect ratio
-    const scaleFactor = Math.min(
-      maxDimension / targetWidth,
-      maxDimension / targetHeight
-    );
+    const scaleFactor = Math.min(maxDimension / targetWidth, maxDimension / targetHeight);
 
     targetWidth = Math.floor(targetWidth * scaleFactor);
     targetHeight = Math.floor(targetHeight * scaleFactor);
@@ -1155,10 +1340,7 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
 
     // Ensure we don't exceed max dimensions after upscaling
     if (targetWidth > maxDimension || targetHeight > maxDimension) {
-      const downscaleFactor = Math.min(
-        maxDimension / targetWidth,
-        maxDimension / targetHeight
-      );
+      const downscaleFactor = Math.min(maxDimension / targetWidth, maxDimension / targetHeight);
       targetWidth = Math.floor(targetWidth * downscaleFactor);
       targetHeight = Math.floor(targetHeight * downscaleFactor);
     }
@@ -1190,7 +1372,10 @@ export async function processImageForVideo(imagePath, frames, options = {}) {
   let imageBuffer;
 
   if (needsResize || targetWidth !== originalWidth || targetHeight !== originalHeight) {
-    log('🔄', `Resizing image from ${originalWidth}x${originalHeight} to ${targetWidth}x${targetHeight}`);
+    log(
+      '🔄',
+      `Resizing image from ${originalWidth}x${originalHeight} to ${targetWidth}x${targetHeight}`
+    );
 
     // Use sharp to resize the image with "cover" mode (fill target area, crop overflow)
     // This scales the image to cover the entire target dimensions, cropping if needed
@@ -1347,7 +1532,11 @@ export async function askQuestion(question) {
  * @param {string} defaultValue - Default value if user enters nothing
  * @returns {Promise<string>} The collected multi-line text
  */
-export async function askMultilinePrompt(question, defaultValue = '', { consecutiveEmptyLinesToEnd = 1 } = {}) {
+export async function askMultilinePrompt(
+  question,
+  defaultValue = '',
+  { consecutiveEmptyLinesToEnd = 1 } = {}
+) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
@@ -1355,9 +1544,13 @@ export async function askMultilinePrompt(question, defaultValue = '', { consecut
 
   console.log(question);
   if (consecutiveEmptyLinesToEnd > 1) {
-    console.log(`  (Paste or type text. Press Enter ${consecutiveEmptyLinesToEnd} times on a blank line to finish, or Enter once for default)`);
+    console.log(
+      `  (Paste or type text. Press Enter ${consecutiveEmptyLinesToEnd} times on a blank line to finish, or Enter once for default)`
+    );
   } else {
-    console.log('  (Paste or type your prompt. Press Enter twice to finish, or Enter once for default)');
+    console.log(
+      '  (Paste or type your prompt. Press Enter twice to finish, or Enter once for default)'
+    );
   }
   if (defaultValue) {
     const flat = defaultValue.replace(/\n+/g, ' ').trim();
@@ -1639,7 +1832,9 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
   const dimensionStep = modelConfig.dimensionStep || VIDEO_CONSTRAINTS.width.step || 16;
   const widthRange = isVideo
     ? ` (${minWidth}-${maxWidth}, step ${dimensionStep})`
-    : maxWidth ? ` (max: ${maxWidth})` : '';
+    : maxWidth
+      ? ` (max: ${maxWidth})`
+      : '';
   const widthInput = await askQuestion(`Width${widthRange} (default: ${defaultWidth}): `);
   let userChangedWidth = false;
   if (widthInput.trim()) {
@@ -1660,7 +1855,8 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
     modelConfig.defaultHeight || (isVideo ? VIDEO_CONSTRAINTS.height.default : 1024);
   if (userChangedWidth && sourceAspectRatio) {
     // Calculate proportional height based on new width
-    let proportionalHeight = Math.round(options.width / sourceAspectRatio / dimensionStep) * dimensionStep;
+    let proportionalHeight =
+      Math.round(options.width / sourceAspectRatio / dimensionStep) * dimensionStep;
     const minHeight = modelConfig.minHeight || VIDEO_CONSTRAINTS.height.min;
     const maxHeight = modelConfig.maxHeight || VIDEO_CONSTRAINTS.height.max;
     proportionalHeight = Math.max(minHeight, Math.min(maxHeight, proportionalHeight));
@@ -1670,7 +1866,9 @@ export async function promptCoreOptions(options, modelConfig, config = {}) {
   const maxHeight = modelConfig.maxHeight || VIDEO_CONSTRAINTS.height.max;
   const heightRange = isVideo
     ? ` (${minHeight}-${maxHeight}, step ${dimensionStep})`
-    : maxHeight ? ` (max: ${maxHeight})` : '';
+    : maxHeight
+      ? ` (max: ${maxHeight})`
+      : '';
   const heightInput = await askQuestion(`Height${heightRange} (default: ${defaultHeight}): `);
   if (heightInput.trim()) {
     const h = parseInt(heightInput.trim(), 10);
@@ -1702,10 +1900,16 @@ export async function promptVideoFps(options, modelConfig = {}) {
   if (hasRangeFps) {
     // Range-based FPS (LTX-2.3 models: 1-60)
     // Build menu with common options, including defaultFps if not already present
-    let menuFps = [24, 25, 30, 50, 60].filter(f => f >= modelConfig.minFps && f <= modelConfig.maxFps);
+    let menuFps = [24, 25, 30, 50, 60].filter(
+      (f) => f >= modelConfig.minFps && f <= modelConfig.maxFps
+    );
 
     // If defaultFps (e.g., from source video) isn't in the list, add it and sort
-    if (defaultFps >= modelConfig.minFps && defaultFps <= modelConfig.maxFps && !menuFps.includes(defaultFps)) {
+    if (
+      defaultFps >= modelConfig.minFps &&
+      defaultFps <= modelConfig.maxFps &&
+      !menuFps.includes(defaultFps)
+    ) {
       menuFps.push(defaultFps);
       menuFps.sort((a, b) => a - b);
     }
@@ -1719,14 +1923,18 @@ export async function promptVideoFps(options, modelConfig = {}) {
     console.log(`  ${menuFps.length + 1}. Custom (${modelConfig.minFps}-${modelConfig.maxFps})`);
     console.log();
 
-    const choice = await askQuestion(`Enter choice [1-${menuFps.length + 1}] (default: ${defaultIndex + 1}): `);
+    const choice = await askQuestion(
+      `Enter choice [1-${menuFps.length + 1}] (default: ${defaultIndex + 1}): `
+    );
     const choiceNum = parseInt(choice.trim(), 10);
 
     if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= menuFps.length) {
       options.fps = menuFps[choiceNum - 1];
     } else if (choiceNum === menuFps.length + 1) {
       // Custom FPS
-      const customInput = await askQuestion(`Enter FPS (${modelConfig.minFps}-${modelConfig.maxFps}): `);
+      const customInput = await askQuestion(
+        `Enter FPS (${modelConfig.minFps}-${modelConfig.maxFps}): `
+      );
       const customFps = parseInt(customInput.trim(), 10);
       if (!isNaN(customFps) && customFps >= modelConfig.minFps && customFps <= modelConfig.maxFps) {
         options.fps = customFps;
@@ -1747,7 +1955,9 @@ export async function promptVideoFps(options, modelConfig = {}) {
     });
     console.log();
 
-    const choice = await askQuestion(`Enter choice [1-${modelConfig.allowedFps.length}] (default: ${defaultIndex + 1}): `);
+    const choice = await askQuestion(
+      `Enter choice [1-${modelConfig.allowedFps.length}] (default: ${defaultIndex + 1}): `
+    );
     const choiceNum = parseInt(choice.trim(), 10);
 
     if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= modelConfig.allowedFps.length) {
@@ -1851,16 +2061,16 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
     // For audio-driven workflows, default to the closest duration that fits the audio length
     const targetDuration = Math.floor(config.audioDuration);
     // Find the closest available option that doesn't exceed the audio length
-    const candidates = durationOptions.filter(d => d <= targetDuration);
-    defaultDuration = candidates.length > 0 ? candidates[candidates.length - 1] : durationOptions[0];
+    const candidates = durationOptions.filter((d) => d <= targetDuration);
+    defaultDuration =
+      candidates.length > 0 ? candidates[candidates.length - 1] : durationOptions[0];
   } else if (modelConfig.defaultFrames) {
     defaultDuration = Math.round((modelConfig.defaultFrames - 1) / effectiveFps);
   } else {
     defaultDuration = durationOptions[0];
   }
-  const defaultIndex = durationOptions.indexOf(defaultDuration) !== -1
-    ? durationOptions.indexOf(defaultDuration)
-    : 0;
+  const defaultIndex =
+    durationOptions.indexOf(defaultDuration) !== -1 ? durationOptions.indexOf(defaultDuration) : 0;
 
   console.log('\n⏱️  Select video duration:\n');
   durationOptions.forEach((d, i) => {
@@ -1868,12 +2078,16 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
     // For display, use effectiveFps to show actual duration
     const actualDuration = (frames - 1) / effectiveFps;
     const marker = i === defaultIndex ? ' (default)' : '';
-    console.log(`  ${i + 1}. ${d}s → ${frames} frames (${actualDuration.toFixed(1)}s actual)${marker}`);
+    console.log(
+      `  ${i + 1}. ${d}s → ${frames} frames (${actualDuration.toFixed(1)}s actual)${marker}`
+    );
   });
   console.log(`  ${durationOptions.length + 1}. Custom duration`);
   console.log();
 
-  const choice = await askQuestion(`Enter choice [1-${durationOptions.length + 1}] (default: ${defaultIndex + 1}): `);
+  const choice = await askQuestion(
+    `Enter choice [1-${durationOptions.length + 1}] (default: ${defaultIndex + 1}): `
+  );
   let duration;
 
   const choiceNum = parseInt(choice.trim(), 10);
@@ -1885,7 +2099,10 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
     const minDur = Math.floor(minDurationExact);
     const maxDur = Math.floor(effectiveMaxDuration);
     const customInput = await askQuestion(`Enter duration in seconds (${minDur}-${maxDur}): `);
-    duration = Math.min(maxDur, Math.max(minDur, parseFloat(customInput.trim()) || defaultDuration));
+    duration = Math.min(
+      maxDur,
+      Math.max(minDur, parseFloat(customInput.trim()) || defaultDuration)
+    );
   } else {
     // Default selection
     duration = durationOptions[defaultIndex];
@@ -1898,7 +2115,9 @@ export async function promptVideoDuration(options, modelConfig = {}, config = {}
 
   // Display message explains the model behavior
   if (isWan && fps !== 16) {
-    console.log(`  → ${options.duration.toFixed(1)} seconds = ${frames} frames (generated at 16fps, output at ${fps}fps via interpolation)\n`);
+    console.log(
+      `  → ${options.duration.toFixed(1)} seconds = ${frames} frames (generated at 16fps, output at ${fps}fps via interpolation)\n`
+    );
   } else {
     console.log(`  → ${options.duration.toFixed(1)} seconds = ${frames} frames at ${fps} FPS\n`);
   }
@@ -1935,119 +2154,121 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
     if (options.shift === undefined) options.shift = defaultShift;
   }
 
-  // Steps
-  const defaultSteps = modelConfig.defaultSteps || 20;
-  const minSteps = modelConfig.minSteps || 1;
-  const maxSteps = modelConfig.maxSteps || 50;
-  const stepsInput = await askQuestion(
-    `Steps (${minSteps}-${maxSteps}, default: ${defaultSteps}): `
-  );
-  if (stepsInput.trim()) {
-    const s = parseInt(stepsInput.trim(), 10);
-    if (!isNaN(s) && s >= minSteps && s <= maxSteps) {
-      options.steps = s;
-    } else if (!isNaN(s)) {
-      // Clamp to valid range
-      options.steps = Math.max(minSteps, Math.min(maxSteps, s));
-      console.log(`    (clamped to ${options.steps})`);
-    }
-  }
-  if (options.steps === undefined) options.steps = defaultSteps;
-
-  // Guidance (if supported by model)
-  if (modelConfig.supportsGuidance !== false) {
-    // Use model-specific guidance ranges
-    const defaultGuidance = modelConfig.defaultGuidance || 4.0;
-    const minGuidance = modelConfig.minGuidance || 1.5;
-    const maxGuidance = modelConfig.maxGuidance || 8.0;
-    const guidanceInput = await askQuestion(
-      `Guidance scale (${minGuidance}-${maxGuidance}, default: ${defaultGuidance}): `
+  if (!modelConfig.isExternalAPI) {
+    // Steps
+    const defaultSteps = modelConfig.defaultSteps || 20;
+    const minSteps = modelConfig.minSteps || 1;
+    const maxSteps = modelConfig.maxSteps || 50;
+    const stepsInput = await askQuestion(
+      `Steps (${minSteps}-${maxSteps}, default: ${defaultSteps}): `
     );
-    if (guidanceInput.trim()) {
-      const g = parseFloat(guidanceInput.trim());
-      if (!isNaN(g) && g >= minGuidance && g <= maxGuidance) {
-        options.guidance = g;
-      } else if (!isNaN(g)) {
+    if (stepsInput.trim()) {
+      const s = parseInt(stepsInput.trim(), 10);
+      if (!isNaN(s) && s >= minSteps && s <= maxSteps) {
+        options.steps = s;
+      } else if (!isNaN(s)) {
         // Clamp to valid range
-        options.guidance = Math.max(minGuidance, Math.min(maxGuidance, g));
-        console.log(`    (clamped to ${options.guidance})`);
+        options.steps = Math.max(minSteps, Math.min(maxSteps, s));
+        console.log(`    (clamped to ${options.steps})`);
       }
     }
-    if (options.guidance === undefined) options.guidance = defaultGuidance;
-  }
+    if (options.steps === undefined) options.steps = defaultSteps;
 
-  // Sampler - fetch dynamic options from SDK if available, fall back to model config
-  let samplerData = null;
-  if (sogni && modelConfig.id) {
-    samplerData = await getSamplerOptions(sogni, modelConfig.id);
-  }
+    // Guidance (if supported by model)
+    if (modelConfig.supportsGuidance !== false) {
+      // Use model-specific guidance ranges
+      const defaultGuidance = modelConfig.defaultGuidance || 4.0;
+      const minGuidance = modelConfig.minGuidance || 1.5;
+      const maxGuidance = modelConfig.maxGuidance || 8.0;
+      const guidanceInput = await askQuestion(
+        `Guidance scale (${minGuidance}-${maxGuidance}, default: ${defaultGuidance}): `
+      );
+      if (guidanceInput.trim()) {
+        const g = parseFloat(guidanceInput.trim());
+        if (!isNaN(g) && g >= minGuidance && g <= maxGuidance) {
+          options.guidance = g;
+        } else if (!isNaN(g)) {
+          // Clamp to valid range
+          options.guidance = Math.max(minGuidance, Math.min(maxGuidance, g));
+          console.log(`    (clamped to ${options.guidance})`);
+        }
+      }
+      if (options.guidance === undefined) options.guidance = defaultGuidance;
+    }
 
-  // Use dynamic options, then model config, then empty
-  const availableSamplers = samplerData?.allowed || modelConfig.allowedComfySamplers || [];
-  const defaultSampler =
-    samplerData?.default ||
-    modelConfig.defaultComfySampler ||
-    modelConfig.defaultSampler ||
-    'euler';
+    // Sampler - fetch dynamic options from SDK if available, fall back to model config
+    let samplerData = null;
+    if (sogni && modelConfig.id) {
+      samplerData = await getSamplerOptions(sogni, modelConfig.id);
+    }
 
-  if (availableSamplers.length > 0) {
-    const defaultSamplerIdx = availableSamplers.indexOf(defaultSampler) + 1;
+    // Use dynamic options, then model config, then empty
+    const availableSamplers = samplerData?.allowed || modelConfig.allowedComfySamplers || [];
+    const defaultSampler =
+      samplerData?.default ||
+      modelConfig.defaultComfySampler ||
+      modelConfig.defaultSampler ||
+      'euler';
 
-    console.log('\n  Samplers:');
-    availableSamplers.forEach((sampler, i) => {
-      const marker = sampler === defaultSampler ? ' (default)' : '';
-      console.log(`    ${i + 1}. ${sampler}${marker}`);
-    });
-    const samplerInput = await askQuestion(
-      `  Select sampler (default: ${defaultSamplerIdx || 1} - ${defaultSampler}): `
-    );
-    if (samplerInput.trim()) {
-      const idx = parseInt(samplerInput.trim(), 10) - 1;
-      if (idx >= 0 && idx < availableSamplers.length) {
-        options.sampler = availableSamplers[idx];
+    if (availableSamplers.length > 0) {
+      const defaultSamplerIdx = availableSamplers.indexOf(defaultSampler) + 1;
+
+      console.log('\n  Samplers:');
+      availableSamplers.forEach((sampler, i) => {
+        const marker = sampler === defaultSampler ? ' (default)' : '';
+        console.log(`    ${i + 1}. ${sampler}${marker}`);
+      });
+      const samplerInput = await askQuestion(
+        `  Select sampler (default: ${defaultSamplerIdx || 1} - ${defaultSampler}): `
+      );
+      if (samplerInput.trim()) {
+        const idx = parseInt(samplerInput.trim(), 10) - 1;
+        if (idx >= 0 && idx < availableSamplers.length) {
+          options.sampler = availableSamplers[idx];
+        }
       }
     }
-  }
-  // Set default if not selected
-  if (!options.sampler) {
-    options.sampler = defaultSampler;
-  }
+    // Set default if not selected
+    if (!options.sampler) {
+      options.sampler = defaultSampler;
+    }
 
-  // Scheduler - fetch dynamic options from SDK if available, fall back to model config
-  let schedulerData = null;
-  if (sogni && modelConfig.id) {
-    schedulerData = await getSchedulerOptions(sogni, modelConfig.id);
-  }
+    // Scheduler - fetch dynamic options from SDK if available, fall back to model config
+    let schedulerData = null;
+    if (sogni && modelConfig.id) {
+      schedulerData = await getSchedulerOptions(sogni, modelConfig.id);
+    }
 
-  // Use dynamic options, then model config, then empty
-  const availableSchedulers = schedulerData?.allowed || modelConfig.allowedComfySchedulers || [];
-  const defaultScheduler =
-    schedulerData?.default ||
-    modelConfig.defaultComfyScheduler ||
-    modelConfig.defaultScheduler ||
-    'simple';
+    // Use dynamic options, then model config, then empty
+    const availableSchedulers = schedulerData?.allowed || modelConfig.allowedComfySchedulers || [];
+    const defaultScheduler =
+      schedulerData?.default ||
+      modelConfig.defaultComfyScheduler ||
+      modelConfig.defaultScheduler ||
+      'simple';
 
-  if (availableSchedulers.length > 0) {
-    const defaultSchedulerIdx = availableSchedulers.indexOf(defaultScheduler) + 1;
+    if (availableSchedulers.length > 0) {
+      const defaultSchedulerIdx = availableSchedulers.indexOf(defaultScheduler) + 1;
 
-    console.log('\n  Schedulers:');
-    availableSchedulers.forEach((scheduler, i) => {
-      const marker = scheduler === defaultScheduler ? ' (default)' : '';
-      console.log(`    ${i + 1}. ${scheduler}${marker}`);
-    });
-    const schedulerInput = await askQuestion(
-      `  Select scheduler (default: ${defaultSchedulerIdx || 1} - ${defaultScheduler}): `
-    );
-    if (schedulerInput.trim()) {
-      const idx = parseInt(schedulerInput.trim(), 10) - 1;
-      if (idx >= 0 && idx < availableSchedulers.length) {
-        options.scheduler = availableSchedulers[idx];
+      console.log('\n  Schedulers:');
+      availableSchedulers.forEach((scheduler, i) => {
+        const marker = scheduler === defaultScheduler ? ' (default)' : '';
+        console.log(`    ${i + 1}. ${scheduler}${marker}`);
+      });
+      const schedulerInput = await askQuestion(
+        `  Select scheduler (default: ${defaultSchedulerIdx || 1} - ${defaultScheduler}): `
+      );
+      if (schedulerInput.trim()) {
+        const idx = parseInt(schedulerInput.trim(), 10) - 1;
+        if (idx >= 0 && idx < availableSchedulers.length) {
+          options.scheduler = availableSchedulers[idx];
+        }
       }
     }
-  }
-  // Set default if not selected
-  if (!options.scheduler) {
-    options.scheduler = defaultScheduler;
+    // Set default if not selected
+    if (!options.scheduler) {
+      options.scheduler = defaultScheduler;
+    }
   }
 
   // Negative prompt
@@ -2117,7 +2338,11 @@ export async function promptAdvancedOptions(options, modelConfig, config = {}) {
  */
 export async function promptIdentityAudio(options, modelConfig) {
   // Only offer for LTX-2.3 models, excluding a2v/ia2v (which already use referenceAudio)
-  if (!modelConfig.id?.startsWith('ltx23-') || modelConfig.id?.includes('_a2v') || modelConfig.id?.includes('_ia2v')) {
+  if (
+    !modelConfig.id?.startsWith('ltx23-') ||
+    modelConfig.id?.includes('_a2v') ||
+    modelConfig.id?.includes('_ia2v')
+  ) {
     return;
   }
 
@@ -2125,16 +2350,23 @@ export async function promptIdentityAudio(options, modelConfig) {
     return;
   }
 
-  const useIdentity = await askQuestion('\nProvide reference audio for speaker identity (ID-LoRA)? [y/N]: ');
+  const useIdentity = await askQuestion(
+    '\nProvide reference audio for speaker identity (ID-LoRA)? [y/N]: '
+  );
   if (useIdentity.toLowerCase() === 'y' || useIdentity.toLowerCase() === 'yes') {
     try {
-      options.identityAudio = await pickAudioFile(null, 'identity reference audio (~5s voice clip)');
+      options.identityAudio = await pickAudioFile(
+        null,
+        'identity reference audio (~5s voice clip)'
+      );
     } catch (error) {
       log('⚠️', `Could not select identity audio: ${error.message}`);
       return;
     }
     if (options.identityAudio && options.audioIdentityStrength === null) {
-      const strengthInput = await askQuestion('  Audio identity strength (0-10, default: 3.0, 0=disabled): ');
+      const strengthInput = await askQuestion(
+        '  Audio identity strength (0-10, default: 3.0, 0=disabled): '
+      );
       if (strengthInput.trim()) {
         const s = parseFloat(strengthInput.trim());
         if (!isNaN(s) && s >= 0 && s <= 10) {
@@ -2350,8 +2582,10 @@ export function displaySafeContentFilterMessage({ showDisableHint = true } = {})
 export function isSensitiveContentError(event) {
   if (!event?.error) return false;
   const { originalCode, message } = event.error;
-  return originalCode === 'sensitiveContent' ||
-    (typeof message === 'string' && message.toLowerCase().includes('sensitive content'));
+  return (
+    originalCode === 'sensitiveContent' ||
+    (typeof message === 'string' && message.toLowerCase().includes('sensitive content'))
+  );
 }
 
 /**
@@ -2510,7 +2744,7 @@ export function generateRandomSeed() {
  * @param {number} params.seed - Random seed (should be actual seed, not -1)
  * @param {string} params.prompt - Generation prompt
  * @param {number} [params.generationTime] - Generation time in seconds
- * @param {string} [params.outputDir] - Output directory (default: './output')
+ * @param {string} [params.outputDir] - Output directory (default: examples/output)
  * @returns {string} Generated filename path
  *
  * @example
@@ -2537,14 +2771,11 @@ export function generateVideoFilename(params) {
     seed,
     prompt,
     generationTime,
-    outputDir = './output'
+    outputDir = defaultExamplesOutputDir()
   } = params;
 
   // Convert model ID to kebab-case (replace underscores with hyphens)
-  const modelSlug = modelId
-    .replace(/_/g, '-')
-    .replace(/\./g, '-')
-    .toLowerCase();
+  const modelSlug = modelId.replace(/_/g, '-').replace(/\./g, '-').toLowerCase();
 
   // Calculate duration in seconds from frames and fps
   const durationSeconds = Math.round((frames - 1) / fps);
@@ -2559,13 +2790,7 @@ export function generateVideoFilename(params) {
   const promptSlug = toKebabCase(prompt, 72);
 
   // Build filename with optional generation time
-  const parts = [
-    modelSlug,
-    `${durationSeconds}s`,
-    `${width}x${height}`,
-    `${fps}fps`,
-    seedStr
-  ];
+  const parts = [modelSlug, `${durationSeconds}s`, `${width}x${height}`, `${fps}fps`, seedStr];
   if (genTimeStr) {
     parts.push(genTimeStr);
   }
@@ -2588,7 +2813,7 @@ export function generateVideoFilename(params) {
  * @param {string} params.prompt - Generation prompt
  * @param {number} [params.generationTime] - Generation time in seconds
  * @param {string} [params.outputFormat] - Output format (default: 'jpg')
- * @param {string} [params.outputDir] - Output directory (default: './output')
+ * @param {string} [params.outputDir] - Output directory (default: examples/output)
  * @returns {string} Generated filename path
  *
  * @example
@@ -2612,14 +2837,11 @@ export function generateImageFilename(params) {
     prompt,
     generationTime,
     outputFormat = 'jpg',
-    outputDir = './output'
+    outputDir = defaultExamplesOutputDir()
   } = params;
 
   // Convert model ID to kebab-case (replace underscores with hyphens)
-  const modelSlug = modelId
-    .replace(/_/g, '-')
-    .replace(/\./g, '-')
-    .toLowerCase();
+  const modelSlug = modelId.replace(/_/g, '-').replace(/\./g, '-').toLowerCase();
 
   // Format seed (use actual value)
   const seedStr = seed !== undefined && seed !== null ? String(seed) : 'unknown';
@@ -2631,11 +2853,7 @@ export function generateImageFilename(params) {
   const promptSlug = toKebabCase(prompt, 72);
 
   // Build filename with optional generation time
-  const parts = [
-    modelSlug,
-    `${width}x${height}`,
-    seedStr
-  ];
+  const parts = [modelSlug, `${width}x${height}`, seedStr];
   if (genTimeStr) {
     parts.push(genTimeStr);
   }

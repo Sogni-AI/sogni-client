@@ -160,10 +160,7 @@ function isLikelyMp3Frame(bytes: Uint8Array): boolean {
   const b1 = bytes[1];
   const versionBits = (b1 >> 3) & 0x03;
   const layerBits = (b1 >> 1) & 0x03;
-  return b0 === 0xff
-    && (b1 & 0xe0) === 0xe0
-    && versionBits !== 0x01
-    && layerBits !== 0x00;
+  return b0 === 0xff && (b1 & 0xe0) === 0xe0 && versionBits !== 0x01 && layerBits !== 0x00;
 }
 
 function detectAudioFormat(bytes: Uint8Array): AudioFormat | null {
@@ -222,7 +219,12 @@ function parseJpegDimensions(bytes: Uint8Array): ImageDimensions | null {
     const marker = bytes[offset];
     offset += 1;
 
-    if (marker === 0xd8 || marker === 0xd9 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
+    if (
+      marker === 0xd8 ||
+      marker === 0xd9 ||
+      (marker >= 0xd0 && marker <= 0xd7) ||
+      marker === 0x01
+    ) {
       continue;
     }
 
@@ -235,10 +237,8 @@ function parseJpegDimensions(bytes: Uint8Array): ImageDimensions | null {
       break;
     }
 
-    const isStartOfFrame = (marker >= 0xc0 && marker <= 0xcf)
-      && marker !== 0xc4
-      && marker !== 0xc8
-      && marker !== 0xcc;
+    const isStartOfFrame =
+      marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
 
     if (isStartOfFrame) {
       if (offset + 6 >= bytes.length) {
@@ -269,11 +269,17 @@ function parseImageDimensions(bytes: Uint8Array, format: ImageFormat): ImageDime
   }
 }
 
-function validateMagicBytes(mediaType: MediaType, mimeType: string, bytes: Uint8Array): ImageDimensions | undefined {
+function validateMagicBytes(
+  mediaType: MediaType,
+  mimeType: string,
+  bytes: Uint8Array
+): ImageDimensions | undefined {
   if (mediaType === 'image') {
     const expectedFormat = IMAGE_MIME_FORMATS[mimeType];
     if (!expectedFormat) {
-      throw new Error(`Unsupported inline image MIME type ${mimeType}. Allowed types: ${getAllowedMimeTypes('image').join(', ')}`);
+      throw new Error(
+        `Unsupported inline image MIME type ${mimeType}. Allowed types: ${getAllowedMimeTypes('image').join(', ')}`
+      );
     }
     const detectedFormat = detectImageFormat(bytes);
     if (detectedFormat !== expectedFormat) {
@@ -290,7 +296,9 @@ function validateMagicBytes(mediaType: MediaType, mimeType: string, bytes: Uint8
   if (mediaType === 'audio') {
     const expectedFormat = AUDIO_MIME_FORMATS[mimeType];
     if (!expectedFormat) {
-      throw new Error(`Unsupported inline audio MIME type ${mimeType}. Allowed types: ${getAllowedMimeTypes('audio').join(', ')}`);
+      throw new Error(
+        `Unsupported inline audio MIME type ${mimeType}. Allowed types: ${getAllowedMimeTypes('audio').join(', ')}`
+      );
     }
     const detectedFormat = detectAudioFormat(bytes);
     if (detectedFormat !== expectedFormat) {
@@ -301,7 +309,9 @@ function validateMagicBytes(mediaType: MediaType, mimeType: string, bytes: Uint8
 
   const expectedFormat = VIDEO_MIME_FORMATS[mimeType];
   if (!expectedFormat) {
-    throw new Error(`Unsupported inline video MIME type ${mimeType}. Allowed types: ${getAllowedMimeTypes('video').join(', ')}`);
+    throw new Error(
+      `Unsupported inline video MIME type ${mimeType}. Allowed types: ${getAllowedMimeTypes('video').join(', ')}`
+    );
   }
   const detectedFormat = detectVideoFormat(bytes);
   if (detectedFormat !== expectedFormat) {
@@ -335,7 +345,9 @@ export function parseInlineMediaDataUri(
   const bytes = decodeStrictBase64(match[2]);
 
   if (options.maxBytes !== undefined && bytes.length > options.maxBytes) {
-    throw new Error(`${mediaType} input exceeds ${Math.round(options.maxBytes / (1024 * 1024))}MB limit`);
+    throw new Error(
+      `${mediaType} input exceeds ${Math.round(options.maxBytes / (1024 * 1024))}MB limit`
+    );
   }
 
   const imageDimensions = validateMagicBytes(mediaType, mimeType, bytes);

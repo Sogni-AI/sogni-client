@@ -70,6 +70,29 @@ function getFileContentType(file: File | Buffer | Blob): string | undefined {
   if (file instanceof Blob && 'type' in file && file.type) {
     return file.type;
   }
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(file)) {
+    if (file.length >= 12) {
+      if (file[0] === 0xff && file[1] === 0xd8 && file[2] === 0xff) return 'image/jpeg';
+      if (file[0] === 0x89 && file[1] === 0x50 && file[2] === 0x4e && file[3] === 0x47) {
+        return 'image/png';
+      }
+      if (file.toString('ascii', 0, 4) === 'RIFF' && file.toString('ascii', 8, 12) === 'WEBP') {
+        return 'image/webp';
+      }
+      if (file.toString('ascii', 0, 3) === 'GIF') return 'image/gif';
+      if (file.toString('ascii', 4, 8) === 'ftyp') {
+        const brand = file.toString('ascii', 8, 12).toLowerCase();
+        if (brand.includes('m4a') || brand.includes('m4b')) return 'audio/mp4';
+        if (brand.includes('qt')) return 'video/quicktime';
+        return 'video/mp4';
+      }
+      if (file.toString('ascii', 0, 4) === 'RIFF' && file.toString('ascii', 8, 12) === 'WAVE') {
+        return 'audio/wav';
+      }
+    }
+    if (file.length >= 3 && file.toString('ascii', 0, 3) === 'ID3') return 'audio/mpeg';
+    if (file.length >= 2 && file[0] === 0xff && (file[1] & 0xe0) === 0xe0) return 'audio/mpeg';
+  }
   return undefined;
 }
 
@@ -318,7 +341,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async handleJobResult(data: JobResultData) {
     const project = this.projects.find((p) => p.id === data.jobID);
     const passNSFWCheck = !data.triggeredNSFWFilter || !project || project.params.disableNSFWFilter;
-    let downloadUrl = data.resultUrl || null; // Use resultUrl from event if provided
+    let downloadUrl = data.resultUrl || data.videoUrl || data.videoFile || null; // Use result URL from event if provided
 
     // If no resultUrl provided and NSFW check passes, generate download URL
     if (!downloadUrl && passNSFWCheck && !data.userCanceled) {
@@ -600,6 +623,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         break;
       case 'video':
         await this._processVideoAssets(project, data);
+        this._annotateVideoAssetContentTypes(request, data);
         break;
       case 'audio':
         // No assets to upload for audio
@@ -659,6 +683,29 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
   }
 
+  private _annotateVideoAssetContentTypes(request: Record<string, any>, data: VideoProjectParams) {
+    const keyFrame = request.keyFrames?.[0];
+    if (!keyFrame) return;
+
+    if (data.referenceImage && data.referenceImage !== true) {
+      keyFrame.referenceImageContentType = getFileContentType(data.referenceImage);
+    }
+    if (data.referenceImageEnd && data.referenceImageEnd !== true) {
+      keyFrame.referenceImageEndContentType = getFileContentType(data.referenceImageEnd);
+    }
+    if (data.referenceAudio && data.referenceAudio !== true) {
+      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio);
+    }
+    if (data.referenceAudioIdentity && data.referenceAudioIdentity !== true) {
+      const contentType = getFileContentType(data.referenceAudioIdentity);
+      keyFrame.referenceAudioIdentityContentType = contentType;
+      keyFrame.referenceAudioContentType ??= contentType;
+    }
+    if (data.referenceVideo && data.referenceVideo !== true) {
+      keyFrame.referenceVideoContentType = getFileContentType(data.referenceVideo);
+    }
+  }
+
   /**
    * Get project by id, this API returns project data from the server only if the project is
    * completed or failed. If the project is still processing, it will throw 404 error.
@@ -705,14 +752,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
-      type: 'startingImage'
+      type: 'startingImage',
+      contentType
     });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file)
+      body: toFetchBody(file),
+      headers
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -726,14 +778,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadCNImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
-      type: 'cnImage'
+      type: 'cnImage',
+      contentType
     });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file)
+      body: toFetchBody(file),
+      headers
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -752,15 +809,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   ) {
     const imageId = getUUID();
     const imageIndex = (index + 1) as 1 | 2 | 3 | 4 | 5 | 6;
+    const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
-      type: `contextImage${imageIndex}`
+      type: `contextImage${imageIndex}`,
+      contentType
     });
     const body = toFetchBody(file);
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body
+      body,
+      headers
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -782,14 +844,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
-      type: 'referenceImage'
+      type: 'referenceImage',
+      contentType
     });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file)
+      body: toFetchBody(file),
+      headers
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -807,14 +874,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceImageEnd(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
-      type: 'referenceImageEnd'
+      type: 'referenceImageEnd',
+      contentType
     });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file)
+      body: toFetchBody(file),
+      headers
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -836,7 +908,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const contentType = getFileContentType(file);
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
-      type: 'referenceAudio'
+      type: 'referenceAudio',
+      contentType
     });
     const headers: Record<string, string> = {};
     if (contentType) {
@@ -865,7 +938,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const contentType = getFileContentType(file);
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
-      type: 'referenceVideo'
+      type: 'referenceVideo',
+      contentType
     });
     const headers: Record<string, string> = {};
     if (contentType) {
@@ -985,18 +1059,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - sogni: Cost in Sogni.
    */
   async estimateVideoCost(params: VideoEstimateRequest) {
-    const pathParams = [
+    const frames = params.frames
+      ? params.frames
+      : calculateVideoFrames(params.model, params.duration, params.fps);
+    const numberOfMedia = params.numberOfMedia ?? 1;
+    const pathParams: Array<string | number> = [
       params.tokenType,
       params.model,
       params.width,
       params.height,
-      params.frames
-        ? params.frames
-        : calculateVideoFrames(params.model, params.duration, params.fps),
-      params.fps,
-      params.steps,
-      params.numberOfMedia
+      frames,
+      params.fps
     ];
+    if (params.steps !== undefined && params.steps !== null) {
+      pathParams.push(params.steps);
+      pathParams.push(numberOfMedia);
+    } else if (numberOfMedia !== 1) {
+      pathParams.push(0);
+      pathParams.push(numberOfMedia);
+    }
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-video/estimate/${path}`

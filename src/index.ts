@@ -57,12 +57,32 @@ import {
   ToolCallFunction,
   ToolChoice,
   ToolFunction,
+  SogniToolsMode,
   ToolExecutionProgress,
   ToolExecutionResult,
   ToolHistoryEntry,
   ToolExecutionOptions
 } from './Chat/types';
 import { SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
+// Creative Workflows API
+import CreativeWorkflowsApi, { parseCreativeWorkflowSseChunk } from './CreativeWorkflows';
+import {
+  CreativeWorkflowArtifact,
+  CreativeWorkflowEvent,
+  CreativeWorkflowKind,
+  CreativeWorkflowRecord,
+  CreativeWorkflowSseEvent,
+  CreativeWorkflowStatus,
+  CreativeWorkflowHostedToolName,
+  ListCreativeWorkflowOptions,
+  StartCreativeWorkflowOptions,
+  StartCreativeWorkflowParams,
+  StartHostedToolSequenceWorkflowDependency,
+  StartHostedToolSequenceWorkflowInput,
+  StartHostedToolSequenceWorkflowStep,
+  StartImageToVideoWorkflowInput,
+  StreamCreativeWorkflowEventsOptions
+} from './CreativeWorkflows/types';
 // Stats API
 import StatsApi from './Stats';
 // Base Types
@@ -88,7 +108,14 @@ export type {
   ChatMessage,
   ChatTokenUsage,
   ContentPart,
+  CreativeWorkflowArtifact,
+  CreativeWorkflowEvent,
+  CreativeWorkflowKind,
+  CreativeWorkflowRecord,
+  CreativeWorkflowSseEvent,
+  CreativeWorkflowStatus,
   ImageUrlContentPart,
+  ListCreativeWorkflowOptions,
   LLMCostEstimation,
   LLMJobCost,
   LLMModelInfo,
@@ -106,6 +133,14 @@ export type {
   LogLevel,
   ProjectParams,
   ProjectStatus,
+  CreativeWorkflowHostedToolName,
+  StartCreativeWorkflowOptions,
+  StartCreativeWorkflowParams,
+  StartHostedToolSequenceWorkflowDependency,
+  StartHostedToolSequenceWorkflowInput,
+  StartHostedToolSequenceWorkflowStep,
+  StartImageToVideoWorkflowInput,
+  StreamCreativeWorkflowEventsOptions,
   SupernetType,
   TokenType,
   ToolCall,
@@ -118,6 +153,7 @@ export type {
   ToolExecutionResult,
   ToolFunction,
   ToolHistoryEntry,
+  SogniToolsMode,
   VideoControlNetName,
   VideoControlNetParams,
   VideoFormat,
@@ -131,12 +167,14 @@ export {
   ApiKeyAuthManager,
   ChatStream,
   ChatToolsApi,
+  CreativeWorkflowsApi,
   CurrentAccount,
   Job,
   Project,
   SogniTools,
   buildSogniTools,
   isSogniToolCall,
+  parseCreativeWorkflowSseChunk,
   parseToolCallArguments
 };
 
@@ -214,6 +252,7 @@ export class SogniClient {
   projects: ProjectsApi;
   stats: StatsApi;
   chat: ChatApi;
+  creativeWorkflows: CreativeWorkflowsApi;
 
   apiClient: ApiClient;
 
@@ -222,6 +261,7 @@ export class SogniClient {
     this.projects = new ProjectsApi(config);
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
+    this.creativeWorkflows = new CreativeWorkflowsApi(config);
 
     this.apiClient = config.client;
   }

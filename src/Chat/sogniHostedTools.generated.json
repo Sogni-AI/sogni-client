@@ -1,0 +1,423 @@
+{
+  "version": "2026-04-27.1",
+  "source": "@sogni/creative-agent portable hosted Sogni tool contract",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "sogni_generate_image",
+        "description": "Generate an image using AI image generation on the Sogni Supernet. Returns a URL to the generated image. Use this tool EVERY TIME the user asks to create, generate, draw, or make an image or picture. Do NOT generate URLs yourself — you MUST call this tool.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "Detailed text description of the image to generate. Be specific about style, composition, lighting, colors, and subject matter."
+            },
+            "negative_prompt": {
+              "type": "string",
+              "description": "Things to avoid in the generated image (e.g., \"blurry, low quality, distorted\")."
+            },
+            "width": {
+              "type": "number",
+              "description": "Image width in pixels. Must be a multiple of 16. Default: 1024. Max: 2048."
+            },
+            "height": {
+              "type": "number",
+              "description": "Image height in pixels. Must be a multiple of 16. Default: 1024. Max: 2048."
+            },
+            "model": {
+              "type": "string",
+              "description": "Image generation model to use.",
+              "enum": [
+                "flux1-schnell-fp8",
+                "flux2_dev_fp8",
+                "chroma-v.46-flash_fp8",
+                "z_image_turbo_bf16"
+              ]
+            },
+            "number_of_variations": {
+              "type": "number",
+              "description": "Number of image variations to generate. Range: 1-16. Default: 1."
+            },
+            "steps": {
+              "type": "number",
+              "description": "Number of inference steps. Higher = better quality but slower. Default depends on model (4-50)."
+            },
+            "seed": {
+              "type": "number",
+              "description": "Random seed for reproducible generation. Use -1 for random."
+            }
+          },
+          "required": ["prompt"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "sogni_edit_image",
+        "description": "Generate an edited or reference-guided image using 1-6 input images on the Sogni Supernet. Returns URLs to the generated images. Use this tool when the user wants to edit an existing image, preserve a person's likeness, combine multiple references, or transform a source image while keeping key visual traits.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "Describe the desired edit or new image while clearly stating what should be preserved from the provided reference images."
+            },
+            "source_image_url": {
+              "type": "string",
+              "description": "Primary image to edit or use as the main identity/composition reference. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed."
+            },
+            "reference_image_urls": {
+              "type": "array",
+              "description": "Additional reference images to guide identity, pose, clothing, style, or background. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed. Combined with source_image_url, up to 6 images total are used.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "negative_prompt": {
+              "type": "string",
+              "description": "Things to avoid in the edited image (e.g., \"blurry, low quality, distorted\")."
+            },
+            "width": {
+              "type": "number",
+              "description": "Output image width in pixels. Must be a multiple of 16. Default depends on the model."
+            },
+            "height": {
+              "type": "number",
+              "description": "Output image height in pixels. Must be a multiple of 16. Default depends on the model."
+            },
+            "model": {
+              "type": "string",
+              "description": "Image editing model to use.",
+              "enum": [
+                "qwen_image_edit_2511_fp8_lightning",
+                "qwen_image_edit_2511_fp8",
+                "flux2_dev_fp8",
+                "flux1-dev-kontext_fp8_scaled"
+              ]
+            },
+            "number_of_variations": {
+              "type": "number",
+              "description": "Number of edited image variations to generate. Range: 1-16. Default: 1."
+            },
+            "seed": {
+              "type": "number",
+              "description": "Random seed for reproducible generation. Use -1 for random."
+            }
+          },
+          "required": ["prompt"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "sogni_generate_video",
+        "description": "Generate a short video using AI video generation on the Sogni Supernet. Returns URLs to the generated videos. Use this tool EVERY TIME the user asks to create, generate, or make a video, clip, or animation. Do NOT generate URLs yourself — you MUST call this tool. Write the prompt as a cohesive mini-scene in present tense, describing motion, camera movement, lighting, and atmosphere in flowing prose.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "Detailed text description of the video to generate. Write it as a flowing present-tense scene: describe the subject, action, camera movement, lighting, and atmosphere. Clear camera-to-subject relationship improves motion consistency. Be specific and vivid."
+            },
+            "negative_prompt": {
+              "type": "string",
+              "description": "Things to avoid in the generated video (e.g., \"blurry, low quality, distorted, watermark\")."
+            },
+            "reference_image_url": {
+              "type": "string",
+              "description": "Optional starting image for image-to-video generation. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed."
+            },
+            "reference_image_end_url": {
+              "type": "string",
+              "description": "Optional ending image for keyframe interpolation. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed."
+            },
+            "reference_audio_identity_url": {
+              "type": "string",
+              "description": "Optional voice identity clip for LTX-2.3 text-to-video or image-to-video workflows. Supports inline base64-encoded MP3, M4A, or WAV data URIs only; remote http(s) URLs are not allowed."
+            },
+            "audio_identity_strength": {
+              "type": "number",
+              "description": "How strongly to apply the reference_audio_identity_url voice identity. Range: 0-10. Default depends on the model."
+            },
+            "first_frame_strength": {
+              "type": "number",
+              "description": "How strictly to match the starting frame when using reference_image_end_url. Range: 0-1."
+            },
+            "last_frame_strength": {
+              "type": "number",
+              "description": "How strictly to match the ending frame when using reference_image_end_url. Range: 0-1."
+            },
+            "width": {
+              "type": "number",
+              "description": "Video width in pixels. Default depends on the selected workflow. Standard resolutions include 1920x1088, 1088x1920, and 1280x720."
+            },
+            "height": {
+              "type": "number",
+              "description": "Video height in pixels. Default depends on the selected workflow. Must be a multiple of 16."
+            },
+            "duration": {
+              "type": "number",
+              "description": "Video duration in seconds. Range: 1-20 generally; Seedance supports 4-15. Default: 5."
+            },
+            "fps": {
+              "type": "number",
+              "description": "Frames per second. Default depends on the model. Range: 1-60."
+            },
+            "generate_audio": {
+              "type": "boolean",
+              "description": "Whether external API video models such as Seedance should generate native audio. Set false for silent output."
+            },
+            "model": {
+              "type": "string",
+              "description": "Video generation model to use. Supported selectors include ltx23, wan22, seedance2 and seedance2-fast. Use t2v models for text-only generation and i2v when reference images are supplied. seedance2-fast caps at 720p."
+            },
+            "number_of_variations": {
+              "type": "number",
+              "description": "Number of video variations to generate. Range: 1-16. Default: 1."
+            },
+            "seed": {
+              "type": "number",
+              "description": "Random seed for reproducible generation. Use -1 for random."
+            }
+          },
+          "required": ["prompt"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "sogni_sound_to_video",
+        "description": "Generate a short video synchronized to an input audio clip on the Sogni Supernet. Returns URLs to the generated videos. Use this when the user wants a music video, lip-sync style clip, or audio-reactive visuals driven by a specific audio file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "Describe the visuals to generate in present tense while letting the supplied audio drive the timing and rhythm."
+            },
+            "reference_audio_url": {
+              "type": "string",
+              "description": "Audio file to drive the video. Supports inline base64-encoded MP3, M4A, or WAV data URIs only; remote http(s) URLs are not allowed."
+            },
+            "reference_image_url": {
+              "type": "string",
+              "description": "Optional image to use as the subject or first frame. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed."
+            },
+            "audio_start": {
+              "type": "number",
+              "description": "Start offset in seconds into the reference audio. Default: 0."
+            },
+            "duration": {
+              "type": "number",
+              "description": "Output video duration in seconds. Range: 1-20 generally; Seedance supports 4-15. Default: 5."
+            },
+            "generate_audio": {
+              "type": "boolean",
+              "description": "Whether external API video models such as Seedance should generate native audio. Set false for silent output."
+            },
+            "width": {
+              "type": "number",
+              "description": "Video width in pixels. Default depends on the selected workflow."
+            },
+            "height": {
+              "type": "number",
+              "description": "Video height in pixels. Default depends on the selected workflow."
+            },
+            "model": {
+              "type": "string",
+              "description": "Audio-driven video model to use. seedance2 is image+audio only and requires reference_image_url.",
+              "enum": [
+                "seedance2",
+                "seedance-2-0_ia2v",
+                "ltx23-22b-fp8_ia2v_distilled",
+                "ltx23-22b-fp8_a2v_distilled",
+                "wan_v2.2-14b-fp8_s2v_lightx2v"
+              ]
+            },
+            "number_of_variations": {
+              "type": "number",
+              "description": "Number of video variations to generate. Range: 1-16. Default: 1."
+            },
+            "seed": {
+              "type": "number",
+              "description": "Random seed for reproducible generation. Use -1 for random."
+            }
+          },
+          "required": ["prompt", "reference_audio_url"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "sogni_video_to_video",
+        "description": "Transform an existing video using AI video-to-video workflows on the Sogni Supernet. Returns URLs to the generated videos. Use this when the user wants to restyle a video, preserve motion while changing the look, or animate/replace a subject using a reference image.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "Describe the target appearance or transformation in present tense. For detail enhancement, describe the existing scene and the desired quality improvement rather than inventing new content."
+            },
+            "reference_video_url": {
+              "type": "string",
+              "description": "Source video to transform. Supports inline base64-encoded MP4 or MOV/QuickTime data URIs only; remote http(s) URLs are not allowed."
+            },
+            "negative_prompt": {
+              "type": "string",
+              "description": "Things to avoid in the generated video (e.g., \"blurry, low quality, distorted, watermark\")."
+            },
+            "control_mode": {
+              "type": "string",
+              "description": "How to use the source video. seedance-v2v uses Seedance 2.0 holistic V2V. animate-move and animate-replace use WAN animate workflows. canny, pose, depth, and detailer use LTX-2.3 v2v ControlNet.",
+              "enum": [
+                "animate-move",
+                "animate-replace",
+                "seedance-v2v",
+                "canny",
+                "pose",
+                "depth",
+                "detailer"
+              ]
+            },
+            "reference_image_url": {
+              "type": "string",
+              "description": "Optional reference image for animate workflows or pose-guided appearance control. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed."
+            },
+            "reference_audio_identity_url": {
+              "type": "string",
+              "description": "Optional voice identity clip for LTX-2.3 v2v workflows. Supports inline base64-encoded MP3, M4A, or WAV data URIs only; remote http(s) URLs are not allowed."
+            },
+            "audio_identity_strength": {
+              "type": "number",
+              "description": "How strongly to apply the reference_audio_identity_url voice identity. Range: 0-10. Default depends on the model."
+            },
+            "video_start": {
+              "type": "number",
+              "description": "Start offset in seconds into the source video."
+            },
+            "duration": {
+              "type": "number",
+              "description": "Output video duration in seconds. Range: 1-20 generally; Seedance supports 4-15. Default: 5."
+            },
+            "generate_audio": {
+              "type": "boolean",
+              "description": "Whether external API video models such as Seedance should generate native audio. Set false for silent output."
+            },
+            "width": {
+              "type": "number",
+              "description": "Output video width in pixels. Default depends on the selected workflow."
+            },
+            "height": {
+              "type": "number",
+              "description": "Output video height in pixels. Default depends on the selected workflow."
+            },
+            "detailer_strength": {
+              "type": "number",
+              "description": "Optional detailer LoRA strength for LTX-2.3 v2v control workflows. Range: 0-1."
+            },
+            "model": {
+              "type": "string",
+              "description": "Video-to-video model to use. Supported selectors include ltx23, ltx23-v2v, and seedance2. Use control_mode=seedance-v2v for Seedance 2.0 video-to-video.",
+              "enum": [
+                "ltx23",
+                "ltx23-v2v",
+                "seedance2",
+                "ltx23-22b-fp8_v2v_distilled",
+                "seedance-2-0_v2v",
+                "wan_v2.2-14b-fp8_animate-move_lightx2v",
+                "wan_v2.2-14b-fp8_animate-replace_lightx2v"
+              ]
+            },
+            "number_of_variations": {
+              "type": "number",
+              "description": "Number of video variations to generate. Range: 1-16. Default: 1."
+            },
+            "seed": {
+              "type": "number",
+              "description": "Random seed for reproducible generation. Use -1 for random."
+            }
+          },
+          "required": ["prompt", "reference_video_url"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "sogni_generate_music",
+        "description": "Generate a music track using AI music generation on the Sogni Supernet. Returns URLs to the generated audio files. Use this tool EVERY TIME the user asks to create, generate, compose, or make music, a song, a beat, or audio. Do NOT generate URLs yourself — you MUST call this tool.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "Description of the music to generate. Include genre, mood, tempo, instruments, and style."
+            },
+            "lyrics": {
+              "type": "string",
+              "description": "Song lyrics to sing. Omit for instrumental music."
+            },
+            "language": {
+              "type": "string",
+              "description": "Lyrics language code, such as \"en\" or \"es\"."
+            },
+            "duration": {
+              "type": "number",
+              "description": "Duration of the generated music in seconds. Range: 10-600. Default: 30."
+            },
+            "bpm": {
+              "type": "number",
+              "description": "Beats per minute. Range: 30-300. Default: 120."
+            },
+            "keyscale": {
+              "type": "string",
+              "description": "Musical key and scale (e.g., \"C major\", \"A minor\", \"F# minor\", \"Bb major\"). Default: \"C major\"."
+            },
+            "timesignature": {
+              "type": "string",
+              "description": "Time signature. Common values: \"4\", \"3\", \"2\", or \"6\". Default: \"4\".",
+              "enum": ["4", "3", "2", "6"]
+            },
+            "composer_mode": {
+              "type": "boolean",
+              "description": "Enable AI composer mode for richer arrangements. Default depends on the model."
+            },
+            "prompt_strength": {
+              "type": "number",
+              "description": "How closely the model should follow the prompt. Higher values increase prompt adherence."
+            },
+            "creativity": {
+              "type": "number",
+              "description": "Composition variation / temperature. Higher values are more creative."
+            },
+            "model": {
+              "type": "string",
+              "description": "Music generation model. \"ace_step_1.5_turbo\" is the default and preferred model — highest quality output. \"ace_step_1.5_sft\" is an experimental model with lower fidelity but best lyric handling support.",
+              "enum": ["ace_step_1.5_turbo", "ace_step_1.5_sft"]
+            },
+            "output_format": {
+              "type": "string",
+              "description": "Audio output format. Default: \"mp3\".",
+              "enum": ["mp3", "flac", "wav"]
+            },
+            "number_of_variations": {
+              "type": "number",
+              "description": "Number of audio variations to generate. Range: 1-16. Default: 1."
+            },
+            "seed": {
+              "type": "number",
+              "description": "Random seed for reproducible generation. Use -1 for random."
+            }
+          },
+          "required": ["prompt"]
+        }
+      }
+    }
+  ]
+}

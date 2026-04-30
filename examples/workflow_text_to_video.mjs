@@ -18,8 +18,8 @@
  *   --model     Model ID (default: wan_v2.2-14b-fp8_t2v_lightx2v)
  *   --width     Video width (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
  *   --height    Video height (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
- *   --duration  Duration in seconds (WAN: 1-10s default 5, LTX-2.3: 4-20s default 4)
- *   --fps       Frames per second (WAN: 16/32, LTX-2.3: 25/50)
+ *   --duration  Duration in seconds (WAN: 1-10s, LTX-2.3: 4-20s)
+ *   --fps       Frames per second (WAN: 16/32, LTX-2.3: 1-60)
  *
  * LTX VRAM-based resolution limits (enforced during job assignment):
  *   Jobs are only assigned to workers with sufficient VRAM for the requested resolution:
@@ -72,6 +72,7 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -104,7 +105,7 @@ async function parseArgs() {
     shift: null,
     sampler: null,
     scheduler: null,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
     disableSafeContentFilter: false,
     identityAudio: null,
@@ -181,11 +182,10 @@ Available Models:
   wan_v2.2-14b-fp8_t2v           (WAN 2.2, high quality 20-step, 1-10s)
   ltx23-22b-fp8_t2v_distilled    (LTX-2.3, fast 8-step, 22B model, 4-20s, 2x upscaled output)
   ltx23-22b-fp8_t2v_dev          (LTX-2.3, high quality 30-step, 22B model, 4-20s, 2x upscaled output)
-
 Model-Specific Constraints:
   WAN models:         480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
-  LTX-2.3 distilled:  640-3840px (step 64), 25/50 fps, 4-20s, no shift, guidance 1-2
-  LTX-2.3 dev:        640-3840px (step 64), 25/50 fps, 4-20s, no shift, guidance 1-10
+  LTX-2.3 distilled:  640-3840px (step 64), 1-60 fps, 4-20s, no shift, guidance 1-2
+  LTX-2.3 dev:        640-3840px (step 64), 1-60 fps, 4-20s, no shift, guidance 1-10
 
 Options:
   --model     Model ID (default: wan_v2.2-14b-fp8_t2v_lightx2v)
@@ -193,8 +193,8 @@ Options:
   --style     Style prompt (default: none)
   --width     Video width (default: WAN 640, LTX-2.3 1536)
   --height    Video height (default: WAN 640, LTX-2.3 1024)
-  --duration  Duration in seconds (default: WAN 5s, LTX-2.3 4s)
-  --fps       Frames per second (default: WAN 16, LTX-2.3 25)
+  --duration  Duration in seconds (default: 5s)
+  --fps       Frames per second (default: WAN 16, LTX-2.3 24)
   --batch     Number of videos to generate (default: 1)
   --seed      Random seed (default: -1 for random)
   --guidance  Guidance scale (default: model-specific)
@@ -235,7 +235,9 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'wan_v2.2-14b-fp8_t2v_lightx2v';
     modelConfig = MODELS.t2v[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_t2v_lightx2v, wan_v2.2-14b-fp8_t2v, ltx23-22b-fp8_t2v_distilled, ltx23-22b-fp8_t2v_dev`);
+      console.error(
+        `Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_t2v_lightx2v, wan_v2.2-14b-fp8_t2v, ltx23-22b-fp8_t2v_distilled, ltx23-22b-fp8_t2v_dev`
+      );
       process.exit(1);
     }
   }
@@ -442,7 +444,7 @@ async function main() {
       Seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
       'Comfy Sampler': OPTIONS.sampler,
       'Comfy Scheduler': OPTIONS.scheduler,
-      'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
+      Safety: OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
     };
     if (OPTIONS.identityAudio) {
       configDisplay['Identity Audio'] = OPTIONS.identityAudio;
@@ -486,9 +488,7 @@ async function main() {
       }
       if (balance) {
         const currentBalance = parseFloat(balance.spark.net || 0);
-        console.log(
-          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
-        );
+        console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`);
       }
       console.log(`   USD: $${(totalCost * 0.005).toFixed(4)}`);
     } else {
@@ -502,9 +502,7 @@ async function main() {
       }
       if (balance) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
-        console.log(
-          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
-        );
+        console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`);
       }
       console.log(`   USD: $${(totalCost * 0.05).toFixed(4)}`);
     }
@@ -561,7 +559,6 @@ async function main() {
       disableNSFWFilter: OPTIONS.disableSafeContentFilter,
       tokenType: tokenType
     };
-
     // Add optional prompts
     if (OPTIONS.negative) {
       projectParams.negativePrompt = OPTIONS.negative;
@@ -656,13 +653,13 @@ async function main() {
 
       switch (event.type) {
         case 'queued': {
-                    const queuedLabel = getJobLabel(event, jobId);
+          const queuedLabel = getJobLabel(event, jobId);
           log('📋', `${queuedLabel}Job queued at position: ${event.queuePosition}`);
           break;
         }
 
         case 'initiating': {
-                    // Pre-create job state with jobIndex if provided
+          // Pre-create job state with jobIndex if provided
           if (!jobStates.has(jobId) && event.jobIndex !== undefined) {
             jobStates.set(jobId, {
               startTime: null,
@@ -682,7 +679,7 @@ async function main() {
         }
 
         case 'started': {
-                    // Initialize or update state for this job
+          // Initialize or update state for this job
           let jobState = jobStates.get(jobId);
           if (!jobState) {
             jobState = {
@@ -734,7 +731,7 @@ async function main() {
         }
 
         case 'jobETA': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state) {
             state.lastETA = event.etaSeconds;
             state.lastETAUpdate = Date.now();
@@ -743,7 +740,7 @@ async function main() {
         }
 
         case 'progress': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state && event.step !== undefined && event.stepCount !== undefined) {
             state.lastStep = event.step;
             state.lastStepCount = event.stepCount;
@@ -752,7 +749,7 @@ async function main() {
         }
 
         case 'completed': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           const completedLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
 
@@ -766,7 +763,10 @@ async function main() {
 
           if (!event.resultUrl || event.error) {
             failedVideos++;
-            log('❌', `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`);
+            log(
+              '❌',
+              `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`
+            );
             jobStates.delete(jobId);
             checkWorkflowCompletion();
           } else {
@@ -781,7 +781,7 @@ async function main() {
             const jobElapsed = jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?';
 
             // Use actual seed from job completion event (server generates unique seeds for batch items)
-            const jobSeed = event.seed ?? (OPTIONS.seed + (state?.jobIndex || 0));
+            const jobSeed = event.seed ?? OPTIONS.seed + (state?.jobIndex || 0);
 
             const desiredPath = generateVideoFilename({
               modelId: modelConfig.id,
@@ -817,7 +817,7 @@ async function main() {
 
         case 'error':
         case 'failed': {
-                    const errorLabel = getJobLabel(event, jobId);
+          const errorLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
           failedVideos++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
@@ -908,7 +908,16 @@ async function main() {
 /**
  * Get video job cost estimate
  */
-async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps, videoCount = 1) {
+async function getVideoJobEstimate(
+  tokenType,
+  modelId,
+  width,
+  height,
+  frames,
+  fps,
+  steps,
+  videoCount = 1
+) {
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');

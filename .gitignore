@@ -8,5 +8,6 @@ dist
 /package-lock.json
 .DS_Store
 examples/output
+examples/results
 examples/toprocess
 docs/superpowers/

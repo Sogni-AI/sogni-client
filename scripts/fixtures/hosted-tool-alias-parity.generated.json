@@ -1,0 +1,250 @@
+{
+  "version": "2026-04-28.1",
+  "source": {
+    "aliases": "src/backbone/knowledge/tool-aliases.json",
+    "hostedTools": "src/backbone/openai-tools/sogni-hosted-tools.json",
+    "sdkGeneratedTools": "sogni-client/src/Chat/sogniHostedTools.generated.json",
+    "apiImportedTools": "@sogni/creative-agent/backbone/openai-tools/sogni-hosted-tools.json"
+  },
+  "description": "Golden parity vector proving direct creative-agent tool aliases resolve to hosted SDK/API sogni_* tool definitions.",
+  "tools": [
+    {
+      "creativeToolName": "generate_image",
+      "executionMode": "direct",
+      "hostedToolName": "sogni_generate_image",
+      "sdkToolName": "sogni_generate_image",
+      "hostedSchemaSha256": "c5e71d2913498b9d8c0c38a4ab2e1c59402f63038db31a1230c7f2f80c6f7742",
+      "hostedRequired": ["prompt"],
+      "hostedPropertyNames": [
+        "prompt",
+        "negative_prompt",
+        "width",
+        "height",
+        "model",
+        "number_of_variations",
+        "steps",
+        "seed"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "negative_prompt",
+        "number_of_variations",
+        "model",
+        "width",
+        "height",
+        "seed"
+      ],
+      "mediaAliasTargets": []
+    },
+    {
+      "creativeToolName": "edit_image",
+      "executionMode": "direct",
+      "hostedToolName": "sogni_edit_image",
+      "sdkToolName": "sogni_edit_image",
+      "hostedSchemaSha256": "a834ff18a3a736a5e35f24f30c54f014d52cd6e512eb26c3e0b9f343dcada107",
+      "hostedRequired": ["prompt"],
+      "hostedPropertyNames": [
+        "prompt",
+        "source_image_url",
+        "reference_image_urls",
+        "negative_prompt",
+        "width",
+        "height",
+        "model",
+        "number_of_variations",
+        "seed"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "negative_prompt",
+        "number_of_variations",
+        "model",
+        "width",
+        "height",
+        "seed"
+      ],
+      "mediaAliasTargets": ["source_image_url", "reference_image_urls"]
+    },
+    {
+      "creativeToolName": "generate_video",
+      "executionMode": "direct",
+      "hostedToolName": "sogni_generate_video",
+      "sdkToolName": "sogni_generate_video",
+      "hostedSchemaSha256": "3e83dcba7474fff04337db650ce056e4cca8ee6dba911f63869d7741cf5d9a7c",
+      "hostedRequired": ["prompt"],
+      "hostedPropertyNames": [
+        "prompt",
+        "negative_prompt",
+        "reference_image_url",
+        "reference_image_end_url",
+        "reference_audio_identity_url",
+        "audio_identity_strength",
+        "first_frame_strength",
+        "last_frame_strength",
+        "width",
+        "height",
+        "duration",
+        "fps",
+        "generate_audio",
+        "model",
+        "number_of_variations",
+        "seed"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "negative_prompt",
+        "duration",
+        "model",
+        "number_of_variations",
+        "width",
+        "height",
+        "seed"
+      ],
+      "mediaAliasTargets": []
+    },
+    {
+      "creativeToolName": "animate_photo",
+      "executionMode": "direct",
+      "hostedToolName": "sogni_generate_video",
+      "sdkToolName": "sogni_generate_video",
+      "hostedSchemaSha256": "3e83dcba7474fff04337db650ce056e4cca8ee6dba911f63869d7741cf5d9a7c",
+      "hostedRequired": ["prompt"],
+      "hostedPropertyNames": [
+        "prompt",
+        "negative_prompt",
+        "reference_image_url",
+        "reference_image_end_url",
+        "reference_audio_identity_url",
+        "audio_identity_strength",
+        "first_frame_strength",
+        "last_frame_strength",
+        "width",
+        "height",
+        "duration",
+        "fps",
+        "generate_audio",
+        "model",
+        "number_of_variations",
+        "seed"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "prompt",
+        "negative_prompt",
+        "duration",
+        "model",
+        "number_of_variations",
+        "width",
+        "height",
+        "seed"
+      ],
+      "mediaAliasTargets": [
+        "reference_image_url",
+        "reference_image_url",
+        "reference_image_end_url",
+        "reference_image_end_url"
+      ]
+    },
+    {
+      "creativeToolName": "sound_to_video",
+      "executionMode": "direct",
+      "hostedToolName": "sogni_sound_to_video",
+      "sdkToolName": "sogni_sound_to_video",
+      "hostedSchemaSha256": "5e9183e3c4c7c8f7c959afc1bbc2955c23981f4a4b7fd21b3ead982052003c1c",
+      "hostedRequired": ["prompt", "reference_audio_url"],
+      "hostedPropertyNames": [
+        "prompt",
+        "reference_audio_url",
+        "reference_image_url",
+        "audio_start",
+        "duration",
+        "generate_audio",
+        "width",
+        "height",
+        "model",
+        "number_of_variations",
+        "seed"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "duration",
+        "model",
+        "number_of_variations",
+        "width",
+        "height",
+        "seed"
+      ],
+      "mediaAliasTargets": ["reference_audio_url", "reference_image_url"]
+    },
+    {
+      "creativeToolName": "video_to_video",
+      "executionMode": "direct",
+      "hostedToolName": "sogni_video_to_video",
+      "sdkToolName": "sogni_video_to_video",
+      "hostedSchemaSha256": "066d1813380692d1762d5b350e419258b0f98a33cc585c6df0e0604943ba64f2",
+      "hostedRequired": ["prompt", "reference_video_url"],
+      "hostedPropertyNames": [
+        "prompt",
+        "reference_video_url",
+        "negative_prompt",
+        "control_mode",
+        "reference_image_url",
+        "reference_audio_identity_url",
+        "audio_identity_strength",
+        "video_start",
+        "duration",
+        "generate_audio",
+        "width",
+        "height",
+        "detailer_strength",
+        "model",
+        "number_of_variations",
+        "seed"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "control_mode",
+        "duration",
+        "number_of_variations",
+        "model"
+      ],
+      "mediaAliasTargets": ["reference_video_url", "reference_image_url"]
+    },
+    {
+      "creativeToolName": "generate_music",
+      "executionMode": "direct",
+      "hostedToolName": "sogni_generate_music",
+      "sdkToolName": "sogni_generate_music",
+      "hostedSchemaSha256": "8868e4d2c03295d51f17ab1c6c7086976f4d0bf88b5ad30c13a38f7848e16107",
+      "hostedRequired": ["prompt"],
+      "hostedPropertyNames": [
+        "prompt",
+        "lyrics",
+        "language",
+        "duration",
+        "bpm",
+        "keyscale",
+        "timesignature",
+        "composer_mode",
+        "prompt_strength",
+        "creativity",
+        "model",
+        "output_format",
+        "number_of_variations",
+        "seed"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "lyrics",
+        "duration",
+        "bpm",
+        "keyscale",
+        "timesignature",
+        "model",
+        "number_of_variations",
+        "seed"
+      ],
+      "mediaAliasTargets": []
+    }
+  ]
+}
