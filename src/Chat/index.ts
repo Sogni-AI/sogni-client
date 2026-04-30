@@ -362,6 +362,8 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       tokenType: params.tokenType,
       tools: params.tools,
       tool_choice: params.tool_choice,
+      sogni_tools: params.sogni_tools,
+      sogni_tool_execution: params.sogni_tool_execution,
       taskProfile: params.taskProfile,
       ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs })
     };

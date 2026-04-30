@@ -36,6 +36,8 @@ export type ToolChoice =
   | 'required'
   | { type: 'function'; function: { name: string } };
 
+export type SogniToolsMode = boolean | 'creative-agent' | 'rich';
+
 /** Text content part for multimodal messages. */
 export interface TextContentPart {
   type: 'text';
@@ -83,6 +85,18 @@ export interface ChatCompletionParams {
   tools?: ToolDefinition[];
   /** Controls which (if any) tool is called by the model. */
   tool_choice?: ToolChoice;
+  /**
+   * Ask the Sogni API to inject hosted media-generation tools server-side.
+   * `true` injects the hosted `sogni_*` tool family. `'creative-agent'` and
+   * `'rich'` inject the richer creative-agent tool family used by chat.sogni.ai.
+   */
+  sogni_tools?: SogniToolsMode;
+  /**
+   * When `sogni_tools` is enabled, ask the Sogni API to execute requested Sogni
+   * tools server-side before returning the chat response. This is separate from
+   * the SDK-local `autoExecuteTools` loop.
+   */
+  sogni_tool_execution?: boolean;
   /**
    * Control thinking/reasoning mode for supported models (e.g. Qwen3/3.5).
    * When `false`, sends `chat_template_kwargs: { enable_thinking: false }` so
@@ -137,6 +151,8 @@ export interface ChatRequestMessage {
   tokenType?: 'sogni' | 'spark';
   tools?: ToolDefinition[];
   tool_choice?: ToolChoice;
+  sogni_tools?: SogniToolsMode;
+  sogni_tool_execution?: boolean;
   taskProfile?: 'general' | 'coding' | 'reasoning';
   /** Per-request chat template arguments (e.g. `{ enable_thinking: false }` for llama.cpp). */
   chat_template_kwargs?: Record<string, unknown>;

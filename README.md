@@ -782,7 +782,7 @@ The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-i
 
 ### Rich Creative-Agent Tool Family (server-side)
 
-For agentic experiences that mirror `chat.sogni.ai`, the Sogni API can inject a richer 14-tool family instead of the 6 hosted `sogni_*` tools above. Pass `sogni_tools: "creative-agent"` (or `"rich"`) in the chat completion request body — the server expands the injected tool set to the full creative-agent surface and threads a per-request media context across rounds so generated artifacts can be referenced by index.
+For agentic experiences that mirror `chat.sogni.ai`, the Sogni API can inject a richer 14-tool family instead of the 6 hosted `sogni_*` tools above. Pass `sogni_tools: "creative-agent"` (or `"rich"`) in the SDK chat completion request — the server expands the injected tool set to the full creative-agent surface and threads a per-request media context across rounds so generated artifacts can be referenced by index.
 
 Tools added on top of the hosted six:
 
@@ -797,25 +797,24 @@ Tools added on top of the hosted six:
 Composition tools (`stitch_video`, `orbit_video`, `dance_montage`, and `animate_photo` fan-out) return a single composed MP4 URL. See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
 
 ```javascript
-const response = await fetch('https://api.sogni.ai/v1/chat/completions', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'api-key': process.env.SOGNI_API_KEY
-  },
-  body: JSON.stringify({
-    model: 'qwen3.6-35b-a3b-gguf-iq4xs',
-    messages: [{ role: 'user', content: 'Create an orbit video around this product concept' }],
-    sogni_tools: 'creative-agent',
-    sogni_tool_execution: true,
-    token_type: 'spark'
-  })
+import { SogniClient } from '@sogni-ai/sogni-client';
+
+const sogni = await SogniClient.createInstance({
+  appId: 'creative-agent-demo',
+  apiKey: process.env.SOGNI_API_KEY,
+  network: 'fast'
 });
 
-const result = await response.json();
+const result = await sogni.chat.completions.create({
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
+  messages: [{ role: 'user', content: 'Create an orbit video around this product concept' }],
+  sogni_tools: 'creative-agent',
+  sogni_tool_execution: true,
+  tokenType: 'spark'
+});
 ```
 
-See `examples/workflow_creative_agent_tools.mjs` for a runnable API-key example that can toggle hosted vs rich tools and server-side execution.
+See `examples/workflow_creative_agent_tools.mjs` for a runnable REST API-key example that can toggle hosted vs rich tools and server-side execution.
 
 For focused partner Seedance video tests, `examples/workflow_partner_seedance_video.mjs` uses `/v1/chat/completions` for text-to-video tool selection and `/v1/creative-agent/workflows` for exact media-bearing hosted tool sequences. Both paths let `sogni-api` apply shared Seedance prompt expansion before dispatch:
 
