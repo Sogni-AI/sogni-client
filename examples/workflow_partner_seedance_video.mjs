@@ -53,7 +53,6 @@ const SEEDANCE_MODELS = {
 const TOOL_ARGUMENT_KEYS = {
   sogni_generate_video: new Set([
     'prompt',
-    'negative_prompt',
     'reference_image_url',
     'reference_image_end_url',
     'reference_image_urls',
@@ -92,7 +91,6 @@ const TOOL_ARGUMENT_KEYS = {
     'prompt',
     'reference_video_url',
     'reference_video_urls',
-    'negative_prompt',
     'control_mode',
     'reference_image_url',
     'reference_image_urls',
@@ -318,7 +316,7 @@ Options:
   --control-mode <mode>  V2V control mode; Seedance uses seedance-v2v
   --first-frame-strength <n> First-frame strength for i2v with --end-image, 0-1
   --last-frame-strength <n> Last-frame strength for i2v with --end-image, 0-1
-  --negative-prompt <text> Forward negative_prompt where the endpoint schema accepts it
+  --negative-prompt <text> Accepted for CLI parity; ignored because Seedance does not support it
   --no-audio             Request silent Seedance output by setting generate_audio=false
   --generate-audio       Explicitly request generate_audio=true
   --number <n>           Number of variations (default: 1)
@@ -724,9 +722,6 @@ async function buildToolArguments(credentials, options) {
   };
   if (Number.isInteger(options.seed)) {
     args.seed = options.seed;
-  }
-  if (options.negativePrompt && options.mode !== 'ia2v') {
-    args.negative_prompt = options.negativePrompt;
   }
   if (options.generateAudio !== undefined) {
     args.generate_audio = options.generateAudio;
