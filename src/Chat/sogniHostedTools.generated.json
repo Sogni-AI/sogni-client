@@ -123,6 +123,10 @@
               "type": "string",
               "description": "Detailed text description of the video to generate. Write it as a flowing present-tense scene: describe the subject, action, camera movement, lighting, and atmosphere. Clear camera-to-subject relationship improves motion consistency. Be specific and vivid."
             },
+            "expand_prompt": {
+              "type": "boolean",
+              "description": "Seedance only. Whether Sogni API should expand this compact prompt with the shared Seedance LLM prompt shaper before dispatch. Defaults to true."
+            },
             "negative_prompt": {
               "type": "string",
               "description": "Things to avoid in generated videos for models that support video negative prompts."
@@ -224,6 +228,10 @@
               "type": "string",
               "description": "Describe the visuals to generate in present tense while letting the supplied audio drive the timing and rhythm."
             },
+            "expand_prompt": {
+              "type": "boolean",
+              "description": "Seedance only. Whether Sogni API should expand this compact prompt with the shared Seedance LLM prompt shaper before dispatch. Defaults to true."
+            },
             "reference_audio_url": {
               "type": "string",
               "description": "Audio file to drive the video. Supports inline base64-encoded MP3, M4A, or WAV data URIs only; remote http(s) URLs are not allowed."
@@ -311,6 +319,10 @@
             "prompt": {
               "type": "string",
               "description": "Describe the target appearance or transformation in present tense. For detail enhancement, describe the existing scene and the desired quality improvement rather than inventing new content."
+            },
+            "expand_prompt": {
+              "type": "boolean",
+              "description": "Seedance only. Whether Sogni API should expand this compact prompt with the shared Seedance LLM prompt shaper before dispatch. Defaults to true."
             },
             "reference_video_url": {
               "type": "string",

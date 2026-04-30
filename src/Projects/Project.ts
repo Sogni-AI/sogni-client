@@ -268,6 +268,10 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
           this._logger.error(
             `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
           );
+          this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
+            this._logger.error(`Failed to notify socket server that project ${this.id} timed out`);
+            this._logger.error(cancelError);
+          });
           clearInterval(this._timeout!);
           this._timeout = null;
           this.jobs.forEach((job) => {

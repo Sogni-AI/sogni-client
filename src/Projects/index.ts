@@ -750,6 +750,21 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
   }
 
+  /**
+   * Notify the socket server to cancel a project this client has timed out waiting for.
+   * This preserves the local timeout failure state while still using the normal artist
+   * cancellation protocol so the server aborts worker/vendor-side work.
+   * @internal
+   */
+  async _notifyProjectTimedOut(projectId: string) {
+    await this.client.socket.send('jobError', {
+      jobID: projectId,
+      error: 'artistCanceled',
+      error_message: 'artistCanceled',
+      isFromWorker: false
+    });
+  }
+
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
     const contentType = getFileContentType(file);

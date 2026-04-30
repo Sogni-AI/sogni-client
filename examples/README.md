@@ -639,9 +639,10 @@ node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal
 node workflow_creative_agent_tools.mjs "Plan a cyberpunk skyline video" --tools creative-agent --no-execute
 ```
 
-Run the focused partner Seedance video example. It uses `/v1/chat/completions` for text-to-video tool selection and `/v1/creative-agent/workflows` for exact media-bearing hosted tool sequences. Both paths let `sogni-api` apply the shared Seedance prompt expansion before job submission:
+Run the focused partner Seedance video example. Running it with no arguments starts a guided workflow picker covering T2V, I2V, IA2V, V2V, the full and fast Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:
 
 ```bash
+node workflow_partner_seedance_video.mjs
 node workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --duration 4
 node workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --fast --duration 4
 node workflow_partner_seedance_video.mjs "slow cinematic reveal" --context test-assets/placeholder.jpg
@@ -651,7 +652,7 @@ node workflow_partner_seedance_video.mjs "turn the clip into a polished perfume 
 node workflow_partner_seedance_video.mjs "Use @Video1 as the source clip, @Video2 for edit rhythm, @Image1 for product identity, @Image2 for palette, and @Audio1 as the music guide. Preserve the product silhouette and create one launch spot." --workflow --mode v2v --video test-assets/placeholder.mp4 --video https://cdn.example.com/motion-2.mp4 --context test-assets/placeholder.jpg --context test-assets/placeholder2.jpg --audio test-assets/placeholder.m4a
 ```
 
-T2V defaults to `/v1/chat/completions` only when no media is attached. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; the example enforces the vendor limits of 9 image assets, 3 video assets, 3 audio assets, and 12 total assets. Use Seedance-style role tags in prompts (`@Image1`, `@Video1`, `@Audio1`) counted independently by modality in attachment order, and prefer positive preservation instructions. The server uses shared `@sogni/creative-agent` prompt shaping before dispatch. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Use `--no-estimate` when you only want to inspect request construction.
+Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entrypoint exercises the durable hosted workflow API first. Scripted T2V calls without media still default to `/v1/chat/completions` unless `--workflow` is passed. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; the example enforces the vendor limits of 9 image assets, 3 video assets, 3 audio assets, and 12 total assets. Use Seedance-style role tags in prompts (`@Image1`, `@Video1`, `@Audio1`) counted independently by modality in attachment order, and prefer positive preservation instructions. `--expand-prompt` is enabled by default and sends `expand_prompt: true` so the API runs the shared `@sogni/creative-agent` Seedance LLM prompt shaper before dispatch; pass `--no-expand-prompt` only when you want to submit the compact prompt directly. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Use `--no-estimate` when you only want to inspect request construction.
 
 **Durable Creative Workflows:**
 For multi-step workflows that need to survive client disconnect, persist state, or be observed from a second client, use the SDK `sogni.creativeWorkflows` wrapper:
