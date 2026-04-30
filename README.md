@@ -545,7 +545,7 @@ WAN workflows have two model variants optimized for different use cases:
 - **Speed variant** (with `_lightx2v` suffix) - Faster inference (4-step), good quality
 - **Quality variant** (without `_lightx2v`) - Slower inference, best quality
 
-LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available for text-to-video, image-to-video, image+audio-to-video, and video-to-video. Seedance 2.0 Fast is text/image-to-video only and caps output at 720p.
+LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available for text-to-video, image-to-video, multimodal reference generation, image+audio-to-video, and video-to-video. Seedance 2.0 Fast is text/image-to-video only in the public SDK selectors and caps output at 720p.
 
 Example model IDs:
 
@@ -581,6 +581,8 @@ When creating video projects, you can specify:
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
 - `referenceVideo` - Reference video for animate and v2v workflows
 - `referenceAudio` - Reference audio for sound-to-video workflow
+
+Seedance 2.0 can combine image, video, and audio reference assets in one vendor request. Vendor limits are up to 9 image assets, 3 video assets, 3 audio assets, and 12 asset files total. Text+audio without at least one image or video reference is not supported by Seedance. Seedance dispatch omits negative prompts; Wan 2.2 and LTX 2.3 video models can still use `negativePrompt`.
 
 ### Text-to-Video Example
 

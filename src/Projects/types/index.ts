@@ -50,10 +50,6 @@ export interface BaseProjectParams {
    */
   positivePrompt: string;
   /**
-   * Prompt for what to be avoided. If not provided, server default is used.
-   */
-  negativePrompt?: string;
-  /**
    * Image style prompt. If not provided, server default is used.
    */
   stylePrompt?: string;
@@ -129,13 +125,19 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Example: 5 seconds at 24fps = 121 frames (since 121 = 1 + 15*8)
  *
  * ### Seedance 2.0 Models (seedance-2-0*)
- * - External API-backed video models for text-to-video, image-to-video, and video-to-video
+ * - External API-backed video models for text-to-video, image-to-video,
+ *   multimodal reference generation, image+audio-to-video, and video-to-video
  * - Generate at fixed 24fps
  * - Direct SDK project duration range is 4 to 15 seconds
  * - Frame count is calculated as: `duration * 24 + 1`
+ * - Vendor reference limits are 9 images, 3 videos, 3 audios, and 12 asset files total
  */
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
+  /**
+   * Prompt for what to be avoided. If not provided, server default is used.
+   */
+  negativePrompt?: string;
   /**
    * Number of frames to generate.
    * @deprecated Use duration instead. When using duration, the SDK automatically
@@ -301,6 +303,10 @@ export interface VideoProjectParams extends BaseProjectParams {
 
 export interface ImageProjectParams extends BaseProjectParams {
   type: 'image';
+  /**
+   * Prompt for what to be avoided. If not provided, server default is used.
+   */
+  negativePrompt?: string;
   /**
    * Number of previews to generate. Note that previews affect project cost
    */

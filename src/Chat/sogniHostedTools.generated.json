@@ -125,7 +125,7 @@
             },
             "negative_prompt": {
               "type": "string",
-              "description": "Things to avoid in the generated video (e.g., \"blurry, low quality, distorted, watermark\")."
+              "description": "Things to avoid in generated videos for models that support video negative prompts."
             },
             "reference_image_url": {
               "type": "string",
@@ -173,7 +173,7 @@
             },
             "model": {
               "type": "string",
-              "description": "Video generation model to use. Supported selectors include ltx23, wan22, seedance2 and seedance2-fast. Use t2v models for text-only generation and i2v when reference images are supplied. seedance2-fast caps at 720p."
+              "description": "Video generation model to use. Supported selectors include ltx23, wan22, seedance2 and seedance2-fast. Seedance supports multimodal image, video, and audio references up to 12 total asset files; seedance2-fast caps at 720p."
             },
             "number_of_variations": {
               "type": "number",
@@ -230,7 +230,7 @@
             },
             "model": {
               "type": "string",
-              "description": "Audio-driven video model to use. seedance2 is image+audio only and requires reference_image_url.",
+              "description": "Audio-driven video model to use. seedance2 uses the Seedance audio-reference path and this hosted tool requires reference_image_url because Seedance text+audio without image/video is unsupported.",
               "enum": [
                 "seedance2",
                 "seedance-2-0_ia2v",
@@ -270,7 +270,7 @@
             },
             "negative_prompt": {
               "type": "string",
-              "description": "Things to avoid in the generated video (e.g., \"blurry, low quality, distorted, watermark\")."
+              "description": "Things to avoid in generated videos for models that support video negative prompts."
             },
             "control_mode": {
               "type": "string",

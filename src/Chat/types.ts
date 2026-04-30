@@ -346,7 +346,7 @@ export interface ToolExecutionOptions {
    * complete within this time, the tool call will fail with a timeout error
    * and the project will be canceled.
    *
-   * Default: 600000 (10 minutes).
+   * Default: 1800000 (30 minutes).
    */
   timeout?: number;
 }

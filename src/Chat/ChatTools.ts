@@ -28,7 +28,7 @@ import {
   ToolExecutionResult
 } from './types';
 
-const DEFAULT_TIMEOUT = 10 * 60 * 1000;
+const DEFAULT_TIMEOUT = 30 * 60 * 1000;
 const MAX_SOGNI_TOOL_CALLS_PER_ROUND = 8;
 
 const MAX_INPUT_MEDIA_BYTES: Record<MediaType, number> = {
@@ -358,6 +358,7 @@ class ChatToolsApi {
       preferredModelIds
     });
     const defaults = getVideoDefaults(modelId);
+    const isSeedanceModel = modelId.startsWith('seedance-2-0');
 
     const projectParams: Record<string, unknown> = {
       type: 'video' as const,
@@ -369,7 +370,9 @@ class ChatToolsApi {
       fps: (args.fps as number) || defaults.fps
     };
 
-    if (args.negative_prompt) projectParams.negativePrompt = args.negative_prompt;
+    if (args.negative_prompt && !isSeedanceModel) {
+      projectParams.negativePrompt = args.negative_prompt;
+    }
     if (args.duration !== undefined) projectParams.duration = args.duration;
     if (args.seed !== undefined) projectParams.seed = args.seed;
     if (isNonEmptyString(args.reference_image_url)) {
@@ -530,7 +533,9 @@ class ChatToolsApi {
       duration: asFiniteNumber(args.duration) ?? 5
     };
 
-    if (args.negative_prompt) projectParams.negativePrompt = args.negative_prompt;
+    if (args.negative_prompt && !isSeedanceModel) {
+      projectParams.negativePrompt = args.negative_prompt;
+    }
     if (args.seed !== undefined) projectParams.seed = args.seed;
     if (isNonEmptyString(args.reference_image_url)) {
       projectParams.referenceImage = parseInlineMediaDataUri(args.reference_image_url, 'image', {

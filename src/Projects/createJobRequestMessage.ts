@@ -450,6 +450,10 @@ function applyAudioParams(
 
 function createJobRequestMessage(id: string, params: ProjectParams, options: ModelOptions) {
   const template = getTemplate();
+  const negativePrompt =
+    isImageParams(params) || (isVideoParams(params) && !isSeedanceModel(params.modelId))
+      ? params.negativePrompt
+      : undefined;
   // Base keyFrame with common params
   let keyFrame: Record<string, any> = {
     ...template.keyFrames[0],
@@ -460,13 +464,16 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     positivePrompt: params.positivePrompt,
     // Only include optional prompts if they have actual non-empty values
     // This allows the server to use its defaults when not specified
-    ...(params.negativePrompt && { negativePrompt: params.negativePrompt }),
+    ...(negativePrompt && { negativePrompt }),
     ...(params.stylePrompt && { stylePrompt: params.stylePrompt }),
     // LoRA IDs for LoRA loading (resolved to filenames by worker via config API)
     ...(params.loras && params.loras.length > 0 && { loras: params.loras }),
     ...(params.loraStrengths &&
       params.loraStrengths.length > 0 && { loraStrengths: params.loraStrengths })
   };
+  if (isAudioParams(params) || (isVideoParams(params) && isSeedanceModel(params.modelId))) {
+    delete keyFrame.negativePrompt;
+  }
 
   switch (params.type) {
     case 'image':
