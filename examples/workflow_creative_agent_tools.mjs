@@ -10,7 +10,7 @@
  * Examples:
  *   node workflow_creative_agent_tools.mjs "Create a 4-shot product video concept for a red sneaker"
  *   node workflow_creative_agent_tools.mjs "Generate an orbit video prompt for a crystal perfume bottle" --tools creative-agent --no-execute
- *   node workflow_creative_agent_tools.mjs "Make a seedance2-fast video plan for a cyberpunk skyline" --model qwen3.6-35b-a3b-gguf-iq4xs
+ *   node workflow_creative_agent_tools.mjs "Make a cinematic video plan for a cyberpunk skyline" --model qwen3.6-35b-a3b-gguf-iq4xs
  */
 
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';

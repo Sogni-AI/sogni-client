@@ -636,7 +636,7 @@ Run the server-side API-key example:
 
 ```bash
 node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal perfume bottle"
-node workflow_creative_agent_tools.mjs "Plan a Seedance cyberpunk skyline video" --tools creative-agent --no-execute
+node workflow_creative_agent_tools.mjs "Plan a cyberpunk skyline video" --tools creative-agent --no-execute
 ```
 
 Run the focused partner Seedance video example. It uses `/v1/chat/completions` for text-to-video tool selection and `/v1/creative-agent/workflows` for exact media-bearing hosted tool sequences. Both paths let `sogni-api` apply the shared Seedance prompt expansion before job submission:
@@ -644,13 +644,14 @@ Run the focused partner Seedance video example. It uses `/v1/chat/completions` f
 ```bash
 node workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --duration 4
 node workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --fast --duration 4
-node workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v
-node workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v --fast
-node workflow_partner_seedance_video.mjs "the portrait sings with stage lighting" --mode ia2v
-node workflow_partner_seedance_video.mjs "turn the clip into a polished perfume commercial" --mode v2v
+node workflow_partner_seedance_video.mjs "slow cinematic reveal" --context test-assets/placeholder.jpg
+node workflow_partner_seedance_video.mjs "slow cinematic reveal" --context test-assets/placeholder.jpg --fast
+node workflow_partner_seedance_video.mjs "the portrait sings with stage lighting" --mode ia2v --context test-assets/placeholder.jpg --audio test-assets/placeholder.m4a
+node workflow_partner_seedance_video.mjs "turn the clip into a polished perfume commercial" --video test-assets/placeholder.mp4
+node workflow_partner_seedance_video.mjs "Use @Video1 as the source clip, @Video2 for edit rhythm, @Image1 for product identity, @Image2 for palette, and @Audio1 as the music guide. Preserve the product silhouette and create one launch spot." --workflow --mode v2v --video test-assets/placeholder.mp4 --video https://cdn.example.com/motion-2.mp4 --context test-assets/placeholder.jpg --context test-assets/placeholder2.jpg --audio test-assets/placeholder.m4a
 ```
 
-T2V defaults to `/v1/chat/completions`. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `test-assets` automatically. Pass `--image`, `--audio`, or `--video` to use your own local files, or pass HTTPS media URLs. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs.
+T2V defaults to `/v1/chat/completions` only when no media is attached. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; the example enforces the vendor limits of 9 image assets, 3 video assets, 3 audio assets, and 12 total assets. Use Seedance-style role tags in prompts (`@Image1`, `@Video1`, `@Audio1`) counted independently by modality in attachment order, and prefer positive preservation instructions. The server uses shared `@sogni/creative-agent` prompt shaping before dispatch. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Use `--no-estimate` when you only want to inspect request construction.
 
 **Durable Creative Workflows:**
 For multi-step workflows that need to survive client disconnect, persist state, or be observed from a second client, use the SDK `sogni.creativeWorkflows` wrapper:

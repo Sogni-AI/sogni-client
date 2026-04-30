@@ -184,6 +184,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceImage?: InputMedia;
   /**
+   * Seedance-only loose image context references. These must be publicly
+   * accessible HTTPS URLs that the vendor can fetch. Use referenceImage /
+   * referenceImageEnd when the image should lock the first or last frame.
+   */
+  referenceImageUrls?: string[];
+  /**
    * Optional end image for i2v interpolation workflows.
    * When provided with referenceImage, the video will interpolate between the two images.
    */
@@ -192,6 +198,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Reference audio for audio-driven video workflows (s2v, ia2v, a2v).
    */
   referenceAudio?: InputMedia;
+  /**
+   * Seedance-only audio context references. These must be publicly accessible
+   * HTTPS URLs. Seedance does not support text+audio-only requests; include at
+   * least one image or video reference when using audio URL references.
+   */
+  referenceAudioUrls?: string[];
   /**
    * Enable native audio generation for external API-backed video models that support it.
    * Seedance defaults to audio enabled server-side; set to false to request a silent video.
@@ -229,6 +241,11 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Maps to: drivingVideo (animate-move), sourceVideo (animate-replace), referenceVideo (v2v)
    */
   referenceVideo?: InputMedia;
+  /**
+   * Seedance-only video context references. These must be publicly accessible
+   * HTTPS URLs and map to Seedance reference_video assets.
+   */
+  referenceVideoUrls?: string[];
   /**
    * ControlNet parameters for LTX-2.3 v2v workflows.
    * Specifies which control signal to extract from the reference video.

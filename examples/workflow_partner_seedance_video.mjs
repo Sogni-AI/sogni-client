@@ -12,10 +12,12 @@
  *   node workflow_partner_seedance_video.mjs
  *   node workflow_partner_seedance_video.mjs "The Slothicorn mascot launches SEEDANCE 2.0 on SOGNI with a spoken teaser line" --duration 4
  *   node workflow_partner_seedance_video.mjs "The Slothicorn mascot launches SEEDANCE 2.0 on SOGNI with a spoken teaser line" --fast --duration 4 --no-audio
- *   node workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v
- *   node workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v --fast
- *   node workflow_partner_seedance_video.mjs "the portrait sings with stage lighting" --mode ia2v
- *   node workflow_partner_seedance_video.mjs "turn the clip into a polished perfume commercial" --mode v2v
+ *   node workflow_partner_seedance_video.mjs "slow cinematic reveal" --context portrait.jpg
+ *   node workflow_partner_seedance_video.mjs "transition from day to night" --mode i2v --image day.jpg --end-image night.jpg
+ *   node workflow_partner_seedance_video.mjs "the portrait sings with stage lighting" --mode ia2v --context portrait.jpg --audio speech.m4a
+ *   node workflow_partner_seedance_video.mjs "turn the clip into a polished perfume commercial" --video source.mp4
+ *   node workflow_partner_seedance_video.mjs "preserve the product from the image while restyling the video" --mode v2v --video source.mp4 --context product.jpg
+ *   node workflow_partner_seedance_video.mjs "Use @Video1 as the source clip, @Video2 and @Video3 for edit rhythm, @Image1 for product identity, @Image2 for palette, @Audio1 for music, @Audio2 for ambience, and @Audio3 for sound accents. Keep the product silhouette consistent." --workflow --mode v2v --video a.mp4 --video b.mp4 --video c.mp4 --context 1.jpg --context 2.jpg --audio a.m4a --audio b.m4a --audio c.m4a
  */
 
 import * as crypto from 'node:crypto';
@@ -27,6 +29,7 @@ import { askQuestion, calculateVideoFrames } from './workflow-helpers.mjs';
 
 const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_REST_ENDPOINT = 'https://api.sogni.ai';
+const SEEDANCE_FPS = 24;
 const DEFAULT_PROMPT =
   'A fuzzy pink sloth with a little unicorn horn growing out of his forehead, the Slothicorn mascot, bursts onto a spectacular neon launch stage, taps a glowing button, and unleashes streams of cinematic light around a crisp sign that reads "SEEDANCE 2.0 on SOGNI". He smiles to camera and says clearly, "Seedance 2.0 is live on Sogni. Let your imagination move." Energetic teaser trailer pacing, playful interaction, premium lighting, huge reveal moment, polished platform launch commercial.';
 
@@ -45,6 +48,66 @@ const SEEDANCE_MODELS = {
   v2v: {
     seedance2: { id: 'seedance-2-0_v2v', name: 'Seedance 2.0 V2V' }
   }
+};
+
+const TOOL_ARGUMENT_KEYS = {
+  sogni_generate_video: new Set([
+    'prompt',
+    'negative_prompt',
+    'reference_image_url',
+    'reference_image_end_url',
+    'reference_image_urls',
+    'reference_video_urls',
+    'reference_audio_urls',
+    'reference_audio_identity_url',
+    'audio_identity_strength',
+    'first_frame_strength',
+    'last_frame_strength',
+    'width',
+    'height',
+    'duration',
+    'fps',
+    'generate_audio',
+    'model',
+    'number_of_variations',
+    'seed'
+  ]),
+  sogni_sound_to_video: new Set([
+    'prompt',
+    'reference_audio_url',
+    'reference_audio_urls',
+    'reference_image_url',
+    'reference_image_urls',
+    'reference_video_urls',
+    'audio_start',
+    'duration',
+    'generate_audio',
+    'width',
+    'height',
+    'model',
+    'number_of_variations',
+    'seed'
+  ]),
+  sogni_video_to_video: new Set([
+    'prompt',
+    'reference_video_url',
+    'reference_video_urls',
+    'negative_prompt',
+    'control_mode',
+    'reference_image_url',
+    'reference_image_urls',
+    'reference_audio_urls',
+    'reference_audio_identity_url',
+    'audio_identity_strength',
+    'video_start',
+    'duration',
+    'generate_audio',
+    'width',
+    'height',
+    'model',
+    'number_of_variations',
+    'seed'
+  ])
 };
 
 const EXAMPLES_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -67,29 +130,43 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
     prompt: '',
-    mode: 't2v',
+    mode: undefined,
     fast: false,
     model: undefined,
     llmModel: DEFAULT_LLM_MODEL,
     endpoint: process.env.SOGNI_REST_ENDPOINT || DEFAULT_REST_ENDPOINT,
     duration: 4,
+    fps: SEEDANCE_FPS,
     width: undefined,
     height: undefined,
     number: 1,
     seed: undefined,
+    negativePrompt: undefined,
     image: undefined,
+    images: [],
     endImage: undefined,
     audio: undefined,
+    audios: [],
+    audioStart: undefined,
+    audioIdentity: undefined,
+    audioIdentityStrength: undefined,
     video: undefined,
+    videos: [],
+    videoStart: undefined,
+    controlMode: undefined,
+    firstFrameStrength: undefined,
+    lastFrameStrength: undefined,
     generateAudio: undefined,
     target: undefined,
     execute: true,
     tokenType: loadTokenTypePreference() || process.env.SOGNI_TOKEN_TYPE || 'spark',
+    estimate: true,
     inspectWorkflow: false,
     json: false
   };
 
   const positional = [];
+  let modeWasProvided = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--help' || arg === '-h') {
@@ -97,6 +174,7 @@ function parseArgs() {
       process.exit(0);
     } else if (arg === '--mode' && args[i + 1]) {
       options.mode = args[++i].toLowerCase();
+      modeWasProvided = true;
     } else if (arg === '--fast') {
       options.fast = true;
     } else if (arg === '--model' && args[i + 1]) {
@@ -107,34 +185,68 @@ function parseArgs() {
       options.endpoint = args[++i].replace(/\/+$/, '');
     } else if (arg === '--duration' && args[i + 1]) {
       options.duration = parseFloat(args[++i]);
+    } else if (arg === '--fps' && args[i + 1]) {
+      options.fps = parseFloat(args[++i]);
     } else if (arg === '--width' && args[i + 1]) {
       options.width = parseInt(args[++i], 10);
     } else if (arg === '--height' && args[i + 1]) {
       options.height = parseInt(args[++i], 10);
-    } else if ((arg === '--number' || arg === '--variations') && args[i + 1]) {
+    } else if ((arg === '--number' || arg === '--variations' || arg === '--batch') && args[i + 1]) {
       options.number = parseInt(args[++i], 10);
     } else if (arg === '--seed' && args[i + 1]) {
       options.seed = parseInt(args[++i], 10);
-    } else if (arg === '--image' && args[i + 1]) {
-      options.image = args[++i];
+    } else if ((arg === '--negative-prompt' || arg === '--negative') && args[i + 1]) {
+      options.negativePrompt = args[++i];
+    } else if (
+      (arg === '--image' ||
+        arg === '--context' ||
+        arg === '--context-image' ||
+        arg === '--reference-image') &&
+      args[i + 1]
+    ) {
+      const value = args[++i];
+      options.image ||= value;
+      options.images.push(value);
     } else if (arg === '--end-image' && args[i + 1]) {
       options.endImage = args[++i];
-    } else if (arg === '--audio' && args[i + 1]) {
-      options.audio = args[++i];
-    } else if (arg === '--video' && args[i + 1]) {
-      options.video = args[++i];
+    } else if ((arg === '--audio' || arg === '--reference-audio') && args[i + 1]) {
+      const value = args[++i];
+      options.audio ||= value;
+      options.audios.push(value);
+    } else if (arg === '--audio-start' && args[i + 1]) {
+      options.audioStart = parseFloat(args[++i]);
+    } else if ((arg === '--audio-identity' || arg === '--voice') && args[i + 1]) {
+      options.audioIdentity = args[++i];
+    } else if (arg === '--audio-identity-strength' && args[i + 1]) {
+      options.audioIdentityStrength = parseFloat(args[++i]);
+    } else if ((arg === '--video' || arg === '--reference-video') && args[i + 1]) {
+      const value = args[++i];
+      options.video ||= value;
+      options.videos.push(value);
+    } else if (arg === '--video-start' && args[i + 1]) {
+      options.videoStart = parseFloat(args[++i]);
+    } else if (arg === '--control-mode' && args[i + 1]) {
+      options.controlMode = args[++i];
+    } else if (arg === '--first-frame-strength' && args[i + 1]) {
+      options.firstFrameStrength = parseFloat(args[++i]);
+    } else if (arg === '--last-frame-strength' && args[i + 1]) {
+      options.lastFrameStrength = parseFloat(args[++i]);
     } else if (arg === '--no-audio') {
       options.generateAudio = false;
+    } else if (arg === '--generate-audio' || arg === '--with-audio') {
+      options.generateAudio = true;
     } else if (arg === '--target' && args[i + 1]) {
       options.target = args[++i].toLowerCase();
     } else if (arg === '--chat') {
       options.target = 'chat';
     } else if (arg === '--workflow') {
       options.target = 'workflow';
-    } else if (arg === '--no-execute') {
+    } else if (arg === '--no-execute' || arg === '--dry-run') {
       options.execute = false;
     } else if (arg === '--token-type' && args[i + 1]) {
       options.tokenType = args[++i];
+    } else if (arg === '--no-estimate') {
+      options.estimate = false;
     } else if (arg === '--inspect-workflow') {
       options.inspectWorkflow = true;
     } else if (arg === '--json') {
@@ -147,7 +259,21 @@ function parseArgs() {
   }
 
   options.prompt = positional.join(' ').trim();
-  options.target = options.target || (options.mode === 't2v' ? 'chat' : 'workflow');
+  if (!modeWasProvided && options.model) {
+    options.mode = inferModeFromModelSelector(options.model) || options.mode;
+  }
+  if (!modeWasProvided && !options.mode) {
+    options.mode = inferModeFromMedia(options) || 't2v';
+  }
+  options.mode ||= 't2v';
+  const hasMedia = Boolean(
+    options.images.length ||
+      options.audios.length ||
+      options.videos.length ||
+      options.endImage ||
+      options.audioIdentity
+  );
+  options.target = options.target || (options.mode === 't2v' && !hasMedia ? 'chat' : 'workflow');
   validateOptions(options);
   return options;
 }
@@ -161,9 +287,15 @@ Usage:
 
 Modes:
   t2v   Text-to-video through chat/completions or hosted workflow
-  i2v   Image-to-video through hosted workflow
+  i2v   Image-to-video through hosted workflow; inferred from --image/--context
   ia2v  Image+audio-to-video through hosted workflow
-  v2v   Video-to-video through hosted workflow
+  v2v   Video-to-video through hosted workflow; inferred from --video
+
+Seedance models:
+  seedance-2-0_t2v        seedance-2-0-fast_t2v
+  seedance-2-0_i2v        seedance-2-0-fast_i2v
+  seedance-2-0_ia2v
+  seedance-2-0_v2v
 
 Options:
   --chat                 Use /v1/chat/completions (t2v only)
@@ -171,23 +303,37 @@ Options:
   --fast                 Use Seedance 2.0 Fast for t2v/i2v (720p cap)
   --model <selector>     Override model selector or model id
   --duration <seconds>   4-15 seconds for Seedance (default: 4)
+  --fps <n>              Seedance endpoint FPS; must be 24 (default: 24)
   --width <px>           Output width (default: 1280 for fast, 1920 otherwise)
   --height <px>          Output height (default: 720 for fast, 1088 otherwise)
-  --image <path|https>   Reference image for i2v or ia2v
+  --image <path|https>   Reference image for i2v, ia2v, or v2v context; repeatable
+  --context <path|https> Alias for --image; repeatable
   --end-image <path|https> Optional final frame image for i2v interpolation
-  --audio <path|https>   Reference audio for ia2v
-  --video <path|https>   Source video for v2v
+  --audio <path|https>   Reference audio for ia2v or Seedance audio context; repeatable
+  --audio-start <sec>    Start offset into --audio for ia2v
+  --audio-identity <path|https> Voice identity audio for t2v/i2v/v2v endpoint schema
+  --audio-identity-strength <n> Voice identity strength, 0-10
+  --video <path|https>   Source video for v2v or Seedance video context; repeatable
+  --video-start <sec>    Start offset into --video for v2v
+  --control-mode <mode>  V2V control mode; Seedance uses seedance-v2v
+  --first-frame-strength <n> First-frame strength for i2v with --end-image, 0-1
+  --last-frame-strength <n> Last-frame strength for i2v with --end-image, 0-1
+  --negative-prompt <text> Forward negative_prompt where the endpoint schema accepts it
   --no-audio             Request silent Seedance output by setting generate_audio=false
+  --generate-audio       Explicitly request generate_audio=true
   --number <n>           Number of variations (default: 1)
+  --batch <n>            Alias for --number
   --seed <n>             Seed
-  --no-execute           Print the request that would be sent, without submitting the workflow
+  --no-execute           Print or request a dry-run response without executing Sogni tools
+  --dry-run              Alias for --no-execute
+  --no-estimate          Skip the video cost-estimate request
   --inspect-workflow     Fetch the creative workflow record returned by chat/completions
   --llm-model <id>       Chat model (default: ${DEFAULT_LLM_MODEL})
   --endpoint <url>       REST endpoint (default: SOGNI_REST_ENDPOINT or ${DEFAULT_REST_ENDPOINT})
   --token-type <type>    spark, sogni, or auto
   --json                 Print raw response
 
-Execution requires SOGNI_API_KEY in examples/.env or the environment. Local media inputs are uploaded with the existing Sogni media upload endpoints before workflow execution. Workflow dry-runs also upload local media so the printed request contains real HTTPS media URLs.
+Execution requires SOGNI_API_KEY in examples/.env or the environment. Local media inputs are uploaded with the existing Sogni media upload endpoints before workflow execution. Workflow dry-runs also upload local media so the printed request contains real HTTPS media URLs. Seedance accepts at most 9 image assets, 3 video assets, 3 audio assets, and 12 assets total. In prompts, use @Image1/@Video1/@Audio1 role tags counted independently by modality in attachment order, and use positive preservation language. Exact readable text/logos, lip-sync, voice cloning, and real-human-reference behavior need review.
 `);
 }
 
@@ -201,23 +347,142 @@ function validateOptions(options) {
   if (options.target === 'chat' && options.mode !== 't2v') {
     throw new Error('Media-bearing Seedance modes use --workflow, not /v1/chat/completions.');
   }
+  if (options.target === 'chat' && options.audioIdentity) {
+    throw new Error('T2V with --audio-identity is media-bearing and must use --workflow.');
+  }
   if (options.duration < 4 || options.duration > 15) {
     throw new Error('Seedance duration must be between 4 and 15 seconds.');
   }
-  if (options.fast && (options.mode === 'ia2v' || options.mode === 'v2v')) {
-    throw new Error('--fast is only available for Seedance t2v and i2v.');
+  if (options.fps !== SEEDANCE_FPS) {
+    throw new Error('Seedance endpoint generation is fixed at 24fps; use --fps 24 or omit --fps.');
+  }
+  if (!Number.isInteger(options.number) || options.number < 1 || options.number > 16) {
+    throw new Error('--number/--batch must be an integer from 1 to 16.');
+  }
+  if (options.width !== undefined && (!Number.isInteger(options.width) || options.width <= 0)) {
+    throw new Error('--width must be a positive integer.');
+  }
+  if (options.height !== undefined && (!Number.isInteger(options.height) || options.height <= 0)) {
+    throw new Error('--height must be a positive integer.');
+  }
+  validateRangeOption(options.firstFrameStrength, '--first-frame-strength', 0, 1);
+  validateRangeOption(options.lastFrameStrength, '--last-frame-strength', 0, 1);
+  validateRangeOption(options.audioIdentityStrength, '--audio-identity-strength', 0, 10);
+  validateNonNegativeOption(options.audioStart, '--audio-start');
+  validateNonNegativeOption(options.videoStart, '--video-start');
+  validateMediaOptions(options);
+  selectedModelConfig(options);
+}
+
+function validateRangeOption(value, label, min, max) {
+  if (value === undefined) return;
+  if (!Number.isFinite(value) || value < min || value > max) {
+    throw new Error(`${label} must be a number from ${min} to ${max}.`);
   }
 }
 
-function defaultModel(options) {
-  if (options.model) return options.model;
-  if (options.mode === 'v2v') return 'seedance2';
-  if (options.mode === 'ia2v') return 'seedance2';
-  return options.fast ? 'seedance2-fast' : 'seedance2';
+function validateNonNegativeOption(value, label) {
+  if (value === undefined) return;
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative number.`);
+  }
+}
+
+function validateMediaOptions(options) {
+  if (options.controlMode !== undefined && options.controlMode !== 'seedance-v2v') {
+    throw new Error('This Seedance partner example only supports --control-mode seedance-v2v.');
+  }
+
+  const imageAssetCount = options.images.length + (options.endImage ? 1 : 0);
+  const videoAssetCount = options.videos.length;
+  const audioAssetCount = options.audios.length + (options.audioIdentity ? 1 : 0);
+  const totalAssetCount = imageAssetCount + videoAssetCount + audioAssetCount;
+  if (imageAssetCount > 9) {
+    throw new Error('Seedance supports at most 9 image assets.');
+  }
+  if (videoAssetCount > 3) {
+    throw new Error('Seedance supports at most 3 video assets.');
+  }
+  if (audioAssetCount > 3) {
+    throw new Error('Seedance supports at most 3 audio assets.');
+  }
+  if (totalAssetCount > 12) {
+    throw new Error('Seedance supports at most 12 total asset files.');
+  }
+  if (audioAssetCount > 0 && imageAssetCount === 0 && videoAssetCount === 0) {
+    throw new Error('Seedance audio references require at least one image or video reference.');
+  }
+
+  if (options.mode === 't2v') {
+    if (options.target === 'chat' && totalAssetCount > 0) {
+      throw new Error(
+        'T2V with media references must use --workflow; /v1/chat/completions is pure text-to-video in this example.'
+      );
+    }
+    return;
+  }
+
+  if (options.mode === 'i2v') {
+    return;
+  }
+
+  if (options.mode === 'ia2v') {
+    if (options.endImage || options.audioIdentity) {
+      throw new Error('ia2v accepts --image/--context, --audio, and optional Seedance context videos only.');
+    }
+    return;
+  }
+
+  if (options.mode === 'v2v' && options.endImage) {
+    throw new Error(
+      'v2v accepts --video plus optional --image/--context and --audio context. Use i2v for --end-image.'
+    );
+  }
+}
+
+function inferModeFromMedia(options) {
+  if (options.video) return 'v2v';
+  if (options.audio) return 'ia2v';
+  if (options.image || options.endImage) return 'i2v';
+  return null;
+}
+
+function inferModeFromModelSelector(modelSelector) {
+  const selector = String(modelSelector || '').toLowerCase();
+  for (const [mode, models] of Object.entries(SEEDANCE_MODELS)) {
+    if (Object.values(models).some((model) => model.id === selector)) {
+      return mode;
+    }
+  }
+  return selector.match(/_(t2v|i2v|ia2v|v2v)$/)?.[1];
+}
+
+function resolveModelConfig(mode, modelSelector) {
+  const models = SEEDANCE_MODELS[mode] || {};
+  const selector = String(modelSelector || '').toLowerCase();
+  return models[selector] || Object.values(models).find((model) => model.id === selector);
+}
+
+function selectedModelConfig(options) {
+  const selector = options.model || (options.fast ? 'seedance2-fast' : 'seedance2');
+  const modelConfig = resolveModelConfig(options.mode, selector);
+  if (!modelConfig) {
+    const supported = Object.values(SEEDANCE_MODELS[options.mode] || {})
+      .flatMap((model) => [model.id])
+      .join(', ');
+    throw new Error(
+      `Unsupported Seedance model selector for ${options.mode}: ${selector}. Supported model ids: ${supported}`
+    );
+  }
+  return modelConfig;
+}
+
+function selectedModelId(options) {
+  return selectedModelConfig(options).id;
 }
 
 function defaultDimensions(options) {
-  const fast = defaultModel(options).includes('fast');
+  const fast = selectedModelId(options).includes('fast');
   return {
     width: options.width || (fast ? 1280 : 1920),
     height: options.height || (fast ? 720 : 1088)
@@ -231,9 +496,7 @@ function toolNameForMode(mode) {
 }
 
 function estimateModelIdForMode(mode, modelSelector) {
-  const modelConfig =
-    SEEDANCE_MODELS[mode]?.[modelSelector] ||
-    Object.values(SEEDANCE_MODELS[mode] || {}).find((model) => model.id === modelSelector);
+  const modelConfig = resolveModelConfig(mode, modelSelector);
   if (modelConfig?.id) return modelConfig.id;
 
   throw new Error(`Cannot estimate unknown Seedance model selector: ${modelSelector}`);
@@ -271,7 +534,6 @@ function formatDecimal(value, digits = 4) {
 
 function printEstimateSummary(estimate) {
   const project = estimate?.quote?.project || {};
-  const job = estimate?.quote?.job || {};
   const request = estimate?.request || {};
 
   console.log('Cost estimate:');
@@ -280,9 +542,6 @@ function printEstimateSummary(estimate) {
   console.log(`Spark:     ${formatDecimal(project.costInSpark, 4)}`);
   console.log(`SOGNI:     ${formatDecimal(project.costInSogni, 4)}`);
   console.log(`USD:       $${formatDecimal(project.costInUSD, 6)}`);
-  if (job.vendorCostUSD !== undefined) {
-    console.log(`Vendor:    $${formatDecimal(job.vendorCostUSD, 6)}`);
-  }
   console.log();
 }
 
@@ -380,11 +639,84 @@ async function mediaInputUrl(credentials, options, value, kind, assetType, fallb
   return uploadLocalMedia(credentials, options, input, kind, assetType);
 }
 
+async function mediaInputUrls(credentials, options, values, kind, assetType, fallbackPath) {
+  const inputs = values.length ? values : fallbackPath ? [fallbackPath] : [];
+  const urls = await Promise.all(
+    inputs.map((value) => mediaInputUrl(credentials, options, value, kind, assetType))
+  );
+  return urls.filter(Boolean);
+}
+
+function needsLocalUpload(value, fallbackPath) {
+  const input = value || fallbackPath;
+  return Boolean(input && !/^https:\/\//i.test(input));
+}
+
+function valuesNeedLocalUpload(values) {
+  return values.some((value) => needsLocalUpload(value));
+}
+
+function needsLocalMediaUpload(options) {
+  if (options.audioIdentity && needsLocalUpload(options.audioIdentity)) return true;
+  if (valuesNeedLocalUpload(options.images)) return true;
+  if (valuesNeedLocalUpload(options.audios)) return true;
+  if (valuesNeedLocalUpload(options.videos)) return true;
+
+  if (options.mode === 'i2v') {
+    return (
+      (options.images.length === 0 && needsLocalUpload(undefined, options.endImage ? undefined : DEFAULT_IMAGE)) ||
+      needsLocalUpload(options.endImage)
+    );
+  }
+
+  if (options.mode === 'ia2v') {
+    return (
+      (options.images.length === 0 && needsLocalUpload(undefined, DEFAULT_IMAGE)) ||
+      (options.audios.length === 0 && needsLocalUpload(undefined, DEFAULT_AUDIO))
+    );
+  }
+
+  if (options.mode === 'v2v') {
+    return options.videos.length === 0 && needsLocalUpload(undefined, DEFAULT_VIDEO);
+  }
+
+  return false;
+}
+
 async function buildToolArguments(credentials, options) {
   const { width, height } = defaultDimensions(options);
+  const toolName = toolNameForMode(options.mode);
+  const imageUrls = await mediaInputUrls(
+    credentials,
+    options,
+    options.images,
+    'image',
+    'referenceImage',
+    options.mode === 'i2v' && !options.endImage
+      ? DEFAULT_IMAGE
+      : options.mode === 'ia2v'
+        ? DEFAULT_IMAGE
+        : undefined
+  );
+  const audioUrls = await mediaInputUrls(
+    credentials,
+    options,
+    options.audios,
+    'audio',
+    'referenceAudio',
+    options.mode === 'ia2v' ? DEFAULT_AUDIO : undefined
+  );
+  const videoUrls = await mediaInputUrls(
+    credentials,
+    options,
+    options.videos,
+    'video',
+    'referenceVideo',
+    options.mode === 'v2v' ? DEFAULT_VIDEO : undefined
+  );
   const args = {
     prompt: options.prompt || DEFAULT_PROMPT,
-    model: defaultModel(options),
+    model: selectedModelId(options),
     duration: options.duration,
     width,
     height,
@@ -393,19 +725,44 @@ async function buildToolArguments(credentials, options) {
   if (Number.isInteger(options.seed)) {
     args.seed = options.seed;
   }
+  if (options.negativePrompt && options.mode !== 'ia2v') {
+    args.negative_prompt = options.negativePrompt;
+  }
   if (options.generateAudio !== undefined) {
     args.generate_audio = options.generateAudio;
   }
 
-  if (options.mode === 'i2v') {
-    args.reference_image_url = await mediaInputUrl(
-      credentials,
-      options,
-      options.image,
-      'image',
-      'referenceImage',
-      DEFAULT_IMAGE
-    );
+  if (options.mode === 't2v' || options.mode === 'i2v') {
+    args.fps = options.fps;
+  }
+
+  if (options.mode === 't2v') {
+    if (imageUrls.length) {
+      args.reference_image_urls = imageUrls;
+    }
+    if (videoUrls.length) {
+      args.reference_video_urls = videoUrls;
+    }
+    if (audioUrls.length) {
+      args.reference_audio_urls = audioUrls;
+    }
+    if (options.audioIdentity) {
+      args.reference_audio_identity_url = await mediaInputUrl(
+        credentials,
+        options,
+        options.audioIdentity,
+        'audio',
+        'referenceAudioIdentity'
+      );
+    }
+    if (options.audioIdentityStrength !== undefined) {
+      args.audio_identity_strength = options.audioIdentityStrength;
+    }
+  } else if (options.mode === 'i2v') {
+    args.reference_image_url = imageUrls[0];
+    if (imageUrls.length > 1) {
+      args.reference_image_urls = imageUrls.slice(1);
+    }
     if (options.endImage) {
       args.reference_image_end_url = await mediaInputUrl(
         credentials,
@@ -414,46 +771,93 @@ async function buildToolArguments(credentials, options) {
         'image',
         'referenceImageEnd'
       );
-      args.first_frame_strength = 1;
-      args.last_frame_strength = 1;
+      args.first_frame_strength = options.firstFrameStrength ?? 1;
+      args.last_frame_strength = options.lastFrameStrength ?? 1;
+    }
+    if (options.audioIdentity) {
+      args.reference_audio_identity_url = await mediaInputUrl(
+        credentials,
+        options,
+        options.audioIdentity,
+        'audio',
+        'referenceAudioIdentity'
+      );
+    }
+    if (options.audioIdentityStrength !== undefined) {
+      args.audio_identity_strength = options.audioIdentityStrength;
+    }
+    if (videoUrls.length) {
+      args.reference_video_urls = videoUrls;
+    }
+    if (audioUrls.length) {
+      args.reference_audio_urls = audioUrls;
     }
   } else if (options.mode === 'ia2v') {
-    args.reference_image_url = await mediaInputUrl(
-      credentials,
-      options,
-      options.image,
-      'image',
-      'referenceImage',
-      DEFAULT_IMAGE
-    );
-    args.reference_audio_url = await mediaInputUrl(
-      credentials,
-      options,
-      options.audio,
-      'audio',
-      'referenceAudio',
-      DEFAULT_AUDIO
-    );
+    args.reference_image_url = imageUrls[0];
+    if (imageUrls.length > 1) {
+      args.reference_image_urls = imageUrls.slice(1);
+    }
+    args.reference_audio_url = audioUrls[0];
+    if (audioUrls.length > 1) {
+      args.reference_audio_urls = audioUrls.slice(1);
+    }
+    if (videoUrls.length) {
+      args.reference_video_urls = videoUrls;
+    }
+    if (options.audioStart !== undefined) {
+      args.audio_start = options.audioStart;
+    }
   } else if (options.mode === 'v2v') {
-    args.reference_video_url = await mediaInputUrl(
-      credentials,
-      options,
-      options.video,
-      'video',
-      'referenceVideo',
-      DEFAULT_VIDEO
-    );
-    args.control_mode = 'seedance-v2v';
+    args.reference_video_url = videoUrls[0];
+    if (videoUrls.length > 1) {
+      args.reference_video_urls = videoUrls.slice(1);
+    }
+    args.control_mode = options.controlMode || 'seedance-v2v';
+    if (imageUrls.length) {
+      args.reference_image_url = imageUrls[0];
+    }
+    if (imageUrls.length > 1) {
+      args.reference_image_urls = imageUrls.slice(1);
+    }
+    if (audioUrls.length) {
+      args.reference_audio_urls = audioUrls;
+    }
+    if (options.audioIdentity) {
+      args.reference_audio_identity_url = await mediaInputUrl(
+        credentials,
+        options,
+        options.audioIdentity,
+        'audio',
+        'referenceAudioIdentity'
+      );
+    }
+    if (options.audioIdentityStrength !== undefined) {
+      args.audio_identity_strength = options.audioIdentityStrength;
+    }
+    if (options.videoStart !== undefined) {
+      args.video_start = options.videoStart;
+    }
   }
 
+  assertKnownToolArguments(toolName, args);
   return args;
+}
+
+function assertKnownToolArguments(toolName, args) {
+  const known = TOOL_ARGUMENT_KEYS[toolName];
+  if (!known) return;
+  const unknown = Object.keys(args).filter((key) => !known.has(key));
+  if (unknown.length > 0) {
+    throw new Error(`${toolName} does not accept argument(s): ${unknown.join(', ')}`);
+  }
 }
 
 function buildChatInstruction(options, toolName, toolArguments) {
   return [
-    `Create exactly one Seedance 2.0 text-to-video job by calling ${toolName}.`,
+    `Create exactly one Seedance 2.0 ${options.mode.toUpperCase()} job by calling ${toolName}.`,
     'Use the provided tool arguments exactly. Do not ask follow-up questions.',
-    'Keep the prompt value as the compact creative brief; sogni-api will expand it with the Seedance prompt shaper before dispatch.',
+    'Keep the prompt value as the compact creative brief; sogni-api will expand it with the shared @sogni/creative-agent Seedance prompt shaper before dispatch.',
+    'For media references, use Seedance role tags such as @Image1, @Video1, and @Audio1 in attachment order. Do not construct BytePlus JSON.',
     'Tool arguments:',
     JSON.stringify(toolArguments, null, 2)
   ].join('\n');
@@ -680,35 +1084,38 @@ async function main() {
     options.prompt = DEFAULT_PROMPT;
   }
 
-  const credentials =
-    options.target === 'workflow' && !options.execute
-      ? { apiKey: process.env.SOGNI_API_KEY || '' }
-      : await loadCredentials();
+  const shouldLoadCredentials =
+    options.execute || options.target !== 'workflow' || needsLocalMediaUpload(options);
+  const credentials = shouldLoadCredentials
+    ? await loadCredentials()
+    : { apiKey: process.env.SOGNI_API_KEY || '' };
   if ((options.target !== 'workflow' || options.execute) && !credentials.apiKey) {
     throw new Error('Partner Seedance video examples require SOGNI_API_KEY API-key auth.');
   }
 
   const toolName = toolNameForMode(options.mode);
   const toolArguments = await buildToolArguments(credentials, options);
-  const estimateModelId = estimateModelIdForMode(options.mode, toolArguments.model);
-  const estimateFps = 24;
-  const estimateFrames = calculateVideoFrames(
-    estimateModelId,
-    toolArguments.duration,
-    estimateFps
-  );
-  const estimate = await getVideoJobEstimate(
-    options.tokenType === 'sogni' ? 'sogni' : 'spark',
-    estimateModelId,
-    toolArguments.width,
-    toolArguments.height,
-    estimateFrames,
-    estimateFps,
-    0,
-    toolArguments.number_of_variations || 1
-  );
-  if (!options.json) {
-    printEstimateSummary(estimate);
+  if (options.estimate) {
+    const estimateModelId = estimateModelIdForMode(options.mode, toolArguments.model);
+    const estimateFps = options.fps;
+    const estimateFrames = calculateVideoFrames(
+      estimateModelId,
+      toolArguments.duration,
+      estimateFps
+    );
+    const estimate = await getVideoJobEstimate(
+      options.tokenType === 'sogni' ? 'sogni' : 'spark',
+      estimateModelId,
+      toolArguments.width,
+      toolArguments.height,
+      estimateFrames,
+      estimateFps,
+      0,
+      toolArguments.number_of_variations || 1
+    );
+    if (!options.json) {
+      printEstimateSummary(estimate);
+    }
   }
 
   if (options.target === 'workflow') {

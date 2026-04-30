@@ -555,6 +555,13 @@ LTX VIDEO PARAMETERS:
 Seedance 2.0 models use the external API path. They generate at fixed 24fps and
 currently support 4-15 second direct SDK outputs. Seedance models are premium/external API models.
 Seedance 2.0 Fast is text/image-to-video only and caps output at 720p.
+Seedance can combine reference media in one request: up to 9 image assets, 3 video
+assets, 3 audio assets, and 12 total assets. Text+audio-only is unsupported; use at
+least one image or video reference with audio references. Prompt-visible reference
+tags use `@Image1`, `@Video1`, and `@Audio1`, counted independently by modality
+in attachment order. Assign every useful reference a role and prefer positive
+preservation constraints. Exact readable text/logos, lip-sync, voice cloning, and
+real-human-reference behavior need review.
 
 SEEDANCE MODEL IDS:
 | Workflow | Model ID | Required Assets | Notes |
@@ -580,6 +587,33 @@ const project = await sogni.projects.create({
   width: 1920,
   height: 1088,
   tokenType: 'spark'
+});
+```
+
+SEEDANCE MULTIMODAL CONTEXT:
+
+Use URL arrays for loose Seedance context references that should not lock first/last
+frames. URLs must be HTTPS and reachable by the vendor. Use role-tagged prompts
+such as `Use @Image1 for product identity, @Video1 for camera movement, and
+@Audio1 for music rhythm. Keep the product silhouette and logo placement
+consistent.`
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'seedance-2-0_t2v',
+  positivePrompt: 'Use @Image1 as the product identity, @Image2 for detail inserts, @Video1 for camera movement, and @Audio1 for music rhythm. Create one cohesive launch spot with smooth continuity and crisp product preservation.',
+  duration: 8,
+  fps: 24,
+  width: 1920,
+  height: 1088,
+  referenceImageUrls: [
+    'https://cdn.example.com/product-front.png',
+    'https://cdn.example.com/product-detail.png'
+  ],
+  referenceVideoUrls: ['https://cdn.example.com/motion-reference.mp4'],
+  referenceAudioUrls: ['https://cdn.example.com/music-reference.m4a']
 });
 ```
 
@@ -614,9 +648,9 @@ const project = await sogni.projects.create({
 Chat/tool aliases: `seedance2` and `seedance2-fast`. V2V uses `seedance2`
 as the model selector and `seedance-v2v` as the control mode.
 
-For `/v1/chat/completions` endpoint coverage with server-side Seedance prompt
-expansion, see `examples/workflow_seedance_endpoint.mjs`. It covers Seedance
-T2V, I2V, IA2V, and V2V through the hosted Sogni tools.
+For focused endpoint coverage with server-side Seedance prompt expansion, see
+`examples/workflow_partner_seedance_video.mjs`. It covers Seedance T2V, I2V,
+IA2V, V2V, and multimodal context through the hosted Sogni tools and hosted workflow endpoint.
 
 ================================================================================ 8. AUDIO GENERATION - ACE-STEP 1.5 MODELS
 ================================================================================

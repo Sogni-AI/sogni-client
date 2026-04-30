@@ -1,5 +1,5 @@
 {
-  "version": "2026-04-27.1",
+  "version": "2026-04-30.1",
   "source": "@sogni/creative-agent portable hosted Sogni tool contract",
   "tools": [
     {
@@ -135,6 +135,30 @@
               "type": "string",
               "description": "Optional ending image for keyframe interpolation. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed."
             },
+            "reference_image_urls": {
+              "type": "array",
+              "description": "Seedance-only additional image context references. Use publicly accessible HTTPS URLs in hosted workflows. Seedance accepts up to 9 image assets total including reference_image_url and reference_image_end_url.",
+              "maxItems": 9,
+              "items": {
+                "type": "string"
+              }
+            },
+            "reference_video_urls": {
+              "type": "array",
+              "description": "Seedance-only video context references. Use publicly accessible HTTPS URLs in hosted workflows. Seedance accepts up to 3 video assets total.",
+              "maxItems": 3,
+              "items": {
+                "type": "string"
+              }
+            },
+            "reference_audio_urls": {
+              "type": "array",
+              "description": "Seedance-only audio context references. Use publicly accessible HTTPS URLs in hosted workflows. Seedance accepts up to 3 audio assets total. Text+audio-only is unsupported; include at least one image or video reference.",
+              "maxItems": 3,
+              "items": {
+                "type": "string"
+              }
+            },
             "reference_audio_identity_url": {
               "type": "string",
               "description": "Optional voice identity clip for LTX-2.3 text-to-video or image-to-video workflows. Supports inline base64-encoded MP3, M4A, or WAV data URIs only; remote http(s) URLs are not allowed."
@@ -207,6 +231,30 @@
             "reference_image_url": {
               "type": "string",
               "description": "Optional image to use as the subject or first frame. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed."
+            },
+            "reference_image_urls": {
+              "type": "array",
+              "description": "Seedance-only additional image context references. Use publicly accessible HTTPS URLs in hosted workflows. Seedance accepts up to 9 image assets total including reference_image_url.",
+              "maxItems": 9,
+              "items": {
+                "type": "string"
+              }
+            },
+            "reference_audio_urls": {
+              "type": "array",
+              "description": "Seedance-only additional audio context references. Use publicly accessible HTTPS URLs in hosted workflows. Seedance accepts up to 3 audio assets total including reference_audio_url.",
+              "maxItems": 2,
+              "items": {
+                "type": "string"
+              }
+            },
+            "reference_video_urls": {
+              "type": "array",
+              "description": "Seedance-only video context references. Use publicly accessible HTTPS URLs in hosted workflows. Seedance accepts up to 3 video assets total.",
+              "maxItems": 3,
+              "items": {
+                "type": "string"
+              }
             },
             "audio_start": {
               "type": "number",
@@ -288,6 +336,30 @@
             "reference_image_url": {
               "type": "string",
               "description": "Optional reference image for animate workflows or pose-guided appearance control. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed."
+            },
+            "reference_image_urls": {
+              "type": "array",
+              "description": "Seedance-only additional image context references. Use publicly accessible HTTPS URLs in hosted workflows. Seedance accepts up to 9 image assets total including reference_image_url.",
+              "maxItems": 9,
+              "items": {
+                "type": "string"
+              }
+            },
+            "reference_video_urls": {
+              "type": "array",
+              "description": "Seedance-only additional video context references. Use publicly accessible HTTPS URLs in hosted workflows. Seedance accepts up to 3 video assets total including reference_video_url.",
+              "maxItems": 2,
+              "items": {
+                "type": "string"
+              }
+            },
+            "reference_audio_urls": {
+              "type": "array",
+              "description": "Seedance-only audio context references. Use publicly accessible HTTPS URLs in hosted workflows. Seedance accepts up to 3 audio assets total. Text+audio-only is unsupported; include at least one image or video reference.",
+              "maxItems": 3,
+              "items": {
+                "type": "string"
+              }
             },
             "reference_audio_identity_url": {
               "type": "string",

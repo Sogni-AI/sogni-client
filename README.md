@@ -581,8 +581,11 @@ When creating video projects, you can specify:
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
 - `referenceVideo` - Reference video for animate and v2v workflows
 - `referenceAudio` - Reference audio for sound-to-video workflow
+- `referenceImageUrls` - Seedance-only loose image context URLs; combined with `referenceImage`/`referenceImageEnd`, max 9 image assets
+- `referenceVideoUrls` - Seedance-only video context URLs; combined with `referenceVideo`, max 3 video assets
+- `referenceAudioUrls` - Seedance-only audio context URLs; combined with `referenceAudio`/`referenceAudioIdentity`, max 3 audio assets
 
-Seedance 2.0 can combine image, video, and audio reference assets in one vendor request. Vendor limits are up to 9 image assets, 3 video assets, 3 audio assets, and 12 asset files total. Text+audio without at least one image or video reference is not supported by Seedance. Seedance dispatch omits negative prompts; Wan 2.2 and LTX 2.3 video models can still use `negativePrompt`.
+Seedance 2.0 can combine image, video, and audio reference assets in one external API request. Reference limits are up to 9 image assets, 3 video assets, 3 audio assets, and 12 asset files total. Text+audio without at least one image or video reference is not supported by Seedance. URL-array references must be HTTPS URLs that the vendor can fetch; local multi-reference files should be uploaded first, as shown in `examples/workflow_partner_seedance_video.mjs`. In prompts and creative briefs, refer to attachments by Seedance-style tags: `@Image1`, `@Video1`, and `@Audio1`, counted independently by modality in attachment order. Assign each useful reference a role, such as product identity, motion timing, camera path, edit rhythm, background music, or speech reference. Prefer positive preservation language like "maintain the same product silhouette and logo placement from @Image1"; exact readable text, logos, lip-sync, voice cloning, and real-human-reference behavior still need review. Seedance dispatch omits negative prompts; Wan 2.2 and LTX 2.3 video models can still use `negativePrompt`.
 
 ### Text-to-Video Example
 
@@ -614,6 +617,30 @@ const project = await sogni.projects.create({
   fps: 24,
   width: 1920,
   height: 1088,
+  tokenType: 'spark'
+});
+
+const videoUrls = await project.waitForCompletion();
+```
+
+Seedance multimodal context example:
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'seedance-2-0_t2v',
+  positivePrompt: 'Use @Image1 as the product identity, @Image2 for detail inserts, @Video1 for camera movement, and @Audio1 for music rhythm. Create one cohesive launch spot with smooth continuity and crisp product preservation.',
+  duration: 8,
+  fps: 24,
+  width: 1920,
+  height: 1088,
+  referenceImageUrls: [
+    'https://cdn.example.com/product-front.png',
+    'https://cdn.example.com/product-detail.png'
+  ],
+  referenceVideoUrls: ['https://cdn.example.com/motion-reference.mp4'],
+  referenceAudioUrls: ['https://cdn.example.com/music-reference.m4a'],
   tokenType: 'spark'
 });
 
@@ -823,13 +850,14 @@ For focused partner Seedance video tests, `examples/workflow_partner_seedance_vi
 ```bash
 node examples/workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --duration 4
 node examples/workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --fast --duration 4
-node examples/workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v
-node examples/workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v --fast
-node examples/workflow_partner_seedance_video.mjs "the portrait sings with stage lighting" --mode ia2v
-node examples/workflow_partner_seedance_video.mjs "turn the clip into a polished perfume commercial" --mode v2v
+node examples/workflow_partner_seedance_video.mjs "slow cinematic reveal" --context examples/test-assets/placeholder.jpg
+node examples/workflow_partner_seedance_video.mjs "slow cinematic reveal" --context examples/test-assets/placeholder.jpg --fast
+node examples/workflow_partner_seedance_video.mjs "the portrait sings with stage lighting" --mode ia2v --context examples/test-assets/placeholder.jpg --audio examples/test-assets/placeholder.m4a
+node examples/workflow_partner_seedance_video.mjs "turn the clip into a polished perfume commercial" --video examples/test-assets/placeholder.mp4
+node examples/workflow_partner_seedance_video.mjs "Use @Video1 as the source clip, @Video2 for edit rhythm, @Image1 for product identity, @Image2 for palette, and @Audio1 as the music guide. Preserve the product silhouette and create one launch spot." --workflow --mode v2v --video examples/test-assets/placeholder.mp4 --video https://cdn.example.com/motion-2.mp4 --context examples/test-assets/placeholder.jpg --context examples/test-assets/placeholder2.jpg --audio examples/test-assets/placeholder.m4a
 ```
 
-T2V defaults to `/v1/chat/completions`. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `examples/test-assets` automatically. Pass `--image`, `--audio`, or `--video` to use your own local files, or pass HTTPS media URLs. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs.
+T2V defaults to `/v1/chat/completions` only when no media is attached. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `examples/test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; the example enforces the vendor limits of 9 image assets, 3 video assets, 3 audio assets, and 12 total assets. The server uses shared `@sogni/creative-agent` prompt shaping before dispatch, so examples should keep prompts as compact creative briefs with explicit `@ImageN`/`@VideoN`/`@AudioN` role assignments rather than BytePlus JSON. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Use `--no-estimate` when you only want to inspect request construction.
 
 ### Durable Creative Workflows (server-side)
 
@@ -893,7 +921,7 @@ The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) dire
 - **`workflow_text_chat_sogni_tools.mjs`** - Core image/video/music generation through natural language via LLM tool calling
 - **`workflow_creative_agent_tools.mjs`** - Rich server-side creative-agent tool injection for `/v1/chat/completions`
 - **`workflow_creative_agent_workflows.mjs`** - Durable `/v1/creative-agent/workflows` start/list/get/events/stream/cancel through the SDK
-- **`workflow_partner_seedance_video.mjs`** - Focused partner Seedance coverage: chat-completions T2V plus hosted-workflow T2V, I2V, IA2V, and V2V with uploaded media
+- **`workflow_partner_seedance_video.mjs`** - Focused partner Seedance coverage: chat-completions T2V plus hosted-workflow T2V, I2V, IA2V, V2V, and multimodal context with uploaded media
 
 ### Basic Examples
 

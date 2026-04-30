@@ -45,6 +45,18 @@ import {
  * Throws an error if required assets are missing or forbidden assets are provided.
  */
 function validateVideoWorkflowAssets(params: VideoProjectParams): void {
+  if (isSeedanceModel(params.modelId)) {
+    validateSeedanceReferenceAssets(params);
+    return;
+  }
+  if (params.referenceImageUrls || params.referenceVideoUrls || params.referenceAudioUrls) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'referenceImageUrls, referenceVideoUrls, and referenceAudioUrls are supported only by Seedance models.'
+    });
+  }
+
   const workflowType = getVideoWorkflowType(params.modelId);
   if (!workflowType) return;
 
@@ -92,6 +104,83 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
         message: `${workflowType} workflow does not support ${assetKey}. Please remove this asset.`
       });
     }
+  }
+}
+
+function asReferenceUrlArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+}
+
+function validateReferenceUrlArray(value: unknown, propertyName: string): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: `${propertyName} must be an array of URL strings.`
+    });
+  }
+  if (value.some((url) => typeof url !== 'string' || url.trim().length === 0)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: `${propertyName} must contain only non-empty URL strings.`
+    });
+  }
+}
+
+function validateSeedanceReferenceAssets(params: VideoProjectParams): void {
+  validateReferenceUrlArray(params.referenceImageUrls, 'referenceImageUrls');
+  validateReferenceUrlArray(params.referenceVideoUrls, 'referenceVideoUrls');
+  validateReferenceUrlArray(params.referenceAudioUrls, 'referenceAudioUrls');
+
+  const imageCount =
+    (params.referenceImage ? 1 : 0) +
+    (params.referenceImageEnd ? 1 : 0) +
+    asReferenceUrlArray(params.referenceImageUrls).length;
+  const videoCount =
+    (params.referenceVideo ? 1 : 0) +
+    asReferenceUrlArray(params.referenceVideoUrls).length;
+  const audioCount =
+    (params.referenceAudio || params.referenceAudioIdentity ? 1 : 0) +
+    asReferenceUrlArray(params.referenceAudioUrls).length;
+  const totalAssetCount = imageCount + videoCount + audioCount;
+
+  if (imageCount > 9) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance supports at most 9 image assets.'
+    });
+  }
+  if (videoCount > 3) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance supports at most 3 video assets.'
+    });
+  }
+  if (audioCount > 3) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance supports at most 3 audio assets.'
+    });
+  }
+  if (totalAssetCount > 12) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance supports at most 12 total asset files.'
+    });
+  }
+  if (audioCount > 0 && imageCount === 0 && videoCount === 0) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance audio references require at least one image or video reference.'
+    });
   }
 }
 
@@ -298,14 +387,26 @@ function applyVideoParams(
   if (params.referenceImage) {
     keyFrame.hasReferenceImage = true;
   }
+  const referenceImageUrls = asReferenceUrlArray(params.referenceImageUrls);
+  if (referenceImageUrls.length) {
+    keyFrame.referenceImageURLs = referenceImageUrls;
+  }
   if (params.referenceImageEnd) {
     keyFrame.hasReferenceImageEnd = true;
   }
   if (params.referenceAudio) {
     keyFrame.hasReferenceAudio = true;
   }
+  const referenceAudioUrls = asReferenceUrlArray(params.referenceAudioUrls);
+  if (referenceAudioUrls.length) {
+    keyFrame.referenceAudioURLs = referenceAudioUrls;
+  }
   if (params.referenceVideo) {
     keyFrame.hasReferenceVideo = true;
+  }
+  const referenceVideoUrls = asReferenceUrlArray(params.referenceVideoUrls);
+  if (referenceVideoUrls.length) {
+    keyFrame.referenceVideoURLs = referenceVideoUrls;
   }
   if (params.referenceAudioIdentity) {
     keyFrame.hasReferenceAudioIdentity = true;
