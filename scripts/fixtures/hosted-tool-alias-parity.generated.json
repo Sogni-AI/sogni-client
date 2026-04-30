@@ -70,7 +70,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_generate_video",
       "sdkToolName": "sogni_generate_video",
-      "hostedSchemaSha256": "612b63a5cb6e6532de784d9fd75278e133291e93361a2ddb6d8939cd9927a8e5",
+      "hostedSchemaSha256": "3e83dcba7474fff04337db650ce056e4cca8ee6dba911f63869d7741cf5d9a7c",
       "hostedRequired": ["prompt"],
       "hostedPropertyNames": [
         "prompt",
@@ -85,6 +85,7 @@
         "height",
         "duration",
         "fps",
+        "generate_audio",
         "model",
         "number_of_variations",
         "seed"
@@ -106,7 +107,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_generate_video",
       "sdkToolName": "sogni_generate_video",
-      "hostedSchemaSha256": "612b63a5cb6e6532de784d9fd75278e133291e93361a2ddb6d8939cd9927a8e5",
+      "hostedSchemaSha256": "3e83dcba7474fff04337db650ce056e4cca8ee6dba911f63869d7741cf5d9a7c",
       "hostedRequired": ["prompt"],
       "hostedPropertyNames": [
         "prompt",
@@ -121,6 +122,7 @@
         "height",
         "duration",
         "fps",
+        "generate_audio",
         "model",
         "number_of_variations",
         "seed"
@@ -148,7 +150,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_sound_to_video",
       "sdkToolName": "sogni_sound_to_video",
-      "hostedSchemaSha256": "5bd2da37f7123ff541c1ab7d59be8a01f47d7e3a700d4d00f015f8fe94101c11",
+      "hostedSchemaSha256": "5e9183e3c4c7c8f7c959afc1bbc2955c23981f4a4b7fd21b3ead982052003c1c",
       "hostedRequired": ["prompt", "reference_audio_url"],
       "hostedPropertyNames": [
         "prompt",
@@ -156,6 +158,7 @@
         "reference_image_url",
         "audio_start",
         "duration",
+        "generate_audio",
         "width",
         "height",
         "model",
@@ -178,7 +181,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_video_to_video",
       "sdkToolName": "sogni_video_to_video",
-      "hostedSchemaSha256": "893bffa42052582cba8064475de13e5fc536913e47290fa4c01fdc603d25d517",
+      "hostedSchemaSha256": "066d1813380692d1762d5b350e419258b0f98a33cc585c6df0e0604943ba64f2",
       "hostedRequired": ["prompt", "reference_video_url"],
       "hostedPropertyNames": [
         "prompt",
@@ -190,6 +193,7 @@
         "audio_identity_strength",
         "video_start",
         "duration",
+        "generate_audio",
         "width",
         "height",
         "detailer_strength",

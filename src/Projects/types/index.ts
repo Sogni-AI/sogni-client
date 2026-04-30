@@ -86,6 +86,10 @@ export interface BaseProjectParams {
    */
   tokenType?: TokenType;
   /**
+   * Optional client app/source label to attach to the project request for server-side attribution.
+   */
+  appSource?: string;
+  /**
    * Array of LoRA IDs to apply.
    * Available LoRAs are model-specific. The worker will download the LoRA
    * if not already present on the persistent volume.
@@ -186,6 +190,11 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Reference audio for audio-driven video workflows (s2v, ia2v, a2v).
    */
   referenceAudio?: InputMedia;
+  /**
+   * Enable native audio generation for external API-backed video models that support it.
+   * Seedance defaults to audio enabled server-side; set to false to request a silent video.
+   */
+  generateAudio?: boolean;
   /**
    * Reference audio for ID-LoRA speaker identity transfer (LTX-2.3 only).
    * Provide a ~5 second audio clip of the target speaker's voice.

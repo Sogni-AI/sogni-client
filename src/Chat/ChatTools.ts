@@ -404,6 +404,9 @@ class ChatToolsApi {
     if (args.last_frame_strength !== undefined) {
       projectParams.lastFrameStrength = args.last_frame_strength;
     }
+    if (args.generate_audio !== undefined) {
+      projectParams.generateAudio = Boolean(args.generate_audio);
+    }
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;
 
@@ -461,6 +464,9 @@ class ChatToolsApi {
       }).blob;
     }
     if (args.audio_start !== undefined) projectParams.audioStart = args.audio_start;
+    if (args.generate_audio !== undefined) {
+      projectParams.generateAudio = Boolean(args.generate_audio);
+    }
     if (args.seed !== undefined) projectParams.seed = args.seed;
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;
@@ -545,6 +551,9 @@ class ChatToolsApi {
     }
     if (args.video_start !== undefined) {
       projectParams.videoStart = args.video_start;
+    }
+    if (args.generate_audio !== undefined) {
+      projectParams.generateAudio = Boolean(args.generate_audio);
     }
     if (!isAnimateMode && !isSeedanceModel) {
       projectParams.controlNet = {

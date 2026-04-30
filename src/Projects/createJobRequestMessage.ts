@@ -310,6 +310,9 @@ function applyVideoParams(
   if (params.referenceAudioIdentity) {
     keyFrame.hasReferenceAudioIdentity = true;
   }
+  if (params.generateAudio !== undefined) {
+    keyFrame.generateAudio = params.generateAudio;
+  }
   if (params.audioIdentityStrength !== undefined) {
     keyFrame.identityGuidanceScale = params.audioIdentityStrength;
   }
@@ -521,6 +524,9 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
 
   if (params.network) {
     jobRequest.network = params.network;
+  }
+  if (params.appSource) {
+    jobRequest.appSource = params.appSource;
   }
 
   return jobRequest;

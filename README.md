@@ -817,13 +817,15 @@ const result = await response.json();
 
 See `examples/workflow_creative_agent_tools.mjs` for a runnable API-key example that can toggle hosted vs rich tools and server-side execution.
 
-For focused Seedance endpoint tests, `examples/workflow_seedance_endpoint.mjs` uses `/v1/chat/completions` for text-to-video tool selection and `/v1/creative-agent/workflows` for exact media-bearing hosted tool sequences. Both paths let `sogni-api` apply shared Seedance prompt expansion before dispatch:
+For focused partner Seedance video tests, `examples/workflow_partner_seedance_video.mjs` uses `/v1/chat/completions` for text-to-video tool selection and `/v1/creative-agent/workflows` for exact media-bearing hosted tool sequences. Both paths let `sogni-api` apply shared Seedance prompt expansion before dispatch:
 
 ```bash
-node examples/workflow_seedance_endpoint.mjs "A glass whale swimming through a neon city" --fast --duration 4
-node examples/workflow_seedance_endpoint.mjs "slow cinematic reveal" --mode i2v
-node examples/workflow_seedance_endpoint.mjs "the portrait sings with stage lighting" --mode ia2v
-node examples/workflow_seedance_endpoint.mjs "turn the clip into a polished perfume commercial" --mode v2v
+node examples/workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --duration 4
+node examples/workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --fast --duration 4
+node examples/workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v
+node examples/workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v --fast
+node examples/workflow_partner_seedance_video.mjs "the portrait sings with stage lighting" --mode ia2v
+node examples/workflow_partner_seedance_video.mjs "turn the clip into a polished perfume commercial" --mode v2v
 ```
 
 T2V defaults to `/v1/chat/completions`. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `examples/test-assets` automatically. Pass `--image`, `--audio`, or `--video` to use your own local files, or pass HTTPS media URLs. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs.
@@ -851,7 +853,7 @@ const workflow = await sogni.creativeWorkflows.startImageToVideo(
     prompt: 'A graphite sketch of a robot pianist in a smoky jazz club',
     videoPrompt: 'slow dolly-in, warm stage lights, subtle hand motion',
     imageModel: 'flux2',
-    videoModel: 'seedance2',
+    videoModel: 'ltx23',
     duration: 5
   },
   { tokenType: 'spark' }
@@ -861,8 +863,6 @@ for await (const event of sogni.creativeWorkflows.streamEvents(workflow.workflow
   console.log(event.event, event.data);
 }
 ```
-
-Use `videoModel: 'seedance2-fast'` for the 720p Seedance Fast path on API deployments that expose the fast selector.
 
 See `examples/workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage. The underlying REST endpoints remain documented in the [LLM API durable workflows reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#durable-creative-agent-workflows).
 
@@ -877,10 +877,10 @@ The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) dire
 
 ### Video Workflow Examples
 
-- **`workflow_text_to_video.mjs`** - Text-to-video generation with WAN 2.2, LTX-2.3, and Seedance
-- **`workflow_image_to_video.mjs`** - Animate static images into videos, including Seedance I2V
+- **`workflow_text_to_video.mjs`** - Text-to-video generation with WAN 2.2 and LTX-2.3
+- **`workflow_image_to_video.mjs`** - Animate static images into videos with WAN 2.2 and LTX-2.3
 - **`workflow_sound_to_video.mjs`** - Audio-synchronized video generation with lip-sync
-- **`workflow_video_to_video.mjs`** - Motion transfer, ControlNet v2v, and Seedance V2V
+- **`workflow_video_to_video.mjs`** - Motion transfer, character replacement, and LTX-2.3 ControlNet v2v
 
 ### LLM Text Chat, Vision & Tool Calling Examples
 
@@ -892,7 +892,7 @@ The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) dire
 - **`workflow_text_chat_sogni_tools.mjs`** - Core image/video/music generation through natural language via LLM tool calling
 - **`workflow_creative_agent_tools.mjs`** - Rich server-side creative-agent tool injection for `/v1/chat/completions`
 - **`workflow_creative_agent_workflows.mjs`** - Durable `/v1/creative-agent/workflows` start/list/get/events/stream/cancel through the SDK
-- **`workflow_seedance_endpoint.mjs`** - Focused Seedance endpoint coverage: chat-completions T2V plus hosted-workflow I2V, IA2V, and V2V with uploaded media
+- **`workflow_partner_seedance_video.mjs`** - Focused partner Seedance coverage: chat-completions T2V plus hosted-workflow T2V, I2V, IA2V, and V2V with uploaded media
 
 ### Basic Examples
 

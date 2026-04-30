@@ -8,10 +8,19 @@
 import * as readline from 'node:readline';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { exec } from 'node:child_process';
 import imageSize from 'image-size';
 import sharp from 'sharp';
 import { SogniClient } from '../dist/index.js';
+
+const EXAMPLES_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+export function defaultExamplesOutputDir(...segments) {
+  const outputPath = path.join(EXAMPLES_DIR, 'output', ...segments);
+  const relativePath = path.relative(process.cwd(), outputPath);
+  return relativePath || '.';
+}
 
 // ============================================
 // Video Model FPS/Frame Calculation Helpers
@@ -55,19 +64,6 @@ export function isLtx2Model(modelId) {
 }
 
 /**
- * Check if a model ID is a Seedance 2.0 video model.
- *
- * Seedance models are external API-backed video models. They generate at a
- * fixed 24fps and support 4-15 second direct SDK outputs.
- *
- * @param {string} modelId - The model ID to check
- * @returns {boolean} True if this is a Seedance model
- */
-export function isSeedanceModel(modelId) {
-  return modelId?.startsWith('seedance-2-0') || false;
-}
-
-/**
  * LTX-2.3 frame step constraint.
  * Valid frame counts follow the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, ...)
  */
@@ -85,10 +81,6 @@ export const LTX2_FRAME_STEP = 8;
  * - Generate at the actual specified FPS (no interpolation)
  * - Frame count must follow the pattern: 1 + n*8
  * - Formula: duration * fps + 1, snapped to frame step constraint
- *
- * ## Seedance 2.0 Models
- * - Generate at fixed 24fps through the external API path
- * - Formula: duration * 24 + 1
  *
  * @param {string} modelId - The video model ID
  * @param {number} duration - Duration in seconds
@@ -109,7 +101,7 @@ export function calculateVideoFrames(modelId, duration, fps, options = {}) {
     // This is legacy behavior specific to WAN models
     frames = snap(duration * 16) + 1;
   } else {
-    // LTX-2.3, Seedance, and future models: Generate at actual fps
+    // LTX-2.3 and future models: Generate at actual fps
     // This is the standard behavior going forward
     frames = snap(duration * fps) + 1;
 
@@ -685,52 +677,6 @@ export const MODELS = {
       isLightning: false,
       isComfyModel: true,
       hasAudio: true
-    },
-    seedance2: {
-      id: 'seedance-2-0_t2v',
-      name: 'Seedance 2.0 T2V',
-      description: 'External API text-to-video at 24fps (4-15s, premium)',
-      defaultWidth: 1920,
-      defaultHeight: 1088,
-      minWidth: 480,
-      maxWidth: 1920,
-      minHeight: 480,
-      maxHeight: 1920,
-      dimensionStep: 8,
-      minFrames: 97,
-      maxFrames: 361,
-      defaultFrames: 121,
-      frameStep: 1,
-      defaultFps: 24,
-      allowedFps: [24],
-      isLightning: false,
-      isComfyModel: true,
-      isExternalAPI: true,
-      premiumOnly: true,
-      hasAudio: true
-    },
-    'seedance2-fast': {
-      id: 'seedance-2-0-fast_t2v',
-      name: 'Seedance 2.0 Fast T2V',
-      description: 'External API text-to-video at 24fps (4-15s, 720p cap, premium)',
-      defaultWidth: 1280,
-      defaultHeight: 720,
-      minWidth: 480,
-      maxWidth: 1280,
-      minHeight: 480,
-      maxHeight: 1280,
-      dimensionStep: 8,
-      minFrames: 97,
-      maxFrames: 361,
-      defaultFrames: 121,
-      frameStep: 1,
-      defaultFps: 24,
-      allowedFps: [24],
-      isLightning: true,
-      isComfyModel: true,
-      isExternalAPI: true,
-      premiumOnly: true,
-      hasAudio: true
     }
   },
 
@@ -941,58 +887,6 @@ export const MODELS = {
       isLightning: false,
       isComfyModel: true,
       hasAudio: true
-    },
-    seedance2: {
-      id: 'seedance-2-0_i2v',
-      name: 'Seedance 2.0 I2V',
-      description: 'External API image-to-video at 24fps (4-15s, premium)',
-      defaultWidth: 1920,
-      defaultHeight: 1088,
-      minWidth: 480,
-      maxWidth: 1920,
-      minHeight: 480,
-      maxHeight: 1920,
-      dimensionStep: 8,
-      defaultStrength: 0.6,
-      minStrength: 0.3,
-      maxStrength: 1.0,
-      minFrames: 97,
-      maxFrames: 361,
-      defaultFrames: 121,
-      frameStep: 1,
-      defaultFps: 24,
-      allowedFps: [24],
-      isLightning: false,
-      isComfyModel: true,
-      isExternalAPI: true,
-      premiumOnly: true,
-      hasAudio: true
-    },
-    'seedance2-fast': {
-      id: 'seedance-2-0-fast_i2v',
-      name: 'Seedance 2.0 Fast I2V',
-      description: 'External API image-to-video at 24fps (4-15s, 720p cap, premium)',
-      defaultWidth: 1280,
-      defaultHeight: 720,
-      minWidth: 480,
-      maxWidth: 1280,
-      minHeight: 480,
-      maxHeight: 1280,
-      dimensionStep: 8,
-      defaultStrength: 0.6,
-      minStrength: 0.3,
-      maxStrength: 1.0,
-      minFrames: 97,
-      maxFrames: 361,
-      defaultFrames: 121,
-      frameStep: 1,
-      defaultFps: 24,
-      allowedFps: [24],
-      isLightning: true,
-      isComfyModel: true,
-      isExternalAPI: true,
-      premiumOnly: true,
-      hasAudio: true
     }
   },
 
@@ -1127,31 +1021,6 @@ export const MODELS = {
       maxFps: 60,
       isLightning: false,
       isComfyModel: true,
-      hasAudio: true,
-      requiresReferenceImage: true
-    },
-    seedance2: {
-      id: 'seedance-2-0_ia2v',
-      name: 'Seedance 2.0 Image+Audio',
-      description: 'External API image+audio-to-video at 24fps (4-15s, premium)',
-      workflowType: 'ia2v',
-      defaultWidth: 1920,
-      defaultHeight: 1088,
-      minWidth: 480,
-      maxWidth: 1920,
-      minHeight: 480,
-      maxHeight: 1920,
-      dimensionStep: 8,
-      minFrames: 97,
-      maxFrames: 361,
-      defaultFrames: 121,
-      frameStep: 1,
-      defaultFps: 24,
-      allowedFps: [24],
-      isLightning: false,
-      isComfyModel: true,
-      isExternalAPI: true,
-      premiumOnly: true,
       hasAudio: true,
       requiresReferenceImage: true
     },
@@ -1324,35 +1193,6 @@ export const MODELS = {
       requiresReferenceImage: false,
       supportsControlNet: true,
       controlNetTypes: ['canny', 'pose', 'depth', 'detailer']
-    },
-    seedance2: {
-      id: 'seedance-2-0_v2v',
-      name: 'Seedance 2.0 V2V',
-      description: 'External API video-to-video restyling at 24fps (4-15s, premium)',
-      workflowType: 'v2v',
-      defaultWidth: 1920,
-      defaultHeight: 1088,
-      minWidth: 480,
-      maxWidth: 1920,
-      minHeight: 480,
-      maxHeight: 1920,
-      dimensionStep: 8,
-      defaultStrength: 0.85,
-      minStrength: 0.3,
-      maxStrength: 1.0,
-      minFrames: 97,
-      maxFrames: 361,
-      defaultFrames: 121,
-      frameStep: 1,
-      defaultFps: 24,
-      allowedFps: [24],
-      isLightning: false,
-      isComfyModel: true,
-      isExternalAPI: true,
-      premiumOnly: true,
-      hasAudio: true,
-      requiresReferenceImage: false,
-      supportsControlNet: false
     },
     // WAN Animate Models (require both reference image and source video)
     'move-lightx2v': {
@@ -2904,7 +2744,7 @@ export function generateRandomSeed() {
  * @param {number} params.seed - Random seed (should be actual seed, not -1)
  * @param {string} params.prompt - Generation prompt
  * @param {number} [params.generationTime] - Generation time in seconds
- * @param {string} [params.outputDir] - Output directory (default: './output')
+ * @param {string} [params.outputDir] - Output directory (default: examples/output)
  * @returns {string} Generated filename path
  *
  * @example
@@ -2931,7 +2771,7 @@ export function generateVideoFilename(params) {
     seed,
     prompt,
     generationTime,
-    outputDir = './output'
+    outputDir = defaultExamplesOutputDir()
   } = params;
 
   // Convert model ID to kebab-case (replace underscores with hyphens)
@@ -2973,7 +2813,7 @@ export function generateVideoFilename(params) {
  * @param {string} params.prompt - Generation prompt
  * @param {number} [params.generationTime] - Generation time in seconds
  * @param {string} [params.outputFormat] - Output format (default: 'jpg')
- * @param {string} [params.outputDir] - Output directory (default: './output')
+ * @param {string} [params.outputDir] - Output directory (default: examples/output)
  * @returns {string} Generated filename path
  *
  * @example
@@ -2997,7 +2837,7 @@ export function generateImageFilename(params) {
     prompt,
     generationTime,
     outputFormat = 'jpg',
-    outputDir = './output'
+    outputDir = defaultExamplesOutputDir()
   } = params;
 
   // Convert model ID to kebab-case (replace underscores with hyphens)

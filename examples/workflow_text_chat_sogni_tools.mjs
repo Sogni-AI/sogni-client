@@ -55,7 +55,13 @@
 
 import { SogniClient, isSogniToolCall, parseToolCallArguments } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
-import { askQuestion, calculateVideoFrames, formatDuration, MODELS } from './workflow-helpers.mjs';
+import {
+  askQuestion,
+  calculateVideoFrames,
+  defaultExamplesOutputDir,
+  formatDuration,
+  MODELS
+} from './workflow-helpers.mjs';
 import * as fs from 'node:fs';
 import { execFile } from 'node:child_process';
 import { platform } from 'node:os';
@@ -65,7 +71,7 @@ const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_IMAGE_MODEL = 'z_image_turbo_bf16';
 const DEFAULT_VIDEO_MODEL = 'ltx23-22b-fp8_t2v_distilled';
 const DEFAULT_AUDIO_MODEL = 'ace_step_1.5_turbo';
-const OUTPUT_DIR = './output';
+const OUTPUT_DIR = defaultExamplesOutputDir();
 
 // ============================================================
 // CLI Argument Parsing

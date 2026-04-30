@@ -14,9 +14,6 @@
  * - depth: Depth map control (video only)
  * - detailer: Quality enhancement (video only)
  *
- * Seedance 2.0 V2V (video only):
- * - seedance2 with control mode seedance-v2v: Holistic video-to-video restyling through the external API path
- *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
  * - You need access to the 'fast' network for video generation
@@ -31,9 +28,6 @@
  *   node workflow_video_to_video.mjs "A dancing figure" --video dance.mp4 --control-type pose
  *   node workflow_video_to_video.mjs "A robot" --image robot.jpg --video dance.mp4 --control-type pose
  *
- *   # Seedance 2.0 V2V
- *   node workflow_video_to_video.mjs "Make this a neon anime scene" --video source.mp4 --model seedance2
- *
  * Options:
  *   --image       Reference image path (required for WAN animate, optional for pose)
  *   --video       Source video path (required)
@@ -44,7 +38,7 @@
  *   --video-start Video start position in seconds (where to begin reading from source video)
  *   --width       Video width (LTX-2.3: auto from source video, aligned to 64, min 640)
  *   --height      Video height (LTX-2.3: auto from source video, aligned to 64, min 640)
- *   --duration    Duration in seconds (default: 5; Seedance supports 4-15s)
+ *   --duration    Duration in seconds (default: 5)
  *   --fps         Frames per second (default: model-specific)
  *   --batch       Number of videos to generate (default: 1)
  *   --seed        Random seed for reproducibility (default: -1 for random)
@@ -103,6 +97,7 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -145,7 +140,7 @@ async function parseArgs() {
     detailerStrength: null,
     sampler: null,
     scheduler: null,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
     disableSafeContentFilter: false,
     identityAudio: null,
@@ -235,16 +230,10 @@ Usage:
   # LTX-2.3 V2V ControlNet (video only)
   node workflow_video_to_video.mjs --video source.mp4 --model ltx23-v2v-distilled --control-type canny
 
-  # Seedance 2.0 V2V (video only)
-  node workflow_video_to_video.mjs "Make this a neon anime scene" --video source.mp4 --model seedance2
-
 Available Models:
   LTX-2.3 V2V ControlNet (video only, with audio):
     ltx23-v2v-distilled - LTX-2.3 V2V ControlNet Fast (8-step, recommended)
     ltx23-v2v-dev       - LTX-2.3 V2V ControlNet Quality (30-step)
-
-  Seedance 2.0 V2V (video only, external API):
-    seedance2           - Seedance 2.0 V2V (4-15s, 24fps)
 
   WAN Animate (requires reference image + video):
     move-lightx2v      - WAN 2.2 14B Animate-Move LightX2V (camera movement)
@@ -267,7 +256,7 @@ Options:
   --style         Style prompt (default: none)
   --width         Video width (LTX-2.3: auto from source, aligned to 64, min 640)
   --height        Video height (LTX-2.3: auto from source, aligned to 64, min 640)
-  --duration      Duration in seconds (default: 5; Seedance supports 4-15s)
+  --duration      Duration in seconds (default: 5)
   --fps           Frames per second (default: model-specific)
   --batch         Number of videos to generate (default: 1)
   --seed          Random seed (default: -1 for random)
@@ -298,8 +287,6 @@ Examples:
   # WAN animate-replace with subject selection
   node workflow_video_to_video.mjs --image new_face.jpg --video original.mp4 --model replace-lightx2v
 
-  # Seedance 2.0 V2V restyling
-  node workflow_video_to_video.mjs "Make this a cinematic watercolor clip" --video source.mp4 --model seedance2
 `);
 }
 
@@ -1143,7 +1130,6 @@ async function main() {
     // Video models only support ComfyUI sampler/scheduler
     if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
     if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
-
     // LTX-2.3 V2V: add controlNet params
     if (modelConfig.supportsControlNet && OPTIONS.controlNetType) {
       projectParams.controlNet = {

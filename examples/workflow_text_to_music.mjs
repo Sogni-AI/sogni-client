@@ -61,7 +61,8 @@ import {
   displayConfig,
   generateRandomSeed,
   toKebabCase,
-  getUniqueFilename
+  getUniqueFilename,
+  defaultExamplesOutputDir
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -165,7 +166,7 @@ function parseArgs() {
     format: null,
     seed: null,
     batch: 1,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true
   };
 
@@ -377,7 +378,7 @@ function generateAudioFilename(params) {
     prompt,
     format = 'mp3',
     generationTime,
-    outputDir = './output'
+    outputDir = defaultExamplesOutputDir()
   } = params;
 
   const promptSlug = toKebabCase(prompt || 'audio', 30);

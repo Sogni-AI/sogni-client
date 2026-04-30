@@ -328,7 +328,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
   async _syncWithRestData(data: RawJob) {
     const delta: Partial<JobData> = {
       step: data.performedSteps,
-      workerName: data.worker.name,
+      workerName: data.worker?.name,
       seed: data.seedUsed,
       isNSFW: data.triggeredNSFWFilter
     };

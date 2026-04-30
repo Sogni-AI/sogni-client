@@ -42,7 +42,8 @@ import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 import {
   MODELS,
   log,
-  generateRandomSeed
+  generateRandomSeed,
+  defaultExamplesOutputDir
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -83,7 +84,7 @@ function parseArgs() {
     prompt: DEFAULT_BENCHMARK_PROMPT,
     runs: 3,
     warmup: 1,
-    output: './output/benchmark',
+    output: defaultExamplesOutputDir('benchmark'),
     download: true
   };
 

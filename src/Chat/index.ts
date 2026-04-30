@@ -52,7 +52,9 @@ function normalizeVisionMessages(messages: ChatMessage[]): ChatMessage[] {
 
         imageCount += 1;
         if (imageCount > MAX_VISION_IMAGE_COUNT) {
-          throw new Error(`A maximum of ${MAX_VISION_IMAGE_COUNT} vision images is allowed per request`);
+          throw new Error(
+            `A maximum of ${MAX_VISION_IMAGE_COUNT} vision images is allowed per request`
+          );
         }
 
         return {
@@ -246,10 +248,15 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const modelInfo = this.availableLLMModels[params.model];
     const defaultFromModel = modelInfo?.maxOutputTokens?.default;
     const thinkingComplexDefault = modelInfo?.maxOutputTokens?.thinkingComplexDefault;
-    const isComplexThinking = params.think === true
-      && (params.taskProfile === 'coding' || params.taskProfile === 'reasoning');
+    const isComplexThinking =
+      params.think === true &&
+      (params.taskProfile === 'coding' || params.taskProfile === 'reasoning');
 
-    if (isComplexThinking && typeof thinkingComplexDefault === 'number' && Number.isFinite(thinkingComplexDefault)) {
+    if (
+      isComplexThinking &&
+      typeof thinkingComplexDefault === 'number' &&
+      Number.isFinite(thinkingComplexDefault)
+    ) {
       return thinkingComplexDefault;
     }
 

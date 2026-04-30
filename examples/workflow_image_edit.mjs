@@ -62,6 +62,7 @@ import {
   getUniqueFilename,
   generateImageFilename,
   generateRandomSeed,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -92,7 +93,7 @@ async function parseArgs() {
     scheduler: null,
     width: null,
     height: null,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
     disableSafeContentFilter: false
   };

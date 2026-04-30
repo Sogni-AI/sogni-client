@@ -2,7 +2,7 @@
 /**
  * Image-to-Video Workflow
  *
- * This script generates videos from input images using WAN 2.2, LTX-2.3, and Seedance models.
+ * This script generates videos from input images using WAN 2.2 and LTX-2.3 models.
  * Takes an image and animates it based on a text prompt.
  *
  * Prerequisites:
@@ -13,7 +13,6 @@
  *   node workflow_image_to_video.mjs --image input.jpg       # Interactive mode
  *   node workflow_image_to_video.mjs "zoom in" --image pic.jpg
  *   node workflow_image_to_video.mjs --image img.jpg --end-image img2.jpg  # transition
- *   node workflow_image_to_video.mjs "slow push-in" --image pic.jpg --model seedance2
  *
  * Options:
  *   --image     Input image path (required)
@@ -21,8 +20,8 @@
  *   --model     Model ID (default: wan_v2.2-14b-fp8_i2v_lightx2v)
  *   --width     Video width (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
  *   --height    Video height (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
- *   --duration  Duration in seconds (WAN: 1-10s, LTX-2.3: 4-20s, Seedance: 4-15s)
- *   --fps       Frames per second (WAN: 16/32, LTX-2.3: 1-60, Seedance: 24)
+ *   --duration  Duration in seconds (WAN: 1-10s, LTX-2.3: 4-20s)
+ *   --fps       Frames per second (WAN: 16/32, LTX-2.3: 1-60)
  *   --first-frame-strength  LTX keyframes: first frame match strength 0-1 (default: 1.0, 0=disable)
  *   --last-frame-strength   LTX keyframes: last frame match strength 0-1 (default: 1.0)
  *
@@ -82,6 +81,7 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -122,7 +122,7 @@ async function parseArgs() {
     shift: null,
     sampler: null,
     scheduler: null,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
     disableSafeContentFilter: false,
     identityAudio: null,
@@ -206,17 +206,12 @@ Available Models:
   wan_v2.2-14b-fp8_i2v                (WAN 2.2, high quality 20-step, 1-10s)
   ltx23-22b-fp8_i2v_distilled         (LTX-2.3, fast 8-step, 22B model, 4-20s, 2x upscaled output)
   ltx23-22b-fp8_i2v_dev               (LTX-2.3, high quality 30-step, 22B model, 4-20s, 2x upscaled output)
-  seedance2                           (Seedance 2.0, external API, 4-15s, 24fps)
-  seedance2-fast                      (Seedance 2.0 Fast, external API, 4-15s, 24fps, 720p cap)
-
 Note: LTX models automatically use keyframe interpolation when --end-image is provided.
 
 Model-Specific Constraints:
   WAN models:         480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
   LTX-2.3 distilled:  640-3840px (step 64), 1-60 fps, 4-20s, no shift, guidance 1-2
   LTX-2.3 dev:        640-3840px (step 64), 1-60 fps, 4-20s, no shift, guidance 1-10
-  Seedance 2.0:   480-1920px (step 8), 24 fps, 4-15s, external API
-  Seedance 2.0 Fast:  480-1280px (step 8), 24 fps, 4-15s, external API
 
 Options:
   --image     Input image path (required)
@@ -227,7 +222,7 @@ Options:
   --width     Video width (default: auto from image or WAN 640, LTX-2.3 768)
   --height    Video height (default: auto from image or WAN 640, LTX-2.3 512)
   --duration  Duration in seconds (default: 5s)
-  --fps       Frames per second (default: WAN 16, LTX-2.3 24, Seedance 24)
+  --fps       Frames per second (default: WAN 16, LTX-2.3 24)
   --batch     Number of videos to generate (default: 1)
   --seed      Random seed (default: -1 for random)
   --guidance  Guidance scale (default: model-specific)
@@ -702,7 +697,6 @@ async function main() {
     // Video models only support ComfyUI sampler/scheduler
     if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
     if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
-
     // Add end image for transition if provided (processed to match video dimensions)
     if (OPTIONS.endImage) {
       // Process end image to match the target video dimensions using "cover" mode (scale to fill, crop overflow)

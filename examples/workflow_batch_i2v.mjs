@@ -19,11 +19,11 @@
  *
  * Options:
  *   --folder      Input folder containing images (default: ./toprocess)
- *   --model       Model key or ID (try lightx2v, quality, ltx23-22b-fp8_i2v_distilled, seedance2, seedance2-fast)
+ *   --model       Model key or ID (try lightx2v, quality, ltx23-22b-fp8_i2v_distilled)
  *   --width       Video width (default: auto from first image, min: 480)
  *   --height      Video height (default: auto from first image, min: 480)
- *   --duration    Duration in seconds (default: 5; Seedance supports 4-15s)
- *   --fps         Frames per second (default: model-specific, Seedance fixed at 24)
+ *   --duration    Duration in seconds (default: 5)
+ *   --fps         Frames per second (default: model-specific)
  *   --seed        Random seed for all videos, or -1 for random each (default: -1)
  *   --guidance    Guidance scale (default: model-specific)
  *   --shift       Motion intensity 1.0-8.0 (default: model-specific)
@@ -64,6 +64,7 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -104,7 +105,7 @@ async function parseArgs() {
     shift: null,
     sampler: null,
     scheduler: null,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     skipExisting: true,
     interactive: true,
     disableSafeContentFilter: false
@@ -175,17 +176,14 @@ Usage:
 Available Models:
   lightx2v - WAN 2.2 14B I2V LightX2V (fast, 4-step, default)
   quality  - WAN 2.2 14B I2V (high quality, 20-step)
-  seedance2 - Seedance 2.0 I2V (external API, 4-15s, 24fps)
-  seedance2-fast - Seedance 2.0 Fast I2V (external API, 4-15s, 24fps, 720p cap)
-
 Options:
   --folder      Input folder containing images (default: ./toprocess)
-  --model       Model key or ID (try lightx2v, quality, seedance2, seedance2-fast)
+  --model       Model key or ID (try lightx2v, quality, ltx23-22b-fp8_i2v_distilled)
   --negative    Negative prompt (default: none)
   --width       Video width (default: auto from first image, min: 480)
   --height      Video height (default: auto from first image, min: 480)
-  --duration    Duration in seconds (default: 5; Seedance supports 4-15s)
-  --fps         Frames per second (default: model-specific, Seedance fixed at 24)
+  --duration    Duration in seconds (default: 5)
+  --fps         Frames per second (default: model-specific)
   --seed        Random seed for all, or -1 for random each (default: -1)
   --guidance    Guidance scale (default: model-specific)
   --shift       Motion intensity 1.0-8.0 (default: model-specific)
@@ -374,7 +372,7 @@ async function main() {
     modelConfig = MODELS.i2v[OPTIONS.modelKey];
     if (!modelConfig) {
       console.error(
-        `Error: Unknown model '${OPTIONS.modelKey}'. Use 'lightx2v', 'quality', 'seedance2', 'seedance2-fast', or a MODELS.i2v key.`
+        `Error: Unknown model '${OPTIONS.modelKey}'. Use 'lightx2v', 'quality', or a MODELS.i2v key.`
       );
       process.exit(1);
     }

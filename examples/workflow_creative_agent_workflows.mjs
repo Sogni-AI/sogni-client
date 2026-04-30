@@ -8,8 +8,8 @@
  *
  * Examples:
  *   node workflow_creative_agent_workflows.mjs "A chrome monorail gliding over neon gardens" --watch
- *   node workflow_creative_agent_workflows.mjs "A cinematic robot portrait" --video-model seedance2 --duration 5 --watch
- *   node workflow_creative_agent_workflows.mjs "A kinetic product teaser" --video-model seedance2-fast --duration 5 --watch
+ *   node workflow_creative_agent_workflows.mjs "A cinematic robot portrait" --video-model ltx23 --duration 5 --watch
+ *   node workflow_creative_agent_workflows.mjs "A kinetic product teaser" --video-model wan22 --duration 5 --watch
  *   node workflow_creative_agent_workflows.mjs --list
  *   node workflow_creative_agent_workflows.mjs --get workflow_123
  *   node workflow_creative_agent_workflows.mjs --stream workflow_123
@@ -113,8 +113,7 @@ Options:
   --height <px>           Output height
   --image-model <model>   Creative-agent image model selector (default: ${DEFAULT_IMAGE_MODEL})
   --video-model <model>   Creative-agent video model selector (default: ${DEFAULT_VIDEO_MODEL})
-                          Try: ltx23, wan22, seedance2, seedance2-fast
-                          seedance2-fast is text/image-to-video only and caps at 720p
+                          Try: ltx23 or wan22
   --number <n>            Number of outputs (default: 1)
   --seed <n>              Seed
   --token-type <type>     spark or sogni (default from .env or spark)

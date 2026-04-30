@@ -167,6 +167,10 @@
               "type": "number",
               "description": "Frames per second. Default depends on the model. Range: 1-60."
             },
+            "generate_audio": {
+              "type": "boolean",
+              "description": "Whether external API video models such as Seedance should generate native audio. Set false for silent output."
+            },
             "model": {
               "type": "string",
               "description": "Video generation model to use. Supported selectors include ltx23, wan22, seedance2 and seedance2-fast. Use t2v models for text-only generation and i2v when reference images are supplied. seedance2-fast caps at 720p."
@@ -211,6 +215,10 @@
             "duration": {
               "type": "number",
               "description": "Output video duration in seconds. Range: 1-20 generally; Seedance supports 4-15. Default: 5."
+            },
+            "generate_audio": {
+              "type": "boolean",
+              "description": "Whether external API video models such as Seedance should generate native audio. Set false for silent output."
             },
             "width": {
               "type": "number",
@@ -296,6 +304,10 @@
             "duration": {
               "type": "number",
               "description": "Output video duration in seconds. Range: 1-20 generally; Seedance supports 4-15. Default: 5."
+            },
+            "generate_audio": {
+              "type": "boolean",
+              "description": "Whether external API video models such as Seedance should generate native audio. Set false for silent output."
             },
             "width": {
               "type": "number",

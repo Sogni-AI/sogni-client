@@ -63,6 +63,8 @@ export type JobResultData = {
   userCanceled: boolean;
   triggeredNSFWFilter: boolean;
   resultUrl?: string;
+  videoUrl?: string;
+  videoFile?: string;
 };
 
 export type JobStateData =

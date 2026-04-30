@@ -2,7 +2,7 @@
 /**
  * Text-to-Video Workflow
  *
- * This script generates videos from text prompts using WAN 2.2, LTX-2.3, and Seedance models.
+ * This script generates videos from text prompts using WAN 2.2 and LTX-2.3 models.
  * Supports quality/speed variants with configurable dimensions and frame rates.
  *
  * Prerequisites:
@@ -13,14 +13,13 @@
  *   node workflow_text_to_video.mjs                           # Interactive mode
  *   node workflow_text_to_video.mjs "A futuristic city"       # With prompt
  *   node workflow_text_to_video.mjs "Dancing robots" --fps 32 # With options
- *   node workflow_text_to_video.mjs "Neon skyline" --model seedance2 --duration 5
  *
  * Options:
  *   --model     Model ID (default: wan_v2.2-14b-fp8_t2v_lightx2v)
  *   --width     Video width (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
  *   --height    Video height (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
- *   --duration  Duration in seconds (WAN: 1-10s, LTX-2.3: 4-20s, Seedance: 4-15s)
- *   --fps       Frames per second (WAN: 16/32, LTX-2.3: 1-60, Seedance: 24)
+ *   --duration  Duration in seconds (WAN: 1-10s, LTX-2.3: 4-20s)
+ *   --fps       Frames per second (WAN: 16/32, LTX-2.3: 1-60)
  *
  * LTX VRAM-based resolution limits (enforced during job assignment):
  *   Jobs are only assigned to workers with sufficient VRAM for the requested resolution:
@@ -73,6 +72,7 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -105,7 +105,7 @@ async function parseArgs() {
     shift: null,
     sampler: null,
     scheduler: null,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
     disableSafeContentFilter: false,
     identityAudio: null,
@@ -182,15 +182,10 @@ Available Models:
   wan_v2.2-14b-fp8_t2v           (WAN 2.2, high quality 20-step, 1-10s)
   ltx23-22b-fp8_t2v_distilled    (LTX-2.3, fast 8-step, 22B model, 4-20s, 2x upscaled output)
   ltx23-22b-fp8_t2v_dev          (LTX-2.3, high quality 30-step, 22B model, 4-20s, 2x upscaled output)
-  seedance2                      (Seedance 2.0, external API, 4-15s, 24fps)
-  seedance2-fast                 (Seedance 2.0 Fast, external API, 4-15s, 24fps, 720p cap)
-
 Model-Specific Constraints:
   WAN models:         480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
   LTX-2.3 distilled:  640-3840px (step 64), 1-60 fps, 4-20s, no shift, guidance 1-2
   LTX-2.3 dev:        640-3840px (step 64), 1-60 fps, 4-20s, no shift, guidance 1-10
-  Seedance 2.0:   480-1920px (step 8), 24 fps, 4-15s, external API
-  Seedance 2.0 Fast:  480-1280px (step 8), 24 fps, 4-15s, external API
 
 Options:
   --model     Model ID (default: wan_v2.2-14b-fp8_t2v_lightx2v)
@@ -199,7 +194,7 @@ Options:
   --width     Video width (default: WAN 640, LTX-2.3 1536)
   --height    Video height (default: WAN 640, LTX-2.3 1024)
   --duration  Duration in seconds (default: 5s)
-  --fps       Frames per second (default: WAN 16, LTX-2.3 24, Seedance 24)
+  --fps       Frames per second (default: WAN 16, LTX-2.3 24)
   --batch     Number of videos to generate (default: 1)
   --seed      Random seed (default: -1 for random)
   --guidance  Guidance scale (default: model-specific)
@@ -564,7 +559,6 @@ async function main() {
       disableNSFWFilter: OPTIONS.disableSafeContentFilter,
       tokenType: tokenType
     };
-
     // Add optional prompts
     if (OPTIONS.negative) {
       projectParams.negativePrompt = OPTIONS.negative;

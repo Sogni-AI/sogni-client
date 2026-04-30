@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Seedance Endpoint Example
+ * Partner Seedance Video Example
  *
  * Exercises Seedance through the API paths that match each use case:
  * - T2V defaults to /v1/chat/completions with normal OpenAI-style tool calling.
@@ -9,11 +9,13 @@
  *   hosted_tool_sequence, using uploaded local media or HTTPS media URLs.
  *
  * Examples:
- *   node workflow_seedance_endpoint.mjs
- *   node workflow_seedance_endpoint.mjs "A glass whale swimming through a glowing city" --fast --duration 4
- *   node workflow_seedance_endpoint.mjs "slow cinematic reveal" --mode i2v
- *   node workflow_seedance_endpoint.mjs "the portrait sings with stage lighting" --mode ia2v
- *   node workflow_seedance_endpoint.mjs "turn the clip into a polished perfume commercial" --mode v2v
+ *   node workflow_partner_seedance_video.mjs
+ *   node workflow_partner_seedance_video.mjs "The Slothicorn mascot launches SEEDANCE 2.0 on SOGNI with a spoken teaser line" --duration 4
+ *   node workflow_partner_seedance_video.mjs "The Slothicorn mascot launches SEEDANCE 2.0 on SOGNI with a spoken teaser line" --fast --duration 4 --no-audio
+ *   node workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v
+ *   node workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v --fast
+ *   node workflow_partner_seedance_video.mjs "the portrait sings with stage lighting" --mode ia2v
+ *   node workflow_partner_seedance_video.mjs "turn the clip into a polished perfume commercial" --mode v2v
  */
 
 import * as crypto from 'node:crypto';
@@ -21,12 +23,29 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
-import { askQuestion } from './workflow-helpers.mjs';
+import { askQuestion, calculateVideoFrames } from './workflow-helpers.mjs';
 
 const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_REST_ENDPOINT = 'https://api.sogni.ai';
 const DEFAULT_PROMPT =
-  'A luminous glass whale glides through a rain-slick midnight city, neon reflections rippling across its body, cinematic camera push-in, elegant motion, premium sci-fi atmosphere';
+  'A fuzzy pink sloth with a little unicorn horn growing out of his forehead, the Slothicorn mascot, bursts onto a spectacular neon launch stage, taps a glowing button, and unleashes streams of cinematic light around a crisp sign that reads "SEEDANCE 2.0 on SOGNI". He smiles to camera and says clearly, "Seedance 2.0 is live on Sogni. Let your imagination move." Energetic teaser trailer pacing, playful interaction, premium lighting, huge reveal moment, polished platform launch commercial.';
+
+const SEEDANCE_MODELS = {
+  t2v: {
+    seedance2: { id: 'seedance-2-0_t2v', name: 'Seedance 2.0 T2V' },
+    'seedance2-fast': { id: 'seedance-2-0-fast_t2v', name: 'Seedance 2.0 Fast T2V' }
+  },
+  i2v: {
+    seedance2: { id: 'seedance-2-0_i2v', name: 'Seedance 2.0 I2V' },
+    'seedance2-fast': { id: 'seedance-2-0-fast_i2v', name: 'Seedance 2.0 Fast I2V' }
+  },
+  ia2v: {
+    seedance2: { id: 'seedance-2-0_ia2v', name: 'Seedance 2.0 Image+Audio' }
+  },
+  v2v: {
+    seedance2: { id: 'seedance-2-0_v2v', name: 'Seedance 2.0 V2V' }
+  }
+};
 
 const EXAMPLES_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_IMAGE = path.join(EXAMPLES_DIR, 'test-assets', 'placeholder.jpg');
@@ -62,6 +81,7 @@ function parseArgs() {
     endImage: undefined,
     audio: undefined,
     video: undefined,
+    generateAudio: undefined,
     target: undefined,
     execute: true,
     tokenType: loadTokenTypePreference() || process.env.SOGNI_TOKEN_TYPE || 'spark',
@@ -103,6 +123,8 @@ function parseArgs() {
       options.audio = args[++i];
     } else if (arg === '--video' && args[i + 1]) {
       options.video = args[++i];
+    } else if (arg === '--no-audio') {
+      options.generateAudio = false;
     } else if (arg === '--target' && args[i + 1]) {
       options.target = args[++i].toLowerCase();
     } else if (arg === '--chat') {
@@ -132,10 +154,10 @@ function parseArgs() {
 
 function showHelp() {
   console.log(`
-Seedance Endpoint Example
+Partner Seedance Video Example
 
 Usage:
-  node workflow_seedance_endpoint.mjs "prompt" [options]
+  node workflow_partner_seedance_video.mjs "prompt" [options]
 
 Modes:
   t2v   Text-to-video through chat/completions or hosted workflow
@@ -155,6 +177,7 @@ Options:
   --end-image <path|https> Optional final frame image for i2v interpolation
   --audio <path|https>   Reference audio for ia2v
   --video <path|https>   Source video for v2v
+  --no-audio             Request silent Seedance output by setting generate_audio=false
   --number <n>           Number of variations (default: 1)
   --seed <n>             Seed
   --no-execute           Print the request that would be sent, without submitting the workflow
@@ -205,6 +228,62 @@ function toolNameForMode(mode) {
   if (mode === 'ia2v') return 'sogni_sound_to_video';
   if (mode === 'v2v') return 'sogni_video_to_video';
   return 'sogni_generate_video';
+}
+
+function estimateModelIdForMode(mode, modelSelector) {
+  const modelConfig =
+    SEEDANCE_MODELS[mode]?.[modelSelector] ||
+    Object.values(SEEDANCE_MODELS[mode] || {}).find((model) => model.id === modelSelector);
+  if (modelConfig?.id) return modelConfig.id;
+
+  throw new Error(`Cannot estimate unknown Seedance model selector: ${modelSelector}`);
+}
+
+async function getVideoJobEstimate(
+  tokenType,
+  modelId,
+  width,
+  height,
+  frames,
+  fps,
+  steps,
+  videoCount = 1
+) {
+  let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
+  if (baseUrl.startsWith('wss://')) {
+    baseUrl = baseUrl.replace('wss://', 'https://');
+  } else if (baseUrl.startsWith('ws://')) {
+    baseUrl = baseUrl.replace('ws://', 'https://');
+  }
+  const url = `${baseUrl}/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}/${steps}/${videoCount}`;
+  console.log(`🔗 Video cost estimate URL: ${url}`);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to get cost estimate: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+function formatDecimal(value, digits = 4) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(digits) : String(value ?? 'n/a');
+}
+
+function printEstimateSummary(estimate) {
+  const project = estimate?.quote?.project || {};
+  const job = estimate?.quote?.job || {};
+  const request = estimate?.request || {};
+
+  console.log('Cost estimate:');
+  console.log(`Model:     ${request.model || '(unknown)'}`);
+  console.log(`Frames:    ${request.frames || '(unknown)'} @ ${request.fps || 24}fps`);
+  console.log(`Spark:     ${formatDecimal(project.costInSpark, 4)}`);
+  console.log(`SOGNI:     ${formatDecimal(project.costInSogni, 4)}`);
+  console.log(`USD:       $${formatDecimal(project.costInUSD, 6)}`);
+  if (job.vendorCostUSD !== undefined) {
+    console.log(`Vendor:    $${formatDecimal(job.vendorCostUSD, 6)}`);
+  }
+  console.log();
 }
 
 function contentTypeForPath(filePath, expectedKind) {
@@ -313,6 +392,9 @@ async function buildToolArguments(credentials, options) {
   };
   if (Number.isInteger(options.seed)) {
     args.seed = options.seed;
+  }
+  if (options.generateAudio !== undefined) {
+    args.generate_audio = options.generateAudio;
   }
 
   if (options.mode === 'i2v') {
@@ -474,6 +556,11 @@ function summarizeChatExecution(payload) {
 
 function assertChatExecutedResponse(payload) {
   const { content, mediaUrls, workflows } = summarizeChatExecution(payload);
+  const failedWorkflow = workflows.find((workflow) => workflow.status === 'failed');
+  if (failedWorkflow) {
+    const id = failedWorkflow.workflowId || failedWorkflow.id || 'unknown';
+    throw new Error(`Endpoint tool execution failed in workflow ${id}.`);
+  }
   if (mediaUrls.length > 0 || workflows.length > 0) return;
 
   const failurePattern =
@@ -524,6 +611,9 @@ function printChatSummary(payload, toolArguments) {
   console.log(`Model:     ${toolArguments.model}`);
   console.log(`Duration:  ${toolArguments.duration}s`);
   console.log(`Size:      ${toolArguments.width}x${toolArguments.height}`);
+  if (toolArguments.generate_audio !== undefined) {
+    console.log(`Audio:     ${toolArguments.generate_audio ? 'enabled' : 'disabled'}`);
+  }
 
   if (toolCalls.length > 0) {
     console.log('\nTool calls:');
@@ -561,6 +651,9 @@ function printWorkflowSummary(payload, toolArguments) {
   console.log(`Model:     ${toolArguments.model}`);
   console.log(`Duration:  ${toolArguments.duration}s`);
   console.log(`Size:      ${toolArguments.width}x${toolArguments.height}`);
+  if (toolArguments.generate_audio !== undefined) {
+    console.log(`Audio:     ${toolArguments.generate_audio ? 'enabled' : 'disabled'}`);
+  }
 
   const artifacts = workflowArtifacts(workflow);
   if (artifacts.length > 0) {
@@ -592,11 +685,31 @@ async function main() {
       ? { apiKey: process.env.SOGNI_API_KEY || '' }
       : await loadCredentials();
   if ((options.target !== 'workflow' || options.execute) && !credentials.apiKey) {
-    throw new Error('Seedance endpoint examples require SOGNI_API_KEY API-key auth.');
+    throw new Error('Partner Seedance video examples require SOGNI_API_KEY API-key auth.');
   }
 
   const toolName = toolNameForMode(options.mode);
   const toolArguments = await buildToolArguments(credentials, options);
+  const estimateModelId = estimateModelIdForMode(options.mode, toolArguments.model);
+  const estimateFps = 24;
+  const estimateFrames = calculateVideoFrames(
+    estimateModelId,
+    toolArguments.duration,
+    estimateFps
+  );
+  const estimate = await getVideoJobEstimate(
+    options.tokenType === 'sogni' ? 'sogni' : 'spark',
+    estimateModelId,
+    toolArguments.width,
+    toolArguments.height,
+    estimateFrames,
+    estimateFps,
+    0,
+    toolArguments.number_of_variations || 1
+  );
+  if (!options.json) {
+    printEstimateSummary(estimate);
+  }
 
   if (options.target === 'workflow') {
     const requestBody = workflowRequest(options, toolName, toolArguments);

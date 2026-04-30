@@ -225,21 +225,19 @@ node workflow_image_edit.mjs "portrait in this style" --context test-assets/plac
 
 ```bash
 node workflow_text_to_video.mjs "A serene ocean wave"
-node workflow_text_to_video.mjs "A neon skyline time lapse" --model seedance2 --duration 5
 ```
 
 **Animate an image into a video:**
 
 ```bash
 node workflow_image_to_video.mjs --image test-assets/placeholder.jpg
-node workflow_image_to_video.mjs "slow push-in" --image test-assets/placeholder.jpg --model seedance2
 ```
 
 **Transfer motion or replace characters in video:**
 
 ```bash
 node workflow_video_to_video.mjs  # Animate-Move / Animate-Replace
-node workflow_video_to_video.mjs "restyle this as watercolor" --video source.mp4 --model seedance2
+node workflow_video_to_video.mjs "restyle this as watercolor" --video source.mp4 --model ltx23-v2v-distilled
 ```
 
 **Chat with an LLM (streaming):**
@@ -261,9 +259,8 @@ node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city"
 node workflow_text_chat_sogni_tools.mjs "Generate a video of ocean waves at sunset"
 node workflow_text_chat_sogni_tools.mjs "Compose a jazz song about the rain"
 node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal perfume bottle"
-node workflow_creative_agent_workflows.mjs "A chrome monorail over neon gardens" --video-model seedance2 --watch
-node workflow_creative_agent_workflows.mjs "A kinetic product teaser" --video-model seedance2-fast --duration 5 --watch
-node workflow_seedance_endpoint.mjs "A glass whale swimming through a neon city" --fast --duration 4
+node workflow_creative_agent_workflows.mjs "A chrome monorail over neon gardens" --video-model ltx23 --watch
+node workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --fast --duration 4
 ```
 
 **LLM tool calling (weather, time, math):**
@@ -487,14 +484,14 @@ node workflow_sound_to_video.mjs --model lightx2v
 
 #### `workflow_video_to_video.mjs`
 
-Transform existing videos with **Animate-Move** (motion transfer), **Animate-Replace** (character replacement), **LTX-2.3 V2V ControlNet**, and **Seedance 2.0 V2V** capabilities.
+Transform existing videos with **Animate-Move** (motion transfer), **Animate-Replace** (character replacement), and **LTX-2.3 V2V ControlNet** capabilities.
 
 **Usage:**
 
 ```bash
 node workflow_video_to_video.mjs                          # Interactive mode
 node workflow_video_to_video.mjs --video source.mp4
-node workflow_video_to_video.mjs "restyle as watercolor" --video source.mp4 --model seedance2
+node workflow_video_to_video.mjs "restyle as watercolor" --video source.mp4 --model ltx23-v2v-distilled
 ```
 
 **Available Modes:**
@@ -502,14 +499,12 @@ node workflow_video_to_video.mjs "restyle as watercolor" --video source.mp4 --mo
 - **Animate-Move** - Transfer motion and emotion from reference video to your subject image
 - **Animate-Replace** - Replace characters in video while preserving original motion
 - **LTX-2.3 V2V ControlNet** - Canny, pose, depth, and detailer control
-- **Seedance 2.0 V2V** - External API video-to-video restyling at 24fps
 
 **Features:**
 
 - Interactive video and image selection
 - Auto-detects video dimensions and frame count
 - Seamless motion transfer or character replacement
-- Seedance 2.0 T2V/I2V/V2V coverage through the shared model helpers
 
 **Use Cases:**
 
@@ -644,13 +639,15 @@ node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal
 node workflow_creative_agent_tools.mjs "Plan a Seedance cyberpunk skyline video" --tools creative-agent --no-execute
 ```
 
-Run the focused Seedance endpoint example. It uses `/v1/chat/completions` for text-to-video tool selection and `/v1/creative-agent/workflows` for exact media-bearing hosted tool sequences. Both paths let `sogni-api` apply the shared Seedance prompt expansion before job submission:
+Run the focused partner Seedance video example. It uses `/v1/chat/completions` for text-to-video tool selection and `/v1/creative-agent/workflows` for exact media-bearing hosted tool sequences. Both paths let `sogni-api` apply the shared Seedance prompt expansion before job submission:
 
 ```bash
-node workflow_seedance_endpoint.mjs "A glass whale swimming through a neon city" --fast --duration 4
-node workflow_seedance_endpoint.mjs "slow cinematic reveal" --mode i2v
-node workflow_seedance_endpoint.mjs "the portrait sings with stage lighting" --mode ia2v
-node workflow_seedance_endpoint.mjs "turn the clip into a polished perfume commercial" --mode v2v
+node workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --duration 4
+node workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --fast --duration 4
+node workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v
+node workflow_partner_seedance_video.mjs "slow cinematic reveal" --mode i2v --fast
+node workflow_partner_seedance_video.mjs "the portrait sings with stage lighting" --mode ia2v
+node workflow_partner_seedance_video.mjs "turn the clip into a polished perfume commercial" --mode v2v
 ```
 
 T2V defaults to `/v1/chat/completions`. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `test-assets` automatically. Pass `--image`, `--audio`, or `--video` to use your own local files, or pass HTTPS media URLs. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs.
@@ -668,13 +665,11 @@ Run the durable workflow example:
 
 ```bash
 node workflow_creative_agent_workflows.mjs "A chrome monorail over neon gardens" --watch
-node workflow_creative_agent_workflows.mjs "A cinematic robot portrait" --video-model seedance2 --duration 5 --watch
-node workflow_creative_agent_workflows.mjs "A kinetic product teaser" --video-model seedance2-fast --duration 5 --watch
+node workflow_creative_agent_workflows.mjs "A cinematic robot portrait" --video-model ltx23 --duration 5 --watch
+node workflow_creative_agent_workflows.mjs "A kinetic product teaser" --video-model wan22 --duration 5 --watch
 node workflow_creative_agent_workflows.mjs --list
 node workflow_creative_agent_workflows.mjs --stream <workflowId>
 ```
-
-`seedance2-fast` is the 720p-capped Seedance Fast selector for text/image-to-video workflows on API deployments that expose it.
 
 See the [durable workflows reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#durable-creative-agent-workflows) for full details.
 
@@ -834,7 +829,7 @@ At **32 FPS**:
 - 161 frames = ~5 seconds
 - 321 frames would be ~10 seconds (but max is 161)
 
-For LTX-2.3 and Seedance examples, prefer `--duration`; the scripts calculate model-correct frame counts. Seedance runs at 24fps and currently supports 4-15 second direct SDK outputs.
+For LTX-2.3 examples, prefer `--duration`; the scripts calculate model-correct frame counts. The partner Seedance video example also uses `--duration` and covers Seedance's fixed 24fps paths.
 
 **Cost Note:** Longer videos (more frames) cost more tokens. A 161-frame video costs roughly 2x as much as an 81-frame video.
 

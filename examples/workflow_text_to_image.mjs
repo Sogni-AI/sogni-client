@@ -59,6 +59,7 @@ import {
   generateImageFilename,
   generateRandomSeed,
   createSogniConnection,
+  defaultExamplesOutputDir,
   getDefaultSampler,
   getDefaultScheduler,
   displaySafeContentFilterMessage,
@@ -92,7 +93,7 @@ async function parseArgs() {
     startingImage: null,
     strength: null,
     previews: 0,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
     disableSafeContentFilter: false
   };

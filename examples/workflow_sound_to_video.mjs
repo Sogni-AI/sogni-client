@@ -4,7 +4,6 @@
  *
  * This script generates videos from audio files using various audio-driven models:
  * - WAN 2.2 S2V: Sound-to-video with reference image (lip-sync/motion-sync)
- * - Seedance 2.0 IA2V: Image+audio to video through external API (4-15s, cinematic motion)
  * - LTX-2.3 IA2V: Image+audio to video with 22B model (audio-reactive, distilled/dev)
  * - LTX-2.3 A2V: Audio to video with 22B model (audio-reactive generation, distilled/dev)
  *
@@ -22,7 +21,7 @@
  *   --audio       Audio file path (required, m4a/mp3/wav)
  *   --audio-start Start position in audio in seconds (default: 0)
  *   --audio-duration  Duration of audio to use in seconds (default: auto from video)
- *   --model       Model: lightx2v, quality, seedance2, ltx23-ia2v-distilled, ltx23-a2v-distilled, ltx23-ia2v-dev, ltx23-a2v-dev (default: prompts)
+ *   --model       Model: lightx2v, quality, ltx23-ia2v-distilled, ltx23-a2v-distilled, ltx23-ia2v-dev, ltx23-a2v-dev (default: prompts)
  *   --width       Video width (default: auto from image, min: 480)
  *   --height      Video height (default: auto from image, min: 480)
  *   --duration    Duration in seconds (default: 5, converts to frames)
@@ -74,6 +73,7 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -112,7 +112,7 @@ async function parseArgs() {
     shift: null,
     sampler: null,
     scheduler: null,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
     disableSafeContentFilter: false
   };
@@ -188,7 +188,6 @@ Usage:
 Available Models:
   lightx2v             - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
   quality              - WAN 2.2 14B S2V (high quality, 20-step)
-  seedance2            - Seedance 2.0 Image+Audio (external API, 4-15s, requires image)
   ltx23-ia2v-distilled - LTX-2.3 22B Image+Audio to Video (fast, 8-step, requires image)
   ltx23-ia2v-dev       - LTX-2.3 22B Image+Audio to Video (quality, 30-step, requires image)
   ltx23-a2v-distilled  - LTX-2.3 22B Audio to Video (fast, 8-step, no image needed)
