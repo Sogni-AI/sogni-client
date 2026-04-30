@@ -1,3 +1,10 @@
+# [4.2.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.6...v4.2.0-alpha.7) (2026-04-30)
+
+
+### Bug Fixes
+
+* align Seedance video tool handling ([337af3a](https://github.com/Sogni-AI/sogni-client/commit/337af3ad0aaf9e0ddc15d6f01c4f235691806e71))
+
 # [4.2.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.5...v4.2.0-alpha.6) (2026-04-30)
 
 
