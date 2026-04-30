@@ -50,6 +50,10 @@ export interface BaseProjectParams {
    */
   positivePrompt: string;
   /**
+   * Prompt for what to be avoided. If not provided, server default is used.
+   */
+  negativePrompt?: string;
+  /**
    * Image style prompt. If not provided, server default is used.
    */
   stylePrompt?: string;
@@ -134,10 +138,6 @@ export type InputMedia = File | Buffer | Blob | boolean;
  */
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
-  /**
-   * Prompt for what to be avoided. If not provided, server default is used.
-   */
-  negativePrompt?: string;
   /**
    * Number of frames to generate.
    * @deprecated Use duration instead. When using duration, the SDK automatically
@@ -320,10 +320,6 @@ export interface VideoProjectParams extends BaseProjectParams {
 
 export interface ImageProjectParams extends BaseProjectParams {
   type: 'image';
-  /**
-   * Prompt for what to be avoided. If not provided, server default is used.
-   */
-  negativePrompt?: string;
   /**
    * Number of previews to generate. Note that previews affect project cost
    */

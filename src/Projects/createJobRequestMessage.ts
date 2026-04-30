@@ -53,7 +53,8 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
-      message: 'referenceImageUrls, referenceVideoUrls, and referenceAudioUrls are supported only by Seedance models.'
+      message:
+        'referenceImageUrls, referenceVideoUrls, and referenceAudioUrls are supported only by Seedance models.'
     });
   }
 
@@ -140,8 +141,7 @@ function validateSeedanceReferenceAssets(params: VideoProjectParams): void {
     (params.referenceImageEnd ? 1 : 0) +
     asReferenceUrlArray(params.referenceImageUrls).length;
   const videoCount =
-    (params.referenceVideo ? 1 : 0) +
-    asReferenceUrlArray(params.referenceVideoUrls).length;
+    (params.referenceVideo ? 1 : 0) + asReferenceUrlArray(params.referenceVideoUrls).length;
   const audioCount =
     (params.referenceAudio || params.referenceAudioIdentity ? 1 : 0) +
     asReferenceUrlArray(params.referenceAudioUrls).length;
