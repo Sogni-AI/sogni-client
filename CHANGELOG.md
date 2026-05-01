@@ -1,3 +1,10 @@
+# [4.2.0-alpha.9](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.8...v4.2.0-alpha.9) (2026-04-30)
+
+
+### Bug Fixes
+
+* **seedance:** omit negative prompt in example workflow ([07a0973](https://github.com/Sogni-AI/sogni-client/commit/07a0973dfebd44b082ebc3b6883fd21b1761d576))
+
 # [4.2.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.7...v4.2.0-alpha.8) (2026-04-30)
 
 
