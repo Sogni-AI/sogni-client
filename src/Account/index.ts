@@ -414,6 +414,7 @@ class AccountApi extends ApiGroup {
         tokenType: raw.tokenType,
         claimed: !!raw.claimed,
         canClaim: !!raw.canClaim,
+        cantClaimReason: raw.cantClaimReason ?? null,
         lastClaim: new Date(raw.lastClaimTimestamp * 1000),
         provider: query.provider || 'base',
         nextClaim:

@@ -1002,7 +1002,7 @@ npm install
 
 **Solution:**
 
-- Claim your daily free tokens in the app (under Rewards)
+- Claim your monthly free Spark in the app (under Rewards)
 - Purchase more Spark tokens with a credit card
 - Try a cheaper configuration (fewer frames, speed model, lower resolution)
 
