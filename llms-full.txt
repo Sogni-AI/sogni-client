@@ -55,6 +55,8 @@ REQUIREMENTS:
 
 - Node.js 18+ or modern browser
 - Sogni account with token balance (free signup at app.sogni.ai)
+- Each email-verified account is allowed 400 free Spark render credits per month. On the API,
+  free credits can be used with Z-Image Turbo; paid credits can access all models and features.
 
 ================================================================================ 2. QUICK START EXAMPLES
 ================================================================================

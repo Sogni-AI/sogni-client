@@ -82,6 +82,7 @@ console.log(urls[0]); // Video URL (valid 24 hours)
 ### Client Creation with API Key (Recommended)
 
 Get your API key: Log in to dashboard.sogni.ai and click your Username dropdown in the top-right corner.
+Each email-verified account is allowed 400 free Spark render credits per month. On the API, free credits can be used with Z-Image Turbo; paid credits can access all models and features.
 
 ```javascript
 const sogni = await SogniClient.createInstance({

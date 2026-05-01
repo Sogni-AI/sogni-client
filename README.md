@@ -53,7 +53,7 @@ yarn add @sogni-ai/sogni-client
 ## Core concepts
 
 In order to use Sogni Supernet, you need an active Sogni account with a positive SOGNI or Spark token balance. You can authenticate using either an **API key** (recommended) or **username and password**.
-You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio) which will give you tokens just for signing up and confirming your email. You can get daily bonus tokens by claiming them (under rewards) each 24-hours.
+You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio) which will give you tokens just for signing up and confirming your email. Each email-verified account is allowed 400 free Spark render credits per month. On the API, free credits can be used with Z-Image Turbo; paid credits can access all models and features.
 
 **To get your API key:** Log in to [dashboard.sogni.ai](https://dashboard.sogni.ai), click your **Username** dropdown in the top-right corner, and provision your API key.
 
