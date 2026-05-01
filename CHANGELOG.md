@@ -1,3 +1,10 @@
+# [4.2.0-alpha.10](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.9...v4.2.0-alpha.10) (2026-05-01)
+
+
+### Features
+
+* **seedance:** add guided partner video workflow ([36b8880](https://github.com/Sogni-AI/sogni-client/commit/36b8880f6fd33e3cfc7eeb0a828a2f3663c57996))
+
 # [4.2.0-alpha.9](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.8...v4.2.0-alpha.9) (2026-04-30)
 
 
