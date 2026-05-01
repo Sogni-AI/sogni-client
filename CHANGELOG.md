@@ -1,3 +1,10 @@
+# [4.2.0-alpha.11](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.10...v4.2.0-alpha.11) (2026-05-01)
+
+
+### Bug Fixes
+
+* document monthly free Spark credits ([9a89533](https://github.com/Sogni-AI/sogni-client/commit/9a89533d3c12d05eec8b2ddf61b654879fcef243))
+
 # [4.2.0-alpha.10](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.9...v4.2.0-alpha.10) (2026-05-01)
 
 
