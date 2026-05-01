@@ -49,7 +49,8 @@
     "prettier:fix": "prettier --write ./src",
     "release": "semantic-release",
     "docs": "rimraf ./docs && npx typedoc",
-    "postdocs": "node -p \"'sdk-docs.sogni.ai'\" > docs/CNAME"
+    "postdocs": "node -p \"'sdk-docs.sogni.ai'\" > docs/CNAME",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
@@ -74,8 +75,11 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
+    "husky": "^9.1.7",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
     "semantic-release": "^24.2.1",
