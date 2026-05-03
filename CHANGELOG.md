@@ -1,3 +1,10 @@
+# [4.2.0-alpha.12](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.11...v4.2.0-alpha.12) (2026-05-03)
+
+
+### Bug Fixes
+
+* align Seedance routing and estimates ([93c3315](https://github.com/Sogni-AI/sogni-client/commit/93c3315352b014ce04583bbf7342691f4b88b63f))
+
 # [4.2.0-alpha.11](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.10...v4.2.0-alpha.11) (2026-05-01)
 
 
