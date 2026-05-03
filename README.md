@@ -545,7 +545,7 @@ WAN workflows have two model variants optimized for different use cases:
 - **Speed variant** (with `_lightx2v` suffix) - Faster inference (4-step), good quality
 - **Quality variant** (without `_lightx2v`) - Slower inference, best quality
 
-LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available for text-to-video, image-to-video, multimodal reference generation, image+audio-to-video, and video-to-video. Seedance 2.0 Fast is text/image-to-video only in the public SDK selectors and caps output at 720p.
+LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available through two canonical multimodal model IDs: `seedance-2-0` and `seedance-2-0-fast`. Both accept optional image, video, and audio references; the Fast model caps output at 720p.
 
 Example model IDs:
 
@@ -560,12 +560,8 @@ Example model IDs:
 - `ltx23-22b-fp8_t2v_distilled` (LTX-2.3 Text-to-Video, fast)
 - `ltx23-22b-fp8_i2v_distilled` (LTX-2.3 Image-to-Video, fast)
 - `ltx23-22b-fp8_v2v_distilled` (LTX-2.3 Video-to-Video ControlNet, fast)
-- `seedance-2-0_t2v` (Seedance 2.0 Text-to-Video, external API)
-- `seedance-2-0_i2v` (Seedance 2.0 Image-to-Video, external API)
-- `seedance-2-0_ia2v` (Seedance 2.0 Image+Audio-to-Video, external API)
-- `seedance-2-0_v2v` (Seedance 2.0 Video-to-Video, external API)
-- `seedance-2-0-fast_t2v` (Seedance 2.0 Fast Text-to-Video, external API, 720p cap)
-- `seedance-2-0-fast_i2v` (Seedance 2.0 Fast Image-to-Video, external API, 720p cap)
+- `seedance-2-0` (Seedance 2.0 multimodal video, external API)
+- `seedance-2-0-fast` (Seedance 2.0 Fast multimodal video, external API, 720p cap)
 
 ### Video Parameters
 
@@ -584,6 +580,7 @@ When creating video projects, you can specify:
 - `referenceImageUrls` - Seedance-only loose image context URLs; combined with `referenceImage`/`referenceImageEnd`, max 9 image assets
 - `referenceVideoUrls` - Seedance-only video context URLs; combined with `referenceVideo`, max 3 video assets
 - `referenceAudioUrls` - Seedance-only audio context URLs; combined with `referenceAudio`/`referenceAudioIdentity`, max 3 audio assets
+- `hasVideoInput` - Estimate-only flag for `estimateVideoCost`; set this when estimating a canonical Seedance video-input job without passing `referenceVideo`/`referenceVideoUrls`
 
 Seedance 2.0 can combine image, video, and audio reference assets in one external API request. Reference limits are up to 9 image assets, 3 video assets, 3 audio assets, and 12 asset files total. Text+audio without at least one image or video reference is not supported by Seedance. URL-array references must be HTTPS URLs that the vendor can fetch; local multi-reference files should be uploaded first, as shown in `examples/workflow_partner_seedance_video.mjs`. In prompts and creative briefs, refer to attachments by Seedance-style tags: `@Image1`, `@Video1`, and `@Audio1`, counted independently by modality in attachment order. Assign each useful reference a role, such as product identity, motion timing, camera path, edit rhythm, background music, or speech reference. Prefer positive preservation language like "maintain the same product silhouette and logo placement from @Image1"; exact readable text, logos, lip-sync, voice cloning, and real-human-reference behavior still need review. Seedance dispatch omits negative prompts; Wan 2.2 and LTX 2.3 video models can still use `negativePrompt`.
 
@@ -611,7 +608,7 @@ Seedance 2.0 example:
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'seedance-2-0_t2v',
+  modelId: 'seedance-2-0',
   positivePrompt: 'A cinematic neon skyline time lapse, sweeping camera motion',
   duration: 5,
   fps: 24,
@@ -629,7 +626,7 @@ Seedance multimodal context example:
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'seedance-2-0_t2v',
+  modelId: 'seedance-2-0',
   positivePrompt: 'Use @Image1 as the product identity, @Image2 for detail inserts, @Video1 for camera movement, and @Audio1 for music rhythm. Create one cohesive launch spot with smooth continuity and crisp product preservation.',
   duration: 8,
   fps: 24,
@@ -940,8 +937,8 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing         | Rapid reference-based image generation                                                                       |
 | `qwen_image_edit_2511_fp8`           | **Qwen Image Edit** - High quality 20-step editing          | Professional image editing with context awareness                                                            |
 | `wan_v2.2-14b-fp8_t2v_lightx2v`      | **Wan 2.2 T2V** - Text-to-video                             | Generate videos from text prompts                                                                            |
-| `seedance-2-0_t2v`                   | **Seedance 2.0 T2V** - External API text-to-video           | Full Seedance 2.0 24fps video generation                                                                     |
-| `seedance-2-0-fast_t2v`              | **Seedance 2.0 Fast T2V** - 720p external API text-to-video | Faster 24fps video generation where fast tiers are enabled                                                   |
+| `seedance-2-0`                       | **Seedance 2.0** - External API multimodal video            | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
+| `seedance-2-0-fast`                  | **Seedance 2.0 Fast** - 720p external API video             | Faster 24fps video generation where fast tiers are enabled                                                   |
 | `qwen3.6-35b-a3b-gguf-iq4xs`         | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision       | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
 
 All workflow examples include:

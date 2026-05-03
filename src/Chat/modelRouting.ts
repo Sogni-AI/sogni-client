@@ -85,12 +85,12 @@ export const PREFERRED_MODEL_IDS = {
     ia2v: 'ltx23-22b-fp8_ia2v_distilled',
     s2v: 'wan_v2.2-14b-fp8_s2v_lightx2v',
     v2v: 'ltx23-22b-fp8_v2v_distilled',
-    seedanceT2v: 'seedance-2-0_t2v',
-    seedanceI2v: 'seedance-2-0_i2v',
-    seedanceIa2v: 'seedance-2-0_ia2v',
-    seedanceFastT2v: 'seedance-2-0-fast_t2v',
-    seedanceFastI2v: 'seedance-2-0-fast_i2v',
-    seedanceV2v: 'seedance-2-0_v2v',
+    seedanceT2v: 'seedance-2-0',
+    seedanceI2v: 'seedance-2-0',
+    seedanceIa2v: 'seedance-2-0',
+    seedanceFastT2v: 'seedance-2-0-fast',
+    seedanceFastI2v: 'seedance-2-0-fast',
+    seedanceV2v: 'seedance-2-0',
     animateMove: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
@@ -452,6 +452,16 @@ export function isEditImageModel(modelId: string): boolean {
   );
 }
 
+const SEEDANCE_CANONICAL_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'ia2v', 'v2v'];
+
+function getCompatibleVideoWorkflows(modelId: string): VideoWorkflow[] {
+  if (modelId === 'seedance-2-0' || modelId === 'seedance-2-0-fast') {
+    return SEEDANCE_CANONICAL_WORKFLOWS;
+  }
+  const workflow = getVideoWorkflowType(modelId);
+  return workflow ? [workflow] : [];
+}
+
 export function filterVideoModelsByWorkflow(
   availableModels: Array<{ id: string; media?: string }>,
   workflows: VideoWorkflow[]
@@ -459,8 +469,8 @@ export function filterVideoModelsByWorkflow(
   return availableModels
     .filter((model) => model.media === 'video')
     .filter((model) => {
-      const workflow = getVideoWorkflowType(model.id);
-      return workflow !== null && workflows.includes(workflow);
+      const compatibleWorkflows = getCompatibleVideoWorkflows(model.id);
+      return compatibleWorkflows.some((workflow) => workflows.includes(workflow));
     })
     .map((model) => model.id);
 }
@@ -505,8 +515,8 @@ export function selectBackboneModel(
       return false;
     }
     if (options.workflows) {
-      const workflow = getVideoWorkflowType(model.id);
-      return workflow !== null && options.workflows.includes(workflow);
+      const compatibleWorkflows = getCompatibleVideoWorkflows(model.id);
+      return compatibleWorkflows.some((workflow) => options.workflows?.includes(workflow));
     }
     return true;
   });

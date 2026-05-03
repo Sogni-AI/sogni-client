@@ -289,7 +289,7 @@
               "description": "Audio-driven video model to use. seedance2 uses the Seedance audio-reference path and this hosted tool requires reference_image_url because Seedance text+audio without image/video is unsupported.",
               "enum": [
                 "seedance2",
-                "seedance-2-0_ia2v",
+                "seedance-2-0",
                 "ltx23-22b-fp8_ia2v_distilled",
                 "ltx23-22b-fp8_a2v_distilled",
                 "wan_v2.2-14b-fp8_s2v_lightx2v"
@@ -413,7 +413,7 @@
                 "ltx23-v2v",
                 "seedance2",
                 "ltx23-22b-fp8_v2v_distilled",
-                "seedance-2-0_v2v",
+                "seedance-2-0",
                 "wan_v2.2-14b-fp8_animate-move_lightx2v",
                 "wan_v2.2-14b-fp8_animate-replace_lightx2v"
               ]

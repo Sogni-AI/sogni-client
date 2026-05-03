@@ -556,7 +556,7 @@ LTX VIDEO PARAMETERS:
 
 Seedance 2.0 models use the external API path. They generate at fixed 24fps and
 currently support 4-15 second direct SDK outputs. Seedance models are premium/external API models.
-Seedance 2.0 Fast is text/image-to-video only and caps output at 720p.
+Seedance 2.0 Fast accepts the same optional image, video, and audio references and caps output at 720p.
 Seedance can combine reference media in one request: up to 9 image assets, 3 video
 assets, 3 audio assets, and 12 total assets. Text+audio-only is unsupported; use at
 least one image or video reference with audio references. Prompt-visible reference
@@ -566,14 +566,10 @@ preservation constraints. Exact readable text/logos, lip-sync, voice cloning, an
 real-human-reference behavior need review.
 
 SEEDANCE MODEL IDS:
-| Workflow | Model ID | Required Assets | Notes |
-|----------|----------|-----------------|-------|
-| Text-to-Video | seedance-2-0_t2v | None | 24fps, 4-15s |
-| Image-to-Video | seedance-2-0_i2v | referenceImage | 24fps, 4-15s |
-| Image+Audio-to-Video | seedance-2-0_ia2v | referenceImage + referenceAudio | 24fps, 4-15s |
-| Video-to-Video | seedance-2-0_v2v | referenceVideo | 24fps, 4-15s |
-| Text-to-Video Fast | seedance-2-0-fast_t2v | None | 24fps, 4-15s, 720p cap |
-| Image-to-Video Fast | seedance-2-0-fast_i2v | referenceImage | 24fps, 4-15s, 720p cap |
+| Model ID | Context Assets | Notes |
+|----------|----------------|-------|
+| seedance-2-0 | Optional image, video, and audio refs | 24fps, 4-15s, 1080p |
+| seedance-2-0-fast | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
 
 SEEDANCE TEXT-TO-VIDEO:
 
@@ -581,7 +577,7 @@ SEEDANCE TEXT-TO-VIDEO:
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'seedance-2-0_t2v',
+  modelId: 'seedance-2-0',
   positivePrompt: 'A cinematic neon skyline time lapse',
   numberOfMedia: 1,
   duration: 5,
@@ -604,7 +600,7 @@ consistent.`
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'seedance-2-0_t2v',
+  modelId: 'seedance-2-0',
   positivePrompt: 'Use @Image1 as the product identity, @Image2 for detail inserts, @Video1 for camera movement, and @Audio1 for music rhythm. Create one cohesive launch spot with smooth continuity and crisp product preservation.',
   duration: 8,
   fps: 24,
@@ -625,7 +621,7 @@ SEEDANCE IMAGE-TO-VIDEO:
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'seedance-2-0_i2v',
+  modelId: 'seedance-2-0',
   positivePrompt: 'slow push-in, soft parallax, cinematic lighting',
   referenceImage: fs.readFileSync('./subject.jpg'),
   duration: 5,
@@ -639,7 +635,7 @@ SEEDANCE VIDEO-TO-VIDEO:
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'seedance-2-0_v2v',
+  modelId: 'seedance-2-0',
   positivePrompt: 'Restyle this clip as a painted anime scene',
   referenceVideo: fs.readFileSync('./source.mp4'),
   duration: 5,
@@ -974,7 +970,7 @@ DEFAULT GENERATION MODELS (used by platform tools):
 | `sogni_edit_image` | workflow/model-dependent | Reference-guided image editing with edit-capable Qwen/Flux models |
 | `sogni_generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
 | `sogni_sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
-| `sogni_video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0_v2v / WAN animate models | Video transformation / motion transfer |
+| `sogni_video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
 | `sogni_generate_music` | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music generation |
 
 PLATFORM TOOL WORKFLOW:

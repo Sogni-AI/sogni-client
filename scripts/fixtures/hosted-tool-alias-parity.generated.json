@@ -158,7 +158,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_sound_to_video",
       "sdkToolName": "sogni_sound_to_video",
-      "hostedSchemaSha256": "e225d986d23a9f4ea60abcc4fc059036e263034a8238dc7729574fd577c7a427",
+      "hostedSchemaSha256": "28e5c0940921bc3b81136bb538904eb20ccde861aecec16811e1bfa3c6e84f12",
       "hostedRequired": ["prompt", "reference_audio_url"],
       "hostedPropertyNames": [
         "prompt",
@@ -193,7 +193,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_video_to_video",
       "sdkToolName": "sogni_video_to_video",
-      "hostedSchemaSha256": "57e14eb17850864455c731d4ee4ef9116dbb5705f6f19544a7ec1dcbc9a4fd96",
+      "hostedSchemaSha256": "365a52a205dee5f4d38c9a540fe63511299dfa418ee91f4e6f2df130dae620e5",
       "hostedRequired": ["prompt", "reference_video_url"],
       "hostedPropertyNames": [
         "prompt",

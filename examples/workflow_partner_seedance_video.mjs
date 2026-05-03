@@ -39,18 +39,18 @@ const DEFAULT_PROMPT =
 
 const SEEDANCE_MODELS = {
   t2v: {
-    seedance2: { id: 'seedance-2-0_t2v', name: 'Seedance 2.0 T2V' },
-    'seedance2-fast': { id: 'seedance-2-0-fast_t2v', name: 'Seedance 2.0 Fast T2V' }
+    seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
+    'seedance2-fast': { id: 'seedance-2-0-fast', name: 'Seedance 2.0 Fast' }
   },
   i2v: {
-    seedance2: { id: 'seedance-2-0_i2v', name: 'Seedance 2.0 I2V' },
-    'seedance2-fast': { id: 'seedance-2-0-fast_i2v', name: 'Seedance 2.0 Fast I2V' }
+    seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
+    'seedance2-fast': { id: 'seedance-2-0-fast', name: 'Seedance 2.0 Fast' }
   },
   ia2v: {
-    seedance2: { id: 'seedance-2-0_ia2v', name: 'Seedance 2.0 Image+Audio' }
+    seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' }
   },
   v2v: {
-    seedance2: { id: 'seedance-2-0_v2v', name: 'Seedance 2.0 V2V' }
+    seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' }
   }
 };
 
@@ -786,10 +786,7 @@ Modes:
   v2v   Video-to-video through hosted workflow; inferred from --video
 
 Seedance models:
-  seedance-2-0_t2v        seedance-2-0-fast_t2v
-  seedance-2-0_i2v        seedance-2-0-fast_i2v
-  seedance-2-0_ia2v
-  seedance-2-0_v2v
+  seedance-2-0            seedance-2-0-fast
 
 Options:
   --interactive           Run the guided Seedance workflow setup

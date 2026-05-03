@@ -1067,6 +1067,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - frames: The total number of frames in the video.
    *   - fps: The frames per second for the video.
    *   - steps: Number of steps.
+   *   - hasVideoInput: Whether to price a Seedance estimate with video input.
    * @return {Promise<Object>} Returns an object containing the estimated costs for the video in different units:
    *   - token: Cost in tokens.
    *   - usd: Cost in USD.
@@ -1094,8 +1095,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       pathParams.push(numberOfMedia);
     }
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
+    const query = new URLSearchParams();
+    const hasVideoInput =
+      params.hasVideoInput === true ||
+      Boolean(params.referenceVideo) ||
+      (Array.isArray(params.referenceVideoUrls) && params.referenceVideoUrls.length > 0);
+    if (hasVideoInput) {
+      query.set('hasVideoInput', '1');
+    }
+    const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v1/job-video/estimate/${path}`
+      `/api/v1/job-video/estimate/${path}${queryString ? `?${queryString}` : ''}`
     );
     return {
       token: r.quote.project.costInToken,

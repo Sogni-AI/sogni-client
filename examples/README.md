@@ -290,8 +290,8 @@ The workflow examples showcase these powerful new models:
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning    | Image Edit   | Fast 4-step reference-based generation                                             |
 | `qwen_image_edit_2511_fp8`           | Qwen Image Edit   | Image Edit   | High-quality 20-step image editing with context                                    |
 | `flux2_dev_fp8`                      | Flux.2 Dev        | Image        | Professional quality with context image support                                    |
-| `seedance-2-0_t2v`                   | Seedance 2.0      | Video        | External API text-to-video at 24fps                                                |
-| `seedance-2-0-fast_t2v`              | Seedance 2.0 Fast | Video        | 720p-capped external API text-to-video at 24fps                                    |
+| `seedance-2-0`                       | Seedance 2.0      | Video        | External API multimodal video at 24fps                                             |
+| `seedance-2-0-fast`                  | Seedance 2.0 Fast | Video        | 720p-capped external API multimodal video at 24fps                                 |
 | `qwen3.6-35b-a3b-gguf-iq4xs`         | Qwen3.6 35B       | LLM + Vision | Text generation, chat, reasoning, tool calling, and multimodal image understanding |
 
 **Try them out:**

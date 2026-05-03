@@ -267,20 +267,16 @@ IMPORTANT: ControlNet (canny/pose/depth/detailer) requires a `_v2v` model, NOT `
 
 Seedance models are external API-backed video models. They generate at fixed 24fps and currently support 4-15 second direct SDK outputs.
 
-| Workflow             | Model ID                | Required Assets                    |
-| -------------------- | ----------------------- | ---------------------------------- |
-| Text-to-Video        | `seedance-2-0_t2v`      | None                               |
-| Image-to-Video       | `seedance-2-0_i2v`      | `referenceImage`                   |
-| Image+Audio-to-Video | `seedance-2-0_ia2v`     | `referenceImage`, `referenceAudio` |
-| Video-to-Video       | `seedance-2-0_v2v`      | `referenceVideo`                   |
-| Text-to-Video Fast   | `seedance-2-0-fast_t2v` | None                               |
-| Image-to-Video Fast  | `seedance-2-0-fast_i2v` | `referenceImage`                   |
+| Model ID              | Context Assets                         | Notes                |
+| --------------------- | -------------------------------------- | -------------------- |
+| `seedance-2-0`        | Optional image, video, and audio refs  | 24fps, 4-15s, 1080p  |
+| `seedance-2-0-fast`   | Optional image, video, and audio refs  | 24fps, 4-15s, 720p   |
 
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'seedance-2-0_t2v',
+  modelId: 'seedance-2-0',
   positivePrompt: 'A cinematic neon skyline time lapse',
   duration: 5,
   fps: 24,
@@ -290,7 +286,7 @@ const project = await sogni.projects.create({
 });
 ```
 
-Aliases used by chat tools and examples: `seedance2` and `seedance2-fast`. V2V uses `seedance2` as the model selector and `seedance-v2v` as the control mode. Seedance Fast is text/image-to-video only and caps at 720p. See `workflow_seedance_endpoint.mjs` for `/v1/chat/completions` endpoint coverage across Seedance T2V/I2V/IA2V/V2V prompt expansion.
+Aliases used by chat tools and examples: `seedance2` and `seedance2-fast`. V2V uses `seedance2` as the model selector and `seedance-v2v` as the control mode. Seedance Fast accepts optional image, video, and audio references and caps at 720p. See `workflow_seedance_endpoint.mjs` for `/v1/chat/completions` endpoint coverage across Seedance T2V/I2V/IA2V/V2V prompt expansion.
 
 ---
 
@@ -489,7 +485,7 @@ Default generation models used by platform tools:
 | `sogni_edit_image` | workflow/model-dependent | Reference-guided image editing with edit-capable Qwen/Flux models |
 | `sogni_generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
 | `sogni_sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
-| `sogni_video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0_v2v / WAN animate models | Video transformation / motion transfer |
+| `sogni_video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
 | `sogni_generate_music` | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music |
 
 ---

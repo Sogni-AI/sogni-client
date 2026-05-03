@@ -578,6 +578,18 @@ export interface VideoEstimateRequest {
   fps: number;
   steps?: number;
   numberOfMedia: number;
+  /**
+   * Price Seedance estimates using the video-input rate band.
+   */
+  hasVideoInput?: boolean;
+  /**
+   * Optional estimate-only signal: presence implies Seedance video-input pricing.
+   */
+  referenceVideo?: unknown;
+  /**
+   * Optional estimate-only signal: non-empty list implies Seedance video-input pricing.
+   */
+  referenceVideoUrls?: string[];
 }
 
 export interface AudioEstimateRequest {
