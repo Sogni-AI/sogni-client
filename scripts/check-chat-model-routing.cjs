@@ -226,6 +226,14 @@ assert.equal(
   PREFERRED_MODEL_IDS.image.flux2
 );
 assert.equal(
+  resolveHostedToolModelSelector('sogni_generate_image', { model: 'GPT-2' }),
+  PREFERRED_MODEL_IDS.image.gptImage2
+);
+assert.equal(
+  resolveHostedToolModelSelector('sogni_generate_image', { model: 'OpenAI' }),
+  PREFERRED_MODEL_IDS.image.gptImage2
+);
+assert.equal(
   resolveHostedToolModelSelector('sogni_generate_image', { model: 'future_live_model' }),
   'future_live_model'
 );
@@ -284,7 +292,9 @@ assert.deepEqual(
   validateHostedToolArguments(SogniTools.all, 'sogni_generate_image', {
     prompt: 'cat',
     width: 1024,
-    model: 'future_live_model'
+    model: 'future_live_model',
+    gpt_image_quality: 'high',
+    output_format: 'webp'
   }),
   { ok: true, errors: [] }
 );

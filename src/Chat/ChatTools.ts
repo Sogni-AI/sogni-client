@@ -270,6 +270,10 @@ class ChatToolsApi {
     }
     if (args.steps !== undefined) projectParams.steps = args.steps;
     if (args.seed !== undefined) projectParams.seed = args.seed;
+    const gptImageQuality = args.gpt_image_quality ?? args.gptImageQuality;
+    if (gptImageQuality) projectParams.gptImageQuality = gptImageQuality;
+    const outputFormat = args.output_format ?? args.outputFormat;
+    if (outputFormat) projectParams.outputFormat = outputFormat === 'jpeg' ? 'jpg' : outputFormat;
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;
 

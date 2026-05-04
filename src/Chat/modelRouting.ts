@@ -101,10 +101,34 @@ export const PREFERRED_MODEL_IDS = {
   }
 } as const;
 
+const GPT_IMAGE_MODEL_ALIASES = [
+  'chatgpt',
+  'chatgpt-image',
+  'chat-gpt',
+  'chat-gpt-image',
+  'openai',
+  'openai-image',
+  'open-ai',
+  'open-ai-image',
+  'gpt',
+  'gpt-image',
+  'gpt2',
+  'gpt-2',
+  'gpt2-image',
+  'gpt-2-image',
+  'gptimage2',
+  'gpt-image2',
+  'gpt-image-2'
+];
+
+function normalizeSelectorKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[_\s]+/g, '-');
+}
+
 const IMAGE_MODEL_SELECTORS: Record<string, string> = {
-  'gpt-image-2': PREFERRED_MODEL_IDS.image.gptImage2,
-  gptimage2: PREFERRED_MODEL_IDS.image.gptImage2,
-  'gpt-image': PREFERRED_MODEL_IDS.image.gptImage2,
+  ...Object.fromEntries(
+    GPT_IMAGE_MODEL_ALIASES.map((alias) => [alias, PREFERRED_MODEL_IDS.image.gptImage2])
+  ),
   'z-turbo': 'z_image_turbo_bf16',
   'z-image': 'z_image_bf16',
   'chroma-v46-flash': 'chroma-v.46-flash_fp8',
@@ -264,7 +288,7 @@ export function resolveHostedToolModelSelector(
       return requestedModel;
   }
 
-  return selectors[requestedModel] ?? requestedModel;
+  return selectors[requestedModel] ?? selectors[normalizeSelectorKey(requestedModel)] ?? requestedModel;
 }
 
 function matchesType(value: unknown, type: string): boolean {

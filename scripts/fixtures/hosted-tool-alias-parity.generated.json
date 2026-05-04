@@ -13,7 +13,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_generate_image",
       "sdkToolName": "sogni_generate_image",
-      "hostedSchemaSha256": "c5e71d2913498b9d8c0c38a4ab2e1c59402f63038db31a1230c7f2f80c6f7742",
+      "hostedSchemaSha256": "c77b812eaa66c8d145f302c6aa1fb4dc5b09a1e95ddd347bcdcf8a5c0e9a2b9f",
       "hostedRequired": ["prompt"],
       "hostedPropertyNames": [
         "prompt",
@@ -21,6 +21,8 @@
         "width",
         "height",
         "model",
+        "gpt_image_quality",
+        "output_format",
         "number_of_variations",
         "steps",
         "seed"
@@ -30,6 +32,8 @@
         "negative_prompt",
         "number_of_variations",
         "model",
+        "gpt_image_quality",
+        "output_format",
         "width",
         "height",
         "seed"
