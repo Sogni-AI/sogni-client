@@ -28,8 +28,9 @@
             },
             "model": {
               "type": "string",
-              "description": "Image generation model to use.",
+              "description": "Image generation model to use. Use gpt-image-2 only when the user explicitly requests GPT Image/OpenAI image generation or strong text rendering.",
               "enum": [
+                "gpt-image-2",
                 "flux1-schnell-fp8",
                 "flux2_dev_fp8",
                 "chroma-v.46-flash_fp8",

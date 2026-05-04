@@ -367,6 +367,12 @@ function applyImageParams(
     keyFrame.width = validateCustomImageSize(params.width);
     keyFrame.height = validateCustomImageSize(params.height);
   }
+  if (params.gptImageQuality !== undefined) {
+    keyFrame.gptImageQuality = params.gptImageQuality;
+  }
+  if (params.gptImageBackground !== undefined) {
+    keyFrame.gptImageBackground = params.gptImageBackground;
+  }
   return keyFrame;
 }
 

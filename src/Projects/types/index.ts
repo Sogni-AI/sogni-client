@@ -32,7 +32,9 @@ export interface SizePreset {
   aspect: string;
 }
 
-export type ImageOutputFormat = 'png' | 'jpg';
+export type ImageOutputFormat = 'png' | 'jpg' | 'webp';
+export type GptImageQuality = 'low' | 'medium' | 'high' | 'standard' | 'hd';
+export type GptImageBackground = 'opaque' | 'auto';
 export type VideoOutputFormat = 'mp4';
 export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
 
@@ -375,6 +377,15 @@ export interface ImageProjectParams extends BaseProjectParams {
    * Output format. Can be 'png' or 'jpg'. Defaults to 'png'.
    */
   outputFormat?: ImageOutputFormat;
+  /**
+   * GPT Image 2 quality preset. Only used by external OpenAI image models.
+   * Defaults to 'medium'.
+   */
+  gptImageQuality?: GptImageQuality;
+  /**
+   * GPT Image 2 background mode. Only used by external OpenAI image models.
+   */
+  gptImageBackground?: GptImageBackground;
 }
 
 export interface AudioProjectParams extends BaseProjectParams {
@@ -562,6 +573,14 @@ export interface EstimateRequest {
    * Note that this parameter is ignored if `scheduler` is not provided
    */
   contextImages?: number;
+  /**
+   * GPT Image 2 quality preset, when estimating external OpenAI image jobs.
+   */
+  gptImageQuality?: GptImageQuality;
+  /**
+   * Output format, when estimating models with format-specific request metadata.
+   */
+  outputFormat?: ImageOutputFormat;
 }
 
 export interface VideoEstimateRequest {

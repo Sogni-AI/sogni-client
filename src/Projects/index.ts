@@ -995,7 +995,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     sizePreset,
     guidance,
     sampler,
-    contextImages
+    contextImages,
+    gptImageQuality,
+    outputFormat
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const modelOptions = await this.getModelOptions(model);
@@ -1027,8 +1029,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       pathParams.push(validateSampler(sampler, modelOptions)!);
       pathParams.push(contextImages || 0);
     }
+    const queryParams = new URLSearchParams();
+    if (gptImageQuality) queryParams.set('gptImageQuality', gptImageQuality);
+    if (outputFormat) queryParams.set('outputFormat', outputFormat);
+    const query = queryParams.toString();
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}`
+      `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}${query ? `?${query}` : ''}`
     );
     return {
       token: r.quote.project.costInToken,

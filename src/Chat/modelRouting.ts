@@ -73,6 +73,7 @@ export interface ValidateHostedToolArgumentsOptions {
 
 export const PREFERRED_MODEL_IDS = {
   image: {
+    gptImage2: 'gpt-image-2',
     flux1Schnell: 'flux1-schnell-fp8',
     flux2: 'flux2_dev_fp8',
     chromaFlash: 'chroma-v.46-flash_fp8',
@@ -101,6 +102,9 @@ export const PREFERRED_MODEL_IDS = {
 } as const;
 
 const IMAGE_MODEL_SELECTORS: Record<string, string> = {
+  'gpt-image-2': PREFERRED_MODEL_IDS.image.gptImage2,
+  gptimage2: PREFERRED_MODEL_IDS.image.gptImage2,
+  'gpt-image': PREFERRED_MODEL_IDS.image.gptImage2,
   'z-turbo': 'z_image_turbo_bf16',
   'z-image': 'z_image_bf16',
   'chroma-v46-flash': 'chroma-v.46-flash_fp8',
