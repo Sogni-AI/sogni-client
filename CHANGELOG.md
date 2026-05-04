@@ -1,3 +1,10 @@
+# [4.2.0-alpha.15](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.14...v4.2.0-alpha.15) (2026-05-04)
+
+
+### Bug Fixes
+
+* update gpt-image-2 hosted tool guidance ([e346969](https://github.com/Sogni-AI/sogni-client/commit/e346969d8898d5a78ffd026bb0f2839a68366428))
+
 # [4.2.0-alpha.14](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.13...v4.2.0-alpha.14) (2026-05-04)
 
 
