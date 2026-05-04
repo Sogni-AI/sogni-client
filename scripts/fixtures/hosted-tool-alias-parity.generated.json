@@ -13,7 +13,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_generate_image",
       "sdkToolName": "sogni_generate_image",
-      "hostedSchemaSha256": "c77b812eaa66c8d145f302c6aa1fb4dc5b09a1e95ddd347bcdcf8a5c0e9a2b9f",
+      "hostedSchemaSha256": "d8bf2ce50b2bc8674184edc83e9ca48eaf23f24777c61ae344913f3fc8406b34",
       "hostedRequired": ["prompt"],
       "hostedPropertyNames": [
         "prompt",
@@ -45,7 +45,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_edit_image",
       "sdkToolName": "sogni_edit_image",
-      "hostedSchemaSha256": "426e2ff1c28f221f6af674eac745b504da0332a06db51c8c034af8b4993c848b",
+      "hostedSchemaSha256": "21f31a41f7bb0dc4208ccd148de72f8ff84f22f87cf68eb1c2858b1977afead5",
       "hostedRequired": ["prompt"],
       "hostedPropertyNames": [
         "prompt",

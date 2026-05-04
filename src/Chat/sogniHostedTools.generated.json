@@ -28,7 +28,7 @@
             },
             "model": {
               "type": "string",
-              "description": "Image generation model to use. Use gpt-image-2 when the user asks for a ChatGPT, OpenAI, GPT, GPT-2, GPT Image, or gpt-image-2 image/model, or when they explicitly request strong text rendering.",
+              "description": "Image generation model to use. Use gpt-image-2 when the user asks for a ChatGPT, OpenAI, GPT, GPT-2, GPT Image, or gpt-image-2 image/model, when they explicitly request strong text rendering, or by default for complex single-image renders that need dense labels, crisp typography, multi-panel composition, timing notes, foley notes, or professional storyboard-sheet layout. If the user names another image model, honor that requested model instead.",
               "enum": [
                 "gpt-image-2",
                 "flux1-schnell-fp8",
@@ -101,7 +101,7 @@
             },
             "model": {
               "type": "string",
-              "description": "Image editing model to use. Use gpt-image-2 when the user asks for a ChatGPT, OpenAI, GPT, GPT-2, GPT Image, or gpt-image-2 reference-guided image/edit/model. GPT Image 2 always processes input images at high fidelity; do not set input_fidelity.",
+              "description": "Image editing model to use. Use gpt-image-2 when the user asks for a ChatGPT, OpenAI, GPT, GPT-2, GPT Image, or gpt-image-2 reference-guided image/edit/model, or by default for complex reference-guided single-image renders that need dense labels, crisp typography, multi-panel composition, timing notes, foley notes, or professional storyboard-sheet layout. If the user names another edit/image model, honor that requested model instead. GPT Image 2 always processes input images at high fidelity; do not set input_fidelity.",
               "enum": [
                 "gpt-image-2",
                 "qwen_image_edit_2511_fp8_lightning",
