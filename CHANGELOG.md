@@ -1,3 +1,10 @@
+# [4.2.0-alpha.14](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.13...v4.2.0-alpha.14) (2026-05-04)
+
+
+### Features
+
+* **chat:** update creative workflow client metadata ([bda4a28](https://github.com/Sogni-AI/sogni-client/commit/bda4a28a78dcce41c4bf0fd796767019f8d69ce8))
+
 # [4.2.0-alpha.13](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.12...v4.2.0-alpha.13) (2026-05-04)
 
 
