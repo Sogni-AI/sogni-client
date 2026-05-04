@@ -15,6 +15,7 @@ const PING_INTERVAL = 15000;
 
 class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketClient {
   appId: string;
+  appSource?: string;
   baseUrl: string;
   private socket: WebSocket | null = null;
   private _supernetType: SupernetType;
@@ -25,7 +26,8 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     auth: AuthManager,
     appId: string,
     supernetType: SupernetType,
-    logger: Logger
+    logger: Logger,
+    appSource?: string
   ) {
     const _baseUrl = new URL(baseUrl);
     switch (_baseUrl.protocol) {
@@ -42,6 +44,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     }
     super(_baseUrl.toString(), auth, logger);
     this.appId = appId;
+    this.appSource = appSource?.trim() || undefined;
     this.baseUrl = _baseUrl.toString();
     this._supernetType = supernetType;
   }
@@ -63,6 +66,9 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     const isNotSecure = url.protocol === 'http:' || url.protocol === 'ws:';
     url.protocol = isNotSecure ? 'ws:' : 'wss:';
     url.searchParams.set('appId', this.appId);
+    if (this.appSource) {
+      url.searchParams.set('appSource', this.appSource);
+    }
     url.searchParams.set('clientName', userAgent);
     url.searchParams.set('clientType', 'artist');
     //At this point 'relaxed' does not work as expected, so we use 'fast' or empty

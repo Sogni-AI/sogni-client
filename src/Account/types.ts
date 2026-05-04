@@ -11,6 +11,11 @@ export interface AccountCreateParams {
   subscribe: boolean;
   turnstileToken: string;
   referralCode?: string;
+  /**
+   * Optional client app/source label for signup attribution. Defaults to the
+   * SogniClient connection appSource when configured.
+   */
+  appSource?: string;
 }
 
 export interface AccountCreateData {

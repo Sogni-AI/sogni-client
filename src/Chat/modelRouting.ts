@@ -122,7 +122,10 @@ const GPT_IMAGE_MODEL_ALIASES = [
 ];
 
 function normalizeSelectorKey(value: string): string {
-  return value.trim().toLowerCase().replace(/[_\s]+/g, '-');
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, '-');
 }
 
 const IMAGE_MODEL_SELECTORS: Record<string, string> = {
@@ -153,6 +156,9 @@ const IMAGE_MODEL_SELECTORS: Record<string, string> = {
 };
 
 const EDIT_IMAGE_MODEL_SELECTORS: Record<string, string> = {
+  ...Object.fromEntries(
+    GPT_IMAGE_MODEL_ALIASES.map((alias) => [alias, PREFERRED_MODEL_IDS.image.gptImage2])
+  ),
   'qwen-lightning': 'qwen_image_edit_2511_fp8_lightning',
   qwen: 'qwen_image_edit_2511_fp8',
   flux2: PREFERRED_MODEL_IDS.image.flux2
@@ -288,7 +294,9 @@ export function resolveHostedToolModelSelector(
       return requestedModel;
   }
 
-  return selectors[requestedModel] ?? selectors[normalizeSelectorKey(requestedModel)] ?? requestedModel;
+  return (
+    selectors[requestedModel] ?? selectors[normalizeSelectorKey(requestedModel)] ?? requestedModel
+  );
 }
 
 function matchesType(value: unknown, type: string): boolean {
@@ -474,6 +482,7 @@ export function serializeUnknownError(error: unknown, fallback = 'Unknown error'
 
 export function isEditImageModel(modelId: string): boolean {
   return (
+    modelId === PREFERRED_MODEL_IDS.image.gptImage2 ||
     modelId.startsWith('qwen_image_edit_') ||
     modelId.startsWith('flux2_') ||
     modelId.includes('kontext')

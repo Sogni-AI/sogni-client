@@ -184,6 +184,11 @@ export interface SogniClientConfig {
    */
   appId: string;
   /**
+   * Optional client app/source label to attach to this connection for server-side attribution.
+   * The socket server uses this as the default source for project and chat requests from this client.
+   */
+  appSource?: string;
+  /**
    * Override the default REST API endpoint
    * @internal
    */
@@ -333,6 +338,7 @@ export class SogniClient {
       baseUrl: restEndpoint,
       socketUrl: socketEndpoint,
       appId: config.appId,
+      appSource: config.appSource,
       networkType: network,
       logger,
       authType,

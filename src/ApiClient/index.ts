@@ -41,6 +41,7 @@ export interface ApiClientOptions {
   baseUrl: string;
   socketUrl: string;
   appId: string;
+  appSource?: string;
   networkType: SupernetType;
   logger: Logger;
   authType: 'token' | 'cookies' | 'apiKey';
@@ -50,6 +51,7 @@ export interface ApiClientOptions {
 
 class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   readonly appId: string;
+  readonly appSource?: string;
   readonly logger: Logger;
   private _rest: RestClient;
   private _socket: IWebSocketClient;
@@ -61,6 +63,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     baseUrl,
     socketUrl,
     appId,
+    appSource,
     networkType,
     authType,
     logger,
@@ -69,6 +72,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }: ApiClientOptions) {
     super();
     this.appId = appId;
+    this.appSource = appSource?.trim() || undefined;
     this.logger = logger;
     if (authType === 'apiKey') {
       this._auth = new ApiKeyAuthManager(logger);
@@ -81,9 +85,23 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     const supportMultiInstance = !isNodejs && this._auth instanceof CookieAuthManager;
     if (supportMultiInstance && multiInstance) {
       // Use coordinated WebSocket client to share single connection between tabs
-      this._socket = new BrowserWebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+      this._socket = new BrowserWebSocketClient(
+        socketUrl,
+        this._auth,
+        appId,
+        networkType,
+        logger,
+        this.appSource
+      );
     } else {
-      this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+      this._socket = new WebSocketClient(
+        socketUrl,
+        this._auth,
+        appId,
+        networkType,
+        logger,
+        this.appSource
+      );
     }
     this._disableSocket = disableSocket;
     this._auth.on('updated', this.handleAuthUpdated.bind(this));

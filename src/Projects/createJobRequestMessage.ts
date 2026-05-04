@@ -327,13 +327,11 @@ function applyImageParams(
   const keyFrame: Record<string, any> = {
     ...inputKeyframe,
     sizePreset: params.sizePreset,
-    hasContextImage1: !!params.contextImages?.[0],
-    hasContextImage2: !!params.contextImages?.[1],
-    hasContextImage3: !!params.contextImages?.[2],
-    hasContextImage4: !!params.contextImages?.[3],
-    hasContextImage5: !!params.contextImages?.[4],
-    hasContextImage6: !!params.contextImages?.[5]
   };
+  const contextImages = params.contextImages || [];
+  for (let index = 1; index <= 16; index += 1) {
+    keyFrame[`hasContextImage${index}`] = !!contextImages[index - 1];
+  }
   // Sampler/scheduler handling: SDK validates and passes through as-is.
   // sogni-socket normalizes values for both ComfyUI and Forge workers.
   if (isComfyModel(params.modelId)) {
@@ -364,8 +362,14 @@ function applyImageParams(
   keyFrame.sizePreset = effectiveSizePreset;
 
   if (effectiveSizePreset === 'custom' && params.width && params.height) {
-    keyFrame.width = validateCustomImageSize(params.width);
-    keyFrame.height = validateCustomImageSize(params.height);
+    keyFrame.width = validateCustomImageSize(params.width, {
+      modelId: params.modelId,
+      propertyName: 'Width'
+    });
+    keyFrame.height = validateCustomImageSize(params.height, {
+      modelId: params.modelId,
+      propertyName: 'Height'
+    });
   }
   if (params.gptImageQuality !== undefined) {
     keyFrame.gptImageQuality = params.gptImageQuality;

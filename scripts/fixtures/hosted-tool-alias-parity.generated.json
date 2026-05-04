@@ -45,7 +45,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_edit_image",
       "sdkToolName": "sogni_edit_image",
-      "hostedSchemaSha256": "a834ff18a3a736a5e35f24f30c54f014d52cd6e512eb26c3e0b9f343dcada107",
+      "hostedSchemaSha256": "426e2ff1c28f221f6af674eac745b504da0332a06db51c8c034af8b4993c848b",
       "hostedRequired": ["prompt"],
       "hostedPropertyNames": [
         "prompt",
@@ -55,6 +55,8 @@
         "width",
         "height",
         "model",
+        "gpt_image_quality",
+        "output_format",
         "number_of_variations",
         "seed"
       ],
@@ -63,6 +65,8 @@
         "negative_prompt",
         "number_of_variations",
         "model",
+        "gpt_image_quality",
+        "output_format",
         "width",
         "height",
         "seed"

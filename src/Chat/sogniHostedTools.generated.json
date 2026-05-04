@@ -68,7 +68,7 @@
       "type": "function",
       "function": {
         "name": "sogni_edit_image",
-        "description": "Generate an edited or reference-guided image using 1-6 input images on the Sogni Supernet. Returns URLs to the generated images. Use this tool when the user wants to edit an existing image, preserve a person's likeness, combine multiple references, or transform a source image while keeping key visual traits.",
+        "description": "Generate an edited or reference-guided image using 1-16 input images on the Sogni Supernet. Returns URLs to the generated images. Use this tool when the user wants to edit an existing image, preserve a person's likeness, combine multiple references, or transform a source image while keeping key visual traits.",
         "parameters": {
           "type": "object",
           "properties": {
@@ -82,7 +82,7 @@
             },
             "reference_image_urls": {
               "type": "array",
-              "description": "Additional reference images to guide identity, pose, clothing, style, or background. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed. Combined with source_image_url, up to 6 images total are used.",
+              "description": "Additional reference images to guide identity, pose, clothing, style, or background. Supports inline base64-encoded PNG or JPEG data URIs only; remote http(s) URLs are not allowed. Combined with source_image_url, up to 16 images total are used.",
               "items": {
                 "type": "string"
               }
@@ -93,21 +93,32 @@
             },
             "width": {
               "type": "number",
-              "description": "Output image width in pixels. Must be a multiple of 16. Default depends on the model."
+              "description": "Output image width in pixels. Default depends on the model. For gpt-image-2, dimensions are flexible up to 3840px on either edge with max 3:1 aspect ratio and a total pixel budget from 655,360 to 8,294,400; the renderer snaps to the nearest valid multiple-of-16 size."
             },
             "height": {
               "type": "number",
-              "description": "Output image height in pixels. Must be a multiple of 16. Default depends on the model."
+              "description": "Output image height in pixels. Default depends on the model. For gpt-image-2, dimensions are flexible up to 3840px on either edge with max 3:1 aspect ratio and a total pixel budget from 655,360 to 8,294,400; the renderer snaps to the nearest valid multiple-of-16 size."
             },
             "model": {
               "type": "string",
-              "description": "Image editing model to use.",
+              "description": "Image editing model to use. Use gpt-image-2 when the user asks for a ChatGPT, OpenAI, GPT, GPT-2, GPT Image, or gpt-image-2 reference-guided image/edit/model. GPT Image 2 always processes input images at high fidelity; do not set input_fidelity.",
               "enum": [
+                "gpt-image-2",
                 "qwen_image_edit_2511_fp8_lightning",
                 "qwen_image_edit_2511_fp8",
                 "flux2_dev_fp8",
                 "flux1-dev-kontext_fp8_scaled"
               ]
+            },
+            "gpt_image_quality": {
+              "type": "string",
+              "description": "Optional GPT Image 2 rendering quality. Use low for fast drafts, medium for balanced quality, high for final/pro quality, or auto to let the renderer choose.",
+              "enum": ["low", "medium", "high", "auto"]
+            },
+            "output_format": {
+              "type": "string",
+              "description": "Optional image output format. Use only when explicitly requested. Hosts should normalize jpeg to jpg for Sogni project parameters.",
+              "enum": ["png", "jpg", "jpeg", "webp"]
             },
             "number_of_variations": {
               "type": "number",

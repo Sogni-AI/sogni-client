@@ -33,7 +33,7 @@ export interface SizePreset {
 }
 
 export type ImageOutputFormat = 'png' | 'jpg' | 'webp';
-export type GptImageQuality = 'low' | 'medium' | 'high' | 'standard' | 'hd';
+export type GptImageQuality = 'low' | 'medium' | 'high' | 'auto' | 'standard' | 'hd';
 export type GptImageBackground = 'opaque' | 'auto';
 export type VideoOutputFormat = 'mp4';
 export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
@@ -341,6 +341,7 @@ export interface ImageProjectParams extends BaseProjectParams {
   startingImageStrength?: number;
   /**
    * Context images for multi-reference image generation.
+   * GPT Image 2 supports up to 16 context images.
    * Flux.2 Dev supports up to 6 context images.
    * Qwen Image Edit Plus supports up to 3 context images.
    * Flux Kontext supports up to 2 context images.
@@ -495,6 +496,16 @@ export type ImageUrlParams = {
     | 'contextImage4'
     | 'contextImage5'
     | 'contextImage6'
+    | 'contextImage7'
+    | 'contextImage8'
+    | 'contextImage9'
+    | 'contextImage10'
+    | 'contextImage11'
+    | 'contextImage12'
+    | 'contextImage13'
+    | 'contextImage14'
+    | 'contextImage15'
+    | 'contextImage16'
     | 'referenceImage'
     | 'referenceImageEnd';
   startContentType?: string;
@@ -569,8 +580,8 @@ export interface EstimateRequest {
    */
   sampler?: string;
   /**
-   * Number of context images to use (for Flux Kontext).
-   * Note that this parameter is ignored if `scheduler` is not provided
+   * Number of context images to use. Affects GPT Image 2 input-image pricing
+   * and context-aware worker timing estimates.
    */
   contextImages?: number;
   /**

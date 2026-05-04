@@ -41,6 +41,30 @@ function getVariationCount(args: Record<string, unknown>, options?: ToolExecutio
   return getHostedVariationCount(args, options?.numberOfMedia);
 }
 
+function getStringArg(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function normalizeImageOutputFormat(value: unknown): string | undefined {
+  const outputFormat = getStringArg(value)?.toLowerCase();
+  if (!outputFormat) return undefined;
+  if (outputFormat === 'jpeg') return 'jpg';
+  return outputFormat === 'png' || outputFormat === 'jpg' || outputFormat === 'webp'
+    ? outputFormat
+    : undefined;
+}
+
+function applyHostedImageOptions(
+  projectParams: Record<string, unknown>,
+  args: Record<string, unknown>
+) {
+  const gptImageQuality = getStringArg(args.gpt_image_quality ?? args.gptImageQuality);
+  if (gptImageQuality) projectParams.gptImageQuality = gptImageQuality.toLowerCase();
+
+  const outputFormat = normalizeImageOutputFormat(args.output_format ?? args.outputFormat);
+  if (outputFormat) projectParams.outputFormat = outputFormat;
+}
+
 class ChatToolsApi {
   private projects: ProjectsApi;
 
@@ -270,10 +294,7 @@ class ChatToolsApi {
     }
     if (args.steps !== undefined) projectParams.steps = args.steps;
     if (args.seed !== undefined) projectParams.seed = args.seed;
-    const gptImageQuality = args.gpt_image_quality ?? args.gptImageQuality;
-    if (gptImageQuality) projectParams.gptImageQuality = gptImageQuality;
-    const outputFormat = args.output_format ?? args.outputFormat;
-    if (outputFormat) projectParams.outputFormat = outputFormat === 'jpeg' ? 'jpg' : outputFormat;
+    applyHostedImageOptions(projectParams, args);
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;
 
@@ -330,6 +351,7 @@ class ChatToolsApi {
       projectParams.sizePreset = 'custom';
     }
     if (args.seed !== undefined) projectParams.seed = args.seed;
+    applyHostedImageOptions(projectParams, args);
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;
 

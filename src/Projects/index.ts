@@ -645,7 +645,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       await this.uploadCNImage(project.id, data.controlNet.image);
     }
 
-    // Context images (Flux.2 Dev supports up to 6; Qwen Image Edit Plus supports up to 3; Flux Kontext supports up to 2)
+    // Context images (GPT Image 2 supports up to 16; Flux.2 Dev supports up to 6; Qwen Image Edit Plus supports up to 3; Flux Kontext supports up to 2)
     if (data.contextImages?.length) {
       const maxContextImages = getMaxContextImages(data.modelId);
       if (data.contextImages.length > maxContextImages) {
@@ -658,7 +658,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       await Promise.all(
         data.contextImages.map((image, index) => {
           if (image && image !== true) {
-            return this.uploadContextImage(project.id, index as 0 | 1 | 2 | 3 | 4 | 5, image);
+            return this.uploadContextImage(project.id, index as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15, image);
           }
         })
       );
@@ -819,11 +819,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadContextImage(
     projectId: string,
-    index: 0 | 1 | 2 | 3 | 4 | 5,
+    index: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15,
     file: File | Buffer | Blob
   ) {
     const imageId = getUUID();
-    const imageIndex = (index + 1) as 1 | 2 | 3 | 4 | 5 | 6;
+    const imageIndex = (index + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
     const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
@@ -1023,10 +1023,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     } else {
       pathParams.push(0, 0);
     }
-    if (sampler) {
+    if (sampler || contextImages !== undefined) {
       apiVersion = 3;
       pathParams.push(guidance || 0);
-      pathParams.push(validateSampler(sampler, modelOptions)!);
+      pathParams.push(sampler ? validateSampler(sampler, modelOptions)! : '_');
       pathParams.push(contextImages || 0);
     }
     const queryParams = new URLSearchParams();

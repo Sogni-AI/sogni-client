@@ -265,7 +265,7 @@ IMPORTANT: ControlNet (canny/pose/depth/detailer) requires a `_v2v` model, NOT `
 
 ## 5. Video Generation (Seedance 2.0)
 
-Seedance models are external API-backed video models. They generate at fixed 24fps and currently support 4-15 second direct SDK outputs.
+Seedance models are external API-backed video models. They generate at fixed 24fps and currently support 4-15 second direct SDK outputs. Seedance can combine image, video, and audio reference assets in one request: up to 9 images, 3 videos, 3 audios, and 12 total assets. Text+audio-only is unsupported; include at least one image or video reference when using audio references. In prompts, use `@Image1`, `@Video1`, and `@Audio1` tags counted independently by modality in attachment order. Assign each useful reference a role, prefer positive preservation language, and review exact text/logos, lip-sync, voice cloning, and real-human-reference behavior.
 
 | Model ID              | Context Assets                         | Notes                |
 | --------------------- | -------------------------------------- | -------------------- |
@@ -286,7 +286,9 @@ const project = await sogni.projects.create({
 });
 ```
 
-Aliases used by chat tools and examples: `seedance2` and `seedance2-fast`. V2V uses `seedance2` as the model selector and `seedance-v2v` as the control mode. Seedance Fast accepts optional image, video, and audio references and caps at 720p. See `workflow_seedance_endpoint.mjs` for `/v1/chat/completions` endpoint coverage across Seedance T2V/I2V/IA2V/V2V prompt expansion.
+Use `referenceImageUrls`, `referenceVideoUrls`, and `referenceAudioUrls` for Seedance HTTPS context URLs. Use `referenceImage`/`referenceImageEnd`, `referenceVideo`, and `referenceAudio` for the existing single upload slots. Example prompt: `Use @Image1 for product identity, @Video1 for camera movement, and @Audio1 for music rhythm. Keep the product silhouette and logo placement consistent.`
+
+Aliases used by chat tools and examples: `seedance2` and `seedance2-fast`. V2V uses `seedance2` as the model selector and `seedance-v2v` as the control mode. Seedance Fast accepts optional image, video, and audio references and caps at 720p. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
 
 ---
 

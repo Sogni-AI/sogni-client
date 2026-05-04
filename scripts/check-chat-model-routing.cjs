@@ -20,6 +20,7 @@ const {
   validateHostedToolArguments
 } = require('../dist/Chat/modelRouting.js');
 const { parseCreativeWorkflowSseChunk } = require('../dist/CreativeWorkflows/index.js');
+const { validateCustomImageSize } = require('../dist/lib/validation.js');
 const { SogniTools } = require('../dist/Chat/tools.js');
 
 function stableValue(value) {
@@ -222,6 +223,26 @@ assert.equal(normalizeVideoControlMode('unknown'), 'animate-move');
 assert.equal(getHostedVariationCount({ number_of_variations: 20 }), 16);
 assert.equal(getHostedVariationCount({}, 4.2), 4);
 assert.equal(
+  validateCustomImageSize(3840, { modelId: 'gpt-image-2', propertyName: 'Width' }),
+  3840
+);
+assert.equal(
+  validateCustomImageSize(2560, { modelId: 'flux2_dev_fp8', propertyName: 'Width' }),
+  2560
+);
+assert.throws(
+  () => validateCustomImageSize(3841, { modelId: 'gpt-image-2', propertyName: 'Width' }),
+  /Width must be less or equal 3840/
+);
+assert.throws(
+  () =>
+    validateCustomImageSize(2560, {
+      modelId: 'coreml-albedobaseXL_v31Large',
+      propertyName: 'Width'
+    }),
+  /Width must be less or equal 2048/
+);
+assert.equal(
   resolveHostedToolModelSelector('sogni_generate_image', { model: 'flux2' }),
   PREFERRED_MODEL_IDS.image.flux2
 );
@@ -231,6 +252,14 @@ assert.equal(
 );
 assert.equal(
   resolveHostedToolModelSelector('sogni_generate_image', { model: 'OpenAI' }),
+  PREFERRED_MODEL_IDS.image.gptImage2
+);
+assert.equal(
+  resolveHostedToolModelSelector('sogni_edit_image', { model: 'GPT-2' }),
+  PREFERRED_MODEL_IDS.image.gptImage2
+);
+assert.equal(
+  resolveHostedToolModelSelector('sogni_edit_image', { model: 'OpenAI image' }),
   PREFERRED_MODEL_IDS.image.gptImage2
 );
 assert.equal(
@@ -309,7 +338,10 @@ assert.deepEqual(
 assert.deepEqual(
   validateHostedToolArguments(SogniTools.all, 'sogni_edit_image', {
     prompt: 'edit',
-    reference_image_urls: ['data:image/png;base64,aaa', 123]
+    reference_image_urls: ['data:image/png;base64,aaa', 123],
+    model: 'gpt-image-2',
+    gpt_image_quality: 'high',
+    output_format: 'webp'
   }),
   { ok: false, errors: ['Argument "reference_image_urls[1]" must be string'] }
 );

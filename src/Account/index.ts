@@ -133,7 +133,15 @@ class AccountApi extends ApiGroup {
    * @internal
    */
   async create(
-    { username, email, password, subscribe, turnstileToken, referralCode }: AccountCreateParams,
+    {
+      username,
+      email,
+      password,
+      subscribe,
+      turnstileToken,
+      referralCode,
+      appSource
+    }: AccountCreateParams,
     rememberMe = false
   ): Promise<AccountCreateData> {
     const wallet = this.getWallet(username, password);
@@ -146,9 +154,11 @@ class AccountApi extends ApiGroup {
       walletAddress: wallet.address,
       turnstileToken
     };
+    const resolvedAppSource = appSource?.trim() || this.client.appSource;
     const signature = await this.eip712.signTypedData(wallet, 'signup', { ...payload, nonce });
     const res = await this.client.rest.post<ApiResponse<AccountCreateData>>('/v1/account/create', {
       ...payload,
+      ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
       referralCode,
       signature,
       rememberMe
@@ -175,17 +185,26 @@ class AccountApi extends ApiGroup {
    * @param password
    * @param rememberMe - Whether to establish a long-lived session. Default is false. Only
    * applicable for cookie-based authentication.
+   * @param appSource - Optional client app/source label for login attribution. Defaults to the
+   * SogniClient connection appSource when configured.
    */
-  async login(username: string, password: string, rememberMe = false): Promise<LoginData> {
+  async login(
+    username: string,
+    password: string,
+    rememberMe = false,
+    appSource?: string
+  ): Promise<LoginData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
     const signature = await this.eip712.signTypedData(wallet, 'authentication', {
       walletAddress: wallet.address,
       nonce
     });
+    const resolvedAppSource = appSource?.trim() || this.client.appSource;
     const res = await this.client.rest.post<ApiResponse<LoginData>>('/v1/account/login', {
       walletAddress: wallet.address,
       signature,
+      ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
       rememberMe
     });
     const auth = this.client.auth;

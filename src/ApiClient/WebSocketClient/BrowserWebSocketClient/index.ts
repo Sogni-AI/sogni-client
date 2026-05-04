@@ -70,9 +70,10 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     auth: AuthManager,
     appId: string,
     supernetType: SupernetType,
-    logger: Logger
+    logger: Logger,
+    appSource?: string
   ) {
-    const socketClient = new WrappedClient(baseUrl, auth, appId, supernetType, logger);
+    const socketClient = new WrappedClient(baseUrl, auth, appId, supernetType, logger, appSource);
     super(socketClient.baseUrl, auth, logger);
     this.socketClient = socketClient;
     this.appId = appId;
