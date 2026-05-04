@@ -1,3 +1,11 @@
+# [4.2.0-alpha.13](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.12...v4.2.0-alpha.13) (2026-05-04)
+
+
+### Features
+
+* **client:** expose GPT Image 2 project options ([5f8ff31](https://github.com/Sogni-AI/sogni-client/commit/5f8ff31d147c6869b9d7a238a45b117fee80fea1))
+* **client:** route GPT Image 2 aliases ([a946fe2](https://github.com/Sogni-AI/sogni-client/commit/a946fe2ae556a1d9d788d3bc0c3c7c0e223996f1))
+
 # [4.2.0-alpha.12](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.11...v4.2.0-alpha.12) (2026-05-03)
 
 
