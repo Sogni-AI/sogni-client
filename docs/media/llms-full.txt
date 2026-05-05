@@ -992,6 +992,11 @@ DURABLE CREATIVE WORKFLOWS:
 Use `sogni.creativeWorkflows` for `/v1/creative-agent/workflows` coverage:
 `startImageToVideo`, `list`, `get`, `events`, `streamEvents`, and `cancel`.
 These endpoints require API-key auth. See `workflow_creative_agent_workflows.mjs`.
+When examples compile or validate hosted tool sequences, keep that logic aligned
+with `@sogni/creative-agent` contracts such as
+`compileCreativeWorkflowPlanToHostedSequence()` and
+`validateAndNormalizeHostedToolArguments()` instead of adding SDK-local regex
+guards.
 
 EXAMPLE CLI USAGE:
 

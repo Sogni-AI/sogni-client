@@ -13,6 +13,14 @@ For AI coding assistants working with this SDK, the following resources are avai
 
 When helping users with Sogni SDK tasks, consult `llms-full.txt` for complete parameter references, especially for video generation where WAN 2.2 and LTX-2.3 models have different behaviors.
 
+## Creative Agent Shared Contracts
+
+Hosted chat tools, creative-agent workflow helpers, generated tool manifests, and SDK-facing workflow docs should stay aligned with `../sogni-creative-agent`. Do not recreate chat-only or SDK-only regex guardrails for tool argument repair, storyboard planning, or workflow routing. Add reusable JSON schemas, typed repair/control semantics, and deterministic validation to the shared package first, then regenerate or copy the public SDK artifacts as appropriate.
+
+Use secondary LLM calls for semantic planning, creative adaptation, and audit/repair workflows, not as a substitute for schema validation of tool arguments or structured workflow control.
+
+When SDK examples or generated helpers expose hosted creative workflows, keep them generated from or aligned with shared `@sogni/creative-agent` contracts such as `compileCreativeWorkflowPlanToHostedSequence()`, `validateAndNormalizeHostedToolArguments()`, `getRepairControlDecision()`, and `summarizeGuardTelemetry()`.
+
 ## Overview
 
 This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, etc.), video generation (WAN 2.2 and LTX-2.3 models), audio generation (ACE-Step 1.5), LLM chat with tool calling, and multimodal vision chat (Qwen3.5 VLM) via WebSocket communication.
