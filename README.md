@@ -261,6 +261,8 @@ project.on('failed', async (errorData) => {
 });
 ```
 
+External API-backed jobs may not report diffusion steps. For those jobs, SDK progress uses provider progress or ETA-derived progress and remains a finite 0-100 number. GPT Image 2 and Seedance results can arrive as direct hosted URLs; the SDK preserves those URLs on `job.resultUrl` and `job.getResultUrl()` returns the cached URL without requesting a Sogni signed download URL.
+
 ### Project parameters
 
 Here is a full list of project parameters that you can use:
@@ -270,7 +272,7 @@ Here is a full list of project parameters that you can use:
 - `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be an empty string.
 - `stylePrompt` - text prompt that describes the style of the image. Can be an empty string.
 - `numberOfImages` - number of images to generate.
-- `tokenType` - select token type to pay for render. Can be either `sogni` or `spark`.
+- `tokenType` - select token type to pay for render. Can be either `sogni` or `spark`. External API-backed models such as GPT Image 2 and Seedance are Spark-only.
 - `sizePreset` - optionally pass the ID of a size preset to use. If not passed, the default output is a square at
   either 512x512, 768x768 or 1024x1024 (SDXL and Flux) based on the default resolution of the selected model.
   See **Detecting available output presets** section below for available presets for your model. The token cost and
@@ -295,9 +297,32 @@ Here is a full list of project parameters that you can use:
 - `startingImage` - guide image in PNG format. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
 - `startingImageStrength` - strong effect of starting image should be. From 0 to 1, default 0.5.
 - `controlNet` - Stable Diffusion ControlNet parameters. See **ControlNets** section below for more info.
-- `outputFormat` - output image format. Can be `png` or `jpg`. If not specified, `png` will be used. JPG format results in smaller file sizes but may have slightly lower quality due to compression.
+- `outputFormat` - output image format. Can be `png`, `jpg`, or `webp` for GPT Image 2; most native image models support `png` or `jpg`. If not specified, `png` will be used.
 
 TypeScript type definitions for project parameters can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
+
+### GPT Image 2
+
+GPT Image 2 is available through the normal image project API:
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  network: 'fast',
+  modelId: 'gpt-image-2',
+  positivePrompt: 'A clean product render of translucent headphones on a white background',
+  numberOfMedia: 1,
+  width: 1024,
+  height: 1024,
+  gptImageQuality: 'high',
+  outputFormat: 'webp',
+  tokenType: 'spark'
+});
+
+const imageUrls = await project.waitForCompletion();
+```
+
+For GPT Image 2 edits, pass `contextImages`; the SDK supports up to 16 context images for this model. Cost estimates can include `gptImageQuality`, `outputFormat`, and `contextImages` so external input-image pricing is represented.
 
 ### Detecting available output presets
 
@@ -545,7 +570,7 @@ WAN workflows have two model variants optimized for different use cases:
 - **Speed variant** (with `_lightx2v` suffix) - Faster inference (4-step), good quality
 - **Quality variant** (without `_lightx2v`) - Slower inference, best quality
 
-LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available through two canonical multimodal model IDs: `seedance-2-0` and `seedance-2-0-fast`. Both accept optional image, video, and audio references; the Fast model caps output at 720p.
+LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available through two canonical multimodal model IDs: `seedance-2-0` and `seedance-2-0-fast`. Both accept optional image, video, and audio references, run at fixed 24fps, and require Spark billing; the Fast model caps output at 720p.
 
 Example model IDs:
 
@@ -582,7 +607,7 @@ When creating video projects, you can specify:
 - `referenceAudioUrls` - Seedance-only audio context URLs; combined with `referenceAudio`/`referenceAudioIdentity`, max 3 audio assets
 - `hasVideoInput` - Estimate-only flag for `estimateVideoCost`; set this when estimating a canonical Seedance video-input job without passing `referenceVideo`/`referenceVideoUrls`
 
-Seedance 2.0 can combine image, video, and audio reference assets in one external API request. Reference limits are up to 9 image assets, 3 video assets, 3 audio assets, and 12 asset files total. Text+audio without at least one image or video reference is not supported by Seedance. URL-array references must be HTTPS URLs that the vendor can fetch; local multi-reference files should be uploaded first, as shown in `examples/workflow_partner_seedance_video.mjs`. In prompts and creative briefs, refer to attachments by Seedance-style tags: `@Image1`, `@Video1`, and `@Audio1`, counted independently by modality in attachment order. Assign each useful reference a role, such as product identity, motion timing, camera path, edit rhythm, background music, or speech reference. Prefer positive preservation language like "maintain the same product silhouette and logo placement from @Image1"; exact readable text, logos, lip-sync, voice cloning, and real-human-reference behavior still need review. Seedance dispatch omits negative prompts; Wan 2.2 and LTX 2.3 video models can still use `negativePrompt`.
+Seedance 2.0 can combine image, video, and audio reference assets in one external API request. Reference limits are up to 9 image assets, 3 video assets, 3 audio assets, and 12 asset files total. Text+audio without at least one image or video reference is not supported by Seedance. URL-array references must be HTTPS URLs that the vendor can fetch; local multi-reference files should be uploaded first, as shown in `examples/workflow_partner_seedance_video.mjs`. In prompts and creative briefs, refer to attachments by Seedance-style tags: `@Image1`, `@Video1`, and `@Audio1`, counted independently by modality in attachment order. Assign each useful reference a role, such as product identity, motion timing, camera path, edit rhythm, background music, or speech reference. Prefer positive preservation language like "maintain the same product silhouette and logo placement from @Image1"; exact readable text, logos, lip-sync, voice cloning, and real-human-reference behavior still need review. Seedance dispatch omits negative prompts; Wan 2.2 and LTX 2.3 video models can still use `negativePrompt`. Seedance jobs are Spark-only and should not use SOGNI token fallback.
 
 ### Text-to-Video Example
 

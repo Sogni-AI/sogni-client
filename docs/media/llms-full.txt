@@ -311,6 +311,10 @@ const project = await sogni.projects.create({
 });
 ```
 
+GPT Image 2 uses `modelId: 'gpt-image-2'`, supports up to 16 `contextImages`,
+accepts `gptImageQuality: 'low' | 'medium' | 'high'`, supports
+`outputFormat: 'png' | 'jpg' | 'webp'`, and is Spark-only.
+
 RECOMMENDED MODELS:
 | Model ID | Type | Steps | Guidance | Notes |
 |----------|------|-------|----------|-------|
@@ -555,7 +559,7 @@ LTX VIDEO PARAMETERS:
 ================================================================================
 
 Seedance 2.0 models use the external API path. They generate at fixed 24fps and
-currently support 4-15 second direct SDK outputs. Seedance models are premium/external API models.
+currently support 4-15 second direct SDK outputs. Seedance models are premium/external API models and are Spark-only.
 Seedance 2.0 Fast accepts the same optional image, video, and audio references and caps output at 720p.
 Seedance can combine reference media in one request: up to 9 image assets, 3 video
 assets, 3 audio assets, and 12 total assets. Text+audio-only is unsupported; use at
@@ -992,11 +996,6 @@ DURABLE CREATIVE WORKFLOWS:
 Use `sogni.creativeWorkflows` for `/v1/creative-agent/workflows` coverage:
 `startImageToVideo`, `list`, `get`, `events`, `streamEvents`, and `cancel`.
 These endpoints require API-key auth. See `workflow_creative_agent_workflows.mjs`.
-When examples compile or validate hosted tool sequences, keep that logic aligned
-with `@sogni/creative-agent` contracts such as
-`compileCreativeWorkflowPlanToHostedSequence()` and
-`validateAndNormalizeHostedToolArguments()` instead of adding SDK-local regex
-guards.
 
 EXAMPLE CLI USAGE:
 
@@ -1286,6 +1285,10 @@ job.on('failed', (error) => {
   console.error('Job failed:', error);
 });
 ```
+
+External API-backed jobs may not report diffusion steps. The SDK keeps project/job
+progress finite by using provider progress or ETA-derived progress, and direct
+provider result URLs are preserved on `job.resultUrl` / `job.getResultUrl()`.
 
 PROJECT PROPERTIES:
 

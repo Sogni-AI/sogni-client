@@ -265,7 +265,7 @@ IMPORTANT: ControlNet (canny/pose/depth/detailer) requires a `_v2v` model, NOT `
 
 ## 5. Video Generation (Seedance 2.0)
 
-Seedance models are external API-backed video models. They generate at fixed 24fps and currently support 4-15 second direct SDK outputs. Seedance can combine image, video, and audio reference assets in one request: up to 9 images, 3 videos, 3 audios, and 12 total assets. Text+audio-only is unsupported; include at least one image or video reference when using audio references. In prompts, use `@Image1`, `@Video1`, and `@Audio1` tags counted independently by modality in attachment order. Assign each useful reference a role, prefer positive preservation language, and review exact text/logos, lip-sync, voice cloning, and real-human-reference behavior.
+Seedance models are external API-backed Spark-only video models. They generate at fixed 24fps and currently support 4-15 second direct SDK outputs. Seedance can combine image, video, and audio reference assets in one request: up to 9 images, 3 videos, 3 audios, and 12 total assets. Text+audio-only is unsupported; include at least one image or video reference when using audio references. In prompts, use `@Image1`, `@Video1`, and `@Audio1` tags counted independently by modality in attachment order. Assign each useful reference a role, prefer positive preservation language, and review exact text/logos, lip-sync, voice cloning, and real-human-reference behavior.
 
 | Model ID              | Context Assets                         | Notes                |
 | --------------------- | -------------------------------------- | -------------------- |
@@ -568,6 +568,8 @@ project.on('jobCompleted', (job) => console.log(job.resultUrl));
 project.on('completed', (urls) => console.log('Done:', urls));
 project.on('failed', (error) => console.error(error));
 ```
+
+External API-backed jobs may not report diffusion steps. The SDK keeps project/job progress finite by using provider progress or ETA-derived progress, and direct provider result URLs are preserved on `job.resultUrl`.
 
 ### Job-level Events
 
