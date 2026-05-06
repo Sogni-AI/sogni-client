@@ -44,8 +44,9 @@ export interface JobStarted extends JobEventBase {
 
 export interface JobProgress extends JobEventBase {
   type: 'progress';
-  step: number;
-  stepCount: number;
+  step?: number;
+  stepCount?: number;
+  progress?: number;
 }
 
 export interface JobETA extends JobEventBase {
@@ -60,8 +61,8 @@ export interface JobPreview extends JobEventBase {
 
 export interface JobCompleted extends JobEventBase {
   type: 'completed';
-  steps: number;
-  seed: number;
+  steps?: number;
+  seed?: number;
   /**
    * URL to the result image, could be null if the job was canceled or triggered NSFW filter while
    * it was not disabled by the user

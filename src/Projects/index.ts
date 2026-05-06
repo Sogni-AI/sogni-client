@@ -305,15 +305,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private async handleJobProgress(data: JobProgressData) {
-    this.emit('job', {
+    const event: JobEvent = {
       type: 'progress',
       projectId: data.jobID,
       jobId: data.imgID,
-      step: data.step,
-      stepCount: data.stepCount
-    });
+      ...(typeof data.step === 'number' ? { step: data.step } : {}),
+      ...(typeof data.stepCount === 'number' ? { stepCount: data.stepCount } : {}),
+      ...(typeof data.progress === 'number' ? { progress: data.progress } : {})
+    };
+    this.emit('job', event);
 
-    if (data.hasImage) {
+    if (data.hasImage === true) {
       this.downloadUrl({
         jobId: data.jobID,
         imageId: data.imgID,
@@ -373,16 +375,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
 
     // Update the job directly with the result URL to prevent duplicate API calls
+    let performedStepCount = data.performedStepCount;
+    let seed = data.lastSeed !== undefined ? Number(data.lastSeed) : undefined;
     if (project) {
       const job = project.job(data.imgID);
       if (job) {
+        performedStepCount =
+          typeof performedStepCount === 'number'
+            ? performedStepCount
+            : job.stepCount > 0
+              ? job.stepCount
+              : job.step;
+        seed = typeof seed === 'number' && Number.isFinite(seed) ? seed : job.seed;
         job._update({
           status: data.userCanceled ? 'canceled' : 'completed',
-          step: data.performedStepCount,
-          seed: Number(data.lastSeed),
+          step: performedStepCount,
+          seed,
           resultUrl: downloadUrl,
-          isNSFW: data.triggeredNSFWFilter,
-          userCanceled: data.userCanceled
+          isNSFW: Boolean(data.triggeredNSFWFilter),
+          userCanceled: Boolean(data.userCanceled)
         });
       }
     }
@@ -392,11 +403,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       type: 'completed',
       projectId: data.jobID,
       jobId: data.imgID,
-      steps: data.performedStepCount,
-      seed: Number(data.lastSeed),
+      ...(typeof performedStepCount === 'number' ? { steps: performedStepCount } : {}),
+      ...(typeof seed === 'number' && Number.isFinite(seed) ? { seed } : {}),
       resultUrl: downloadUrl,
-      isNSFW: data.triggeredNSFWFilter,
-      userCanceled: data.userCanceled
+      isNSFW: Boolean(data.triggeredNSFWFilter),
+      userCanceled: Boolean(data.userCanceled)
     });
   }
 
@@ -506,12 +517,27 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         });
         break;
       case 'progress':
-        job._update({
-          status: 'processing',
-          // Just in case event comes out of order
-          step: Math.max(event.step, job.step),
-          stepCount: event.stepCount
-        });
+        {
+          const delta: {
+            status: 'processing';
+            step?: number;
+            stepCount?: number;
+            externalProgress?: number;
+          } = {
+            status: 'processing'
+          };
+          if (typeof event.step === 'number') {
+            // Just in case event comes out of order
+            delta.step = Math.max(event.step, job.step);
+          }
+          if (typeof event.stepCount === 'number') {
+            delta.stepCount = event.stepCount;
+          }
+          if (typeof event.progress === 'number') {
+            delta.externalProgress = event.progress;
+          }
+          job._update(delta);
+        }
         if (project.status !== 'processing') {
           project._update({ status: 'processing' });
         }
@@ -538,13 +564,29 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         job._update({ previewUrl: event.url });
         break;
       case 'completed': {
-        job._update({
+        const delta: {
+          status: 'completed' | 'canceled';
+          resultUrl: string | null;
+          isNSFW: boolean;
+          userCanceled: boolean;
+          step?: number;
+          seed?: number;
+        } = {
           status: event.userCanceled ? 'canceled' : 'completed',
-          step: event.steps,
-          seed: event.seed,
           resultUrl: event.resultUrl,
           isNSFW: event.isNSFW,
           userCanceled: event.userCanceled
+        };
+        if (typeof event.steps === 'number') {
+          delta.step = event.steps;
+        } else if (job.stepCount > 0) {
+          delta.step = job.stepCount;
+        }
+        if (typeof event.seed === 'number' && Number.isFinite(event.seed)) {
+          delta.seed = event.seed;
+        }
+        job._update({
+          ...delta
         });
         break;
       }
@@ -658,7 +700,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       await Promise.all(
         data.contextImages.map((image, index) => {
           if (image && image !== true) {
-            return this.uploadContextImage(project.id, index as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15, image);
+            return this.uploadContextImage(
+              project.id,
+              index as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15,
+              image
+            );
           }
         })
       );
@@ -823,7 +869,23 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     file: File | Buffer | Blob
   ) {
     const imageId = getUUID();
-    const imageIndex = (index + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+    const imageIndex = (index + 1) as
+      | 1
+      | 2
+      | 3
+      | 4
+      | 5
+      | 6
+      | 7
+      | 8
+      | 9
+      | 10
+      | 11
+      | 12
+      | 13
+      | 14
+      | 15
+      | 16;
     const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,

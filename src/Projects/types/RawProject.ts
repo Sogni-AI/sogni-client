@@ -58,6 +58,8 @@ export interface RawJob {
   costActual: CostActual;
   network: SupernetType;
   txId?: string;
+  resultUrl?: string | null;
+  resultKey?: string | null;
 }
 
 export interface CostActual {

@@ -43,6 +43,44 @@ const JOB_STATUS_MAP: Record<RawJob['status'], JobStatus> = {
   jobError: 'failed'
 };
 
+function clampProgress(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function normalizeProgressPercent(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return clampProgress(value >= 0 && value <= 1 ? value * 100 : value);
+}
+
+function directResultUrlFromRawJob(rawJob: RawJob): string | null {
+  const legacy = rawJob as RawJob & {
+    imageUrl?: string | null;
+    imageFile?: string | null;
+    videoUrl?: string | null;
+    videoFile?: string | null;
+  };
+  return (
+    rawJob.resultUrl ||
+    legacy.imageUrl ||
+    legacy.imageFile ||
+    legacy.videoUrl ||
+    legacy.videoFile ||
+    null
+  );
+}
+
+function etaProgressPercent(
+  startedAt: Date | undefined,
+  eta: Date | undefined
+): number | undefined {
+  if (!startedAt || !eta) return undefined;
+  const totalMs = eta.getTime() - startedAt.getTime();
+  if (!Number.isFinite(totalMs) || totalMs <= 0) return undefined;
+  const elapsedMs = Date.now() - startedAt.getTime();
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return 1;
+  return Math.max(1, Math.min(95, Math.round((elapsedMs / totalMs) * 100)));
+}
+
 /**
  * @inline
  */
@@ -63,6 +101,11 @@ export interface JobData {
   negativePrompt?: string;
   jobIndex?: number;
   /**
+   * Direct progress percentage from external API-backed workers. Values may be
+   * 0-1 or 0-100 depending on the upstream provider event.
+   */
+  externalProgress?: number;
+  /**
    * Estimated time remaining in seconds (for long-running jobs like video generation).
    * Updated by ComfyUI workers during inference.
    * @deprecated Use `eta` instead.
@@ -73,6 +116,7 @@ export interface JobData {
    * Updated by ComfyUI workers during inference.
    */
   eta?: Date;
+  etaStartedAt?: Date;
 }
 
 export interface JobEventMap extends EntityEvents {
@@ -98,7 +142,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
         stepCount: rawProject.stepCount,
         workerName: rawJob.worker.name,
         seed: rawJob.seedUsed,
-        isNSFW: rawJob.triggeredNSFWFilter
+        isNSFW: rawJob.triggeredNSFWFilter,
+        resultUrl: directResultUrlFromRawJob(rawJob)
       },
       options
     );
@@ -143,7 +188,13 @@ class Job extends DataEntity<JobData, JobEventMap> {
    * Progress of the job in percentage (0-100).
    */
   get progress() {
-    return Math.round((this.data.step / this.data.stepCount) * 100);
+    if (this.status === 'completed') return 100;
+    const externalProgress = normalizeProgressPercent(this.data.externalProgress);
+    if (externalProgress !== undefined) return externalProgress;
+    if (this.data.stepCount > 0) {
+      return clampProgress((this.data.step / this.data.stepCount) * 100);
+    }
+    return etaProgressPercent(this.data.etaStartedAt, this.data.eta) ?? 0;
   }
 
   /**
@@ -261,6 +312,9 @@ class Job extends DataEntity<JobData, JobEventMap> {
    * For video jobs, this returns a video URL. For image jobs, this returns an image URL.
    */
   async getResultUrl(): Promise<string> {
+    if (this.data.resultUrl) {
+      return this.data.resultUrl;
+    }
     if (this.data.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
@@ -326,6 +380,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
    * @param data
    */
   async _syncWithRestData(data: RawJob) {
+    const directResultUrl = directResultUrlFromRawJob(data);
     const delta: Partial<JobData> = {
       step: data.performedSteps,
       workerName: data.worker?.name,
@@ -335,7 +390,15 @@ class Job extends DataEntity<JobData, JobEventMap> {
     if (JOB_STATUS_MAP[data.status]) {
       delta.status = JOB_STATUS_MAP[data.status];
     }
-    if (!this.data.resultUrl && delta.status === 'completed' && !data.triggeredNSFWFilter) {
+    if (!this.data.resultUrl && directResultUrl) {
+      delta.resultUrl = directResultUrl;
+    }
+    if (
+      !this.data.resultUrl &&
+      !delta.resultUrl &&
+      delta.status === 'completed' &&
+      !data.triggeredNSFWFilter
+    ) {
       try {
         if (this.type === 'video' || this.type === 'audio') {
           delta.resultUrl = await this._api.mediaDownloadUrl({
@@ -369,13 +432,21 @@ class Job extends DataEntity<JobData, JobEventMap> {
       // Keeping etaSeconds for backwards compatibility
       if (delta.eta) {
         delta.etaSeconds = Math.round((delta.eta.getTime() - Date.now()) / 1000);
+        if (!this.data.etaStartedAt && !delta.etaStartedAt) {
+          delta.etaStartedAt = new Date();
+        }
       }
     }
     super._update(delta);
   }
 
   private handleUpdated(keys: string[]) {
-    if (keys.includes('step') || keys.includes('stepCount')) {
+    if (
+      keys.includes('step') ||
+      keys.includes('stepCount') ||
+      keys.includes('externalProgress') ||
+      keys.includes('eta')
+    ) {
       this.emit('progress', this.progress);
     }
     if (keys.includes('status') && this.status === 'completed') {

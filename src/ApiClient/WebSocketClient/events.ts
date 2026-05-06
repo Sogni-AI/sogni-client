@@ -44,9 +44,10 @@ export type JobErrorData = {
 export type JobProgressData = {
   jobID: string;
   imgID: string;
-  hasImage: boolean;
-  step: number;
-  stepCount: number;
+  hasImage?: boolean;
+  step?: number;
+  stepCount?: number;
+  progress?: number;
 };
 
 export type JobETAData = {
@@ -58,12 +59,19 @@ export type JobETAData = {
 export type JobResultData = {
   jobID: string;
   imgID: string;
-  performedStepCount: number;
-  lastSeed: string;
-  userCanceled: boolean;
-  triggeredNSFWFilter: boolean;
+  performedStepCount?: number;
+  lastSeed?: string;
+  userCanceled?: boolean;
+  triggeredNSFWFilter?: boolean;
   resultUrl?: string;
+  resultKey?: string;
+  /**
+   * @deprecated Use `resultUrl`. Kept for older video worker/socket payload compatibility.
+   */
   videoUrl?: string;
+  /**
+   * @deprecated Use `resultUrl`. Kept for older video worker/socket payload compatibility.
+   */
   videoFile?: string;
 };
 
