@@ -1,3 +1,10 @@
+# [4.2.0-alpha.16](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.15...v4.2.0-alpha.16) (2026-05-06)
+
+
+### Bug Fixes
+
+* **client:** preserve external job progress ([6390c16](https://github.com/Sogni-AI/sogni-client/commit/6390c165b9c492b8fa0df07b331cb6193c8b3916))
+
 # [4.2.0-alpha.15](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.14...v4.2.0-alpha.15) (2026-05-04)
 
 
