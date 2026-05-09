@@ -1,3 +1,11 @@
+# [4.2.0-alpha.17](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.16...v4.2.0-alpha.17) (2026-05-09)
+
+
+### Features
+
+* **alpha:** merge agentic harness refactor ([e4e1ddc](https://github.com/Sogni-AI/sogni-client/commit/e4e1ddcc4b1cd1272ed7ccc8c4b68ee5a9f7df8c))
+* **chat:** plumb response_format through createCompletion ([b711a68](https://github.com/Sogni-AI/sogni-client/commit/b711a68e4dc7fc27d8d781f8cab40f74b23393eb))
+
 # [4.2.0-alpha.16](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.15...v4.2.0-alpha.16) (2026-05-06)
 
 
