@@ -365,7 +365,8 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       sogni_tools: params.sogni_tools,
       sogni_tool_execution: params.sogni_tool_execution,
       taskProfile: params.taskProfile,
-      ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs })
+      ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs }),
+      ...(params.response_format && { response_format: params.response_format })
     };
 
     const stream = new ChatStream(jobID);
