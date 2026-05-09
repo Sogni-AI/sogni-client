@@ -42,9 +42,11 @@
 
 import { SogniClient } from '../dist/index.js';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import imageSize from 'image-size';
 import {
   loadCredentials,
@@ -79,6 +81,7 @@ import {
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
+const execFileAsync = promisify(execFile);
 
 // Default prompt for this workflow
 const DEFAULT_PROMPT = 'A person speaking naturally with synchronized lip movements to the audio';
@@ -252,6 +255,47 @@ async function getAudioDuration(audioPath) {
       }
     });
   });
+}
+
+/**
+ * Current video workers fetch the driving audio asset as reference.m4a.
+ * Convert other accepted input formats before upload so the worker's asset lookup resolves.
+ */
+async function prepareAudioForUpload(audioPath) {
+  if (path.extname(audioPath).toLowerCase() === '.m4a') {
+    return { path: audioPath, temporaryDir: null };
+  }
+
+  const temporaryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sogni-s2v-audio-'));
+  const convertedPath = path.join(temporaryDir, 'reference.m4a');
+
+  log('🎵', 'Converting audio to .m4a for worker compatibility...');
+  try {
+    await execFileAsync('ffmpeg', [
+      '-y',
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      audioPath,
+      '-vn',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '192k',
+      '-movflags',
+      '+faststart',
+      convertedPath
+    ]);
+  } catch (error) {
+    fs.rmSync(temporaryDir, { recursive: true, force: true });
+    throw new Error(
+      `Failed to convert audio to .m4a with ffmpeg: ${error.message}. ` +
+        'Install ffmpeg or provide an .m4a audio file.'
+    );
+  }
+
+  return { path: convertedPath, temporaryDir };
 }
 
 /**
@@ -670,59 +714,68 @@ async function main() {
     log('🎬', 'Generating video from sound...');
     console.log();
 
-    // CRITICAL: SDK requires Buffer/File/Blob objects for media uploads, NOT string paths.
-    // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
-    const referenceImageBuffer = OPTIONS.image ? readFileAsBuffer(OPTIONS.image) : null;
-    const referenceAudioBuffer = readFileAsBuffer(OPTIONS.audio);
+    let preparedAudio = null;
+    try {
+      preparedAudio = await prepareAudioForUpload(OPTIONS.audio);
 
-    const projectParams = {
-      type: 'video',
-      modelId: modelConfig.id,
-      positivePrompt: OPTIONS.prompt,
-      numberOfMedia: OPTIONS.batch,
-      width: OPTIONS.width,
-      height: OPTIONS.height,
-      frames: OPTIONS.frames,
-      fps: OPTIONS.fps,
-      steps: OPTIONS.steps,
-      shift: OPTIONS.shift,
-      seed: OPTIONS.seed,
-      referenceAudio: referenceAudioBuffer,
-      disableNSFWFilter: OPTIONS.disableSafeContentFilter,
-      tokenType: tokenType
-    };
+      // CRITICAL: SDK requires Buffer/File/Blob objects for media uploads, NOT string paths.
+      // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
+      const referenceImageBuffer = OPTIONS.image ? readFileAsBuffer(OPTIONS.image) : null;
+      const referenceAudioBuffer = readFileAsBuffer(preparedAudio.path);
 
-    // Only include referenceImage for models that need it (s2v, ia2v)
-    if (referenceImageBuffer) {
-      projectParams.referenceImage = referenceImageBuffer;
+      const projectParams = {
+        type: 'video',
+        modelId: modelConfig.id,
+        positivePrompt: OPTIONS.prompt,
+        numberOfMedia: OPTIONS.batch,
+        width: OPTIONS.width,
+        height: OPTIONS.height,
+        frames: OPTIONS.frames,
+        fps: OPTIONS.fps,
+        steps: OPTIONS.steps,
+        shift: OPTIONS.shift,
+        seed: OPTIONS.seed,
+        referenceAudio: referenceAudioBuffer,
+        disableNSFWFilter: OPTIONS.disableSafeContentFilter,
+        tokenType: tokenType
+      };
+
+      // Only include referenceImage for models that need it (s2v, ia2v)
+      if (referenceImageBuffer) {
+        projectParams.referenceImage = referenceImageBuffer;
+      }
+
+      // Video models only support ComfyUI sampler/scheduler
+      if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
+      if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
+
+      // Add S2V-specific audio options
+      if (OPTIONS.audioStart !== undefined) {
+        projectParams.audioStart = OPTIONS.audioStart;
+      }
+      if (OPTIONS.audioDuration !== undefined) {
+        projectParams.audioDuration = OPTIONS.audioDuration;
+      }
+
+      // Add guidance
+      if (OPTIONS.guidance !== undefined && OPTIONS.guidance !== null) {
+        projectParams.guidance = OPTIONS.guidance;
+      }
+
+      // Add optional prompts
+      if (OPTIONS.negative) {
+        projectParams.negativePrompt = OPTIONS.negative;
+      }
+      if (OPTIONS.style) {
+        projectParams.stylePrompt = OPTIONS.style;
+      }
+
+      project = await sogni.projects.create(projectParams);
+    } finally {
+      if (preparedAudio?.temporaryDir) {
+        fs.rmSync(preparedAudio.temporaryDir, { recursive: true, force: true });
+      }
     }
-
-    // Video models only support ComfyUI sampler/scheduler
-    if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
-    if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
-
-    // Add S2V-specific audio options
-    if (OPTIONS.audioStart !== undefined) {
-      projectParams.audioStart = OPTIONS.audioStart;
-    }
-    if (OPTIONS.audioDuration !== undefined) {
-      projectParams.audioDuration = OPTIONS.audioDuration;
-    }
-
-    // Add guidance
-    if (OPTIONS.guidance !== undefined && OPTIONS.guidance !== null) {
-      projectParams.guidance = OPTIONS.guidance;
-    }
-
-    // Add optional prompts
-    if (OPTIONS.negative) {
-      projectParams.negativePrompt = OPTIONS.negative;
-    }
-    if (OPTIONS.style) {
-      projectParams.stylePrompt = OPTIONS.style;
-    }
-
-    project = await sogni.projects.create(projectParams);
 
     // Set up event handlers
     let completedVideos = 0;

@@ -936,7 +936,7 @@ export const MODELS = {
     'ltx23-ia2v-distilled': {
       id: 'ltx23-22b-fp8_ia2v_distilled',
       name: 'LTX-2.3 22B FP8 IA2V Distilled',
-      description: 'Fast 8-step image+audio to video, 22B model (~4-20s video)',
+      description: 'Fast 8-step image+audio reactive video; not lip-sync optimized',
       workflowType: 'ia2v',
       defaultWidth: 1920,
       defaultHeight: 1088,
@@ -982,7 +982,7 @@ export const MODELS = {
     'ltx23-ia2v-dev': {
       id: 'ltx23-22b-fp8_ia2v_dev',
       name: 'LTX-2.3 22B FP8 IA2V Dev',
-      description: 'High quality 30-step image+audio to video, 22B model (~4-20s video)',
+      description: 'High quality 30-step image+audio reactive video; not lip-sync optimized',
       workflowType: 'ia2v',
       defaultWidth: 1920,
       defaultHeight: 1088,
@@ -1028,7 +1028,7 @@ export const MODELS = {
     'ltx23-a2v-distilled': {
       id: 'ltx23-22b-fp8_a2v_distilled',
       name: 'LTX-2.3 22B FP8 A2V Distilled',
-      description: 'Fast 8-step audio to video, 22B model (~4-20s video)',
+      description: 'Fast 8-step audio reactive video; no reference face/lip-sync control',
       workflowType: 'a2v',
       defaultWidth: 1920,
       defaultHeight: 1088,
@@ -1071,7 +1071,7 @@ export const MODELS = {
     'ltx23-a2v-dev': {
       id: 'ltx23-22b-fp8_a2v_dev',
       name: 'LTX-2.3 22B FP8 A2V Dev',
-      description: 'High quality 30-step audio to video, 22B model (~4-20s video)',
+      description: 'High quality 30-step audio reactive video; no reference face/lip-sync control',
       workflowType: 'a2v',
       defaultWidth: 1920,
       defaultHeight: 1088,
@@ -2665,17 +2665,37 @@ export function displayPrompts(prompts) {
 // File Reading for SDK Upload
 // ============================================
 
+const LOCAL_FILE_CONTENT_TYPES = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.flac': 'audio/flac',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm'
+};
+
+function getLocalFileContentType(filePath) {
+  return LOCAL_FILE_CONTENT_TYPES[path.extname(filePath).toLowerCase()];
+}
+
 /**
- * Read a file from disk as a Blob for SDK upload.
+ * Read a file from disk as a typed Blob for SDK upload.
  * The SDK requires File/Buffer/Blob objects, NOT string paths.
  * Passing a string path will silently fail and corrupt the upload.
  *
- * NOTE: We return a Blob because the SDK's toFetchBody() function
- * explicitly handles File, Buffer, and Blob types. Uint8Array is NOT
- * handled and will fail silently.
+ * The Blob type matters for worker-side downloads. Without it, audio uploads can
+ * be stored under a generic object key and later 404 when the worker requests the
+ * model-specific audio MIME type.
  *
  * @param {string} filePath - Path to the file
- * @returns {Blob} File contents as a Blob
+ * @returns {Blob} File contents as a typed Blob
  */
 export function readFileAsBuffer(filePath) {
   if (!filePath) {
@@ -2689,17 +2709,23 @@ export function readFileAsBuffer(filePath) {
 
   // CRITICAL: Node.js Buffer may be backed by a pooled ArrayBuffer.
   // We must slice to get ONLY our file's data, not the entire pool.
-  const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  const arrayBuffer = buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  );
+  const contentType = getLocalFileContentType(filePath);
 
   // Return as Blob - this is what the SDK's toFetchBody() expects
-  return new Blob([arrayBuffer]);
+  return contentType
+    ? new Blob([arrayBuffer], { type: contentType })
+    : new Blob([arrayBuffer]);
 }
 
 /**
- * Read multiple files from disk as Uint8Arrays for SDK upload.
+ * Read multiple files from disk as typed Blobs for SDK upload.
  *
  * @param {string[]} filePaths - Array of file paths
- * @returns {Uint8Array[]} Array of file contents as Uint8Arrays
+ * @returns {Blob[]} Array of file contents as typed Blobs
  */
 export function readFilesAsBuffers(filePaths) {
   return filePaths.filter(Boolean).map(readFileAsBuffer);
