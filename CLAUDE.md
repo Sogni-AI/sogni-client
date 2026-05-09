@@ -21,6 +21,16 @@ Use secondary LLM calls for semantic planning, creative adaptation, and audit/re
 
 When SDK examples or generated helpers expose hosted creative workflows, keep them generated from or aligned with shared `@sogni/creative-agent` contracts such as `compileCreativeWorkflowPlanToHostedSequence()`, `validateAndNormalizeHostedToolArguments()`, `getRepairControlDecision()`, and `summarizeGuardTelemetry()`.
 
+### Phase 3 (agentic-harness) shared contracts
+
+`@sogni/creative-agent` ships several Phase-3 surfaces SDK consumers can import directly when implementing creative workflows:
+
+- **Skills**: `ALL_BUILT_IN_SKILLS`, individual manifest exports (`QUALITY_AUDIT_SKILL`, `SKILL_MANAGEMENT_SKILL`, `SESSION_CONTROL_SKILL`, `ASSET_REFERENCE_MANAGEMENT_SKILL`, plus `IMAGE_GENERATION_SKILL`, `IMAGE_EDITING_SKILL`, `VIDEO_GENERATION_SKILL`, `VIDEO_EDITING_SKILL`, `MUSIC_GENERATION_SKILL`, `MEDIA_ANALYSIS_SKILL`, `PERSONA_MANAGEMENT_SKILL`, `APP_SETTINGS_SKILL`).
+- **Asset manifest**: `createAssetManifest`, `addAsset`, `mapAssetsForModel`, `validateAssetReferences`, `formatModelRef` — three-layer asset references (`asset_id` / `user_label` / `model_ref`) so SDK consumers don't hand-format Seedance `@Image1` / GPT-Image-2 `[Image 1]` / LTX-2.3 `context_image_0` tokens.
+- **Storyboard adapters**: `compileForModel`, `storyboardAdapterRegistry`, `SEEDANCE_ADAPTER`, `GPT_IMAGE_2_ADAPTER`, `LTX23_ADAPTER`, `WAN_ADAPTER`. Resolution is liberal (`seedance2-fast` → seedance via prefix).
+- **Tool envelope**: `ToolResult`, `toolOk`, `toolErr`, `isToolResultOk`, `isToolResultErr`, `mapLegacyToolErrorCategory`, plus the canonical `ToolErrorCode` taxonomy.
+- **Constrained decoding (`response_format`)**: llama-server natively accepts OpenAI-standard `{ type: "json_schema", json_schema: { strict, schema } }`. Plumbing through `src/Chat/index.ts` is the right place to land if SDK consumers want to opt in on tool-call rounds. Once added here it auto-flows through `sogni-socket` to the worker.
+
 ## Overview
 
 This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, etc.), video generation (WAN 2.2 and LTX-2.3 models), audio generation (ACE-Step 1.5), LLM chat with tool calling, and multimodal vision chat (Qwen3.5 VLM) via WebSocket communication.
