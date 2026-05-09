@@ -1,3 +1,10 @@
+# [4.2.0-alpha.18](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.17...v4.2.0-alpha.18) (2026-05-09)
+
+
+### Bug Fixes
+
+* **examples:** prepare sound-to-video audio uploads ([52e6cc2](https://github.com/Sogni-AI/sogni-client/commit/52e6cc210e67da49742229a9d1ff2d0edd5e14fa))
+
 # [4.2.0-alpha.17](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.16...v4.2.0-alpha.17) (2026-05-09)
 
 
