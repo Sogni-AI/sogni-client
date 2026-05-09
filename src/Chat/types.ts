@@ -38,6 +38,29 @@ export type ToolChoice =
 
 export type SogniToolsMode = boolean | 'creative-agent' | 'rich';
 
+/**
+ * OpenAI-compatible structured-output controls. Forwarded to the worker
+ * unchanged; honored natively by llama-server (compiles JSON Schema → GBNF
+ * internally) and vLLM (`xgrammar` / `outlines`). Per-request opt-in — when
+ * omitted, the model generates without constraint.
+ */
+export type ChatResponseFormat =
+  | { type: 'text' }
+  | { type: 'json_object' }
+  | {
+      type: 'json_schema';
+      json_schema: {
+        /** Identifier for cached grammar reuse. */
+        name: string;
+        /** JSON Schema describing the required output shape. */
+        schema: Record<string, unknown>;
+        /** When true, only fields named in `schema` may appear. Default: false. */
+        strict?: boolean;
+        /** Optional description shown to the model. */
+        description?: string;
+      };
+    };
+
 /** Text content part for multimodal messages. */
 export interface TextContentPart {
   type: 'text';
@@ -107,6 +130,12 @@ export interface ChatCompletionParams {
   /** Hint for server-side preset selection. */
   taskProfile?: 'general' | 'coding' | 'reasoning';
   /**
+   * Constrain output structure (OpenAI-compatible). Most useful on tool-call
+   * rounds where the model must emit a specific argument shape — eliminates
+   * JSON drift on quantized models. Forwarded to the worker unchanged.
+   */
+  response_format?: ChatResponseFormat;
+  /**
    * Automatically execute Sogni tool calls (image/video/music generation) when the
    * model requests them. The SDK handles the full multi-round tool calling loop:
    * send completion → execute tools → feed results back → repeat until done.
@@ -156,6 +185,8 @@ export interface ChatRequestMessage {
   taskProfile?: 'general' | 'coding' | 'reasoning';
   /** Per-request chat template arguments (e.g. `{ enable_thinking: false }` for llama.cpp). */
   chat_template_kwargs?: Record<string, unknown>;
+  /** Per-request structured-output constraint (OpenAI-compatible). */
+  response_format?: ChatResponseFormat;
 }
 
 export interface ChatCompletionChunk {
