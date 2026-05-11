@@ -21,19 +21,23 @@ Use secondary LLM calls for semantic planning, creative adaptation, and audit/re
 
 When SDK examples or generated helpers expose hosted creative workflows, keep them generated from or aligned with shared `@sogni/creative-agent` contracts such as `compileCreativeWorkflowPlanToHostedSequence()`, `validateAndNormalizeHostedToolArguments()`, `getRepairControlDecision()`, and `summarizeGuardTelemetry()`.
 
-### Phase 3 (agentic-harness) shared contracts
+### Shared `@sogni/creative-agent` contracts
 
-`@sogni/creative-agent` ships several Phase-3 surfaces SDK consumers can import directly when implementing creative workflows:
+`@sogni/creative-agent` ships several surfaces SDK consumers can import directly when implementing creative workflows:
 
-- **Skills**: `ALL_BUILT_IN_SKILLS`, individual manifest exports (`QUALITY_AUDIT_SKILL`, `SKILL_MANAGEMENT_SKILL`, `SESSION_CONTROL_SKILL`, `ASSET_REFERENCE_MANAGEMENT_SKILL`, plus `IMAGE_GENERATION_SKILL`, `IMAGE_EDITING_SKILL`, `VIDEO_GENERATION_SKILL`, `VIDEO_EDITING_SKILL`, `MUSIC_GENERATION_SKILL`, `MEDIA_ANALYSIS_SKILL`, `PERSONA_MANAGEMENT_SKILL`, `APP_SETTINGS_SKILL`).
+- **Per-turn tool gating**: the chat-side skill loader (`load_skill` / `unload_skill` / `list_active_skills`) was retired on 2026-05-10. Tool-surface composition is now owned by Structured Contracts v1 (see next bullet). SDK consumers building their own agent loop should construct a `ContractRegistry` and call `classifyTurn` / `compileToolsForTurn` / `dispatchToolCall` instead of advertising load/unload tools to the model. (The read-only `*_SKILL` manifest metadata used by the public Anthropic-style skill artifact is **not** a `@sogni/creative-agent` package export — it ships separately via `@sogni-ai/sogni-creative-agent-skill`.)
+- **Structured Contracts v1**: `ContractRegistry`, `ToolGatingPolicy`, `RepairRecipe`, `PromptContract`, `classifyTurn`, `compileToolsForTurn`, `dispatchToolCall`, plus the `ContractsTelemetrySink` event types. The chat product seeds a registry once per session and the three evaluators own visible-tool composition, repair-on-error, and prompt-bake.
 - **Asset manifest**: `createAssetManifest`, `addAsset`, `mapAssetsForModel`, `validateAssetReferences`, `formatModelRef` — three-layer asset references (`asset_id` / `user_label` / `model_ref`) so SDK consumers don't hand-format Seedance `@Image1` / GPT-Image-2 `[Image 1]` / LTX-2.3 `context_image_0` tokens.
 - **Storyboard adapters**: `compileForModel`, `storyboardAdapterRegistry`, `SEEDANCE_ADAPTER`, `GPT_IMAGE_2_ADAPTER`, `LTX23_ADAPTER`, `WAN_ADAPTER`. Resolution is liberal (`seedance2-fast` → seedance via prefix).
 - **Tool envelope**: `ToolResult`, `toolOk`, `toolErr`, `isToolResultOk`, `isToolResultErr`, `mapLegacyToolErrorCategory`, plus the canonical `ToolErrorCode` taxonomy.
-- **Constrained decoding (`response_format`)**: llama-server natively accepts OpenAI-standard `{ type: "json_schema", json_schema: { strict, schema } }`. Plumbing through `src/Chat/index.ts` is the right place to land if SDK consumers want to opt in on tool-call rounds. Once added here it auto-flows through `sogni-socket` to the worker.
+- **Constrained decoding (`response_format`)**: llama-server natively accepts OpenAI-standard `{ type: "json_schema", json_schema: { strict, schema } }`. Plumbed through `src/Chat/index.ts` and forwarded to the worker via `sogni-socket` (commit `b711a68`); the `ChatResponseFormat` type is re-exported from the SDK root for typed consumer usage.
+- **Default contract data**: `populateContractsDefaults(registry)` seeds a `ContractRegistry` with the canonical Phase 3 gating policies (7), Phase 4 repair recipes (157 across 11 `(toolName, ToolErrorCode)` families), and Phase 5 per-tool prompt contracts (12). SDK consumers calling `classifyTurn` / `compileToolsForTurn` / `dispatchToolCall` should seed off this one call instead of registering policies / recipes / contracts manually.
+- **Per-tool cost + permission**: `getToolCostMetadata(toolName)` returns `{ costClass, riskLevel, userVisibleCost, description }`; `getToolPermission(toolName)` returns the typed `ToolPermissionDecision` (`allow` / `require_user_approval` / `require_explicit_intent`). SDK consumers can use these for client-side billing UX or for enforcing destructive-tool gates in their own agent loop (chat + hosted both enforce `require_explicit_intent` via shared `EXPLICIT_INTENT_PATTERNS`).
+- **Replay record schema**: `RunRecord` (schema v2; `skills_loaded` dropped after the 2026-05-10 skill-loader retirement), `redactRunRecord`, `emptyRunRecord`, plus the canonical `RunRecordToolCall` / `RunRecordToolResult` / `RunRecordRound` / `RunRecordAuditResult` shapes. SDK consumers that emit their own RunRecord (instead of relying on sogni-chat) should call `redactRunRecord` defense-in-depth before persisting / posting. The chat product writes records to sogni-api's `POST /v1/replay/records` ingest endpoint; SDK consumers can POST the same shape to the same endpoint with their api-key auth.
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, etc.), video generation (WAN 2.2 and LTX-2.3 models), audio generation (ACE-Step 1.5), LLM chat with tool calling, and multimodal vision chat (Qwen3.5 VLM) via WebSocket communication.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, etc.), video generation (WAN 2.2 and LTX-2.3 models), audio generation (ACE-Step 1.5), LLM chat with tool calling, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`) via WebSocket communication.
 
 ## Build & Development Commands
 
@@ -242,7 +246,7 @@ The SDK receives `LLMModelInfo` per model including `maxContextLength`, `maxOutp
 
 **Caution**: `maxContextLength` from the server may not reflect the actual per-request limit on the worker (see sogni-socket and sogni-llm-nvidia CLAUDE.md for the llama-server `--parallel` slot division issue).
 
-### Thinking Models (Qwen3/3.5) — `chat_template_kwargs`
+### Thinking Models (Qwen3.x) — `chat_template_kwargs`
 
 Thinking mode is controlled via llama.cpp's `chat_template_kwargs: { enable_thinking }` per-request parameter. The SDK's `think` param maps to this:
 - `think: false` → `chat_template_kwargs: { enable_thinking: false }` (no thinking)
@@ -251,7 +255,7 @@ Thinking mode is controlled via llama.cpp's `chat_template_kwargs: { enable_thin
 
 The llama-server should run with default `--reasoning-budget -1` (unrestricted) so per-request control works.
 
-Qwen3/3.5 models generate thinking output in a separate `reasoning_content` field (OpenAI-compatible). The LLM worker wraps this in `<think>` tags inside `content` for the SDK. The SDK's `ChatCompletionChunk` type has NO `reasoning_content` field — only `content` and `tool_calls`.
+Qwen3.x models generate thinking output in a separate `reasoning_content` field (OpenAI-compatible). The LLM worker wraps this in `<think>` tags inside `content` for the SDK. The SDK's `ChatCompletionChunk` type has NO `reasoning_content` field — only `content` and `tool_calls`.
 
 **The solution for structured output**: Use **tool calling** (`tools` + `tool_choice: 'required'`). Tool call arguments are always forwarded by the worker regardless of thinking mode. The `workflow_text_chat_sogni_tools.mjs` example uses this pattern for all composition pipelines (video/image/audio prompt engineering).
 
