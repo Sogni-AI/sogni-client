@@ -1,3 +1,10 @@
+# [4.2.0-alpha.19](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.18...v4.2.0-alpha.19) (2026-05-11)
+
+
+### Features
+
+* **sdk:** re-export ChatResponseFormat type from package root ([b48849c](https://github.com/Sogni-AI/sogni-client/commit/b48849c517375d7879d55653398a65f0d93f161c))
+
 # [4.2.0-alpha.18](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.17...v4.2.0-alpha.18) (2026-05-09)
 
 
