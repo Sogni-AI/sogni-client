@@ -630,7 +630,7 @@ Generate the core text-to-image, text-to-video, and text-to-music flows through 
 - `sogni_video_to_video` - Video transformation and motion transfer
 
 **Rich Creative-Agent Tool Family:**
-The Sogni API also exposes a richer 14-tool family for agentic chat experiences. Pass `sogni_tools: "creative-agent"` (or `"rich"`) in the request body to swap the 6 hosted `sogni_*` tools for `generate_image`, `edit_image`, `restore_photo`, `apply_style`, `refine_result`, `animate_photo` (with multi-source fan-out), `change_angle`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`, plus three composition tools that return a single stitched MP4: `stitch_video`, `orbit_video`, and `dance_montage`. See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
+The Sogni API also exposes the richer creative-agent tool surface for agentic chat experiences. Pass `sogni_tools: "creative-agent"` (or `"rich"`) in the request body to swap the 6 hosted `sogni_*` tools for tools such as `generate_image`, `edit_image`, `restore_photo`, `apply_style`, `refine_result`, `animate_photo` (with multi-source fan-out), `change_angle`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`, composition tools (`stitch_video`, `orbit_video`, `dance_montage`), and video post-production tools (`extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`). See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
 
 Run the server-side API-key example:
 

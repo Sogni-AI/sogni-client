@@ -21,7 +21,7 @@ Behind the scenes this SDK uses a WebSocket connection for communication between
 - 🤖 **LLM Text Generation** - Chat completions with streaming, multi-turn conversations, and thinking/reasoning mode via OpenAI-compatible API
 - 🔧 **LLM Tool Calling** - Define custom tools (functions) that the LLM can invoke during conversations for real-time data and actions
 - 🎨🎬🎵 **Sogni Platform Tools** - Generate images, reference-guided image edits, videos, audio-driven videos, video transforms, and music through natural language chat
-- 🤖 **Rich Creative-Agent Tools** - Opt into a 14-tool agentic family (`restore_photo`, `animate_photo` with multi-source fan-out, `stitch_video`, `orbit_video`, `dance_montage`, etc.) by setting `sogni_tools: "creative-agent"`
+- 🤖 **Rich Creative-Agent Tools** - Opt into the full creative-agent surface (`restore_photo`, `animate_photo` with multi-source fan-out, `stitch_video`, `orbit_video`, `extend_video`, `overlay_video`, etc.) by setting `sogni_tools: "creative-agent"`
 - ⏱️ **Durable Creative Workflows** - Persistent server-side multi-step workflows with SSE event streaming, `Last-Event-ID` resume, and cooperative cancellation via `/v1/creative-agent/workflows`
 - 👁️ **Vision Chat** - Multimodal image understanding with scene description, OCR, object detection, visual analysis, and multi-image comparison via Qwen3.6 VLM
 
@@ -833,7 +833,7 @@ The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-i
 
 ### Rich Creative-Agent Tool Family (server-side)
 
-For agentic experiences that mirror `chat.sogni.ai`, the Sogni API can inject a richer 14-tool family instead of the 6 hosted `sogni_*` tools above. Pass `sogni_tools: "creative-agent"` (or `"rich"`) in the SDK chat completion request — the server expands the injected tool set to the full creative-agent surface and threads a per-request media context across rounds so generated artifacts can be referenced by index.
+For agentic experiences that mirror `chat.sogni.ai`, the Sogni API can inject the richer creative-agent tool surface instead of the 6 hosted `sogni_*` tools above. Pass `sogni_tools: "creative-agent"` (or `"rich"`) in the SDK chat completion request — the server expands the injected tool set to the full creative-agent surface and threads a per-request media context across rounds so generated artifacts can be referenced by index.
 
 Tools added on top of the hosted six:
 
@@ -844,8 +844,10 @@ Tools added on top of the hosted six:
 | `stitch_video`                                                  | Compose selected video clips into one MP4 (with optional audio overlay)                                                               |
 | `orbit_video`                                                   | Generate orbit clips around a subject and stitch them                                                                                 |
 | `dance_montage`                                                 | Generate dance clips and stitch when multi-clip                                                                                       |
+| `extend_video`, `replace_video_segment`                         | Extend or replace a bounded segment of an existing video                                                                              |
+| `overlay_video`, `add_subtitles`                                | Burn in text/logo overlays or subtitle cues onto existing videos via ffmpeg                                                           |
 
-Composition tools (`stitch_video`, `orbit_video`, `dance_montage`, and `animate_photo` fan-out) return a single composed MP4 URL. See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
+Composition and post-production tools (`stitch_video`, `orbit_video`, `dance_montage`, `animate_photo` fan-out, `extend_video`, `replace_video_segment`, `overlay_video`, and `add_subtitles`) return or update MP4 artifacts. See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
 
 ```javascript
 import { SogniClient } from '@sogni-ai/sogni-client';
