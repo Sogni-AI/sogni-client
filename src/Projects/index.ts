@@ -657,7 +657,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   async create(data: ProjectParams): Promise<Project> {
     const project = new Project({ ...data }, { api: this, logger: this.client.logger });
     const modelOptions = await this.getModelOptions(data.modelId);
-    const request = createJobRequestMessage(project.id, data, modelOptions);
+    const requestParams = {
+      ...data,
+      appSource: data.appSource || this.client.appSource
+    } as ProjectParams;
+    const request = createJobRequestMessage(project.id, requestParams, modelOptions);
 
     switch (data.type) {
       case 'image':

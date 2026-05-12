@@ -158,6 +158,10 @@ export type LLMJobErrorData = {
   workerName?: string;
 };
 
+export type SocketEventSubscriptionsUpdatedData = {
+  socketEventSubscriptions: Record<string, boolean | undefined>;
+};
+
 export type SocketEventMap = {
   /**
    * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
@@ -214,6 +218,10 @@ export type SocketEventMap = {
    * @event WebSocketClient#swarmLLMModels - Available LLM models with worker counts
    */
   swarmLLMModels: Record<string, number | LLMModelInfo>;
+  /**
+   * @event WebSocketClient#socketEventSubscriptionsUpdated - Current socket event subscriptions changed
+   */
+  socketEventSubscriptionsUpdated: SocketEventSubscriptionsUpdatedData;
   /**
    * @event WebSocketClient#connected - WebSocket connection opened
    */

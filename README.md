@@ -123,6 +123,40 @@ const models = await sogni.projects.waitForModels();
 - `appId` must be unique string, UUID is recommended. It is used to identify your application.
 - Only one connection per `appId` is allowed. If you try to connect with the same `appId` multiple times, the previous connection will be closed.
 
+### Connection metadata and event subscriptions
+
+Use `appSource` to identify the product or integration behind a client connection. The SDK forwards it during authentication and on socket-backed project/chat requests so server-side reporting can attribute usage consistently.
+
+By default, the SDK receives the full socket event stream, including live model worker counts through `swarmModels` and `swarmLLMModels`. Proxy, server-side, or headless clients that do not need ongoing worker count updates can opt out of the grouped model availability stream:
+
+```javascript
+const sogni = await SogniClient.createInstance({
+  appId: 'your-app-id',
+  appSource: 'my-integration',
+  network: 'fast',
+  apiKey: 'your-api-key',
+  socketEventSubscriptions: {
+    modelAvailability: false
+  }
+});
+```
+
+If your process needs the initial model list before submitting work, keep the default subscription, wait for models, then unsubscribe from future count updates:
+
+```javascript
+const models = await sogni.projects.waitForModels();
+
+await sogni.setSocketEventSubscriptions({
+  modelAvailability: false
+});
+```
+
+`modelAvailability` is a subscription group covering `swarmModels` and `swarmLLMModels`. You can also opt in or out of individual socket event names with the same boolean map, and omitted subscriptions preserve default server behavior.
+
+**Group flags dominate individual flags.** Disabling a group (e.g. `modelAvailability: false`) suppresses every event in the group, and re-enabling a single event under that group later (e.g. `swarmModels: true`) does **not** override the group-level suppression — the group flag still wins. To re-enable a single event, re-enable the group it belongs to (or clear it via `setSocketEventSubscriptions({ reset: true })` before reapplying selective subscriptions). Subscriptions you do not list keep their current server-side state.
+
+Runtime subscription changes made via `setSocketEventSubscriptions` are remembered locally and re-applied on every reconnect, so a long-lived client only needs to express its preference once.
+
 ## Usage
 
 After authentication, the client will have an active WebSocket connection to Sogni Supernet. Within a short period of time the
@@ -652,7 +686,8 @@ const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
   modelId: 'seedance-2-0',
-  positivePrompt: 'Use @Image1 as the product identity, @Image2 for detail inserts, @Video1 for camera movement, and @Audio1 for music rhythm. Create one cohesive launch spot with smooth continuity and crisp product preservation.',
+  positivePrompt:
+    'Use @Image1 as the product identity, @Image2 for detail inserts, @Video1 for camera movement, and @Audio1 for music rhythm. Create one cohesive launch spot with smooth continuity and crisp product preservation.',
   duration: 8,
   fps: 24,
   width: 1920,
@@ -957,16 +992,16 @@ The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) dire
 
 The workflow examples showcase a few powerful open-source frontier models supported by Sogni Supernet:
 
-| Model ID                             | Description                                                 | Use Case                                                                                                     |
-| ------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `z_image_turbo_bf16`                 | **Z-Image Turbo** - Ultra-fast 8-step generation            | Quick text-to-image prototyping and iteration                                                                |
-| `z_image_bf16`                       | **Z-Image** - High quality 20-step generation               | Detailed, high quality image output                                                                          |
-| `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing         | Rapid reference-based image generation                                                                       |
-| `qwen_image_edit_2511_fp8`           | **Qwen Image Edit** - High quality 20-step editing          | Professional image editing with context awareness                                                            |
-| `wan_v2.2-14b-fp8_t2v_lightx2v`      | **Wan 2.2 T2V** - Text-to-video                             | Generate videos from text prompts                                                                            |
-| `seedance-2-0`                       | **Seedance 2.0** - External API multimodal video            | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
-| `seedance-2-0-fast`                  | **Seedance 2.0 Fast** - 720p external API video             | Faster 24fps video generation where fast tiers are enabled                                                   |
-| `qwen3.6-35b-a3b-gguf-iq4xs`         | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision       | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
+| Model ID                             | Description                                           | Use Case                                                                                                     |
+| ------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `z_image_turbo_bf16`                 | **Z-Image Turbo** - Ultra-fast 8-step generation      | Quick text-to-image prototyping and iteration                                                                |
+| `z_image_bf16`                       | **Z-Image** - High quality 20-step generation         | Detailed, high quality image output                                                                          |
+| `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing   | Rapid reference-based image generation                                                                       |
+| `qwen_image_edit_2511_fp8`           | **Qwen Image Edit** - High quality 20-step editing    | Professional image editing with context awareness                                                            |
+| `wan_v2.2-14b-fp8_t2v_lightx2v`      | **Wan 2.2 T2V** - Text-to-video                       | Generate videos from text prompts                                                                            |
+| `seedance-2-0`                       | **Seedance 2.0** - External API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
+| `seedance-2-0-fast`                  | **Seedance 2.0 Fast** - 720p external API video       | Faster 24fps video generation where fast tiers are enabled                                                   |
+| `qwen3.6-35b-a3b-gguf-iq4xs`         | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
 
 All workflow examples include:
 

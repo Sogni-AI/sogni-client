@@ -326,7 +326,7 @@ function applyImageParams(
 ) {
   const keyFrame: Record<string, any> = {
     ...inputKeyframe,
-    sizePreset: params.sizePreset,
+    sizePreset: params.sizePreset
   };
   const contextImages = params.contextImages || [];
   for (let index = 1; index <= 16; index += 1) {

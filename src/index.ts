@@ -4,6 +4,16 @@ import CurrentAccount from './Account/CurrentAccount';
 // ApiClient
 import ApiClient, { ApiError, ApiResponse } from './ApiClient';
 import { SupernetType } from './ApiClient/WebSocketClient/types';
+import type {
+  SocketEventName,
+  SocketEventSubscriptionsUpdatedData
+} from './ApiClient/WebSocketClient/events';
+import type {
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptionName,
+  SocketEventSubscriptions,
+  SocketEventSubscriptionUpdate
+} from './ApiClient/WebSocketClient/eventSubscriptions';
 import { ApiConfig } from './ApiGroup';
 // Utils
 import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger';
@@ -156,6 +166,12 @@ export type {
   ToolFunction,
   ToolHistoryEntry,
   SogniToolsMode,
+  SocketEventName,
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptionName,
+  SocketEventSubscriptions,
+  SocketEventSubscriptionsUpdatedData,
+  SocketEventSubscriptionUpdate,
   VideoControlNetName,
   VideoControlNetParams,
   VideoFormat,
@@ -190,6 +206,14 @@ export interface SogniClientConfig {
    * The socket server uses this as the default source for project and chat requests from this client.
    */
   appSource?: string;
+  /**
+   * Initial WebSocket event subscriptions for this connection.
+   *
+   * Omit this option to receive the default socket event stream. To reduce socket traffic for
+   * proxy or headless clients that do not need live worker counts, set
+   * `{ modelAvailability: false }` to opt out of `swarmModels` and `swarmLLMModels` updates.
+   */
+  socketEventSubscriptions?: SocketEventSubscriptions;
   /**
    * Override the default REST API endpoint
    * @internal
@@ -325,6 +349,16 @@ export class SogniClient {
   }
 
   /**
+   * Update WebSocket event subscriptions for this live client.
+   *
+   * This is useful when a process needs the initial model availability snapshot for startup, but
+   * does not need ongoing worker count updates afterward.
+   */
+  async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
+    await this.apiClient.setSocketEventSubscriptions(update);
+  }
+
+  /**
    * Create client instance, with default configuration
    * @param config
    */
@@ -341,6 +375,7 @@ export class SogniClient {
       socketUrl: socketEndpoint,
       appId: config.appId,
       appSource: config.appSource,
+      socketEventSubscriptions: config.socketEventSubscriptions,
       networkType: network,
       logger,
       authType,

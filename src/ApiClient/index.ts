@@ -6,6 +6,10 @@ import { ServerConnectData, ServerDisconnectData } from './WebSocketClient/event
 import { ErrorCode, isNotRecoverable } from './WebSocketClient/ErrorCode';
 import { JSONValue } from '../types/json';
 import { IWebSocketClient, SupernetType } from './WebSocketClient/types';
+import type {
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptions
+} from './WebSocketClient/eventSubscriptions';
 import { Logger } from '../lib/DefaultLogger';
 import ApiKeyAuthManager from '../lib/AuthManager/ApiKeyAuthManager';
 import CookieAuthManager from '../lib/AuthManager/CookieAuthManager';
@@ -42,6 +46,7 @@ export interface ApiClientOptions {
   socketUrl: string;
   appId: string;
   appSource?: string;
+  socketEventSubscriptions?: SocketEventSubscriptions;
   networkType: SupernetType;
   logger: Logger;
   authType: 'token' | 'cookies' | 'apiKey';
@@ -64,6 +69,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     socketUrl,
     appId,
     appSource,
+    socketEventSubscriptions,
     networkType,
     authType,
     logger,
@@ -91,7 +97,8 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
         appId,
         networkType,
         logger,
-        this.appSource
+        this.appSource,
+        socketEventSubscriptions
       );
     } else {
       this._socket = new WebSocketClient(
@@ -100,7 +107,8 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
         appId,
         networkType,
         logger,
-        this.appSource
+        this.appSource,
+        socketEventSubscriptions
       );
     }
     this._disableSocket = disableSocket;
@@ -127,6 +135,10 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
 
   get socketEnabled(): boolean {
     return !this._disableSocket;
+  }
+
+  setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
+    return this.socket.setSocketEventSubscriptions(update);
   }
 
   handleSocketConnect({ network }: ServerConnectData) {

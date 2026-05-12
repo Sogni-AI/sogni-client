@@ -92,6 +92,8 @@ export interface ChatMessage {
 export interface ChatCompletionParams {
   model: string;
   messages: ChatMessage[];
+  /** Optional source label for this request. Defaults to the client appSource when configured. */
+  appSource?: string;
   max_tokens?: number;
   temperature?: number;
   top_p?: number;
@@ -167,6 +169,7 @@ export interface ChatRequestMessage {
   type: 'llm';
   model: string;
   messages: ChatMessage[];
+  appSource?: string;
   max_tokens?: number;
   temperature?: number;
   top_p?: number;

@@ -349,6 +349,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       type: 'llm',
       model: params.model,
       messages: normalizedMessages,
+      appSource: params.appSource || this.client.appSource,
       max_tokens: params.max_tokens,
       temperature: params.temperature,
       top_p: params.top_p,

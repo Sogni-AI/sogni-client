@@ -6,6 +6,7 @@ import RestClient from '../../../lib/RestClient';
 import { SocketEventMap } from '../events';
 import { MessageType, SocketMessageMap } from '../messages';
 import ChannelCoordinator from './ChannelCoordinator';
+import type { SocketEventSubscriptionInput, SocketEventSubscriptions } from '../eventSubscriptions';
 
 interface SocketSend<T extends MessageType = MessageType> {
   type: 'socket-send';
@@ -25,7 +26,17 @@ interface SwitchNetwork {
   payload: SupernetType;
 }
 
-type Message = SocketConnect | SocketDisconnect | SocketSend | SwitchNetwork;
+interface SetSocketEventSubscriptions {
+  type: 'setSocketEventSubscriptions';
+  payload: SocketEventSubscriptionInput;
+}
+
+type Message =
+  | SocketConnect
+  | SocketDisconnect
+  | SocketSend
+  | SwitchNetwork
+  | SetSocketEventSubscriptions;
 
 interface EventNotification<T extends keyof SocketEventMap = keyof SocketEventMap> {
   type: 'socket-event';
@@ -71,9 +82,18 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     appId: string,
     supernetType: SupernetType,
     logger: Logger,
-    appSource?: string
+    appSource?: string,
+    socketEventSubscriptions?: SocketEventSubscriptions
   ) {
-    const socketClient = new WrappedClient(baseUrl, auth, appId, supernetType, logger, appSource);
+    const socketClient = new WrappedClient(
+      baseUrl,
+      auth,
+      appId,
+      supernetType,
+      logger,
+      appSource,
+      socketEventSubscriptions
+    );
     super(socketClient.baseUrl, auth, logger);
     this.socketClient = socketClient;
     this.appId = appId;
@@ -89,6 +109,14 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     });
     this.auth.on('updated', this.handleAuthUpdated.bind(this));
     this.socketClient.intercept(this.handleSocketEvent.bind(this));
+    // Keep this tab's WrappedClient subscription state in sync with the server's authoritative
+    // snapshot, even when this tab is currently a secondary. If we get promoted to primary, the
+    // next `connect()` will serialize the up-to-date state into the URL query string.
+    this.on('socketEventSubscriptionsUpdated', (payload) => {
+      if (payload && payload.socketEventSubscriptions) {
+        this.socketClient.socketEventSubscriptions = { ...payload.socketEventSubscriptions };
+      }
+    });
   }
 
   get isConnected() {
@@ -134,6 +162,17 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     return supernetType;
   }
 
+  async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
+    await this.coordinator.isReady();
+    if (this.coordinator.isPrimary) {
+      return this.socketClient.setSocketEventSubscriptions(update);
+    }
+    return this.coordinator.sendMessage({
+      type: 'setSocketEventSubscriptions',
+      payload: update
+    });
+  }
+
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]): Promise<void> {
     await this.coordinator.isReady();
     if (this.coordinator.isPrimary) {
@@ -171,6 +210,10 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       }
       case 'switchNetwork': {
         await this.switchNetwork(message.payload);
+        return;
+      }
+      case 'setSocketEventSubscriptions': {
+        await this.socketClient.setSocketEventSubscriptions(message.payload);
         return;
       }
       default: {

@@ -8,6 +8,11 @@ import isNodejs from '../../lib/isNodejs';
 import { LIB_VERSION } from '../../version';
 import { Logger } from '../../lib/DefaultLogger';
 import { AuthManager } from '../../lib/AuthManager';
+import {
+  normalizeSocketEventSubscriptionUpdate,
+  serializeSocketEventSubscriptions
+} from './eventSubscriptions';
+import type { SocketEventSubscriptionInput, SocketEventSubscriptions } from './eventSubscriptions';
 
 const PROTOCOL_VERSION = '3.0.0';
 
@@ -17,6 +22,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   appId: string;
   appSource?: string;
   baseUrl: string;
+  socketEventSubscriptions?: SocketEventSubscriptions;
   private socket: WebSocket | null = null;
   private _supernetType: SupernetType;
   private _pingInterval: NodeJS.Timeout | null = null;
@@ -27,7 +33,8 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     appId: string,
     supernetType: SupernetType,
     logger: Logger,
-    appSource?: string
+    appSource?: string,
+    socketEventSubscriptions?: SocketEventSubscriptions
   ) {
     const _baseUrl = new URL(baseUrl);
     switch (_baseUrl.protocol) {
@@ -45,8 +52,16 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     super(_baseUrl.toString(), auth, logger);
     this.appId = appId;
     this.appSource = appSource?.trim() || undefined;
+    this.socketEventSubscriptions = socketEventSubscriptions;
     this.baseUrl = _baseUrl.toString();
     this._supernetType = supernetType;
+    // Mirror the server's authoritative subscriptions snapshot so reconnects keep any
+    // runtime updates applied via `setSocketEventSubscriptions` after the initial connect.
+    this.on('socketEventSubscriptionsUpdated', (payload) => {
+      if (payload && payload.socketEventSubscriptions) {
+        this.socketEventSubscriptions = { ...payload.socketEventSubscriptions };
+      }
+    });
   }
 
   get supernetType(): SupernetType {
@@ -68,6 +83,12 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     url.searchParams.set('appId', this.appId);
     if (this.appSource) {
       url.searchParams.set('appSource', this.appSource);
+    }
+    const socketEventSubscriptions = serializeSocketEventSubscriptions(
+      this.socketEventSubscriptions
+    );
+    if (socketEventSubscriptions) {
+      url.searchParams.set('socketEventSubscriptions', socketEventSubscriptions);
     }
     url.searchParams.set('clientName', userAgent);
     url.searchParams.set('clientType', 'artist');
@@ -119,6 +140,11 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
       });
       await this.send('changeNetwork', supernetType);
     });
+  }
+
+  async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
+    const normalizedUpdate = normalizeSocketEventSubscriptionUpdate(update);
+    await this.send('setSocketEventSubscriptions', normalizedUpdate);
   }
 
   /**
