@@ -1,3 +1,10 @@
+# [4.2.0-alpha.20](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.19...v4.2.0-alpha.20) (2026-05-12)
+
+
+### Features
+
+* **sdk:** add socket event subscription controls ([a450acd](https://github.com/Sogni-AI/sogni-client/commit/a450acd22087a690657c82de8e20cda96cd81512))
+
 # [4.2.0-alpha.19](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.18...v4.2.0-alpha.19) (2026-05-11)
 
 
