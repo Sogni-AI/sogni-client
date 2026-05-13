@@ -78,7 +78,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_generate_video",
       "sdkToolName": "sogni_generate_video",
-      "hostedSchemaSha256": "3439a66e5e1767094c05db38587675f904dff0236c48d9a5b816f7ee4a34349b",
+      "hostedSchemaSha256": "b2f12010984621cef2800d169204cd24aad39c8933aa84af47548c94325c9527",
       "hostedRequired": ["prompt"],
       "hostedPropertyNames": [
         "prompt",
@@ -119,7 +119,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_generate_video",
       "sdkToolName": "sogni_generate_video",
-      "hostedSchemaSha256": "3439a66e5e1767094c05db38587675f904dff0236c48d9a5b816f7ee4a34349b",
+      "hostedSchemaSha256": "b2f12010984621cef2800d169204cd24aad39c8933aa84af47548c94325c9527",
       "hostedRequired": ["prompt"],
       "hostedPropertyNames": [
         "prompt",
@@ -201,7 +201,7 @@
       "executionMode": "direct",
       "hostedToolName": "sogni_video_to_video",
       "sdkToolName": "sogni_video_to_video",
-      "hostedSchemaSha256": "365a52a205dee5f4d38c9a540fe63511299dfa418ee91f4e6f2df130dae620e5",
+      "hostedSchemaSha256": "e899612ee9791ce688b5fbae68fc691dc497febc03e454550edb5d85bdec7cd8",
       "hostedRequired": ["prompt", "reference_video_url"],
       "hostedPropertyNames": [
         "prompt",

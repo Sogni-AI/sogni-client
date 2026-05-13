@@ -151,7 +151,7 @@
             },
             "negative_prompt": {
               "type": "string",
-              "description": "Things to avoid in generated videos for models that support video negative prompts."
+              "description": "Non-Seedance only. Optional negative prompt for video models that expose a separate negative-prompt field. Do not set for Seedance 2.0 or Seedance Fast; rewrite user-provided Seedance avoid/ban/no-X requests as positive visual instructions in prompt."
             },
             "reference_image_url": {
               "type": "string",
@@ -352,7 +352,7 @@
             },
             "negative_prompt": {
               "type": "string",
-              "description": "Things to avoid in generated videos for models that support video negative prompts."
+              "description": "Non-Seedance only. Optional negative prompt for LTX/Wan video-to-video models. Do not set for Seedance V2V; rewrite user-provided Seedance avoid/ban/no-X requests as positive prompt instructions."
             },
             "control_mode": {
               "type": "string",
