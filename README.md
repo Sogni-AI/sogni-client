@@ -862,7 +862,7 @@ Combine LLM intelligence with Sogni's media generation capabilities. The SDK exp
 
 Use `SogniTools.all` to expose the full tool surface, then execute tool calls with `sogni.chat.tools.execute()` / `executeAll()` or `autoExecuteTools: true` for non-streaming flows.
 
-For direct `/v1/chat/completions` hosted-tool execution, media-bearing tool arguments are intentionally constrained to inline `data:` URIs so the chat API remains OpenAI-compatible and does not implicitly fetch arbitrary user URLs. For user-uploaded image/audio/video inputs, use the SDK video project examples or `/v1/creative-agent/workflows` hosted tool sequences, which run outside the chat tool-selection loop and can consume HTTPS artifact URLs produced by Sogni's upload endpoints.
+For direct `/v1/chat/completions` hosted-tool execution, media-bearing tool arguments are intentionally constrained to inline `data:` URIs so the chat API remains OpenAI-compatible and does not implicitly fetch arbitrary user URLs. For user-uploaded image/audio/video inputs, use the SDK video project examples or `/v1/creative-agent/workflows` hosted tool sequences, which run outside the chat tool-selection loop and can consume HTTPS artifact URLs produced by Sogni's upload endpoints. Durable hosted sequences validate step arguments before the workflow starts and can bind request-level `mediaReferences` into tool arguments with `sourceStepId: "$input_media"`.
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
 
@@ -879,10 +879,10 @@ Tools added on top of the hosted six:
 | `stitch_video`                                                  | Compose selected video clips into one MP4 (with optional audio overlay)                                                               |
 | `orbit_video`                                                   | Generate orbit clips around a subject and stitch them                                                                                 |
 | `dance_montage`                                                 | Generate dance clips and stitch when multi-clip                                                                                       |
-| `extend_video`, `replace_video_segment`                         | Extend or replace a bounded segment of an existing video                                                                              |
+| `extend_video`, `replace_video_segment`                         | Extend or replace a bounded segment of an existing video; replacements may trim source windows with `replacementStartSeconds` / `replacementEndSeconds` |
 | `overlay_video`, `add_subtitles`                                | Burn in text/logo overlays or subtitle cues onto existing videos via ffmpeg                                                           |
 
-Composition and post-production tools (`stitch_video`, `orbit_video`, `dance_montage`, `animate_photo` fan-out, `extend_video`, `replace_video_segment`, `overlay_video`, and `add_subtitles`) return or update MP4 artifacts. See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
+Composition and post-production tools (`stitch_video`, `orbit_video`, `dance_montage`, `animate_photo` fan-out, `extend_video`, `replace_video_segment`, `overlay_video`, and `add_subtitles`) return or update MP4 artifacts. `stitch_video` concatenates whole clips end-to-end; alternating or interleaved time slices should be represented as repeated `replace_video_segment` steps with bounded replacement source windows. See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
 
 ```javascript
 import { SogniClient } from '@sogni-ai/sogni-client';
@@ -929,6 +929,8 @@ Long-running multi-step creative workflows can be persisted on the server and ob
 - `sogni.creativeWorkflows.events(workflowId)` — poll event history
 - `sogni.creativeWorkflows.streamEvents(workflowId, { after, lastEventId })` — SSE event stream with resume support
 - `sogni.creativeWorkflows.cancel(workflowId)` — cooperative cancellation
+
+`startHostedToolSequence()` accepts exact hosted-tool steps plus optional request-level `mediaReferences` / `media_references`. A dependency with `sourceStepId: "$input_media"` can inject the matching uploaded image, video, or audio URL or index into a later step. The API validates the compiled step arguments before accepting the workflow and again before each execution step, so shape errors fail before billing later media work.
 
 ```javascript
 const sogni = await SogniClient.createInstance({

@@ -944,7 +944,7 @@ BUILT-IN PUBLIC TOOL NAMES (default `sogni_tools: true`):
 - `sogni_generate_music`
 
 RICH CREATIVE-AGENT TOOL FAMILY (opt in with `sogni_tools: "creative-agent"` / `"rich"`):
-The Sogni API can also inject a 14-tool family that mirrors the creative-agent surface used by chat.sogni.ai. Same chat completions endpoint, different tool set:
+The Sogni API can also inject the richer creative-agent generation/manipulation family used by chat.sogni.ai. Same chat completions endpoint, different tool set:
 
 - `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video` — direct hosted aliases of the `sogni_*` family above.
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` — image-edit adapters (each routes through `sogni_edit_image` server-side).
@@ -952,12 +952,16 @@ The Sogni API can also inject a 14-tool family that mirrors the creative-agent s
 - `stitch_video` — concatenate selected video clips (with optional audio overlay via `audioIndex`) into one MP4.
 - `orbit_video` — generate orbit clips around a subject and stitch them into one MP4.
 - `dance_montage` — generate dance clips and stitch when multi-clip.
+- `extend_video` — append new content to an existing video while preserving the original portion.
+- `replace_video_segment` — replace a bounded window inside an existing video. Replacement sources can use `replacementStartSeconds` / `replacementEndSeconds` to splice a trimmed source slice.
+- `overlay_video` — burn static text or image overlays onto an existing video.
+- `add_subtitles` — burn subtitle cues onto an existing video.
 
 PER-REQUEST MEDIA CONTEXT (rich tools only):
 Generated images, videos, and audio are addressable by stable indices across tool rounds. Every rich tool result returns `startIndex` and `indices` in its envelope so a later tool can target the result with `sourceImageIndex`, `videoIndices`, `audioIndex`, etc., without the model having to copy URLs back into prompt text.
 
 COMPOSITION TOOLS:
-`stitch_video`, `orbit_video`, `dance_montage`, and `animate_photo` fan-out return a single composed MP4 URL. Per-clip source URLs are preserved on the result envelope for inspection.
+`stitch_video`, `orbit_video`, `dance_montage`, and `animate_photo` fan-out return a single composed MP4 URL. Per-clip source URLs are preserved on the result envelope for inspection. `stitch_video` concatenates whole clips end-to-end; alternating or interleaved time slices should be represented as repeated `replace_video_segment` steps.
 
 MEDIA-CONDITIONED TOOL INPUTS:
 
@@ -994,7 +998,9 @@ For the full built-in SDK tool surface, use `SogniTools.all` with
 
 DURABLE CREATIVE WORKFLOWS:
 Use `sogni.creativeWorkflows` for `/v1/creative-agent/workflows` coverage:
-`startImageToVideo`, `list`, `get`, `events`, `streamEvents`, and `cancel`.
+`startImageToVideo`, `startHostedToolSequence`, `list`, `get`, `events`, `streamEvents`, and `cancel`.
+Hosted tool sequences can bind request-level `mediaReferences` into step arguments with
+`sourceStepId: "$input_media"` and are validated before workflow start.
 These endpoints require API-key auth. See `workflow_creative_agent_workflows.mjs`.
 
 EXAMPLE CLI USAGE:
