@@ -1,3 +1,15 @@
+# [4.2.0-alpha.21](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.20...v4.2.0-alpha.21) (2026-05-14)
+
+
+### Bug Fixes
+
+* **chat:** align hosted creative tool surfaces ([6e9e094](https://github.com/Sogni-AI/sogni-client/commit/6e9e094803bad7fdda994103f12bd40f726ae08e))
+
+
+### Features
+
+* **chat:** expose hosted completions wrapper ([da3799d](https://github.com/Sogni-AI/sogni-client/commit/da3799d2e99877d4bdd1990741611bac6243cdad))
+
 # [4.2.0-alpha.20](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.19...v4.2.0-alpha.20) (2026-05-12)
 
 
