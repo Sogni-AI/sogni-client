@@ -868,7 +868,7 @@ The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-i
 
 ### Hosted Creative Tool Families (server-side)
 
-The Sogni API can inject hosted creative tool surfaces directly into SDK chat completion requests. The default `creative-tools` surface includes media generation, editing, post-production, analysis, metadata extraction, and synchronous composition tools; `sogni_tools: "creative-agent"` includes that base surface and adds workflow control and asset-manifest tools. Generated artifacts are threaded through a per-request media context so later rounds can reference them by index.
+The Sogni API can inject hosted creative tool surfaces through `sogni.chat.hosted.create()`, the SDK wrapper for `/v1/chat/completions`. The default `creative-tools` surface includes media generation, editing, post-production, analysis, metadata extraction, and synchronous composition tools; `sogni_tools: "creative-agent"` includes that base surface and adds workflow control and asset-manifest tools. Generated artifacts are threaded through a per-request media context so later rounds can reference them by index.
 
 Use default `sogni_tools: true` or `sogni_tools: "creative-tools"` when you want the full creative media tool surface plus synchronous composition tools: `enhance_prompt`, `compose_script`, `compose_lyrics`, and `compose_instrumental`. The legacy `"rich"` alias is still accepted and maps to `"creative-tools"`.
 
@@ -899,7 +899,7 @@ const sogni = await SogniClient.createInstance({
   network: 'fast'
 });
 
-const result = await sogni.chat.completions.create({
+const result = await sogni.chat.hosted.create({
   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [{ role: 'user', content: 'Create a 15s trailer-style launch video for this product concept' }],
   sogni_tools: 'creative-tools',

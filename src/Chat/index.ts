@@ -14,6 +14,8 @@ import {
   ChatJobStateEvent,
   ChatRequestMessage,
   ChatMessage,
+  HostedChatCompletionParams,
+  HostedChatCompletionResult,
   LLMCostEstimation,
   LLMEstimateResponse,
   LLMModelInfo,
@@ -134,6 +136,10 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       ((params: ChatCompletionParams) => Promise<ChatStream | ChatCompletionResult>);
   };
 
+  hosted: {
+    create: (params: HostedChatCompletionParams) => Promise<HostedChatCompletionResult>;
+  };
+
   constructor(config: ApiConfig, projects?: ProjectsApi) {
     super(config);
 
@@ -147,6 +153,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     // Set up the completions namespace (mimics OpenAI SDK structure)
     this.completions = {
       create: this.createCompletion.bind(this) as any
+    };
+    this.hosted = {
+      create: this.createHostedCompletion.bind(this)
     };
 
     // Set up the tools API (requires ProjectsApi for media generation).
@@ -315,10 +324,12 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     return { enable_thinking: think };
   }
 
-  private normalizeSogniToolsMode(value: ChatCompletionParams['sogni_tools'] | string | undefined): ChatRequestMessage['sogni_tools'] | undefined {
+  private normalizeSogniToolsMode(
+    value: ChatCompletionParams['sogni_tools'] | string | undefined
+  ): ChatRequestMessage['sogni_tools'] | undefined {
     return typeof value === 'string' && value.trim().toLowerCase() === 'rich'
       ? 'creative-tools'
-      : value as ChatRequestMessage['sogni_tools'];
+      : (value as ChatRequestMessage['sogni_tools']);
   }
 
   private async createCompletion(
@@ -336,6 +347,46 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     }
 
     return this.createSingleCompletion(params);
+  }
+
+  private async createHostedCompletion(
+    params: HostedChatCompletionParams
+  ): Promise<HostedChatCompletionResult> {
+    if (params.stream) {
+      throw new Error('chat.hosted.create currently supports non-streaming requests only.');
+    }
+
+    const normalizedMessages = normalizeVisionMessages(params.messages);
+    const chatTemplateKwargs =
+      params.chat_template_kwargs ?? this.buildChatTemplateKwargs(params.think);
+    return this.client.rest.post<HostedChatCompletionResult>(
+      '/v1/chat/completions',
+      {
+        model: params.model,
+        messages: normalizedMessages,
+        app_source: params.app_source || params.appSource || this.client.appSource,
+        max_tokens: params.max_tokens,
+        temperature: params.temperature,
+        top_p: params.top_p,
+        top_k: params.top_k,
+        min_p: params.min_p,
+        repetition_penalty: params.repetition_penalty,
+        frequency_penalty: params.frequency_penalty,
+        presence_penalty: params.presence_penalty,
+        stop: params.stop,
+        token_type: params.token_type || params.tokenType,
+        tools: params.tools,
+        tool_choice: params.tool_choice,
+        sogni_tools: this.normalizeSogniToolsMode(params.sogni_tools),
+        sogni_tool_execution: params.sogni_tool_execution,
+        task_profile: params.taskProfile,
+        media_references: params.media_references ?? params.mediaReferences,
+        api_media_references: params.api_media_references ?? params.apiMediaReferences,
+        ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs }),
+        ...(params.response_format && { response_format: params.response_format })
+      },
+      { timeoutMs: 300000 }
+    );
   }
 
   /**

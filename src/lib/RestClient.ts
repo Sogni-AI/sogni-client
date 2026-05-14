@@ -4,6 +4,10 @@ import { JSONValue } from '../types/json';
 import { Logger } from './DefaultLogger';
 import { AuthManager } from './AuthManager';
 
+interface RestRequestInit extends RequestInit {
+  timeoutMs?: number;
+}
+
 class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   readonly baseUrl: string;
   protected _auth: AuthManager;
@@ -28,14 +32,15 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     return url.toString();
   }
 
-  private async request<T = JSONValue>(url: string, options: RequestInit = {}): Promise<T> {
-    const init = await this.auth.authenticateRequest(options);
+  private async request<T = JSONValue>(url: string, options: RestRequestInit = {}): Promise<T> {
+    const { timeoutMs = 30000, ...requestOptions } = options;
+    const init = await this.auth.authenticateRequest(requestOptions);
 
     // Add a timeout to detect hanging requests
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-    }, 30000);
+    }, timeoutMs);
 
     try {
       const response = await fetch(url, { ...init, signal: controller.signal });
@@ -69,13 +74,18 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     return this.request<T>(this.formatUrl(path, query));
   }
 
-  post<T = JSONValue>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+  post<T = JSONValue>(
+    path: string,
+    body: Record<string, unknown> = {},
+    options: Pick<RestRequestInit, 'timeoutMs'> = {}
+  ): Promise<T> {
     return this.request<T>(this.formatUrl(path), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      ...options
     });
   }
 }

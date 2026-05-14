@@ -226,6 +226,52 @@ export interface ChatCompletionResult {
   toolHistory?: ToolHistoryEntry[];
 }
 
+export interface HostedChatCompletionMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+}
+
+export interface HostedChatCompletionChoice {
+  index: number;
+  message: HostedChatCompletionMessage;
+  finish_reason: string | null;
+}
+
+export interface HostedCreativeWorkflowReference {
+  workflowId: string;
+  status: string;
+  url: string;
+  eventsUrl: string;
+  streamUrl: string;
+}
+
+export interface HostedChatCompletionResult {
+  id: string;
+  object: 'chat.completion';
+  created: number;
+  model: string;
+  choices: HostedChatCompletionChoice[];
+  usage?: TokenUsage;
+  creative_workflows?: HostedCreativeWorkflowReference[];
+  sogni_tool_results?: Record<string, unknown>[];
+}
+
+export type HostedChatCompletionParams = Omit<
+  ChatCompletionParams,
+  'stream' | 'autoExecuteTools' | 'onToolCall' | 'onToolProgress' | 'maxToolRounds'
+> & {
+  stream?: false;
+  token_type?: 'sogni' | 'spark' | 'auto';
+  app_source?: string;
+  chat_template_kwargs?: Record<string, unknown>;
+  media_references?: unknown[];
+  mediaReferences?: unknown[];
+  api_media_references?: unknown[];
+  apiMediaReferences?: unknown[];
+};
+
 export interface ChatJobStateEvent {
   jobID: string;
   type: string;
