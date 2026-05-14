@@ -315,6 +315,12 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     return { enable_thinking: think };
   }
 
+  private normalizeSogniToolsMode(value: ChatCompletionParams['sogni_tools'] | string | undefined): ChatRequestMessage['sogni_tools'] | undefined {
+    return typeof value === 'string' && value.trim().toLowerCase() === 'rich'
+      ? 'creative-tools'
+      : value as ChatRequestMessage['sogni_tools'];
+  }
+
   private async createCompletion(
     params: ChatCompletionParams
   ): Promise<ChatStream | ChatCompletionResult> {
@@ -363,7 +369,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       tokenType: params.tokenType,
       tools: params.tools,
       tool_choice: params.tool_choice,
-      sogni_tools: params.sogni_tools,
+      sogni_tools: this.normalizeSogniToolsMode(params.sogni_tools),
       sogni_tool_execution: params.sogni_tool_execution,
       taskProfile: params.taskProfile,
       ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs }),

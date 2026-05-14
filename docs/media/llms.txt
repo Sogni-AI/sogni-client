@@ -456,7 +456,7 @@ Combine LLM tool calling with Sogni's generation APIs to create media from natur
 - **Video-to-Video** — "Restyle this video as anime"
 - **Music Generation** — "Compose a jazz song about the rain"
 
-Built-in public tool names (default `sogni_tools: true`):
+SDK-local public tool names (`SogniTools.all`, client-managed execution):
 
 - `sogni_generate_image`
 - `sogni_edit_image`
@@ -465,7 +465,7 @@ Built-in public tool names (default `sogni_tools: true`):
 - `sogni_video_to_video`
 - `sogni_generate_music`
 
-Rich creative-agent tool family (opt in with `sogni_tools: "creative-agent"` / `"rich"`):
+Hosted creative tool families:
 
 - `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video`
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` (image-edit adapters)
@@ -473,14 +473,17 @@ Rich creative-agent tool family (opt in with `sogni_tools: "creative-agent"` / `
 - `stitch_video`, `orbit_video`, `dance_montage` (server-side composition into a single MP4)
 - `extend_video`, `replace_video_segment` (append or replace bounded windows; replacements can trim source windows with `replacementStartSeconds` / `replacementEndSeconds`)
 - `overlay_video`, `add_subtitles` (ffmpeg post-production on existing videos)
+- `enhance_prompt` (model-ready image/video/music/edit prompt expansion)
+- `compose_script` (scripts, storyboards, trailers, social shorts, campaign beats, and video prompts)
+- `compose_lyrics`, `compose_instrumental` (vocal lyrics or instrumental music structures)
 
-Per-request media context: when rich tools are injected, generated images / videos / audio are addressable by stable indices across tool rounds (each tool result envelope returns `startIndex` and `indices`).
+The default `creative-tools` surface includes the tools above. `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools. Per-request media context lets generated images / videos / audio be addressed by stable indices across tool rounds (each tool result envelope returns `startIndex` and `indices`).
 
 Media-conditioned tools accept explicit inline base64 `data:` URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`. Remote `http(s)` URLs are not allowed for these tool inputs. Tool image inputs accept PNG/JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
 
-The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. `workflow_creative_agent_tools.mjs` demonstrates server-side rich tool injection through `/v1/chat/completions`. For the full built-in SDK tool surface, use `SogniTools.all` with `sogni.chat.tools.executeAll()` or `autoExecuteTools`. Use `stitch_video` for whole-clip concatenation; alternating/interleaved source-video slices should be encoded as repeated `replace_video_segment` operations.
+The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. `workflow_creative_agent_tools.mjs` demonstrates server-side hosted Sogni tool injection through `/v1/chat/completions`. For the full built-in SDK tool surface, use `SogniTools.all` with `sogni.chat.tools.executeAll()` or `autoExecuteTools`.
 
-Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.creativeWorkflows` (`startImageToVideo`, `startHostedToolSequence`, `list`, `get`, `events`, `streamEvents`, `cancel`) backed by `/v1/creative-agent/workflows`. Hosted tool sequences accept optional request-level `mediaReferences` that can be bound into step arguments with `sourceStepId: "$input_media"` and are validated before workflow start. They require API-key auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
+Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.creativeWorkflows` (`startImageToVideo`, `list`, `get`, `events`, `streamEvents`, `cancel`) backed by `/v1/creative-agent/workflows`. They require API-key auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
 
 Default generation models used by platform tools:
 | Tool | Model | Description |

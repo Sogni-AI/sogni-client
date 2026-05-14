@@ -934,7 +934,7 @@ Sogni's generation APIs automatically:
 - Video-to-Video: "Restyle this video as anime"
 - Music Generation: "Compose a jazz song about the rain"
 
-BUILT-IN PUBLIC TOOL NAMES (default `sogni_tools: true`):
+SDK-LOCAL PUBLIC TOOL NAMES (`SogniTools.all`, client-managed execution):
 
 - `sogni_generate_image`
 - `sogni_edit_image`
@@ -943,11 +943,11 @@ BUILT-IN PUBLIC TOOL NAMES (default `sogni_tools: true`):
 - `sogni_video_to_video`
 - `sogni_generate_music`
 
-RICH CREATIVE-AGENT TOOL FAMILY (opt in with `sogni_tools: "creative-agent"` / `"rich"`):
-The Sogni API can also inject the richer creative-agent generation/manipulation family used by chat.sogni.ai. Same chat completions endpoint, different tool set:
+HOSTED CREATIVE TOOL FAMILIES:
+The Sogni API can also inject hosted Sogni tool families into the same chat completions endpoint. The default `creative-tools` surface provides media, post-production, analysis, metadata, and synchronous composition tools; `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools:
 
-- `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video` — direct hosted aliases of the `sogni_*` family above.
-- `restore_photo`, `apply_style`, `refine_result`, `change_angle` — image-edit adapters (each routes through `sogni_edit_image` server-side).
+- `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video` — core media-generation tools with creative-agent naming.
+- `restore_photo`, `apply_style`, `refine_result`, `change_angle` — image-edit adapters backed by the shared image-edit workflow.
 - `animate_photo` — image-to-video, with multi-source fan-out via `sourceImageIndices`. Fan-out (>1 source image) is composed into one MP4 by default; opt out with `stitched: false` for a flat clip list.
 - `stitch_video` — concatenate selected video clips (with optional audio overlay via `audioIndex`) into one MP4.
 - `orbit_video` — generate orbit clips around a subject and stitch them into one MP4.
@@ -956,12 +956,15 @@ The Sogni API can also inject the richer creative-agent generation/manipulation 
 - `replace_video_segment` — replace a bounded window inside an existing video. Replacement sources can use `replacementStartSeconds` / `replacementEndSeconds` to splice a trimmed source slice.
 - `overlay_video` — burn static text or image overlays onto an existing video.
 - `add_subtitles` — burn subtitle cues onto an existing video.
+- `enhance_prompt` — model-ready image/video/music/edit prompt expansion.
+- `compose_script` — scripts, storyboards, trailers, social shorts, campaign beats, and video prompts.
+- `compose_lyrics`, `compose_instrumental` — vocal lyrics or instrumental music structures.
 
-PER-REQUEST MEDIA CONTEXT (rich tools only):
-Generated images, videos, and audio are addressable by stable indices across tool rounds. Every rich tool result returns `startIndex` and `indices` in its envelope so a later tool can target the result with `sourceImageIndex`, `videoIndices`, `audioIndex`, etc., without the model having to copy URLs back into prompt text.
+PER-REQUEST MEDIA CONTEXT:
+Generated images, videos, and audio are addressable by stable indices across tool rounds. Every hosted Sogni tool result returns `startIndex` and `indices` in its envelope so a later tool can target the result with `sourceImageIndex`, `videoIndices`, `audioIndex`, etc., without the model having to copy URLs back into prompt text.
 
 COMPOSITION TOOLS:
-`stitch_video`, `orbit_video`, `dance_montage`, and `animate_photo` fan-out return a single composed MP4 URL. Per-clip source URLs are preserved on the result envelope for inspection. `stitch_video` concatenates whole clips end-to-end; alternating or interleaved time slices should be represented as repeated `replace_video_segment` steps.
+`stitch_video`, `orbit_video`, `dance_montage`, and `animate_photo` fan-out return a single composed MP4 URL. Per-clip source URLs are preserved on the result envelope for inspection.
 
 MEDIA-CONDITIONED TOOL INPUTS:
 
@@ -971,7 +974,7 @@ MEDIA-CONDITIONED TOOL INPUTS:
 - `reference_video_url`
   All media-conditioned tool inputs must be inline base64-encoded `data:` URIs. Remote `http(s)` URLs are not allowed. Tool image inputs accept PNG/JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
 
-DEFAULT GENERATION MODELS (used by platform tools):
+DEFAULT GENERATION MODELS (used by SDK-local platform tools):
 | Tool | Model ID | Description |
 |------|----------|-------------|
 | `sogni_generate_image` | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step generation |
@@ -992,15 +995,13 @@ PLATFORM TOOL WORKFLOW:
 
 See `workflow_text_chat_sogni_tools.mjs` for a composition-pipeline example
 covering the core image/video/music flows. See `workflow_creative_agent_tools.mjs`
-for server-side rich tool injection with `sogni_tools: "creative-agent"`.
+for server-side hosted Sogni tool injection with `sogni_tools`.
 For the full built-in SDK tool surface, use `SogniTools.all` with
 `sogni.chat.tools.executeAll()` or `autoExecuteTools`.
 
 DURABLE CREATIVE WORKFLOWS:
 Use `sogni.creativeWorkflows` for `/v1/creative-agent/workflows` coverage:
-`startImageToVideo`, `startHostedToolSequence`, `list`, `get`, `events`, `streamEvents`, and `cancel`.
-Hosted tool sequences can bind request-level `mediaReferences` into step arguments with
-`sourceStepId: "$input_media"` and are validated before workflow start.
+`startImageToVideo`, `list`, `get`, `events`, `streamEvents`, and `cancel`.
 These endpoints require API-key auth. See `workflow_creative_agent_workflows.mjs`.
 
 EXAMPLE CLI USAGE:
@@ -1018,7 +1019,7 @@ node workflow_text_chat_sogni_tools.mjs "Compose a jazz song about the rain"
 # Generate multiple items
 node workflow_text_chat_sogni_tools.mjs -n 4 "Create images of fantasy landscapes"
 
-# Rich server-side creative-agent tools
+# Server-side hosted creative tools
 node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal perfume bottle"
 
 # Durable creative-agent workflow

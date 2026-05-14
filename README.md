@@ -21,7 +21,7 @@ Behind the scenes this SDK uses a WebSocket connection for communication between
 - 🤖 **LLM Text Generation** - Chat completions with streaming, multi-turn conversations, and thinking/reasoning mode via OpenAI-compatible API
 - 🔧 **LLM Tool Calling** - Define custom tools (functions) that the LLM can invoke during conversations for real-time data and actions
 - 🎨🎬🎵 **Sogni Platform Tools** - Generate images, reference-guided image edits, videos, audio-driven videos, video transforms, and music through natural language chat
-- 🤖 **Rich Creative-Agent Tools** - Opt into the full creative-agent surface (`restore_photo`, `animate_photo` with multi-source fan-out, `stitch_video`, `orbit_video`, `extend_video`, `overlay_video`, etc.) by setting `sogni_tools: "creative-agent"`
+- 🤖 **Hosted Creative Tools** - Use the default `creative-tools` surface for media generation, editing, analysis, metadata, prompt enhancement, script writing, lyrics, and instrumental structures; set `sogni_tools: "creative-agent"` to add workflow control and asset-manifest tools
 - ⏱️ **Durable Creative Workflows** - Persistent server-side multi-step workflows with SSE event streaming, `Last-Event-ID` resume, and cooperative cancellation via `/v1/creative-agent/workflows`
 - 👁️ **Vision Chat** - Multimodal image understanding with scene description, OCR, object detection, visual analysis, and multi-image comparison via Qwen3.6 VLM
 
@@ -851,7 +851,7 @@ const response = await sogni.chat.completions.create({
 
 ### Sogni Platform Tools — Generate Media via Chat
 
-Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes six built-in public platform tools for chat completions:
+Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes built-in public platform tool definitions for client-managed chat completions:
 
 - **`sogni_generate_image`** — text-to-image generation
 - **`sogni_edit_image`** — reference-guided image editing using `source_image_url` and `reference_image_urls`
@@ -866,23 +866,29 @@ For direct `/v1/chat/completions` hosted-tool execution, media-bearing tool argu
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
 
-### Rich Creative-Agent Tool Family (server-side)
+### Hosted Creative Tool Families (server-side)
 
-For agentic experiences that mirror `chat.sogni.ai`, the Sogni API can inject the richer creative-agent tool surface instead of the 6 hosted `sogni_*` tools above. Pass `sogni_tools: "creative-agent"` (or `"rich"`) in the SDK chat completion request — the server expands the injected tool set to the full creative-agent surface and threads a per-request media context across rounds so generated artifacts can be referenced by index.
+The Sogni API can inject hosted creative tool surfaces directly into SDK chat completion requests. The default `creative-tools` surface includes media generation, editing, post-production, analysis, metadata extraction, and synchronous composition tools; `sogni_tools: "creative-agent"` includes that base surface and adds workflow control and asset-manifest tools. Generated artifacts are threaded through a per-request media context so later rounds can reference them by index.
 
-Tools added on top of the hosted six:
+Use default `sogni_tools: true` or `sogni_tools: "creative-tools"` when you want the full creative media tool surface plus synchronous composition tools: `enhance_prompt`, `compose_script`, `compose_lyrics`, and `compose_instrumental`. The legacy `"rich"` alias is still accepted and maps to `"creative-tools"`.
+
+Notable creative-tools include:
 
 | Tool                                                            | Behavior                                                                                                                              |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `restore_photo`, `apply_style`, `refine_result`, `change_angle` | Image-edit adapters (each routes through `sogni_edit_image` server-side)                                                              |
+| `restore_photo`, `apply_style`, `refine_result`, `change_angle` | Image-edit adapters backed by the shared image-edit workflow                                                                          |
 | `animate_photo`                                                 | Image-to-video, with multi-source fan-out via `sourceImageIndices` (composed into one MP4 by default; opt out with `stitched: false`) |
 | `stitch_video`                                                  | Compose selected video clips into one MP4 (with optional audio overlay)                                                               |
 | `orbit_video`                                                   | Generate orbit clips around a subject and stitch them                                                                                 |
 | `dance_montage`                                                 | Generate dance clips and stitch when multi-clip                                                                                       |
 | `extend_video`, `replace_video_segment`                         | Extend or replace a bounded segment of an existing video; replacements may trim source windows with `replacementStartSeconds` / `replacementEndSeconds` |
 | `overlay_video`, `add_subtitles`                                | Burn in text/logo overlays or subtitle cues onto existing videos via ffmpeg                                                           |
+| `enhance_prompt`                                                | Expand or adapt rough prompts into model-ready image, video, music, or edit prompts                                                   |
+| `compose_script`                                                | Draft scripts, storyboards, trailers, social shorts, campaign beats, or video prompts                                                 |
+| `compose_lyrics`                                                | Write vocal song lyrics and suggested musical parameters                                                                              |
+| `compose_instrumental`                                          | Write instrumental structure and suggested musical parameters                                                                         |
 
-Composition and post-production tools (`stitch_video`, `orbit_video`, `dance_montage`, `animate_photo` fan-out, `extend_video`, `replace_video_segment`, `overlay_video`, and `add_subtitles`) return or update MP4 artifacts. `stitch_video` concatenates whole clips end-to-end; alternating or interleaved time slices should be represented as repeated `replace_video_segment` steps with bounded replacement source windows. See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
+Composition and post-production tools (`stitch_video`, `orbit_video`, `dance_montage`, `animate_photo` fan-out, `extend_video`, `replace_video_segment`, `overlay_video`, and `add_subtitles`) return or update MP4 artifacts. `stitch_video` concatenates whole clips end-to-end; alternating or interleaved time slices should be represented as repeated `replace_video_segment` steps with bounded replacement source windows. See the LLM API reference for the full schema list.
 
 ```javascript
 import { SogniClient } from '@sogni-ai/sogni-client';
@@ -895,14 +901,14 @@ const sogni = await SogniClient.createInstance({
 
 const result = await sogni.chat.completions.create({
   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
-  messages: [{ role: 'user', content: 'Create an orbit video around this product concept' }],
-  sogni_tools: 'creative-agent',
+  messages: [{ role: 'user', content: 'Create a 15s trailer-style launch video for this product concept' }],
+  sogni_tools: 'creative-tools',
   sogni_tool_execution: true,
   tokenType: 'spark'
 });
 ```
 
-See `examples/workflow_creative_agent_tools.mjs` for a runnable REST API-key example that can toggle hosted vs rich tools and server-side execution.
+See `examples/workflow_creative_agent_tools.mjs` for a runnable REST API-key example that can toggle tool surface and server-side execution.
 
 For focused partner Seedance video tests, `examples/workflow_partner_seedance_video.mjs` starts with a guided workflow picker when run with no arguments. The guided path covers T2V, I2V, IA2V, V2V, the full and fast Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:
 
@@ -981,7 +987,7 @@ The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) dire
 - **`workflow_text_chat_vision.mjs`** - Vision chat with multimodal image understanding (scene description, OCR, object detection, visual analysis, multi-image comparison)
 - **`workflow_text_chat_tool_calling.mjs`** - LLM tool calling with built-in tools (weather, time, unit conversion, math)
 - **`workflow_text_chat_sogni_tools.mjs`** - Core image/video/music generation through natural language via LLM tool calling
-- **`workflow_creative_agent_tools.mjs`** - Rich server-side creative-agent tool injection for `/v1/chat/completions`
+- **`workflow_creative_agent_tools.mjs`** - Server-side hosted Sogni tool injection for `/v1/chat/completions`
 - **`workflow_creative_agent_workflows.mjs`** - Durable `/v1/creative-agent/workflows` start/list/get/events/stream/cancel through the SDK
 - **`workflow_partner_seedance_video.mjs`** - Focused partner Seedance coverage: chat-completions T2V plus hosted-workflow T2V, I2V, IA2V, V2V, and multimodal context with uploaded media
 

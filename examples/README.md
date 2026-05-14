@@ -629,14 +629,14 @@ Generate the core text-to-image, text-to-video, and text-to-music flows through 
 - `sogni_sound_to_video` - Audio-driven video generation
 - `sogni_video_to_video` - Video transformation and motion transfer
 
-**Rich Creative-Agent Tool Family:**
-The Sogni API also exposes the richer creative-agent tool surface for agentic chat experiences. Pass `sogni_tools: "creative-agent"` (or `"rich"`) in the request body to swap the 6 hosted `sogni_*` tools for tools such as `generate_image`, `edit_image`, `restore_photo`, `apply_style`, `refine_result`, `animate_photo` (with multi-source fan-out), `change_angle`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`, composition tools (`stitch_video`, `orbit_video`, `dance_montage`), and video post-production tools (`extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`). See the [LLM API reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#rich-creative-agent-tools) for the full schema list.
+**Hosted Creative Tool Families:**
+The Sogni API also exposes hosted creative tool surfaces for chat experiences. The default `creative-tools` surface injects tools such as `generate_image`, `edit_image`, `restore_photo`, `apply_style`, `refine_result`, `animate_photo` (with multi-source fan-out), `change_angle`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`, composition tools (`stitch_video`, `orbit_video`, `dance_montage`), video post-production tools (`extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`), analysis/metadata tools, and synchronous composition tools (`enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`). Pass `sogni_tools: "creative-agent"` to add asset-manifest/control tools. See the LLM API reference for the full schema list.
 
 Run the server-side API-key example:
 
 ```bash
 node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal perfume bottle"
-node workflow_creative_agent_tools.mjs "Plan a cyberpunk skyline video" --tools creative-agent --no-execute
+node workflow_creative_agent_tools.mjs "Plan a cyberpunk skyline video" --tools creative-tools --no-execute
 ```
 
 Run the focused partner Seedance video example. Running it with no arguments starts a guided workflow picker covering T2V, I2V, IA2V, V2V, the full and fast Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:

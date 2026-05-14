@@ -36,7 +36,7 @@ export type ToolChoice =
   | 'required'
   | { type: 'function'; function: { name: string } };
 
-export type SogniToolsMode = boolean | 'creative-agent' | 'rich';
+export type SogniToolsMode = boolean | 'creative-agent' | 'creative-tools' | 'rich';
 
 /**
  * OpenAI-compatible structured-output controls. Forwarded to the worker
@@ -111,9 +111,10 @@ export interface ChatCompletionParams {
   /** Controls which (if any) tool is called by the model. */
   tool_choice?: ToolChoice;
   /**
-   * Ask the Sogni API to inject hosted media-generation tools server-side.
-   * `true` injects the hosted `sogni_*` tool family. `'creative-agent'` and
-   * `'rich'` inject the richer creative-agent tool family used by chat.sogni.ai.
+   * Ask the Sogni API to inject server-side media-generation tool families.
+   * `true` or `'creative-tools'` injects the hosted creative media/planning tool family.
+   * `'rich'` is accepted as a legacy alias for `'creative-tools'`.
+   * `'creative-agent'` adds hosted workflow-control and asset-manifest tools.
    */
   sogni_tools?: SogniToolsMode;
   /**

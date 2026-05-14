@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * Rich Creative-Agent Tool Calling Example
+ * Hosted Creative Tool Calling Example
  *
  * Calls the Sogni OpenAI-compatible /v1/chat/completions endpoint with
  * sogni_tools enabled. This uses API middleware in sogni-api, so it can inject
- * either the hosted sogni_* tool set or the deeper creative-agent tool family.
+ * either the creative-tools family or the deeper creative-agent tool family.
  *
  * Examples:
  *   node workflow_creative_agent_tools.mjs "Create a 4-shot product video concept for a red sneaker"
- *   node workflow_creative_agent_tools.mjs "Generate an orbit video prompt for a crystal perfume bottle" --tools creative-agent --no-execute
+ *   node workflow_creative_agent_tools.mjs "Make a 15s trailer for a new AI art app"
+ *   node workflow_creative_agent_tools.mjs "Generate an orbit video prompt for a crystal perfume bottle" --tools creative-tools --no-execute
  *   node workflow_creative_agent_tools.mjs "Make a cinematic video plan for a cyberpunk skyline" --model qwen3.6-35b-a3b-gguf-iq4xs
  */
 
@@ -24,7 +25,7 @@ function parseArgs() {
   const options = {
     prompt: '',
     model: DEFAULT_LLM_MODEL,
-    tools: 'creative-agent',
+    tools: 'creative-tools',
     execute: true,
     tokenType: loadTokenTypePreference() || process.env.SOGNI_TOKEN_TYPE || 'spark',
     json: false
@@ -57,16 +58,16 @@ function parseArgs() {
 
 function showHelp() {
   console.log(`
-Rich Creative-Agent Tool Calling Example
+Hosted Creative Tool Calling Example
 
 Usage:
   node workflow_creative_agent_tools.mjs "prompt" [options]
 
 Options:
   --model <id>          LLM model ID (default: ${DEFAULT_LLM_MODEL})
-  --tools <mode>        creative-agent, rich, hosted, true, false, or none
-                        creative-agent/rich injects the deeper 14-tool family
-                        hosted/true injects the core hosted sogni_* tools
+  --tools <mode>        creative-agent, creative-tools, rich, hosted, true, false, or none
+                        creative-agent adds workflow/control tools
+                        creative-tools/rich/hosted/true injects media/planning tools
   --no-execute          Inject tools but disable server-side Sogni tool execution
   --token-type <type>   spark or sogni (default: SOGNI_TOKEN_TYPE or spark)
   --json                Print the raw response
@@ -76,10 +77,13 @@ Requires SOGNI_API_KEY in examples/.env or the environment.
 }
 
 function normalizeTools(value) {
-  switch (String(value).toLowerCase()) {
+  switch (String(value).trim().toLowerCase()) {
     case 'creative-agent':
-    case 'rich':
       return 'creative-agent';
+    case 'rich':
+      return 'creative-tools';
+    case 'creative-tools':
+      return 'creative-tools';
     case 'hosted':
     case 'true':
       return true;
@@ -147,7 +151,7 @@ async function main() {
   }
 
   if (!options.prompt) {
-    options.prompt = await askQuestion('What should the creative-agent tools make or plan? ');
+    options.prompt = await askQuestion('What should the hosted Sogni tools make or plan? ');
   }
   if (!options.prompt) {
     throw new Error('Prompt is required.');
