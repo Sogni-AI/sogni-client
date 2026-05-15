@@ -1223,8 +1223,26 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   // ============================================
 
   /**
-   * Get upload URL for image
-   * @internal
+   * Request a presigned upload URL for an image asset (reference image,
+   * starting image, ControlNet image, context image, etc.). The caller
+   * uploads the image bytes via `PUT` to the returned URL before
+   * starting a project or workflow that references the asset.
+   *
+   * @param {ImageUrlParams} params - Image asset coordinates:
+   *   - imageId: Stable identifier for the asset within the job
+   *     (e.g. `"media_ref_1"`). The same id is later used to reference
+   *     the asset in workflow inputs.
+   *   - jobId: Caller-generated job/correlation id (e.g.
+   *     `"sogni-agent-1735000000-1-abcdef"`). Ties the asset to a
+   *     specific request.
+   *   - type: Asset role. Supported values include `'referenceImage'`,
+   *     `'referenceImageEnd'`, `'startingImage'`, `'cnImage'`,
+   *     `'contextImage1'`..`'contextImage16'`, `'preview'`, `'complete'`.
+   *   - contentType: Optional MIME type the caller will `PUT` (e.g.
+   *     `"image/png"`). Forwarded so the storage layer can pin the
+   *     Content-Type on the presigned URL.
+   * @return {Promise<string>} Presigned `PUT` URL the caller should
+   *   upload the image bytes to. Short-lived; use immediately.
    */
   async uploadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiResponse<{ uploadUrl: string }>>(
@@ -1235,8 +1253,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Get download URL for image
-   * @internal
+   * Request a presigned download URL for a stored image asset.
+   *
+   * @param {ImageUrlParams} params - Same shape as
+   *   {@link ProjectsApi.uploadUrl}; `imageId`, `jobId`, and `type`
+   *   must match the values used at upload time.
+   * @return {Promise<string>} Presigned `GET` URL for the image.
+   *   Throws if the server response does not include a `downloadUrl`.
    */
   async downloadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiResponse<{ downloadUrl: string }>>(
@@ -1250,8 +1273,21 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Get upload URL for media (video/audio)
-   * @internal
+   * Request a presigned upload URL for an audio or video asset
+   * (reference audio, reference video, finished media artifacts, etc.).
+   * The caller uploads the media bytes via `PUT` to the returned URL
+   * before starting a project or workflow that references the asset.
+   *
+   * @param {MediaUrlParams} params - Media asset coordinates:
+   *   - id: Stable identifier for the asset within the job
+   *     (e.g. `"media_ref_1"`). Optional for some asset roles.
+   *   - jobId: Caller-generated job/correlation id.
+   *   - type: Asset role. Supported values are `'referenceAudio'`,
+   *     `'referenceVideo'`, `'preview'`, `'complete'`.
+   *   - contentType: Optional MIME type the caller will `PUT`
+   *     (e.g. `"audio/mp4"` or `"video/mp4"`).
+   * @return {Promise<string>} Presigned `PUT` URL the caller should
+   *   upload the media bytes to.
    */
   async mediaUploadUrl(params: MediaUrlParams) {
     const r = await this.client.rest.get<ApiResponse<{ uploadUrl: string }>>(
@@ -1262,8 +1298,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Get download URL for media (video/audio)
-   * @internal
+   * Request a presigned download URL for a stored audio or video asset.
+   *
+   * @param {MediaUrlParams} params - Same shape as
+   *   {@link ProjectsApi.mediaUploadUrl}; `id`, `jobId`, and `type`
+   *   must match the values used at upload time.
+   * @return {Promise<string>} Presigned `GET` URL for the media.
+   *   Throws if the server response does not include a `downloadUrl`.
    */
   async mediaDownloadUrl(params: MediaUrlParams) {
     const r = await this.client.rest.get<ApiResponse<{ downloadUrl: string }>>(
