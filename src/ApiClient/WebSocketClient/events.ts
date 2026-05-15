@@ -2,6 +2,85 @@ import { SupernetType } from './types';
 import { Balances } from '../../Account/types';
 import { LLMJobCost, LLMModelInfo, ToolCallDelta } from '../../Chat/types';
 
+export interface RecoveredWorkerJob {
+  id: string;
+  SID: number;
+  imgID: string;
+  worker: {
+    id: string;
+    address: string;
+    username: string;
+    nftTokenId?: string;
+  };
+  createTime: number;
+  startTime: number | null;
+  updateTime: number;
+  actualStartTime: number | null;
+  endTime: number | null;
+  status: string;
+  reason: string;
+  performedSteps: number;
+  triggeredNSFWFilter: boolean;
+  seedUsed: number;
+  costActual: Record<string, string>;
+  network: string;
+  txId: string | null;
+  jobType: string;
+  tokenType: string;
+  isTest: boolean;
+  speedVsBaseline?: number;
+  timings?: Record<string, unknown>;
+  modelType?: 'video';
+  videoFrames?: number;
+  videoFps?: number;
+  width?: number;
+  height?: number;
+  provider?: string;
+}
+
+export interface RecoveredProject {
+  id: string;
+  SID: number;
+  jobType: string;
+  model: {
+    id: string;
+    SID: number;
+    name: string;
+    type: string;
+  };
+  imageCount: number;
+  stepCount: number;
+  previewCount: number;
+  hasGuideImage: boolean;
+  hasContextImage1: boolean;
+  hasContextImage2: boolean;
+  denoiseStrength: string;
+  controlNetId: string | null;
+  costEstimate: Record<string, unknown>;
+  costActual: Record<string, unknown>;
+  createTime: number;
+  updateTime: number;
+  endTime: number | null;
+  status: string;
+  reason: string | null;
+  network: string;
+  txId: string | null;
+  sizePreset: string;
+  width: number;
+  height: number;
+  jobCountCompletedByState: Record<string, number>;
+  isTest: boolean;
+  tokenType: string;
+  clientRequestData?: string;
+  workerJobs?: RecoveredWorkerJob[];
+  completedWorkerJobs?: RecoveredWorkerJob[];
+  premium?: Record<string, unknown>;
+  modelType?: 'video';
+  videoFrames?: number;
+  videoFps?: number;
+  provider?: string;
+}
+
 export interface AuthenticatedData {
   id: string;
   clientType: 'artist' | 'worker';
@@ -25,8 +104,8 @@ export interface AuthenticatedData {
       net: string;
     };
   };
-  activeProjects: [];
-  unclaimedCompletedProjects: [];
+  activeProjects: RecoveredProject[];
+  unclaimedCompletedProjects: RecoveredProject[];
   isMainnet: boolean;
   accountWasMigrated: boolean;
   hasUnclaimedAirdrop: boolean;

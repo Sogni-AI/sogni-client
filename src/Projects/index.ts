@@ -20,9 +20,13 @@ import {
   JobProgressData,
   JobResultData,
   JobStateData,
-  SocketEventMap
+  SocketEventMap,
+  AuthenticatedData,
+  RecoveredProject,
+  RecoveredWorkerJob,
 } from '../ApiClient/WebSocketClient/events';
-import Project from './Project';
+import { CompletedRecoveredProject } from './types/events';
+import Project, { ProjectStatus } from './Project';
 import createJobRequestMessage from './createJobRequestMessage';
 import { ApiError, ApiResponse } from '../ApiClient';
 import { EstimationResponse } from './types/EstimationResponse';
@@ -228,6 +232,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // Listen to project and job events and update project and job instances
     this.on('project', this.handleProjectEvent.bind(this));
     this.on('job', this.handleJobEvent.bind(this));
+    this.client.socket.on('authenticated', this.handleSocketAuthenticated.bind(this));
   }
 
   /**
@@ -610,8 +615,210 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private handleServerDisconnected() {
     this._availableModels = [];
     this.emit('availableModels', this._availableModels);
-    this.projects.forEach((p) => {
-      p._update({ status: 'failed', error: { code: 0, message: 'Server disconnected' } });
+    // Do NOT fail tracked projects — they may recover on reconnect.
+    // Pause timeout intervals so they don't force-fail during disconnect.
+    this.projects.forEach((p) => p._pauseTimeout());
+  }
+
+  private async handleSocketAuthenticated(data: AuthenticatedData) {
+    const { activeProjects, unclaimedCompletedProjects } = data;
+    if (!activeProjects?.length && !unclaimedCompletedProjects?.length) return;
+
+    this.client.logger.info(
+      `[RECOVERY] Authenticated with ${activeProjects?.length || 0} active, ` +
+      `${unclaimedCompletedProjects?.length || 0} unclaimed completed projects`
+    );
+
+    // Deduplicate: a project could theoretically appear in both arrays
+    const seenIds = new Set<string>();
+
+    // Resume timeouts on all existing tracked projects
+    this.projects.forEach((p) => p._resumeTimeout());
+
+    // --- Active projects ---
+    const unmatchedActive: RecoveredProject[] = [];
+    for (const recovered of (activeProjects || [])) {
+      if (recovered.jobType === 'llm') continue;
+      seenIds.add(recovered.id);
+
+      const tracked = this.projects.find((p) => p.id === recovered.id);
+      if (tracked) {
+        if (tracked.status === 'failed' || tracked.status === 'pending') {
+          const statusMap: Record<string, ProjectStatus> = {
+            queued: 'queued',
+            active: 'queued',
+            assigned: 'processing',
+            progress: 'processing',
+          };
+          const mappedStatus = statusMap[recovered.status] || 'processing';
+          tracked._update({ status: mappedStatus, error: undefined });
+        }
+      } else {
+        const rehydrated = this._rehydrateProject(recovered);
+        this.projects.push(rehydrated);
+        unmatchedActive.push(recovered);
+      }
+    }
+
+    // --- Completed projects ---
+    const unmatchedCompleted: CompletedRecoveredProject[] = [];
+    for (const recovered of (unclaimedCompletedProjects || [])) {
+      if (recovered.jobType === 'llm') continue;
+      if (seenIds.has(recovered.id)) continue;
+
+      const tracked = this.projects.find((p) => p.id === recovered.id);
+      if (tracked) {
+        await this._resolveAndCompleteTrackedProject(tracked, recovered);
+      } else {
+        const resultUrls = await this._resolveRecoveredProjectUrls(recovered);
+        unmatchedCompleted.push({ ...recovered, resultUrls });
+      }
+    }
+
+    if (unmatchedActive.length > 0) {
+      this.client.logger.info(`[RECOVERY] Emitting ${unmatchedActive.length} active recovered projects`);
+      this.emit('activeProjectsRecovered', unmatchedActive);
+    }
+    if (unmatchedCompleted.length > 0) {
+      this.client.logger.info(`[RECOVERY] Emitting ${unmatchedCompleted.length} completed recovered projects`);
+      this.emit('completedProjectsRecovered', unmatchedCompleted);
+    }
+  }
+
+  private _rehydrateProject(recovered: RecoveredProject): Project {
+    const mediaType = recovered.model?.type === 'video' ? 'video'
+      : recovered.model?.type === 'music' ? 'audio'
+      : 'image';
+
+    const project = new Project(
+      {
+        type: mediaType,
+        modelId: recovered.model.id,
+        positivePrompt: '',
+        numberOfMedia: recovered.imageCount,
+        steps: recovered.stepCount,
+      } as any,
+      { api: this, logger: this.client.logger }
+    );
+
+    // Override the auto-generated UUID with the server's actual project ID
+    (project as any).data.id = recovered.id;
+
+    for (const wj of (recovered.workerJobs || [])) {
+      project._addJob({
+        id: wj.imgID,
+        projectId: recovered.id,
+        status: wj.status === 'jobStarted' ? 'processing'
+          : wj.status === 'assigned' ? 'initiating'
+          : 'pending',
+        step: wj.performedSteps || 0,
+        stepCount: recovered.stepCount,
+        workerName: wj.worker?.username,
+      });
+    }
+
+    const statusMap: Record<string, ProjectStatus> = {
+      queued: 'queued', active: 'queued',
+      assigned: 'processing', progress: 'processing',
+    };
+    project._update({
+      status: statusMap[recovered.status] || 'processing'
+    });
+
+    return project;
+  }
+
+  private async _resolveAndCompleteTrackedProject(
+    tracked: Project,
+    recovered: RecoveredProject
+  ) {
+    for (const wj of (recovered.completedWorkerJobs || [])) {
+      let job = tracked.job(wj.imgID);
+      if (!job) {
+        job = tracked._addJob({
+          id: wj.imgID,
+          projectId: tracked.id,
+          status: 'pending',
+          step: 0,
+          stepCount: recovered.stepCount
+        });
+      }
+      if (job.finished) continue;
+
+      let resultUrl: string | null = null;
+      if (!wj.triggeredNSFWFilter) {
+        try {
+          resultUrl = await this._downloadUrlForRecoveredJob(recovered, wj);
+        } catch (e) {
+          this.client.logger.error('Failed to resolve URL for recovered job', e);
+        }
+      }
+      job._update({
+        status: wj.triggeredNSFWFilter ? 'failed' : 'completed',
+        step: wj.performedSteps,
+        seed: wj.seedUsed,
+        resultUrl,
+        isNSFW: wj.triggeredNSFWFilter,
+        workerName: wj.worker?.username
+      });
+    }
+    // Only mark completed if all expected jobs are accounted for
+    const completedJobCount = tracked.jobs.filter((j) => j.finished).length;
+    if (completedJobCount >= recovered.imageCount) {
+      tracked._update({ status: 'completed' });
+    }
+  }
+
+  private async _resolveRecoveredProjectUrls(
+    recovered: RecoveredProject
+  ): Promise<string[]> {
+    const urls: string[] = [];
+    const isVideo = recovered.model?.type === 'video';
+    const isAudio = recovered.model?.type === 'music';
+    const isMedia = isVideo || isAudio;
+
+    for (const wj of (recovered.completedWorkerJobs || [])) {
+      if (wj.triggeredNSFWFilter) continue;
+      try {
+        let url: string;
+        if (isMedia) {
+          url = await this.mediaDownloadUrl({
+            jobId: recovered.id,
+            id: wj.imgID,
+            type: 'complete'
+          });
+        } else {
+          url = await this.downloadUrl({
+            jobId: recovered.id,
+            imageId: wj.imgID,
+            type: 'complete'
+          });
+        }
+        urls.push(url);
+      } catch (e) {
+        this.client.logger.error('Failed to resolve URL for recovered project', e);
+      }
+    }
+    return urls;
+  }
+
+  private async _downloadUrlForRecoveredJob(
+    recovered: RecoveredProject,
+    wj: RecoveredWorkerJob
+  ): Promise<string> {
+    const isVideo = recovered.model?.type === 'video';
+    const isAudio = recovered.model?.type === 'music';
+    if (isVideo || isAudio) {
+      return this.mediaDownloadUrl({
+        jobId: recovered.id,
+        id: wj.imgID,
+        type: 'complete'
+      });
+    }
+    return this.downloadUrl({
+      jobId: recovered.id,
+      imageId: wj.imgID,
+      type: 'complete'
     });
   }
 

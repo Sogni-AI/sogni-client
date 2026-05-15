@@ -237,6 +237,31 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   }
 
   /**
+   * Pause the timeout interval during socket disconnect to prevent
+   * premature project failure while offline.
+   * @internal
+   */
+  _pauseTimeout() {
+    if (this._timeout) {
+      clearInterval(this._timeout);
+      this._timeout = null;
+    }
+  }
+
+  /**
+   * Resume the timeout interval after socket reconnect.
+   * Resets lastUpdated to prevent immediate timeout.
+   * @internal
+   */
+  _resumeTimeout() {
+    if (!this._timeout && !this.finished) {
+      this.lastUpdated = new Date();
+      this._failedSyncAttempts = 0;
+      this._timeout = setInterval(this._checkForTimeout.bind(this), PROJECT_TIMEOUT);
+    }
+  }
+
+  /**
    * This is internal method to add a job to the project. Do not call this directly.
    * @internal
    * @param data

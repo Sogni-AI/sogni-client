@@ -1,5 +1,6 @@
 import { AvailableModel } from './index';
 import ErrorData from '../../types/ErrorData';
+import { RecoveredProject } from '../../ApiClient/WebSocketClient/events';
 
 export interface ProjectEventBase {
   projectId: string;
@@ -86,8 +87,15 @@ export type JobEvent =
   | JobCompleted
   | JobError;
 
+export interface CompletedRecoveredProject extends RecoveredProject {
+  /** Resolved download URLs for each completed worker job */
+  resultUrls: string[];
+}
+
 export interface ProjectApiEvents {
   availableModels: AvailableModel[];
   project: ProjectEvent;
   job: JobEvent;
+  activeProjectsRecovered: RecoveredProject[];
+  completedProjectsRecovered: CompletedRecoveredProject[];
 }
