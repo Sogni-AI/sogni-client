@@ -1,3 +1,18 @@
+# [5.0.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.26...v5.0.0-alpha.1) (2026-05-15)
+
+
+* feat!: align SogniTools surface to canonical 24 tools, remove buildSogniTools ([2f04de9](https://github.com/Sogni-AI/sogni-client/commit/2f04de9fdb4d4423f3c46426488d6c520522c62f))
+
+
+### BREAKING CHANGES
+
+* buildSogniTools is no longer exported. Replace
+buildSogniTools(availableModels) with SogniTools.all, or set
+sogni_tools: 'creative-tools' on chat.hosted.create() / chat.runs.create()
+for server-side injection.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
 # [4.2.0-alpha.26](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.25...v4.2.0-alpha.26) (2026-05-15)
 
 
