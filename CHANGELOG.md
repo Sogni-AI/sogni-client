@@ -1,3 +1,10 @@
+# [4.2.0-alpha.24](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.23...v4.2.0-alpha.24) (2026-05-15)
+
+
+### Bug Fixes
+
+* **websocket:** preserve primary tab on new-tab open, fix promoted-primary rebind ([b74382a](https://github.com/Sogni-AI/sogni-client/commit/b74382a1b3bc02d61257bc3158ecbd96c10dee57))
+
 # [4.2.0-alpha.23](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.22...v4.2.0-alpha.23) (2026-05-15)
 
 
