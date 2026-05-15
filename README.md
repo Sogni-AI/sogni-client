@@ -851,24 +851,24 @@ const response = await sogni.chat.completions.create({
 
 ### Sogni Platform Tools — Generate Media via Chat
 
-Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes the full canonical hosted creative-tool surface — mirrored from `@sogni/creative-agent` — through `SogniTools.all` (22 tools):
+Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes the full canonical hosted creative-tool surface through `SogniTools.all` (24 tools):
 
 - **Generation** — `generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`
 - **Image adapters** — `restore_photo`, `apply_style`, `refine_result`, `change_angle`, `animate_photo` (image-to-video with multi-source fan-out)
 - **Video composition / post-production** — `stitch_video`, `orbit_video`, `dance_montage`, `extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`
-- **Synchronous composition** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`
+- **Synchronous composition and planning** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`
 
 Pass `SogniTools.all` (or individual definitions like `generateImageTool`, `animatePhotoTool`, `composeScriptTool`) to an LLM via the `tools` parameter, then route tool calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()` for server-side execution. Generated artifacts are threaded through a per-request media context so later rounds can reference earlier outputs by index (`sourceImageIndex`, `videoIndices`, `audioIndex`, etc.).
 
-For direct `/v1/chat/completions` hosted-tool execution, media-bearing tool arguments are intentionally constrained to inline `data:` URIs so the chat API remains OpenAI-compatible and does not implicitly fetch arbitrary user URLs. For user-uploaded image/audio/video inputs, use the SDK video project examples or the `sogni.creativeWorkflows` wrapper for `/v1/creative-agent/workflows`; these run outside the chat tool-selection loop and can consume HTTPS artifact URLs produced by Sogni's upload endpoints. Durable workflows validate explicit steps before the workflow starts and can bind SDK request-level `mediaReferences` into tool arguments with `sourceStepId: "$input_media"`.
+For direct `/v1/chat/completions` hosted-tool execution, media-bearing tool arguments use inline `data:` URIs. For user-uploaded image/audio/video inputs, use the SDK video project examples or the `sogni.workflows` wrapper for `/v1/creative-agent/workflows`; these can consume HTTPS artifact URLs produced by Sogni's upload endpoints. Durable workflows validate explicit steps before the workflow starts and can bind SDK request-level `mediaReferences` into tool arguments with `sourceStepId: "$input_media"`.
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
 
 ### Hosted Tool Surfaces — `sogni_tools` parameter
 
-`sogni.chat.hosted.create()` (the SDK wrapper for `/v1/chat/completions`) can inject the canonical creative-tools surface server-side via the `sogni_tools` parameter. The default `creative-tools` value injects the full media + composition + analysis surface. `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools on top.
+`sogni.chat.hosted.create()` (the SDK wrapper for `/v1/chat/completions`) can inject the canonical creative-tools surface server-side via the `sogni_tools` parameter. The default `creative-tools` value injects the full media, composition, and planning surface. `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools on top.
 
-Use default `sogni_tools: true` or `sogni_tools: "creative-tools"` when you want the full creative media tool surface plus synchronous composition tools: `enhance_prompt`, `compose_script`, `compose_lyrics`, and `compose_instrumental`. The legacy `"rich"` alias is still accepted and maps to `"creative-tools"`.
+Use default `sogni_tools: true` or `sogni_tools: "creative-tools"` when you want the full creative media tool surface plus synchronous composition tools: `enhance_prompt`, `compose_script`, `compose_lyrics`, and `compose_instrumental`.
 
 Notable creative-tools include:
 
@@ -925,17 +925,17 @@ Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entr
 
 ### Durable Creative Workflows (server-side)
 
-Long-running multi-step creative workflows can be persisted on the server and observed independently of the chat completion that started them. The SDK exposes these API-key-only endpoints through `sogni.creativeWorkflows`:
+Long-running multi-step creative workflows can be persisted on the server and observed independently of the chat completion that started them. The SDK exposes these authenticated endpoints through `sogni.workflows`:
 
-- `sogni.creativeWorkflows.start({ input, ...options })` — start a durable workflow with an inline plan
-- `sogni.creativeWorkflows.start({ workflowId, inputs, ...options })` — run a saved workflow template by id
-- `sogni.creativeWorkflows.get(workflowId)` and `.list()` — inspect snapshots
-- `sogni.creativeWorkflows.events(workflowId)` — poll event history
-- `sogni.creativeWorkflows.streamEvents(workflowId, { after, lastEventId })` — SSE event stream with resume support
-- `sogni.creativeWorkflows.resume(workflowId)` — resume a workflow paused in `waiting_for_user`
-- `sogni.creativeWorkflows.reseed(workflowId, { seedOverrides })` — clone a completed/partial run with fresh seeds
-- `sogni.creativeWorkflows.cancel(workflowId)` — cooperative cancellation
-- `sogni.creativeWorkflows.templates.{list, get, create, update, delete, fork}` — CRUD + fork for the saved workflow templates backing `start({ workflowId })`. Also available as `sogni.workflows.templates`.
+- `sogni.workflows.start({ input, ...options })` — start a durable workflow with an inline plan
+- `sogni.workflows.start({ workflowId, inputs, ...options })` — run a saved workflow template by id
+- `sogni.workflows.get(workflowId)` and `.list()` — inspect snapshots
+- `sogni.workflows.events(workflowId)` — poll event history
+- `sogni.workflows.streamEvents(workflowId, { after, lastEventId })` — SSE event stream with resume support
+- `sogni.workflows.resume(workflowId)` — resume a workflow paused in `waiting_for_user`
+- `sogni.workflows.reseed(workflowId, { seedOverrides })` — clone a completed/partial run with fresh seeds
+- `sogni.workflows.cancel(workflowId)` — cooperative cancellation
+- `sogni.workflows.templates.{list, get, create, update, delete, fork}` — CRUD + fork for the saved workflow templates backing `start({ workflowId })`.
 
 `start()` accepts exact hosted-tool steps plus optional request-level `mediaReferences`. The SDK follows the platform camelCase style (`mediaReferences`, `tokenType`, `maxEstimatedCapacityUnits`, and `confirmCost`) and serializes the REST request to snake_case internally. A dependency with `sourceStepId: "$input_media"` can inject the matching uploaded image, video, or audio URL or index into a later step. The API validates step arguments before accepting the workflow and again before each execution step, so shape errors fail before billing later media work.
 
@@ -946,7 +946,7 @@ const sogni = await SogniClient.createInstance({
   disableSocket: true
 });
 
-const workflow = await sogni.creativeWorkflows.start({
+const workflow = await sogni.workflows.start({
   tokenType: 'spark',
   input: {
     title: 'Generated keyframe to video',
@@ -980,7 +980,7 @@ const workflow = await sogni.creativeWorkflows.start({
   },
 });
 
-for await (const event of sogni.creativeWorkflows.streamEvents(workflow.workflowId)) {
+for await (const event of sogni.workflows.streamEvents(workflow.workflowId)) {
   console.log(event.event, event.data);
 }
 ```
@@ -1064,7 +1064,7 @@ This SDK provides documentation optimized for AI coding assistants like Claude C
 | ---------------------------------- | ------------------------------------------------------- |
 | [`llms.txt`](./llms.txt)           | Indexed quick reference with code examples              |
 | [`llms-full.txt`](./llms-full.txt) | Comprehensive documentation with complete API reference |
-| [`CLAUDE.md`](./CLAUDE.md)         | Claude Code-specific guidance and project context       |
+| [`AGENTS.md`](./AGENTS.md)         | Public guidance and project context for coding agents   |
 
 These files follow the [llms.txt convention](https://llmstxt.org/) for LLM-friendly documentation.
 
@@ -1075,7 +1075,7 @@ When helping users generate images, videos, or use LLM features with Sogni:
 1. **Image generation**: Use `type: 'image'` with models like `flux1-schnell-fp8`
 2. **Video generation**: Use `type: 'video'` with `network: 'fast'` (required)
 3. **Audio generation**: Use `type: 'audio'` with ACE-Step 1.5 models
-4. **LLM text chat**: Use `sogni.projects.chatCompletion()` for text generation with streaming and tool calling
+4. **LLM text chat**: Use `sogni.chat.completions.create()` for text generation with streaming and tool calling
 5. **Sogni Platform Tools**: Combine LLM tool calling with Sogni media generation to create images, image edits, videos, audio-driven videos, video transforms, and music from natural language
 6. **Vision chat**: Use `qwen3.6-35b-a3b-gguf-iq4xs` VLM for multimodal image understanding with `image_url` content parts carrying inline base64 JPEG/PNG `data:` URIs. Vision requests allow up to 20 images, 10MB each, with longest side capped at 1024px. This 1024px dimension cap applies only to the vision `image_url` path, not to media-generation tool image inputs.
 7. **WAN 2.2, LTX-2.3, and Seedance**: These video families have different duration/FPS behaviors - see `llms-full.txt` for details

@@ -122,6 +122,17 @@ import {
 } from './CreativeWorkflows/Templates/types';
 // Stats API
 import StatsApi from './Stats';
+// Replay records
+import ReplayApi from './Replay';
+import {
+  GetReplayRecordResult,
+  ListReplayRecordsOptions,
+  ListReplayRecordsResult,
+  ReplayRecordSummary,
+  ReplayRequestOptions,
+  ReplayWriteResult,
+  RunRecord
+} from './Replay/types';
 // Base Types
 import ErrorData from './types/ErrorData';
 import { TokenType } from './types/token';
@@ -202,6 +213,13 @@ export type {
   WorkflowTemplateStability,
   WorkflowTemplateVisibility,
   WorkflowTemplateVisibilityFilter,
+  RunRecord,
+  ReplayWriteResult,
+  ReplayRecordSummary,
+  ReplayRequestOptions,
+  ListReplayRecordsOptions,
+  ListReplayRecordsResult,
+  GetReplayRecordResult,
   SupernetType,
   TokenType,
   ToolCall,
@@ -236,6 +254,7 @@ export {
   ChatToolsApi,
   CreativeWorkflowsApi,
   CreativeWorkflowTemplatesApi,
+  ReplayApi,
   CurrentAccount,
   Job,
   Project,
@@ -349,6 +368,13 @@ export class SogniClient {
    * the client connected.
    */
   workflows: CreativeWorkflowsApi;
+  /**
+   * Replay records (`/v1/replay/records`). Writes one RunRecord per
+   * chat / harness turn and exposes list + get for the replay viewer.
+   * Per-owner isolation is enforced server-side via the SDK auth
+   * identity.
+   */
+  replay: ReplayApi;
 
   apiClient: ApiClient;
 
@@ -358,6 +384,7 @@ export class SogniClient {
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
     this.workflows = new CreativeWorkflowsApi(config);
+    this.replay = new ReplayApi(config);
 
     this.apiClient = config.client;
   }

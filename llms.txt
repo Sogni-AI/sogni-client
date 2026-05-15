@@ -3,6 +3,7 @@
 > AI-friendly documentation for the Sogni SDK (JavaScript/Node.js)
 > Full documentation: llms-full.txt | TypeScript types: dist/index.d.ts
 > npm: @sogni-ai/sogni-client | GitHub: https://github.com/Sogni-AI/sogni-client
+> Current package: 4.2.0-alpha.24 | Runtime: Node.js >=22 or modern browser
 
 ## Quick Reference
 
@@ -11,6 +12,8 @@
 ```bash
 npm install @sogni-ai/sogni-client
 ```
+
+The SDK publishes CommonJS (`dist/index.js`), ESM (`dist-esm/index.js`), and TypeScript declarations (`dist/index.d.ts`). Public entry point: `SogniClient.createInstance()`.
 
 ### Minimal Image Generation
 
@@ -134,7 +137,7 @@ await sogni.account.login(username, password);
   seed?: number,
   sampler?: string,
   scheduler?: string,
-  outputFormat?: 'png' | 'jpg'
+  outputFormat?: 'png' | 'jpg' | 'webp'
 }
 ```
 
@@ -286,7 +289,7 @@ const project = await sogni.projects.create({
 });
 ```
 
-Use `referenceImageUrls`, `referenceVideoUrls`, and `referenceAudioUrls` for Seedance HTTPS context URLs. Use `referenceImage`/`referenceImageEnd`, `referenceVideo`, and `referenceAudio` for the existing single upload slots. Example prompt: `Use @Image1 for product identity, @Video1 for camera movement, and @Audio1 for music rhythm. Keep the product silhouette and logo placement consistent.`
+Use `referenceImageUrls`, `referenceVideoUrls`, and `referenceAudioUrls` for Seedance HTTPS context URLs. Use `referenceImage`/`referenceImageEnd`, `referenceVideo`, and `referenceAudio` for single local file references. Example prompt: `Use @Image1 for product identity, @Video1 for camera movement, and @Audio1 for music rhythm. Keep the product silhouette and logo placement consistent.`
 
 Aliases used by chat tools and examples: `seedance2` and `seedance2-fast`. V2V uses `seedance2` as the model selector and `seedance-v2v` as the control mode. Seedance Fast accepts optional image, video, and audio references and caps at 720p. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
 
@@ -358,12 +361,12 @@ const project = await sogni.projects.create({
 
 ## 7. LLM Text Generation
 
-The Sogni SDK supports LLM text generation via the Supernet, providing an OpenAI-compatible chat completions API.
+The Sogni SDK supports LLM text generation via the Supernet. Socket-native chat uses `sogni.chat.completions.create()`. Hosted REST chat uses `sogni.chat.hosted.create()`. Durable server-side chat runs use `sogni.chat.runs`.
 
 ### Chat Completion (Non-Streaming)
 
 ```javascript
-const response = await sogni.projects.chatCompletion({
+const response = await sogni.chat.completions.create({
   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [
     { role: 'system', content: 'You are a helpful assistant.' },
@@ -373,20 +376,20 @@ const response = await sogni.projects.chatCompletion({
   temperature: 0.7,
   top_p: 0.9
 });
-console.log(response.choices[0].message.content);
+console.log(response.content);
 ```
 
 ### Streaming Chat Completion
 
 ```javascript
-const stream = await sogni.projects.chatCompletionStream({
+const stream = await sogni.chat.completions.create({
   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [{ role: 'user', content: 'Tell me a story' }],
   max_tokens: 4096,
   stream: true
 });
 for await (const chunk of stream) {
-  process.stdout.write(chunk.choices[0].delta.content || '');
+  process.stdout.write(chunk.content || '');
 }
 ```
 
@@ -402,13 +405,22 @@ for await (const chunk of stream) {
 | frequency_penalty | number  | 0                          | Repetition penalty (-2 to 2)                     |
 | presence_penalty  | number  | 0                          | Topic penalty (-2 to 2)                          |
 | stream            | boolean | false                      | Enable token-by-token streaming                  |
+| think             | boolean | server default             | Sends `chat_template_kwargs.enable_thinking`     |
+| taskProfile       | string  | -                          | `general`, `coding`, or `reasoning` preset hint  |
+| response_format   | object  | -                          | OpenAI-compatible JSON object/schema constraint  |
+| tools             | array   | -                          | OpenAI-compatible function tools                 |
+| tool_choice       | string/object | auto                 | `auto`, `none`, `required`, or function choice   |
+| sogni_tools       | boolean/string | -                    | Inject hosted creative tools server-side         |
 
 ### Thinking Mode
 
-Enable model reasoning/thinking with `chat_template_kwargs`:
+Control model reasoning/thinking with `think`:
 
-- Thinking enabled: Model shows `<think>` blocks with reasoning steps
-- Thinking disabled: Direct responses only
+- `think: true` sends `chat_template_kwargs: { enable_thinking: true }`.
+- `think: false` sends `chat_template_kwargs: { enable_thinking: false }`.
+- Omit `think` to use server defaults.
+
+Streaming chunks and completion results expose generated text through `content` and tool invocations through `tool_calls`.
 
 ---
 
@@ -436,13 +448,13 @@ const tools = [
   }
 ];
 
-const response = await sogni.projects.chatCompletion({
+const response = await sogni.chat.completions.create({
   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [{ role: 'user', content: "What's the weather in Austin?" }],
   tools,
   tool_choice: 'auto'
 });
-// Check response.choices[0].message.tool_calls for tool invocations
+// Check response.tool_calls for tool invocations.
 ```
 
 ### Sogni Platform Tools — Media Generation via Chat
@@ -456,7 +468,7 @@ Combine LLM tool calling with Sogni's generation APIs to create media from natur
 - **Video-to-Video** — "Restyle this video as anime"
 - **Music Generation** — "Compose a jazz song about the rain"
 
-Canonical hosted creative-tool surface (`SogniTools.all`, 22 tools, executed server-side via `chat.hosted.create()` / `chat.runs.create()`):
+Canonical hosted creative-tool surface (`SogniTools.all`, 24 tools, executed server-side via `chat.hosted.create()` / `chat.runs.create()`):
 
 - `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video` (generation)
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` (image-edit adapters)
@@ -467,14 +479,15 @@ Canonical hosted creative-tool surface (`SogniTools.all`, 22 tools, executed ser
 - `enhance_prompt` (model-ready image/video/music/edit prompt expansion)
 - `compose_script` (scripts, storyboards, trailers, social shorts, campaign beats, and video prompts)
 - `compose_lyrics`, `compose_instrumental` (vocal lyrics or instrumental music structures)
+- `compose_workflow`, `compose_workflow_template` (durable workflow and template planners)
 
 The default `creative-tools` surface includes the tools above. `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools. Per-request media context lets generated images / videos / audio be addressed by stable indices across tool rounds (each tool result envelope returns `startIndex` and `indices`).
 
-Media-conditioned tools accept explicit inline base64 `data:` URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`. Remote `http(s)` URLs are not allowed for these tool inputs. Tool image inputs accept PNG/JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
+Media-conditioned tools accept explicit inline base64 `data:` URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`. Tool image inputs accept PNG/JPEG, tool audio inputs accept MP3/M4A/WAV, and tool video inputs accept MP4 or MOV/QuickTime. For uploaded or Sogni-hosted HTTP(S) assets, pass media through request-level `mediaReferences` / `mediaContext` or through `sogni.workflows` dependencies.
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. `workflow_creative_agent_tools.mjs` demonstrates server-side hosted Sogni tool injection through `/v1/chat/completions`. Pass `SogniTools.all` (or individual tool defs) to the LLM and execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
 
-Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.creativeWorkflows` (`start`, `list`, `get`, `events`, `streamEvents`, `resume`, `reseed`, `cancel`) backed by `/v1/creative-agent/workflows`. `start()` accepts either an inline `input` plan or a saved `workflowId` + `inputs`. Saved workflow templates are managed via `sogni.creativeWorkflows.templates` (`list`, `get`, `create`, `update`, `delete`, `fork`); also aliased as `sogni.workflows.templates`. All endpoints require API-key auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
+Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.workflows` (`start`, `list`, `get`, `events`, `streamEvents`, `resume`, `reseed`, `cancel`) backed by `/v1/creative-agent/workflows`. `start()` accepts either an inline `input` plan or a saved `workflowId` + `inputs`. Saved workflow templates are managed via `sogni.workflows.templates` (`list`, `get`, `create`, `update`, `delete`, `fork`). All endpoints use the SDK's active auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
 
 Default generation models used by platform tools:
 | Tool | Model | Description |
@@ -606,8 +619,9 @@ console.log(options.scheduler.allowed);
 ## 12. Cost Estimation
 
 ```javascript
-const cost = await sogni.projects.estimate({
+const cost = await sogni.projects.estimateCost({
   network: 'fast',
+  tokenType: 'spark',
   model: 'flux1-schnell-fp8',
   imageCount: 1,
   stepCount: 4,
@@ -615,6 +629,8 @@ const cost = await sogni.projects.estimate({
 });
 console.log(cost.sogni, cost.usd);
 ```
+
+Use `estimateVideoCost()` for video jobs and `estimateAudioCost()` for audio jobs.
 
 ---
 

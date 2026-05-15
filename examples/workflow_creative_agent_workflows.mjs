@@ -167,7 +167,7 @@ function printEvent(frame) {
 
 async function streamWorkflow(sogni, workflowId) {
   console.log(`\nStreaming events for ${workflowId}...\n`);
-  for await (const frame of sogni.creativeWorkflows.streamEvents(workflowId)) {
+  for await (const frame of sogni.workflows.streamEvents(workflowId)) {
     printEvent(frame);
   }
 }
@@ -179,7 +179,7 @@ async function main() {
 
   try {
     if (options.list) {
-      const workflows = await sogni.creativeWorkflows.list({ limit: 20 });
+      const workflows = await sogni.workflows.list({ limit: 20 });
       workflows.forEach((workflow) => {
         console.log(`${workflow.workflowId}\t${workflow.status || '-'}\t${workflow.title || ''}`);
       });
@@ -187,12 +187,12 @@ async function main() {
     }
 
     if (options.get) {
-      printWorkflow(await sogni.creativeWorkflows.get(options.get));
+      printWorkflow(await sogni.workflows.get(options.get));
       return;
     }
 
     if (options.events) {
-      const events = await sogni.creativeWorkflows.events(options.events);
+      const events = await sogni.workflows.events(options.events);
       console.log(JSON.stringify(events, null, 2));
       return;
     }
@@ -203,7 +203,7 @@ async function main() {
     }
 
     if (options.cancel) {
-      printWorkflow(await sogni.creativeWorkflows.cancel(options.cancel));
+      printWorkflow(await sogni.workflows.cancel(options.cancel));
       return;
     }
 
@@ -215,7 +215,7 @@ async function main() {
     }
 
     console.log('Starting durable generated-keyframe video workflow...\n');
-    const workflow = await sogni.creativeWorkflows.start({
+    const workflow = await sogni.workflows.start({
       tokenType: options.tokenType,
       input: {
         title: 'Generated keyframe to video',
