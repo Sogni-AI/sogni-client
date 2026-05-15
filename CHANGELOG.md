@@ -1,3 +1,10 @@
+# [4.2.0-alpha.22](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.21...v4.2.0-alpha.22) (2026-05-15)
+
+
+### Features
+
+* **sdk:** add durable chat runs, flatten creative workflows, dual ESM build ([03d37d7](https://github.com/Sogni-AI/sogni-client/commit/03d37d7e873e3e6ac8718b407fd612bab757907b))
+
 # [4.2.0-alpha.21](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.20...v4.2.0-alpha.21) (2026-05-14)
 
 
