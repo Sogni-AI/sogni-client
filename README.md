@@ -927,11 +927,15 @@ Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entr
 
 Long-running multi-step creative workflows can be persisted on the server and observed independently of the chat completion that started them. The SDK exposes these API-key-only endpoints through `sogni.creativeWorkflows`:
 
-- `sogni.creativeWorkflows.start({ input, ...options })` — start a durable workflow with explicit steps
+- `sogni.creativeWorkflows.start({ input, ...options })` — start a durable workflow with an inline plan
+- `sogni.creativeWorkflows.start({ workflowId, inputs, ...options })` — run a saved workflow template by id
 - `sogni.creativeWorkflows.get(workflowId)` and `.list()` — inspect snapshots
 - `sogni.creativeWorkflows.events(workflowId)` — poll event history
 - `sogni.creativeWorkflows.streamEvents(workflowId, { after, lastEventId })` — SSE event stream with resume support
+- `sogni.creativeWorkflows.resume(workflowId)` — resume a workflow paused in `waiting_for_user`
+- `sogni.creativeWorkflows.reseed(workflowId, { seedOverrides })` — clone a completed/partial run with fresh seeds
 - `sogni.creativeWorkflows.cancel(workflowId)` — cooperative cancellation
+- `sogni.creativeWorkflows.templates.{list, get, create, update, delete, fork}` — CRUD + fork for the saved workflow templates backing `start({ workflowId })`. Also available as `sogni.workflows.templates`.
 
 `start()` accepts exact hosted-tool steps plus optional request-level `mediaReferences`. The SDK follows the platform camelCase style (`mediaReferences`, `tokenType`, `maxEstimatedCapacityUnits`, and `confirmCost`) and serializes the REST request to snake_case internally. A dependency with `sourceStepId: "$input_media"` can inject the matching uploaded image, video, or audio URL or index into a later step. The API validates step arguments before accepting the workflow and again before each execution step, so shape errors fail before billing later media work.
 

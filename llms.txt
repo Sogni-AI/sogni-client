@@ -474,7 +474,7 @@ Media-conditioned tools accept explicit inline base64 `data:` URIs such as `sour
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. `workflow_creative_agent_tools.mjs` demonstrates server-side hosted Sogni tool injection through `/v1/chat/completions`. Pass `SogniTools.all` (or individual tool defs) to the LLM and execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
 
-Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.creativeWorkflows` (`startImageToVideo`, `list`, `get`, `events`, `streamEvents`, `cancel`) backed by `/v1/creative-agent/workflows`. They require API-key auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
+Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.creativeWorkflows` (`start`, `list`, `get`, `events`, `streamEvents`, `resume`, `reseed`, `cancel`) backed by `/v1/creative-agent/workflows`. `start()` accepts either an inline `input` plan or a saved `workflowId` + `inputs`. Saved workflow templates are managed via `sogni.creativeWorkflows.templates` (`list`, `get`, `create`, `update`, `delete`, `fork`); also aliased as `sogni.workflows.templates`. All endpoints require API-key auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
 
 Default generation models used by platform tools:
 | Tool | Model | Description |

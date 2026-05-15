@@ -651,10 +651,13 @@ Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entr
 **Durable Creative Workflows:**
 For multi-step workflows that need to survive client disconnect, persist state, or be observed from a second client, use the SDK `sogni.creativeWorkflows` wrapper:
 
-- `start({ input, tokenType })`
+- `start({ input, tokenType })` or `start({ workflowId, inputs, tokenType })` to run a saved template
 - `list()`, `get(workflowId)`, `events(workflowId)`
 - `streamEvents(workflowId, { after, lastEventId })`
+- `resume(workflowId)` to release a run paused in `waiting_for_user`
+- `reseed(workflowId, { seedOverrides })` to clone a run with fresh seeds
 - `cancel(workflowId)`
+- `templates.{list, get, create, update, delete, fork}` for the saved workflow templates backing `start({ workflowId })`
 
 Run the durable workflow example:
 

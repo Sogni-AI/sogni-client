@@ -1,10 +1,17 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup';
 import { ApiError, ApiResponse } from '../ApiClient';
+import CreativeWorkflowTemplatesApi from './Templates';
 import {
   CreativeWorkflowRecord,
   CreativeWorkflowEvent,
   CreativeWorkflowSseEvent,
   ListCreativeWorkflowOptions,
+  ReseedCreativeWorkflowOptions,
+  ReseedCreativeWorkflowParams,
+  ReseedCreativeWorkflowResult,
+  ResumeCreativeWorkflowOptions,
+  ResumeCreativeWorkflowParams,
+  ResumeCreativeWorkflowResult,
   StartCreativeWorkflowOptions,
   StartCreativeWorkflowParams,
   StreamCreativeWorkflowEventsOptions
@@ -129,8 +136,15 @@ export function parseCreativeWorkflowSseChunk(chunk: string): CreativeWorkflowSs
 }
 
 class CreativeWorkflowsApi extends ApiGroup {
+  /**
+   * Workflow template CRUD + fork (`/v1/creative-agent/workflows/templates`).
+   * Templates are the savable blueprints behind workflow runs.
+   */
+  templates: CreativeWorkflowTemplatesApi;
+
   constructor(config: ApiConfig) {
     super(config);
+    this.templates = new CreativeWorkflowTemplatesApi(config);
   }
 
   async start(
@@ -145,10 +159,23 @@ class CreativeWorkflowsApi extends ApiGroup {
     const maxEstimatedCapacityUnits =
       params.maxEstimatedCapacityUnits ?? params.max_estimated_capacity_units;
     const confirmCost = params.confirmCost ?? params.confirm_cost;
+    const workflowId = params.workflowId ?? params.workflow_id;
 
-    const body: Record<string, unknown> = {
-      input: params.input
-    };
+    if (!params.input && !workflowId) {
+      throw new Error(
+        'CreativeWorkflowsApi.start requires either `input` (inline plan) or `workflowId` (saved template id)'
+      );
+    }
+    if (params.input && workflowId) {
+      throw new Error('CreativeWorkflowsApi.start accepts `input` or `workflowId`, not both');
+    }
+
+    const body: Record<string, unknown> = {};
+    if (params.input) body.input = params.input;
+    if (workflowId) {
+      body.workflow_id = workflowId;
+      if (params.inputs) body.inputs = params.inputs;
+    }
     if (tokenType) body.token_type = tokenType;
     if (appSource) body.app_source = appSource;
     if (maxEstimatedCapacityUnits !== undefined) {
@@ -171,6 +198,80 @@ class CreativeWorkflowsApi extends ApiGroup {
       signal: options.signal
     });
     return parseEnvelope<CreativeWorkflowRecord>(response, 'workflow');
+  }
+
+  /**
+   * Resume a durable workflow that paused in `waiting_for_user`. The api
+   * has already received the user's interactive content through whatever
+   * upstream chat path the durable step was waiting on; this call is the
+   * "kick the executor back into motion" knob. Returns the workflow
+   * record at resume time plus a `resumed: true` flag.
+   */
+  async resume(
+    workflowId: string,
+    params: ResumeCreativeWorkflowParams = {},
+    options: ResumeCreativeWorkflowOptions = {}
+  ): Promise<ResumeCreativeWorkflowResult> {
+    const tokenType = params.tokenType ?? params.token_type;
+    const appSource = params.appSource ?? params.app_source;
+    const body: Record<string, unknown> = {};
+    if (tokenType) body.token_type = tokenType;
+    if (appSource) body.app_source = appSource;
+
+    const response = await this.request<CreativeWorkflowEnvelope>(
+      `/v1/creative-agent/workflows/${encodeURIComponent(workflowId)}/resume`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: options.signal
+      }
+    );
+    const workflow = parseEnvelope<CreativeWorkflowRecord>(response, 'workflow');
+    const data = response.data as Record<string, unknown> | undefined;
+    return { workflow, resumed: data?.resumed === true };
+  }
+
+  /**
+   * Clone a completed (or partial-failure) workflow with fresh seeds.
+   * Per-step seed overrides are sent via `seedOverrides`; any step not
+   * listed receives a new random seed. Returns the new workflow record
+   * plus the `clonedFromRunId` so callers can correlate the two runs.
+   */
+  async reseed(
+    workflowId: string,
+    params: ReseedCreativeWorkflowParams = {},
+    options: ReseedCreativeWorkflowOptions = {}
+  ): Promise<ReseedCreativeWorkflowResult> {
+    const seedOverrides = params.seedOverrides ?? params.seed_overrides;
+    const tokenType = params.tokenType ?? params.token_type;
+    const appSource = params.appSource ?? params.app_source;
+    const body: Record<string, unknown> = {};
+    if (seedOverrides) body.seed_overrides = seedOverrides;
+    if (tokenType) body.token_type = tokenType;
+    if (appSource) body.app_source = appSource;
+
+    const response = await this.request<CreativeWorkflowEnvelope>(
+      `/v1/creative-agent/workflows/${encodeURIComponent(workflowId)}/reseed`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: options.signal
+      }
+    );
+    const workflow = parseEnvelope<CreativeWorkflowRecord>(response, 'workflow');
+    const data = response.data as Record<string, unknown> | undefined;
+    const reseedRaw =
+      data && typeof data === 'object' && 'reseed' in data
+        ? (data.reseed as Record<string, unknown>)
+        : undefined;
+    const clonedFromRunId =
+      reseedRaw && typeof reseedRaw.cloned_from_run_id === 'string'
+        ? (reseedRaw.cloned_from_run_id as string)
+        : '';
+    const steps = reseedRaw && Array.isArray(reseedRaw.steps) ? reseedRaw.steps : [];
+    return { workflow, reseed: { clonedFromRunId, steps } };
   }
 
   async list(options: ListCreativeWorkflowOptions = {}): Promise<CreativeWorkflowRecord[]> {

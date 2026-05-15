@@ -117,7 +117,23 @@ export interface StartCreativeWorkflowInput {
 }
 
 export interface StartCreativeWorkflowParams {
-  input: StartCreativeWorkflowInput;
+  /**
+   * Inline workflow definition. Use this for one-shot plans composed
+   * client-side (e.g. the output of the `compose_workflow` chat tool).
+   * Mutually exclusive with `workflowId`.
+   */
+  input?: StartCreativeWorkflowInput;
+  /**
+   * Run a saved workflow template by id. Combine with `inputs` to pass
+   * the concrete user-supplied values (brief, aspect_ratio, etc.).
+   * Mutually exclusive with `input`.
+   */
+  workflowId?: string;
+  /**
+   * Inputs for the saved template referenced by `workflowId`. The api
+   * resolves these against the template's declared `inputs[]`.
+   */
+  inputs?: Record<string, unknown>;
   tokenType?: TokenType;
   appSource?: string;
   idempotencyKey?: string;
@@ -125,6 +141,8 @@ export interface StartCreativeWorkflowParams {
   mediaReferences?: unknown[];
   maxEstimatedCapacityUnits?: number;
   confirmCost?: boolean;
+  /** @internal Undocumented compatibility alias. Use workflowId. */
+  workflow_id?: string;
   /** @internal Undocumented compatibility alias. Use tokenType. */
   token_type?: TokenType;
   /** @internal Undocumented compatibility alias. Use appSource. */
@@ -137,6 +155,60 @@ export interface StartCreativeWorkflowParams {
   max_estimated_capacity_units?: number;
   /** @internal Undocumented compatibility alias. Use confirmCost. */
   confirm_cost?: boolean;
+}
+
+export interface ResumeCreativeWorkflowParams {
+  /** Override the token type charged to the resumed run. */
+  tokenType?: TokenType;
+  /** Telemetry tag identifying the caller. */
+  appSource?: string;
+  /** @internal Undocumented compatibility alias. Use tokenType. */
+  token_type?: TokenType;
+  /** @internal Undocumented compatibility alias. Use appSource. */
+  app_source?: string;
+}
+
+export interface ResumeCreativeWorkflowOptions {
+  signal?: AbortSignal;
+}
+
+export interface ResumeCreativeWorkflowResult {
+  workflow: CreativeWorkflowRecord;
+  resumed: boolean;
+}
+
+export interface ReseedCreativeWorkflowParams {
+  /**
+   * Per-step seed overrides. Steps not listed in the map receive a fresh
+   * random seed. Keys are the source workflow's step ids.
+   */
+  seedOverrides?: Record<string, number>;
+  /** Override the token type charged to the new run. */
+  tokenType?: TokenType;
+  /** Telemetry tag identifying the caller. */
+  appSource?: string;
+  /** @internal Undocumented compatibility alias. Use seedOverrides. */
+  seed_overrides?: Record<string, number>;
+  /** @internal Undocumented compatibility alias. Use tokenType. */
+  token_type?: TokenType;
+  /** @internal Undocumented compatibility alias. Use appSource. */
+  app_source?: string;
+}
+
+export interface ReseedCreativeWorkflowOptions {
+  signal?: AbortSignal;
+}
+
+export interface ReseedCreativeWorkflowResult {
+  workflow: CreativeWorkflowRecord;
+  /**
+   * The new run cloned from the source. Echoes the original run id plus
+   * the step list with applied seed overrides.
+   */
+  reseed: {
+    clonedFromRunId: string;
+    steps: unknown[];
+  };
 }
 
 export interface StartCreativeWorkflowOptions {

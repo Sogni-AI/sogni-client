@@ -87,6 +87,7 @@ import {
 import { SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
 // Creative Workflows API
 import CreativeWorkflowsApi, { parseCreativeWorkflowSseChunk } from './CreativeWorkflows';
+import CreativeWorkflowTemplatesApi from './CreativeWorkflows/Templates';
 import {
   CreativeWorkflowArtifact,
   CreativeWorkflowEvent,
@@ -95,6 +96,12 @@ import {
   CreativeWorkflowStatus,
   CreativeWorkflowHostedToolName,
   ListCreativeWorkflowOptions,
+  ReseedCreativeWorkflowOptions,
+  ReseedCreativeWorkflowParams,
+  ReseedCreativeWorkflowResult,
+  ResumeCreativeWorkflowOptions,
+  ResumeCreativeWorkflowParams,
+  ResumeCreativeWorkflowResult,
   StartCreativeWorkflowOptions,
   StartCreativeWorkflowParams,
   StartCreativeWorkflowDependency,
@@ -102,6 +109,17 @@ import {
   StartCreativeWorkflowStep,
   StreamCreativeWorkflowEventsOptions
 } from './CreativeWorkflows/types';
+import {
+  ForkWorkflowTemplateBody,
+  ListWorkflowTemplatesOptions,
+  ListWorkflowTemplatesResult,
+  WorkflowTemplate,
+  WorkflowTemplateAuthor,
+  WorkflowTemplateRequestOptions,
+  WorkflowTemplateStability,
+  WorkflowTemplateVisibility,
+  WorkflowTemplateVisibilityFilter
+} from './CreativeWorkflows/Templates/types';
 // Stats API
 import StatsApi from './Stats';
 // Base Types
@@ -169,6 +187,21 @@ export type {
   StartCreativeWorkflowInput,
   StartCreativeWorkflowStep,
   StreamCreativeWorkflowEventsOptions,
+  ResumeCreativeWorkflowOptions,
+  ResumeCreativeWorkflowParams,
+  ResumeCreativeWorkflowResult,
+  ReseedCreativeWorkflowOptions,
+  ReseedCreativeWorkflowParams,
+  ReseedCreativeWorkflowResult,
+  ForkWorkflowTemplateBody,
+  ListWorkflowTemplatesOptions,
+  ListWorkflowTemplatesResult,
+  WorkflowTemplate,
+  WorkflowTemplateAuthor,
+  WorkflowTemplateRequestOptions,
+  WorkflowTemplateStability,
+  WorkflowTemplateVisibility,
+  WorkflowTemplateVisibilityFilter,
   SupernetType,
   TokenType,
   ToolCall,
@@ -202,6 +235,7 @@ export {
   ChatStream,
   ChatToolsApi,
   CreativeWorkflowsApi,
+  CreativeWorkflowTemplatesApi,
   CurrentAccount,
   Job,
   Project,

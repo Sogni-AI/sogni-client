@@ -992,7 +992,13 @@ execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
 
 DURABLE CREATIVE WORKFLOWS:
 Use `sogni.creativeWorkflows` for `/v1/creative-agent/workflows` coverage:
-`startImageToVideo`, `list`, `get`, `events`, `streamEvents`, and `cancel`.
+`start`, `list`, `get`, `events`, `streamEvents`, `resume`, `reseed`, `cancel`.
+`start({ input })` runs an inline plan; `start({ workflowId, inputs })` runs a
+saved template by id. Saved templates are managed through
+`sogni.creativeWorkflows.templates` — `list`, `get`, `create`, `update`,
+`delete`, `fork` (also aliased as `sogni.workflows.templates`).
+`resume(workflowId)` releases a workflow paused in `waiting_for_user`;
+`reseed(workflowId, { seedOverrides })` clones a completed run with new seeds.
 These endpoints require API-key auth. See `workflow_creative_agent_workflows.mjs`.
 
 EXAMPLE CLI USAGE:
