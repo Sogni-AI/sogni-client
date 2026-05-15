@@ -10,8 +10,8 @@
  *
  * This example intentionally focuses on the core text-to-image, text-to-video,
  * and text-to-music flows. The SDK's built-in public SogniTools surface also
- * includes `sogni_edit_image`, `sogni_sound_to_video`, and
- * `sogni_video_to_video` for explicit asset-backed workflows.
+ * includes `edit_image`, `sound_to_video`, and
+ * `video_to_video` for explicit asset-backed workflows.
  *
  * Architecture: Hybrid Tool Calling + Composition Pipeline
  *   1. LLM receives user message with tool definitions (tool_choice: 'auto')
@@ -184,7 +184,7 @@ const HYBRID_TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'sogni_generate_image',
+      name: 'generate_image',
       description: 'Generate an image. Call this when the user wants to create, draw, or make an image or picture.',
       parameters: {
         type: 'object',
@@ -199,7 +199,7 @@ const HYBRID_TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'sogni_generate_video',
+      name: 'generate_video',
       description: 'Generate a short video. Call this when the user wants to create, make, or generate a video, clip, or animation.',
       parameters: {
         type: 'object',
@@ -216,7 +216,7 @@ const HYBRID_TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'sogni_generate_music',
+      name: 'generate_music',
       description: 'Generate a music track or song. Call this when the user wants to create, compose, or make music, a song, a beat, or audio.',
       parameters: {
         type: 'object',
@@ -232,9 +232,9 @@ const HYBRID_TOOLS = [
 ];
 
 function toolNameToMediaType(name) {
-  if (name === 'sogni_generate_image') return 'image';
-  if (name === 'sogni_generate_video') return 'video';
-  if (name === 'sogni_generate_music') return 'audio';
+  if (name === 'generate_image') return 'image';
+  if (name === 'generate_video') return 'video';
+  if (name === 'generate_music') return 'audio';
   return null;
 }
 

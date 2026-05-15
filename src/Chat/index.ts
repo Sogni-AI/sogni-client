@@ -14,11 +14,15 @@ import {
   ChatJobStateEvent,
   ChatRequestMessage,
   ChatMessage,
+  ChatRunEvent,
+  ChatRunRecord,
   HostedChatCompletionParams,
   HostedChatCompletionResult,
   LLMCostEstimation,
   LLMEstimateResponse,
   LLMModelInfo,
+  StartChatRunParams,
+  StreamChatRunEventsOptions,
   ToolCall,
   ToolHistoryEntry
 } from './types';
@@ -136,8 +140,35 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       ((params: ChatCompletionParams) => Promise<ChatStream | ChatCompletionResult>);
   };
 
+  /**
+   * Hosted REST chat completion (`POST /v1/chat/completions`). The API
+   * executes any eligible hosted tools server-side and returns the
+   * final result within the request lifetime.
+   */
   hosted: {
     create: (params: HostedChatCompletionParams) => Promise<HostedChatCompletionResult>;
+  };
+
+  /**
+   * Durable hosted chat runs (`POST /v1/chat/runs`). A run is submitted
+   * and persisted server-side; the executor drives the LLM/tool loop
+   * without requiring the client to stay connected. Clients can
+   * disconnect and reattach via SSE `Last-Event-ID` replay or fetch
+   * the final snapshot.
+   *
+   * - `create` returns the persisted run record immediately (202).
+   * - `get` reads the current run state.
+   * - `cancel` flips the run to `cancelled` and aborts in-flight work.
+   * - `streamEvents` yields `ChatRunEvent`s via SSE.
+   */
+  runs: {
+    create: (params: StartChatRunParams) => Promise<ChatRunRecord>;
+    get: (runId: string) => Promise<ChatRunRecord>;
+    cancel: (runId: string, reason?: string) => Promise<ChatRunRecord>;
+    streamEvents: (
+      runId: string,
+      options?: StreamChatRunEventsOptions
+    ) => AsyncIterableIterator<ChatRunEvent>;
   };
 
   constructor(config: ApiConfig, projects?: ProjectsApi) {
@@ -156,6 +187,12 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     };
     this.hosted = {
       create: this.createHostedCompletion.bind(this)
+    };
+    this.runs = {
+      create: this.createChatRun.bind(this),
+      get: this.getChatRun.bind(this),
+      cancel: this.cancelChatRun.bind(this),
+      streamEvents: this.streamChatRunEvents.bind(this)
     };
 
     // Set up the tools API (requires ProjectsApi for media generation).
@@ -364,7 +401,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       {
         model: params.model,
         messages: normalizedMessages,
-        app_source: params.app_source || params.appSource || this.client.appSource,
+        app_source: params.app_source ?? params.appSource ?? this.client.appSource,
         max_tokens: params.max_tokens,
         temperature: params.temperature,
         top_p: params.top_p,
@@ -374,12 +411,12 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         frequency_penalty: params.frequency_penalty,
         presence_penalty: params.presence_penalty,
         stop: params.stop,
-        token_type: params.token_type || params.tokenType,
+        token_type: params.token_type ?? params.tokenType,
         tools: params.tools,
         tool_choice: params.tool_choice,
         sogni_tools: this.normalizeSogniToolsMode(params.sogni_tools),
         sogni_tool_execution: params.sogni_tool_execution,
-        task_profile: params.taskProfile,
+        task_profile: params.task_profile ?? params.taskProfile,
         media_references: params.media_references ?? params.mediaReferences,
         api_media_references: params.api_media_references ?? params.apiMediaReferences,
         ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs }),
@@ -387,6 +424,164 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       },
       { timeoutMs: 300000 }
     );
+  }
+
+  private async chatRunFetch(path: string, options: RequestInit = {}): Promise<Response> {
+    const url = new URL(path, this.client.rest.baseUrl).toString();
+    const authenticated = await this.client.auth.authenticateRequest(options);
+    return fetch(url, authenticated);
+  }
+
+  private async chatRunJson<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const response = await this.chatRunFetch(path, options);
+    if (!response.ok) {
+      const text = await response.text();
+      let payload: Record<string, unknown> | undefined;
+      try {
+        payload = text ? (JSON.parse(text) as Record<string, unknown>) : undefined;
+      } catch {
+        payload = { message: text };
+      }
+      const message =
+        (payload && typeof payload.message === 'string' && payload.message) ||
+        response.statusText ||
+        `Chat run request failed with status ${response.status}`;
+      const err = new Error(message);
+      (err as { status?: number }).status = response.status;
+      throw err;
+    }
+    return (await response.json()) as T;
+  }
+
+  /**
+   * Submit a durable hosted chat run. Returns the persisted run record;
+   * the executor drives the LLM/tool loop server-side.
+   */
+  private async createChatRun(params: StartChatRunParams): Promise<ChatRunRecord> {
+    const body: Record<string, unknown> = {
+      messages: params.messages,
+      ...(params.tools ? { tools: params.tools } : {}),
+      ...(params.toolChoice !== undefined ? { tool_choice: params.toolChoice } : {}),
+      ...(params.model ? { model: params.model } : {}),
+      ...(params.sampling ? { sampling: params.sampling } : {}),
+      ...(params.mediaReferences ? { media_references: params.mediaReferences } : {}),
+      ...(params.mediaContext ? { media_context: params.mediaContext } : {}),
+      ...(params.maxEstimatedCapacityUnits !== undefined
+        ? { max_estimated_capacity_units: params.maxEstimatedCapacityUnits }
+        : {}),
+      ...(params.confirmCost !== undefined ? { confirm_cost: params.confirmCost } : {}),
+      ...(params.sessionId ? { session_id: params.sessionId } : {}),
+      ...(params.clientMessageId ? { client_message_id: params.clientMessageId } : {}),
+      ...(params.tokenType ? { token_type: params.tokenType } : {}),
+      ...(params.appSource ? { app_source: params.appSource } : {})
+    };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (params.idempotencyKey) headers['Idempotency-Key'] = params.idempotencyKey;
+    const response = await this.chatRunJson<{
+      status: string;
+      data: { run: ChatRunRecord; idempotent?: boolean };
+    }>('/v1/chat/runs', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+    return response.data.run;
+  }
+
+  /** Read a persisted chat run record. */
+  private async getChatRun(runId: string): Promise<ChatRunRecord> {
+    const response = await this.chatRunJson<{ status: string; data: { run: ChatRunRecord } }>(
+      `/v1/chat/runs/${encodeURIComponent(runId)}`
+    );
+    return response.data.run;
+  }
+
+  /** Cancel an in-flight chat run. */
+  private async cancelChatRun(runId: string, reason?: string): Promise<ChatRunRecord> {
+    const response = await this.chatRunJson<{ status: string; data: { run: ChatRunRecord } }>(
+      `/v1/chat/runs/${encodeURIComponent(runId)}/cancel`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reason ? { reason } : {})
+      }
+    );
+    return response.data.run;
+  }
+
+  /**
+   * SSE iterator over chat-run events. Honors `Last-Event-ID` for replay.
+   * Yields events as `ChatRunEvent`. Caller is responsible for breaking
+   * the loop when they see a terminal `run_*` event type they care about.
+   */
+  private async *streamChatRunEvents(
+    runId: string,
+    options: StreamChatRunEventsOptions = {}
+  ): AsyncIterableIterator<ChatRunEvent> {
+    const headers: Record<string, string> = { Accept: 'text/event-stream' };
+    if (options.lastEventId !== undefined && Number.isFinite(options.lastEventId)) {
+      headers['Last-Event-ID'] = String(options.lastEventId);
+    }
+    const response = await this.chatRunFetch(
+      `/v1/chat/runs/${encodeURIComponent(runId)}/events/stream`,
+      { headers, signal: options.signal }
+    );
+    if (!response.ok || !response.body) {
+      throw new Error(`Chat run event stream failed with status ${response.status}`);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const findFrameBoundary = (source: string): { index: number; length: number } | null => {
+      const lf = source.indexOf('\n\n');
+      const crlf = source.indexOf('\r\n\r\n');
+      if (lf === -1 && crlf === -1) return null;
+      if (lf === -1) return { index: crlf, length: 4 };
+      if (crlf === -1 || lf < crlf) return { index: lf, length: 2 };
+      return { index: crlf, length: 4 };
+    };
+
+    const yieldFrame = (frame: string): ChatRunEvent | null => {
+      if (!frame.trim() || frame.startsWith(':')) return null;
+      let eventName = 'message';
+      let data = '';
+      for (const rawLine of frame.split(/\r?\n/)) {
+        if (rawLine.startsWith('event:')) eventName = rawLine.slice(6).trim();
+        else if (rawLine.startsWith('data:')) data += (data ? '\n' : '') + rawLine.slice(5).trim();
+      }
+      if (eventName === 'run_status' || !data) return null;
+      try {
+        return JSON.parse(data) as ChatRunEvent;
+      } catch {
+        return null;
+      }
+    };
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          const remaining = buffer.trim();
+          if (remaining) {
+            const parsed = yieldFrame(remaining);
+            if (parsed) yield parsed;
+          }
+          return;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        let boundary = findFrameBoundary(buffer);
+        while (boundary !== null) {
+          const frame = buffer.slice(0, boundary.index);
+          buffer = buffer.slice(boundary.index + boundary.length);
+          boundary = findFrameBoundary(buffer);
+          const parsed = yieldFrame(frame);
+          if (parsed) yield parsed;
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   /**

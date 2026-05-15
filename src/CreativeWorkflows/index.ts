@@ -7,8 +7,6 @@ import {
   ListCreativeWorkflowOptions,
   StartCreativeWorkflowOptions,
   StartCreativeWorkflowParams,
-  StartHostedToolSequenceWorkflowInput,
-  StartImageToVideoWorkflowInput,
   StreamCreativeWorkflowEventsOptions
 } from './types';
 
@@ -107,56 +105,39 @@ class CreativeWorkflowsApi extends ApiGroup {
     params: StartCreativeWorkflowParams,
     options: StartCreativeWorkflowOptions = {}
   ): Promise<CreativeWorkflowRecord> {
+    const tokenType = params.tokenType ?? params.token_type;
+    const appSource = params.appSource ?? params.app_source;
+    const idempotencyKey = params.idempotencyKey ?? params.idempotency_key;
+    const mediaReferences = params.mediaReferences ?? params.media_references;
+    const maxEstimatedCapacityUnits =
+      params.maxEstimatedCapacityUnits ?? params.max_estimated_capacity_units;
+    const confirmCost = params.confirmCost ?? params.confirm_cost;
+
     const body: Record<string, unknown> = {
-      kind: params.kind,
       input: params.input
     };
-    const tokenType = params.token_type ?? params.tokenType;
-    if (tokenType) {
-      body.token_type = tokenType;
+    if (tokenType) body.token_type = tokenType;
+    if (appSource) body.app_source = appSource;
+    if (maxEstimatedCapacityUnits !== undefined) {
+      body.max_estimated_capacity_units = maxEstimatedCapacityUnits;
+    }
+    if (confirmCost !== undefined) body.confirm_cost = confirmCost;
+    if (mediaReferences !== undefined) body.media_references = mediaReferences;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    if (idempotencyKey) {
+      headers['Idempotency-Key'] = idempotencyKey;
     }
 
     const response = await this.request<CreativeWorkflowEnvelope>('/v1/creative-agent/workflows', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify(body),
       signal: options.signal
     });
     return parseEnvelope<CreativeWorkflowRecord>(response, 'workflow');
-  }
-
-  startImageToVideo(
-    input: StartImageToVideoWorkflowInput,
-    options: StartCreativeWorkflowOptions & {
-      tokenType?: StartCreativeWorkflowParams['tokenType'];
-    } = {}
-  ): Promise<CreativeWorkflowRecord> {
-    return this.start(
-      {
-        kind: 'image_to_video',
-        input,
-        tokenType: options.tokenType
-      },
-      options
-    );
-  }
-
-  startHostedToolSequence(
-    input: StartHostedToolSequenceWorkflowInput,
-    options: StartCreativeWorkflowOptions & {
-      tokenType?: StartCreativeWorkflowParams['tokenType'];
-    } = {}
-  ): Promise<CreativeWorkflowRecord> {
-    return this.start(
-      {
-        kind: 'hosted_tool_sequence',
-        input,
-        tokenType: options.tokenType
-      },
-      options
-    );
   }
 
   async list(options: ListCreativeWorkflowOptions = {}): Promise<CreativeWorkflowRecord[]> {

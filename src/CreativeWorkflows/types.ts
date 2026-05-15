@@ -4,18 +4,41 @@ export type CreativeWorkflowStatus =
   | 'queued'
   | 'running'
   | 'completed'
+  | 'partial_failure'
+  | 'waiting_for_user'
   | 'failed'
   | 'cancelled'
   | string;
 
-export type CreativeWorkflowKind = 'image_to_video' | 'hosted_tool_sequence' | string;
 export type CreativeWorkflowHostedToolName =
-  | 'sogni_generate_image'
-  | 'sogni_edit_image'
-  | 'sogni_generate_video'
-  | 'sogni_sound_to_video'
-  | 'sogni_video_to_video'
-  | 'sogni_generate_music';
+  | 'generate_image'
+  | 'generate_video'
+  | 'generate_music'
+  | 'edit_image'
+  | 'apply_style'
+  | 'restore_photo'
+  | 'refine_result'
+  | 'animate_photo'
+  | 'change_angle'
+  | 'video_to_video'
+  | 'stitch_video'
+  | 'orbit_video'
+  | 'dance_montage'
+  | 'sound_to_video'
+  | 'extend_video'
+  | 'replace_video_segment'
+  | 'overlay_video'
+  | 'add_subtitles'
+  | 'analyze_image'
+  | 'analyze_video'
+  | 'extract_metadata'
+  | 'ask_clarifying_question'
+  | 'finalize_response'
+  | 'create_asset_manifest'
+  | 'inspect_asset'
+  | 'label_asset'
+  | 'map_assets_for_model'
+  | 'validate_asset_references';
 
 export interface CreativeWorkflowArtifact {
   id?: string;
@@ -42,7 +65,6 @@ export interface CreativeWorkflowEvent {
 
 export interface CreativeWorkflowRecord {
   workflowId: string;
-  kind?: CreativeWorkflowKind;
   title?: string;
   status?: CreativeWorkflowStatus;
   input?: Record<string, unknown>;
@@ -60,56 +82,61 @@ export interface CreativeWorkflowRecord {
   [key: string]: unknown;
 }
 
-export interface StartImageToVideoWorkflowInput {
-  prompt: string;
-  videoPrompt?: string;
-  negativePrompt?: string;
-  width?: number;
-  height?: number;
-  duration?: number;
-  imageModel?: string;
-  videoModel?: string;
-  numberOfMedia?: number;
-  seed?: number;
-  [key: string]: unknown;
-}
-
-export interface StartHostedToolSequenceWorkflowDependency {
+export interface StartCreativeWorkflowDependency {
   sourceStepId: string;
   targetArgument: string;
-  transform: 'artifact_url' | 'artifact_data_uri';
+  transform:
+    | 'artifact_url'
+    | 'artifact_data_uri'
+    | 'image_url'
+    | 'video_url'
+    | 'audio_url'
+    | 'image_index'
+    | 'video_index'
+    | 'audio_index'
+    | 'subtitle_cues'
+    | 'subtitle_srt'
+    | 'overlay_items'
+    | 'asset_ref';
   sourceArtifactId?: string;
   sourceArtifactIndex?: number;
   mediaType?: 'image' | 'video' | 'audio';
   required?: boolean;
 }
 
-export interface StartHostedToolSequenceWorkflowStep {
+export interface StartCreativeWorkflowStep {
   id?: string;
   toolName: CreativeWorkflowHostedToolName;
   arguments: Record<string, unknown>;
-  dependsOn?: StartHostedToolSequenceWorkflowDependency[];
+  dependsOn?: StartCreativeWorkflowDependency[];
 }
 
-export interface StartHostedToolSequenceWorkflowInput {
+export interface StartCreativeWorkflowInput {
   title?: string;
-  steps: StartHostedToolSequenceWorkflowStep[];
-  [key: string]: unknown;
+  steps: StartCreativeWorkflowStep[];
 }
 
-export type StartCreativeWorkflowParams =
-  | {
-      kind: 'image_to_video';
-      input: StartImageToVideoWorkflowInput;
-      tokenType?: TokenType;
-      token_type?: TokenType;
-    }
-  | {
-      kind: 'hosted_tool_sequence';
-      input: StartHostedToolSequenceWorkflowInput;
-      tokenType?: TokenType;
-      token_type?: TokenType;
-    };
+export interface StartCreativeWorkflowParams {
+  input: StartCreativeWorkflowInput;
+  tokenType?: TokenType;
+  appSource?: string;
+  idempotencyKey?: string;
+  mediaReferences?: unknown[];
+  maxEstimatedCapacityUnits?: number;
+  confirmCost?: boolean;
+  /** @internal Undocumented compatibility alias. Use tokenType. */
+  token_type?: TokenType;
+  /** @internal Undocumented compatibility alias. Use appSource. */
+  app_source?: string;
+  /** @internal Undocumented compatibility alias. Use idempotencyKey. */
+  idempotency_key?: string;
+  /** @internal Undocumented compatibility alias. Use mediaReferences. */
+  media_references?: unknown[];
+  /** @internal Undocumented compatibility alias. Use maxEstimatedCapacityUnits. */
+  max_estimated_capacity_units?: number;
+  /** @internal Undocumented compatibility alias. Use confirmCost. */
+  confirm_cost?: boolean;
+}
 
 export interface StartCreativeWorkflowOptions {
   signal?: AbortSignal;

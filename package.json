@@ -31,7 +31,18 @@
     "llm-friendly"
   ],
   "main": "dist/index.js",
+  "module": "dist-esm/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist-esm/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
   "files": [
     "CHANGELOG.md",
     "README.md",
@@ -39,15 +50,20 @@
     "llms.txt",
     "llms-full.txt",
     "dist/",
+    "dist-esm/",
     "src/"
   ],
   "scripts": {
-    "clean": "rimraf ./dist",
+    "clean": "rimraf ./dist ./dist-esm",
     "prepublishOnly": "npm run build",
-    "build": "npm run clean && tsc --project tsconfig.json",
-    "test:chat-routing": "npm run build && node scripts/check-chat-model-routing.cjs",
+    "build": "npm run clean && tsc --project tsconfig.json && tsc --project tsconfig.esm.json && node scripts/write-dist-esm-package-json.mjs",
+    "test:chat-routing": "npm run check:hosted-tool-validation && npm run build && node scripts/check-chat-model-routing.cjs",
+    "sync:hosted-tool-validation": "node scripts/sync-hosted-tool-validation.mjs",
+    "check:hosted-tool-validation": "node scripts/sync-hosted-tool-validation.mjs --check",
+    "sync:hosted-tools-manifest": "node scripts/sync-hosted-tools-manifest.mjs",
+    "check:hosted-tools-manifest": "node scripts/sync-hosted-tools-manifest.mjs --check",
     "watch": "npm run clean && tsc --watch --project tsconfig.json",
-    "watch:esm": "npm run clean && tsc --watch --project tsconfig.esm.json",
+    "watch:esm": "tsc --watch --project tsconfig.esm.json",
     "prettier": "prettier --check ./src",
     "prettier:fix": "prettier --write ./src",
     "release": "semantic-release",

@@ -3,10 +3,27 @@ import { getVideoWorkflowType } from '../Projects/utils';
 export { getVideoWorkflowType };
 
 /**
- * Public SDK-local copy of the pure model routing helpers from
- * @sogni/creative-agent/backbone/reference. Keep this file self-contained so
- * published SDK consumers do not need the private creative-agent package.
+ * Public SDK-local routing helpers. The validator surface is generated from
+ * @sogni/creative-agent/src/backbone/reference/toolValidation.ts via
+ * `npm run sync:hosted-tool-validation` and re-exported below so SDK
+ * consumers do not need the private creative-agent package while still
+ * inheriting the full validator (pattern auto-anchoring, bounds, oneOf/anyOf,
+ * nested recursion, coercion, stripping).
  */
+
+export type {
+  HostedToolSchemaProperty,
+  HostedToolSchema,
+  HostedToolDefinition,
+  ValidateHostedToolArgumentsOptions,
+  HostedToolArgumentValidationResult,
+  NormalizeHostedToolArgumentsResult
+} from './hostedToolValidation.generated';
+export {
+  validateAndNormalizeHostedToolArguments,
+  validateHostedToolArguments,
+  assertHostedToolArguments
+} from './hostedToolValidation.generated';
 
 export type BackboneMediaType = 'image' | 'video' | 'audio';
 
@@ -47,28 +64,6 @@ export interface SelectedBackboneModel {
   modelId: string;
   model: BackboneAvailableModel;
   selectedBy: 'requestedModel' | 'preferredModel' | 'workerCount';
-}
-
-export interface HostedToolSchemaProperty {
-  type?: string | string[];
-  enum?: unknown[];
-  items?: HostedToolSchemaProperty;
-}
-
-export interface HostedToolSchema {
-  required?: string[];
-  properties?: Record<string, HostedToolSchemaProperty>;
-}
-
-export interface HostedToolDefinition {
-  function: {
-    name: string;
-    parameters?: HostedToolSchema;
-  };
-}
-
-export interface ValidateHostedToolArgumentsOptions {
-  skipEnumProperties?: string[];
 }
 
 export const PREFERRED_MODEL_IDS = {
@@ -269,25 +264,25 @@ export function resolveHostedToolModelSelector(
 
   let selectors: Record<string, string> | null = null;
   switch (toolName) {
-    case 'sogni_generate_image':
+    case 'generate_image':
       selectors = IMAGE_MODEL_SELECTORS;
       break;
-    case 'sogni_edit_image':
+    case 'edit_image':
       selectors = EDIT_IMAGE_MODEL_SELECTORS;
       break;
-    case 'sogni_generate_video':
+    case 'generate_video':
       selectors =
         isNonEmptyString(args.reference_image_url) || isNonEmptyString(args.reference_image_end_url)
           ? IMAGE_VIDEO_MODEL_SELECTORS
           : TEXT_VIDEO_MODEL_SELECTORS;
       break;
-    case 'sogni_sound_to_video':
+    case 'sound_to_video':
       selectors = SOUND_TO_VIDEO_MODEL_SELECTORS;
       break;
-    case 'sogni_video_to_video':
+    case 'video_to_video':
       selectors = VIDEO_TO_VIDEO_MODEL_SELECTORS;
       break;
-    case 'sogni_generate_music':
+    case 'generate_music':
       selectors = MUSIC_MODEL_SELECTORS;
       break;
     default:
@@ -297,125 +292,6 @@ export function resolveHostedToolModelSelector(
   return (
     selectors[requestedModel] ?? selectors[normalizeSelectorKey(requestedModel)] ?? requestedModel
   );
-}
-
-function matchesType(value: unknown, type: string): boolean {
-  switch (type) {
-    case 'array':
-      return Array.isArray(value);
-    case 'integer':
-      return typeof value === 'number' && Number.isInteger(value);
-    case 'number':
-      return typeof value === 'number' && Number.isFinite(value);
-    case 'boolean':
-      return typeof value === 'boolean';
-    case 'object':
-      return typeof value === 'object' && value !== null && !Array.isArray(value);
-    case 'string':
-      return typeof value === 'string';
-    case 'null':
-      return value === null;
-    default:
-      return true;
-  }
-}
-
-function typeLabel(type: string | string[] | undefined): string {
-  if (Array.isArray(type)) return type.join(' or ');
-  return type ?? 'valid value';
-}
-
-function typeList(type: string | string[] | undefined): string[] {
-  if (!type) return [];
-  return Array.isArray(type) ? type : [type];
-}
-
-function formatEnum(values: unknown[]): string {
-  return values.map((value) => JSON.stringify(value)).join(', ');
-}
-
-export function validateHostedToolArguments(
-  tools: HostedToolDefinition[],
-  toolName: string,
-  args: Record<string, unknown>,
-  options: ValidateHostedToolArgumentsOptions = {}
-): { ok: boolean; errors: string[] } {
-  if (!args || typeof args !== 'object' || Array.isArray(args)) {
-    return {
-      ok: false,
-      errors: ['Tool arguments must be a JSON object']
-    };
-  }
-
-  const tool = tools.find((candidate) => candidate.function.name === toolName);
-  if (!tool) {
-    return {
-      ok: false,
-      errors: [`Unknown hosted Sogni tool "${toolName}"`]
-    };
-  }
-
-  const schema = tool.function.parameters;
-  if (!schema) {
-    return { ok: true, errors: [] };
-  }
-
-  const errors: string[] = [];
-  const properties = schema.properties ?? {};
-  const skipEnumProperties = new Set(options.skipEnumProperties ?? ['model']);
-
-  for (const required of schema.required ?? []) {
-    if (args[required] === undefined || args[required] === null) {
-      errors.push(`Missing required argument "${required}"`);
-    }
-  }
-
-  for (const [name, value] of Object.entries(args)) {
-    if (value === undefined || value === null) continue;
-
-    const property = properties[name];
-    if (!property) continue;
-
-    const allowedTypes = typeList(property.type);
-    if (allowedTypes.length > 0 && !allowedTypes.some((type) => matchesType(value, type))) {
-      errors.push(`Argument "${name}" must be ${typeLabel(property.type)}`);
-      continue;
-    }
-
-    if (
-      property.enum &&
-      !skipEnumProperties.has(name) &&
-      !property.enum.some((candidate) => candidate === value)
-    ) {
-      errors.push(`Argument "${name}" must be one of ${formatEnum(property.enum)}`);
-    }
-
-    if (Array.isArray(value) && property.items?.type) {
-      const itemTypes = typeList(property.items.type);
-      value.forEach((item, index) => {
-        if (!itemTypes.some((type) => matchesType(item, type))) {
-          errors.push(`Argument "${name}[${index}]" must be ${typeLabel(property.items?.type)}`);
-        }
-      });
-    }
-  }
-
-  return {
-    ok: errors.length === 0,
-    errors
-  };
-}
-
-export function assertHostedToolArguments(
-  tools: HostedToolDefinition[],
-  toolName: string,
-  args: Record<string, unknown>,
-  options?: ValidateHostedToolArgumentsOptions
-): void {
-  const result = validateHostedToolArguments(tools, toolName, args, options);
-  if (!result.ok) {
-    throw new Error(`Invalid ${toolName} arguments: ${result.errors.join('; ')}`);
-  }
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

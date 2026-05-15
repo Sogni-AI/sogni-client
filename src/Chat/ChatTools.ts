@@ -31,6 +31,19 @@ import {
 const DEFAULT_TIMEOUT = 30 * 60 * 1000;
 const MAX_SOGNI_TOOL_CALLS_PER_ROUND = 8;
 
+const DIRECT_PROJECT_DISPATCH_TOOL_NAMES: ReadonlySet<string> = new Set([
+  'generate_image',
+  'edit_image',
+  'generate_video',
+  'sound_to_video',
+  'video_to_video',
+  'generate_music'
+]);
+
+function hasDirectProjectDispatch(toolCall: ToolCall): boolean {
+  return DIRECT_PROJECT_DISPATCH_TOOL_NAMES.has(toolCall.function.name);
+}
+
 const MAX_INPUT_MEDIA_BYTES: Record<MediaType, number> = {
   image: 20 * 1024 * 1024,
   audio: 50 * 1024 * 1024,
@@ -87,21 +100,28 @@ class ChatToolsApi {
     const args = parseToolCallArguments(toolCall);
     const name = toolCall.function.name;
 
+    if (!hasDirectProjectDispatch(toolCall)) {
+      return this.makeErrorResult(
+        toolCall,
+        `Tool '${name}' must be executed via chat.hosted.create() or chat.runs.create().`
+      );
+    }
+
     try {
       assertHostedToolArguments(SogniTools.all, name, args);
 
       switch (name) {
-        case 'sogni_generate_image':
+        case 'generate_image':
           return await this.executeImageGeneration(toolCall, args, options);
-        case 'sogni_edit_image':
+        case 'edit_image':
           return await this.executeImageEdit(toolCall, args, options);
-        case 'sogni_generate_video':
+        case 'generate_video':
           return await this.executeVideoGeneration(toolCall, args, options);
-        case 'sogni_sound_to_video':
+        case 'sound_to_video':
           return await this.executeSoundToVideo(toolCall, args, options);
-        case 'sogni_video_to_video':
+        case 'video_to_video':
           return await this.executeVideoToVideo(toolCall, args, options);
-        case 'sogni_generate_music':
+        case 'generate_music':
           return await this.executeMusicGeneration(toolCall, args, options);
         default:
           return this.makeErrorResult(toolCall, `Unknown Sogni tool: ${name}`);
@@ -119,7 +139,7 @@ class ChatToolsApi {
       onToolProgress?: (toolCall: ToolCall, progress: ToolExecutionProgress) => void;
     }
   ): Promise<ToolExecutionResult[]> {
-    const sogniToolCallCount = toolCalls.filter((toolCall) => isSogniToolCall(toolCall)).length;
+    const sogniToolCallCount = toolCalls.filter(hasDirectProjectDispatch).length;
     if (sogniToolCallCount > MAX_SOGNI_TOOL_CALLS_PER_ROUND) {
       throw new Error(
         `Too many Sogni tool calls in a single round (${sogniToolCallCount}); maximum is ${MAX_SOGNI_TOOL_CALLS_PER_ROUND}`
@@ -276,7 +296,7 @@ class ChatToolsApi {
   ): Promise<ToolExecutionResult> {
     const modelId = await this.selectModel({
       mediaType: 'image',
-      requestedModel: resolveHostedToolModelSelector('sogni_generate_image', args)
+      requestedModel: resolveHostedToolModelSelector('generate_image', args)
     });
 
     const projectParams: Record<string, unknown> = {
@@ -318,12 +338,12 @@ class ChatToolsApi {
     const inputUrls = [...(sourceImageUrl ? [sourceImageUrl] : []), ...referenceImageUrls];
 
     if (inputUrls.length === 0) {
-      throw new Error('sogni_edit_image requires source_image_url or reference_image_urls');
+      throw new Error('edit_image requires source_image_url or reference_image_urls');
     }
 
     const modelId = await this.selectModel({
       mediaType: 'image',
-      requestedModel: resolveHostedToolModelSelector('sogni_edit_image', args),
+      requestedModel: resolveHostedToolModelSelector('edit_image', args),
       filter: isEditImageModel
     });
     const maxContextImages = getMaxContextImages(modelId);
@@ -379,7 +399,7 @@ class ChatToolsApi {
 
     const modelId = await this.selectModel({
       mediaType: 'video',
-      requestedModel: resolveHostedToolModelSelector('sogni_generate_video', args),
+      requestedModel: resolveHostedToolModelSelector('generate_video', args),
       workflows: workflowPreference,
       preferredModelIds
     });
@@ -455,7 +475,7 @@ class ChatToolsApi {
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
     if (!isNonEmptyString(args.reference_audio_url)) {
-      throw new Error('sogni_sound_to_video requires reference_audio_url');
+      throw new Error('sound_to_video requires reference_audio_url');
     }
 
     const hasReferenceImage = isNonEmptyString(args.reference_image_url);
@@ -465,7 +485,7 @@ class ChatToolsApi {
       : [PREFERRED_MODEL_IDS.video.a2v];
     const modelId = await this.selectModel({
       mediaType: 'video',
-      requestedModel: resolveHostedToolModelSelector('sogni_sound_to_video', args),
+      requestedModel: resolveHostedToolModelSelector('sound_to_video', args),
       workflows,
       preferredModelIds
     });
@@ -516,7 +536,7 @@ class ChatToolsApi {
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
     if (!isNonEmptyString(args.reference_video_url)) {
-      throw new Error('sogni_video_to_video requires reference_video_url');
+      throw new Error('video_to_video requires reference_video_url');
     }
 
     const controlMode = normalizeVideoControlMode(args.control_mode);
@@ -534,7 +554,7 @@ class ChatToolsApi {
         : [PREFERRED_MODEL_IDS.video.v2v];
     const modelId = await this.selectModel({
       mediaType: 'video',
-      requestedModel: resolveHostedToolModelSelector('sogni_video_to_video', args),
+      requestedModel: resolveHostedToolModelSelector('video_to_video', args),
       workflows,
       preferredModelIds
     });
@@ -615,7 +635,7 @@ class ChatToolsApi {
   ): Promise<ToolExecutionResult> {
     const modelId = await this.selectModel({
       mediaType: 'audio',
-      requestedModel: resolveHostedToolModelSelector('sogni_generate_music', args),
+      requestedModel: resolveHostedToolModelSelector('generate_music', args),
       preferredModelIds: [
         PREFERRED_MODEL_IDS.audio.aceStepTurbo,
         PREFERRED_MODEL_IDS.audio.aceStepSft

@@ -851,24 +851,22 @@ const response = await sogni.chat.completions.create({
 
 ### Sogni Platform Tools — Generate Media via Chat
 
-Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes built-in public platform tool definitions for client-managed chat completions:
+Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes the full canonical hosted creative-tool surface — mirrored from `@sogni/creative-agent` — through `SogniTools.all` (22 tools):
 
-- **`sogni_generate_image`** — text-to-image generation
-- **`sogni_edit_image`** — reference-guided image editing using `source_image_url` and `reference_image_urls`
-- **`sogni_generate_video`** — text-to-video and image-to-video generation
-- **`sogni_sound_to_video`** — audio-driven video generation using `reference_audio_url`
-- **`sogni_video_to_video`** — video transformation / motion transfer using `reference_video_url`
-- **`sogni_generate_music`** — music generation with optional lyrics and advanced controls
+- **Generation** — `generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`
+- **Image adapters** — `restore_photo`, `apply_style`, `refine_result`, `change_angle`, `animate_photo` (image-to-video with multi-source fan-out)
+- **Video composition / post-production** — `stitch_video`, `orbit_video`, `dance_montage`, `extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`
+- **Synchronous composition** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`
 
-Use `SogniTools.all` to expose the full tool surface, then execute tool calls with `sogni.chat.tools.execute()` / `executeAll()` or `autoExecuteTools: true` for non-streaming flows.
+Pass `SogniTools.all` (or individual definitions like `generateImageTool`, `animatePhotoTool`, `composeScriptTool`) to an LLM via the `tools` parameter, then route tool calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()` for server-side execution. Generated artifacts are threaded through a per-request media context so later rounds can reference earlier outputs by index (`sourceImageIndex`, `videoIndices`, `audioIndex`, etc.).
 
-For direct `/v1/chat/completions` hosted-tool execution, media-bearing tool arguments are intentionally constrained to inline `data:` URIs so the chat API remains OpenAI-compatible and does not implicitly fetch arbitrary user URLs. For user-uploaded image/audio/video inputs, use the SDK video project examples or `/v1/creative-agent/workflows` hosted tool sequences, which run outside the chat tool-selection loop and can consume HTTPS artifact URLs produced by Sogni's upload endpoints. Durable hosted sequences validate step arguments before the workflow starts and can bind request-level `mediaReferences` into tool arguments with `sourceStepId: "$input_media"`.
+For direct `/v1/chat/completions` hosted-tool execution, media-bearing tool arguments are intentionally constrained to inline `data:` URIs so the chat API remains OpenAI-compatible and does not implicitly fetch arbitrary user URLs. For user-uploaded image/audio/video inputs, use the SDK video project examples or the `sogni.creativeWorkflows` wrapper for `/v1/creative-agent/workflows`; these run outside the chat tool-selection loop and can consume HTTPS artifact URLs produced by Sogni's upload endpoints. Durable workflows validate explicit steps before the workflow starts and can bind SDK request-level `mediaReferences` into tool arguments with `sourceStepId: "$input_media"`.
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
 
-### Hosted Creative Tool Families (server-side)
+### Hosted Tool Surfaces — `sogni_tools` parameter
 
-The Sogni API can inject hosted creative tool surfaces through `sogni.chat.hosted.create()`, the SDK wrapper for `/v1/chat/completions`. The default `creative-tools` surface includes media generation, editing, post-production, analysis, metadata extraction, and synchronous composition tools; `sogni_tools: "creative-agent"` includes that base surface and adds workflow control and asset-manifest tools. Generated artifacts are threaded through a per-request media context so later rounds can reference them by index.
+`sogni.chat.hosted.create()` (the SDK wrapper for `/v1/chat/completions`) can inject the canonical creative-tools surface server-side via the `sogni_tools` parameter. The default `creative-tools` value injects the full media + composition + analysis surface. `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools on top.
 
 Use default `sogni_tools: true` or `sogni_tools: "creative-tools"` when you want the full creative media tool surface plus synchronous composition tools: `enhance_prompt`, `compose_script`, `compose_lyrics`, and `compose_instrumental`. The legacy `"rich"` alias is still accepted and maps to `"creative-tools"`.
 
@@ -904,7 +902,7 @@ const result = await sogni.chat.hosted.create({
   messages: [{ role: 'user', content: 'Create a 15s trailer-style launch video for this product concept' }],
   sogni_tools: 'creative-tools',
   sogni_tool_execution: true,
-  tokenType: 'spark'
+  token_type: 'spark'
 });
 ```
 
@@ -923,20 +921,19 @@ node examples/workflow_partner_seedance_video.mjs "turn the clip into a polished
 node examples/workflow_partner_seedance_video.mjs "Use @Video1 as the source clip, @Video2 for edit rhythm, @Image1 for product identity, @Image2 for palette, and @Audio1 as the music guide. Preserve the product silhouette and create one launch spot." --workflow --mode v2v --video examples/test-assets/placeholder.mp4 --video https://cdn.example.com/motion-2.mp4 --context examples/test-assets/placeholder.jpg --context examples/test-assets/placeholder2.jpg --audio examples/test-assets/placeholder.m4a
 ```
 
-Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entrypoint exercises the durable hosted workflow API first. Scripted T2V calls without media still default to `/v1/chat/completions` unless `--workflow` is passed. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `examples/test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; the example enforces the vendor limits of 9 image assets, 3 video assets, 3 audio assets, and 12 total assets. `--expand-prompt` is enabled by default and sends `expand_prompt: true` so the API runs the shared `@sogni/creative-agent` Seedance LLM prompt shaper before dispatch; pass `--no-expand-prompt` only when you want to submit the compact prompt directly. Keep prompts as compact creative briefs with explicit `@ImageN`/`@VideoN`/`@AudioN` role assignments rather than BytePlus JSON. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Use `--no-estimate` when you only want to inspect request construction.
+Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entrypoint exercises the durable workflow API first. Scripted T2V calls without media still default to `/v1/chat/completions` unless `--workflow` is passed. Media modes default to `/v1/creative-agent/workflows` with explicit `input.steps` and upload local media from `examples/test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; the example enforces the vendor limits of 9 image assets, 3 video assets, 3 audio assets, and 12 total assets. `--expand-prompt` is enabled by default and sends `expand_prompt: true` so the API runs the shared `@sogni/creative-agent` Seedance LLM prompt shaper before dispatch; pass `--no-expand-prompt` only when you want to submit the compact prompt directly. Keep prompts as compact creative briefs with explicit `@ImageN`/`@VideoN`/`@AudioN` role assignments rather than BytePlus JSON. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Use `--no-estimate` when you only want to inspect request construction.
 
 ### Durable Creative Workflows (server-side)
 
 Long-running multi-step creative workflows can be persisted on the server and observed independently of the chat completion that started them. The SDK exposes these API-key-only endpoints through `sogni.creativeWorkflows`:
 
-- `sogni.creativeWorkflows.startImageToVideo(input, options)` — start a durable workflow
-- `sogni.creativeWorkflows.startHostedToolSequence(input, options)` — run exact hosted Sogni tool steps as a durable backend workflow
+- `sogni.creativeWorkflows.start({ input, ...options })` — start a durable workflow with explicit steps
 - `sogni.creativeWorkflows.get(workflowId)` and `.list()` — inspect snapshots
 - `sogni.creativeWorkflows.events(workflowId)` — poll event history
 - `sogni.creativeWorkflows.streamEvents(workflowId, { after, lastEventId })` — SSE event stream with resume support
 - `sogni.creativeWorkflows.cancel(workflowId)` — cooperative cancellation
 
-`startHostedToolSequence()` accepts exact hosted-tool steps plus optional request-level `mediaReferences` / `media_references`. A dependency with `sourceStepId: "$input_media"` can inject the matching uploaded image, video, or audio URL or index into a later step. The API validates the compiled step arguments before accepting the workflow and again before each execution step, so shape errors fail before billing later media work.
+`start()` accepts exact hosted-tool steps plus optional request-level `mediaReferences`. The SDK follows the platform camelCase style (`mediaReferences`, `tokenType`, `maxEstimatedCapacityUnits`, and `confirmCost`) and serializes the REST request to snake_case internally. A dependency with `sourceStepId: "$input_media"` can inject the matching uploaded image, video, or audio URL or index into a later step. The API validates step arguments before accepting the workflow and again before each execution step, so shape errors fail before billing later media work.
 
 ```javascript
 const sogni = await SogniClient.createInstance({
@@ -945,16 +942,39 @@ const sogni = await SogniClient.createInstance({
   disableSocket: true
 });
 
-const workflow = await sogni.creativeWorkflows.startImageToVideo(
-  {
-    prompt: 'A graphite sketch of a robot pianist in a smoky jazz club',
-    videoPrompt: 'slow dolly-in, warm stage lights, subtle hand motion',
-    imageModel: 'flux2',
-    videoModel: 'ltx23',
-    duration: 5
+const workflow = await sogni.creativeWorkflows.start({
+  tokenType: 'spark',
+  input: {
+    title: 'Generated keyframe to video',
+    steps: [
+      {
+        id: 'keyframe',
+        toolName: 'generate_image',
+        arguments: {
+          prompt: 'A graphite sketch of a robot pianist in a smoky jazz club',
+          model: 'flux2'
+        }
+      },
+      {
+        id: 'clip',
+        toolName: 'generate_video',
+        arguments: {
+          prompt: 'slow dolly-in, warm stage lights, subtle hand motion',
+          videoModel: 'ltx23',
+          duration: 5
+        },
+        dependsOn: [{
+          sourceStepId: 'keyframe',
+          sourceArtifactIndex: 0,
+          targetArgument: 'referenceImageIndices',
+          mediaType: 'image',
+          transform: 'image_index',
+          required: true
+        }]
+      }
+    ]
   },
-  { tokenType: 'spark' }
-);
+});
 
 for await (const event of sogni.creativeWorkflows.streamEvents(workflow.workflowId)) {
   console.log(event.event, event.data);

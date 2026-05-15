@@ -66,6 +66,13 @@ npm run docs
 - `account: AccountApi` - Authentication, balance, rewards
 - `projects: ProjectsApi` - Create/track AI generation jobs
 - `stats: StatsApi` - Leaderboard data
+- `chat: ChatApi` - Unified chat namespace:
+  - `chat.completions.create` - Socket-native synchronous chat
+  - `chat.hosted.create` - Hosted synchronous chat via `/v1/chat/completions`
+  - `chat.runs.{create, get, cancel, streamEvents}` - Durable hosted chat runs via `/v1/chat/runs` with SSE replay
+  - `chat.tools` - Tool helpers (build, parse, validate)
+- `creativeWorkflows: CreativeWorkflowsApi` - Durable explicit creative workflows via `/v1/creative-agent/workflows`
+- `workflows: CreativeWorkflowsApi` - Flat alias of `creativeWorkflows` for shorter call sites
 - `apiClient: ApiClient` - Internal REST + WebSocket communication
 
 ### Core Entity Hierarchy

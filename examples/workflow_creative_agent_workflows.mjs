@@ -145,7 +145,6 @@ async function createClient(credentials) {
 function printWorkflow(workflow) {
   console.log(`Workflow: ${workflow.workflowId}`);
   if (workflow.status) console.log(`Status:   ${workflow.status}`);
-  if (workflow.kind) console.log(`Kind:     ${workflow.kind}`);
   if (workflow.title) console.log(`Title:    ${workflow.title}`);
 
   const artifacts = Array.isArray(workflow.artifacts) ? workflow.artifacts : [];
@@ -215,22 +214,51 @@ async function main() {
       throw new Error('Prompt is required.');
     }
 
-    console.log('Starting durable image-to-video workflow...\n');
-    const workflow = await sogni.creativeWorkflows.startImageToVideo(
-      {
-        prompt: options.prompt,
-        videoPrompt: options.videoPrompt,
-        negativePrompt: options.negativePrompt,
-        width: options.width,
-        height: options.height,
-        duration: options.duration,
-        imageModel: options.imageModel,
-        videoModel: options.videoModel,
-        numberOfMedia: options.numberOfMedia,
-        seed: options.seed
+    console.log('Starting durable generated-keyframe video workflow...\n');
+    const workflow = await sogni.creativeWorkflows.start({
+      tokenType: options.tokenType,
+      input: {
+        title: 'Generated keyframe to video',
+        steps: [
+          {
+            id: 'keyframe',
+            toolName: 'generate_image',
+            arguments: {
+              prompt: options.prompt,
+              negativePrompt: options.negativePrompt,
+              width: options.width,
+              height: options.height,
+              model: options.imageModel,
+              numberOfVariations: options.numberOfMedia,
+              seed: options.seed
+            }
+          },
+          {
+            id: 'clip',
+            toolName: 'generate_video',
+            arguments: {
+              prompt: options.videoPrompt || options.prompt,
+              negativePrompt: options.negativePrompt,
+              width: options.width,
+              height: options.height,
+              duration: options.duration,
+              videoModel: options.videoModel,
+              numberOfVariations: options.numberOfMedia
+            },
+            dependsOn: [
+              {
+                sourceStepId: 'keyframe',
+                sourceArtifactIndex: 0,
+                targetArgument: 'referenceImageIndices',
+                mediaType: 'image',
+                transform: 'image_index',
+                required: true
+              }
+            ]
+          }
+        ]
       },
-      { tokenType: options.tokenType }
-    );
+    });
 
     printWorkflow(workflow);
     if (options.watch && workflow.workflowId) {

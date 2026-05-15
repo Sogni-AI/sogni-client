@@ -53,6 +53,11 @@ import {
   ChatCompletionResult,
   ChatJobStateEvent,
   ChatResponseFormat,
+  ChatRunEvent,
+  ChatRunRecord,
+  ChatRunStatus,
+  StartChatRunParams,
+  StreamChatRunEventsOptions,
   ContentPart,
   HostedChatCompletionParams,
   HostedChatCompletionResult,
@@ -85,7 +90,6 @@ import CreativeWorkflowsApi, { parseCreativeWorkflowSseChunk } from './CreativeW
 import {
   CreativeWorkflowArtifact,
   CreativeWorkflowEvent,
-  CreativeWorkflowKind,
   CreativeWorkflowRecord,
   CreativeWorkflowSseEvent,
   CreativeWorkflowStatus,
@@ -93,10 +97,9 @@ import {
   ListCreativeWorkflowOptions,
   StartCreativeWorkflowOptions,
   StartCreativeWorkflowParams,
-  StartHostedToolSequenceWorkflowDependency,
-  StartHostedToolSequenceWorkflowInput,
-  StartHostedToolSequenceWorkflowStep,
-  StartImageToVideoWorkflowInput,
+  StartCreativeWorkflowDependency,
+  StartCreativeWorkflowInput,
+  StartCreativeWorkflowStep,
   StreamCreativeWorkflowEventsOptions
 } from './CreativeWorkflows/types';
 // Stats API
@@ -123,7 +126,12 @@ export type {
   ChatJobStateEvent,
   ChatMessage,
   ChatResponseFormat,
+  ChatRunEvent,
+  ChatRunRecord,
+  ChatRunStatus,
   ChatTokenUsage,
+  StartChatRunParams,
+  StreamChatRunEventsOptions,
   ContentPart,
   HostedChatCompletionChoice,
   HostedChatCompletionMessage,
@@ -132,7 +140,6 @@ export type {
   HostedCreativeWorkflowReference,
   CreativeWorkflowArtifact,
   CreativeWorkflowEvent,
-  CreativeWorkflowKind,
   CreativeWorkflowRecord,
   CreativeWorkflowSseEvent,
   CreativeWorkflowStatus,
@@ -158,10 +165,9 @@ export type {
   CreativeWorkflowHostedToolName,
   StartCreativeWorkflowOptions,
   StartCreativeWorkflowParams,
-  StartHostedToolSequenceWorkflowDependency,
-  StartHostedToolSequenceWorkflowInput,
-  StartHostedToolSequenceWorkflowStep,
-  StartImageToVideoWorkflowInput,
+  StartCreativeWorkflowDependency,
+  StartCreativeWorkflowInput,
+  StartCreativeWorkflowStep,
   StreamCreativeWorkflowEventsOptions,
   SupernetType,
   TokenType,
@@ -292,8 +298,23 @@ export class SogniClient {
   account: AccountApi;
   projects: ProjectsApi;
   stats: StatsApi;
+  /**
+   * Chat surfaces.
+   * - `chat.completions.create` — socket-native chat completion.
+   * - `chat.hosted.create` — hosted REST chat completion (synchronous).
+   * - `chat.runs.{create, get, cancel, streamEvents}` — durable hosted
+   *   chat runs that survive client disconnect, browser close, network
+   *   drop, and API worker restart. See `/v1/chat/runs` REST surface.
+   * - `chat.tools.execute*` — execute Sogni platform tools surfaced by
+   *   the chat completion (image / video / music generation).
+   */
   chat: ChatApi;
-  creativeWorkflows: CreativeWorkflowsApi;
+  /**
+   * Durable creative workflows (`/v1/creative-agent/workflows`). Submit
+   * an explicit step sequence and follow its progress without keeping
+   * the client connected.
+   */
+  workflows: CreativeWorkflowsApi;
 
   apiClient: ApiClient;
 
@@ -302,7 +323,7 @@ export class SogniClient {
     this.projects = new ProjectsApi(config);
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
-    this.creativeWorkflows = new CreativeWorkflowsApi(config);
+    this.workflows = new CreativeWorkflowsApi(config);
 
     this.apiClient = config.client;
   }

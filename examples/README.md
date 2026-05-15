@@ -617,20 +617,14 @@ node workflow_text_chat_tool_calling.mjs "What's 15% of 249.99?"
 
 Generate the core text-to-image, text-to-video, and text-to-music flows through natural language via LLM tool calling. The LLM detects media generation intent, enhances prompts, and calls Sogni's generation APIs directly.
 
-**Sogni Platform Tools:**
+**Canonical hosted creative-tool surface** (the full 22-tool family exposed via `SogniTools.all`, executed server-side via `chat.hosted.create()` / `chat.runs.create()`):
 
-- **Image Generation** - Detects image intent, enhances prompt, generates via `z_image_turbo_bf16`
-- **Video Generation** - Detects video intent, generates via `ltx23-22b-fp8_t2v_distilled` (LTX-2.3)
-- **Music Generation** - Detects music intent, composes via `ace_step_1.5_turbo` (ACE-Step 1.5)
+- **Generation** — `generate_image` (defaults to `z_image_turbo_bf16`), `edit_image`, `generate_video` (defaults to `ltx23-22b-fp8_t2v_distilled`), `generate_music` (defaults to `ace_step_1.5_turbo`), `sound_to_video`, `video_to_video`
+- **Image adapters** — `restore_photo`, `apply_style`, `refine_result`, `change_angle`, `animate_photo` (image-to-video with multi-source fan-out)
+- **Video composition / post-production** — `stitch_video`, `orbit_video`, `dance_montage`, `extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`
+- **Synchronous composition** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`
 
-**SDK built-ins beyond this example:**
-
-- `sogni_edit_image` - Reference-guided image editing
-- `sogni_sound_to_video` - Audio-driven video generation
-- `sogni_video_to_video` - Video transformation and motion transfer
-
-**Hosted Creative Tool Families:**
-The Sogni API also exposes hosted creative tool surfaces for chat experiences. The default `creative-tools` surface injects tools such as `generate_image`, `edit_image`, `restore_photo`, `apply_style`, `refine_result`, `animate_photo` (with multi-source fan-out), `change_angle`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`, composition tools (`stitch_video`, `orbit_video`, `dance_montage`), video post-production tools (`extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`), analysis/metadata tools, and synchronous composition tools (`enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`). Pass `sogni_tools: "creative-agent"` to add asset-manifest/control tools. See the LLM API reference for the full schema list.
+When using `chat.hosted.create()`, the same surface is auto-injected server-side via `sogni_tools` — default `"creative-tools"` for the full media+composition+analysis surface, or `"creative-agent"` to also include workflow control and asset-manifest tools.
 
 Run the server-side API-key example:
 
@@ -652,13 +646,12 @@ node workflow_partner_seedance_video.mjs "turn the clip into a polished perfume 
 node workflow_partner_seedance_video.mjs "Use @Video1 as the source clip, @Video2 for edit rhythm, @Image1 for product identity, @Image2 for palette, and @Audio1 as the music guide. Preserve the product silhouette and create one launch spot." --workflow --mode v2v --video test-assets/placeholder.mp4 --video https://cdn.example.com/motion-2.mp4 --context test-assets/placeholder.jpg --context test-assets/placeholder2.jpg --audio test-assets/placeholder.m4a
 ```
 
-Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entrypoint exercises the durable hosted workflow API first. Scripted T2V calls without media still default to `/v1/chat/completions` unless `--workflow` is passed. Media modes default to `/v1/creative-agent/workflows` with `kind: "hosted_tool_sequence"` and upload local media from `test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; the example enforces the vendor limits of 9 image assets, 3 video assets, 3 audio assets, and 12 total assets. Use Seedance-style role tags in prompts (`@Image1`, `@Video1`, `@Audio1`) counted independently by modality in attachment order, and prefer positive preservation instructions. `--expand-prompt` is enabled by default and sends `expand_prompt: true` so the API runs the shared `@sogni/creative-agent` Seedance LLM prompt shaper before dispatch; pass `--no-expand-prompt` only when you want to submit the compact prompt directly. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Use `--no-estimate` when you only want to inspect request construction.
+Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entrypoint exercises the durable workflow API first. Scripted T2V calls without media still default to `/v1/chat/completions` unless `--workflow` is passed. Media modes default to `/v1/creative-agent/workflows` with explicit `input.steps` and upload local media from `test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; the example enforces the vendor limits of 9 image assets, 3 video assets, 3 audio assets, and 12 total assets. Use Seedance-style role tags in prompts (`@Image1`, `@Video1`, `@Audio1`) counted independently by modality in attachment order, and prefer positive preservation instructions. `--expand-prompt` is enabled by default and sends `expand_prompt: true` so the API runs the shared `@sogni/creative-agent` Seedance LLM prompt shaper before dispatch; pass `--no-expand-prompt` only when you want to submit the compact prompt directly. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Use `--no-estimate` when you only want to inspect request construction.
 
 **Durable Creative Workflows:**
 For multi-step workflows that need to survive client disconnect, persist state, or be observed from a second client, use the SDK `sogni.creativeWorkflows` wrapper:
 
-- `startImageToVideo(input, { tokenType })`
-- `startHostedToolSequence(input, { tokenType })`
+- `start({ input, tokenType })`
 - `list()`, `get(workflowId)`, `events(workflowId)`
 - `streamEvents(workflowId, { after, lastEventId })`
 - `cancel(workflowId)`

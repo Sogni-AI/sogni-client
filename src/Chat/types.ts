@@ -119,8 +119,8 @@ export interface ChatCompletionParams {
   sogni_tools?: SogniToolsMode;
   /**
    * When `sogni_tools` is enabled, ask the Sogni API to execute requested Sogni
-   * tools server-side before returning the chat response. This is separate from
-   * the SDK-local `autoExecuteTools` loop.
+   * tools server-side before returning the chat response. Independent of the
+   * SDK's client-side `autoExecuteTools` loop.
    */
   sogni_tool_execution?: boolean;
   /**
@@ -263,14 +263,142 @@ export type HostedChatCompletionParams = Omit<
   'stream' | 'autoExecuteTools' | 'onToolCall' | 'onToolProgress' | 'maxToolRounds'
 > & {
   stream?: false;
-  token_type?: 'sogni' | 'spark' | 'auto';
+  /** Optional source label for this hosted REST request. Defaults to the client appSource when configured. */
   app_source?: string;
+  /** camelCase alias for {@link HostedChatCompletionParams.app_source}. */
+  appSource?: string;
+  /** Token type to use for hosted REST billing. */
+  token_type?: 'sogni' | 'spark';
+  /** camelCase alias for {@link HostedChatCompletionParams.token_type}. */
+  tokenType?: 'sogni' | 'spark';
+  /** Hosted REST task profile hint. */
+  task_profile?: 'general' | 'coding' | 'reasoning';
+  /** camelCase alias for {@link HostedChatCompletionParams.task_profile}. */
+  taskProfile?: 'general' | 'coding' | 'reasoning';
   chat_template_kwargs?: Record<string, unknown>;
   media_references?: unknown[];
   mediaReferences?: unknown[];
   api_media_references?: unknown[];
   apiMediaReferences?: unknown[];
 };
+
+/**
+ * Durable hosted chat run status.
+ *
+ * Mirrors the canonical state machine from
+ * `@sogni/creative-agent/backbone` `ChatRunStatus`. The duplicate
+ * declaration here keeps the SDK self-contained — the shared package is
+ * not a runtime SDK dependency.
+ */
+export type ChatRunStatus =
+  | 'queued'
+  | 'running'
+  | 'waiting_for_user'
+  | 'completed'
+  | 'partial_failure'
+  | 'failed'
+  | 'cancelled';
+
+export interface ChatRunEvent {
+  sequence: number;
+  type: string;
+  at: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface ChatRunRecord {
+  runId: string;
+  status: ChatRunStatus;
+  schemaVersion: string;
+  scope: {
+    ownerWalletAddress: string;
+    tokenType?: string;
+    appSource?: string;
+  };
+  request: {
+    sessionId?: string;
+    clientMessageId?: string;
+    model?: string;
+    messages: unknown[];
+    [key: string]: unknown;
+  };
+  messages: unknown[];
+  toolCalls: unknown[];
+  toolResults: unknown[];
+  mediaContext: {
+    images: string[];
+    videos: string[];
+    audio: string[];
+    uploadedImages?: string[];
+    uploadedVideos?: string[];
+    uploadedAudio?: string[];
+  };
+  artifacts: unknown[];
+  events: ChatRunEvent[];
+  finalResponse?: {
+    content?: string;
+    finishReason?: string;
+  };
+  waiting?: {
+    reason: string;
+    message?: string;
+    details?: Record<string, unknown>;
+  };
+  billingPreview?: unknown;
+  billingPreviews?: unknown[];
+  failureReason?: string;
+  cancellationReason?: string;
+  timestamps: {
+    createdAt: string;
+    updatedAt: string;
+    completedAt?: string;
+  };
+}
+
+export interface StartChatRunParams {
+  /** OpenAI-style messages array. Required. */
+  messages: unknown[];
+  /** OpenAI-style tools array. */
+  tools?: unknown[];
+  /** OpenAI-style tool choice (`auto`, `none`, or specific tool). */
+  toolChoice?: unknown;
+  /** Model id requested for the run. */
+  model?: string;
+  /** Sampling defaults captured with the run for reproducibility. */
+  sampling?: Record<string, unknown>;
+  /** Inbound media references attached to the run. */
+  mediaReferences?: unknown[];
+  /** Full chat media context snapshot for generated + uploaded source indexing. */
+  mediaContext?: {
+    images: string[];
+    videos: string[];
+    audio: string[];
+    uploadedImages?: string[];
+    uploadedVideos?: string[];
+    uploadedAudio?: string[];
+  };
+  /** Cost ceiling for this run (capacity units). */
+  maxEstimatedCapacityUnits?: number;
+  /** Set true to confirm higher-cost work. */
+  confirmCost?: boolean;
+  /** Stable session id for browser-side rehydration queries. */
+  sessionId?: string;
+  /** Stable client message id for pairing with the assistant response. */
+  clientMessageId?: string;
+  /** Token type for billing. */
+  tokenType?: 'sogni' | 'spark';
+  /** App source label for attribution. */
+  appSource?: string;
+  /** Idempotency key (also accepted via `Idempotency-Key` header). */
+  idempotencyKey?: string;
+}
+
+export interface StreamChatRunEventsOptions {
+  /** Last event sequence id observed by the caller. */
+  lastEventId?: number;
+  /** Optional AbortSignal to terminate the stream. */
+  signal?: AbortSignal;
+}
 
 export interface ChatJobStateEvent {
   jobID: string;

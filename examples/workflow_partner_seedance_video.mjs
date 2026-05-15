@@ -6,7 +6,7 @@
  * Exercises Seedance through the API paths that match each use case:
  * - T2V defaults to /v1/chat/completions with normal OpenAI-style tool calling.
  * - Media-bearing I2V/IA2V/V2V default to /v1/creative-agent/workflows
- *   hosted_tool_sequence, using uploaded local media or HTTPS media URLs.
+ *   with explicit durable steps, using uploaded local media or HTTPS media URLs.
  *
  * Examples:
  *   node workflow_partner_seedance_video.mjs
@@ -55,7 +55,7 @@ const SEEDANCE_MODELS = {
 };
 
 const TOOL_ARGUMENT_KEYS = {
-  sogni_generate_video: new Set([
+  generate_video: new Set([
     'prompt',
     'expand_prompt',
     'reference_image_url',
@@ -76,7 +76,7 @@ const TOOL_ARGUMENT_KEYS = {
     'number_of_variations',
     'seed'
   ]),
-  sogni_sound_to_video: new Set([
+  sound_to_video: new Set([
     'prompt',
     'expand_prompt',
     'reference_audio_url',
@@ -93,7 +93,7 @@ const TOOL_ARGUMENT_KEYS = {
     'number_of_variations',
     'seed'
   ]),
-  sogni_video_to_video: new Set([
+  video_to_video: new Set([
     'prompt',
     'expand_prompt',
     'reference_video_url',
@@ -523,7 +523,7 @@ async function promptEndpoint(options) {
       {
         label: 'Hosted creative workflow',
         value: 'workflow',
-        description: 'Durable /v1/creative-agent/workflows hosted_tool_sequence request.'
+        description: 'Durable /v1/creative-agent/workflows request with explicit steps.'
       },
       {
         label: 'Chat tool execution',
@@ -792,7 +792,7 @@ Options:
   --interactive           Run the guided Seedance workflow setup
   --no-interactive        Skip prompts and use command-line/default values
   --chat                 Use /v1/chat/completions (t2v only)
-  --workflow             Use /v1/creative-agent/workflows hosted_tool_sequence
+  --workflow             Use /v1/creative-agent/workflows with explicit steps
   --fast                 Use Seedance 2.0 Fast for t2v/i2v (720p cap)
   --model <selector>     Override model selector or model id
   --duration <seconds>   4-15 seconds for Seedance (default: 4)
@@ -985,9 +985,9 @@ function defaultDimensions(options) {
 }
 
 function toolNameForMode(mode) {
-  if (mode === 'ia2v') return 'sogni_sound_to_video';
-  if (mode === 'v2v') return 'sogni_video_to_video';
-  return 'sogni_generate_video';
+  if (mode === 'ia2v') return 'sound_to_video';
+  if (mode === 'v2v') return 'video_to_video';
+  return 'generate_video';
 }
 
 function estimateModelIdForMode(mode, modelSelector) {
@@ -1406,7 +1406,7 @@ function chatToolDefinition(toolName) {
     }
   };
 
-  if (toolName === 'sogni_generate_video') {
+  if (toolName === 'generate_video') {
     return {
       type: 'function',
       function: {
@@ -1479,15 +1479,17 @@ async function postChatCompletion(credentials, options, toolName, toolArguments)
 }
 
 function workflowRequest(options, toolName, toolArguments) {
+  // Chat-side tools use the `sogni_*` prefix; durable workflow step names are unprefixed
+  // (see `CreativeWorkflowHostedToolName` in `src/CreativeWorkflows/types.ts`).
+  const workflowToolName = toolName.replace(/^sogni_/, '');
   return {
-    kind: 'hosted_tool_sequence',
     token_type: options.tokenType,
     input: {
       title: `Seedance ${options.mode.toUpperCase()} example`,
       steps: [
         {
           id: `seedance_${options.mode}`,
-          toolName,
+          toolName: workflowToolName,
           arguments: toolArguments
         }
       ]

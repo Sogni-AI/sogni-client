@@ -934,17 +934,8 @@ Sogni's generation APIs automatically:
 - Video-to-Video: "Restyle this video as anime"
 - Music Generation: "Compose a jazz song about the rain"
 
-SDK-LOCAL PUBLIC TOOL NAMES (`SogniTools.all`, client-managed execution):
-
-- `sogni_generate_image`
-- `sogni_edit_image`
-- `sogni_generate_video`
-- `sogni_sound_to_video`
-- `sogni_video_to_video`
-- `sogni_generate_music`
-
-HOSTED CREATIVE TOOL FAMILIES:
-The Sogni API can also inject hosted Sogni tool families into the same chat completions endpoint. The default `creative-tools` surface provides media, post-production, analysis, metadata, and synchronous composition tools; `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools:
+CANONICAL HOSTED CREATIVE-TOOL SURFACE (`SogniTools.all`, 22 tools):
+All tool calls execute server-side via `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`. The default `creative-tools` value of `sogni_tools` injects this surface server-side; `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools on top.
 
 - `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video` — core media-generation tools with creative-agent naming.
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` — image-edit adapters backed by the shared image-edit workflow.
@@ -974,15 +965,15 @@ MEDIA-CONDITIONED TOOL INPUTS:
 - `reference_video_url`
   All media-conditioned tool inputs must be inline base64-encoded `data:` URIs. Remote `http(s)` URLs are not allowed. Tool image inputs accept PNG/JPEG only, tool audio inputs accept MP3/M4A/WAV only, and tool video inputs accept MP4 or MOV/QuickTime only.
 
-DEFAULT GENERATION MODELS (used by SDK-local platform tools):
+DEFAULT GENERATION MODELS (used by the canonical generation tools):
 | Tool | Model ID | Description |
 |------|----------|-------------|
-| `sogni_generate_image` | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step generation |
-| `sogni_edit_image` | workflow/model-dependent | Reference-guided image editing with edit-capable Qwen/Flux models |
-| `sogni_generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
-| `sogni_sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
-| `sogni_video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
-| `sogni_generate_music` | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music generation |
+| `generate_image` | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step generation |
+| `edit_image` | workflow/model-dependent | Reference-guided image editing with edit-capable Qwen/Flux models |
+| `generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
+| `sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
+| `video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
+| `generate_music` | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music generation |
 
 PLATFORM TOOL WORKFLOW:
 
@@ -996,8 +987,8 @@ PLATFORM TOOL WORKFLOW:
 See `workflow_text_chat_sogni_tools.mjs` for a composition-pipeline example
 covering the core image/video/music flows. See `workflow_creative_agent_tools.mjs`
 for server-side hosted Sogni tool injection with `sogni_tools`.
-For the full built-in SDK tool surface, use `SogniTools.all` with
-`sogni.chat.tools.executeAll()` or `autoExecuteTools`.
+Pass `SogniTools.all` (or individual tool defs) to the LLM via `tools` and
+execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
 
 DURABLE CREATIVE WORKFLOWS:
 Use `sogni.creativeWorkflows` for `/v1/creative-agent/workflows` coverage:
