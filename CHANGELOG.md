@@ -1,3 +1,10 @@
+# [4.2.0-alpha.23](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.22...v4.2.0-alpha.23) (2026-05-15)
+
+
+### Bug Fixes
+
+* **chat:** validate remote media inputs ([daa078d](https://github.com/Sogni-AI/sogni-client/commit/daa078de22919698d87d1669298658a268565653))
+
 # [4.2.0-alpha.22](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.21...v4.2.0-alpha.22) (2026-05-15)
 
 
