@@ -73,7 +73,12 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   baseUrl: string;
   private socketClient: WrappedClient;
   private coordinator: ChannelCoordinator<Message, Notification>;
-  private _isConnected = false;
+  // Tracks whether the consumer (ApiClient + auth) wants the shared socket to
+  // be open. Secondary tabs don't own the WebSocket directly, so they answer
+  // `isConnected` from this flag; primaries answer from the live socket.
+  // Also used so that a tab promoted to primary on legitimate primary death
+  // actually rebinds its WebSocket (`handleRoleChange(true)`).
+  private _wantConnected = false;
   private _supernetType: SupernetType;
 
   constructor(
@@ -120,7 +125,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   get isConnected() {
-    return this.coordinator.isPrimary ? this.socketClient.isConnected : this._isConnected;
+    return this.coordinator.isPrimary ? this.socketClient.isConnected : this._wantConnected;
   }
 
   get supernetType() {
@@ -128,6 +133,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   async connect(): Promise<void> {
+    this._wantConnected = true;
     await this.coordinator.isReady();
     if (this.coordinator.isPrimary) {
       await this.socketClient.connect();
@@ -139,6 +145,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   async disconnect() {
+    this._wantConnected = false;
     await this.coordinator.isReady();
     if (this.coordinator.isPrimary) {
       this.socketClient.disconnect();
@@ -270,7 +277,12 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   private handleRoleChange(isPrimary: boolean) {
-    if (isPrimary && !this.socketClient.isConnected && this.isConnected) {
+    // Promoted to primary (e.g. previous primary died and we won the
+    // re-election): if the consumer wants the session open, open the
+    // underlying WebSocket. Without this, the new primary stays silent until
+    // somebody calls send(), which auto-connects — but if the consumer never
+    // explicitly sends, no socket ever opens and the session goes dark.
+    if (isPrimary && !this.socketClient.isConnected && this._wantConnected) {
       this.socketClient.connect();
     } else if (!isPrimary && this.socketClient.isConnected) {
       this.socketClient.disconnect();

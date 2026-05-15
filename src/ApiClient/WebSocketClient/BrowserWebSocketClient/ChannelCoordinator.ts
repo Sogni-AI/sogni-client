@@ -283,6 +283,23 @@ class ChannelCoordinator<M, N> {
   }
 
   private handleElection(message: Election) {
+    // Incumbency: if we're already primary, don't let a newly opened tab force
+    // a handoff. Announce ourselves so the new tab adopts us as primary. The
+    // new tab's pending finishElections() will then early-return because
+    // handlePrimaryAnnounce clears its electionInProgress flag.
+    //
+    // Why: handoff cleanly closes this tab's WebSocket (code 1000). For LLM
+    // requests, the server treats artist disconnect as cancellation (tokens
+    // can't forward), so an in-flight chat stream would be murdered every
+    // time the user opens a second tab. Stale primaries are still replaced
+    // via the heartbeat-timeout path, so liveness is preserved.
+    if (this._isPrimary) {
+      this.broadcast({
+        type: MessageType.PRIMARY_ANNOUNCE,
+        payload: { id: this.id, priority: this.currentPriority }
+      });
+      return;
+    }
     this.broadcast({
       type: MessageType.ELECTION_RESPONSE,
       payload: { id: this.id, priority: this.currentPriority }
