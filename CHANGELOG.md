@@ -1,3 +1,10 @@
+# [4.2.0-alpha.25](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.24...v4.2.0-alpha.25) (2026-05-15)
+
+
+### Features
+
+* **workflows:** add templates CRUD, resume, reseed, and template-id runs ([fbec2b7](https://github.com/Sogni-AI/sogni-client/commit/fbec2b756df10cac3455626cd314a0fdbbde5982))
+
 # [4.2.0-alpha.24](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.23...v4.2.0-alpha.24) (2026-05-15)
 
 
