@@ -1,3 +1,10 @@
+# [4.2.0-alpha.26](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.25...v4.2.0-alpha.26) (2026-05-15)
+
+
+### Features
+
+* add replay records API ([ef98975](https://github.com/Sogni-AI/sogni-client/commit/ef98975a618523e23799aa28ab292609cbe32de6))
+
 # [4.2.0-alpha.25](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.24...v4.2.0-alpha.25) (2026-05-15)
 
 
