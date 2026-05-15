@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Sync the hosted Sogni creative-tools manifest from @sogni/creative-agent into
 // the public SDK. Combines generation-tools.json (18 tools) and
-// composition-tools.json (4 tools) into a single
+// composition-tools.json (6 tools) into a single
 // `src/Chat/sogniHostedTools.generated.json` so SDK consumers see the full
-// canonical hosted creative-tools surface without depending on the private
-// creative-agent package.
+// canonical hosted creative-tools surface (24 tools total) without depending
+// on the private creative-agent package.
 //
 // Usage:
 //   node scripts/sync-hosted-tools-manifest.mjs          # write

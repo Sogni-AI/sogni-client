@@ -84,7 +84,7 @@ import {
   ToolHistoryEntry,
   ToolExecutionOptions
 } from './Chat/types';
-import { SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
+import { SogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
 // Creative Workflows API
 import CreativeWorkflowsApi, { parseCreativeWorkflowSseChunk } from './CreativeWorkflows';
 import CreativeWorkflowTemplatesApi from './CreativeWorkflows/Templates';
@@ -259,7 +259,6 @@ export {
   Job,
   Project,
   SogniTools,
-  buildSogniTools,
   isSogniToolCall,
   parseCreativeWorkflowSseChunk,
   parseToolCallArguments

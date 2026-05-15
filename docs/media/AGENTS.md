@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding assistants (Claude Code, Codex, etc.) when working with code in this repository.
 
 ## LLM Documentation Resources
 
@@ -13,31 +13,49 @@ For AI coding assistants working with this SDK, the following resources are avai
 
 When helping users with Sogni SDK tasks, consult `llms-full.txt` for complete parameter references, especially for video generation where WAN 2.2 and LTX-2.3 models have different behaviors.
 
-## Creative Agent Shared Contracts
+These are public agent-facing docs shipped with the npm package. They are kept aligned with:
 
-Hosted chat tools, creative-agent workflow helpers, generated tool manifests, and SDK-facing workflow docs should stay aligned with `../sogni-creative-agent`. Do not recreate chat-only or SDK-only regex guardrails for tool argument repair, storyboard planning, or workflow routing. Add reusable JSON schemas, typed repair/control semantics, and deterministic validation to the shared package first, then regenerate or copy the public SDK artifacts as appropriate.
+- `package.json` for package version, runtime engines, npm scripts, exports, and published files.
+- `src/index.ts` for public SDK namespaces and root exports.
+- `src/Projects/types/index.ts`, `src/Projects/utils/index.ts`, and `src/Projects/createJobRequestMessage.ts` for media-generation parameters and video frame behavior.
+- `src/Chat/types.ts`, `src/Chat/index.ts`, `src/Chat/tools.ts`, and `src/Chat/hostedToolValidation.generated.ts` for chat, hosted tools, structured outputs, and durable runs.
+- `src/CreativeWorkflows/` and `src/Replay/` for durable workflow and RunRecord APIs.
 
-Use secondary LLM calls for semantic planning, creative adaptation, and audit/repair workflows, not as a substitute for schema validation of tool arguments or structured workflow control.
+Current public API anchors:
 
-When SDK examples or generated helpers expose hosted creative workflows, keep them generated from or aligned with shared `@sogni/creative-agent` contracts such as `compileCreativeWorkflowPlanToHostedSequence()`, `validateAndNormalizeHostedToolArguments()`, `getRepairControlDecision()`, and `summarizeGuardTelemetry()`.
+- The SDK runtime requirement is **Node.js >=22** (`package.json#engines`).
+- Socket-native LLM chat uses `sogni.chat.completions.create()`.
+- Durable creative workflows use `sogni.workflows`.
+- Project cost helpers are `sogni.projects.estimateCost()`, `estimateVideoCost()`, and `estimateAudioCost()`.
+- `checkAuth()` is only for cookie-auth browser flows. API-key auth auto-authenticates during `createInstance()`, and token auth uses `login()` or `setTokens()`.
+- `ChatCompletionResult` is SDK-shaped (`content`, `role`, `finishReason`, `tool_calls`, `usage`, `cost`). Streaming chunks expose `chunk.content` and optional `chunk.tool_calls`.
 
-### Shared `@sogni/creative-agent` contracts
+## Sogni Intelligence APIs
 
-`@sogni/creative-agent` ships several surfaces SDK consumers can import directly when implementing creative workflows:
+The SDK wraps the public Sogni Intelligence endpoints used for text chat, hosted creative tools, durable chat turns, and deterministic multi-step workflows.
 
-- **Per-turn tool gating**: the chat-side skill loader (`load_skill` / `unload_skill` / `list_active_skills`) was retired on 2026-05-10. Tool-surface composition is now owned by Structured Contracts v1 (see next bullet). SDK consumers building their own agent loop should construct a `ContractRegistry` and call `classifyTurn` / `compileToolsForTurn` / `dispatchToolCall` instead of advertising load/unload tools to the model. (The read-only `*_SKILL` manifest metadata used by the public Anthropic-style skill artifact is **not** a `@sogni/creative-agent` package export — it ships separately via `@sogni-ai/sogni-creative-agent-skill`.)
-- **Structured Contracts v1**: `ContractRegistry`, `ToolGatingPolicy`, `RepairRecipe`, `PromptContract`, `classifyTurn`, `compileToolsForTurn`, `dispatchToolCall`, plus the `ContractsTelemetrySink` event types. The chat product seeds a registry once per session and the three evaluators own visible-tool composition, repair-on-error, and prompt-bake.
-- **Asset manifest**: `createAssetManifest`, `addAsset`, `mapAssetsForModel`, `validateAssetReferences`, `formatModelRef` — three-layer asset references (`asset_id` / `user_label` / `model_ref`) so SDK consumers don't hand-format Seedance `@Image1` / GPT-Image-2 `[Image 1]` / LTX-2.3 `context_image_0` tokens.
-- **Storyboard adapters**: `compileForModel`, `storyboardAdapterRegistry`, `SEEDANCE_ADAPTER`, `GPT_IMAGE_2_ADAPTER`, `LTX23_ADAPTER`, `WAN_ADAPTER`. Resolution is liberal (`seedance2-fast` → seedance via prefix).
-- **Tool envelope**: `ToolResult`, `toolOk`, `toolErr`, `isToolResultOk`, `isToolResultErr`, `mapLegacyToolErrorCategory`, plus the canonical `ToolErrorCode` taxonomy.
-- **Constrained decoding (`response_format`)**: llama-server natively accepts OpenAI-standard `{ type: "json_schema", json_schema: { strict, schema } }`. Plumbed through `src/Chat/index.ts` and forwarded to the worker via `sogni-socket` (commit `b711a68`); the `ChatResponseFormat` type is re-exported from the SDK root for typed consumer usage.
-- **Default contract data**: `populateContractsDefaults(registry)` seeds a `ContractRegistry` with the canonical Phase 3 gating policies (7), Phase 4 repair recipes (157 across 11 `(toolName, ToolErrorCode)` families), and Phase 5 per-tool prompt contracts (12). SDK consumers calling `classifyTurn` / `compileToolsForTurn` / `dispatchToolCall` should seed off this one call instead of registering policies / recipes / contracts manually.
-- **Per-tool cost + permission**: `getToolCostMetadata(toolName)` returns `{ costClass, riskLevel, userVisibleCost, description }`; `getToolPermission(toolName)` returns the typed `ToolPermissionDecision` (`allow` / `require_user_approval` / `require_explicit_intent`). SDK consumers can use these for client-side billing UX or for enforcing destructive-tool gates in their own agent loop (chat + hosted both enforce `require_explicit_intent` via shared `EXPLICIT_INTENT_PATTERNS`).
-- **Replay record schema**: `RunRecord` (schema v2; `skills_loaded` dropped after the 2026-05-10 skill-loader retirement), `redactRunRecord`, `emptyRunRecord`, plus the canonical `RunRecordToolCall` / `RunRecordToolResult` / `RunRecordRound` / `RunRecordAuditResult` shapes. SDK consumers that emit their own RunRecord (instead of relying on sogni-chat) should call `redactRunRecord` defense-in-depth before persisting / posting. The chat product writes records to sogni-api's `POST /v1/replay/records` ingest endpoint; SDK consumers can POST the same shape to the same endpoint with their api-key auth.
+- `sogni.chat.completions.create()` maps to socket-native chat completions and supports text, streaming, vision input, custom function tools, Sogni tool injection, structured outputs, and `think` / `taskProfile` controls.
+- `sogni.chat.hosted.create()` maps to `POST /v1/chat/completions`, the OpenAI-compatible REST chat endpoint. It can execute Sogni media-generation and composition tools server-side.
+- `sogni.chat.runs` maps to `/v1/chat/runs`, a durable hosted-chat turn with persisted state, event replay, cancellation, and recovery across client disconnects.
+- `sogni.workflows` maps to `/v1/creative-agent/workflows`, where callers submit exact multi-step creative plans and observe durable execution through snapshots, event logs, or SSE.
+- `sogni.workflows.templates` maps to `/v1/creative-agent/workflows/templates`, the CRUD and fork API for saved, parameterized workflow recipes.
+- `sogni.replay` maps to `/v1/replay/records`, the RunRecord write/list/get surface for replay viewers and audit tooling.
+
+Public chat and workflow media rules:
+
+- Vision chat accepts inline PNG or JPEG `data:` URIs through OpenAI-style `image_url` content parts.
+- Durable chat runs and creative workflows use retrievable HTTP(S) media references, often produced by Sogni upload/download URL helpers.
+- Request media references are addressable by media index in hosted tool and workflow calls, so later steps can reuse uploaded or generated images, videos, and audio without copying URLs into prompts.
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, etc.), video generation (WAN 2.2 and LTX-2.3 models), audio generation (ACE-Step 1.5), LLM chat with tool calling, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`) via WebSocket communication.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image, Qwen image-edit models, GPT Image 2), video generation (WAN 2.2, LTX-2.3, Seedance 2.0), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`).
+
+Runtime and packaging:
+
+- Node.js `>=22` is required by `package.json`.
+- CommonJS build: `dist/index.js`; ESM build: `dist-esm/index.js`; type declarations: `dist/index.d.ts`.
+- Published package files include `README.md`, `AGENTS.md`, `llms.txt`, `llms-full.txt`, `dist/`, `dist-esm/`, and `src/`.
 
 ## Build & Development Commands
 
@@ -54,9 +72,25 @@ npm run prettier:fix
 # Check formatting
 npm run prettier
 
+# Validate generated hosted-tool validation file is in sync
+npm run check:hosted-tool-validation
+
+# Validate generated hosted-tool manifest is in sync
+npm run check:hosted-tools-manifest
+
+# Build and run chat model-routing checks
+npm run test:chat-routing
+
 # Generate API documentation
 npm run docs
 ```
+
+Generated artifacts:
+
+- `src/Chat/sogniHostedTools.generated.json` is regenerated with `npm run sync:hosted-tools-manifest`.
+- `src/Chat/hostedToolValidation.generated.ts` is regenerated with `npm run sync:hosted-tool-validation`.
+- `docs/` is generated by TypeDoc via `npm run docs`.
+- `dist/` and `dist-esm/` are generated by `npm run build`.
 
 ## Architecture
 
@@ -71,8 +105,10 @@ npm run docs
   - `chat.hosted.create` - Hosted synchronous chat via `/v1/chat/completions`
   - `chat.runs.{create, get, cancel, streamEvents}` - Durable hosted chat runs via `/v1/chat/runs` with SSE replay
   - `chat.tools` - Tool helpers (build, parse, validate)
-- `creativeWorkflows: CreativeWorkflowsApi` - Durable explicit creative workflows via `/v1/creative-agent/workflows`
-- `workflows: CreativeWorkflowsApi` - Flat alias of `creativeWorkflows` for shorter call sites
+- `workflows: CreativeWorkflowsApi` - Durable explicit creative workflows via `/v1/creative-agent/workflows`
+  - `workflows.{start, list, get, events, streamEvents, resume, reseed, cancel}`
+  - `workflows.templates.{list, get, create, update, delete, fork}`
+- `replay: ReplayApi` - RunRecord write/list/get via `/v1/replay/records`
 - `apiClient: ApiClient` - Internal REST + WebSocket communication
 
 ### Core Entity Hierarchy
@@ -100,6 +136,9 @@ src/
 │   └── utils/            # Samplers, schedulers
 ├── Account/              # User auth & balance (CurrentAccount entity)
 ├── Stats/                # Leaderboard API
+├── Chat/                 # Socket chat, hosted REST chat, durable runs, hosted tools
+├── CreativeWorkflows/    # Durable explicit workflow API + template CRUD
+├── Replay/               # RunRecord ingest/list/get API
 ├── lib/                  # Shared utilities
 │   ├── AuthManager/      # Token/Cookie auth strategies
 │   ├── DataEntity.ts     # Base reactive entity
@@ -121,6 +160,19 @@ src/
 2. Server sends `jobState`, `jobProgress`, `jobResult` events → Updates Project/Job entities
 3. Entities emit events → User code receives 'progress', 'completed', 'failed'
 
+LLM chat flow:
+
+1. User calls `sogni.chat.completions.create()` → SDK sends `llmJobRequest` via WebSocket.
+2. Server streams `jobTokens` and terminal `llmJobResult` / `llmJobError` events.
+3. Streaming callers iterate `ChatStream`; non-streaming callers receive `ChatCompletionResult`.
+4. Hosted REST chat uses `sogni.chat.hosted.create()`; durable chat runs use `sogni.chat.runs`.
+
+Durable workflow flow:
+
+1. User calls `sogni.workflows.start()` with either an inline `input` plan or `workflowId` + `inputs`.
+2. REST API persists the workflow and returns a `CreativeWorkflowRecord`.
+3. Callers inspect `get()` / `events()` or consume `streamEvents()` with SSE resume support.
+
 ### Network Types
 
 - `fast` - High-end GPUs, faster but more expensive. Required for video generation.
@@ -139,9 +191,9 @@ The SDK supports two families of video models with **fundamentally different FPS
 - **Frame step constraint**: Frame count must follow pattern `1 + n*8` (i.e., 1, 9, 17, 25, 33, ...)
 - Example: 5 seconds at 24fps = 121 frames (snapped to 1 + 15*8 = 121)
 
-### Legacy Behavior (WAN 2.2 only)
+### WAN 2.2 Behavior
 
-**WAN 2.2 Models (`wan_v2.2-*`)** are the outlier with legacy behavior:
+**WAN 2.2 Models (`wan_v2.2-*`)** use a fixed internal generation rate:
 - **Always generate at 16fps internally**, regardless of the user's fps setting
 - The `fps` parameter (16 or 32) controls **post-render frame interpolation only**
 - `fps=16`: No interpolation, output matches generation (16fps)
@@ -251,7 +303,7 @@ const urls = await project.waitForCompletion();
 
 The SDK receives `LLMModelInfo` per model including `maxContextLength`, `maxOutputTokens` (min/max/default), and parameter constraints. Use these to configure `max_tokens` and display limits to users.
 
-**Caution**: `maxContextLength` from the server may not reflect the actual per-request limit on the worker (see sogni-socket and sogni-llm-nvidia CLAUDE.md for the llama-server `--parallel` slot division issue).
+Use the returned model constraints as request guidance, and prefer each model's advertised `maxOutputTokens.default` when a caller has not chosen `max_tokens`.
 
 ### Thinking Models (Qwen3.x) — `chat_template_kwargs`
 
@@ -262,7 +314,7 @@ Thinking mode is controlled via llama.cpp's `chat_template_kwargs: { enable_thin
 
 The llama-server should run with default `--reasoning-budget -1` (unrestricted) so per-request control works.
 
-Qwen3.x models generate thinking output in a separate `reasoning_content` field (OpenAI-compatible). The LLM worker wraps this in `<think>` tags inside `content` for the SDK. The SDK's `ChatCompletionChunk` type has NO `reasoning_content` field — only `content` and `tool_calls`.
+`ChatCompletionChunk` exposes generated text through `content` and tool invocations through optional `tool_calls`.
 
 **The solution for structured output**: Use **tool calling** (`tools` + `tool_choice: 'required'`). Tool call arguments are always forwarded by the worker regardless of thinking mode. The `workflow_text_chat_sogni_tools.mjs` example uses this pattern for all composition pipelines (video/image/audio prompt engineering).
 

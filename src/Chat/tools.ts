@@ -1,6 +1,5 @@
 import hostedToolManifest from './sogniHostedTools.generated.json';
 import { ToolDefinition, ToolCall } from './types';
-import { filterVideoModelsByWorkflow, isEditImageModel, VideoWorkflow } from './modelRouting';
 
 /**
  * Canonical hosted creative-tool names mirrored from
@@ -29,7 +28,9 @@ export type SogniHostedToolName =
   | 'enhance_prompt'
   | 'compose_lyrics'
   | 'compose_instrumental'
-  | 'compose_script';
+  | 'compose_script'
+  | 'compose_workflow'
+  | 'compose_workflow_template';
 
 interface SogniHostedToolManifest {
   tools: ToolDefinition[];
@@ -43,26 +44,6 @@ function getHostedTool(name: SogniHostedToolName): ToolDefinition {
   if (!tool) {
     throw new Error(`Missing hosted Sogni tool definition: ${name}`);
   }
-  return tool;
-}
-
-function cloneTool(tool: ToolDefinition): ToolDefinition {
-  return structuredClone(tool);
-}
-
-function setModelEnum(
-  tool: ToolDefinition,
-  modelIds: string[],
-  description: string
-): ToolDefinition {
-  if (modelIds.length === 0) {
-    return tool;
-  }
-  (tool.function.parameters as any).properties.model = {
-    type: 'string',
-    description,
-    enum: modelIds
-  };
   return tool;
 }
 
@@ -103,6 +84,8 @@ export const enhancePromptTool: ToolDefinition = getHostedTool('enhance_prompt')
 export const composeLyricsTool: ToolDefinition = getHostedTool('compose_lyrics');
 export const composeInstrumentalTool: ToolDefinition = getHostedTool('compose_instrumental');
 export const composeScriptTool: ToolDefinition = getHostedTool('compose_script');
+export const composeWorkflowTool: ToolDefinition = getHostedTool('compose_workflow');
+export const composeWorkflowTemplateTool: ToolDefinition = getHostedTool('compose_workflow_template');
 
 export const SogniTools = {
   generateImage: generateImageTool,
@@ -127,62 +110,20 @@ export const SogniTools = {
   composeLyrics: composeLyricsTool,
   composeInstrumental: composeInstrumentalTool,
   composeScript: composeScriptTool,
+  composeWorkflow: composeWorkflowTool,
+  composeWorkflowTemplate: composeWorkflowTemplateTool,
   /**
-   * Full canonical hosted creative-tools surface — generation tools, image
-   * adapters, video composition / post-production, and synchronous composition
-   * tools. Mirrored from `@sogni/creative-agent`. Route tool calls through
-   * `chat.hosted.create()` or `chat.runs.create()` for server-side execution.
+   * Full canonical hosted creative-tools surface (24 tools) — generation tools,
+   * image adapters, video composition / post-production, and synchronous
+   * composition tools. Mirrored from `@sogni/creative-agent`. Route tool calls
+   * through `chat.hosted.create()` or `chat.runs.create()` for server-side
+   * execution. Server-side enforcement validates per-account model access, so
+   * the manifest's model enums are advisory hints to the LLM, not access control.
    */
   get all(): ToolDefinition[] {
     return [...hostedTools];
   }
 };
-
-export function buildSogniTools(
-  availableModels?: Array<{ id: string; media?: string }>
-): ToolDefinition[] {
-  if (!availableModels || availableModels.length === 0) {
-    return SogniTools.all;
-  }
-
-  const imageModels = availableModels
-    .filter((model) => model.media === 'image')
-    .map((model) => model.id);
-  const editImageModels = availableModels
-    .filter((model) => model.media === 'image' && isEditImageModel(model.id))
-    .map((model) => model.id);
-  const videoModels = filterVideoModelsByWorkflow(availableModels, ['t2v', 'i2v']);
-  const soundToVideoModels = filterVideoModelsByWorkflow(availableModels, ['s2v', 'ia2v', 'a2v']);
-  const videoToVideoModels = filterVideoModelsByWorkflow(availableModels, [
-    'animate-move',
-    'animate-replace',
-    'v2v'
-  ] as VideoWorkflow[]);
-  const audioModels = availableModels
-    .filter((model) => model.media === 'audio')
-    .map((model) => model.id);
-
-  const modelEnumOverrides: Partial<Record<SogniHostedToolName, [string[], string]>> = {
-    generate_image: [imageModels, 'Image generation model to use.'],
-    edit_image: [
-      editImageModels,
-      'Image editing model to use. These models support reference-guided editing.'
-    ],
-    generate_video: [
-      videoModels,
-      'Video generation model to use. Prefer t2v models for text-only generation and i2v models when reference images are supplied.'
-    ],
-    sound_to_video: [soundToVideoModels, 'Audio-driven video model to use.'],
-    video_to_video: [videoToVideoModels, 'Video-to-video model to use.'],
-    generate_music: [audioModels, 'Music generation model to use.']
-  };
-
-  return hostedTools.map((tool) => {
-    const override = modelEnumOverrides[tool.function.name as SogniHostedToolName];
-    if (!override) return tool;
-    return setModelEnum(cloneTool(tool), override[0], override[1]);
-  });
-}
 
 /**
  * True if the tool call targets a canonical Sogni hosted creative tool.
