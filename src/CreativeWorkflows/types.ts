@@ -121,6 +121,7 @@ export interface StartCreativeWorkflowParams {
   tokenType?: TokenType;
   appSource?: string;
   idempotencyKey?: string;
+  /** Durable workflows require uploaded HTTP(S) URLs, not inline data URIs. */
   mediaReferences?: unknown[];
   maxEstimatedCapacityUnits?: number;
   confirmCost?: boolean;

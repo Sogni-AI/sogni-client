@@ -19,6 +19,8 @@ interface CreativeWorkflowEnvelope {
 }
 
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
+const EXTERNAL_DURABLE_MEDIA_URL = /^https?:\/\//i;
+const INLINE_DURABLE_MEDIA_URL = /^data:/i;
 
 function toQuery(params: Record<string, string | number | undefined>): string {
   const query = new URLSearchParams();
@@ -33,6 +35,36 @@ function toQuery(params: Record<string, string | number | undefined>): string {
 
 function isTerminalWorkflowStatus(value: unknown): boolean {
   return typeof value === 'string' && TERMINAL_STATUSES.has(value);
+}
+
+function mediaReferenceViolation(path: string, value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (INLINE_DURABLE_MEDIA_URL.test(trimmed)) return path;
+  if (!EXTERNAL_DURABLE_MEDIA_URL.test(trimmed)) return path;
+  return null;
+}
+
+function assertWorkflowUsesExternalMedia(mediaReferences: unknown): void {
+  if (!Array.isArray(mediaReferences)) return;
+  const violations: string[] = [];
+  mediaReferences.forEach((reference, index) => {
+    if (!reference || typeof reference !== 'object' || Array.isArray(reference)) return;
+    const record = reference as { url?: unknown; dataUri?: unknown; data_uri?: unknown };
+    const urlViolation = mediaReferenceViolation(`mediaReferences[${index}].url`, record.url);
+    if (urlViolation) violations.push(urlViolation);
+    if (typeof record.dataUri === 'string' && record.dataUri.trim()) {
+      violations.push(`mediaReferences[${index}].dataUri`);
+    }
+    if (typeof record.data_uri === 'string' && record.data_uri.trim()) {
+      violations.push(`mediaReferences[${index}].data_uri`);
+    }
+  });
+  if (violations.length === 0) return;
+  throw new Error(
+    `Durable creative workflows do not support inline base64/data URI media. Upload media first and pass HTTP(S) URLs instead. Offending field(s): ${violations.join(', ')}`
+  );
 }
 
 function parseJsonResponse(text: string): unknown {
@@ -109,6 +141,7 @@ class CreativeWorkflowsApi extends ApiGroup {
     const appSource = params.appSource ?? params.app_source;
     const idempotencyKey = params.idempotencyKey ?? params.idempotency_key;
     const mediaReferences = params.mediaReferences ?? params.media_references;
+    assertWorkflowUsesExternalMedia(mediaReferences);
     const maxEstimatedCapacityUnits =
       params.maxEstimatedCapacityUnits ?? params.max_estimated_capacity_units;
     const confirmCost = params.confirmCost ?? params.confirm_cost;

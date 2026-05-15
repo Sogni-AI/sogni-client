@@ -8,6 +8,8 @@ export interface ImageDimensions {
 export interface InlineMediaValidationOptions {
   maxBytes?: number;
   maxImageLongestSide?: number;
+  remoteFetchTimeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export interface ParsedInlineMediaData {
@@ -320,6 +322,109 @@ function validateMagicBytes(
   return undefined;
 }
 
+function mimeTypeForDetectedFormat(mediaType: MediaType, bytes: Uint8Array): string {
+  if (mediaType === 'image') {
+    const format = detectImageFormat(bytes);
+    if (format === 'png') return 'image/png';
+    if (format === 'jpeg') return 'image/jpeg';
+  } else if (mediaType === 'audio') {
+    const format = detectAudioFormat(bytes);
+    if (format === 'wav') return 'audio/wav';
+    if (format === 'mpeg') return 'audio/mpeg';
+    if (format === 'mp4') return 'audio/mp4';
+  } else {
+    const format = detectVideoFormat(bytes);
+    if (format === 'quicktime') return 'video/quicktime';
+    if (format === 'mp4') return 'video/mp4';
+  }
+  throw new Error(
+    `Remote ${mediaType} input is not a supported format. Allowed types: ${getAllowedMimeTypes(mediaType).join(', ')}`
+  );
+}
+
+function normalizeResponseMimeType(
+  mediaType: MediaType,
+  contentType: string | null,
+  bytes: Uint8Array
+): string {
+  const mimeType = contentType?.split(';')[0]?.trim().toLowerCase() || '';
+  if (getAllowedMimeTypes(mediaType).includes(mimeType)) return mimeType;
+  return mimeTypeForDetectedFormat(mediaType, bytes);
+}
+
+function throwMediaByteLimit(mediaType: MediaType, maxBytes: number): never {
+  throw new Error(`${mediaType} input exceeds ${Math.round(maxBytes / (1024 * 1024))}MB limit`);
+}
+
+async function readResponseBytes(
+  response: Response,
+  mediaType: MediaType,
+  maxBytes: number | undefined
+): Promise<Uint8Array> {
+  if (!response.body) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (maxBytes !== undefined && bytes.length > maxBytes) {
+      throwMediaByteLimit(mediaType, maxBytes);
+    }
+    return bytes;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      totalBytes += value.byteLength;
+      if (maxBytes !== undefined && totalBytes > maxBytes) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Preserve the size-limit error below.
+        }
+        throwMediaByteLimit(mediaType, maxBytes);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+const DEFAULT_REMOTE_MEDIA_FETCH_TIMEOUT_MS = 20_000;
+
+function trustedRemoteMediaUrl(value: string): URL | null {
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'https:') return null;
+    if (url.username || url.password) return null;
+    const host = url.hostname.toLowerCase();
+    const trusted =
+      host === 'cdn.sogni.ai' ||
+      host.endsWith('.sogni.ai') ||
+      host === 'complete-images-production.s3.amazonaws.com' ||
+      /^[a-z0-9.-]+\.s3\.amazonaws\.com$/i.test(host) ||
+      /^[a-z0-9.-]+\.s3\.[a-z0-9-]+\.amazonaws\.com$/i.test(host) ||
+      /^s3\.[a-z0-9-]+\.amazonaws\.com$/i.test(host) ||
+      host.endsWith('.cloudfront.net');
+    return trusted ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 function validateImageDimensions(dimensions: ImageDimensions, maxLongestSide: number): void {
   if (Math.max(dimensions.width, dimensions.height) > maxLongestSide) {
     throw new Error(
@@ -364,4 +469,54 @@ export function parseInlineMediaDataUri(
     byteLength: bytes.length,
     imageDimensions
   };
+}
+
+export async function mediaInputToInlineDataUri(
+  input: string,
+  mediaType: MediaType,
+  options: InlineMediaValidationOptions = {}
+): Promise<string> {
+  const trimmed = input.trim();
+  const remoteUrl = trustedRemoteMediaUrl(trimmed);
+  if (!remoteUrl) {
+    parseInlineMediaDataUri(trimmed, mediaType, options);
+    return trimmed;
+  }
+
+  const controller = new AbortController();
+  const timeoutMs = options.remoteFetchTimeoutMs ?? DEFAULT_REMOTE_MEDIA_FETCH_TIMEOUT_MS;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const abortFromParent = () => controller.abort();
+  options.signal?.addEventListener('abort', abortFromParent, { once: true });
+  try {
+    if (options.signal?.aborted) controller.abort();
+    const response = await fetch(remoteUrl.toString(), {
+      signal: controller.signal,
+      redirect: 'error'
+    });
+    if (!response.ok) {
+      throw new Error(`Remote ${mediaType} input fetch failed with HTTP ${response.status}`);
+    }
+    const contentLength = Number(response.headers.get('content-length') || '');
+    if (
+      options.maxBytes !== undefined &&
+      Number.isFinite(contentLength) &&
+      contentLength > options.maxBytes
+    ) {
+      throwMediaByteLimit(mediaType, options.maxBytes);
+    }
+
+    const bytes = await readResponseBytes(response, mediaType, options.maxBytes);
+    const mimeType = normalizeResponseMimeType(
+      mediaType,
+      response.headers.get('content-type'),
+      bytes
+    );
+    const dataUri = `data:${mimeType};base64,${encodeBase64(bytes)}`;
+    parseInlineMediaDataUri(dataUri, mediaType, options);
+    return dataUri;
+  } finally {
+    clearTimeout(timeoutId);
+    options.signal?.removeEventListener('abort', abortFromParent);
+  }
 }

@@ -366,9 +366,9 @@ export interface StartChatRunParams {
   model?: string;
   /** Sampling defaults captured with the run for reproducibility. */
   sampling?: Record<string, unknown>;
-  /** Inbound media references attached to the run. */
+  /** Inbound media references attached to the run. Durable runs require uploaded HTTP(S) URLs, not inline data URIs. */
   mediaReferences?: unknown[];
-  /** Full chat media context snapshot for generated + uploaded source indexing. */
+  /** Full chat media context snapshot for generated + uploaded source indexing. Durable runs require uploaded HTTP(S) URLs, not inline data URIs. */
   mediaContext?: {
     images: string[];
     videos: string[];

@@ -28,51 +28,140 @@ import {
 } from './types';
 import getUUID from '../lib/getUUID';
 import type ProjectsApi from '../Projects';
-import { parseInlineMediaDataUri } from '../lib/mediaValidation';
+import { mediaInputToInlineDataUri } from '../lib/mediaValidation';
 
 const MAX_VISION_IMAGE_COUNT = 20;
 const MAX_VISION_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_VISION_IMAGE_LONGEST_SIDE = 1024;
+const EXTERNAL_CHAT_RUN_MEDIA_URL = /^https?:\/\//i;
+const INLINE_CHAT_RUN_MEDIA_URL = /^data:/i;
+const CHAT_RUN_MEDIA_CONTEXT_FIELDS = [
+  'images',
+  'videos',
+  'audio',
+  'uploadedImages',
+  'uploadedVideos',
+  'uploadedAudio'
+] as const;
 
-function normalizeVisionImageDataUri(input: string): string {
-  parseInlineMediaDataUri(input, 'image', {
+async function normalizeVisionImageDataUri(input: string): Promise<string> {
+  return mediaInputToInlineDataUri(input, 'image', {
     maxBytes: MAX_VISION_IMAGE_BYTES,
     maxImageLongestSide: MAX_VISION_IMAGE_LONGEST_SIDE
   });
-  return input.trim();
 }
 
-function normalizeVisionMessages(messages: ChatMessage[]): ChatMessage[] {
+async function normalizeVisionMessages(messages: ChatMessage[]): Promise<ChatMessage[]> {
   let imageCount = 0;
-  return messages.map((msg) => {
-    if (!Array.isArray(msg.content)) {
-      return msg;
-    }
+  return Promise.all(
+    messages.map(async (msg) => {
+      if (!Array.isArray(msg.content)) {
+        return msg;
+      }
 
-    return {
-      ...msg,
-      content: msg.content.map((part) => {
-        if (part.type !== 'image_url') {
-          return part;
-        }
+      return {
+        ...msg,
+        content: await Promise.all(
+          msg.content.map(async (part) => {
+            if (part.type !== 'image_url') {
+              return part;
+            }
 
-        imageCount += 1;
-        if (imageCount > MAX_VISION_IMAGE_COUNT) {
-          throw new Error(
-            `A maximum of ${MAX_VISION_IMAGE_COUNT} vision images is allowed per request`
-          );
-        }
+            imageCount += 1;
+            if (imageCount > MAX_VISION_IMAGE_COUNT) {
+              throw new Error(
+                `A maximum of ${MAX_VISION_IMAGE_COUNT} vision images is allowed per request`
+              );
+            }
 
-        return {
-          type: 'image_url' as const,
-          image_url: {
-            url: normalizeVisionImageDataUri(part.image_url.url),
-            ...(part.image_url.detail && { detail: part.image_url.detail })
-          }
-        };
-      })
-    };
+            return {
+              type: 'image_url' as const,
+              image_url: {
+                url: await normalizeVisionImageDataUri(part.image_url.url),
+                ...(part.image_url.detail && { detail: part.image_url.detail })
+              }
+            };
+          })
+        )
+      };
+    })
+  );
+}
+
+function chatRunMediaUrlViolation(path: string, value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (INLINE_CHAT_RUN_MEDIA_URL.test(trimmed)) return path;
+  if (!EXTERNAL_CHAT_RUN_MEDIA_URL.test(trimmed)) return path;
+  return null;
+}
+
+function collectChatRunMessageMediaViolations(messages: unknown[]): string[] {
+  const violations: string[] = [];
+  messages.forEach((message, messageIndex) => {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) return;
+    const content = (message as { content?: unknown }).content;
+    if (!Array.isArray(content)) return;
+    content.forEach((part, partIndex) => {
+      if (!part || typeof part !== 'object' || Array.isArray(part)) return;
+      if ((part as { type?: unknown }).type !== 'image_url') return;
+      const imageUrl = (part as { image_url?: unknown }).image_url;
+      if (!imageUrl || typeof imageUrl !== 'object' || Array.isArray(imageUrl)) return;
+      const violation = chatRunMediaUrlViolation(
+        `messages[${messageIndex}].content[${partIndex}].image_url.url`,
+        (imageUrl as { url?: unknown }).url
+      );
+      if (violation) violations.push(violation);
+    });
   });
+  return violations;
+}
+
+function collectChatRunMediaReferenceViolations(mediaReferences: unknown[] | undefined): string[] {
+  if (!Array.isArray(mediaReferences)) return [];
+  const violations: string[] = [];
+  mediaReferences.forEach((reference, index) => {
+    if (!reference || typeof reference !== 'object' || Array.isArray(reference)) return;
+    const record = reference as { url?: unknown; dataUri?: unknown; data_uri?: unknown };
+    const urlViolation = chatRunMediaUrlViolation(`mediaReferences[${index}].url`, record.url);
+    if (urlViolation) violations.push(urlViolation);
+    if (typeof record.dataUri === 'string' && record.dataUri.trim()) {
+      violations.push(`mediaReferences[${index}].dataUri`);
+    }
+    if (typeof record.data_uri === 'string' && record.data_uri.trim()) {
+      violations.push(`mediaReferences[${index}].data_uri`);
+    }
+  });
+  return violations;
+}
+
+function collectChatRunMediaContextViolations(
+  mediaContext: StartChatRunParams['mediaContext'] | undefined
+): string[] {
+  if (!mediaContext) return [];
+  const violations: string[] = [];
+  for (const field of CHAT_RUN_MEDIA_CONTEXT_FIELDS) {
+    const values = mediaContext[field];
+    if (!Array.isArray(values)) continue;
+    values.forEach((value, index) => {
+      const violation = chatRunMediaUrlViolation(`mediaContext.${field}[${index}]`, value);
+      if (violation) violations.push(violation);
+    });
+  }
+  return violations;
+}
+
+function assertChatRunUsesExternalMedia(params: StartChatRunParams): void {
+  const violations = [
+    ...collectChatRunMessageMediaViolations(params.messages),
+    ...collectChatRunMediaReferenceViolations(params.mediaReferences),
+    ...collectChatRunMediaContextViolations(params.mediaContext)
+  ];
+  if (violations.length === 0) return;
+  throw new Error(
+    `Durable chat runs do not support inline base64/data URI media. Upload media first and pass HTTP(S) URLs instead. Offending field(s): ${violations.join(', ')}`
+  );
 }
 
 export interface ChatApiEvents {
@@ -262,7 +351,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     think?: boolean;
     taskProfile?: 'general' | 'coding' | 'reasoning';
   }): Promise<LLMCostEstimation> {
-    const normalizedMessages = normalizeVisionMessages(params.messages);
+    const normalizedMessages = await normalizeVisionMessages(params.messages);
     const tokenType = params.tokenType || 'sogni';
     const inputTokens = Math.ceil(
       JSON.stringify(this.stripImageDataForEstimation(normalizedMessages)).length / 4
@@ -393,7 +482,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       throw new Error('chat.hosted.create currently supports non-streaming requests only.');
     }
 
-    const normalizedMessages = normalizeVisionMessages(params.messages);
+    const normalizedMessages = await normalizeVisionMessages(params.messages);
     const chatTemplateKwargs =
       params.chat_template_kwargs ?? this.buildChatTemplateKwargs(params.think);
     return this.client.rest.post<HostedChatCompletionResult>(
@@ -458,6 +547,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
    * the executor drives the LLM/tool loop server-side.
    */
   private async createChatRun(params: StartChatRunParams): Promise<ChatRunRecord> {
+    assertChatRunUsesExternalMedia(params);
     const body: Record<string, unknown> = {
       messages: params.messages,
       ...(params.tools ? { tools: params.tools } : {}),
@@ -591,7 +681,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     params: ChatCompletionParams
   ): Promise<ChatStream | ChatCompletionResult> {
     const jobID = getUUID();
-    const normalizedMessages = normalizeVisionMessages(params.messages);
+    const normalizedMessages = await normalizeVisionMessages(params.messages);
 
     // Build chat_template_kwargs from think parameter
     const chatTemplateKwargs = this.buildChatTemplateKwargs(params.think);
