@@ -57,9 +57,7 @@
     "clean": "rimraf ./dist ./dist-esm",
     "prepublishOnly": "npm run build",
     "build": "npm run clean && tsc --project tsconfig.json && tsc --project tsconfig.esm.json && node scripts/write-dist-esm-package-json.mjs",
-    "test:chat-routing": "npm run check:hosted-tool-validation && npm run build && node scripts/check-chat-model-routing.cjs",
-    "sync:hosted-tool-validation": "node scripts/sync-hosted-tool-validation.mjs",
-    "check:hosted-tool-validation": "node scripts/sync-hosted-tool-validation.mjs --check",
+    "test:chat-routing": "npm run build && node scripts/check-chat-model-routing.cjs",
     "sync:hosted-tools-manifest": "node scripts/sync-hosted-tools-manifest.mjs",
     "check:hosted-tools-manifest": "node scripts/sync-hosted-tools-manifest.mjs --check",
     "watch": "npm run clean && tsc --watch --project tsconfig.json",
@@ -93,11 +91,20 @@
     "lodash": "^4.18.1",
     "ws": "^8.18.0"
   },
+  "peerDependencies": {
+    "@sogni-ai/sogni-intelligence-client": "^3.0.0-alpha.0"
+  },
+  "peerDependenciesMeta": {
+    "@sogni-ai/sogni-intelligence-client": {
+      "optional": false
+    }
+  },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
+    "@sogni-ai/sogni-intelligence-client": "file:../sogni-client-wrapper-phase8",
     "husky": "^9.1.7",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
