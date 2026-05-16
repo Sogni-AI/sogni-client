@@ -94,11 +94,6 @@
   "peerDependencies": {
     "@sogni-ai/sogni-intelligence-client": "^3.0.0-alpha.0"
   },
-  "peerDependenciesMeta": {
-    "@sogni-ai/sogni-intelligence-client": {
-      "optional": false
-    }
-  },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
