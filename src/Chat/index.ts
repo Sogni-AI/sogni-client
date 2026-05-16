@@ -17,6 +17,7 @@ import {
   ChatRunEvent,
   ChatRunRecord,
   HostedChatCompletionParams,
+  ConfirmChatRunCostParams,
   HostedChatCompletionResult,
   LLMCostEstimation,
   LLMEstimateResponse,
@@ -254,6 +255,13 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     create: (params: StartChatRunParams) => Promise<ChatRunRecord>;
     get: (runId: string) => Promise<ChatRunRecord>;
     cancel: (runId: string, reason?: string) => Promise<ChatRunRecord>;
+    /**
+     * Resume a run that paused with `run_awaiting_cost_confirmation`.
+     * Pass the user's decision (confirm or cancel) and optional
+     * override args. The cloud either dispatches the paused tool
+     * (confirm) or short-circuits with a cancelled tool result.
+     */
+    confirmCost: (runId: string, params: ConfirmChatRunCostParams) => Promise<ChatRunRecord>;
     streamEvents: (
       runId: string,
       options?: StreamChatRunEventsOptions
@@ -281,6 +289,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       create: this.createChatRun.bind(this),
       get: this.getChatRun.bind(this),
       cancel: this.cancelChatRun.bind(this),
+      confirmCost: this.confirmChatRunCost.bind(this),
       streamEvents: this.streamChatRunEvents.bind(this)
     };
 
@@ -596,6 +605,34 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reason ? { reason } : {})
       }
+    );
+    return response.data.run;
+  }
+
+  /**
+   * Resume a chat run that emitted `run_awaiting_cost_confirmation`.
+   * Posts the user's decision (confirm/cancel + optional override
+   * args) and returns the updated run record. Errors with HTTP 4xx
+   * when the run isn't in `waiting_for_user` state or the
+   * `toolCallId` doesn't match the pending tool.
+   */
+  private async confirmChatRunCost(
+    runId: string,
+    params: ConfirmChatRunCostParams,
+  ): Promise<ChatRunRecord> {
+    const body: Record<string, unknown> = {
+      tool_call_id: params.toolCallId,
+      decision: params.decision,
+      ...(params.overrides ? { overrides: params.overrides } : {}),
+      ...(params.reason ? { reason: params.reason } : {}),
+    };
+    const response = await this.chatRunJson<{ status: string; data: { run: ChatRunRecord } }>(
+      `/v1/chat/runs/${encodeURIComponent(runId)}/confirm-cost`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
     );
     return response.data.run;
   }
