@@ -391,6 +391,37 @@ export interface StartChatRunParams {
   appSource?: string;
   /** Idempotency key (also accepted via `Idempotency-Key` header). */
   idempotencyKey?: string;
+  /**
+   * Host-app runtime config (quality tier, NSFW filter) the cloud
+   * executor should apply when tool calls omit the equivalent field —
+   * e.g. resolve `qualityTier: "fast"` → `model: "z-turbo"` for
+   * `generate_image` so cloud runs match client-mode defaults.
+   */
+  runtimeConfig?: {
+    qualityTier?: 'fast' | 'hq' | 'pro';
+    safeContentFilter?: boolean;
+    /** Registered persona names so the cloud executor can apply the same persona-resolution gate as the client. */
+    personaNames?: string[];
+    /** When true, the cloud emits cost-approval pauses before paid media tools. */
+    requireJobConfirmation?: boolean;
+    /** Skip the pause for jobs estimated at or below this USD figure. */
+    jobConfirmationThresholdUsd?: number;
+  };
+}
+
+/**
+ * Body of a `POST /v1/chat/runs/:id/confirm-cost` call. Resumes a run
+ * that paused with `run_awaiting_cost_confirmation`.
+ */
+export interface ConfirmChatRunCostParams {
+  /** Tool call id surfaced in the awaiting event. */
+  toolCallId: string;
+  /** Whether the caller approves the job. */
+  decision: 'confirm' | 'cancel';
+  /** Optional override args the caller adjusted in the modal. */
+  overrides?: Record<string, unknown>;
+  /** Optional reason carried into audit logs. */
+  reason?: string;
 }
 
 export interface StreamChatRunEventsOptions {

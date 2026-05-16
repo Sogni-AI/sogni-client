@@ -563,7 +563,8 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       ...(params.sessionId ? { session_id: params.sessionId } : {}),
       ...(params.clientMessageId ? { client_message_id: params.clientMessageId } : {}),
       ...(params.tokenType ? { token_type: params.tokenType } : {}),
-      ...(params.appSource ? { app_source: params.appSource } : {})
+      ...(params.appSource ? { app_source: params.appSource } : {}),
+      ...(params.runtimeConfig ? { runtime_config: params.runtimeConfig } : {})
     };
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (params.idempotencyKey) headers['Idempotency-Key'] = params.idempotencyKey;
