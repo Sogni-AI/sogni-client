@@ -1,3 +1,10 @@
+# [5.0.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.1...v5.0.0-alpha.2) (2026-05-16)
+
+
+### Features
+
+* forward runtimeConfig to chat runs for cloud executor parity ([c8002df](https://github.com/Sogni-AI/sogni-client/commit/c8002df94bc4cd1e163956803a9d237b64dc9f61))
+
 # [5.0.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.26...v5.0.0-alpha.1) (2026-05-15)
 
 
