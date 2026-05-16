@@ -1,3 +1,17 @@
+# [5.0.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.3...v5.0.0-alpha.4) (2026-05-16)
+
+
+### Bug Fixes
+
+* **deps:** point dev file:// at the renamed sogni-intelligence-client dir ([9e11029](https://github.com/Sogni-AI/sogni-client/commit/9e11029e0439c1140a7b85e4d3d7897e59ea3bac))
+* **deps:** point file:// at canonical wrapper path ([173cff2](https://github.com/Sogni-AI/sogni-client/commit/173cff2eb35d711516acd59905012a87ad63ccb2))
+* **deps:** regenerate lockfile to match renamed sogni-intelligence-client sibling ([d195c2f](https://github.com/Sogni-AI/sogni-client/commit/d195c2f238f72a41da06fb2f0a7c26556cc6724a))
+
+
+### Features
+
+* **chat:** replace hostedToolValidation codegen with re-export ([f2fae51](https://github.com/Sogni-AI/sogni-client/commit/f2fae51bcbb42e85077cbe9deaff92f3aac17cd0))
+
 # [5.0.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.2...v5.0.0-alpha.3) (2026-05-16)
 
 
