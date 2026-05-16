@@ -1,11 +1,15 @@
 /* eslint-disable */
-// @ts-nocheck — this file's tsconfig uses moduleResolution: 'node' which cannot
-// read modern `exports` maps at compile time. Runtime resolution via Node's
-// exports-map require-condition resolves the subpath correctly; IDE intellisense
-// follows package.json typesVersions. Type-check is suppressed on this file only.
-//
-// Back-compat re-export. New code should import directly from
-// `@sogni-ai/sogni-intelligence-client/contracts`.
+// @ts-nocheck — wrapper's tsconfig (and this file's) uses moduleResolution: 'node'
+// (cannot read modern `exports` map at COMPILE time). At RUNTIME Node's
+// exports-map require-condition resolves the subpath cleanly. The actual types
+// resolve via the package's typesVersions for IDE intellisense; the type-check
+// pass over this file is suppressed.
+/**
+ * Re-export shim for hosted tool validation. The validation logic now lives in
+ * `@sogni-ai/sogni-intelligence-client/contracts`; this file remains so existing
+ * internal callers (e.g. src/Chat/modelRouting.ts) keep working. New code should
+ * import directly from `@sogni-ai/sogni-intelligence-client/contracts`.
+ */
 
 export type {
   HostedToolSchemaProperty,
