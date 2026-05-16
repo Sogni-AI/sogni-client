@@ -3,15 +3,20 @@
 > AI-friendly documentation for the Sogni SDK (JavaScript/Node.js)
 > Full documentation: llms-full.txt | TypeScript types: dist/index.d.ts
 > npm: @sogni-ai/sogni-client | GitHub: https://github.com/Sogni-AI/sogni-client
+> Current package: 4.2.0-alpha.24 | Runtime: Node.js >=22 or modern browser
 
 ## Quick Reference
 
 ### Installation
+
 ```bash
 npm install @sogni-ai/sogni-client
 ```
 
+The SDK publishes CommonJS (`dist/index.js`), ESM (`dist-esm/index.js`), and TypeScript declarations (`dist/index.d.ts`). Public entry point: `SogniClient.createInstance()`.
+
 ### Minimal Image Generation
+
 ```javascript
 import { SogniClient } from '@sogni-ai/sogni-client';
 
@@ -38,6 +43,7 @@ console.log(urls[0]); // Image URL (valid 24 hours)
 ```
 
 ### Minimal Video Generation
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
@@ -60,16 +66,17 @@ console.log(urls[0]); // Video URL (valid 24 hours)
 1. **Authentication & Setup** - Client initialization, login, network types
 2. **Image Generation** - Text-to-image, img2img, ControlNets
 3. **Video Generation (WAN 2.2)** - t2v, i2v, s2v, animate-move, animate-replace
-4. **Video Generation (LTX-2.3 / LTX-2)** - Recommended video models with different fps behavior
-5. **Audio Generation (ACE-Step 1.5)** - Text-to-music with optional lyrics
-6. **LLM Text Generation** - Chat completions, streaming, multi-turn conversations
-7. **LLM Tool Calling** - Function calling with custom tools and Sogni platform tools
-8. **Vision Chat** - Multimodal image understanding with VLM (scene description, OCR, object detection, visual analysis)
-9. **Project Parameters** - Complete parameter reference
-10. **Events & Progress** - Real-time tracking, completion handling
-11. **Models & Presets** - Discovering available models, size presets, samplers
-12. **Error Handling** - Common errors and recovery
-13. **API Reference** - Full method signatures
+4. **Video Generation (LTX-2.3)** - Recommended video models with different fps behavior
+5. **Video Generation (Seedance 2.0)** - External API T2V/I2V/V2V at 24fps
+6. **Audio Generation (ACE-Step 1.5)** - Text-to-music with optional lyrics
+7. **LLM Text Generation** - Chat completions, streaming, multi-turn conversations
+8. **LLM Tool Calling** - Function calling with custom tools and Sogni platform tools
+9. **Vision Chat** - Multimodal image understanding with VLM (scene description, OCR, object detection, visual analysis)
+10. **Project Parameters** - Complete parameter reference
+11. **Events & Progress** - Real-time tracking, completion handling
+12. **Models & Presets** - Discovering available models, size presets, samplers
+13. **Error Handling** - Common errors and recovery
+14. **API Reference** - Full method signatures
 
 ---
 
@@ -78,16 +85,18 @@ console.log(urls[0]); // Video URL (valid 24 hours)
 ### Client Creation with API Key (Recommended)
 
 Get your API key: Log in to dashboard.sogni.ai and click your Username dropdown in the top-right corner.
+Each email-verified account is allowed 400 free Spark render credits per month. On the API, free credits can be used with Z-Image Turbo; paid credits can access all models and features.
 
 ```javascript
 const sogni = await SogniClient.createInstance({
-  appId: 'unique-uuid',     // Required - identifies your app
-  network: 'fast',          // 'fast' (GPU) or 'relaxed' (Mac)
-  apiKey: 'your-api-key'    // Auto-authenticates, no login() needed
+  appId: 'unique-uuid', // Required - identifies your app
+  network: 'fast', // 'fast' (GPU) or 'relaxed' (Mac)
+  apiKey: 'your-api-key' // Auto-authenticates, no login() needed
 });
 ```
 
 ### Client Creation with Username/Password
+
 ```javascript
 const sogni = await SogniClient.createInstance({
   appId: 'unique-uuid',
@@ -97,10 +106,12 @@ await sogni.account.login(username, password);
 ```
 
 ### API Key vs Username/Password
+
 - **API key**: Pass `apiKey` to `createInstance()`. Auto-authenticates via WebSocket. No `login()` call needed. Most REST API calls (balance, profile, etc.) available. Sensitive operations (withdrawals, staking, 2FA) not available.
 - **Username/password**: Call `sogni.account.login()` after creating instance. Full REST API access.
 
 ### Network Types
+
 - `fast` - High-end GPUs, faster, more expensive. **Required for video.**
 - `relaxed` - Mac devices, cheaper. Image only.
 
@@ -109,6 +120,7 @@ await sogni.account.login(username, password);
 ## 2. Image Generation
 
 ### Basic Parameters
+
 ```javascript
 {
   type: 'image',
@@ -125,11 +137,12 @@ await sogni.account.login(username, password);
   seed?: number,
   sampler?: string,
   scheduler?: string,
-  outputFormat?: 'png' | 'jpg'
+  outputFormat?: 'png' | 'jpg' | 'webp'
 }
 ```
 
 ### With Starting Image (img2img)
+
 ```javascript
 {
   type: 'image',
@@ -139,6 +152,7 @@ await sogni.account.login(username, password);
 ```
 
 ### With ControlNet
+
 ```javascript
 {
   type: 'image',
@@ -156,7 +170,9 @@ await sogni.account.login(username, password);
 ## 3. Video Generation (WAN 2.2)
 
 ### CRITICAL: WAN 2.2 FPS Behavior
+
 WAN models always generate at 16fps internally. The `fps` parameter only controls post-render interpolation:
+
 - `fps: 16` - No interpolation, output is 16fps
 - `fps: 32` - Frames doubled via interpolation
 
@@ -164,24 +180,27 @@ Frame calculation: `duration * 16 + 1`
 Example: 5 seconds = 81 frames (regardless of fps setting)
 
 ### Model IDs
-| Workflow | Speed Model | Quality Model |
-|----------|-------------|---------------|
-| Text-to-Video | wan_v2.2-14b-fp8_t2v_lightx2v | wan_v2.2-14b-fp8_t2v |
-| Image-to-Video | wan_v2.2-14b-fp8_i2v_lightx2v | wan_v2.2-14b-fp8_i2v |
-| Sound-to-Video | wan_v2.2-14b-fp8_s2v_lightx2v | wan_v2.2-14b-fp8_s2v |
-| Animate-Move | wan_v2.2-14b-fp8_animate-move_lightx2v | - |
-| Animate-Replace | wan_v2.2-14b-fp8_animate-replace_lightx2v | - |
+
+| Workflow        | Speed Model                               | Quality Model        |
+| --------------- | ----------------------------------------- | -------------------- |
+| Text-to-Video   | wan_v2.2-14b-fp8_t2v_lightx2v             | wan_v2.2-14b-fp8_t2v |
+| Image-to-Video  | wan_v2.2-14b-fp8_i2v_lightx2v             | wan_v2.2-14b-fp8_i2v |
+| Sound-to-Video  | wan_v2.2-14b-fp8_s2v_lightx2v             | wan_v2.2-14b-fp8_s2v |
+| Animate-Move    | wan_v2.2-14b-fp8_animate-move_lightx2v    | -                    |
+| Animate-Replace | wan_v2.2-14b-fp8_animate-replace_lightx2v | -                    |
 
 ### Workflow Asset Requirements
-| Workflow | referenceImage | referenceAudio | referenceVideo |
-|----------|----------------|----------------|----------------|
-| t2v | - | - | - |
-| i2v | Required | - | - |
-| s2v | Required | Required | - |
-| animate-move | Required | - | Required |
-| animate-replace | Required | - | Required |
+
+| Workflow        | referenceImage | referenceAudio | referenceVideo |
+| --------------- | -------------- | -------------- | -------------- |
+| t2v             | -              | -              | -              |
+| i2v             | Required       | -              | -              |
+| s2v             | Required       | Required       | -              |
+| animate-move    | Required       | -              | Required       |
+| animate-replace | Required       | -              | Required       |
 
 ### Image-to-Video Example
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
@@ -196,6 +215,7 @@ const project = await sogni.projects.create({
 ```
 
 ### Sound-to-Video (Lip Sync)
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
@@ -203,8 +223,8 @@ const project = await sogni.projects.create({
   modelId: 'wan_v2.2-14b-fp8_s2v_lightx2v',
   referenceImage: fs.readFileSync('./face.jpg'),
   referenceAudio: fs.readFileSync('./speech.m4a'),
-  audioStart: 0,       // Start position in audio
-  audioDuration: 5,    // Seconds of audio to use
+  audioStart: 0, // Start position in audio
+  audioDuration: 5, // Seconds of audio to use
   duration: 5,
   fps: 16,
   numberOfMedia: 1
@@ -213,16 +233,19 @@ const project = await sogni.projects.create({
 
 ---
 
-## 4. Video Generation (LTX-2.3 / LTX-2)
+## 4. Video Generation (LTX-2.3)
 
 ### LTX FPS Behavior (Different from WAN!)
+
 LTX models generate at the actual specified FPS (1-60 range). No interpolation.
+
 - Frame calculation: `duration * fps + 1`
 - Frame count must follow: `1 + n*8` (1, 9, 17, 25, 33, ...)
 
 Example: 5 seconds at 24fps = 121 frames
 
 ### LTX Model IDs
+
 - Speed models (`_distilled` suffix): 8-step, faster
 - Quality models (`_dev` suffix or no suffix): 20-step, best quality
 
@@ -234,32 +257,63 @@ Example: 5 seconds at 24fps = 121 frames
 | Audio-to-Video | `ltx23-22b-fp8_a2v_distilled` | `ltx23-22b-fp8_a2v_dev` |
 | Image+Audio-to-Video | `ltx23-22b-fp8_ia2v_distilled` | `ltx23-22b-fp8_ia2v_dev` |
 
-**Video-to-Video ControlNet (LTX-2 only):**
+**Video-to-Video ControlNet (LTX-2.3):**
 | Workflow | Fast | Quality |
 |----------|------|---------|
-| Video-to-Video (ControlNet) | `ltx2-19b-fp8_v2v_distilled` | `ltx2-19b-fp8_v2v` |
+| Video-to-Video (ControlNet) | `ltx23-22b-fp8_v2v_distilled` | `ltx23-22b-fp8_v2v_dev` |
 
 IMPORTANT: ControlNet (canny/pose/depth/detailer) requires a `_v2v` model, NOT `_i2v`.
 
 ---
 
-## 5. Audio Generation (ACE-Step 1.5)
+## 5. Video Generation (Seedance 2.0)
+
+Seedance models are external API-backed Spark-only video models. They generate at fixed 24fps and currently support 4-15 second direct SDK outputs. Seedance can combine image, video, and audio reference assets in one request: up to 9 images, 3 videos, 3 audios, and 12 total assets. Text+audio-only is unsupported; include at least one image or video reference when using audio references. In prompts, use `@Image1`, `@Video1`, and `@Audio1` tags counted independently by modality in attachment order. Assign each useful reference a role, prefer positive preservation language, and review exact text/logos, lip-sync, voice cloning, and real-human-reference behavior.
+
+| Model ID              | Context Assets                         | Notes                |
+| --------------------- | -------------------------------------- | -------------------- |
+| `seedance-2-0`        | Optional image, video, and audio refs  | 24fps, 4-15s, 1080p  |
+| `seedance-2-0-fast`   | Optional image, video, and audio refs  | 24fps, 4-15s, 720p   |
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'seedance-2-0',
+  positivePrompt: 'A cinematic neon skyline time lapse',
+  duration: 5,
+  fps: 24,
+  width: 1920,
+  height: 1088,
+  tokenType: 'spark'
+});
+```
+
+Use `referenceImageUrls`, `referenceVideoUrls`, and `referenceAudioUrls` for Seedance HTTPS context URLs. Use `referenceImage`/`referenceImageEnd`, `referenceVideo`, and `referenceAudio` for single local file references. Example prompt: `Use @Image1 for product identity, @Video1 for camera movement, and @Audio1 for music rhythm. Keep the product silhouette and logo placement consistent.`
+
+Aliases used by chat tools and examples: `seedance2` and `seedance2-fast`. V2V uses `seedance2` as the model selector and `seedance-v2v` as the control mode. Seedance Fast accepts optional image, video, and audio references and caps at 720p. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
+
+---
+
+## 6. Audio Generation (ACE-Step 1.5)
 
 ### Model Variants
-| Model ID | Name | Description |
-|----------|------|-------------|
+
+| Model ID           | Name          | Description                          |
+| ------------------ | ------------- | ------------------------------------ |
 | ace_step_1.5_turbo | Fast & Catchy | Quick generation, best quality sound |
-| ace_step_1.5_sft | More Control | More accurate lyrics, less stable |
+| ace_step_1.5_sft   | More Control  | More accurate lyrics, less stable    |
 
 ### Text-to-Music (Instrumental)
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'audio',
   modelId: 'ace_step_1.5_turbo',
   positivePrompt: 'Upbeat electronic dance music with synth leads',
   numberOfMedia: 1,
-  duration: 30,       // 10-600 seconds
-  bpm: 128,           // 30-300
+  duration: 30, // 10-600 seconds
+  bpm: 128, // 30-300
   keyscale: 'C major',
   timesignature: '4', // 4/4 time
   steps: 8,
@@ -269,6 +323,7 @@ const urls = await project.waitForCompletion();
 ```
 
 ### Text-to-Music (With Lyrics)
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'audio',
@@ -276,7 +331,7 @@ const project = await sogni.projects.create({
   positivePrompt: 'Soft acoustic folk ballad',
   lyrics: 'Verse 1:\nWalking down a quiet road...',
   language: 'en',
-  numberOfMedia: 2,   // Generate 2 versions
+  numberOfMedia: 2, // Generate 2 versions
   duration: 60,
   bpm: 90,
   keyscale: 'A minor',
@@ -287,30 +342,32 @@ const project = await sogni.projects.create({
 ```
 
 ### Key Parameters
-| Parameter | Range | Default | Notes |
-|-----------|-------|---------|-------|
-| duration | 10-600 | 30 | Seconds of audio |
-| bpm | 30-300 | 120 | Beats per minute |
-| keyscale | key + scale | C major | e.g., "A minor", "F# major" |
-| timesignature | 2, 3, 4, 6 | 4 | Time signature |
-| lyrics | string | - | Omit for instrumental |
-| language | code | en | 51 languages supported |
-| composerMode | boolean | true | AI composer mode |
-| promptStrength | 0-10 | 2.0 | Prompt adherence |
-| creativity | 0-2 | 0.85 | Composition temperature |
-| steps | 4-16 | 8 | Inference steps |
-| outputFormat | mp3/wav/flac | mp3 | Audio format |
+
+| Parameter      | Range        | Default | Notes                       |
+| -------------- | ------------ | ------- | --------------------------- |
+| duration       | 10-600       | 30      | Seconds of audio            |
+| bpm            | 30-300       | 120     | Beats per minute            |
+| keyscale       | key + scale  | C major | e.g., "A minor", "F# major" |
+| timesignature  | 2, 3, 4, 6   | 4       | Time signature              |
+| lyrics         | string       | -       | Omit for instrumental       |
+| language       | code         | en      | 51 languages supported      |
+| composerMode   | boolean      | true    | AI composer mode            |
+| promptStrength | 0-10         | 2.0     | Prompt adherence            |
+| creativity     | 0-2          | 0.85    | Composition temperature     |
+| steps          | 4-16         | 8       | Inference steps             |
+| outputFormat   | mp3/wav/flac | mp3     | Audio format                |
 
 ---
 
-## 6. LLM Text Generation
+## 7. LLM Text Generation
 
-The Sogni SDK supports LLM text generation via the Supernet, providing an OpenAI-compatible chat completions API.
+The Sogni SDK supports LLM text generation via the Supernet. Socket-native chat uses `sogni.chat.completions.create()`. Hosted REST chat uses `sogni.chat.hosted.create()`. Durable server-side chat runs use `sogni.chat.runs`.
 
 ### Chat Completion (Non-Streaming)
+
 ```javascript
-const response = await sogni.projects.chatCompletion({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+const response = await sogni.chat.completions.create({
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [
     { role: 'system', content: 'You are a helpful assistant.' },
     { role: 'user', content: 'Explain quantum computing briefly.' }
@@ -319,99 +376,143 @@ const response = await sogni.projects.chatCompletion({
   temperature: 0.7,
   top_p: 0.9
 });
-console.log(response.choices[0].message.content);
+console.log(response.content);
 ```
 
 ### Streaming Chat Completion
+
 ```javascript
-const stream = await sogni.projects.chatCompletionStream({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+const stream = await sogni.chat.completions.create({
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [{ role: 'user', content: 'Tell me a story' }],
   max_tokens: 4096,
   stream: true
 });
 for await (const chunk of stream) {
-  process.stdout.write(chunk.choices[0].delta.content || '');
+  process.stdout.write(chunk.content || '');
 }
 ```
 
 ### Key Parameters
-| Parameter | Type | Default | Notes |
-|-----------|------|---------|-------|
-| model | string | qwen3.5-35b-a3b-gguf-q4km | LLM model ID |
-| messages | array | - | Chat messages (system/user/assistant/tool roles) |
-| max_tokens | number | 4096 | Maximum output tokens |
-| temperature | number | 0.7 | Sampling temperature (0-2) |
-| top_p | number | 0.9 | Nucleus sampling (0-1) |
-| frequency_penalty | number | 0 | Repetition penalty (-2 to 2) |
-| presence_penalty | number | 0 | Topic penalty (-2 to 2) |
-| stream | boolean | false | Enable token-by-token streaming |
+
+| Parameter         | Type    | Default                    | Notes                                            |
+| ----------------- | ------- | -------------------------- | ------------------------------------------------ |
+| model             | string  | qwen3.6-35b-a3b-gguf-iq4xs | LLM model ID                                     |
+| messages          | array   | -                          | Chat messages (system/user/assistant/tool roles) |
+| max_tokens        | number  | 4096                       | Maximum output tokens                            |
+| temperature       | number  | 0.7                        | Sampling temperature (0-2)                       |
+| top_p             | number  | 0.9                        | Nucleus sampling (0-1)                           |
+| frequency_penalty | number  | 0                          | Repetition penalty (-2 to 2)                     |
+| presence_penalty  | number  | 0                          | Topic penalty (-2 to 2)                          |
+| stream            | boolean | false                      | Enable token-by-token streaming                  |
+| think             | boolean | server default             | Sends `chat_template_kwargs.enable_thinking`     |
+| taskProfile       | string  | -                          | `general`, `coding`, or `reasoning` preset hint  |
+| response_format   | object  | -                          | OpenAI-compatible JSON object/schema constraint  |
+| tools             | array   | -                          | OpenAI-compatible function tools                 |
+| tool_choice       | string/object | auto                 | `auto`, `none`, `required`, or function choice   |
+| sogni_tools       | boolean/string | -                    | Inject hosted creative tools server-side         |
 
 ### Thinking Mode
-Enable model reasoning/thinking with `chat_template_kwargs`:
-- Thinking enabled: Model shows `<think>` blocks with reasoning steps
-- Thinking disabled: Direct responses only
+
+Control model reasoning/thinking with `think`:
+
+- `think: true` sends `chat_template_kwargs: { enable_thinking: true }`.
+- `think: false` sends `chat_template_kwargs: { enable_thinking: false }`.
+- Omit `think` to use server defaults.
+
+Streaming chunks and completion results expose generated text through `content` and tool invocations through `tool_calls`.
 
 ---
 
-## 7. LLM Tool Calling (Function Calling)
+## 8. LLM Tool Calling (Function Calling)
 
 Define custom tools the LLM can invoke. The LLM returns structured tool call arguments; you execute the function and feed results back.
 
 ### Tool Definition (OpenAI-compatible format)
+
 ```javascript
-const tools = [{
-  type: 'function',
-  function: {
-    name: 'get_weather',
-    description: 'Get current weather for a city',
-    parameters: {
-      type: 'object',
-      properties: {
-        location: { type: 'string', description: 'City name' }
-      },
-      required: ['location']
+const tools = [
+  {
+    type: 'function',
+    function: {
+      name: 'get_weather',
+      description: 'Get current weather for a city',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: { type: 'string', description: 'City name' }
+        },
+        required: ['location']
+      }
     }
   }
-}];
+];
 
-const response = await sogni.projects.chatCompletion({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+const response = await sogni.chat.completions.create({
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages: [{ role: 'user', content: "What's the weather in Austin?" }],
   tools,
   tool_choice: 'auto'
 });
-// Check response.choices[0].message.tool_calls for tool invocations
+// Check response.tool_calls for tool invocations.
 ```
 
 ### Sogni Platform Tools — Media Generation via Chat
+
 Combine LLM tool calling with Sogni's generation APIs to create media from natural language:
 
 - **Image Generation** — "Create an image of a cyberpunk city at night"
+- **Image Editing / Reference-Guided Images** — "Edit this portrait to look like a renaissance painting"
 - **Video Generation** — "Generate a video of ocean waves at sunset"
+- **Sound-to-Video** — "Turn this song into a music video"
+- **Video-to-Video** — "Restyle this video as anime"
 - **Music Generation** — "Compose a jazz song about the rain"
 
-The LLM detects media intent, enhances the prompt, and calls Sogni's image/video/audio generation APIs directly. See `workflow_text_chat_sogni_tools.mjs` for the complete implementation.
+Canonical hosted creative-tool surface (`SogniTools.all`, 24 tools, executed server-side via `chat.hosted.create()` / `chat.runs.create()`):
+
+- `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video` (generation)
+- `restore_photo`, `apply_style`, `refine_result`, `change_angle` (image-edit adapters)
+- `animate_photo` (image-to-video with multi-source fan-out via `sourceImageIndices`; composed into one MP4 by default — opt out with `stitched: false`)
+- `stitch_video`, `orbit_video`, `dance_montage` (server-side composition into a single MP4)
+- `extend_video`, `replace_video_segment` (append or replace bounded windows; replacements can trim source windows with `replacementStartSeconds` / `replacementEndSeconds`)
+- `overlay_video`, `add_subtitles` (ffmpeg post-production on existing videos)
+- `enhance_prompt` (model-ready image/video/music/edit prompt expansion)
+- `compose_script` (scripts, storyboards, trailers, social shorts, campaign beats, and video prompts)
+- `compose_lyrics`, `compose_instrumental` (vocal lyrics or instrumental music structures)
+- `compose_workflow`, `compose_workflow_template` (durable workflow and template planners)
+
+The default `creative-tools` surface includes the tools above. `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools. Per-request media context lets generated images / videos / audio be addressed by stable indices across tool rounds (each tool result envelope returns `startIndex` and `indices`).
+
+Media-conditioned tools accept explicit inline base64 `data:` URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`. Tool image inputs accept PNG/JPEG, tool audio inputs accept MP3/M4A/WAV, and tool video inputs accept MP4 or MOV/QuickTime. For uploaded or Sogni-hosted HTTP(S) assets, pass media through request-level `mediaReferences` / `mediaContext` or through `sogni.workflows` dependencies.
+
+The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. `workflow_creative_agent_tools.mjs` demonstrates server-side hosted Sogni tool injection through `/v1/chat/completions`. Pass `SogniTools.all` (or individual tool defs) to the LLM and execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
+
+Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.workflows` (`start`, `list`, `get`, `events`, `streamEvents`, `resume`, `reseed`, `cancel`) backed by `/v1/creative-agent/workflows`. `start()` accepts either an inline `input` plan or a saved `workflowId` + `inputs`. Saved workflow templates are managed via `sogni.workflows.templates` (`list`, `get`, `create`, `update`, `delete`, `fork`). All endpoints use the SDK's active auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
 
 Default generation models used by platform tools:
-| Media Type | Model | Description |
-|------------|-------|-------------|
-| Image | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step |
-| Video | ltx23-22b-fp8_t2v_distilled | LTX-2.3 text-to-video, fast |
-| Audio | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music |
+| Tool | Model | Description |
+|------|-------|-------------|
+| `generate_image` | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step |
+| `edit_image` | workflow/model-dependent | Reference-guided image editing with edit-capable Qwen/Flux models |
+| `generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
+| `sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
+| `video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
+| `generate_music` | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music |
 
 ---
 
-## 8. Vision Chat (Multimodal Image Understanding)
+## 9. Vision Chat (Multimodal Image Understanding)
 
 The SDK supports multimodal vision chat via VLM (Vision-Language Model) workers on the Sogni network. Send images alongside text messages for scene description, OCR, object detection, visual analysis, and multi-image comparison.
 
 ### VLM Model
-| Model ID | Name | Description |
-|----------|------|-------------|
-| `qwen3.5-35b-a3b-gguf-q4km` | Qwen3.5 35B VLM | Vision-language model with 32K context |
+
+| Model ID                     | Name            | Description                                              |
+| ---------------------------- | --------------- | -------------------------------------------------------- |
+| `qwen3.6-35b-a3b-gguf-iq4xs` | Qwen3.6 35B VLM | Vision-language model with 262,144 native context length |
 
 ### Multimodal Message Format
+
 ```javascript
 const messages = [
   { role: 'system', content: 'You are a visual analysis assistant.' },
@@ -425,14 +526,31 @@ const messages = [
 ];
 
 const stream = await sogni.chat.completions.create({
-  model: 'qwen3.5-35b-a3b-gguf-q4km',
+  model: 'qwen3.6-35b-a3b-gguf-iq4xs',
   messages,
   max_tokens: 4096,
-  stream: true
+  stream: true,
+  think: false,
+  taskProfile: 'general'
 });
 ```
 
+Vision `image_url` parts accept inline JPEG or PNG `data:` URIs only. A maximum of 20 images is allowed per request, each image must be 10MB or smaller, and the longest side limit of 1024px applies only to this vision path.
+
+QWEN3.6 PRESET HINTS:
+
+- General thoughtful work: `think: true, taskProfile: 'general'`
+- Precise coding: `think: true, taskProfile: 'coding'`
+- Everyday direct responses: `think: false, taskProfile: 'general'`
+- Analytical non-thinking tasks: `think: false, taskProfile: 'reasoning'`
+
+OPTIONAL SAMPLING OVERRIDES:
+
+- `temperature`, `top_p`, `top_k`, `min_p`, `presence_penalty`,
+  `repetition_penalty`
+
 ### Supported Capabilities
+
 - **Scene description** — Detailed image descriptions including subjects, colors, lighting, mood
 - **OCR / Text extraction** — Extract visible text with layout preservation
 - **Object detection** — Identify objects with location, size, and spatial relationships
@@ -443,14 +561,16 @@ See `workflow_text_chat_vision.mjs` for a complete interactive vision chat imple
 
 ---
 
-## 9. Events & Progress
+## 10. Events & Progress
 
 ### Promise-based
+
 ```javascript
 const urls = await project.waitForCompletion();
 ```
 
 ### Event-based
+
 ```javascript
 project.on('progress', (percent) => console.log(`${percent}%`));
 project.on('jobCompleted', (job) => console.log(job.resultUrl));
@@ -458,7 +578,10 @@ project.on('completed', (urls) => console.log('Done:', urls));
 project.on('failed', (error) => console.error(error));
 ```
 
+External API-backed jobs may not report diffusion steps. The SDK keeps project/job progress finite by using provider progress or ETA-derived progress, and direct provider result URLs are preserved on `job.resultUrl`.
+
 ### Job-level Events
+
 ```javascript
 project.jobs[0].on('progress', ({ step, stepCount }) => {
   console.log(`Step ${step}/${stepCount}`);
@@ -467,9 +590,10 @@ project.jobs[0].on('progress', ({ step, stepCount }) => {
 
 ---
 
-## 10. Discovering Models & Options
+## 11. Discovering Models & Options
 
 ### List Available Models
+
 ```javascript
 const models = await sogni.projects.waitForModels();
 // or
@@ -477,11 +601,13 @@ const models = sogni.projects.availableModels;
 ```
 
 ### Get Size Presets
+
 ```javascript
 const presets = await sogni.projects.getSizePresets('fast', 'flux1-schnell-fp8');
 ```
 
 ### Get Sampler/Scheduler Options
+
 ```javascript
 const options = await sogni.projects.getModelOptions('flux1-schnell-fp8');
 console.log(options.sampler.allowed);
@@ -490,11 +616,12 @@ console.log(options.scheduler.allowed);
 
 ---
 
-## 11. Cost Estimation
+## 12. Cost Estimation
 
 ```javascript
-const cost = await sogni.projects.estimate({
+const cost = await sogni.projects.estimateCost({
   network: 'fast',
+  tokenType: 'spark',
   model: 'flux1-schnell-fp8',
   imageCount: 1,
   stepCount: 4,
@@ -503,9 +630,11 @@ const cost = await sogni.projects.estimate({
 console.log(cost.sogni, cost.usd);
 ```
 
+Use `estimateVideoCost()` for video jobs and `estimateAudioCost()` for audio jobs.
+
 ---
 
-## 12. Key Types Summary
+## 13. Key Types Summary
 
 ```typescript
 type ProjectParams = ImageProjectParams | VideoProjectParams | AudioProjectParams;
@@ -549,6 +678,7 @@ interface AudioProjectParams {
 ## Full Documentation
 
 For complete API reference, all parameters, and advanced usage:
+
 - **llms-full.txt** - Comprehensive guide in this repository
 - **https://sdk-docs.sogni.ai** - TypeDoc API documentation
 - **https://github.com/Sogni-AI/sogni-client/tree/main/examples** - Working examples

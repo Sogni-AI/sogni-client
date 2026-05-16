@@ -8,7 +8,7 @@
  * - animate-move: Camera movement animation (pans, zooms, etc.)
  * - animate-replace: Replace subjects in the source video with the reference image
  *
- * LTX-2 V2V ControlNet Models (with control type selection):
+ * LTX-2.3 V2V ControlNet Models (with control type selection):
  * - canny: Edge detection-based control (video only)
  * - pose: Skeleton/pose-based control (optional image for appearance + video for motion)
  * - depth: Depth map control (video only)
@@ -23,8 +23,8 @@
  *   node workflow_video_to_video.mjs --image person.jpg --video motion.mp4
  *   node workflow_video_to_video.mjs "Dancing character" --image char.jpg --video dance.mp4
  *
- *   # LTX-2 V2V ControlNet
- *   node workflow_video_to_video.mjs --video source.mp4 --model ltx2-v2v-distilled --control-type canny
+ *   # LTX-2.3 V2V ControlNet
+ *   node workflow_video_to_video.mjs --video source.mp4 --model ltx23-v2v-distilled --control-type canny
  *   node workflow_video_to_video.mjs "A dancing figure" --video dance.mp4 --control-type pose
  *   node workflow_video_to_video.mjs "A robot" --image robot.jpg --video dance.mp4 --control-type pose
  *
@@ -32,21 +32,23 @@
  *   --image       Reference image path (required for WAN animate, optional for pose)
  *   --video       Source video path (required)
  *   --model       Model to use (see available models below)
- *   --control-type Control type for LTX-2 V2V: canny, pose, depth, detailer
+ *   --control-type Control type for LTX-2.3 V2V: canny, pose, depth, detailer
  *   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
  *                 Format: "x,y" where x,y are normalized 0-1 coordinates
  *   --video-start Video start position in seconds (where to begin reading from source video)
- *   --width       Video width (LTX-2: auto from source video, aligned to 64, min 640)
- *   --height      Video height (LTX-2: auto from source video, aligned to 64, min 640)
- *   --duration    Duration in seconds (default: 5, converts to frames)
+ *   --width       Video width (LTX-2.3: auto from source video, aligned to 64, min 640)
+ *   --height      Video height (LTX-2.3: auto from source video, aligned to 64, min 640)
+ *   --duration    Duration in seconds (default: 5)
  *   --fps         Frames per second (default: model-specific)
  *   --batch       Number of videos to generate (default: 1)
  *   --seed        Random seed for reproducibility (default: -1 for random)
  *   --steps       Number of inference steps (default: model-specific)
  *   --guidance    Guidance scale (default: model-specific)
  *   --shift       Motion intensity 1.0-8.0 (default: 8.0, WAN only)
- *   --strength    Control injection strength 0.5-1.0 (default: 0.85, LTX-2 only)
- *   --detailer-strength  Detailer LoRA strength 0.0-1.0 (default: 0.6, LTX-2 v2v only)
+ *   --strength    Control injection strength 0.3-1.0 (default: 0.85, LTX-2.3 only)
+ *   --detailer-strength  Detailer LoRA strength 0.0-1.0 (default: 0.6, LTX-2.3 v2v only)
+ *   --identity-audio  Reference audio for speaker identity (ID-LoRA, LTX-2.3 only, ~5s clip)
+ *   --audio-identity-strength  Identity strength 0-10 (default: 3.0, 0=disabled, LTX-2.3 only)
  *   --comfy-sampler  ComfyUI sampler name (default: euler)
  *   --comfy-scheduler ComfyUI scheduler name (default: simple)
  *   --negative    Negative prompt (default: none)
@@ -79,6 +81,7 @@ import {
   promptVideoDuration,
   promptAdvancedOptions,
   promptBatchCount,
+  promptIdentityAudio,
   promptAnimateReplaceOptions,
   promptControlNetType,
   pickImageFile,
@@ -94,6 +97,7 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -136,9 +140,11 @@ async function parseArgs() {
     detailerStrength: null,
     sampler: null,
     scheduler: null,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
-    disableSafeContentFilter: false
+    disableSafeContentFilter: false,
+    identityAudio: null,
+    audioIdentityStrength: null
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -194,6 +200,10 @@ async function parseArgs() {
       options.scheduler = args[++i];
     } else if (arg === '--output' && args[i + 1]) {
       options.output = args[++i];
+    } else if (arg === '--identity-audio' && args[i + 1]) {
+      options.identityAudio = args[++i];
+    } else if (arg === '--audio-identity-strength' && args[i + 1]) {
+      options.audioIdentityStrength = parseFloat(args[++i]);
     } else if (arg === '--disable-safe-content-filter') {
       options.disableSafeContentFilter = true;
     } else if (!arg.startsWith('--') && !options.prompt) {
@@ -217,19 +227,19 @@ Usage:
   node workflow_video_to_video.mjs --image person.jpg --video motion.mp4
   node workflow_video_to_video.mjs "Dancing character" --image char.jpg --video dance.mp4
 
-  # LTX-2 V2V ControlNet (video only)
-  node workflow_video_to_video.mjs --video source.mp4 --model ltx2-v2v-distilled --control-type canny
+  # LTX-2.3 V2V ControlNet (video only)
+  node workflow_video_to_video.mjs --video source.mp4 --model ltx23-v2v-distilled --control-type canny
 
 Available Models:
-  LTX-2 V2V ControlNet (video only, with audio):
-    ltx2-v2v-distilled - LTX-2 V2V ControlNet Fast (8-step, recommended)
-    ltx2-v2v           - LTX-2 V2V ControlNet Quality (20-step)
+  LTX-2.3 V2V ControlNet (video only, with audio):
+    ltx23-v2v-distilled - LTX-2.3 V2V ControlNet Fast (8-step, recommended)
+    ltx23-v2v-dev       - LTX-2.3 V2V ControlNet Quality (30-step)
 
   WAN Animate (requires reference image + video):
     move-lightx2v      - WAN 2.2 14B Animate-Move LightX2V (camera movement)
     replace-lightx2v   - WAN 2.2 14B Animate-Replace LightX2V (subject replacement)
 
-Control Types (LTX-2 V2V only):
+Control Types (LTX-2.3 V2V only):
     canny    - Edge detection (preserves outlines, video only)
     pose     - Skeleton control (optional image for appearance + video for motion)
     depth    - Depth map control (preserves spatial relationships, video only)
@@ -239,13 +249,13 @@ Options:
   --video         Source video path (required)
   --image         Reference image path (required for WAN animate, optional for pose)
   --model         Model key (see available models above)
-  --control-type  Control type for LTX-2 V2V: canny, pose, depth, detailer
+  --control-type  Control type for LTX-2.3 V2V: canny, pose, depth, detailer
   --sam2-coords   SAM2 click coordinates for animate-replace (format: "x,y", 0-1 normalized)
   --video-start   Video start position in seconds (default: 0)
   --negative      Negative prompt (default: none)
   --style         Style prompt (default: none)
-  --width         Video width (LTX-2: auto from source, aligned to 64, min 640)
-  --height        Video height (LTX-2: auto from source, aligned to 64, min 640)
+  --width         Video width (LTX-2.3: auto from source, aligned to 64, min 640)
+  --height        Video height (LTX-2.3: auto from source, aligned to 64, min 640)
   --duration      Duration in seconds (default: 5)
   --fps           Frames per second (default: model-specific)
   --batch         Number of videos to generate (default: 1)
@@ -253,8 +263,10 @@ Options:
   --steps         Number of inference steps (default: model-specific)
   --guidance      Guidance scale (default: model-specific)
   --shift         Motion intensity 1.0-8.0 (WAN only, default: 8.0)
-  --strength      Control injection strength 0.5-1.0 (LTX-2 only, default: 0.85)
-  --detailer-strength Detailer LoRA strength 0.0-1.0 (LTX-2 v2v only, default: 0.6)
+  --strength      Control injection strength 0.3-1.0 (LTX-2.3 only, default: 0.85)
+  --detailer-strength Detailer LoRA strength 0.0-1.0 (LTX-2.3 v2v only, default: 0.6)
+  --identity-audio  Reference audio for speaker identity (ID-LoRA, LTX-2.3 only, ~5s clip)
+  --audio-identity-strength  Identity strength 0-10 (default: 3.0, 0=disabled, LTX-2.3 only)
   --comfy-sampler   ComfyUI sampler name (default: euler)
   --comfy-scheduler ComfyUI scheduler name (default: simple)
   --output        Output directory (default: ./output)
@@ -263,10 +275,10 @@ Options:
   --help          Show this help message
 
 Examples:
-  # LTX-2 V2V with canny control (fast)
-  node workflow_video_to_video.mjs --video dance.mp4 --model ltx2-v2v-distilled --control-type canny
+  # LTX-2.3 V2V with canny control (fast)
+  node workflow_video_to_video.mjs --video dance.mp4 --model ltx23-v2v-distilled --control-type canny
 
-  # LTX-2 V2V with pose control (requires image for appearance)
+  # LTX-2.3 V2V with pose control (requires image for appearance)
   node workflow_video_to_video.mjs "A robot dancing" --image robot.jpg --video dance.mp4 --control-type pose
 
   # WAN animate-move with reference image
@@ -274,6 +286,7 @@ Examples:
 
   # WAN animate-replace with subject selection
   node workflow_video_to_video.mjs --image new_face.jpg --video original.mp4 --model replace-lightx2v
+
 `);
 }
 
@@ -295,7 +308,11 @@ function ensureEvenDimensions(width, height) {
  * Scale and align dimensions to fit within model constraints while preserving aspect ratio.
  * Handles: scale up to minimums, scale down to maximums, align to step size.
  */
-function fitDimensions(width, height, { dimStep = 64, minWidth = 640, minHeight = 640, maxWidth = 3840, maxHeight = 3840 } = {}) {
+function fitDimensions(
+  width,
+  height,
+  { dimStep = 64, minWidth = 640, minHeight = 640, maxWidth = 3840, maxHeight = 3840 } = {}
+) {
   const aspectRatio = width / height;
 
   // Scale up proportionally if below minimums
@@ -320,7 +337,7 @@ function fitDimensions(width, height, { dimStep = 64, minWidth = 640, minHeight 
   if (width < minWidth) width = Math.ceil(minWidth / dimStep) * dimStep;
   if (height < minHeight) {
     height = Math.ceil(minHeight / dimStep) * dimStep;
-    width = Math.round(height * aspectRatio / dimStep) * dimStep;
+    width = Math.round((height * aspectRatio) / dimStep) * dimStep;
     if (width < minWidth) width = Math.ceil(minWidth / dimStep) * dimStep;
   }
   if (width > maxWidth) width = Math.floor(maxWidth / dimStep) * dimStep;
@@ -372,17 +389,15 @@ async function main() {
   // Interactive mode: select model first to know if we need a reference image
   let modelConfig;
   if (OPTIONS.interactive && !OPTIONS.modelKey) {
-    const selection = await selectModel(MODELS.animate, 'ltx2-v2v-distilled');
+    const selection = await selectModel(MODELS.animate, 'ltx23-v2v-distilled');
     OPTIONS.modelKey = selection.key;
     modelConfig = selection.config;
   } else {
-    OPTIONS.modelKey = OPTIONS.modelKey || 'ltx2-v2v-distilled';
+    OPTIONS.modelKey = OPTIONS.modelKey || 'ltx23-v2v-distilled';
     modelConfig = MODELS.animate[OPTIONS.modelKey];
     if (!modelConfig) {
       const availableModels = Object.keys(MODELS.animate).join(', ');
-      console.error(
-        `Error: Unknown model '${OPTIONS.modelKey}'. Available: ${availableModels}`
-      );
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: ${availableModels}`);
       process.exit(1);
     }
   }
@@ -390,7 +405,7 @@ async function main() {
   log('🎬', `Selected model: ${modelConfig.name}`);
   log('🎬', `Workflow type: ${modelConfig.workflowType}`);
 
-  // LTX-2 V2V: Select control type FIRST (before determining image requirement)
+  // LTX-2.3 V2V: Select control type FIRST (before determining image requirement)
   if (modelConfig.supportsControlNet) {
     if (OPTIONS.interactive && !OPTIONS.controlNetType) {
       await promptControlNetType(OPTIONS, modelConfig);
@@ -400,7 +415,9 @@ async function main() {
 
     // Validate control type
     if (!modelConfig.controlNetTypes.includes(OPTIONS.controlNetType)) {
-      console.error(`Error: Invalid control type '${OPTIONS.controlNetType}'. Use one of: ${modelConfig.controlNetTypes.join(', ')}`);
+      console.error(
+        `Error: Invalid control type '${OPTIONS.controlNetType}'. Use one of: ${modelConfig.controlNetTypes.join(', ')}`
+      );
       process.exit(1);
     }
 
@@ -409,11 +426,11 @@ async function main() {
 
   // Determine if this model requires a reference image
   // WAN animate models always require a reference image
-  // LTX-2 V2V control types (canny, depth, detailer, pose) - image is optional for pose
+  // LTX-2.3 V2V control types (canny, depth, pose) - image is optional for pose
   let requiresImage = modelConfig.requiresReferenceImage !== false;
   let imageOptional = false;
 
-  // For LTX-2 V2V with pose control, reference image is optional
+  // For LTX-2.3 V2V with pose control, reference image is optional
   // If provided: appearance comes from reference image
   // If not provided: generates from prompt with only pose control
   if (modelConfig.supportsControlNet && OPTIONS.controlNetType === 'pose') {
@@ -428,7 +445,9 @@ async function main() {
       OPTIONS.image = await pickImageFile(null, 'reference image (appearance)');
     }
   } else if (imageOptional && OPTIONS.interactive && !OPTIONS.image) {
-    const useImage = await askQuestion('Would you like to provide a reference image for appearance? [y/N]: ');
+    const useImage = await askQuestion(
+      'Would you like to provide a reference image for appearance? [y/N]: '
+    );
     if (useImage.toLowerCase() === 'y' || useImage.toLowerCase() === 'yes') {
       OPTIONS.image = await pickImageFile(null, 'reference image (optional - for appearance)');
     }
@@ -442,7 +461,9 @@ async function main() {
   // Validate required inputs
   if (requiresImage) {
     if (!OPTIONS.image) {
-      console.error('Error: Reference image is required for this model/control type (use --image option)');
+      console.error(
+        'Error: Reference image is required for this model/control type (use --image option)'
+      );
       process.exit(1);
     }
     if (!fs.existsSync(OPTIONS.image)) {
@@ -464,7 +485,10 @@ async function main() {
   }
 
   // Get image dimensions if we have a reference image
-  let imageInfo = { width: modelConfig.defaultWidth || 832, height: modelConfig.defaultHeight || 480 };
+  let imageInfo = {
+    width: modelConfig.defaultWidth || 832,
+    height: modelConfig.defaultHeight || 480
+  };
   if (requiresImage && OPTIONS.image) {
     try {
       const dimensions = imageSize(OPTIONS.image);
@@ -477,7 +501,7 @@ async function main() {
     }
   }
 
-  // For LTX-2 V2V, auto-detect source video duration, dimensions, and FPS
+  // For LTX-2.3 V2V, auto-detect source video duration, dimensions, and FPS
   let sourceVideoDuration = null;
   let sourceVideoDimensions = null;
   let sourceVideoFps = null;
@@ -492,14 +516,20 @@ async function main() {
       log('🎬', `Source video duration: ${sourceVideoDuration.toFixed(1)}s`);
     }
     if (sourceVideoDimensions !== null) {
-      log('📐', `Source video dimensions: ${sourceVideoDimensions.width}x${sourceVideoDimensions.height}`);
+      log(
+        '📐',
+        `Source video dimensions: ${sourceVideoDimensions.width}x${sourceVideoDimensions.height}`
+      );
     }
     if (sourceVideoFps !== null) {
       log('🎞️', `Source video FPS: ${sourceVideoFps}`);
       // Use source FPS (rounded to nearest supported rate) as suggested default
       if (modelConfig.minFps !== undefined && modelConfig.maxFps !== undefined) {
         // Clamp to model's FPS range
-        const clampedFps = Math.max(modelConfig.minFps, Math.min(modelConfig.maxFps, sourceVideoFps));
+        const clampedFps = Math.max(
+          modelConfig.minFps,
+          Math.min(modelConfig.maxFps, sourceVideoFps)
+        );
         modelConfig.defaultFps = clampedFps;
       } else if (modelConfig.allowedFps) {
         if (modelConfig.allowedFps.includes(sourceVideoFps)) {
@@ -528,7 +558,7 @@ async function main() {
     modelConfig.defaultHeight = imageInfo.height;
   }
 
-  // For LTX-2 V2V, calculate recommended dimensions from source video
+  // For LTX-2.3 V2V, calculate recommended dimensions from source video
   // Scale proportionally to maintain aspect ratio, then align to step size
   let recommendedWidth = modelConfig.defaultWidth;
   let recommendedHeight = modelConfig.defaultHeight;
@@ -542,16 +572,27 @@ async function main() {
     };
 
     ({ width: recommendedWidth, height: recommendedHeight } = fitDimensions(
-      sourceVideoDimensions.width, sourceVideoDimensions.height, dimConstraints
+      sourceVideoDimensions.width,
+      sourceVideoDimensions.height,
+      dimConstraints
     ));
 
     // Log the recommendation
     const sourceRatio = (sourceVideoDimensions.width / sourceVideoDimensions.height).toFixed(2);
     const targetRatio = (recommendedWidth / recommendedHeight).toFixed(2);
-    if (sourceVideoDimensions.width < dimConstraints.minWidth || sourceVideoDimensions.height < dimConstraints.minHeight) {
-      log('📐', `Recommended: ${recommendedWidth}x${recommendedHeight} (scaled from ${sourceVideoDimensions.width}x${sourceVideoDimensions.height}, ratio ${sourceRatio}→${targetRatio})`);
+    if (
+      sourceVideoDimensions.width < dimConstraints.minWidth ||
+      sourceVideoDimensions.height < dimConstraints.minHeight
+    ) {
+      log(
+        '📐',
+        `Recommended: ${recommendedWidth}x${recommendedHeight} (scaled from ${sourceVideoDimensions.width}x${sourceVideoDimensions.height}, ratio ${sourceRatio}→${targetRatio})`
+      );
     } else {
-      log('📐', `Recommended: ${recommendedWidth}x${recommendedHeight} (ratio ${sourceRatio}→${targetRatio})`);
+      log(
+        '📐',
+        `Recommended: ${recommendedWidth}x${recommendedHeight} (ratio ${sourceRatio}→${targetRatio})`
+      );
     }
 
     // Update model defaults for prompts
@@ -572,11 +613,14 @@ async function main() {
     });
 
     // Prompt for FPS if model has range-based or allowed FPS options
-    if ((modelConfig.minFps !== undefined && modelConfig.maxFps !== undefined) || modelConfig.allowedFps) {
+    if (
+      (modelConfig.minFps !== undefined && modelConfig.maxFps !== undefined) ||
+      modelConfig.allowedFps
+    ) {
       await promptVideoFps(OPTIONS, modelConfig);
     }
 
-    // Video duration - for LTX-2 V2V, auto-set from source video if detected
+    // Video duration - for LTX-2.3 V2V, auto-set from source video if detected
     if (modelConfig.supportsControlNet && sourceVideoDuration !== null) {
       // Auto-calculate frames from source video duration
       const fps = OPTIONS.fps || modelConfig.defaultFps || 25;
@@ -596,16 +640,25 @@ async function main() {
       targetFrames = Math.min(maxFrames, targetFrames);
 
       if (targetFrames < minFrames) {
-        log('⚠️', `Source video (${sourceVideoDuration.toFixed(1)}s, ${sourceFrames} frames) is shorter than model minimum (${minFrames} frames)`);
+        log(
+          '⚠️',
+          `Source video (${sourceVideoDuration.toFixed(1)}s, ${sourceFrames} frames) is shorter than model minimum (${minFrames} frames)`
+        );
         log('⚠️', `Using ${targetFrames} frames - output may have artifacts`);
       }
 
       OPTIONS.frames = targetFrames;
       const actualDuration = (targetFrames - 1) / fps;
-      log('🎬', `Using source video length: ${actualDuration.toFixed(1)}s (${targetFrames} frames)`);
+      log(
+        '🎬',
+        `Using source video length: ${actualDuration.toFixed(1)}s (${targetFrames} frames)`
+      );
 
       if (sourceVideoDuration > actualDuration + 0.5) {
-        log('⚠️', `Note: Source video (${sourceVideoDuration.toFixed(1)}s) exceeds model max, will be trimmed`);
+        log(
+          '⚠️',
+          `Note: Source video (${sourceVideoDuration.toFixed(1)}s) exceeds model max, will be trimmed`
+        );
       }
     } else {
       // WAN animate or ffprobe not available - prompt for duration
@@ -622,10 +675,12 @@ async function main() {
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: true });
 
-      // LTX-2 V2V: Control injection strength
+      // LTX-2.3 V2V: Control injection strength
       if (modelConfig.supportsControlNet && modelConfig.defaultStrength !== undefined) {
         console.log('\n🎚️  Control Strength (how closely to follow the control signal)\n');
-        const strengthInput = await askQuestion(`  Strength (${modelConfig.minStrength}-${modelConfig.maxStrength}, default: ${modelConfig.defaultStrength}): `);
+        const strengthInput = await askQuestion(
+          `  Strength (${modelConfig.minStrength}-${modelConfig.maxStrength}, default: ${modelConfig.defaultStrength}): `
+        );
         if (strengthInput.trim()) {
           const s = parseFloat(strengthInput.trim());
           if (!isNaN(s) && s >= modelConfig.minStrength && s <= modelConfig.maxStrength) {
@@ -634,7 +689,7 @@ async function main() {
         }
       }
 
-      // LTX-2 V2V: Detailer LoRA strength
+      // LTX-2.3 V2V: Detailer LoRA strength
       if (modelConfig.supportsControlNet && OPTIONS.controlNetType !== 'detailer') {
         console.log('\n🔍 Detailer LoRA Strength (enhances fine detail quality)\n');
         const detailerInput = await askQuestion('  Detailer strength (0.0-1.0, default: 0.6): ');
@@ -657,6 +712,11 @@ async function main() {
       }
     }
 
+    // ID-LoRA speaker identity (LTX-2.3 v2v only)
+    if (modelConfig.supportsControlNet) {
+      await promptIdentityAudio(OPTIONS, modelConfig);
+    }
+
     console.log('\n✅ Configuration complete!\n');
   }
 
@@ -671,8 +731,11 @@ async function main() {
     OPTIONS.guidance = modelConfig.defaultGuidance;
   }
   if (!OPTIONS.steps) OPTIONS.steps = modelConfig.defaultSteps;
-  // LTX-2 V2V: strength (control injection strength)
-  if (modelConfig.defaultStrength !== undefined && (OPTIONS.strength === undefined || OPTIONS.strength === null)) {
+  // LTX-2.3 V2V: strength (control injection strength)
+  if (
+    modelConfig.defaultStrength !== undefined &&
+    (OPTIONS.strength === undefined || OPTIONS.strength === null)
+  ) {
     OPTIONS.strength = modelConfig.defaultStrength;
   }
 
@@ -709,14 +772,15 @@ async function main() {
     maxHeight: modelConfig.maxHeight || VIDEO_CONSTRAINTS.height.max || 3840
   };
 
-  // For LTX-2 V2V, use recommended dimensions (from source video); otherwise use image dimensions
+  // For LTX-2.3 V2V, use recommended dimensions (from source video); otherwise use image dimensions
   const fallbackWidth = modelConfig.supportsControlNet ? recommendedWidth : imageInfo.width;
   const fallbackHeight = modelConfig.supportsControlNet ? recommendedHeight : imageInfo.height;
 
   // Determine the source aspect ratio for proportional scaling
-  const sourceAspectRatio = modelConfig.supportsControlNet && sourceVideoDimensions
-    ? sourceVideoDimensions.width / sourceVideoDimensions.height
-    : fallbackWidth / fallbackHeight;
+  const sourceAspectRatio =
+    modelConfig.supportsControlNet && sourceVideoDimensions
+      ? sourceVideoDimensions.width / sourceVideoDimensions.height
+      : fallbackWidth / fallbackHeight;
 
   let width, height;
 
@@ -747,17 +811,20 @@ async function main() {
   OPTIONS.width = width;
   OPTIONS.height = height;
 
-  // For LTX-2 V2V, warn if output is larger than source (upscaling will occur)
+  // For LTX-2.3 V2V, warn if output is larger than source (upscaling will occur)
   if (modelConfig.supportsControlNet && sourceVideoDimensions) {
     if (width > sourceVideoDimensions.width || height > sourceVideoDimensions.height) {
-      log('📐', `Output ${width}x${height} > source ${sourceVideoDimensions.width}x${sourceVideoDimensions.height} (will scale to fit)`);
+      log(
+        '📐',
+        `Output ${width}x${height} > source ${sourceVideoDimensions.width}x${sourceVideoDimensions.height} (will scale to fit)`
+      );
     }
   }
 
   // Calculate frames from duration if not explicitly set
-  // Uses model-aware calculation: WAN = 16fps internal, LTX-2 = actual fps
+  // Uses model-aware calculation: WAN = 16fps internal, LTX-2.3 = actual fps
   if (!OPTIONS.frames) {
-    // For LTX-2 V2V non-interactive, try to auto-detect from source video
+    // For LTX-2.3 V2V non-interactive, try to auto-detect from source video
     let duration = OPTIONS.duration;
     if (!duration && modelConfig.supportsControlNet && sourceVideoDuration !== null) {
       duration = sourceVideoDuration;
@@ -773,7 +840,7 @@ async function main() {
 
   // Validate FPS - use model-specific range or allowed values
   if (modelConfig.minFps !== undefined && modelConfig.maxFps !== undefined) {
-    // Range-based FPS (LTX-2)
+    // Range-based FPS (LTX-2.3)
     if (OPTIONS.fps < modelConfig.minFps || OPTIONS.fps > modelConfig.maxFps) {
       console.error(`Error: FPS must be between ${modelConfig.minFps} and ${modelConfig.maxFps}`);
       process.exit(1);
@@ -899,7 +966,7 @@ async function main() {
       Workflow: modelConfig.workflowType
     };
 
-    // LTX-2 V2V: show control type
+    // LTX-2.3 V2V: show control type
     if (modelConfig.supportsControlNet && OPTIONS.controlNetType) {
       configDisplay['Control Type'] = CONTROL_NET_TYPES[OPTIONS.controlNetType].name;
     }
@@ -918,7 +985,7 @@ async function main() {
     configDisplay['Batch'] = OPTIONS.batch;
     configDisplay['Guidance'] = OPTIONS.guidance;
 
-    // WAN models use shift, LTX-2 V2V uses strength
+    // WAN models use shift, LTX-2.3 V2V uses strength
     if (OPTIONS.shift !== undefined && OPTIONS.shift !== null) {
       configDisplay['Shift'] = OPTIONS.shift;
     }
@@ -935,6 +1002,12 @@ async function main() {
     configDisplay['Comfy Sampler'] = OPTIONS.sampler;
     configDisplay['Comfy Scheduler'] = OPTIONS.scheduler;
     configDisplay['Safety'] = OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled';
+    if (OPTIONS.identityAudio) {
+      configDisplay['Identity Audio'] = OPTIONS.identityAudio;
+      if (OPTIONS.audioIdentityStrength !== null && OPTIONS.audioIdentityStrength !== undefined) {
+        configDisplay['Identity Strength'] = OPTIONS.audioIdentityStrength;
+      }
+    }
 
     if (modelConfig.supportsSam2Coordinates && OPTIONS.sam2Coordinates) {
       const coords = JSON.parse(OPTIONS.sam2Coordinates);
@@ -976,7 +1049,8 @@ async function main() {
       console.log(`   ${tokenLabel}: ${totalCost.toFixed(2)}`);
     }
     if (balance) {
-      const currentBalance = parseFloat(tokenType === 'spark' ? balance.spark.net : balance.sogni.net) || 0;
+      const currentBalance =
+        parseFloat(tokenType === 'spark' ? balance.spark.net : balance.sogni.net) || 0;
       console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} ${tokenLabel}`);
     }
     console.log(`   USD: $${parseFloat(estimate.usd || 0).toFixed(4)}`);
@@ -1014,6 +1088,8 @@ async function main() {
     log('📤', 'Submitting video-to-video job...');
     if (modelConfig.supportsControlNet) {
       log('🎬', `Generating ${OPTIONS.controlNetType}-controlled video...`);
+    } else if (modelConfig.isExternalAPI) {
+      log('🎬', 'Generating external API video-to-video result...');
     } else {
       log('🎬', 'Generating animated video...');
     }
@@ -1054,12 +1130,12 @@ async function main() {
     // Video models only support ComfyUI sampler/scheduler
     if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
     if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
-
-    // LTX-2 V2V: add controlNet params
+    // LTX-2.3 V2V: add controlNet params
     if (modelConfig.supportsControlNet && OPTIONS.controlNetType) {
       projectParams.controlNet = {
         name: OPTIONS.controlNetType,
-        ...(OPTIONS.strength !== undefined && OPTIONS.strength !== null && { strength: OPTIONS.strength })
+        ...(OPTIONS.strength !== undefined &&
+          OPTIONS.strength !== null && { strength: OPTIONS.strength })
       };
       // Detailer LoRA strength (always loaded alongside control LoRA)
       if (OPTIONS.detailerStrength !== undefined && OPTIONS.detailerStrength !== null) {
@@ -1088,6 +1164,15 @@ async function main() {
     // Add video start offset for trimming
     if (OPTIONS.videoStart !== undefined && OPTIONS.videoStart !== null && OPTIONS.videoStart > 0) {
       projectParams.videoStart = OPTIONS.videoStart;
+    }
+
+    // ID-LoRA speaker identity audio
+    if (OPTIONS.identityAudio) {
+      const identityAudioBuffer = readFileAsBuffer(OPTIONS.identityAudio);
+      projectParams.referenceAudioIdentity = identityAudioBuffer;
+      if (OPTIONS.audioIdentityStrength !== null && OPTIONS.audioIdentityStrength !== undefined) {
+        projectParams.audioIdentityStrength = OPTIONS.audioIdentityStrength;
+      }
     }
 
     project = await sogni.projects.create(projectParams);
@@ -1161,13 +1246,13 @@ async function main() {
 
       switch (event.type) {
         case 'queued': {
-                    const queuedLabel = getJobLabel(event, jobId);
+          const queuedLabel = getJobLabel(event, jobId);
           log('📋', `${queuedLabel}Job queued at position: ${event.queuePosition}`);
           break;
         }
 
         case 'initiating': {
-                    // Pre-create job state with jobIndex if provided
+          // Pre-create job state with jobIndex if provided
           if (!jobStates.has(jobId) && event.jobIndex !== undefined) {
             jobStates.set(jobId, {
               startTime: null,
@@ -1187,7 +1272,7 @@ async function main() {
         }
 
         case 'started': {
-                    // Initialize or update state for this job
+          // Initialize or update state for this job
           let jobState = jobStates.get(jobId);
           if (!jobState) {
             jobState = {
@@ -1239,7 +1324,7 @@ async function main() {
         }
 
         case 'jobETA': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state) {
             state.lastETA = event.etaSeconds;
             state.lastETAUpdate = Date.now();
@@ -1248,7 +1333,7 @@ async function main() {
         }
 
         case 'progress': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state && event.step !== undefined && event.stepCount !== undefined) {
             state.lastStep = event.step;
             state.lastStepCount = event.stepCount;
@@ -1257,14 +1342,16 @@ async function main() {
         }
 
         case 'completed': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           const completedLabel = getJobLabel(event, jobId);
 
           // Show final progress before clearing (fixes "Step 6/8" never reaching 8/8)
           if (state && state.lastStepCount !== undefined) {
             clearProgressLine();
             const finalSteps = event.performedStepCount || state.lastStepCount;
-            process.stdout.write(`\r  ${completedLabel}Step ${finalSteps}/${finalSteps} (100%)   \n`);
+            process.stdout.write(
+              `\r  ${completedLabel}Step ${finalSteps}/${finalSteps} (100%)   \n`
+            );
           }
 
           stopJobProgress(jobId);
@@ -1279,7 +1366,10 @@ async function main() {
 
           if (!event.resultUrl || event.error) {
             failedVideos++;
-            log('❌', `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`);
+            log(
+              '❌',
+              `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`
+            );
             jobStates.delete(jobId);
             checkWorkflowCompletion();
           } else {
@@ -1294,12 +1384,13 @@ async function main() {
             const jobElapsed = jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?';
 
             // Use actual seed from job completion event (server generates unique seeds for batch items)
-            const jobSeed = event.seed ?? (OPTIONS.seed + (state?.jobIndex || 0));
+            const jobSeed = event.seed ?? OPTIONS.seed + (state?.jobIndex || 0);
 
-            // Include control type in filename for LTX-2 v2v
-            const modelIdForFilename = modelConfig.supportsControlNet && OPTIONS.controlNetType
-              ? `${modelConfig.id}-${OPTIONS.controlNetType}`
-              : modelConfig.id;
+            // Include control type in filename for LTX-2.3 v2v
+            const modelIdForFilename =
+              modelConfig.supportsControlNet && OPTIONS.controlNetType
+                ? `${modelConfig.id}-${OPTIONS.controlNetType}`
+                : modelConfig.id;
 
             const desiredPath = generateVideoFilename({
               modelId: modelIdForFilename,
@@ -1335,9 +1426,8 @@ async function main() {
 
         case 'error':
         case 'failed': {
-                    const errorLabel = getJobLabel(event, jobId);
+          const errorLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
-          projectFailed = true;
           failedVideos++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
             displaySafeContentFilterMessage();
@@ -1394,12 +1484,9 @@ async function main() {
       checkCompletion();
     });
 
-    if (projectFailed || failedVideos > 0) {
-      const failureCount = projectFailed ? totalVideos : failedVideos;
-      log('❌', `Workflow failed with ${failureCount} failed video${failureCount > 1 ? 's' : ''}`);
+    // If checkWorkflowCompletion didn't already exit (e.g. project-level error before all jobs reported)
+    if (projectFailed) {
       process.exit(1);
-    } else {
-      log('✅', 'Workflow completed successfully!');
     }
   } catch (error) {
     log('❌', `Error: ${error.message}`);

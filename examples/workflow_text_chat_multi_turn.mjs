@@ -15,15 +15,16 @@
  *
  * Usage:
  *   node workflow_text_chat_multi_turn.mjs
- *   node workflow_text_chat_multi_turn.mjs --model qwen3.5-35b-a3b-gguf-q4km
+ *   node workflow_text_chat_multi_turn.mjs --model qwen3.6-35b-a3b-gguf-iq4xs
  *   node workflow_text_chat_multi_turn.mjs --system "You are a pirate. Respond in pirate speak."
  *   node workflow_text_chat_multi_turn.mjs --max-tokens 4096 --temperature 0.9
  *
  * Options:
- *   --model         LLM model ID (default: qwen3.5-35b-a3b-gguf-q4km)
+ *   --model         LLM model ID (default: qwen3.6-35b-a3b-gguf-iq4xs)
  *   --max-tokens    Maximum tokens per response (default: from model, or 8192)
- *   --temperature   Sampling temperature 0-2 (default: 0.7)
- *   --top-p         Top-p sampling 0-1 (default: 0.9)
+ *   --temperature   Sampling temperature 0-2 (default: from model, or 0.7)
+ *   --top-p         Top-p sampling 0-1 (default: from model, or 0.9)
+ *   --top-k         Top-k sampling (default: from model, if available)
  *   --system        System prompt (default: "You are a helpful assistant.")
  *   --think         Enable model thinking/reasoning (shows <think> blocks)
  *   --no-think      Disable model thinking (default)
@@ -43,7 +44,7 @@ import { SogniClient } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 import * as readline from 'node:readline';
 
-const DEFAULT_MODEL = 'qwen3.5-35b-a3b-gguf-q4km';
+const DEFAULT_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_SYSTEM = 'You are a helpful assistant.';
 
 function parseArgs() {
@@ -51,8 +52,9 @@ function parseArgs() {
   const options = {
     model: DEFAULT_MODEL,
     maxTokens: null,
-    temperature: 0.7,
-    topP: 0.9,
+    temperature: null,
+    topP: null,
+    topK: null,
     system: DEFAULT_SYSTEM,
     think: false,
     thinkExplicit: false,
@@ -72,6 +74,8 @@ function parseArgs() {
       options.temperature = parseFloat(args[++i]);
     } else if (arg === '--top-p' && args[i + 1]) {
       options.topP = parseFloat(args[++i]);
+    } else if (arg === '--top-k' && args[i + 1]) {
+      options.topK = parseInt(args[++i], 10);
     } else if (arg === '--system' && args[i + 1]) {
       options.system = args[++i];
     } else if (arg === '--think') {
@@ -104,8 +108,9 @@ Usage:
 Options:
   --model         LLM model ID (default: ${DEFAULT_MODEL})
   --max-tokens    Maximum tokens per response (default: from model, or 8192)
-  --temperature   Sampling temperature 0-2 (default: 0.7)
-  --top-p         Top-p sampling 0-1 (default: 0.9)
+  --temperature   Sampling temperature 0-2 (default: from model, or 0.7)
+  --top-p         Top-p sampling 0-1 (default: from model, or 0.9)
+  --top-k         Top-k sampling (default: from model, if available)
   --system        System prompt (default: "${DEFAULT_SYSTEM}")
   --think         Enable model thinking/reasoning (shows <think> blocks)
   --no-think      Disable model thinking (default)
@@ -268,6 +273,12 @@ async function main() {
     || (think ? modelInfo?.maxOutputTokens?.max : undefined)
     || modelInfo?.maxOutputTokens?.default
     || 8192;
+
+  // Resolve sampling parameters: CLI override > server defaults for thinking mode > hardcoded fallback
+  const samplingDefaults = think ? modelInfo?.defaultsThinking : modelInfo?.defaultsNonThinking;
+  options.temperature = options.temperature ?? samplingDefaults?.temperature ?? 0.7;
+  options.topP = options.topP ?? samplingDefaults?.top_p ?? 0.9;
+  options.topK = options.topK ?? samplingDefaults?.top_k;
 
   // Load token type preference
   const tokenType = loadTokenTypePreference() || 'sogni';
@@ -452,9 +463,11 @@ async function main() {
         max_tokens: options.maxTokens,
         temperature: options.temperature,
         top_p: options.topP,
+        ...(options.topK != null && { top_k: options.topK }),
         stream: true,
         tokenType,
         think,
+        taskProfile: 'general',
       });
 
       let responseContent = '';

@@ -24,10 +24,11 @@
  *   node workflow_text_chat_tool_calling.mjs "What's 15% of 249.99?"
  *
  * Options:
- *   --model         LLM model ID (default: qwen3.5-35b-a3b-gguf-q4km)
+ *   --model         LLM model ID (default: qwen3.6-35b-a3b-gguf-iq4xs)
  *   --max-tokens    Maximum tokens to generate (default: from model, or 8192)
- *   --temperature   Sampling temperature 0-2 (default: 0.7)
- *   --top-p         Top-p sampling 0-1 (default: 0.9)
+ *   --temperature   Sampling temperature 0-2 (default: from model, or 0.7)
+ *   --top-p         Top-p sampling 0-1 (default: from model, or 0.9)
+ *   --top-k         Top-k sampling (default: from model, if available)
  *   --system        System prompt override
  *   --think         Enable model thinking/reasoning (shows <think> blocks)
  *   --no-think      Disable model thinking (default)
@@ -38,7 +39,7 @@
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 
-const DEFAULT_MODEL = 'qwen3.5-35b-a3b-gguf-q4km';
+const DEFAULT_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_SYSTEM = `You are a helpful assistant with access to tools. Use tools when they would help answer the user's question accurately. You can check weather, get the current time, convert units, and do math. Always respond naturally after receiving tool results.`;
 
 // ============================================================
@@ -51,8 +52,9 @@ function parseArgs() {
     prompt: null,
     model: DEFAULT_MODEL,
     maxTokens: null,
-    temperature: 0.7,
-    topP: 0.9,
+    temperature: null,
+    topP: null,
+    topK: null,
     system: DEFAULT_SYSTEM,
     think: false,
     thinkExplicit: false,
@@ -72,6 +74,8 @@ function parseArgs() {
       options.temperature = parseFloat(args[++i]);
     } else if (arg === '--top-p' && args[i + 1]) {
       options.topP = parseFloat(args[++i]);
+    } else if (arg === '--top-k' && args[i + 1]) {
+      options.topK = parseInt(args[++i], 10);
     } else if (arg === '--system' && args[i + 1]) {
       options.system = args[++i];
     } else if (arg === '--think') {
@@ -116,8 +120,9 @@ Tools:
 Options:
   --model         LLM model ID (default: ${DEFAULT_MODEL})
   --max-tokens    Maximum tokens to generate (default: from model, or 8192)
-  --temperature   Sampling temperature 0-2 (default: 0.7)
-  --top-p         Top-p sampling 0-1 (default: 0.9)
+  --temperature   Sampling temperature 0-2 (default: from model, or 0.7)
+  --top-p         Top-p sampling 0-1 (default: from model, or 0.9)
+  --top-k         Top-k sampling (default: from model, if available)
   --system        System prompt override
   --think         Enable model thinking/reasoning (shows <think> blocks)
   --no-think      Disable model thinking (default)
@@ -813,6 +818,12 @@ async function main() {
     || modelInfo?.maxOutputTokens?.default
     || 8192;
 
+  // Resolve sampling parameters: CLI override > server defaults for thinking mode > hardcoded fallback
+  const samplingDefaults = options.think ? modelInfo?.defaultsThinking : modelInfo?.defaultsNonThinking;
+  options.temperature = options.temperature ?? samplingDefaults?.temperature ?? 0.7;
+  options.topP = options.topP ?? samplingDefaults?.top_p ?? 0.9;
+  options.topK = options.topK ?? samplingDefaults?.top_k;
+
   // Load token type preference
   const tokenType = loadTokenTypePreference() || 'sogni';
   const tokenLabel = tokenType === 'spark' ? 'SPARK' : 'SOGNI';
@@ -896,9 +907,11 @@ async function main() {
         max_tokens: options.maxTokens,
         temperature: options.temperature,
         top_p: options.topP,
+        ...(options.topK != null && { top_k: options.topK }),
         stream: true,
         tokenType,
         think: options.think,
+        taskProfile: 'reasoning',
       });
 
       // Stream the response

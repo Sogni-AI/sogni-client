@@ -11,6 +11,11 @@ export interface AccountCreateParams {
   subscribe: boolean;
   turnstileToken: string;
   referralCode?: string;
+  /**
+   * Optional client app/source label for signup attribution. Defaults to the
+   * SogniClient connection appSource when configured.
+   */
+  appSource?: string;
 }
 
 export interface AccountCreateData {
@@ -126,6 +131,7 @@ export interface RewardRaw {
   tokenType: TokenType;
   claimed: number;
   canClaim: number;
+  cantClaimReason?: 'already_claimed' | 'over_free_cap' | null;
   lastClaimTimestamp: number;
   claimResetFrequencySec: number;
 }
@@ -143,6 +149,7 @@ export interface Reward {
   tokenType: TokenType;
   claimed: boolean;
   canClaim: boolean;
+  cantClaimReason?: 'already_claimed' | 'over_free_cap' | null;
   lastClaim: Date;
   nextClaim: Date | null;
   provider?: string;

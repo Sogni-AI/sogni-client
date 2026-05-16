@@ -17,7 +17,12 @@ export function getEnhacementStrength(strength: EnhancementStrength): number {
  * Video models produce MP4 output; image models produce PNG/JPG output.
  */
 export function isVideoModel(modelId: string): boolean {
-  return modelId.startsWith('wan_') || modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
+  return (
+    modelId.startsWith('wan_') ||
+    modelId.startsWith('ltx2-') ||
+    modelId.startsWith('ltx23-') ||
+    modelId.startsWith('seedance-2-0')
+  );
 }
 
 /**
@@ -43,21 +48,42 @@ export function isWanModel(modelId: string): boolean {
 }
 
 /**
- * Check if a model ID is an LTX-2 video model.
+ * Check if a model ID is a WAN animate model (animate-move or animate-replace).
+ * These models support up to 321 frames (20s at 16fps).
+ */
+export function isWanAnimateModel(modelId: string): boolean {
+  return modelId.includes('_animate-move') || modelId.includes('_animate-replace');
+}
+
+/**
+ * Check if a model ID is an LTX-2/LTX-2.3 video model.
  *
- * LTX-2 models generate video at the actual specified FPS (1-60 fps range).
+ * LTX-2.3 models generate video at the actual specified FPS (1-60 fps range).
  * There is no post-render interpolation - fps directly affects generation.
  *
  * Frame count should be calculated as: duration * fps + 1
- * Additionally, LTX-2 has a frame step constraint where frames must follow
+ * Additionally, LTX-2.3 has a frame step constraint where frames must follow
  * the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, 41, ...)
+ *
+ * Note: `ltx2-` prefix is kept for backwards compatibility (server translates
+ * ltx2- model IDs to ltx23- equivalents).
  */
 export function isLtx2Model(modelId: string): boolean {
   return modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
 }
 
 /**
- * LTX-2 frame step constraint.
+ * Check if a model ID is a Seedance 2.0 video model.
+ *
+ * Seedance models are external API-backed video models. They generate at
+ * 24fps and support 4-15 second direct SDK project durations.
+ */
+export function isSeedanceModel(modelId: string): boolean {
+  return modelId.startsWith('seedance-2-0');
+}
+
+/**
+ * LTX-2.3 frame step constraint.
  * Valid frame counts follow the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, ...)
  */
 export const LTX2_FRAME_STEP = 8;
@@ -65,10 +91,10 @@ export const LTX2_FRAME_STEP = 8;
 /**
  * Calculate the frame count for a given duration and fps based on the video model.
  *
- * ## Standard Behavior (LTX-2 and future models)
+ * ## Standard Behavior (LTX-2.3, Seedance, and future models)
  * - Generate at the actual specified FPS (no interpolation)
  * - Formula: duration * fps + 1
- * - LTX-2 specific: Frame count must follow the pattern: 1 + n*8
+ * - LTX-2.3 specific: Frame count must follow the pattern: 1 + n*8
  *
  * ## Legacy Behavior (WAN 2.2 only)
  * - Always generate at 16fps internally, regardless of the fps parameter
@@ -96,11 +122,11 @@ export function calculateVideoFrames(
     // This is legacy behavior specific to WAN models
     frames = Math.round(duration * 16) + 1;
   } else {
-    // LTX-2 and future models: Generate at actual fps
+    // LTX-2.3 and future models: Generate at actual fps
     // This is the standard behavior going forward
     frames = Math.round(duration * fps) + 1;
 
-    // LTX-2 specific: snap to frame step constraint (1 + n*8)
+    // LTX-2.3 specific: snap to frame step constraint (1 + n*8)
     if (isLtx2Model(modelId)) {
       const n = Math.round((frames - 1) / LTX2_FRAME_STEP);
       frames = n * LTX2_FRAME_STEP + 1;
@@ -128,21 +154,22 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   // Check for supported video model prefixes
   const isWan = modelId.startsWith('wan_');
   const isLtx2 = modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
+  const isSeedance = modelId.startsWith('seedance-2-0');
 
-  if (!isWan && !isLtx2) return null;
+  if (!isWan && !isLtx2 && !isSeedance) return null;
 
-  // WAN and LTX-2 models share similar workflow type suffixes
+  // WAN, LTX-2.3, and Seedance models share similar workflow type suffixes
   if (modelId.includes('_i2v')) return 'i2v';
   if (modelId.includes('_t2v')) return 't2v';
 
-  // LTX-2 v2v ControlNet workflows (model IDs use underscore: ltx2-19b-fp8_v2v_distilled)
-  if (isLtx2 && modelId.includes('_v2v')) return 'v2v';
+  // LTX-2.3 v2v ControlNet and Seedance v2v workflows
+  if ((isLtx2 || isSeedance) && modelId.includes('_v2v')) return 'v2v';
 
-  // LTX-2 audio-to-video workflows
+  // LTX-2.3 and Seedance image+audio workflows
   // ia2v = image+audio to video (requires referenceImage + referenceAudio)
   // a2v = audio to video (requires referenceAudio only)
   // Note: Check _ia2v before _a2v since _ia2v contains _a2v as a substring
-  if (isLtx2 && modelId.includes('_ia2v')) return 'ia2v';
+  if ((isLtx2 || isSeedance) && modelId.includes('_ia2v')) return 'ia2v';
   if (isLtx2 && modelId.includes('_a2v')) return 'a2v';
 
   // WAN-specific workflow types
@@ -169,48 +196,56 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceImage: 'forbidden',
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'optional',
     referenceVideo: 'forbidden'
   },
   i2v: {
     referenceImage: 'optional',
     referenceImageEnd: 'optional',
     referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'optional',
     referenceVideo: 'forbidden'
   },
   s2v: {
     referenceImage: 'required',
-    referenceAudio: 'required',
     referenceImageEnd: 'forbidden',
+    referenceAudio: 'required',
+    referenceAudioIdentity: 'forbidden',
     referenceVideo: 'forbidden'
   },
   ia2v: {
     referenceImage: 'required',
-    referenceAudio: 'required',
     referenceImageEnd: 'forbidden',
+    referenceAudio: 'required',
+    referenceAudioIdentity: 'forbidden',
     referenceVideo: 'forbidden'
   },
   a2v: {
     referenceImage: 'forbidden',
-    referenceAudio: 'required',
     referenceImageEnd: 'forbidden',
+    referenceAudio: 'required',
+    referenceAudioIdentity: 'forbidden',
     referenceVideo: 'forbidden'
   },
   'animate-move': {
     referenceImage: 'required',
-    referenceVideo: 'required',
     referenceImageEnd: 'forbidden',
-    referenceAudio: 'forbidden'
+    referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'forbidden',
+    referenceVideo: 'required'
   },
   'animate-replace': {
     referenceImage: 'required',
-    referenceVideo: 'required',
     referenceImageEnd: 'forbidden',
-    referenceAudio: 'forbidden'
+    referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'forbidden',
+    referenceVideo: 'required'
   },
   v2v: {
     referenceImage: 'optional', // Required for pose control, optional for other control types
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'optional',
     referenceVideo: 'required'
   }
 };

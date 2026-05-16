@@ -6,6 +6,7 @@ import RestClient from '../../../lib/RestClient';
 import { SocketEventMap } from '../events';
 import { MessageType, SocketMessageMap } from '../messages';
 import ChannelCoordinator from './ChannelCoordinator';
+import type { SocketEventSubscriptionInput, SocketEventSubscriptions } from '../eventSubscriptions';
 
 interface SocketSend<T extends MessageType = MessageType> {
   type: 'socket-send';
@@ -25,7 +26,17 @@ interface SwitchNetwork {
   payload: SupernetType;
 }
 
-type Message = SocketConnect | SocketDisconnect | SocketSend | SwitchNetwork;
+interface SetSocketEventSubscriptions {
+  type: 'setSocketEventSubscriptions';
+  payload: SocketEventSubscriptionInput;
+}
+
+type Message =
+  | SocketConnect
+  | SocketDisconnect
+  | SocketSend
+  | SwitchNetwork
+  | SetSocketEventSubscriptions;
 
 interface EventNotification<T extends keyof SocketEventMap = keyof SocketEventMap> {
   type: 'socket-event';
@@ -62,7 +73,12 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   baseUrl: string;
   private socketClient: WrappedClient;
   private coordinator: ChannelCoordinator<Message, Notification>;
-  private _isConnected = false;
+  // Tracks whether the consumer (ApiClient + auth) wants the shared socket to
+  // be open. Secondary tabs don't own the WebSocket directly, so they answer
+  // `isConnected` from this flag; primaries answer from the live socket.
+  // Also used so that a tab promoted to primary on legitimate primary death
+  // actually rebinds its WebSocket (`handleRoleChange(true)`).
+  private _wantConnected = false;
   private _supernetType: SupernetType;
 
   constructor(
@@ -70,9 +86,19 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     auth: AuthManager,
     appId: string,
     supernetType: SupernetType,
-    logger: Logger
+    logger: Logger,
+    appSource?: string,
+    socketEventSubscriptions?: SocketEventSubscriptions
   ) {
-    const socketClient = new WrappedClient(baseUrl, auth, appId, supernetType, logger);
+    const socketClient = new WrappedClient(
+      baseUrl,
+      auth,
+      appId,
+      supernetType,
+      logger,
+      appSource,
+      socketEventSubscriptions
+    );
     super(socketClient.baseUrl, auth, logger);
     this.socketClient = socketClient;
     this.appId = appId;
@@ -88,10 +114,18 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     });
     this.auth.on('updated', this.handleAuthUpdated.bind(this));
     this.socketClient.intercept(this.handleSocketEvent.bind(this));
+    // Keep this tab's WrappedClient subscription state in sync with the server's authoritative
+    // snapshot, even when this tab is currently a secondary. If we get promoted to primary, the
+    // next `connect()` will serialize the up-to-date state into the URL query string.
+    this.on('socketEventSubscriptionsUpdated', (payload) => {
+      if (payload && payload.socketEventSubscriptions) {
+        this.socketClient.socketEventSubscriptions = { ...payload.socketEventSubscriptions };
+      }
+    });
   }
 
   get isConnected() {
-    return this.coordinator.isPrimary ? this.socketClient.isConnected : this._isConnected;
+    return this.coordinator.isPrimary ? this.socketClient.isConnected : this._wantConnected;
   }
 
   get supernetType() {
@@ -99,6 +133,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   async connect(): Promise<void> {
+    this._wantConnected = true;
     await this.coordinator.isReady();
     if (this.coordinator.isPrimary) {
       await this.socketClient.connect();
@@ -110,6 +145,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   async disconnect() {
+    this._wantConnected = false;
     await this.coordinator.isReady();
     if (this.coordinator.isPrimary) {
       this.socketClient.disconnect();
@@ -131,6 +167,17 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     });
     this._supernetType = supernetType;
     return supernetType;
+  }
+
+  async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
+    await this.coordinator.isReady();
+    if (this.coordinator.isPrimary) {
+      return this.socketClient.setSocketEventSubscriptions(update);
+    }
+    return this.coordinator.sendMessage({
+      type: 'setSocketEventSubscriptions',
+      payload: update
+    });
   }
 
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]): Promise<void> {
@@ -170,6 +217,10 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       }
       case 'switchNetwork': {
         await this.switchNetwork(message.payload);
+        return;
+      }
+      case 'setSocketEventSubscriptions': {
+        await this.socketClient.setSocketEventSubscriptions(message.payload);
         return;
       }
       default: {
@@ -226,7 +277,12 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   private handleRoleChange(isPrimary: boolean) {
-    if (isPrimary && !this.socketClient.isConnected && this.isConnected) {
+    // Promoted to primary (e.g. previous primary died and we won the
+    // re-election): if the consumer wants the session open, open the
+    // underlying WebSocket. Without this, the new primary stays silent until
+    // somebody calls send(), which auto-connects — but if the consumer never
+    // explicitly sends, no socket ever opens and the session goes dark.
+    if (isPrimary && !this.socketClient.isConnected && this._wantConnected) {
       this.socketClient.connect();
     } else if (!isPrimary && this.socketClient.isConnected) {
       this.socketClient.disconnect();

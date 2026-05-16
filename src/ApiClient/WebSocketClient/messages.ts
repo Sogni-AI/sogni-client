@@ -1,6 +1,7 @@
 import { JobRequestRaw } from '../../Projects/createJobRequestMessage';
 import { SupernetType } from './types';
 import { ChatRequestMessage } from '../../Chat/types';
+import type { SocketEventSubscriptionUpdate } from './eventSubscriptions';
 
 export interface JobErrorMessage {
   jobID: string;
@@ -14,6 +15,7 @@ export interface SocketMessageMap {
   jobError: JobErrorMessage;
   changeNetwork: SupernetType;
   llmJobRequest: ChatRequestMessage;
+  setSocketEventSubscriptions: SocketEventSubscriptionUpdate;
 }
 
 export type MessageType = keyof SocketMessageMap;

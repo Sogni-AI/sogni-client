@@ -28,7 +28,9 @@ import {
   isVideoModel,
   VIDEO_WORKFLOW_ASSETS,
   calculateVideoFrames,
-  isLtx2Model
+  isLtx2Model,
+  isWanAnimateModel,
+  isSeedanceModel
 } from './utils';
 import { ApiError } from '../ApiClient';
 import {
@@ -43,6 +45,19 @@ import {
  * Throws an error if required assets are missing or forbidden assets are provided.
  */
 function validateVideoWorkflowAssets(params: VideoProjectParams): void {
+  if (isSeedanceModel(params.modelId)) {
+    validateSeedanceReferenceAssets(params);
+    return;
+  }
+  if (params.referenceImageUrls || params.referenceVideoUrls || params.referenceAudioUrls) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message:
+        'referenceImageUrls, referenceVideoUrls, and referenceAudioUrls are supported only by Seedance models.'
+    });
+  }
+
   const workflowType = getVideoWorkflowType(params.modelId);
   if (!workflowType) return;
 
@@ -91,6 +106,92 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
       });
     }
   }
+}
+
+function asReferenceUrlArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+}
+
+function validateReferenceUrlArray(value: unknown, propertyName: string): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: `${propertyName} must be an array of URL strings.`
+    });
+  }
+  if (value.some((url) => typeof url !== 'string' || url.trim().length === 0)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: `${propertyName} must contain only non-empty URL strings.`
+    });
+  }
+}
+
+function validateSeedanceReferenceAssets(params: VideoProjectParams): void {
+  validateReferenceUrlArray(params.referenceImageUrls, 'referenceImageUrls');
+  validateReferenceUrlArray(params.referenceVideoUrls, 'referenceVideoUrls');
+  validateReferenceUrlArray(params.referenceAudioUrls, 'referenceAudioUrls');
+
+  const imageCount =
+    (params.referenceImage ? 1 : 0) +
+    (params.referenceImageEnd ? 1 : 0) +
+    asReferenceUrlArray(params.referenceImageUrls).length;
+  const videoCount =
+    (params.referenceVideo ? 1 : 0) + asReferenceUrlArray(params.referenceVideoUrls).length;
+  const audioCount =
+    (params.referenceAudio || params.referenceAudioIdentity ? 1 : 0) +
+    asReferenceUrlArray(params.referenceAudioUrls).length;
+  const totalAssetCount = imageCount + videoCount + audioCount;
+
+  if (imageCount > 9) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance supports at most 9 image assets.'
+    });
+  }
+  if (videoCount > 3) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance supports at most 3 video assets.'
+    });
+  }
+  if (audioCount > 3) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance supports at most 3 audio assets.'
+    });
+  }
+  if (totalAssetCount > 12) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance supports at most 12 total asset files.'
+    });
+  }
+  if (audioCount > 0 && imageCount === 0 && videoCount === 0) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance audio references require at least one image or video reference.'
+    });
+  }
+}
+
+function getMaxVideoDuration(modelId: string): number {
+  if (isSeedanceModel(modelId)) {
+    return 15;
+  }
+  if (isLtx2Model(modelId) || isWanAnimateModel(modelId)) {
+    return 20;
+  }
+  return 10;
 }
 
 // Mac worker can't process the data if some of the fields are missing, so we need to provide a default template
@@ -225,14 +326,12 @@ function applyImageParams(
 ) {
   const keyFrame: Record<string, any> = {
     ...inputKeyframe,
-    sizePreset: params.sizePreset,
-    hasContextImage1: !!params.contextImages?.[0],
-    hasContextImage2: !!params.contextImages?.[1],
-    hasContextImage3: !!params.contextImages?.[2],
-    hasContextImage4: !!params.contextImages?.[3],
-    hasContextImage5: !!params.contextImages?.[4],
-    hasContextImage6: !!params.contextImages?.[5]
+    sizePreset: params.sizePreset
   };
+  const contextImages = params.contextImages || [];
+  for (let index = 1; index <= 16; index += 1) {
+    keyFrame[`hasContextImage${index}`] = !!contextImages[index - 1];
+  }
   // Sampler/scheduler handling: SDK validates and passes through as-is.
   // sogni-socket normalizes values for both ComfyUI and Forge workers.
   if (isComfyModel(params.modelId)) {
@@ -263,8 +362,20 @@ function applyImageParams(
   keyFrame.sizePreset = effectiveSizePreset;
 
   if (effectiveSizePreset === 'custom' && params.width && params.height) {
-    keyFrame.width = validateCustomImageSize(params.width);
-    keyFrame.height = validateCustomImageSize(params.height);
+    keyFrame.width = validateCustomImageSize(params.width, {
+      modelId: params.modelId,
+      propertyName: 'Width'
+    });
+    keyFrame.height = validateCustomImageSize(params.height, {
+      modelId: params.modelId,
+      propertyName: 'Height'
+    });
+  }
+  if (params.gptImageQuality !== undefined) {
+    keyFrame.gptImageQuality = params.gptImageQuality;
+  }
+  if (params.gptImageBackground !== undefined) {
+    keyFrame.gptImageBackground = params.gptImageBackground;
   }
   return keyFrame;
 }
@@ -286,33 +397,58 @@ function applyVideoParams(
   if (params.referenceImage) {
     keyFrame.hasReferenceImage = true;
   }
+  const referenceImageUrls = asReferenceUrlArray(params.referenceImageUrls);
+  if (referenceImageUrls.length) {
+    keyFrame.referenceImageURLs = referenceImageUrls;
+  }
   if (params.referenceImageEnd) {
     keyFrame.hasReferenceImageEnd = true;
   }
   if (params.referenceAudio) {
     keyFrame.hasReferenceAudio = true;
   }
+  const referenceAudioUrls = asReferenceUrlArray(params.referenceAudioUrls);
+  if (referenceAudioUrls.length) {
+    keyFrame.referenceAudioURLs = referenceAudioUrls;
+  }
   if (params.referenceVideo) {
     keyFrame.hasReferenceVideo = true;
   }
+  const referenceVideoUrls = asReferenceUrlArray(params.referenceVideoUrls);
+  if (referenceVideoUrls.length) {
+    keyFrame.referenceVideoURLs = referenceVideoUrls;
+  }
+  if (params.referenceAudioIdentity) {
+    keyFrame.hasReferenceAudioIdentity = true;
+  }
+  if (params.generateAudio !== undefined) {
+    keyFrame.generateAudio = params.generateAudio;
+  }
+  if (params.audioIdentityStrength !== undefined) {
+    keyFrame.identityGuidanceScale = params.audioIdentityStrength;
+  }
 
   // Video generation parameters
-  // Note: fps must be processed before duration to correctly calculate frames for LTX-2 models
+  // Note: fps must be processed before duration to correctly calculate frames for LTX-2.3 models
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;
+  } else if (isSeedanceModel(params.modelId)) {
+    keyFrame.fps = 24;
   }
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
   }
   if (params.duration !== undefined) {
+    const isSeedance = isSeedanceModel(params.modelId);
     const duration = validateVideoDuration(
       params.duration,
-      1,
-      isLtx2Model(params.modelId) ? 20 : 10
+      isSeedance ? 4 : 1,
+      getMaxVideoDuration(params.modelId)
     );
     // Use fps from params or default based on model type:
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
-    // - LTX-2: fps directly affects frame count (default 24fps if not specified)
+    // - LTX-2.3: fps directly affects frame count (default 24fps if not specified)
+    // - Seedance: fixed 24fps external API generation
     const fps = params.fps ?? 24;
     keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
   }
@@ -349,7 +485,7 @@ function applyVideoParams(
     keyFrame.trimEndFrame = true;
   }
 
-  // First/last frame strengths for LTX-2 keyframe interpolation (when referenceImageEnd is provided)
+  // First/last frame strengths for LTX-2.3 keyframe interpolation (when referenceImageEnd is provided)
   if (params.firstFrameStrength !== undefined) {
     keyFrame.firstFrameStrength = params.firstFrameStrength;
   }
@@ -357,12 +493,12 @@ function applyVideoParams(
     keyFrame.lastFrameStrength = params.lastFrameStrength;
   }
 
-  // ControlNet parameters for LTX-2 v2v workflows
+  // ControlNet parameters for LTX-2.3 v2v workflows
   if (params.controlNet) {
     keyFrame.currentControlNetsJob = getVideoControlNet(params.controlNet);
   }
 
-  // Detailer LoRA strength for LTX-2 v2v IC-Control workflows
+  // Detailer LoRA strength for LTX-2.3 v2v IC-Control workflows
   if (params.detailerStrength !== undefined) {
     keyFrame.detailerStrength = params.detailerStrength;
   }
@@ -425,6 +561,10 @@ function applyAudioParams(
 
 function createJobRequestMessage(id: string, params: ProjectParams, options: ModelOptions) {
   const template = getTemplate();
+  const negativePrompt =
+    isImageParams(params) || (isVideoParams(params) && !isSeedanceModel(params.modelId))
+      ? params.negativePrompt
+      : undefined;
   // Base keyFrame with common params
   let keyFrame: Record<string, any> = {
     ...template.keyFrames[0],
@@ -435,13 +575,16 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     positivePrompt: params.positivePrompt,
     // Only include optional prompts if they have actual non-empty values
     // This allows the server to use its defaults when not specified
-    ...(params.negativePrompt && { negativePrompt: params.negativePrompt }),
+    ...(negativePrompt && { negativePrompt }),
     ...(params.stylePrompt && { stylePrompt: params.stylePrompt }),
     // LoRA IDs for LoRA loading (resolved to filenames by worker via config API)
     ...(params.loras && params.loras.length > 0 && { loras: params.loras }),
     ...(params.loraStrengths &&
       params.loraStrengths.length > 0 && { loraStrengths: params.loraStrengths })
   };
+  if (isAudioParams(params) || (isVideoParams(params) && isSeedanceModel(params.modelId))) {
+    delete keyFrame.negativePrompt;
+  }
 
   switch (params.type) {
     case 'image':
@@ -499,6 +642,9 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
 
   if (params.network) {
     jobRequest.network = params.network;
+  }
+  if (params.appSource) {
+    jobRequest.appSource = params.appSource;
   }
 
   return jobRequest;

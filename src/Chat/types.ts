@@ -36,6 +36,31 @@ export type ToolChoice =
   | 'required'
   | { type: 'function'; function: { name: string } };
 
+export type SogniToolsMode = boolean | 'creative-agent' | 'creative-tools' | 'rich';
+
+/**
+ * OpenAI-compatible structured-output controls. Forwarded to the worker
+ * unchanged; honored natively by llama-server (compiles JSON Schema → GBNF
+ * internally) and vLLM (`xgrammar` / `outlines`). Per-request opt-in — when
+ * omitted, the model generates without constraint.
+ */
+export type ChatResponseFormat =
+  | { type: 'text' }
+  | { type: 'json_object' }
+  | {
+      type: 'json_schema';
+      json_schema: {
+        /** Identifier for cached grammar reuse. */
+        name: string;
+        /** JSON Schema describing the required output shape. */
+        schema: Record<string, unknown>;
+        /** When true, only fields named in `schema` may appear. Default: false. */
+        strict?: boolean;
+        /** Optional description shown to the model. */
+        description?: string;
+      };
+    };
+
 /** Text content part for multimodal messages. */
 export interface TextContentPart {
   type: 'text';
@@ -46,7 +71,7 @@ export interface TextContentPart {
 export interface ImageUrlContentPart {
   type: 'image_url';
   image_url: {
-    /** Supports http(s) URLs and data URIs (e.g., `data:image/jpeg;base64,...`). */
+    /** Supports inline base64-encoded JPEG or PNG data URIs only (e.g., `data:image/jpeg;base64,...`) for vision-model inputs. Max 20 images per request, 10MB each, longest side 1024px. */
     url: string;
     /** Controls how the model processes the image: 'auto' (default), 'low' (faster), 'high' (more detail). */
     detail?: 'auto' | 'low' | 'high';
@@ -67,10 +92,15 @@ export interface ChatMessage {
 export interface ChatCompletionParams {
   model: string;
   messages: ChatMessage[];
+  /** Optional source label for this request. Defaults to the client appSource when configured. */
+  appSource?: string;
   max_tokens?: number;
   temperature?: number;
   top_p?: number;
+  top_k?: number;
+  min_p?: number;
   stream?: boolean;
+  repetition_penalty?: number;
   frequency_penalty?: number;
   presence_penalty?: number;
   stop?: string | string[];
@@ -81,12 +111,33 @@ export interface ChatCompletionParams {
   /** Controls which (if any) tool is called by the model. */
   tool_choice?: ToolChoice;
   /**
+   * Ask the Sogni API to inject server-side media-generation tool families.
+   * `true` or `'creative-tools'` injects the hosted creative media/planning tool family.
+   * `'rich'` is accepted as a legacy alias for `'creative-tools'`.
+   * `'creative-agent'` adds hosted workflow-control and asset-manifest tools.
+   */
+  sogni_tools?: SogniToolsMode;
+  /**
+   * When `sogni_tools` is enabled, ask the Sogni API to execute requested Sogni
+   * tools server-side before returning the chat response. Independent of the
+   * SDK's client-side `autoExecuteTools` loop.
+   */
+  sogni_tool_execution?: boolean;
+  /**
    * Control thinking/reasoning mode for supported models (e.g. Qwen3/3.5).
    * When `false`, sends `chat_template_kwargs: { enable_thinking: false }` so
    * the model skips its internal reasoning step. When `true`, explicitly enables
    * thinking. When omitted, server defaults apply.
    */
   think?: boolean;
+  /** Hint for server-side preset selection. */
+  taskProfile?: 'general' | 'coding' | 'reasoning';
+  /**
+   * Constrain output structure (OpenAI-compatible). Most useful on tool-call
+   * rounds where the model must emit a specific argument shape — eliminates
+   * JSON drift on quantized models. Forwarded to the worker unchanged.
+   */
+  response_format?: ChatResponseFormat;
   /**
    * Automatically execute Sogni tool calls (image/video/music generation) when the
    * model requests them. The SDK handles the full multi-round tool calling loop:
@@ -119,18 +170,27 @@ export interface ChatRequestMessage {
   type: 'llm';
   model: string;
   messages: ChatMessage[];
+  appSource?: string;
   max_tokens?: number;
   temperature?: number;
   top_p?: number;
+  top_k?: number;
+  min_p?: number;
   stream?: boolean;
+  repetition_penalty?: number;
   frequency_penalty?: number;
   presence_penalty?: number;
   stop?: string | string[];
   tokenType?: 'sogni' | 'spark';
   tools?: ToolDefinition[];
   tool_choice?: ToolChoice;
+  sogni_tools?: SogniToolsMode;
+  sogni_tool_execution?: boolean;
+  taskProfile?: 'general' | 'coding' | 'reasoning';
   /** Per-request chat template arguments (e.g. `{ enable_thinking: false }` for llama.cpp). */
   chat_template_kwargs?: Record<string, unknown>;
+  /** Per-request structured-output constraint (OpenAI-compatible). */
+  response_format?: ChatResponseFormat;
 }
 
 export interface ChatCompletionChunk {
@@ -166,6 +226,211 @@ export interface ChatCompletionResult {
   toolHistory?: ToolHistoryEntry[];
 }
 
+export interface HostedChatCompletionMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+}
+
+export interface HostedChatCompletionChoice {
+  index: number;
+  message: HostedChatCompletionMessage;
+  finish_reason: string | null;
+}
+
+export interface HostedCreativeWorkflowReference {
+  workflowId: string;
+  status: string;
+  url: string;
+  eventsUrl: string;
+  streamUrl: string;
+}
+
+export interface HostedChatCompletionResult {
+  id: string;
+  object: 'chat.completion';
+  created: number;
+  model: string;
+  choices: HostedChatCompletionChoice[];
+  usage?: TokenUsage;
+  creative_workflows?: HostedCreativeWorkflowReference[];
+  sogni_tool_results?: Record<string, unknown>[];
+}
+
+export type HostedChatCompletionParams = Omit<
+  ChatCompletionParams,
+  'stream' | 'autoExecuteTools' | 'onToolCall' | 'onToolProgress' | 'maxToolRounds'
+> & {
+  stream?: false;
+  /** Optional source label for this hosted REST request. Defaults to the client appSource when configured. */
+  app_source?: string;
+  /** camelCase alias for {@link HostedChatCompletionParams.app_source}. */
+  appSource?: string;
+  /** Token type to use for hosted REST billing. */
+  token_type?: 'sogni' | 'spark';
+  /** camelCase alias for {@link HostedChatCompletionParams.token_type}. */
+  tokenType?: 'sogni' | 'spark';
+  /** Hosted REST task profile hint. */
+  task_profile?: 'general' | 'coding' | 'reasoning';
+  /** camelCase alias for {@link HostedChatCompletionParams.task_profile}. */
+  taskProfile?: 'general' | 'coding' | 'reasoning';
+  chat_template_kwargs?: Record<string, unknown>;
+  media_references?: unknown[];
+  mediaReferences?: unknown[];
+  api_media_references?: unknown[];
+  apiMediaReferences?: unknown[];
+};
+
+/**
+ * Durable hosted chat run status.
+ *
+ * Mirrors the canonical state machine from
+ * `@sogni/creative-agent/backbone` `ChatRunStatus`. The duplicate
+ * declaration here keeps the SDK self-contained — the shared package is
+ * not a runtime SDK dependency.
+ */
+export type ChatRunStatus =
+  | 'queued'
+  | 'running'
+  | 'waiting_for_user'
+  | 'completed'
+  | 'partial_failure'
+  | 'failed'
+  | 'cancelled';
+
+export interface ChatRunEvent {
+  sequence: number;
+  type: string;
+  at: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface ChatRunRecord {
+  runId: string;
+  status: ChatRunStatus;
+  schemaVersion: string;
+  scope: {
+    ownerWalletAddress: string;
+    tokenType?: string;
+    appSource?: string;
+  };
+  request: {
+    sessionId?: string;
+    clientMessageId?: string;
+    model?: string;
+    messages: unknown[];
+    [key: string]: unknown;
+  };
+  messages: unknown[];
+  toolCalls: unknown[];
+  toolResults: unknown[];
+  mediaContext: {
+    images: string[];
+    videos: string[];
+    audio: string[];
+    uploadedImages?: string[];
+    uploadedVideos?: string[];
+    uploadedAudio?: string[];
+  };
+  artifacts: unknown[];
+  events: ChatRunEvent[];
+  finalResponse?: {
+    content?: string;
+    finishReason?: string;
+  };
+  waiting?: {
+    reason: string;
+    message?: string;
+    details?: Record<string, unknown>;
+  };
+  billingPreview?: unknown;
+  billingPreviews?: unknown[];
+  failureReason?: string;
+  cancellationReason?: string;
+  timestamps: {
+    createdAt: string;
+    updatedAt: string;
+    completedAt?: string;
+  };
+}
+
+export interface StartChatRunParams {
+  /** OpenAI-style messages array. Required. */
+  messages: unknown[];
+  /** OpenAI-style tools array. */
+  tools?: unknown[];
+  /** OpenAI-style tool choice (`auto`, `none`, or specific tool). */
+  toolChoice?: unknown;
+  /** Model id requested for the run. */
+  model?: string;
+  /** Sampling defaults captured with the run for reproducibility. */
+  sampling?: Record<string, unknown>;
+  /** Inbound media references attached to the run. Durable runs require uploaded HTTP(S) URLs, not inline data URIs. */
+  mediaReferences?: unknown[];
+  /** Full chat media context snapshot for generated + uploaded source indexing. Durable runs require uploaded HTTP(S) URLs, not inline data URIs. */
+  mediaContext?: {
+    images: string[];
+    videos: string[];
+    audio: string[];
+    uploadedImages?: string[];
+    uploadedVideos?: string[];
+    uploadedAudio?: string[];
+  };
+  /** Cost ceiling for this run (capacity units). */
+  maxEstimatedCapacityUnits?: number;
+  /** Set true to confirm higher-cost work. */
+  confirmCost?: boolean;
+  /** Stable session id for browser-side rehydration queries. */
+  sessionId?: string;
+  /** Stable client message id for pairing with the assistant response. */
+  clientMessageId?: string;
+  /** Token type for billing. */
+  tokenType?: 'sogni' | 'spark';
+  /** App source label for attribution. */
+  appSource?: string;
+  /** Idempotency key (also accepted via `Idempotency-Key` header). */
+  idempotencyKey?: string;
+  /**
+   * Host-app runtime config (quality tier, NSFW filter) the cloud
+   * executor should apply when tool calls omit the equivalent field —
+   * e.g. resolve `qualityTier: "fast"` → `model: "z-turbo"` for
+   * `generate_image` so cloud runs match client-mode defaults.
+   */
+  runtimeConfig?: {
+    qualityTier?: 'fast' | 'hq' | 'pro';
+    safeContentFilter?: boolean;
+    /** Registered persona names so the cloud executor can apply the same persona-resolution gate as the client. */
+    personaNames?: string[];
+    /** When true, the cloud emits cost-approval pauses before paid media tools. */
+    requireJobConfirmation?: boolean;
+    /** Skip the pause for jobs estimated at or below this USD figure. */
+    jobConfirmationThresholdUsd?: number;
+  };
+}
+
+/**
+ * Body of a `POST /v1/chat/runs/:id/confirm-cost` call. Resumes a run
+ * that paused with `run_awaiting_cost_confirmation`.
+ */
+export interface ConfirmChatRunCostParams {
+  /** Tool call id surfaced in the awaiting event. */
+  toolCallId: string;
+  /** Whether the caller approves the job. */
+  decision: 'confirm' | 'cancel';
+  /** Optional override args the caller adjusted in the modal. */
+  overrides?: Record<string, unknown>;
+  /** Optional reason carried into audit logs. */
+  reason?: string;
+}
+
+export interface StreamChatRunEventsOptions {
+  /** Last event sequence id observed by the caller. */
+  lastEventId?: number;
+  /** Optional AbortSignal to terminate the stream. */
+  signal?: AbortSignal;
+}
+
 export interface ChatJobStateEvent {
   jobID: string;
   type: string;
@@ -182,6 +447,17 @@ export interface LLMParamConstraint {
   max: number;
   decimals?: number;
   default: number;
+  thinkingComplexDefault?: number;
+}
+
+/** Recommended sampling defaults for a specific thinking mode. */
+export interface LLMSamplingDefaults {
+  temperature: number;
+  top_p: number;
+  top_k: number;
+  min_p?: number;
+  repetition_penalty?: number;
+  presence_penalty: number;
 }
 
 export interface LLMModelInfo {
@@ -190,8 +466,19 @@ export interface LLMModelInfo {
   maxOutputTokens?: LLMParamConstraint;
   temperature?: LLMParamConstraint;
   top_p?: LLMParamConstraint;
+  top_k?: LLMParamConstraint;
+  min_p?: LLMParamConstraint;
+  repetition_penalty?: LLMParamConstraint;
   frequency_penalty?: LLMParamConstraint;
   presence_penalty?: LLMParamConstraint;
+  /** Recommended defaults when thinking mode is enabled. */
+  defaultsThinking?: LLMSamplingDefaults;
+  /** Recommended defaults when thinking mode is enabled for precise coding tasks. */
+  defaultsThinkingCoding?: LLMSamplingDefaults;
+  /** Recommended defaults when thinking mode is disabled. */
+  defaultsNonThinking?: LLMSamplingDefaults;
+  /** Recommended defaults when thinking mode is disabled for analytical reasoning tasks. */
+  defaultsNonThinkingReasoning?: LLMSamplingDefaults;
 }
 
 export interface LLMJobCost {
@@ -299,7 +586,7 @@ export interface ToolExecutionOptions {
    * complete within this time, the tool call will fail with a timeout error
    * and the project will be canceled.
    *
-   * Default: 600000 (10 minutes).
+   * Default: 1800000 (30 minutes).
    */
   timeout?: number;
 }

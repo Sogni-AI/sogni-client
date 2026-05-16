@@ -29,6 +29,7 @@ Before running these examples, you'll need:
 ### 1. Node.js Installation
 
 **Check if Node.js is already installed:**
+
 ```bash
 node --version
 ```
@@ -38,14 +39,17 @@ If you see a version number (e.g., `v18.0.0` or higher), you're good to go! If n
 **Installing Node.js:**
 
 - **macOS:**
+
   - Using Homebrew: `brew install node`
   - Or download from [nodejs.org](https://nodejs.org/)
 
 - **Windows:**
+
   - Download the installer from [nodejs.org](https://nodejs.org/)
   - Run the installer and follow the prompts
 
 - **Linux:**
+
   ```bash
   # Ubuntu/Debian
   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
@@ -55,6 +59,7 @@ If you see a version number (e.g., `v18.0.0` or higher), you're good to go! If n
   ```
 
 **Verify installation:**
+
 ```bash
 node --version
 npm --version
@@ -97,6 +102,7 @@ npm install
 ```
 
 This will install:
+
 - `dotenv` - For managing environment variables
 - `image-size` - For detecting image dimensions
 - And other required dependencies
@@ -144,6 +150,7 @@ SOGNI_PASSWORD=your_password
 **Option 3: Interactive Prompt (Easiest for Beginners)**
 
 Simply run any example script, and it will prompt you to enter your credentials:
+
 ```bash
 node workflow_text_to_image.mjs
 ```
@@ -203,53 +210,67 @@ node <script-name> [arguments] [options]
 ### Quick Start Examples
 
 **Generate images from text (try the new Z-Turbo model!):**
+
 ```bash
 node workflow_text_to_image.mjs "A serene mountain landscape"
 ```
 
 **Generate images using reference images (Qwen Image Edit):**
+
 ```bash
 node workflow_image_edit.mjs "portrait in this style" --context test-assets/placeholder.jpg
 ```
 
 **Generate a video from text:**
+
 ```bash
 node workflow_text_to_video.mjs "A serene ocean wave"
 ```
 
 **Animate an image into a video:**
+
 ```bash
 node workflow_image_to_video.mjs --image test-assets/placeholder.jpg
 ```
 
 **Transfer motion or replace characters in video:**
+
 ```bash
 node workflow_video_to_video.mjs  # Animate-Move / Animate-Replace
+node workflow_video_to_video.mjs "restyle this as watercolor" --video source.mp4 --model ltx23-v2v-distilled
 ```
 
 **Chat with an LLM (streaming):**
+
 ```bash
 node workflow_text_chat_streaming.mjs "Tell me a story about a cat"
 ```
 
 **Vision chat — analyze images with AI:**
+
 ```bash
 node workflow_text_chat_vision.mjs --image photo.jpg
 ```
 
 **Generate images, videos, or music via natural language chat:**
+
 ```bash
 node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city"
 node workflow_text_chat_sogni_tools.mjs "Generate a video of ocean waves at sunset"
 node workflow_text_chat_sogni_tools.mjs "Compose a jazz song about the rain"
+node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal perfume bottle"
+node workflow_creative_agent_workflows.mjs "A chrome monorail over neon gardens" --video-model ltx23 --watch
+node workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --fast --duration 4
 ```
 
 **LLM tool calling (weather, time, math):**
+
 ```bash
 node workflow_text_chat_tool_calling.mjs "What's the weather in Austin, TX?"
 ```
 
 **Generate images (promise-based basic example):**
+
 ```bash
 node promise_based.mjs
 ```
@@ -262,16 +283,19 @@ node promise_based.mjs
 
 The workflow examples showcase these powerful new models:
 
-| Model ID | Name | Type | Description |
-|----------|------|------|-------------|
-| `z_image_turbo_bf16` | Z-Image Turbo | Image | Fast 8-step turbo generation - great for quick iterations |
-| `z_image_bf16` | Z-Image | Image | High quality 20-step generation with detailed output |
-| `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning | Image Edit | Fast 4-step reference-based generation |
-| `qwen_image_edit_2511_fp8` | Qwen Image Edit | Image Edit | High-quality 20-step image editing with context |
-| `flux2_dev_fp8` | Flux.2 Dev | Image | Professional quality with context image support |
-| `qwen3.5-35b-a3b-gguf-q4km` | Qwen3.5 35B | LLM + Vision | Text generation, chat, reasoning, tool calling, and multimodal image understanding |
+| Model ID                             | Name              | Type         | Description                                                                        |
+| ------------------------------------ | ----------------- | ------------ | ---------------------------------------------------------------------------------- |
+| `z_image_turbo_bf16`                 | Z-Image Turbo     | Image        | Fast 8-step turbo generation - great for quick iterations                          |
+| `z_image_bf16`                       | Z-Image           | Image        | High quality 20-step generation with detailed output                               |
+| `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning    | Image Edit   | Fast 4-step reference-based generation                                             |
+| `qwen_image_edit_2511_fp8`           | Qwen Image Edit   | Image Edit   | High-quality 20-step image editing with context                                    |
+| `flux2_dev_fp8`                      | Flux.2 Dev        | Image        | Professional quality with context image support                                    |
+| `seedance-2-0`                       | Seedance 2.0      | Video        | External API multimodal video at 24fps                                             |
+| `seedance-2-0-fast`                  | Seedance 2.0 Fast | Video        | 720p-capped external API multimodal video at 24fps                                 |
+| `qwen3.6-35b-a3b-gguf-iq4xs`         | Qwen3.6 35B       | LLM + Vision | Text generation, chat, reasoning, tool calling, and multimodal image understanding |
 
 **Try them out:**
+
 ```bash
 # Z-Image Turbo - fast and efficient
 node workflow_text_to_image.mjs "A cyberpunk city" --model z-turbo
@@ -291,6 +315,7 @@ node workflow_text_to_image.mjs "Professional portrait" --model flux2
 ### Image Generation Workflow Examples
 
 #### `workflow_text_to_image.mjs`
+
 Generate images from text prompts with support for multiple cutting-edge models.
 
 **Available Models:**
@@ -302,6 +327,7 @@ Generate images from text prompts with support for multiple cutting-edge models.
 | `flux2` | Flux.2 Dev (20-step, high quality) | Professional quality output |
 
 **Usage:**
+
 ```bash
 node workflow_text_to_image.mjs                           # Interactive mode
 node workflow_text_to_image.mjs "A beautiful sunset"      # With prompt
@@ -310,6 +336,7 @@ node workflow_text_to_image.mjs "Portrait" --model z-image --seed 12345
 ```
 
 **Options:**
+
 - `--model` - Model: z-turbo, z-image, flux1-schnell, or flux2
 - `--width` / `--height` - Output dimensions
 - `--batch` - Number of images (1-10)
@@ -323,6 +350,7 @@ node workflow_text_to_image.mjs "Portrait" --model z-image --seed 12345
 - `--disable-safe-content-filter` - Disable NSFW filter
 
 #### `workflow_image_edit.mjs`
+
 Generate new images using reference/context images to guide style and content. Works with the powerful **Qwen Image Edit** models and **Flux.2 Dev**.
 
 **Available Models:**
@@ -333,6 +361,7 @@ Generate new images using reference/context images to guide style and content. W
 | `flux2` | Flux.2 Dev (20-step) | Professional quality with context |
 
 **Usage:**
+
 ```bash
 node workflow_image_edit.mjs                                    # Interactive mode
 node workflow_image_edit.mjs "portrait in this style" --context ref.jpg
@@ -340,6 +369,7 @@ node workflow_image_edit.mjs "modern artwork" --context ref1.jpg --context2 ref2
 ```
 
 **Options:**
+
 - `--context` - Reference image 1 (required)
 - `--context2` / `--context3` - Additional reference images (optional)
 - `--model` - Model: qwen-lightning, qwen, or flux2
@@ -360,6 +390,7 @@ Provide 1-3 reference images that represent the style or content you want. The m
 ### Video Generation Workflow Examples
 
 All video workflows support the **Wan 2.2 14B FP8** model family with two variants:
+
 - **Speed/LightX2V** - Faster, 4-8 steps, good quality (recommended for testing)
 - **Quality** - Slower, 20-40 steps, best quality
 
@@ -378,9 +409,11 @@ node workflow_image_to_video.mjs
 ```
 
 #### `workflow_text_to_video.mjs`
+
 Generate videos from text prompts.
 
 **Usage:**
+
 ```bash
 node workflow_text_to_video.mjs                           # Interactive mode
 node workflow_text_to_video.mjs "A futuristic city"       # With prompt
@@ -388,6 +421,7 @@ node workflow_text_to_video.mjs "Dancing robots" --fps 32 # With options
 ```
 
 **Options:**
+
 - `--model` - Model: lightx2v (fast) or quality (best)
 - `--width` / `--height` - Video dimensions (default: 832x480)
 - `--duration` - Duration in seconds (default: 5)
@@ -402,9 +436,11 @@ node workflow_text_to_video.mjs "Dancing robots" --fps 32 # With options
 - `--output` - Output directory (default: ./output)
 
 #### `workflow_image_to_video.mjs`
+
 Animate a static image into a video with motion prompts.
 
 **Usage:**
+
 ```bash
 node workflow_image_to_video.mjs                          # Interactive mode
 node workflow_image_to_video.mjs --image photo.jpg
@@ -412,27 +448,32 @@ node workflow_image_to_video.mjs --image photo.jpg "camera pans left"
 ```
 
 **Features:**
+
 - Auto-detects image dimensions
 - Optional motion prompt (e.g., "zoom in", "camera pans left")
 - Interactive image selection from `test-assets`
 - First/Last frame support
 
 **Motion Prompt Examples:**
+
 - "camera pans left" / "camera pans right"
 - "zoom in slowly" / "zoom out"
 - "camera rotates"
 - Or leave blank for automatic animation
 
 #### `workflow_sound_to_video.mjs`
+
 Generate videos synchronized with audio, including lip-sync for characters.
 
 **Usage:**
+
 ```bash
 node workflow_sound_to_video.mjs                          # Interactive mode
 node workflow_sound_to_video.mjs --model lightx2v
 ```
 
 **Features:**
+
 - Interactive file selection for image and audio
 - Lip-sync animation for speaking characters
 - Emotion matching from audio
@@ -442,24 +483,31 @@ node workflow_sound_to_video.mjs --model lightx2v
 **Supported Audio Formats:** `.mp3`, `.m4a`, `.wav`
 
 #### `workflow_video_to_video.mjs`
-Transform existing videos with powerful **Animate-Move** (motion transfer) and **Animate-Replace** (character replacement) capabilities.
+
+Transform existing videos with **Animate-Move** (motion transfer), **Animate-Replace** (character replacement), and **LTX-2.3 V2V ControlNet** capabilities.
 
 **Usage:**
+
 ```bash
 node workflow_video_to_video.mjs                          # Interactive mode
 node workflow_video_to_video.mjs --video source.mp4
+node workflow_video_to_video.mjs "restyle as watercolor" --video source.mp4 --model ltx23-v2v-distilled
 ```
 
 **Available Modes:**
+
 - **Animate-Move** - Transfer motion and emotion from reference video to your subject image
 - **Animate-Replace** - Replace characters in video while preserving original motion
+- **LTX-2.3 V2V ControlNet** - Canny, pose, depth, and detailer control
 
 **Features:**
+
 - Interactive video and image selection
 - Auto-detects video dimensions and frame count
 - Seamless motion transfer or character replacement
 
 **Use Cases:**
+
 - Apply dance moves from one person to another (Animate-Move)
 - Transfer facial expressions and emotions (Animate-Move)
 - Replace actors while maintaining action (Animate-Replace)
@@ -472,28 +520,34 @@ node workflow_video_to_video.mjs --video source.mp4
 The Sogni SDK provides LLM text generation through the Supernet, with streaming, multi-turn conversations, thinking/reasoning mode, tool calling (function calling), and multimodal vision understanding.
 
 #### `workflow_text_chat.mjs`
+
 Single-turn chat completion (non-streaming). Sends a prompt and receives the full response at once.
 
 **Usage:**
+
 ```bash
 node workflow_text_chat.mjs "What is the meaning of life?"
-node workflow_text_chat.mjs "Explain quantum computing" --model qwen3.5-35b-a3b-gguf-q4km
+node workflow_text_chat.mjs "Explain quantum computing" --model qwen3.6-35b-a3b-gguf-iq4xs
 node workflow_text_chat.mjs "Write a haiku" --max-tokens 100 --temperature 0.9
 ```
 
 #### `workflow_text_chat_streaming.mjs`
+
 Streaming chat with token-by-token real-time output. Shows response speed (tokens/sec) after completion.
 
 **Usage:**
+
 ```bash
 node workflow_text_chat_streaming.mjs "Tell me a story about a cat"
 node workflow_text_chat_streaming.mjs "Write a poem" --max-tokens 500 --temperature 1.0
 ```
 
 #### `workflow_text_chat_multi_turn.mjs`
+
 Interactive multi-turn conversation with persistent history and in-chat commands.
 
 **Usage:**
+
 ```bash
 node workflow_text_chat_multi_turn.mjs
 node workflow_text_chat_multi_turn.mjs --system "You are a pirate. Respond in pirate speak."
@@ -510,9 +564,11 @@ node workflow_text_chat_multi_turn.mjs --system "You are a pirate. Respond in pi
 | `exit` / `quit` | End the conversation |
 
 #### `workflow_text_chat_vision.mjs`
-Multimodal vision chat powered by Qwen3.5 VLM (Vision-Language Model). Load local images and ask questions about them — supports scene description, OCR/text extraction, object detection, structured visual analysis, and multi-image comparison.
+
+Multimodal vision chat powered by Qwen3.6 VLM (Vision-Language Model). Load local images and ask questions about them — supports scene description, OCR/text extraction, object detection, structured visual analysis, and multi-image comparison.
 
 **Usage:**
+
 ```bash
 node workflow_text_chat_vision.mjs                           # Interactive mode
 node workflow_text_chat_vision.mjs --image photo.jpg         # Pre-load an image
@@ -538,15 +594,18 @@ node workflow_text_chat_vision.mjs --image photo.jpg --max-tokens 8192
 **Supported Image Formats:** JPEG, PNG, WebP, GIF (max 20MB)
 
 #### `workflow_text_chat_tool_calling.mjs`
+
 LLM tool calling (function calling) with built-in external tools. The LLM decides when to use a tool, you execute it locally, and feed results back.
 
 **Built-in Tools:**
+
 - **get_weather** - Live weather for any city (via wttr.in, no API key needed)
 - **get_time** - Current time in any timezone or city
 - **convert_units** - Temperature, distance, weight, and speed conversions
 - **calculate** - Math expression evaluator
 
 **Usage:**
+
 ```bash
 node workflow_text_chat_tool_calling.mjs "What's the weather in Austin, TX?"
 node workflow_text_chat_tool_calling.mjs "What time is it in Tokyo and London?"
@@ -555,14 +614,65 @@ node workflow_text_chat_tool_calling.mjs "What's 15% of 249.99?"
 ```
 
 #### `workflow_text_chat_sogni_tools.mjs`
-Generate images, videos, and music through natural language via LLM tool calling. The LLM detects media generation intent, enhances prompts, and calls Sogni's generation APIs directly.
 
-**Sogni Platform Tools:**
-- **Image Generation** - Detects image intent, enhances prompt, generates via `z_image_turbo_bf16`
-- **Video Generation** - Detects video intent, generates via `ltx23-22b-fp8_t2v_distilled` (LTX-2.3)
-- **Music Generation** - Detects music intent, composes via `ace_step_1.5_turbo` (ACE-Step 1.5)
+Generate the core text-to-image, text-to-video, and text-to-music flows through natural language via LLM tool calling. The LLM detects media generation intent, enhances prompts, and calls Sogni's generation APIs directly.
+
+**Canonical hosted creative-tool surface** (the full 24-tool family exposed via `SogniTools.all`, executed server-side via `chat.hosted.create()` / `chat.runs.create()`):
+
+- **Generation** — `generate_image` (defaults to `z_image_turbo_bf16`), `edit_image`, `generate_video` (defaults to `ltx23-22b-fp8_t2v_distilled`), `generate_music` (defaults to `ace_step_1.5_turbo`), `sound_to_video`, `video_to_video`
+- **Image adapters** — `restore_photo`, `apply_style`, `refine_result`, `change_angle`, `animate_photo` (image-to-video with multi-source fan-out)
+- **Video composition / post-production** — `stitch_video`, `orbit_video`, `dance_montage`, `extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`
+- **Synchronous composition and planning** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`
+
+When using `chat.hosted.create()`, the same surface is auto-injected server-side via `sogni_tools` — default `"creative-tools"` for the full media, composition, and planning surface, or `"creative-agent"` to also include workflow control and asset-manifest tools.
+
+Run the server-side API-key example:
+
+```bash
+node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal perfume bottle"
+node workflow_creative_agent_tools.mjs "Plan a cyberpunk skyline video" --tools creative-tools --no-execute
+```
+
+Run the focused partner Seedance video example. Running it with no arguments starts a guided workflow picker covering T2V, I2V, IA2V, V2V, the full and fast Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:
+
+```bash
+node workflow_partner_seedance_video.mjs
+node workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --duration 4
+node workflow_partner_seedance_video.mjs "A glass whale swimming through a neon city" --fast --duration 4
+node workflow_partner_seedance_video.mjs "slow cinematic reveal" --context test-assets/placeholder.jpg
+node workflow_partner_seedance_video.mjs "slow cinematic reveal" --context test-assets/placeholder.jpg --fast
+node workflow_partner_seedance_video.mjs "the portrait sings with stage lighting" --mode ia2v --context test-assets/placeholder.jpg --audio test-assets/placeholder.m4a
+node workflow_partner_seedance_video.mjs "turn the clip into a polished perfume commercial" --video test-assets/placeholder.mp4
+node workflow_partner_seedance_video.mjs "Use @Video1 as the source clip, @Video2 for edit rhythm, @Image1 for product identity, @Image2 for palette, and @Audio1 as the music guide. Preserve the product silhouette and create one launch spot." --workflow --mode v2v --video test-assets/placeholder.mp4 --video https://cdn.example.com/motion-2.mp4 --context test-assets/placeholder.jpg --context test-assets/placeholder2.jpg --audio test-assets/placeholder.m4a
+```
+
+Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entrypoint exercises the durable workflow API first. Scripted T2V calls without media still default to `/v1/chat/completions` unless `--workflow` is passed. Media modes default to `/v1/creative-agent/workflows` with explicit `input.steps` and upload local media from `test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; the example enforces the vendor limits of 9 image assets, 3 video assets, 3 audio assets, and 12 total assets. Use Seedance-style role tags in prompts (`@Image1`, `@Video1`, `@Audio1`) counted independently by modality in attachment order, and prefer positive preservation instructions. `--expand-prompt` is enabled by default and sends `expand_prompt: true` so the API runs the shared `@sogni/creative-agent` Seedance LLM prompt shaper before dispatch; pass `--no-expand-prompt` only when you want to submit the compact prompt directly. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Use `--no-estimate` when you only want to inspect request construction.
+
+**Durable Creative Workflows:**
+For multi-step workflows that need to survive client disconnect, persist state, or be observed from a second client, use the SDK `sogni.workflows` wrapper:
+
+- `start({ input, tokenType })` or `start({ workflowId, inputs, tokenType })` to run a saved template
+- `list()`, `get(workflowId)`, `events(workflowId)`
+- `streamEvents(workflowId, { after, lastEventId })`
+- `resume(workflowId)` to release a run paused in `waiting_for_user`
+- `reseed(workflowId, { seedOverrides })` to clone a run with fresh seeds
+- `cancel(workflowId)`
+- `templates.{list, get, create, update, delete, fork}` for the saved workflow templates backing `start({ workflowId })`
+
+Run the durable workflow example:
+
+```bash
+node workflow_creative_agent_workflows.mjs "A chrome monorail over neon gardens" --watch
+node workflow_creative_agent_workflows.mjs "A cinematic robot portrait" --video-model ltx23 --duration 5 --watch
+node workflow_creative_agent_workflows.mjs "A kinetic product teaser" --video-model wan22 --duration 5 --watch
+node workflow_creative_agent_workflows.mjs --list
+node workflow_creative_agent_workflows.mjs --stream <workflowId>
+```
+
+See the [durable workflows reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#durable-creative-agent-workflows) for full details.
 
 **Usage:**
+
 ```bash
 node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city at night"
 node workflow_text_chat_sogni_tools.mjs "Generate a video of ocean waves at sunset"
@@ -571,21 +681,22 @@ node workflow_text_chat_sogni_tools.mjs -n 4 "Create images of fantasy landscape
 ```
 
 **Options (available in `-n` / `--quantity`):**
+
 - `--quantity` / `-n` - Number of media items to generate per request (1-512, default: 1)
 
 #### Common LLM Chat Options
 
 All LLM chat scripts share these options:
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--model` | LLM model ID | `qwen3.5-35b-a3b-gguf-q4km` |
-| `--max-tokens` | Maximum tokens to generate | from model, or 8192 |
-| `--temperature` | Sampling temperature (0-2) | 0.7 |
-| `--top-p` | Top-p nucleus sampling (0-1) | 0.9 |
-| `--system` | Custom system prompt | Varies by script |
-| `--think` | Enable model thinking/reasoning | Off by default |
-| `--no-think` | Disable model thinking | Default |
+| Option          | Description                     | Default                      |
+| --------------- | ------------------------------- | ---------------------------- |
+| `--model`       | LLM model ID                    | `qwen3.6-35b-a3b-gguf-iq4xs` |
+| `--max-tokens`  | Maximum tokens to generate      | from model, or 8192          |
+| `--temperature` | Sampling temperature (0-2)      | 0.7                          |
+| `--top-p`       | Top-p nucleus sampling (0-1)    | 0.9                          |
+| `--system`      | Custom system prompt            | Varies by script             |
+| `--think`       | Enable model thinking/reasoning | Off by default               |
+| `--no-think`    | Disable model thinking          | Default                      |
 
 ---
 
@@ -594,38 +705,46 @@ All LLM chat scripts share these options:
 These simpler examples demonstrate core SDK patterns without the full interactive workflow features.
 
 #### `promise_based.mjs`
+
 Demonstrates image generation using promises and async/await syntax.
 
 **Features:**
+
 - Automatic model selection (finds most popular model)
 - Promise-based API usage
 - Downloads generated images to `./images` directory
 
 **Usage:**
+
 ```bash
 node promise_based.mjs
 ```
 
 **What it does:**
+
 1. Connects to Sogni and authenticates
 2. Finds the most popular image model
 3. Generates 4 images based on the prompt "A cat wearing a hat"
 4. Downloads images to the `./images` folder
 
 #### `event_driven.js`
+
 Demonstrates image generation using event listeners for real-time updates.
 
 **Features:**
+
 - Event-driven architecture
 - Real-time progress tracking
 - Listen to individual project and job events
 
 **Usage:**
+
 ```bash
 node event_driven.js
 ```
 
 **What it does:**
+
 1. Connects and authenticates
 2. Creates an image generation project
 3. Listens for events: `queued`, `progress`, `completed`, `failed`
@@ -636,9 +755,11 @@ node event_driven.js
 ### Web Application Example
 
 #### `express/`
+
 A simple Express.js web server demonstrating browser-based usage.
 
 **Setup and Run:**
+
 ```bash
 cd express
 npm install
@@ -648,6 +769,7 @@ node index.js
 Then open your browser to `http://localhost:3000`
 
 **Features:**
+
 - Browser-based client usage
 - Simple web interface
 - Example of integrating Sogni SDK in a web application
@@ -662,46 +784,50 @@ The following options are available across most workflow examples. Check the ind
 
 **Image Workflow Options:**
 
-| Option | Description | Default | Availability |
-|--------|-------------|---------|--------------|
-| `--model` | Model ID | Interactive prompt | All image scripts |
-| `--width` / `--height` | Output dimensions | Model-specific | All image scripts |
-| `--batch` | Number of outputs | 1 | All image scripts |
-| `--steps` | Inference steps | Model-specific | All image scripts |
-| `--guidance` | Guidance scale | Model-specific | All image scripts |
-| `--seed` | Random seed | -1 (random) | All image scripts |
-| `--negative` | Negative prompt | None | All image scripts |
-| `--style` | Style prompt | None | All image scripts |
-| `--output` | Output directory | ./output | All image scripts |
-| `--context` | Reference image | Interactive prompt | workflow_image_edit.mjs |
+| Option                 | Description       | Default            | Availability            |
+| ---------------------- | ----------------- | ------------------ | ----------------------- |
+| `--model`              | Model ID          | Interactive prompt | All image scripts       |
+| `--width` / `--height` | Output dimensions | Model-specific     | All image scripts       |
+| `--batch`              | Number of outputs | 1                  | All image scripts       |
+| `--steps`              | Inference steps   | Model-specific     | All image scripts       |
+| `--guidance`           | Guidance scale    | Model-specific     | All image scripts       |
+| `--seed`               | Random seed       | -1 (random)        | All image scripts       |
+| `--negative`           | Negative prompt   | None               | All image scripts       |
+| `--style`              | Style prompt      | None               | All image scripts       |
+| `--output`             | Output directory  | ./output           | All image scripts       |
+| `--context`            | Reference image   | Interactive prompt | workflow_image_edit.mjs |
 
 **Video Workflow Options:**
 
-| Option | Description | Default | Availability |
-|--------|-------------|---------|--------------|
-| `--model` | Model ID | Interactive prompt | All video scripts |
-| `--width` / `--height` | Video dimensions | 640 or auto-detect | All video scripts |
-| `--duration` | Duration in seconds | 5 | workflow_text_to_video.mjs |
-| `--fps` | Frames per second | 16 | workflow_text_to_video.mjs |
-| `--batch` | Number of videos | 1 | All video scripts |
-| `--guidance` | Guidance scale | Model-specific | All video scripts |
-| `--shift` | Motion intensity | Model-specific | All video scripts |
-| `--seed` | Random seed | -1 (random) | All video scripts |
-| `--output` | Output directory | ./output | All video scripts |
+| Option                 | Description         | Default            | Availability               |
+| ---------------------- | ------------------- | ------------------ | -------------------------- |
+| `--model`              | Model ID            | Interactive prompt | All video scripts          |
+| `--width` / `--height` | Video dimensions    | 640 or auto-detect | All video scripts          |
+| `--duration`           | Duration in seconds | 5                  | workflow_text_to_video.mjs |
+| `--fps`                | Frames per second   | 16                 | workflow_text_to_video.mjs |
+| `--batch`              | Number of videos    | 1                  | All video scripts          |
+| `--guidance`           | Guidance scale      | Model-specific     | All video scripts          |
+| `--shift`              | Motion intensity    | Model-specific     | All video scripts          |
+| `--seed`               | Random seed         | -1 (random)        | All video scripts          |
+| `--output`             | Output directory    | ./output           | All video scripts          |
 
 **Note:** The `workflow_sound_to_video.mjs` and `workflow_video_to_video.mjs` scripts use interactive file selection and automatically detect dimensions and frame counts from reference media.
 
 ### Frame and Duration Guide
 
 At **16 FPS** (frames per second):
+
 - 17 frames = ~1 second
 - 81 frames = ~5 seconds (default)
 - 161 frames = ~10 seconds
 
 At **32 FPS**:
+
 - 33 frames = ~1 second
 - 161 frames = ~5 seconds
 - 321 frames would be ~10 seconds (but max is 161)
+
+For LTX-2.3 examples, prefer `--duration`; the scripts calculate model-correct frame counts. The partner Seedance video example also uses `--duration` and covers Seedance's fixed 24fps paths.
 
 **Cost Note:** Longer videos (more frames) cost more tokens. A 161-frame video costs roughly 2x as much as an 81-frame video.
 
@@ -712,6 +838,7 @@ At **32 FPS**:
 ### Available Token Types
 
 1. **Spark Tokens**
+
    - Purchased with credit card
    - More widely available
    - Recommended for most users
@@ -724,6 +851,7 @@ At **32 FPS**:
 ### Cost Factors
 
 Video generation costs depend on:
+
 - **Resolution** (width × height): Higher resolution = more expensive
 - **Frame count**: More frames = more expensive
 - **Model variant**: Quality models cost ~2.5x more than Speed models
@@ -732,6 +860,7 @@ Video generation costs depend on:
 ### Viewing Costs
 
 All video examples show cost estimates before generation:
+
 ```
 📊 Cost Estimate:
    Spark: 0.45 (Balance remaining: 9.55)
@@ -839,6 +968,7 @@ On macOS, Windows, and Linux, the examples will automatically open generated vid
 **Problem:** You see an error about missing dependencies.
 
 **Solution:**
+
 ```bash
 cd examples
 npm install
@@ -849,6 +979,7 @@ npm install
 **Problem:** The script can't find your credentials.
 
 **Solution:**
+
 1. Create a `.env` file in the `examples` directory
 2. Add your API key or credentials:
    ```env
@@ -866,7 +997,8 @@ npm install
 **Problem:** You don't have enough tokens to run the generation.
 
 **Solution:**
-- Claim your daily free tokens in the app (under Rewards)
+
+- Claim your monthly free Spark in the app (under Rewards)
 - Purchase more Spark tokens with a credit card
 - Try a cheaper configuration (fewer frames, speed model, lower resolution)
 
@@ -901,7 +1033,7 @@ If you encounter issues not covered here:
 6. **Chat with LLMs:** Try `workflow_text_chat_streaming.mjs` for real-time text generation
 7. **Vision Chat:** Explore `workflow_text_chat_vision.mjs` for multimodal image understanding
 8. **Tool Calling:** Explore `workflow_text_chat_tool_calling.mjs` for LLM function calling with external tools
-9. **AI-Powered Media:** Use `workflow_text_chat_sogni_tools.mjs` to generate images, videos, and music through natural language
+9. **AI-Powered Media:** Use `workflow_text_chat_sogni_tools.mjs` for core image/video/music generation through natural language
 10. **Build Something:** Use the Express example as a template for your own app
 
 ### Tips for Success
@@ -932,4 +1064,3 @@ Found a bug in an example or want to add a new one? Contributions are welcome!
 **Happy Creating! 🎨🎬**
 
 For questions or support, visit [docs.sogni.ai](https://docs.sogni.ai) or the Sogni community channels.
-

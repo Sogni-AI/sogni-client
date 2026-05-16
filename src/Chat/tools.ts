@@ -1,280 +1,139 @@
+import hostedToolManifest from './sogniHostedTools.generated.json';
 import { ToolDefinition, ToolCall } from './types';
+
+/**
+ * Canonical hosted creative-tool names mirrored from
+ * `@sogni/creative-agent/src/backbone/openai-tools/{generation,composition}-tools.json`.
+ * The legacy `sogni_*` prefixed names were retired; tool names are now flat.
+ */
+export type SogniHostedToolName =
+  | 'generate_image'
+  | 'generate_video'
+  | 'generate_music'
+  | 'edit_image'
+  | 'apply_style'
+  | 'restore_photo'
+  | 'refine_result'
+  | 'animate_photo'
+  | 'change_angle'
+  | 'video_to_video'
+  | 'stitch_video'
+  | 'orbit_video'
+  | 'dance_montage'
+  | 'sound_to_video'
+  | 'extend_video'
+  | 'replace_video_segment'
+  | 'overlay_video'
+  | 'add_subtitles'
+  | 'enhance_prompt'
+  | 'compose_lyrics'
+  | 'compose_instrumental'
+  | 'compose_script'
+  | 'compose_workflow'
+  | 'compose_workflow_template';
+
+interface SogniHostedToolManifest {
+  tools: ToolDefinition[];
+}
+
+const hostedTools = (hostedToolManifest as SogniHostedToolManifest).tools;
+const HOSTED_TOOL_NAMES = new Set<string>(hostedTools.map((tool) => tool.function.name));
+
+function getHostedTool(name: SogniHostedToolName): ToolDefinition {
+  const tool = hostedTools.find((candidate) => candidate.function.name === name);
+  if (!tool) {
+    throw new Error(`Missing hosted Sogni tool definition: ${name}`);
+  }
+  return tool;
+}
 
 /**
  * Built-in Sogni platform tool definitions for use with LLM tool calling.
  *
- * These tools allow the LLM to generate images, videos, and music
- * through the Sogni Supernet. Include them in your `tools` array when
- * calling `sogni.chat.completions.create()`.
- *
- * @example
- * ```typescript
- * import { SogniTools } from '@sogni-ai/sogni-client';
- *
- * const stream = await sogni.chat.completions.create({
- *   model: 'qwen3.5-35b-a3b-gguf-q4km',
- *   messages: [{ role: 'user', content: 'Generate an image of a sunset' }],
- *   tools: SogniTools.all,
- *   tool_choice: 'auto',
- *   stream: true,
- * });
- * ```
+ * Generated from the shared `@sogni/creative-agent` hosted tool backbone via
+ * `npm run sync:hosted-tools-manifest`. The public SDK keeps a local copy so
+ * consumers do not need the private creative-agent package at runtime.
  */
 
-/** Tool definition: Generate an image using the Sogni Supernet */
-export const generateImageTool: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'sogni_generate_image',
-    description:
-      'Generate an image using AI image generation on the Sogni Supernet. Returns a URL to the generated image. Use this tool EVERY TIME the user asks to create, generate, draw, or make an image or picture. Do NOT generate URLs yourself — you MUST call this tool.',
-    parameters: {
-      type: 'object',
-      properties: {
-        prompt: {
-          type: 'string',
-          description:
-            'Detailed text description of the image to generate. Be specific about style, composition, lighting, colors, and subject matter.'
-        },
-        negative_prompt: {
-          type: 'string',
-          description:
-            'Things to avoid in the generated image (e.g., "blurry, low quality, distorted").'
-        },
-        width: {
-          type: 'number',
-          description: 'Image width in pixels. Must be a multiple of 16. Default: 1024. Max: 2048.'
-        },
-        height: {
-          type: 'number',
-          description: 'Image height in pixels. Must be a multiple of 16. Default: 1024. Max: 2048.'
-        },
-        model: {
-          type: 'string',
-          description: 'Image generation model to use.',
-          enum: [
-            'flux1-schnell-fp8',
-            'flux2-dev_fp8',
-            'chroma-v.46-flash_fp8',
-            'z_image_turbo_bf16'
-          ]
-        },
-        steps: {
-          type: 'number',
-          description:
-            'Number of inference steps. Higher = better quality but slower. Default depends on model (4-50).'
-        },
-        seed: {
-          type: 'number',
-          description: 'Random seed for reproducible generation. Use -1 for random.'
-        }
-      },
-      required: ['prompt']
-    }
-  }
-};
+// Generation tools (image / video / audio).
+export const generateImageTool: ToolDefinition = getHostedTool('generate_image');
+export const editImageTool: ToolDefinition = getHostedTool('edit_image');
+export const generateVideoTool: ToolDefinition = getHostedTool('generate_video');
+export const soundToVideoTool: ToolDefinition = getHostedTool('sound_to_video');
+export const videoToVideoTool: ToolDefinition = getHostedTool('video_to_video');
+export const generateMusicTool: ToolDefinition = getHostedTool('generate_music');
 
-/** Tool definition: Generate a video using the Sogni Supernet */
-export const generateVideoTool: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'sogni_generate_video',
-    description:
-      'Generate a short video using AI video generation on the Sogni Supernet. Returns a URL to the generated video. Use this tool EVERY TIME the user asks to create, generate, or make a video, clip, or animation. Do NOT generate URLs yourself — you MUST call this tool. Write the prompt as a cohesive mini-scene in present tense, describing motion, camera movement, lighting, and atmosphere in flowing prose.',
-    parameters: {
-      type: 'object',
-      properties: {
-        prompt: {
-          type: 'string',
-          description:
-            'Detailed text description of the video to generate. Write it as a flowing present-tense scene: describe the subject, action, camera movement, lighting, and atmosphere. Clear camera-to-subject relationship improves motion consistency. Be specific and vivid.'
-        },
-        negative_prompt: {
-          type: 'string',
-          description:
-            'Things to avoid in the generated video (e.g., "blurry, low quality, distorted, watermark").'
-        },
-        width: {
-          type: 'number',
-          description:
-            'Video width in pixels. Default: 1920. Standard resolutions: 1920x1088 (landscape), 1088x1920 (portrait), 1280x720.'
-        },
-        height: {
-          type: 'number',
-          description: 'Video height in pixels. Default: 1088. Must be a multiple of 16.'
-        },
-        duration: {
-          type: 'number',
-          description: 'Video duration in seconds. Range: 1-20. Default: 5.'
-        },
-        fps: {
-          type: 'number',
-          description: 'Frames per second. Default: 24. Range: 1-60.'
-        },
-        model: {
-          type: 'string',
-          description:
-            'Video generation model to use. Prefer LTX-2 text-to-video (t2v) models for best quality.'
-        },
-        seed: {
-          type: 'number',
-          description: 'Random seed for reproducible generation. Use -1 for random.'
-        }
-      },
-      required: ['prompt']
-    }
-  }
-};
+// Image adapters (style / restore / refine / re-angle / animate).
+export const applyStyleTool: ToolDefinition = getHostedTool('apply_style');
+export const restorePhotoTool: ToolDefinition = getHostedTool('restore_photo');
+export const refineResultTool: ToolDefinition = getHostedTool('refine_result');
+export const changeAngleTool: ToolDefinition = getHostedTool('change_angle');
+export const animatePhotoTool: ToolDefinition = getHostedTool('animate_photo');
 
-/** Tool definition: Generate music using the Sogni Supernet */
-export const generateMusicTool: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'sogni_generate_music',
-    description:
-      'Generate a music track using AI music generation on the Sogni Supernet. Returns a URL to the generated audio file. Use this tool EVERY TIME the user asks to create, generate, compose, or make music, a song, a beat, or audio. Do NOT generate URLs yourself — you MUST call this tool.',
-    parameters: {
-      type: 'object',
-      properties: {
-        prompt: {
-          type: 'string',
-          description:
-            'Description of the music to generate. Include genre, mood, tempo, instruments, and style. Can also include lyrics wrapped in [verse], [chorus], etc. tags.'
-        },
-        duration: {
-          type: 'number',
-          description: 'Duration of the generated music in seconds. Range: 10-600. Default: 30.'
-        },
-        bpm: {
-          type: 'number',
-          description: 'Beats per minute. Range: 30-300. Default: 120.'
-        },
-        keyscale: {
-          type: 'string',
-          description:
-            'Musical key and scale (e.g., "C major", "A minor", "F# minor", "Bb major"). Default: "C major".'
-        },
-        timesignature: {
-          type: 'string',
-          description: 'Time signature. "4" for 4/4, "3" for 3/4, "2" for 2/4. Default: "4".',
-          enum: ['4', '3', '2']
-        },
-        model: {
-          type: 'string',
-          description:
-            'Music generation model. "ace_step_1.5_turbo" for fast/catchy, "ace_step_1.5_sft" for more control over lyrics.',
-          enum: ['ace_step_1.5_turbo', 'ace_step_1.5_sft']
-        },
-        output_format: {
-          type: 'string',
-          description: 'Audio output format. Default: "mp3".',
-          enum: ['mp3', 'flac', 'wav']
-        },
-        seed: {
-          type: 'number',
-          description: 'Random seed for reproducible generation. Use -1 for random.'
-        }
-      },
-      required: ['prompt']
-    }
-  }
-};
+// Video composition / post-production tools.
+export const stitchVideoTool: ToolDefinition = getHostedTool('stitch_video');
+export const orbitVideoTool: ToolDefinition = getHostedTool('orbit_video');
+export const danceMontageTool: ToolDefinition = getHostedTool('dance_montage');
+export const extendVideoTool: ToolDefinition = getHostedTool('extend_video');
+export const replaceVideoSegmentTool: ToolDefinition = getHostedTool('replace_video_segment');
+export const overlayVideoTool: ToolDefinition = getHostedTool('overlay_video');
+export const addSubtitlesTool: ToolDefinition = getHostedTool('add_subtitles');
 
-/**
- * Collection of all Sogni platform tool definitions.
- */
+// Synchronous composition tools (text-only outputs).
+export const enhancePromptTool: ToolDefinition = getHostedTool('enhance_prompt');
+export const composeLyricsTool: ToolDefinition = getHostedTool('compose_lyrics');
+export const composeInstrumentalTool: ToolDefinition = getHostedTool('compose_instrumental');
+export const composeScriptTool: ToolDefinition = getHostedTool('compose_script');
+export const composeWorkflowTool: ToolDefinition = getHostedTool('compose_workflow');
+export const composeWorkflowTemplateTool: ToolDefinition = getHostedTool('compose_workflow_template');
+
 export const SogniTools = {
-  /** Generate an image */
   generateImage: generateImageTool,
-  /** Generate a video */
+  editImage: editImageTool,
   generateVideo: generateVideoTool,
-  /** Generate music */
+  soundToVideo: soundToVideoTool,
+  videoToVideo: videoToVideoTool,
   generateMusic: generateMusicTool,
-  /** All Sogni tools combined — convenience array for `tools` param */
+  applyStyle: applyStyleTool,
+  restorePhoto: restorePhotoTool,
+  refineResult: refineResultTool,
+  changeAngle: changeAngleTool,
+  animatePhoto: animatePhotoTool,
+  stitchVideo: stitchVideoTool,
+  orbitVideo: orbitVideoTool,
+  danceMontage: danceMontageTool,
+  extendVideo: extendVideoTool,
+  replaceVideoSegment: replaceVideoSegmentTool,
+  overlayVideo: overlayVideoTool,
+  addSubtitles: addSubtitlesTool,
+  enhancePrompt: enhancePromptTool,
+  composeLyrics: composeLyricsTool,
+  composeInstrumental: composeInstrumentalTool,
+  composeScript: composeScriptTool,
+  composeWorkflow: composeWorkflowTool,
+  composeWorkflowTemplate: composeWorkflowTemplateTool,
+  /**
+   * Full canonical hosted creative-tools surface (24 tools) — generation tools,
+   * image adapters, video composition / post-production, and synchronous
+   * composition tools. Mirrored from `@sogni/creative-agent`. Route tool calls
+   * through `chat.hosted.create()` or `chat.runs.create()` for server-side
+   * execution. Server-side enforcement validates per-account model access, so
+   * the manifest's model enums are advisory hints to the LLM, not access control.
+   */
   get all(): ToolDefinition[] {
-    return [generateImageTool, generateVideoTool, generateMusicTool];
+    return [...hostedTools];
   }
 };
 
 /**
- * Build Sogni tool definitions with dynamically populated model enums
- * based on currently available models on the network.
- *
- * @param availableModels - Result of `sogni.projects.waitForModels()`. If omitted, returns
- *   the default tool definitions with static model lists.
- *
- * @example
- * ```typescript
- * import { buildSogniTools } from '@sogni-ai/sogni-client';
- *
- * const models = await sogni.projects.waitForModels();
- * const tools = buildSogniTools(models);
- *
- * const stream = await sogni.chat.completions.create({
- *   model: 'qwen3.5-35b-a3b-gguf-q4km',
- *   messages,
- *   tools,
- *   stream: true,
- * });
- * ```
- */
-export function buildSogniTools(
-  availableModels?: Array<{ id: string; media?: string }>
-): ToolDefinition[] {
-  if (!availableModels || availableModels.length === 0) {
-    return SogniTools.all;
-  }
-
-  const imageModels = availableModels.filter((m) => m.media === 'image').map((m) => m.id);
-  const videoModels = availableModels.filter((m) => m.media === 'video').map((m) => m.id);
-  const audioModels = availableModels.filter((m) => m.media === 'audio').map((m) => m.id);
-
-  const tools: ToolDefinition[] = [];
-
-  // Image tool — override model enum if image models are available
-  const imageTool = structuredClone(generateImageTool);
-  if (imageModels.length > 0) {
-    (imageTool.function.parameters as any).properties.model.enum = imageModels;
-  }
-  tools.push(imageTool);
-
-  // Video tool — override model enum if video models are available
-  const videoTool = structuredClone(generateVideoTool);
-  if (videoModels.length > 0) {
-    (videoTool.function.parameters as any).properties.model = {
-      type: 'string',
-      description: 'Video generation model to use. Choose a text-to-video (t2v) model.',
-      enum: videoModels
-    };
-  }
-  tools.push(videoTool);
-
-  // Music tool — override model enum if audio models are available
-  const musicTool = structuredClone(generateMusicTool);
-  if (audioModels.length > 0) {
-    (musicTool.function.parameters as any).properties.model = {
-      type: 'string',
-      description:
-        'Music generation model. "ace_step_1.5_turbo" for fast/catchy, "ace_step_1.5_sft" for more control over lyrics.',
-      enum: audioModels
-    };
-  }
-  tools.push(musicTool);
-
-  return tools;
-}
-
-/**
- * Check if a tool call is a Sogni platform tool.
+ * True if the tool call targets a canonical Sogni hosted creative tool.
+ * Replaces the legacy `sogni_` prefix check; tool names are now flat and
+ * verified against the manifest mirrored from `@sogni/creative-agent`.
  */
 export function isSogniToolCall(toolCall: ToolCall): boolean {
-  return toolCall.function.name.startsWith('sogni_');
+  return HOSTED_TOOL_NAMES.has(toolCall.function.name);
 }
 
-/**
- * Parse arguments from a tool call's JSON string.
- * Returns the parsed object or an empty object if parsing fails.
- */
 export function parseToolCallArguments(toolCall: ToolCall): Record<string, unknown> {
   try {
     return JSON.parse(toolCall.function.arguments);

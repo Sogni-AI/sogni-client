@@ -6,6 +6,10 @@ import { ServerConnectData, ServerDisconnectData } from './WebSocketClient/event
 import { ErrorCode, isNotRecoverable } from './WebSocketClient/ErrorCode';
 import { JSONValue } from '../types/json';
 import { IWebSocketClient, SupernetType } from './WebSocketClient/types';
+import type {
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptions
+} from './WebSocketClient/eventSubscriptions';
 import { Logger } from '../lib/DefaultLogger';
 import ApiKeyAuthManager from '../lib/AuthManager/ApiKeyAuthManager';
 import CookieAuthManager from '../lib/AuthManager/CookieAuthManager';
@@ -41,6 +45,8 @@ export interface ApiClientOptions {
   baseUrl: string;
   socketUrl: string;
   appId: string;
+  appSource?: string;
+  socketEventSubscriptions?: SocketEventSubscriptions;
   networkType: SupernetType;
   logger: Logger;
   authType: 'token' | 'cookies' | 'apiKey';
@@ -50,6 +56,7 @@ export interface ApiClientOptions {
 
 class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   readonly appId: string;
+  readonly appSource?: string;
   readonly logger: Logger;
   private _rest: RestClient;
   private _socket: IWebSocketClient;
@@ -61,6 +68,8 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     baseUrl,
     socketUrl,
     appId,
+    appSource,
+    socketEventSubscriptions,
     networkType,
     authType,
     logger,
@@ -69,6 +78,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }: ApiClientOptions) {
     super();
     this.appId = appId;
+    this.appSource = appSource?.trim() || undefined;
     this.logger = logger;
     if (authType === 'apiKey') {
       this._auth = new ApiKeyAuthManager(logger);
@@ -81,9 +91,25 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     const supportMultiInstance = !isNodejs && this._auth instanceof CookieAuthManager;
     if (supportMultiInstance && multiInstance) {
       // Use coordinated WebSocket client to share single connection between tabs
-      this._socket = new BrowserWebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+      this._socket = new BrowserWebSocketClient(
+        socketUrl,
+        this._auth,
+        appId,
+        networkType,
+        logger,
+        this.appSource,
+        socketEventSubscriptions
+      );
     } else {
-      this._socket = new WebSocketClient(socketUrl, this._auth, appId, networkType, logger);
+      this._socket = new WebSocketClient(
+        socketUrl,
+        this._auth,
+        appId,
+        networkType,
+        logger,
+        this.appSource,
+        socketEventSubscriptions
+      );
     }
     this._disableSocket = disableSocket;
     this._auth.on('updated', this.handleAuthUpdated.bind(this));
@@ -109,6 +135,10 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
 
   get socketEnabled(): boolean {
     return !this._disableSocket;
+  }
+
+  setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
+    return this.socket.setSocketEventSubscriptions(update);
   }
 
   handleSocketConnect({ network }: ServerConnectData) {

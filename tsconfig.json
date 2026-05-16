@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["es6", "DOM"],
+    "lib": ["es6", "es2022.array", "DOM"],
     "module": "commonjs",
     "target": "es6",
     "rootDir": "./src",

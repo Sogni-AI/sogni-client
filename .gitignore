@@ -2,10 +2,13 @@
 node_modules
 build
 dist
+dist-esm
 *.env
 .env
 .npmrc
 /package-lock.json
 .DS_Store
 examples/output
+examples/results
 examples/toprocess
+docs/superpowers/

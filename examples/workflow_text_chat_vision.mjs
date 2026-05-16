@@ -3,7 +3,7 @@
  * Vision Chat Workflow — Multimodal Image Understanding
  *
  * Interactive multi-turn conversation with vision capabilities powered by
- * Qwen3.5 VLM (Vision-Language Model) on the Sogni Supernet.
+ * Qwen3.6 VLM (Vision-Language Model) on the Sogni Supernet.
  *
  * Supports: scene description, OCR/text extraction, object detection,
  * document/chart analysis, visual reasoning, and multi-image comparison.
@@ -19,8 +19,9 @@
  * Options:
  *   --image         Pre-load an image file at startup
  *   --max-tokens    Maximum tokens per response (default: from model, or 8192)
- *   --temperature   Sampling temperature 0-2 (default: 0.7)
- *   --top-p         Top-p sampling 0-1 (default: 0.9)
+ *   --temperature   Sampling temperature 0-2 (default: from model, or 0.7)
+ *   --top-p         Top-p sampling 0-1 (default: from model, or 0.9)
+ *   --top-k         Top-k sampling (default: from model, if available)
  *   --system        Custom system prompt
  *   --help          Show this help message
  *
@@ -45,7 +46,7 @@ import * as readline from 'node:readline';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const VLM_MODEL = 'qwen3.5-35b-a3b-gguf-q4km';
+const VLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_SYSTEM =
   'You are a visual analysis assistant with expert-level image understanding. ' +
   'When given an image, analyze it thoroughly and provide specific, detailed observations. ' +
@@ -111,8 +112,9 @@ function parseArgs() {
   const options = {
     image: null,
     maxTokens: null,
-    temperature: 0.7,
-    topP: 0.9,
+    temperature: null,
+    topP: null,
+    topK: null,
     system: DEFAULT_SYSTEM,
   };
 
@@ -129,6 +131,8 @@ function parseArgs() {
       options.temperature = parseFloat(args[++i]);
     } else if (arg === '--top-p' && args[i + 1]) {
       options.topP = parseFloat(args[++i]);
+    } else if (arg === '--top-k' && args[i + 1]) {
+      options.topK = parseInt(args[++i], 10);
     } else if (arg === '--system' && args[i + 1]) {
       options.system = args[++i];
     } else {
@@ -152,8 +156,9 @@ Usage:
 Options:
   --image         Pre-load an image file at startup
   --max-tokens    Maximum tokens per response (default: from model, or 8192)
-  --temperature   Sampling temperature 0-2 (default: 0.7)
-  --top-p         Top-p sampling 0-1 (default: 0.9)
+  --temperature   Sampling temperature 0-2 (default: from model, or 0.7)
+  --top-p         Top-p sampling 0-1 (default: from model, or 0.9)
+  --top-k         Top-k sampling (default: from model, if available)
   --system        Custom system prompt
   --help          Show this help message
 
@@ -347,6 +352,12 @@ async function main() {
   // Resolve max tokens: CLI override > model-reported default > fallback
   const modelInfo = availableModels[VLM_MODEL];
   options.maxTokens = options.maxTokens || modelInfo?.maxOutputTokens?.default || 8192;
+
+  // Resolve sampling parameters: CLI override > server defaults > hardcoded fallback
+  const samplingDefaults = modelInfo?.defaultsNonThinking;
+  options.temperature = options.temperature ?? samplingDefaults?.temperature ?? 0.7;
+  options.topP = options.topP ?? samplingDefaults?.top_p ?? 0.9;
+  options.topK = options.topK ?? samplingDefaults?.top_k;
 
   // Load token type preference
   const tokenType = loadTokenTypePreference() || 'sogni';
@@ -640,9 +651,11 @@ async function main() {
         max_tokens: options.maxTokens,
         temperature: options.temperature,
         top_p: options.topP,
+        ...(options.topK != null && { top_k: options.topK }),
         stream: true,
         tokenType,
         think: false,
+        taskProfile: 'reasoning',
       });
 
       let rawContent = '';

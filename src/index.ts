@@ -4,6 +4,16 @@ import CurrentAccount from './Account/CurrentAccount';
 // ApiClient
 import ApiClient, { ApiError, ApiResponse } from './ApiClient';
 import { SupernetType } from './ApiClient/WebSocketClient/types';
+import type {
+  SocketEventName,
+  SocketEventSubscriptionsUpdatedData
+} from './ApiClient/WebSocketClient/events';
+import type {
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptionName,
+  SocketEventSubscriptions,
+  SocketEventSubscriptionUpdate
+} from './ApiClient/WebSocketClient/eventSubscriptions';
 import { ApiConfig } from './ApiGroup';
 // Utils
 import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger';
@@ -42,7 +52,18 @@ import {
   ChatCompletionChunk,
   ChatCompletionResult,
   ChatJobStateEvent,
+  ChatResponseFormat,
+  ChatRunEvent,
+  ChatRunRecord,
+  ChatRunStatus,
+  StartChatRunParams,
+  StreamChatRunEventsOptions,
   ContentPart,
+  HostedChatCompletionParams,
+  HostedChatCompletionResult,
+  HostedChatCompletionChoice,
+  HostedChatCompletionMessage,
+  HostedCreativeWorkflowReference,
   TextContentPart,
   ImageUrlContentPart,
   TokenUsage as ChatTokenUsage,
@@ -50,20 +71,68 @@ import {
   LLMJobCost,
   LLMModelInfo,
   LLMParamConstraint,
+  LLMSamplingDefaults,
   ToolDefinition,
   ToolCall,
   ToolCallDelta,
   ToolCallFunction,
   ToolChoice,
   ToolFunction,
+  SogniToolsMode,
   ToolExecutionProgress,
   ToolExecutionResult,
   ToolHistoryEntry,
   ToolExecutionOptions
 } from './Chat/types';
-import { SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
+import { SogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
+// Creative Workflows API
+import CreativeWorkflowsApi, { parseCreativeWorkflowSseChunk } from './CreativeWorkflows';
+import CreativeWorkflowTemplatesApi from './CreativeWorkflows/Templates';
+import {
+  CreativeWorkflowArtifact,
+  CreativeWorkflowEvent,
+  CreativeWorkflowRecord,
+  CreativeWorkflowSseEvent,
+  CreativeWorkflowStatus,
+  CreativeWorkflowHostedToolName,
+  ListCreativeWorkflowOptions,
+  ReseedCreativeWorkflowOptions,
+  ReseedCreativeWorkflowParams,
+  ReseedCreativeWorkflowResult,
+  ResumeCreativeWorkflowOptions,
+  ResumeCreativeWorkflowParams,
+  ResumeCreativeWorkflowResult,
+  StartCreativeWorkflowOptions,
+  StartCreativeWorkflowParams,
+  StartCreativeWorkflowDependency,
+  StartCreativeWorkflowInput,
+  StartCreativeWorkflowStep,
+  StreamCreativeWorkflowEventsOptions
+} from './CreativeWorkflows/types';
+import {
+  ForkWorkflowTemplateBody,
+  ListWorkflowTemplatesOptions,
+  ListWorkflowTemplatesResult,
+  WorkflowTemplate,
+  WorkflowTemplateAuthor,
+  WorkflowTemplateRequestOptions,
+  WorkflowTemplateStability,
+  WorkflowTemplateVisibility,
+  WorkflowTemplateVisibilityFilter
+} from './CreativeWorkflows/Templates/types';
 // Stats API
 import StatsApi from './Stats';
+// Replay records
+import ReplayApi from './Replay';
+import {
+  GetReplayRecordResult,
+  ListReplayRecordsOptions,
+  ListReplayRecordsResult,
+  ReplayRecordSummary,
+  ReplayRequestOptions,
+  ReplayWriteResult,
+  RunRecord
+} from './Replay/types';
 // Base Types
 import ErrorData from './types/ErrorData';
 import { TokenType } from './types/token';
@@ -85,13 +154,31 @@ export type {
   ChatCompletionResult,
   ChatJobStateEvent,
   ChatMessage,
+  ChatResponseFormat,
+  ChatRunEvent,
+  ChatRunRecord,
+  ChatRunStatus,
   ChatTokenUsage,
+  StartChatRunParams,
+  StreamChatRunEventsOptions,
   ContentPart,
+  HostedChatCompletionChoice,
+  HostedChatCompletionMessage,
+  HostedChatCompletionParams,
+  HostedChatCompletionResult,
+  HostedCreativeWorkflowReference,
+  CreativeWorkflowArtifact,
+  CreativeWorkflowEvent,
+  CreativeWorkflowRecord,
+  CreativeWorkflowSseEvent,
+  CreativeWorkflowStatus,
   ImageUrlContentPart,
+  ListCreativeWorkflowOptions,
   LLMCostEstimation,
   LLMJobCost,
   LLMModelInfo,
   LLMParamConstraint,
+  LLMSamplingDefaults,
   ControlNetMode,
   ControlNetName,
   ControlNetParams,
@@ -104,6 +191,35 @@ export type {
   LogLevel,
   ProjectParams,
   ProjectStatus,
+  CreativeWorkflowHostedToolName,
+  StartCreativeWorkflowOptions,
+  StartCreativeWorkflowParams,
+  StartCreativeWorkflowDependency,
+  StartCreativeWorkflowInput,
+  StartCreativeWorkflowStep,
+  StreamCreativeWorkflowEventsOptions,
+  ResumeCreativeWorkflowOptions,
+  ResumeCreativeWorkflowParams,
+  ResumeCreativeWorkflowResult,
+  ReseedCreativeWorkflowOptions,
+  ReseedCreativeWorkflowParams,
+  ReseedCreativeWorkflowResult,
+  ForkWorkflowTemplateBody,
+  ListWorkflowTemplatesOptions,
+  ListWorkflowTemplatesResult,
+  WorkflowTemplate,
+  WorkflowTemplateAuthor,
+  WorkflowTemplateRequestOptions,
+  WorkflowTemplateStability,
+  WorkflowTemplateVisibility,
+  WorkflowTemplateVisibilityFilter,
+  RunRecord,
+  ReplayWriteResult,
+  ReplayRecordSummary,
+  ReplayRequestOptions,
+  ListReplayRecordsOptions,
+  ListReplayRecordsResult,
+  GetReplayRecordResult,
   SupernetType,
   TokenType,
   ToolCall,
@@ -116,6 +232,13 @@ export type {
   ToolExecutionResult,
   ToolFunction,
   ToolHistoryEntry,
+  SogniToolsMode,
+  SocketEventName,
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptionName,
+  SocketEventSubscriptions,
+  SocketEventSubscriptionsUpdatedData,
+  SocketEventSubscriptionUpdate,
   VideoControlNetName,
   VideoControlNetParams,
   VideoFormat,
@@ -129,12 +252,15 @@ export {
   ApiKeyAuthManager,
   ChatStream,
   ChatToolsApi,
+  CreativeWorkflowsApi,
+  CreativeWorkflowTemplatesApi,
+  ReplayApi,
   CurrentAccount,
   Job,
   Project,
   SogniTools,
-  buildSogniTools,
   isSogniToolCall,
+  parseCreativeWorkflowSseChunk,
   parseToolCallArguments
 };
 
@@ -143,6 +269,19 @@ export interface SogniClientConfig {
    * The application ID string. Must be unique, multiple connections with the same ID will be rejected.
    */
   appId: string;
+  /**
+   * Optional client app/source label to attach to this connection for server-side attribution.
+   * The socket server uses this as the default source for project and chat requests from this client.
+   */
+  appSource?: string;
+  /**
+   * Initial WebSocket event subscriptions for this connection.
+   *
+   * Omit this option to receive the default socket event stream. To reduce socket traffic for
+   * proxy or headless clients that do not need live worker counts, set
+   * `{ modelAvailability: false }` to opt out of `swarmModels` and `swarmLLMModels` updates.
+   */
+  socketEventSubscriptions?: SocketEventSubscriptions;
   /**
    * Override the default REST API endpoint
    * @internal
@@ -211,7 +350,30 @@ export class SogniClient {
   account: AccountApi;
   projects: ProjectsApi;
   stats: StatsApi;
+  /**
+   * Chat surfaces.
+   * - `chat.completions.create` — socket-native chat completion.
+   * - `chat.hosted.create` — hosted REST chat completion (synchronous).
+   * - `chat.runs.{create, get, cancel, streamEvents}` — durable hosted
+   *   chat runs that survive client disconnect, browser close, network
+   *   drop, and API worker restart. See `/v1/chat/runs` REST surface.
+   * - `chat.tools.execute*` — execute Sogni platform tools surfaced by
+   *   the chat completion (image / video / music generation).
+   */
   chat: ChatApi;
+  /**
+   * Durable creative workflows (`/v1/creative-agent/workflows`). Submit
+   * an explicit step sequence and follow its progress without keeping
+   * the client connected.
+   */
+  workflows: CreativeWorkflowsApi;
+  /**
+   * Replay records (`/v1/replay/records`). Writes one RunRecord per
+   * chat / harness turn and exposes list + get for the replay viewer.
+   * Per-owner isolation is enforced server-side via the SDK auth
+   * identity.
+   */
+  replay: ReplayApi;
 
   apiClient: ApiClient;
 
@@ -220,6 +382,8 @@ export class SogniClient {
     this.projects = new ProjectsApi(config);
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
+    this.workflows = new CreativeWorkflowsApi(config);
+    this.replay = new ReplayApi(config);
 
     this.apiClient = config.client;
   }
@@ -276,6 +440,16 @@ export class SogniClient {
   }
 
   /**
+   * Update WebSocket event subscriptions for this live client.
+   *
+   * This is useful when a process needs the initial model availability snapshot for startup, but
+   * does not need ongoing worker count updates afterward.
+   */
+  async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
+    await this.apiClient.setSocketEventSubscriptions(update);
+  }
+
+  /**
    * Create client instance, with default configuration
    * @param config
    */
@@ -291,6 +465,8 @@ export class SogniClient {
       baseUrl: restEndpoint,
       socketUrl: socketEndpoint,
       appId: config.appId,
+      appSource: config.appSource,
+      socketEventSubscriptions: config.socketEventSubscriptions,
       networkType: network,
       logger,
       authType,

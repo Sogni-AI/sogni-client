@@ -1,8 +1,40 @@
 import { ApiError } from '../ApiClient';
 import { ModelOptions } from '../Projects/types/ModelOptions';
 
-export function validateCustomImageSize(value: any): number {
-  return validateNumber(value, { min: 256, max: 2048, propertyName: 'Width and height' });
+const EXTENDED_IMAGE_SIZE_MODEL_IDS = new Set([
+  'z_image_bf16',
+  'z_image_turbo_bf16',
+  'qwen_image_edit_2511_fp8',
+  'qwen_image_edit_2511_fp8_lightning',
+  'qwen_image_2512_fp8',
+  'qwen_image_2512_fp8_lightning',
+  'flux2_dev_fp8'
+]);
+
+interface ImageSizeValidationOptions {
+  modelId?: string;
+  propertyName?: string;
+}
+
+function getMaxCustomImageSize(modelId?: string): number {
+  if (modelId === 'gpt-image-2') {
+    return 3840;
+  }
+  if (modelId && EXTENDED_IMAGE_SIZE_MODEL_IDS.has(modelId)) {
+    return 2560;
+  }
+  return 2048;
+}
+
+export function validateCustomImageSize(
+  value: any,
+  { modelId, propertyName = 'Width and height' }: ImageSizeValidationOptions = {}
+): number {
+  return validateNumber(value, {
+    min: 256,
+    max: getMaxCustomImageSize(modelId),
+    propertyName
+  });
 }
 
 /**
@@ -79,12 +111,16 @@ export function isComfyModel(modelId: string): boolean {
 
 /**
  * Get the maximum number of context images supported by a model.
+ * - GPT Image 2: 16 images
  * - Flux.2 Dev: 6 images
  * - Qwen Image Edit: 3 images
  * - Flux Kontext: 2 images
  * - Default: 3 images
  */
 export function getMaxContextImages(modelId: string): number {
+  if (modelId === 'gpt-image-2') {
+    return 16;
+  }
   if (modelId.startsWith('flux2_')) {
     return 6;
   }

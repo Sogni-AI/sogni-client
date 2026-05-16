@@ -70,6 +70,29 @@ function getFileContentType(file: File | Buffer | Blob): string | undefined {
   if (file instanceof Blob && 'type' in file && file.type) {
     return file.type;
   }
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(file)) {
+    if (file.length >= 12) {
+      if (file[0] === 0xff && file[1] === 0xd8 && file[2] === 0xff) return 'image/jpeg';
+      if (file[0] === 0x89 && file[1] === 0x50 && file[2] === 0x4e && file[3] === 0x47) {
+        return 'image/png';
+      }
+      if (file.toString('ascii', 0, 4) === 'RIFF' && file.toString('ascii', 8, 12) === 'WEBP') {
+        return 'image/webp';
+      }
+      if (file.toString('ascii', 0, 3) === 'GIF') return 'image/gif';
+      if (file.toString('ascii', 4, 8) === 'ftyp') {
+        const brand = file.toString('ascii', 8, 12).toLowerCase();
+        if (brand.includes('m4a') || brand.includes('m4b')) return 'audio/mp4';
+        if (brand.includes('qt')) return 'video/quicktime';
+        return 'video/mp4';
+      }
+      if (file.toString('ascii', 0, 4) === 'RIFF' && file.toString('ascii', 8, 12) === 'WAVE') {
+        return 'audio/wav';
+      }
+    }
+    if (file.length >= 3 && file.toString('ascii', 0, 3) === 'ID3') return 'audio/mpeg';
+    if (file.length >= 2 && file[0] === 0xff && (file[1] & 0xe0) === 0xe0) return 'audio/mpeg';
+  }
   return undefined;
 }
 
@@ -282,15 +305,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private async handleJobProgress(data: JobProgressData) {
-    this.emit('job', {
+    const event: JobEvent = {
       type: 'progress',
       projectId: data.jobID,
       jobId: data.imgID,
-      step: data.step,
-      stepCount: data.stepCount
-    });
+      ...(typeof data.step === 'number' ? { step: data.step } : {}),
+      ...(typeof data.stepCount === 'number' ? { stepCount: data.stepCount } : {}),
+      ...(typeof data.progress === 'number' ? { progress: data.progress } : {})
+    };
+    this.emit('job', event);
 
-    if (data.hasImage) {
+    if (data.hasImage === true) {
       this.downloadUrl({
         jobId: data.jobID,
         imageId: data.imgID,
@@ -318,7 +343,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async handleJobResult(data: JobResultData) {
     const project = this.projects.find((p) => p.id === data.jobID);
     const passNSFWCheck = !data.triggeredNSFWFilter || !project || project.params.disableNSFWFilter;
-    let downloadUrl = data.resultUrl || null; // Use resultUrl from event if provided
+    let downloadUrl = data.resultUrl || data.videoUrl || data.videoFile || null; // Use result URL from event if provided
 
     // If no resultUrl provided and NSFW check passes, generate download URL
     if (!downloadUrl && passNSFWCheck && !data.userCanceled) {
@@ -350,16 +375,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
 
     // Update the job directly with the result URL to prevent duplicate API calls
+    let performedStepCount = data.performedStepCount;
+    let seed = data.lastSeed !== undefined ? Number(data.lastSeed) : undefined;
     if (project) {
       const job = project.job(data.imgID);
       if (job) {
+        performedStepCount =
+          typeof performedStepCount === 'number'
+            ? performedStepCount
+            : job.stepCount > 0
+              ? job.stepCount
+              : job.step;
+        seed = typeof seed === 'number' && Number.isFinite(seed) ? seed : job.seed;
         job._update({
           status: data.userCanceled ? 'canceled' : 'completed',
-          step: data.performedStepCount,
-          seed: Number(data.lastSeed),
+          step: performedStepCount,
+          seed,
           resultUrl: downloadUrl,
-          isNSFW: data.triggeredNSFWFilter,
-          userCanceled: data.userCanceled
+          isNSFW: Boolean(data.triggeredNSFWFilter),
+          userCanceled: Boolean(data.userCanceled)
         });
       }
     }
@@ -369,11 +403,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       type: 'completed',
       projectId: data.jobID,
       jobId: data.imgID,
-      steps: data.performedStepCount,
-      seed: Number(data.lastSeed),
+      ...(typeof performedStepCount === 'number' ? { steps: performedStepCount } : {}),
+      ...(typeof seed === 'number' && Number.isFinite(seed) ? { seed } : {}),
       resultUrl: downloadUrl,
-      isNSFW: data.triggeredNSFWFilter,
-      userCanceled: data.userCanceled
+      isNSFW: Boolean(data.triggeredNSFWFilter),
+      userCanceled: Boolean(data.userCanceled)
     });
   }
 
@@ -483,12 +517,27 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         });
         break;
       case 'progress':
-        job._update({
-          status: 'processing',
-          // Just in case event comes out of order
-          step: Math.max(event.step, job.step),
-          stepCount: event.stepCount
-        });
+        {
+          const delta: {
+            status: 'processing';
+            step?: number;
+            stepCount?: number;
+            externalProgress?: number;
+          } = {
+            status: 'processing'
+          };
+          if (typeof event.step === 'number') {
+            // Just in case event comes out of order
+            delta.step = Math.max(event.step, job.step);
+          }
+          if (typeof event.stepCount === 'number') {
+            delta.stepCount = event.stepCount;
+          }
+          if (typeof event.progress === 'number') {
+            delta.externalProgress = event.progress;
+          }
+          job._update(delta);
+        }
         if (project.status !== 'processing') {
           project._update({ status: 'processing' });
         }
@@ -515,13 +564,29 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         job._update({ previewUrl: event.url });
         break;
       case 'completed': {
-        job._update({
+        const delta: {
+          status: 'completed' | 'canceled';
+          resultUrl: string | null;
+          isNSFW: boolean;
+          userCanceled: boolean;
+          step?: number;
+          seed?: number;
+        } = {
           status: event.userCanceled ? 'canceled' : 'completed',
-          step: event.steps,
-          seed: event.seed,
           resultUrl: event.resultUrl,
           isNSFW: event.isNSFW,
           userCanceled: event.userCanceled
+        };
+        if (typeof event.steps === 'number') {
+          delta.step = event.steps;
+        } else if (job.stepCount > 0) {
+          delta.step = job.stepCount;
+        }
+        if (typeof event.seed === 'number' && Number.isFinite(event.seed)) {
+          delta.seed = event.seed;
+        }
+        job._update({
+          ...delta
         });
         break;
       }
@@ -592,7 +657,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   async create(data: ProjectParams): Promise<Project> {
     const project = new Project({ ...data }, { api: this, logger: this.client.logger });
     const modelOptions = await this.getModelOptions(data.modelId);
-    const request = createJobRequestMessage(project.id, data, modelOptions);
+    const requestParams = {
+      ...data,
+      appSource: data.appSource || this.client.appSource
+    } as ProjectParams;
+    const request = createJobRequestMessage(project.id, requestParams, modelOptions);
 
     switch (data.type) {
       case 'image':
@@ -600,6 +669,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         break;
       case 'video':
         await this._processVideoAssets(project, data);
+        this._annotateVideoAssetContentTypes(request, data);
         break;
       case 'audio':
         // No assets to upload for audio
@@ -621,7 +691,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       await this.uploadCNImage(project.id, data.controlNet.image);
     }
 
-    // Context images (Flux.2 Dev supports up to 6; Qwen Image Edit Plus supports up to 3; Flux Kontext supports up to 2)
+    // Context images (GPT Image 2 supports up to 16; Flux.2 Dev supports up to 6; Qwen Image Edit Plus supports up to 3; Flux Kontext supports up to 2)
     if (data.contextImages?.length) {
       const maxContextImages = getMaxContextImages(data.modelId);
       if (data.contextImages.length > maxContextImages) {
@@ -634,7 +704,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       await Promise.all(
         data.contextImages.map((image, index) => {
           if (image && image !== true) {
-            return this.uploadContextImage(project.id, index as 0 | 1 | 2 | 3 | 4 | 5, image);
+            return this.uploadContextImage(
+              project.id,
+              index as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15,
+              image
+            );
           }
         })
       );
@@ -651,8 +725,34 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (data?.referenceAudio && data.referenceAudio !== true) {
       await this.uploadReferenceAudio(project.id, data.referenceAudio);
     }
+    if (data?.referenceAudioIdentity && data.referenceAudioIdentity !== true) {
+      await this.uploadReferenceAudio(project.id, data.referenceAudioIdentity);
+    }
     if (data?.referenceVideo && data.referenceVideo !== true) {
       await this.uploadReferenceVideo(project.id, data.referenceVideo);
+    }
+  }
+
+  private _annotateVideoAssetContentTypes(request: Record<string, any>, data: VideoProjectParams) {
+    const keyFrame = request.keyFrames?.[0];
+    if (!keyFrame) return;
+
+    if (data.referenceImage && data.referenceImage !== true) {
+      keyFrame.referenceImageContentType = getFileContentType(data.referenceImage);
+    }
+    if (data.referenceImageEnd && data.referenceImageEnd !== true) {
+      keyFrame.referenceImageEndContentType = getFileContentType(data.referenceImageEnd);
+    }
+    if (data.referenceAudio && data.referenceAudio !== true) {
+      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio);
+    }
+    if (data.referenceAudioIdentity && data.referenceAudioIdentity !== true) {
+      const contentType = getFileContentType(data.referenceAudioIdentity);
+      keyFrame.referenceAudioIdentityContentType = contentType;
+      keyFrame.referenceAudioContentType ??= contentType;
+    }
+    if (data.referenceVideo && data.referenceVideo !== true) {
+      keyFrame.referenceVideoContentType = getFileContentType(data.referenceVideo);
     }
   }
 
@@ -700,16 +800,36 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
   }
 
+  /**
+   * Notify the socket server to cancel a project this client has timed out waiting for.
+   * This preserves the local timeout failure state while still using the normal artist
+   * cancellation protocol so the server aborts worker/vendor-side work.
+   * @internal
+   */
+  async _notifyProjectTimedOut(projectId: string) {
+    await this.client.socket.send('jobError', {
+      jobID: projectId,
+      error: 'artistCanceled',
+      error_message: 'artistCanceled',
+      isFromWorker: false
+    });
+  }
+
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
-      type: 'startingImage'
+      type: 'startingImage',
+      contentType
     });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file)
+      body: toFetchBody(file),
+      headers
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -723,14 +843,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadCNImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
-      type: 'cnImage'
+      type: 'cnImage',
+      contentType
     });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file)
+      body: toFetchBody(file),
+      headers
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -744,20 +869,41 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadContextImage(
     projectId: string,
-    index: 0 | 1 | 2 | 3 | 4 | 5,
+    index: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15,
     file: File | Buffer | Blob
   ) {
     const imageId = getUUID();
-    const imageIndex = (index + 1) as 1 | 2 | 3 | 4 | 5 | 6;
+    const imageIndex = (index + 1) as
+      | 1
+      | 2
+      | 3
+      | 4
+      | 5
+      | 6
+      | 7
+      | 8
+      | 9
+      | 10
+      | 11
+      | 12
+      | 13
+      | 14
+      | 15
+      | 16;
+    const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
-      type: `contextImage${imageIndex}`
+      type: `contextImage${imageIndex}`,
+      contentType
     });
     const body = toFetchBody(file);
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body
+      body,
+      headers
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -779,14 +925,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
-      type: 'referenceImage'
+      type: 'referenceImage',
+      contentType
     });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file)
+      body: toFetchBody(file),
+      headers
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -804,14 +955,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceImageEnd(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
-      type: 'referenceImageEnd'
+      type: 'referenceImageEnd',
+      contentType
     });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file)
+      body: toFetchBody(file),
+      headers
     });
     if (!res.ok) {
       throw new ApiError(res.status, {
@@ -824,7 +980,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Upload reference audio for s2v workflows
+   * Upload reference audio for s2v/ia2v/a2v workflows and ID-LoRA identity audio.
+   * Shared S3 path — referenceAudio and referenceAudioIdentity are mutually exclusive by workflow type.
    * Supported formats: mp3, m4a, wav
    * @internal
    */
@@ -832,7 +989,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const contentType = getFileContentType(file);
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
-      type: 'referenceAudio'
+      type: 'referenceAudio',
+      contentType
     });
     const headers: Record<string, string> = {};
     if (contentType) {
@@ -861,7 +1019,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const contentType = getFileContentType(file);
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
-      type: 'referenceVideo'
+      type: 'referenceVideo',
+      contentType
     });
     const headers: Record<string, string> = {};
     if (contentType) {
@@ -902,7 +1061,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     sizePreset,
     guidance,
     sampler,
-    contextImages
+    contextImages,
+    gptImageQuality,
+    outputFormat
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const modelOptions = await this.getModelOptions(model);
@@ -928,14 +1089,18 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     } else {
       pathParams.push(0, 0);
     }
-    if (sampler) {
+    if (sampler || contextImages !== undefined) {
       apiVersion = 3;
       pathParams.push(guidance || 0);
-      pathParams.push(validateSampler(sampler, modelOptions)!);
+      pathParams.push(sampler ? validateSampler(sampler, modelOptions)! : '_');
       pathParams.push(contextImages || 0);
     }
+    const queryParams = new URLSearchParams();
+    if (gptImageQuality) queryParams.set('gptImageQuality', gptImageQuality);
+    if (outputFormat) queryParams.set('outputFormat', outputFormat);
+    const query = queryParams.toString();
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}`
+      `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}${query ? `?${query}` : ''}`
     );
     return {
       token: r.quote.project.costInToken,
@@ -974,6 +1139,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - frames: The total number of frames in the video.
    *   - fps: The frames per second for the video.
    *   - steps: Number of steps.
+   *   - hasVideoInput: Whether to price a Seedance estimate with video input.
    * @return {Promise<Object>} Returns an object containing the estimated costs for the video in different units:
    *   - token: Cost in tokens.
    *   - usd: Cost in USD.
@@ -981,21 +1147,37 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - sogni: Cost in Sogni.
    */
   async estimateVideoCost(params: VideoEstimateRequest) {
-    const pathParams = [
+    const frames = params.frames
+      ? params.frames
+      : calculateVideoFrames(params.model, params.duration, params.fps);
+    const numberOfMedia = params.numberOfMedia ?? 1;
+    const pathParams: Array<string | number> = [
       params.tokenType,
       params.model,
       params.width,
       params.height,
-      params.frames
-        ? params.frames
-        : calculateVideoFrames(params.model, params.duration, params.fps),
-      params.fps,
-      params.steps,
-      params.numberOfMedia
+      frames,
+      params.fps
     ];
+    if (params.steps !== undefined && params.steps !== null) {
+      pathParams.push(params.steps);
+      pathParams.push(numberOfMedia);
+    } else if (numberOfMedia !== 1) {
+      pathParams.push(0);
+      pathParams.push(numberOfMedia);
+    }
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
+    const query = new URLSearchParams();
+    const hasVideoInput =
+      params.hasVideoInput === true ||
+      Boolean(params.referenceVideo) ||
+      (Array.isArray(params.referenceVideoUrls) && params.referenceVideoUrls.length > 0);
+    if (hasVideoInput) {
+      query.set('hasVideoInput', '1');
+    }
+    const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v1/job-video/estimate/${path}`
+      `/api/v1/job-video/estimate/${path}${queryString ? `?${queryString}` : ''}`
     );
     return {
       token: r.quote.project.costInToken,
@@ -1041,8 +1223,26 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   // ============================================
 
   /**
-   * Get upload URL for image
-   * @internal
+   * Request a presigned upload URL for an image asset (reference image,
+   * starting image, ControlNet image, context image, etc.). The caller
+   * uploads the image bytes via `PUT` to the returned URL before
+   * starting a project or workflow that references the asset.
+   *
+   * @param {ImageUrlParams} params - Image asset coordinates:
+   *   - imageId: Stable identifier for the asset within the job
+   *     (e.g. `"media_ref_1"`). The same id is later used to reference
+   *     the asset in workflow inputs.
+   *   - jobId: Caller-generated job/correlation id (e.g.
+   *     `"sogni-agent-1735000000-1-abcdef"`). Ties the asset to a
+   *     specific request.
+   *   - type: Asset role. Supported values include `'referenceImage'`,
+   *     `'referenceImageEnd'`, `'startingImage'`, `'cnImage'`,
+   *     `'contextImage1'`..`'contextImage16'`, `'preview'`, `'complete'`.
+   *   - contentType: Optional MIME type the caller will `PUT` (e.g.
+   *     `"image/png"`). Forwarded so the storage layer can pin the
+   *     Content-Type on the presigned URL.
+   * @return {Promise<string>} Presigned `PUT` URL the caller should
+   *   upload the image bytes to. Short-lived; use immediately.
    */
   async uploadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiResponse<{ uploadUrl: string }>>(
@@ -1053,8 +1253,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Get download URL for image
-   * @internal
+   * Request a presigned download URL for a stored image asset.
+   *
+   * @param {ImageUrlParams} params - Same shape as
+   *   {@link ProjectsApi.uploadUrl}; `imageId`, `jobId`, and `type`
+   *   must match the values used at upload time.
+   * @return {Promise<string>} Presigned `GET` URL for the image.
+   *   Throws if the server response does not include a `downloadUrl`.
    */
   async downloadUrl(params: ImageUrlParams) {
     const r = await this.client.rest.get<ApiResponse<{ downloadUrl: string }>>(
@@ -1068,8 +1273,21 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Get upload URL for media (video/audio)
-   * @internal
+   * Request a presigned upload URL for an audio or video asset
+   * (reference audio, reference video, finished media artifacts, etc.).
+   * The caller uploads the media bytes via `PUT` to the returned URL
+   * before starting a project or workflow that references the asset.
+   *
+   * @param {MediaUrlParams} params - Media asset coordinates:
+   *   - id: Stable identifier for the asset within the job
+   *     (e.g. `"media_ref_1"`). Optional for some asset roles.
+   *   - jobId: Caller-generated job/correlation id.
+   *   - type: Asset role. Supported values are `'referenceAudio'`,
+   *     `'referenceVideo'`, `'preview'`, `'complete'`.
+   *   - contentType: Optional MIME type the caller will `PUT`
+   *     (e.g. `"audio/mp4"` or `"video/mp4"`).
+   * @return {Promise<string>} Presigned `PUT` URL the caller should
+   *   upload the media bytes to.
    */
   async mediaUploadUrl(params: MediaUrlParams) {
     const r = await this.client.rest.get<ApiResponse<{ uploadUrl: string }>>(
@@ -1080,8 +1298,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Get download URL for media (video/audio)
-   * @internal
+   * Request a presigned download URL for a stored audio or video asset.
+   *
+   * @param {MediaUrlParams} params - Same shape as
+   *   {@link ProjectsApi.mediaUploadUrl}; `id`, `jobId`, and `type`
+   *   must match the values used at upload time.
+   * @return {Promise<string>} Presigned `GET` URL for the media.
+   *   Throws if the server response does not include a `downloadUrl`.
    */
   async mediaDownloadUrl(params: MediaUrlParams) {
     const r = await this.client.rest.get<ApiResponse<{ downloadUrl: string }>>(
