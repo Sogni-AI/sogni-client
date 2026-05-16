@@ -1,3 +1,10 @@
+# [5.0.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.2...v5.0.0-alpha.3) (2026-05-16)
+
+
+### Features
+
+* **chat-runs:** sdk method for cost-approval resume ([e944765](https://github.com/Sogni-AI/sogni-client/commit/e9447659ac319b1ec9c6010a9449f4030400d1c9))
+
 # [5.0.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.1...v5.0.0-alpha.2) (2026-05-16)
 
 
