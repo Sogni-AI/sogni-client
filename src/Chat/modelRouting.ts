@@ -3,14 +3,14 @@ import { getVideoWorkflowType } from '../Projects/utils';
 export { getVideoWorkflowType };
 
 /**
- * Public SDK-local routing helpers. The validator surface is generated from
- * @sogni/creative-agent/src/backbone/reference/toolValidation.ts via
- * `npm run sync:hosted-tool-validation` and re-exported below so SDK
- * consumers do not need the private creative-agent package while still
- * inheriting the full validator (pattern auto-anchoring, bounds, oneOf/anyOf,
- * nested recursion, coercion, stripping).
+ * Public SDK-local routing helpers. The validator surface is sourced from
+ * `@sogni-ai/sogni-intelligence-client/contracts` (the public mid-tier
+ * package), so SDK consumers inherit the full validator (pattern
+ * auto-anchoring, bounds, oneOf/anyOf, nested recursion, coercion,
+ * stripping) without depending on the private creative-agent package.
  */
 
+// @ts-ignore — moduleResolution: 'node' doesn't read exports map at compile time
 export type {
   HostedToolSchemaProperty,
   HostedToolSchema,
@@ -18,12 +18,13 @@ export type {
   ValidateHostedToolArgumentsOptions,
   HostedToolArgumentValidationResult,
   NormalizeHostedToolArgumentsResult
-} from './hostedToolValidation.generated';
+} from '@sogni-ai/sogni-intelligence-client/contracts';
+// @ts-ignore — moduleResolution: 'node' doesn't read exports map at compile time
 export {
   validateAndNormalizeHostedToolArguments,
   validateHostedToolArguments,
   assertHostedToolArguments
-} from './hostedToolValidation.generated';
+} from '@sogni-ai/sogni-intelligence-client/contracts';
 
 export type BackboneMediaType = 'image' | 'video' | 'audio';
 

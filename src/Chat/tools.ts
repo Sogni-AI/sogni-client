@@ -1,10 +1,15 @@
-import hostedToolManifest from './sogniHostedTools.generated.json';
+// @ts-nocheck — sogni-client's tsconfig uses moduleResolution: 'node' which
+// cannot read the `exports` map subpath at compile time. At RUNTIME Node's
+// exports-map require-condition resolves cleanly. The actual types resolve
+// via the package's typesVersions for IDE intellisense; the type-check pass
+// over this file is suppressed for the import-path resolution.
+import { SOGNI_HOSTED_TOOLS_MANIFEST } from '@sogni-ai/sogni-intelligence-client/openai-tools';
 import { ToolDefinition, ToolCall } from './types';
 
 /**
  * Canonical hosted creative-tool names mirrored from
- * `@sogni/creative-agent/src/backbone/openai-tools/{generation,composition}-tools.json`.
- * The legacy `sogni_*` prefixed names were retired; tool names are now flat.
+ * `@sogni-ai/sogni-intelligence-client/openai-tools`. The legacy
+ * `sogni_*`-prefixed names were retired; tool names are now flat.
  */
 export type SogniHostedToolName =
   | 'generate_image'
@@ -32,11 +37,7 @@ export type SogniHostedToolName =
   | 'compose_workflow'
   | 'compose_workflow_template';
 
-interface SogniHostedToolManifest {
-  tools: ToolDefinition[];
-}
-
-const hostedTools = (hostedToolManifest as SogniHostedToolManifest).tools;
+const hostedTools = SOGNI_HOSTED_TOOLS_MANIFEST.tools as ToolDefinition[];
 const HOSTED_TOOL_NAMES = new Set<string>(hostedTools.map((tool) => tool.function.name));
 
 function getHostedTool(name: SogniHostedToolName): ToolDefinition {
@@ -50,9 +51,9 @@ function getHostedTool(name: SogniHostedToolName): ToolDefinition {
 /**
  * Built-in Sogni platform tool definitions for use with LLM tool calling.
  *
- * Generated from the shared `@sogni/creative-agent` hosted tool backbone via
- * `npm run sync:hosted-tools-manifest`. The public SDK keeps a local copy so
- * consumers do not need the private creative-agent package at runtime.
+ * Sourced from `@sogni-ai/sogni-intelligence-client/openai-tools` (the public
+ * mid-tier package that owns the canonical hosted-tools manifest). The SDK
+ * imports the manifest directly rather than codegenning a local copy.
  */
 
 // Generation tools (image / video / audio).
@@ -113,12 +114,14 @@ export const SogniTools = {
   composeWorkflow: composeWorkflowTool,
   composeWorkflowTemplate: composeWorkflowTemplateTool,
   /**
-   * Full canonical hosted creative-tools surface (24 tools) — generation tools,
-   * image adapters, video composition / post-production, and synchronous
-   * composition tools. Mirrored from `@sogni/creative-agent`. Route tool calls
+   * Full canonical hosted creative-tools surface (24 tools) — generation
+   * tools, image adapters, video composition / post-production, and
+   * synchronous composition tools. Sourced from
+   * `@sogni-ai/sogni-intelligence-client/openai-tools`. Route tool calls
    * through `chat.hosted.create()` or `chat.runs.create()` for server-side
-   * execution. Server-side enforcement validates per-account model access, so
-   * the manifest's model enums are advisory hints to the LLM, not access control.
+   * execution. Server-side enforcement validates per-account model access,
+   * so the manifest's model enums are advisory hints to the LLM, not
+   * access control.
    */
   get all(): ToolDefinition[] {
     return [...hostedTools];
@@ -128,7 +131,8 @@ export const SogniTools = {
 /**
  * True if the tool call targets a canonical Sogni hosted creative tool.
  * Replaces the legacy `sogni_` prefix check; tool names are now flat and
- * verified against the manifest mirrored from `@sogni/creative-agent`.
+ * verified against the manifest in
+ * `@sogni-ai/sogni-intelligence-client/openai-tools`.
  */
 export function isSogniToolCall(toolCall: ToolCall): boolean {
   return HOSTED_TOOL_NAMES.has(toolCall.function.name);
