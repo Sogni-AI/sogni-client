@@ -12,3 +12,4 @@ examples/output
 examples/results
 examples/toprocess
 docs/superpowers/
+src/Chat/_hostedToolsManifest.generated.ts

@@ -3,14 +3,13 @@ import { getVideoWorkflowType } from '../Projects/utils';
 export { getVideoWorkflowType };
 
 /**
- * Public SDK-local routing helpers. The validator surface is sourced from
- * `@sogni-ai/sogni-intelligence-client/contracts` (the public mid-tier
- * package), so SDK consumers inherit the full validator (pattern
- * auto-anchoring, bounds, oneOf/anyOf, nested recursion, coercion,
- * stripping) without depending on the private creative-agent package.
+ * Public SDK-local routing helpers. The hosted-tool argument validator
+ * lives in `./hostedToolValidator` — pure JSON-Schema-ish logic with no
+ * external dependencies. Schema data (the tool definitions the validator
+ * checks against) comes from `@sogni-ai/sogni-protocol`, the
+ * language-neutral protocol artifact package.
  */
 
-// @ts-ignore — moduleResolution: 'node' doesn't read exports map at compile time
 export type {
   HostedToolSchemaProperty,
   HostedToolSchema,
@@ -18,13 +17,12 @@ export type {
   ValidateHostedToolArgumentsOptions,
   HostedToolArgumentValidationResult,
   NormalizeHostedToolArgumentsResult
-} from '@sogni-ai/sogni-intelligence-client/contracts';
-// @ts-ignore — moduleResolution: 'node' doesn't read exports map at compile time
+} from './hostedToolValidator';
 export {
   validateAndNormalizeHostedToolArguments,
   validateHostedToolArguments,
   assertHostedToolArguments
-} from '@sogni-ai/sogni-intelligence-client/contracts';
+} from './hostedToolValidator';
 
 export type BackboneMediaType = 'image' | 'video' | 'audio';
 
