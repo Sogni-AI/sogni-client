@@ -354,7 +354,7 @@ export class SogniClient {
    * Chat surfaces.
    * - `chat.completions.create` — socket-native chat completion.
    * - `chat.hosted.create` — hosted REST chat completion (synchronous).
-   * - `chat.runs.{create, get, cancel, streamEvents}` — durable hosted
+   * - `chat.runs.{create, get, cancel, confirmCost, streamEvents}` — durable hosted
    *   chat runs that survive client disconnect, browser close, network
    *   drop, and API worker restart. See `/v1/chat/runs` REST surface.
    * - `chat.tools.execute*` — execute Sogni platform tools surfaced by
