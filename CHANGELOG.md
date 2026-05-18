@@ -1,3 +1,10 @@
+# [5.0.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.5...v5.0.0-alpha.6) (2026-05-18)
+
+
+### Features
+
+* **exports:** expose additional SDK root types ([761cb4e](https://github.com/Sogni-AI/sogni-client/commit/761cb4ef363fb748168b525c430b5aac2642618d))
+
 # [5.0.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.4...v5.0.0-alpha.5) (2026-05-18)
 
 
