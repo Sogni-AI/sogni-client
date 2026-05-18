@@ -33,8 +33,17 @@ import {
   AudioFormat,
   VideoFormat,
   VideoOutputFormat,
-  VideoWorkflowType
+  VideoWorkflowType,
+  SizePreset,
+  EstimateRequest,
+  CostEstimation,
+  InputMedia
 } from './Projects/types';
+import type { ProjectEvent, JobEvent } from './Projects/types/events';
+import type { RawProject } from './Projects/types/RawProject';
+import type { Balances, Reward, TxHistoryEntry } from './Account/types';
+import type { ToastMessage } from './ApiClient/WebSocketClient/events';
+import type DataEntity from './lib/DataEntity';
 import {
   ControlNetName,
   ControlNetParams,
@@ -244,7 +253,21 @@ export type {
   VideoFormat,
   VideoOutputFormat,
   VideoProjectParams,
-  VideoWorkflowType
+  VideoWorkflowType,
+  // Primitives promoted from deep paths so consumers can import from the
+  // package root rather than reaching into `./dist/*`.
+  Balances,
+  Reward,
+  TxHistoryEntry,
+  SizePreset,
+  EstimateRequest,
+  CostEstimation,
+  ProjectEvent,
+  JobEvent,
+  RawProject,
+  ToastMessage,
+  DataEntity,
+  InputMedia
 };
 
 export {
