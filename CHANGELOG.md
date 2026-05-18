@@ -1,3 +1,12 @@
+# [5.0.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.4...v5.0.0-alpha.5) (2026-05-18)
+
+
+### Bug Fixes
+
+* **build:** run codegen on prepare and watch to populate generated manifest ([89734d5](https://github.com/Sogni-AI/sogni-client/commit/89734d5327135be2fc8ddb3575c8d57bf56089b9))
+* **deps:** make sogni-protocol a regular dependency so CI install resolves ([b4d428b](https://github.com/Sogni-AI/sogni-client/commit/b4d428b675ecf143e0174652dd132b0bb76449fc))
+* **deps:** regenerate lockfile to resolve sogni-protocol from npm registry ([4159987](https://github.com/Sogni-AI/sogni-client/commit/41599870e73512c32439c34c1b923f563a35bc0d))
+
 # [5.0.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.3...v5.0.0-alpha.4) (2026-05-16)
 
 
