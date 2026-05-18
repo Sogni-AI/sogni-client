@@ -91,7 +91,7 @@
     "ws": "^8.18.0"
   },
   "peerDependencies": {
-    "@sogni-ai/sogni-protocol": "^1.0.0-alpha.1"
+    "@sogni-ai/sogni-protocol": "^1.0.0-alpha.2"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
