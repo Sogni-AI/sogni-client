@@ -153,12 +153,34 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
       return;
     }
     if (!data.code || isNotRecoverable(data.code)) {
-      // If this is browser, another tab is probably claiming the connection, so we don't need to reconnect
-      if (
-        this._socket instanceof BrowserWebSocketClient &&
-        data.code === ErrorCode.SWITCH_CONNECTION
-      ) {
-        this.logger.debug('Switching network connection, not reconnecting');
+      // SWITCH_CONNECTION (4015) means another connection claimed our app-id.
+      // In browser mode this is a tab handoff (the new primary tab took over).
+      // In node/server mode (sogni-api pool) it happens when sogni-socket
+      // boots a stale entry on reconnect or when the consumer pool is
+      // rebuilding. In BOTH cases the auth token is still valid for REST
+      // calls keyed off the same API key — clearing it would force a
+      // re-login and break in-flight non-socket work for no benefit.
+      //
+      // Browser-side: signal disconnected so the coordinator handles tab
+      // demotion, do nothing else (no auth clear, no reconnect that would
+      // just trigger another 4015).
+      //
+      // Node-side: signal disconnected so consumers (e.g. sogni-api's
+      // SogniClientSessionService) can invalidate their pool entry and
+      // build a fresh client with a fresh nonced app-id on the next
+      // acquire. Auto-reconnecting here with the same app-id would race
+      // sogni-socket's boot-duplicate logic and end in another 4015 storm.
+      if (data.code === ErrorCode.SWITCH_CONNECTION) {
+        if (this._socket instanceof BrowserWebSocketClient) {
+          this.logger.debug('Switching network connection (tab handoff), not reconnecting');
+        } else {
+          this.logger.warn(
+            'SWITCH_CONNECTION (4015): another connection claimed our app-id; '
+              + 'yielding without auth clear so consumer can invalidate + rebuild on next request',
+            data
+          );
+        }
+        this.emit('disconnected', data);
         return;
       }
       this.auth.clear();
