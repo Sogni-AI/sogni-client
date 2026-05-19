@@ -1,3 +1,10 @@
+# [5.0.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.6...v5.0.0-alpha.7) (2026-05-19)
+
+
+### Bug Fixes
+
+* **client:** preserve auth and surface upstream status on transient errors ([f9145ce](https://github.com/Sogni-AI/sogni-client/commit/f9145ce7593fa9564ec5b047114d215c388ed27c))
+
 # [5.0.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.5...v5.0.0-alpha.6) (2026-05-18)
 
 
