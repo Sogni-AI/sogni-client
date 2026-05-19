@@ -17,15 +17,15 @@
  *     a numeric offset the api echoes when more results are available.
  */
 
-import ApiGroup, { ApiConfig } from '../../ApiGroup';
-import { ApiError } from '../../ApiClient';
+import ApiGroup, { ApiConfig } from '../../ApiGroup.js';
+import { ApiError } from '../../ApiClient/index.js';
 import {
   ForkWorkflowTemplateBody,
   ListWorkflowTemplatesOptions,
   ListWorkflowTemplatesResult,
   WorkflowTemplate,
   WorkflowTemplateRequestOptions
-} from './types';
+} from './types.js';
 
 interface TemplateEnvelope {
   template?: WorkflowTemplate;
@@ -234,4 +234,4 @@ export const __envelopeInternals = {
 };
 
 export default CreativeWorkflowTemplatesApi;
-export * from './types';
+export * from './types.js';

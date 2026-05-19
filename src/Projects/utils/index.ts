@@ -1,4 +1,9 @@
-import { AssetRequirement, EnhancementStrength, VideoAssetKey, VideoWorkflowType } from '../types';
+import {
+  AssetRequirement,
+  EnhancementStrength,
+  VideoAssetKey,
+  VideoWorkflowType
+} from '../types/index.js';
 
 export function getEnhacementStrength(strength: EnhancementStrength): number {
   switch (strength) {

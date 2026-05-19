@@ -1,18 +1,21 @@
-import { MessageType, SocketMessageMap } from './messages';
-import { SocketEventMap } from './events';
-import RestClient from '../../lib/RestClient';
-import { IWebSocketClient, SupernetType } from './types';
+import { MessageType, SocketMessageMap } from './messages.js';
+import { SocketEventMap } from './events.js';
+import RestClient from '../../lib/RestClient.js';
+import { IWebSocketClient, SupernetType } from './types.js';
 import WebSocket, { CloseEvent, ErrorEvent, MessageEvent } from 'isomorphic-ws';
-import { base64Decode, base64Encode } from '../../lib/base64';
-import isNodejs from '../../lib/isNodejs';
-import { LIB_VERSION } from '../../version';
-import { Logger } from '../../lib/DefaultLogger';
-import { AuthManager } from '../../lib/AuthManager';
+import { base64Decode, base64Encode } from '../../lib/base64.js';
+import isNodejs from '../../lib/isNodejs.js';
+import { LIB_VERSION } from '../../version.js';
+import { Logger } from '../../lib/DefaultLogger.js';
+import { AuthManager } from '../../lib/AuthManager/index.js';
 import {
   normalizeSocketEventSubscriptionUpdate,
   serializeSocketEventSubscriptions
-} from './eventSubscriptions';
-import type { SocketEventSubscriptionInput, SocketEventSubscriptions } from './eventSubscriptions';
+} from './eventSubscriptions.js';
+import type {
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptions
+} from './eventSubscriptions.js';
 
 const PROTOCOL_VERSION = '3.0.0';
 

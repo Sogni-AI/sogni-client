@@ -1,21 +1,21 @@
-import RestClient from '../lib/RestClient';
-import WebSocketClient from './WebSocketClient';
-import TypedEventEmitter from '../lib/TypedEventEmitter';
-import { ApiClientEvents } from './events';
-import { ServerConnectData, ServerDisconnectData } from './WebSocketClient/events';
-import { ErrorCode, isNotRecoverable } from './WebSocketClient/ErrorCode';
-import { JSONValue } from '../types/json';
-import { IWebSocketClient, SupernetType } from './WebSocketClient/types';
+import RestClient from '../lib/RestClient.js';
+import WebSocketClient from './WebSocketClient/index.js';
+import TypedEventEmitter from '../lib/TypedEventEmitter.js';
+import { ApiClientEvents } from './events.js';
+import { ServerConnectData, ServerDisconnectData } from './WebSocketClient/events.js';
+import { ErrorCode, isNotRecoverable } from './WebSocketClient/ErrorCode.js';
+import { JSONValue } from '../types/json.js';
+import { IWebSocketClient, SupernetType } from './WebSocketClient/types.js';
 import type {
   SocketEventSubscriptionInput,
   SocketEventSubscriptions
-} from './WebSocketClient/eventSubscriptions';
-import { Logger } from '../lib/DefaultLogger';
-import ApiKeyAuthManager from '../lib/AuthManager/ApiKeyAuthManager';
-import CookieAuthManager from '../lib/AuthManager/CookieAuthManager';
-import { AuthManager, TokenAuthManager } from '../lib/AuthManager';
-import isNodejs from '../lib/isNodejs';
-import BrowserWebSocketClient from './WebSocketClient/BrowserWebSocketClient';
+} from './WebSocketClient/eventSubscriptions.js';
+import { Logger } from '../lib/DefaultLogger.js';
+import ApiKeyAuthManager from '../lib/AuthManager/ApiKeyAuthManager.js';
+import CookieAuthManager from '../lib/AuthManager/CookieAuthManager.js';
+import { AuthManager, TokenAuthManager } from '../lib/AuthManager/index.js';
+import isNodejs from '../lib/isNodejs.js';
+import BrowserWebSocketClient from './WebSocketClient/BrowserWebSocketClient/index.js';
 
 const WS_RECONNECT_ATTEMPTS = 5;
 

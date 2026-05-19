@@ -1,8 +1,8 @@
-import type ProjectsApi from '../Projects';
-import type { AvailableModel } from '../Projects/types';
-import { getMaxContextImages } from '../lib/validation';
-import { parseInlineMediaDataUri } from '../lib/mediaValidation';
-import type { MediaType } from '../lib/mediaValidation';
+import type ProjectsApi from '../Projects/index.js';
+import type { AvailableModel } from '../Projects/types/index.js';
+import { getMaxContextImages } from '../lib/validation.js';
+import { parseInlineMediaDataUri } from '../lib/mediaValidation.js';
+import type { MediaType } from '../lib/mediaValidation.js';
 import {
   assertHostedToolArguments,
   asBooleanValue,
@@ -19,14 +19,14 @@ import {
   selectBackboneModel,
   serializeUnknownError,
   VideoWorkflow
-} from './modelRouting';
-import { SogniTools, isSogniToolCall, parseToolCallArguments } from './tools';
+} from './modelRouting.js';
+import { SogniTools, isSogniToolCall, parseToolCallArguments } from './tools.js';
 import {
   ToolCall,
   ToolExecutionOptions,
   ToolExecutionProgress,
   ToolExecutionResult
-} from './types';
+} from './types.js';
 
 const DEFAULT_TIMEOUT = 30 * 60 * 1000;
 const MAX_SOGNI_TOOL_CALLS_PER_ROUND = 8;

@@ -1,5 +1,5 @@
-import getUUID from '../../../lib/getUUID';
-import { Logger } from '../../../lib/DefaultLogger';
+import getUUID from '../../../lib/getUUID.js';
+import { Logger } from '../../../lib/DefaultLogger.js';
 
 const PRIMARY_HEARTBEAT_INTERVAL = 2000;
 const PRIMARY_TIMEOUT = 4000;

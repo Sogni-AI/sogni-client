@@ -1,7 +1,7 @@
-import { JobRequestRaw } from '../../Projects/createJobRequestMessage';
-import { SupernetType } from './types';
-import { ChatRequestMessage } from '../../Chat/types';
-import type { SocketEventSubscriptionUpdate } from './eventSubscriptions';
+import { JobRequestRaw } from '../../Projects/createJobRequestMessage.js';
+import { SupernetType } from './types.js';
+import { ChatRequestMessage } from '../../Chat/types.js';
+import type { SocketEventSubscriptionUpdate } from './eventSubscriptions.js';
 
 export interface JobErrorMessage {
   jobID: string;

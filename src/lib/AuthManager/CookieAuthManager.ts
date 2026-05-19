@@ -1,4 +1,4 @@
-import AuthManagerBase from './AuthManagerBase';
+import AuthManagerBase from './AuthManagerBase.js';
 
 class CookieAuthManager extends AuthManagerBase<undefined> {
   private _isAuthenticated = false;

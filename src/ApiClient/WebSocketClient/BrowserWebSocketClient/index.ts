@@ -1,12 +1,19 @@
-import { IWebSocketClient, SupernetType } from '../types';
-import { AuthManager, CookieAuthManager, TokenAuthManager } from '../../../lib/AuthManager';
-import { Logger } from '../../../lib/DefaultLogger';
-import WebSocketClient from '../index';
-import RestClient from '../../../lib/RestClient';
-import { SocketEventMap } from '../events';
-import { MessageType, SocketMessageMap } from '../messages';
-import ChannelCoordinator from './ChannelCoordinator';
-import type { SocketEventSubscriptionInput, SocketEventSubscriptions } from '../eventSubscriptions';
+import { IWebSocketClient, SupernetType } from '../types.js';
+import {
+  AuthManager,
+  CookieAuthManager,
+  TokenAuthManager
+} from '../../../lib/AuthManager/index.js';
+import { Logger } from '../../../lib/DefaultLogger.js';
+import WebSocketClient from '../index.js';
+import RestClient from '../../../lib/RestClient.js';
+import { SocketEventMap } from '../events.js';
+import { MessageType, SocketMessageMap } from '../messages.js';
+import ChannelCoordinator from './ChannelCoordinator.js';
+import type {
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptions
+} from '../eventSubscriptions.js';
 
 interface SocketSend<T extends MessageType = MessageType> {
   type: 'socket-send';

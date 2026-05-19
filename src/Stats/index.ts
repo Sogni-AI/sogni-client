@@ -1,6 +1,6 @@
-import ApiGroup from '../ApiGroup';
-import { ApiResponse } from '../ApiClient';
-import { LeaderboardItem, LeaderboardParams } from './types';
+import ApiGroup from '../ApiGroup.js';
+import { ApiResponse } from '../ApiClient/index.js';
+import { LeaderboardItem, LeaderboardParams } from './types.js';
 
 class StatsApi extends ApiGroup {
   async leaderboard(params: LeaderboardParams) {

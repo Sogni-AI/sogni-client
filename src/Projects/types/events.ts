@@ -1,5 +1,5 @@
-import { AvailableModel } from './index';
-import ErrorData from '../../types/ErrorData';
+import { AvailableModel } from './index.js';
+import ErrorData from '../../types/ErrorData.js';
 
 export interface ProjectEventBase {
   projectId: string;

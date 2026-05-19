@@ -1,12 +1,12 @@
-import Job, { JobData } from './Job';
-import DataEntity, { EntityEvents } from '../lib/DataEntity';
-import { isImageParams, ProjectParams } from './types';
-import cloneDeep from 'lodash/cloneDeep';
-import ErrorData from '../types/ErrorData';
-import getUUID from '../lib/getUUID';
-import { RawJob, RawProject } from './types/RawProject';
-import ProjectsApi from './index';
-import { Logger } from '../lib/DefaultLogger';
+import Job, { JobData } from './Job.js';
+import DataEntity, { EntityEvents } from '../lib/DataEntity.js';
+import { isImageParams, ProjectParams } from './types/index.js';
+import cloneDeep from 'lodash/cloneDeep.js';
+import ErrorData from '../types/ErrorData.js';
+import getUUID from '../lib/getUUID.js';
+import { RawJob, RawProject } from './types/RawProject.js';
+import ProjectsApi from './index.js';
+import { Logger } from '../lib/DefaultLogger.js';
 
 // If project is not finished and had no updates for 2 minutes, force refresh
 const PROJECT_TIMEOUT = 2 * 60 * 1000;

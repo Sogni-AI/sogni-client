@@ -1,15 +1,15 @@
-import DataEntity, { EntityEvents } from '../lib/DataEntity';
-import ErrorData from '../types/ErrorData';
-import { RawJob, RawProject } from './types/RawProject';
-import ProjectsApi from './index';
-import { Logger } from '../lib/DefaultLogger';
-import getUUID from '../lib/getUUID';
-import { EnhancementStrength } from './types';
-import Project from './Project';
-import { SupernetType } from '../ApiClient/WebSocketClient/types';
-import { getEnhacementStrength } from './utils';
-import { TokenType } from '../types/token';
-import has from 'lodash/has';
+import DataEntity, { EntityEvents } from '../lib/DataEntity.js';
+import ErrorData from '../types/ErrorData.js';
+import { RawJob, RawProject } from './types/RawProject.js';
+import ProjectsApi from './index.js';
+import { Logger } from '../lib/DefaultLogger.js';
+import getUUID from '../lib/getUUID.js';
+import { EnhancementStrength } from './types/index.js';
+import Project from './Project.js';
+import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
+import { getEnhacementStrength } from './utils/index.js';
+import { TokenType } from '../types/token.js';
+import has from 'lodash/has.js';
 
 export const enhancementDefaults = {
   network: 'fast' as SupernetType,

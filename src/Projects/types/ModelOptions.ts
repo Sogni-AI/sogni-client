@@ -1,6 +1,12 @@
-import { AudioTier, ComfyImageTier, ImageTier, NumericDefaults, VideoTier } from './ModelTiersRaw';
-import { samplerValueToAlias } from '../utils/samplers';
-import { schedulerValueToAlias } from '../utils/scheduler';
+import {
+  AudioTier,
+  ComfyImageTier,
+  ImageTier,
+  NumericDefaults,
+  VideoTier
+} from './ModelTiersRaw.js';
+import { samplerValueToAlias } from '../utils/samplers.js';
+import { schedulerValueToAlias } from '../utils/scheduler.js';
 
 interface NumRange {
   min: number;

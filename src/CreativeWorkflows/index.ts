@@ -1,6 +1,6 @@
-import ApiGroup, { ApiConfig } from '../ApiGroup';
-import { ApiError, ApiResponse } from '../ApiClient';
-import CreativeWorkflowTemplatesApi from './Templates';
+import ApiGroup, { ApiConfig } from '../ApiGroup.js';
+import { ApiError, ApiResponse } from '../ApiClient/index.js';
+import CreativeWorkflowTemplatesApi from './Templates/index.js';
 import {
   CreativeWorkflowRecord,
   CreativeWorkflowEvent,
@@ -15,7 +15,7 @@ import {
   StartCreativeWorkflowOptions,
   StartCreativeWorkflowParams,
   StreamCreativeWorkflowEventsOptions
-} from './types';
+} from './types.js';
 
 interface CreativeWorkflowEnvelope {
   workflow?: CreativeWorkflowRecord;
@@ -402,4 +402,4 @@ class CreativeWorkflowsApi extends ApiGroup {
 }
 
 export default CreativeWorkflowsApi;
-export * from './types';
+export * from './types.js';

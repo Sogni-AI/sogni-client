@@ -15,8 +15,8 @@
  * can branch on status without parsing strings.
  */
 
-import ApiGroup, { ApiConfig } from '../ApiGroup';
-import { ApiError } from '../ApiClient';
+import ApiGroup, { ApiConfig } from '../ApiGroup.js';
+import { ApiError } from '../ApiClient/index.js';
 import {
   GetReplayRecordResult,
   ListReplayRecordsOptions,
@@ -25,7 +25,7 @@ import {
   ReplayRequestOptions,
   ReplayWriteResult,
   RunRecord
-} from './types';
+} from './types.js';
 
 interface ReplayEnvelope {
   // POST response (the ingest endpoint returns the fields flat).
@@ -163,4 +163,4 @@ class ReplayApi extends ApiGroup {
 }
 
 export default ReplayApi;
-export * from './types';
+export * from './types.js';

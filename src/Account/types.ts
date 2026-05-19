@@ -1,4 +1,4 @@
-import { TokenType } from '../types/token';
+import { TokenType } from '../types/token.js';
 
 export interface Nonce {
   nonce: string;

@@ -1,6 +1,6 @@
-import { SupernetType } from '../../ApiClient/WebSocketClient/types';
-import { ControlNetParams, VideoControlNetParams } from './ControlNetParams';
-import { TokenType } from '../../types/token';
+import { SupernetType } from '../../ApiClient/WebSocketClient/types.js';
+import { ControlNetParams, VideoControlNetParams } from './ControlNetParams.js';
+import { TokenType } from '../../types/token.js';
 
 export interface SupportedModel {
   id: string;

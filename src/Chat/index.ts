@@ -1,12 +1,12 @@
-import ApiGroup, { ApiConfig } from '../ApiGroup';
+import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import {
   JobTokensData,
   LLMJobResultData,
   LLMJobErrorData
-} from '../ApiClient/WebSocketClient/events';
-import ChatStream from './ChatStream';
-import ChatToolsApi from './ChatTools';
-import { isSogniToolCall } from './tools';
+} from '../ApiClient/WebSocketClient/events.js';
+import ChatStream from './ChatStream.js';
+import ChatToolsApi from './ChatTools.js';
+import { isSogniToolCall } from './tools.js';
 import {
   ChatCompletionParams,
   ChatCompletionChunk,
@@ -26,10 +26,10 @@ import {
   StreamChatRunEventsOptions,
   ToolCall,
   ToolHistoryEntry
-} from './types';
-import getUUID from '../lib/getUUID';
-import type ProjectsApi from '../Projects';
-import { mediaInputToInlineDataUri } from '../lib/mediaValidation';
+} from './types.js';
+import getUUID from '../lib/getUUID.js';
+import type ProjectsApi from '../Projects/index.js';
+import { mediaInputToInlineDataUri } from '../lib/mediaValidation.js';
 
 const MAX_VISION_IMAGE_COUNT = 20;
 const MAX_VISION_IMAGE_BYTES = 10 * 1024 * 1024;

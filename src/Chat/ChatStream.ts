@@ -5,7 +5,7 @@ import {
   TokenUsage,
   ToolCall,
   ToolCallDelta
-} from './types';
+} from './types.js';
 
 /**
  * Async iterable that yields chat completion chunks as they arrive.

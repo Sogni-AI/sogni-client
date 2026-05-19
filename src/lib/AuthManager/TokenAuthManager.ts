@@ -1,9 +1,9 @@
-import { decodeToken, decodeRefreshToken } from '../utils';
-import { ApiError, ApiErrorResponse } from '../../ApiClient';
-import { Logger } from '../DefaultLogger';
-import isNodejs from '../isNodejs';
+import { decodeToken, decodeRefreshToken } from '../utils/index.js';
+import { ApiError, ApiErrorResponse } from '../../ApiClient/index.js';
+import { Logger } from '../DefaultLogger.js';
+import isNodejs from '../isNodejs.js';
 import Cookie from 'js-cookie';
-import AuthManagerBase from './AuthManagerBase';
+import AuthManagerBase from './AuthManagerBase.js';
 import { ClientOptions } from 'ws';
 
 /**

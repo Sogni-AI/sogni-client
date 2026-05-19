@@ -3,8 +3,8 @@
 // into the .gitignored `_hostedToolsManifest.generated.ts`. This avoids the
 // Node ESM JSON-import-attribute requirement that TypeScript cannot emit
 // conditionally for the dual CJS+ESM build.
-import { SOGNI_HOSTED_TOOLS_MANIFEST } from './_hostedToolsManifest.generated';
-import { ToolDefinition, ToolCall } from './types';
+import { SOGNI_HOSTED_TOOLS_MANIFEST } from './_hostedToolsManifest.generated.js';
+import { ToolDefinition, ToolCall } from './types.js';
 
 /**
  * Canonical hosted creative-tool names. The manifest data is the canonical

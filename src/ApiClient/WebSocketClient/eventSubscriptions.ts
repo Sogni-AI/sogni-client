@@ -1,4 +1,4 @@
-import type { SocketEventName } from './events';
+import type { SocketEventName } from './events.js';
 
 export type SocketEventSubscriptionGroup = 'modelAvailability';
 

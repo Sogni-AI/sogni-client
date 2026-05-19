@@ -1,4 +1,4 @@
-import { SupernetType } from '../../ApiClient/WebSocketClient/types';
+import { SupernetType } from '../../ApiClient/WebSocketClient/types.js';
 
 export interface RawProject {
   id: string;

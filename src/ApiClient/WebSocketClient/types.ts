@@ -1,7 +1,7 @@
-import { MessageType, SocketMessageMap } from './messages';
-import RestClient from '../../lib/RestClient';
-import { SocketEventMap } from './events';
-import type { SocketEventSubscriptionInput } from './eventSubscriptions';
+import { MessageType, SocketMessageMap } from './messages.js';
+import RestClient from '../../lib/RestClient.js';
+import { SocketEventMap } from './events.js';
+import type { SocketEventSubscriptionInput } from './eventSubscriptions.js';
 
 export type SupernetType = 'relaxed' | 'fast';
 

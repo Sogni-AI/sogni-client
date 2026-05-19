@@ -1,27 +1,27 @@
 // Account API
-import AccountApi from './Account';
-import CurrentAccount from './Account/CurrentAccount';
+import AccountApi from './Account/index.js';
+import CurrentAccount from './Account/CurrentAccount.js';
 // ApiClient
-import ApiClient, { ApiError, ApiResponse } from './ApiClient';
-import { SupernetType } from './ApiClient/WebSocketClient/types';
+import ApiClient, { ApiError, ApiResponse } from './ApiClient/index.js';
+import { SupernetType } from './ApiClient/WebSocketClient/types.js';
 import type {
   SocketEventName,
   SocketEventSubscriptionsUpdatedData
-} from './ApiClient/WebSocketClient/events';
+} from './ApiClient/WebSocketClient/events.js';
 import type {
   SocketEventSubscriptionInput,
   SocketEventSubscriptionName,
   SocketEventSubscriptions,
   SocketEventSubscriptionUpdate
-} from './ApiClient/WebSocketClient/eventSubscriptions';
-import { ApiConfig } from './ApiGroup';
+} from './ApiClient/WebSocketClient/eventSubscriptions.js';
+import { ApiConfig } from './ApiGroup.js';
 // Utils
-import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger';
-import EIP712Helper from './lib/EIP712Helper';
+import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger.js';
+import EIP712Helper from './lib/EIP712Helper.js';
 // Projects API
-import ProjectsApi from './Projects';
-import Job, { JobStatus } from './Projects/Job';
-import Project, { ProjectStatus } from './Projects/Project';
+import ProjectsApi from './Projects/index.js';
+import Job, { JobStatus } from './Projects/Job.js';
+import Project, { ProjectStatus } from './Projects/Project.js';
 import {
   AudioOutputFormat,
   AudioProjectParams,
@@ -38,23 +38,23 @@ import {
   EstimateRequest,
   CostEstimation,
   InputMedia
-} from './Projects/types';
-import type { ProjectEvent, JobEvent } from './Projects/types/events';
-import type { RawProject } from './Projects/types/RawProject';
-import type { Balances, Reward, TxHistoryEntry } from './Account/types';
-import type { ToastMessage } from './ApiClient/WebSocketClient/events';
-import type DataEntity from './lib/DataEntity';
+} from './Projects/types/index.js';
+import type { ProjectEvent, JobEvent } from './Projects/types/events.js';
+import type { RawProject } from './Projects/types/RawProject.js';
+import type { Balances, Reward, TxHistoryEntry } from './Account/types.js';
+import type { ToastMessage } from './ApiClient/WebSocketClient/events.js';
+import type DataEntity from './lib/DataEntity.js';
 import {
   ControlNetName,
   ControlNetParams,
   ControlNetMode,
   VideoControlNetName,
   VideoControlNetParams
-} from './Projects/types/ControlNetParams';
+} from './Projects/types/ControlNetParams.js';
 // Chat API
-import ChatApi from './Chat';
-import ChatStream from './Chat/ChatStream';
-import ChatToolsApi from './Chat/ChatTools';
+import ChatApi from './Chat/index.js';
+import ChatStream from './Chat/ChatStream.js';
+import ChatToolsApi from './Chat/ChatTools.js';
 import {
   ChatMessage,
   ChatCompletionParams,
@@ -92,11 +92,11 @@ import {
   ToolExecutionResult,
   ToolHistoryEntry,
   ToolExecutionOptions
-} from './Chat/types';
-import { SogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
+} from './Chat/types.js';
+import { SogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools.js';
 // Creative Workflows API
-import CreativeWorkflowsApi, { parseCreativeWorkflowSseChunk } from './CreativeWorkflows';
-import CreativeWorkflowTemplatesApi from './CreativeWorkflows/Templates';
+import CreativeWorkflowsApi, { parseCreativeWorkflowSseChunk } from './CreativeWorkflows/index.js';
+import CreativeWorkflowTemplatesApi from './CreativeWorkflows/Templates/index.js';
 import {
   CreativeWorkflowArtifact,
   CreativeWorkflowEvent,
@@ -117,7 +117,7 @@ import {
   StartCreativeWorkflowInput,
   StartCreativeWorkflowStep,
   StreamCreativeWorkflowEventsOptions
-} from './CreativeWorkflows/types';
+} from './CreativeWorkflows/types.js';
 import {
   ForkWorkflowTemplateBody,
   ListWorkflowTemplatesOptions,
@@ -128,11 +128,11 @@ import {
   WorkflowTemplateStability,
   WorkflowTemplateVisibility,
   WorkflowTemplateVisibilityFilter
-} from './CreativeWorkflows/Templates/types';
+} from './CreativeWorkflows/Templates/types.js';
 // Stats API
-import StatsApi from './Stats';
+import StatsApi from './Stats/index.js';
 // Replay records
-import ReplayApi from './Replay';
+import ReplayApi from './Replay/index.js';
 import {
   GetReplayRecordResult,
   ListReplayRecordsOptions,
@@ -141,17 +141,17 @@ import {
   ReplayRequestOptions,
   ReplayWriteResult,
   RunRecord
-} from './Replay/types';
+} from './Replay/types.js';
 // Base Types
-import ErrorData from './types/ErrorData';
-import { TokenType } from './types/token';
+import ErrorData from './types/ErrorData.js';
+import { TokenType } from './types/token.js';
 import {
   ApiKeyAuthManager,
   CookieAuthManager,
   TokenAuthData,
   TokenAuthManager
-} from './lib/AuthManager';
-import { MeData } from './Account/types';
+} from './lib/AuthManager/index.js';
+import { MeData } from './Account/types.js';
 
 export type {
   AudioFormat,

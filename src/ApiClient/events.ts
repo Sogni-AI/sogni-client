@@ -1,5 +1,5 @@
-import ErrorCode from './WebSocketClient/ErrorCode';
-import { SupernetType } from './WebSocketClient/types';
+import ErrorCode from './WebSocketClient/ErrorCode.js';
+import { SupernetType } from './WebSocketClient/types.js';
 
 export type ApiClientEvents = {
   /**

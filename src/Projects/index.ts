@@ -1,4 +1,4 @@
-import ApiGroup, { ApiConfig } from '../ApiGroup';
+import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import {
   AvailableModel,
   EnhancementStrength,
@@ -13,7 +13,7 @@ import {
   VideoProjectParams,
   VideoEstimateRequest,
   AudioEstimateRequest
-} from './types';
+} from './types/index.js';
 import {
   JobErrorData,
   JobETAData,
@@ -21,18 +21,18 @@ import {
   JobResultData,
   JobStateData,
   SocketEventMap
-} from '../ApiClient/WebSocketClient/events';
-import Project from './Project';
-import createJobRequestMessage from './createJobRequestMessage';
-import { ApiError, ApiResponse } from '../ApiClient';
-import { EstimationResponse } from './types/EstimationResponse';
-import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events';
-import getUUID from '../lib/getUUID';
-import { RawProject } from './types/RawProject';
-import ErrorData from '../types/ErrorData';
-import { SupernetType } from '../ApiClient/WebSocketClient/types';
-import Cache from '../lib/Cache';
-import { enhancementDefaults } from './Job';
+} from '../ApiClient/WebSocketClient/events.js';
+import Project from './Project.js';
+import createJobRequestMessage from './createJobRequestMessage.js';
+import { ApiError, ApiResponse } from '../ApiClient/index.js';
+import { EstimationResponse } from './types/EstimationResponse.js';
+import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events.js';
+import getUUID from '../lib/getUUID.js';
+import { RawProject } from './types/RawProject.js';
+import ErrorData from '../types/ErrorData.js';
+import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
+import Cache from '../lib/Cache.js';
+import { enhancementDefaults } from './Job.js';
 import {
   calculateVideoFrames,
   getEnhacementStrength,
@@ -40,22 +40,22 @@ import {
   isAudioModel,
   isVideoModel,
   VIDEO_WORKFLOW_ASSETS
-} from './utils';
-import { TokenType } from '../types/token';
-import { getMaxContextImages, validateSampler } from '../lib/validation';
+} from './utils/index.js';
+import { TokenType } from '../types/token.js';
+import { getMaxContextImages, validateSampler } from '../lib/validation.js';
 import ModelTiersRaw, {
   isAudioTier,
   isComfyImageTier,
   isImageTier,
   isVideoTier
-} from './types/ModelTiersRaw';
+} from './types/ModelTiersRaw.js';
 import {
   mapAudioTier,
   mapComfyImageTier,
   mapImageTier,
   mapVideoTier,
   ModelOptions
-} from './types/ModelOptions';
+} from './types/ModelOptions.js';
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 const GARBAGE_COLLECT_TIMEOUT = 30000;

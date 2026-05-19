@@ -1,5 +1,5 @@
-import { Logger } from '../DefaultLogger';
-import TypedEventEmitter from '../TypedEventEmitter';
+import { Logger } from '../DefaultLogger.js';
+import TypedEventEmitter from '../TypedEventEmitter.js';
 import { ClientOptions } from 'ws';
 
 interface AuthManagerEvents {

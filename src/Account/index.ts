@@ -13,14 +13,18 @@ import {
   TxHistoryData,
   TxHistoryEntry,
   TxHistoryParams
-} from './types';
-import ApiGroup, { ApiConfig } from '../ApiGroup';
+} from './types.js';
+import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
-import { ApiError, ApiResponse } from '../ApiClient';
-import CurrentAccount from './CurrentAccount';
-import { SupernetType } from '../ApiClient/WebSocketClient/types';
-import { delay } from '../lib/utils';
-import { ApiKeyAuthManager, CookieAuthManager, TokenAuthManager } from '../lib/AuthManager';
+import { ApiError, ApiResponse } from '../ApiClient/index.js';
+import CurrentAccount from './CurrentAccount.js';
+import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
+import { delay } from '../lib/utils/index.js';
+import {
+  ApiKeyAuthManager,
+  CookieAuthManager,
+  TokenAuthManager
+} from '../lib/AuthManager/index.js';
 
 const MAX_DEPOSIT_ATTEMPTS = 4;
 enum ErrorCode {

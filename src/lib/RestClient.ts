@@ -1,8 +1,8 @@
-import { ApiError, ApiErrorResponse } from '../ApiClient';
-import TypedEventEmitter, { EventMap } from './TypedEventEmitter';
-import { JSONValue } from '../types/json';
-import { Logger } from './DefaultLogger';
-import { AuthManager } from './AuthManager';
+import { ApiError, ApiErrorResponse } from '../ApiClient/index.js';
+import TypedEventEmitter, { EventMap } from './TypedEventEmitter.js';
+import { JSONValue } from '../types/json.js';
+import { Logger } from './DefaultLogger.js';
+import { AuthManager } from './AuthManager/index.js';
 
 interface RestRequestInit extends RequestInit {
   timeoutMs?: number;

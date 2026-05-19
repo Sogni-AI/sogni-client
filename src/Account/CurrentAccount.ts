@@ -1,6 +1,6 @@
-import DataEntity from '../lib/DataEntity';
-import { Balances } from './types';
-import { SupernetType } from '../ApiClient/WebSocketClient/types';
+import DataEntity from '../lib/DataEntity.js';
+import { Balances } from './types.js';
+import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 /**
  * @inline
  */

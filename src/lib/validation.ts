@@ -1,5 +1,5 @@
-import { ApiError } from '../ApiClient';
-import { ModelOptions } from '../Projects/types/ModelOptions';
+import { ApiError } from '../ApiClient/index.js';
+import { ModelOptions } from '../Projects/types/ModelOptions.js';
 
 const EXTENDED_IMAGE_SIZE_MODEL_IDS = new Set([
   'z_image_bf16',

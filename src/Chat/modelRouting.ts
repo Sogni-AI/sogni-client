@@ -1,4 +1,4 @@
-import { getVideoWorkflowType } from '../Projects/utils';
+import { getVideoWorkflowType } from '../Projects/utils/index.js';
 
 export { getVideoWorkflowType };
 
@@ -17,12 +17,12 @@ export type {
   ValidateHostedToolArgumentsOptions,
   HostedToolArgumentValidationResult,
   NormalizeHostedToolArgumentsResult
-} from './hostedToolValidator';
+} from './hostedToolValidator.js';
 export {
   validateAndNormalizeHostedToolArguments,
   validateHostedToolArguments,
   assertHostedToolArguments
-} from './hostedToolValidator';
+} from './hostedToolValidator.js';
 
 export type BackboneMediaType = 'image' | 'video' | 'audio';
 

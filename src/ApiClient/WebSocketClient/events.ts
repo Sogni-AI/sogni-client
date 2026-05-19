@@ -1,6 +1,6 @@
-import { SupernetType } from './types';
-import { Balances } from '../../Account/types';
-import { LLMJobCost, LLMModelInfo, ToolCallDelta } from '../../Chat/types';
+import { SupernetType } from './types.js';
+import { Balances } from '../../Account/types.js';
+import { LLMJobCost, LLMModelInfo, ToolCallDelta } from '../../Chat/types.js';
 
 export interface AuthenticatedData {
   id: string;

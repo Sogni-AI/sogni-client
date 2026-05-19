@@ -6,13 +6,13 @@ import {
   isVideoParams,
   ProjectParams,
   VideoProjectParams
-} from './types';
+} from './types/index.js';
 import {
   ControlNetParams,
   ControlNetParamsRaw,
   VideoControlNetParams,
   VideoControlNetParamsRaw
-} from './types/ControlNetParams';
+} from './types/ControlNetParams.js';
 import {
   validateNumber,
   validateCustomImageSize,
@@ -22,7 +22,7 @@ import {
   validateVideoDuration,
   validateSampler,
   validateScheduler
-} from '../lib/validation';
+} from '../lib/validation.js';
 import {
   getVideoWorkflowType,
   isVideoModel,
@@ -31,14 +31,14 @@ import {
   isLtx2Model,
   isWanAnimateModel,
   isSeedanceModel
-} from './utils';
-import { ApiError } from '../ApiClient';
+} from './utils/index.js';
+import { ApiError } from '../ApiClient/index.js';
 import {
   AudioModelOptions,
   ImageModelOptions,
   ModelOptions,
   VideoModelOptions
-} from './types/ModelOptions';
+} from './types/ModelOptions.js';
 
 /**
  * Validate that the provided assets match the workflow requirements.
