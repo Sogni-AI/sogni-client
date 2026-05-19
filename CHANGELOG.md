@@ -1,3 +1,10 @@
+# [5.0.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.7...v5.0.0-alpha.8) (2026-05-19)
+
+
+### Bug Fixes
+
+* **workflows:** unwrap templates api `{status,data}` envelope ([61480b5](https://github.com/Sogni-AI/sogni-client/commit/61480b5d741bcbd45f82d09f3246dafbd95bb718))
+
 # [5.0.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.6...v5.0.0-alpha.7) (2026-05-19)
 
 
