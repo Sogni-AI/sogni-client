@@ -30,19 +30,50 @@ import {
 interface TemplateEnvelope {
   template?: WorkflowTemplate;
   templates?: WorkflowTemplate[];
-  nextCursor?: number | null;
+  next?: number | null;
+  deleted?: boolean;
+  id?: string;
+  [key: string]: unknown;
+}
+
+interface RawJsonBody {
   status?: string;
+  data?: unknown;
   message?: string;
   errorCode?: number;
   [key: string]: unknown;
 }
 
-function parseJsonResponse(text: string): TemplateEnvelope {
+// The api always wraps 2xx responses as `{ status: 'success', data: {...} }`.
+// `toApiError` handles non-2xx, so this only runs on success — strip the
+// envelope and surface the inner `data` object.
+function parseSuccessEnvelope(text: string): TemplateEnvelope {
+  if (!text) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return {};
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  const record = parsed as RawJsonBody;
+  if (record.status === 'success' && record.data && typeof record.data === 'object'
+      && !Array.isArray(record.data)) {
+    return record.data as TemplateEnvelope;
+  }
+  return record as TemplateEnvelope;
+}
+
+function parseErrorEnvelope(text: string): RawJsonBody {
   if (!text) return {};
   try {
-    return JSON.parse(text) as TemplateEnvelope;
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as RawJsonBody;
+    }
+    return {};
   } catch {
-    return { status: 'error', message: text, errorCode: 0 };
+    return { message: text };
   }
 }
 
@@ -70,47 +101,47 @@ class CreativeWorkflowTemplatesApi extends ApiGroup {
       ? `/v1/creative-agent/workflows/templates?${query.toString()}`
       : '/v1/creative-agent/workflows/templates';
 
-    const body = await this.request(path, { method: 'GET', signal: options.signal });
-    const templates = Array.isArray(body.templates)
-      ? body.templates.filter(isWorkflowTemplate)
+    const data = await this.request(path, { method: 'GET', signal: options.signal });
+    const templates = Array.isArray(data.templates)
+      ? data.templates.filter(isWorkflowTemplate)
       : [];
-    const nextCursor = typeof body.nextCursor === 'number' ? body.nextCursor : null;
+    const nextCursor = typeof data.next === 'number' ? data.next : null;
     return { templates, nextCursor };
   }
 
   async get(id: string, options: WorkflowTemplateRequestOptions = {}): Promise<WorkflowTemplate> {
-    const body = await this.request(
+    const data = await this.request(
       `/v1/creative-agent/workflows/templates/${encodeURIComponent(id)}`,
       { method: 'GET', signal: options.signal }
     );
-    if (!isWorkflowTemplate(body.template)) {
+    if (!isWorkflowTemplate(data.template)) {
       throw new ApiError(500, {
         status: 'error',
         message: 'Workflow template response missing template field',
         errorCode: 0
       });
     }
-    return body.template;
+    return data.template;
   }
 
   async create(
     template: WorkflowTemplate,
     options: WorkflowTemplateRequestOptions = {}
   ): Promise<WorkflowTemplate> {
-    const body = await this.request('/v1/creative-agent/workflows/templates', {
+    const data = await this.request('/v1/creative-agent/workflows/templates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(template),
       signal: options.signal
     });
-    if (!isWorkflowTemplate(body.template)) {
+    if (!isWorkflowTemplate(data.template)) {
       throw new ApiError(500, {
         status: 'error',
         message: 'Workflow template create response missing template field',
         errorCode: 0
       });
     }
-    return body.template;
+    return data.template;
   }
 
   async update(
@@ -118,7 +149,7 @@ class CreativeWorkflowTemplatesApi extends ApiGroup {
     patch: Partial<WorkflowTemplate>,
     options: WorkflowTemplateRequestOptions = {}
   ): Promise<WorkflowTemplate> {
-    const body = await this.request(
+    const data = await this.request(
       `/v1/creative-agent/workflows/templates/${encodeURIComponent(id)}`,
       {
         method: 'PATCH',
@@ -127,14 +158,14 @@ class CreativeWorkflowTemplatesApi extends ApiGroup {
         signal: options.signal
       }
     );
-    if (!isWorkflowTemplate(body.template)) {
+    if (!isWorkflowTemplate(data.template)) {
       throw new ApiError(500, {
         status: 'error',
         message: 'Workflow template update response missing template field',
         errorCode: 0
       });
     }
-    return body.template;
+    return data.template;
   }
 
   async delete(id: string, options: WorkflowTemplateRequestOptions = {}): Promise<void> {
@@ -149,7 +180,7 @@ class CreativeWorkflowTemplatesApi extends ApiGroup {
     body: ForkWorkflowTemplateBody = {},
     options: WorkflowTemplateRequestOptions = {}
   ): Promise<WorkflowTemplate> {
-    const response = await this.request(
+    const data = await this.request(
       `/v1/creative-agent/workflows/templates/${encodeURIComponent(id)}/fork`,
       {
         method: 'POST',
@@ -158,14 +189,14 @@ class CreativeWorkflowTemplatesApi extends ApiGroup {
         signal: options.signal
       }
     );
-    if (!isWorkflowTemplate(response.template)) {
+    if (!isWorkflowTemplate(data.template)) {
       throw new ApiError(500, {
         status: 'error',
         message: 'Workflow template fork response missing template field',
         errorCode: 0
       });
     }
-    return response.template;
+    return data.template;
   }
 
   private async request(path: string, options: RequestInit = {}): Promise<TemplateEnvelope> {
@@ -174,7 +205,7 @@ class CreativeWorkflowTemplatesApi extends ApiGroup {
       throw await this.toApiError(response);
     }
     const text = await response.text();
-    return parseJsonResponse(text);
+    return parseSuccessEnvelope(text);
   }
 
   private async fetch(path: string, options: RequestInit = {}): Promise<Response> {
@@ -187,13 +218,20 @@ class CreativeWorkflowTemplatesApi extends ApiGroup {
     if (response.status === 401 && this.client.auth.isAuthenticated) {
       this.client.auth.clear();
     }
-    const body = parseJsonResponse(await response.text());
-    const payload = body.status === 'error' ? body : (body as Record<string, unknown>);
-    const message = typeof payload.message === 'string' ? payload.message : response.statusText;
-    const errorCode = typeof payload.errorCode === 'number' ? payload.errorCode : 0;
+    const body = parseErrorEnvelope(await response.text());
+    const message = typeof body.message === 'string' ? body.message : response.statusText;
+    const errorCode = typeof body.errorCode === 'number' ? body.errorCode : 0;
     return new ApiError(response.status, { status: 'error', message, errorCode });
   }
 }
+
+// Internal: re-exported for the regression script under `scripts/`. Not part
+// of the public API surface — direct callers should use the class methods.
+export const __envelopeInternals = {
+  parseSuccessEnvelope,
+  parseErrorEnvelope,
+  isWorkflowTemplate
+};
 
 export default CreativeWorkflowTemplatesApi;
 export * from './types';
