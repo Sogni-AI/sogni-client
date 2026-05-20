@@ -152,7 +152,7 @@ class CreativeWorkflowsApi extends ApiGroup {
     options: StartCreativeWorkflowOptions = {}
   ): Promise<CreativeWorkflowRecord> {
     const tokenType = params.tokenType ?? params.token_type;
-    const appSource = params.appSource ?? params.app_source;
+    const appSource = params.appSource ?? params.app_source ?? this.client.appSource;
     const idempotencyKey = params.idempotencyKey ?? params.idempotency_key;
     const mediaReferences = params.mediaReferences ?? params.media_references;
     assertWorkflowUsesExternalMedia(mediaReferences);
@@ -213,7 +213,7 @@ class CreativeWorkflowsApi extends ApiGroup {
     options: ResumeCreativeWorkflowOptions = {}
   ): Promise<ResumeCreativeWorkflowResult> {
     const tokenType = params.tokenType ?? params.token_type;
-    const appSource = params.appSource ?? params.app_source;
+    const appSource = params.appSource ?? params.app_source ?? this.client.appSource;
     const body: Record<string, unknown> = {};
     if (tokenType) body.token_type = tokenType;
     if (appSource) body.app_source = appSource;
@@ -245,7 +245,7 @@ class CreativeWorkflowsApi extends ApiGroup {
   ): Promise<ReseedCreativeWorkflowResult> {
     const seedOverrides = params.seedOverrides ?? params.seed_overrides;
     const tokenType = params.tokenType ?? params.token_type;
-    const appSource = params.appSource ?? params.app_source;
+    const appSource = params.appSource ?? params.app_source ?? this.client.appSource;
     const body: Record<string, unknown> = {};
     if (seedOverrides) body.seed_overrides = seedOverrides;
     if (tokenType) body.token_type = tokenType;

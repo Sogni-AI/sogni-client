@@ -557,6 +557,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
    */
   private async createChatRun(params: StartChatRunParams): Promise<ChatRunRecord> {
     assertChatRunUsesExternalMedia(params);
+    const appSource = params.appSource ?? this.client.appSource;
     const body: Record<string, unknown> = {
       messages: params.messages,
       ...(params.tools ? { tools: params.tools } : {}),
@@ -572,7 +573,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       ...(params.sessionId ? { session_id: params.sessionId } : {}),
       ...(params.clientMessageId ? { client_message_id: params.clientMessageId } : {}),
       ...(params.tokenType ? { token_type: params.tokenType } : {}),
-      ...(params.appSource ? { app_source: params.appSource } : {}),
+      ...(appSource ? { app_source: appSource } : {}),
       ...(params.runtimeConfig ? { runtime_config: params.runtimeConfig } : {})
     };
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };

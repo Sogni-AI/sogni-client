@@ -135,6 +135,7 @@ export interface StartCreativeWorkflowParams {
    */
   inputs?: Record<string, unknown>;
   tokenType?: TokenType;
+  /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
   idempotencyKey?: string;
   /** Durable workflows require uploaded HTTP(S) URLs, not inline data URIs. */
@@ -160,7 +161,7 @@ export interface StartCreativeWorkflowParams {
 export interface ResumeCreativeWorkflowParams {
   /** Override the token type charged to the resumed run. */
   tokenType?: TokenType;
-  /** Telemetry tag identifying the caller. */
+  /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
   /** @internal Undocumented compatibility alias. Use tokenType. */
   token_type?: TokenType;
@@ -185,7 +186,7 @@ export interface ReseedCreativeWorkflowParams {
   seedOverrides?: Record<string, number>;
   /** Override the token type charged to the new run. */
   tokenType?: TokenType;
-  /** Telemetry tag identifying the caller. */
+  /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
   /** @internal Undocumented compatibility alias. Use seedOverrides. */
   seed_overrides?: Record<string, number>;

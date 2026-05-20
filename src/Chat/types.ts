@@ -387,7 +387,7 @@ export interface StartChatRunParams {
   clientMessageId?: string;
   /** Token type for billing. */
   tokenType?: 'sogni' | 'spark';
-  /** App source label for attribution. */
+  /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
   /** Idempotency key (also accepted via `Idempotency-Key` header). */
   idempotencyKey?: string;
