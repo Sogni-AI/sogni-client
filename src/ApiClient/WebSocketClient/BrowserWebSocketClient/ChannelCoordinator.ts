@@ -3,6 +3,7 @@ import { Logger } from '../../../lib/DefaultLogger.js';
 
 const PRIMARY_HEARTBEAT_INTERVAL = 2000;
 const PRIMARY_TIMEOUT = 4000;
+const ELECTION_SETTLE_TIMEOUT = 600;
 const ACK_TIMEOUT = 5000;
 
 enum MessageType {
@@ -178,6 +179,33 @@ class ChannelCoordinator<M, N> {
     setTimeout(() => {
       this.finishElections();
     }, 500);
+  }
+
+  private waitForElectionToSettle(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ELECTION_SETTLE_TIMEOUT));
+  }
+
+  private async ensureFreshPrimaryBeforeRequest(): Promise<void> {
+    if (this._isPrimary) {
+      return;
+    }
+
+    // A secondary tab can be resumed from browser timer throttling while it
+    // still remembers an old primary. Elect before sending so a post-approval
+    // generation request is not dropped into a stale BroadcastChannel owner.
+    const primaryAge = Date.now() - this.lastPrimaryHeartbeat;
+    if (primaryAge <= PRIMARY_TIMEOUT && !this.electionInProgress) {
+      return;
+    }
+
+    if (primaryAge > PRIMARY_TIMEOUT) {
+      this.logger.debug(
+        `Primary heartbeat is stale (${primaryAge}ms), running elections before sending request`
+      );
+      this.startElections();
+    }
+
+    await this.waitForElectionToSettle();
   }
 
   private finishElections() {
@@ -425,6 +453,11 @@ class ChannelCoordinator<M, N> {
 
   public async sendMessage(message: M): Promise<any> {
     this.logger.debug(`Sending message to primary`, message);
+    await this.ensureFreshPrimaryBeforeRequest();
+    if (this._isPrimary) {
+      this.logger.debug(`Became primary before request delivery, handling locally`, message);
+      return this.callbacks.onMessage(message);
+    }
     return this.send({
       type: MessageType.REQUEST,
       payload: message
