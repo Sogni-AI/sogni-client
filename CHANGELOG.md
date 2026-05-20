@@ -1,3 +1,10 @@
+# [5.0.0-alpha.10](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.9...v5.0.0-alpha.10) (2026-05-20)
+
+
+### Bug Fixes
+
+* **esm:** add .js extensions to relative imports for Node ESM resolver ([0577b73](https://github.com/Sogni-AI/sogni-client/commit/0577b73923f8ca2e900ad098699445e9746d8cdb))
+
 # [5.0.0-alpha.9](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.8...v5.0.0-alpha.9) (2026-05-19)
 
 
