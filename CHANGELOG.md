@@ -1,3 +1,15 @@
+# [5.0.0-alpha.11](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.10...v5.0.0-alpha.11) (2026-05-20)
+
+
+### Bug Fixes
+
+* **coordinator:** re-elect primary before forwarding requests after stale heartbeat ([4819364](https://github.com/Sogni-AI/sogni-client/commit/48193641cfa4f5fb72d3822c5446cf280939ec51))
+
+
+### Features
+
+* **chat,workflows:** default appSource to client.appSource when omitted ([2c45af3](https://github.com/Sogni-AI/sogni-client/commit/2c45af3ad8ae45a6a0b845f1740d1561f5e95b3f))
+
 # [5.0.0-alpha.10](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.9...v5.0.0-alpha.10) (2026-05-20)
 
 
