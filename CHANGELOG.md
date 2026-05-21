@@ -1,3 +1,10 @@
+# [5.0.0-alpha.12](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.11...v5.0.0-alpha.12) (2026-05-21)
+
+
+### Bug Fixes
+
+* **deps:** update protocol dependency ([a8d5a8f](https://github.com/Sogni-AI/sogni-client/commit/a8d5a8f5fa51bdd485ecaac362f35134aa8b3cfb))
+
 # [5.0.0-alpha.11](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.10...v5.0.0-alpha.11) (2026-05-20)
 
 
