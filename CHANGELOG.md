@@ -1,3 +1,10 @@
+# [5.0.0-alpha.15](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.14...v5.0.0-alpha.15) (2026-05-24)
+
+
+### Bug Fixes
+
+* **deps:** bump sogni protocol to 1.0.0-alpha.6 ([6121018](https://github.com/Sogni-AI/sogni-client/commit/6121018d2ad42769a21b882ea13f6bce67ae5f40))
+
 # [5.0.0-alpha.14](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.13...v5.0.0-alpha.14) (2026-05-24)
 
 
