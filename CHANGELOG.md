@@ -1,3 +1,10 @@
+# [5.0.0-alpha.16](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.15...v5.0.0-alpha.16) (2026-05-28)
+
+
+### Bug Fixes
+
+* **websocket:** replay sticky socket state to late-joining secondary tabs ([9bbc53d](https://github.com/Sogni-AI/sogni-client/commit/9bbc53d05e7acb4753c2e47aeb1792937f1ec2ed))
+
 # [5.0.0-alpha.15](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.14...v5.0.0-alpha.15) (2026-05-24)
 
 
