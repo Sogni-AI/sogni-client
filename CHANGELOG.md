@@ -1,3 +1,10 @@
+# [5.0.0-alpha.17](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.16...v5.0.0-alpha.17) (2026-05-28)
+
+
+### Bug Fixes
+
+* report socket connecting state ([e71ad74](https://github.com/Sogni-AI/sogni-client/commit/e71ad743324f61a706282d26a92a791813d0b172))
+
 # [5.0.0-alpha.16](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.15...v5.0.0-alpha.16) (2026-05-28)
 
 
