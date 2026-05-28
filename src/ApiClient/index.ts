@@ -141,6 +141,10 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     return this.socket.setSocketEventSubscriptions(update);
   }
 
+  handleSocketConnecting() {
+    this.emit('connecting', { network: this.socket.supernetType });
+  }
+
   handleSocketConnect({ network }: ServerConnectData) {
     this._reconnectAttempts = WS_RECONNECT_ATTEMPTS;
     this.emit('connected', { network });
@@ -175,8 +179,8 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
           this.logger.debug('Switching network connection (tab handoff), not reconnecting');
         } else {
           this.logger.warn(
-            'SWITCH_CONNECTION (4015): another connection claimed our app-id; '
-              + 'yielding without auth clear so consumer can invalidate + rebuild on next request',
+            'SWITCH_CONNECTION (4015): another connection claimed our app-id; ' +
+              'yielding without auth clear so consumer can invalidate + rebuild on next request',
             data
           );
         }
@@ -194,7 +198,8 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
       return;
     }
     this._reconnectAttempts--;
-    setTimeout(() => this.socket.connect(), 1000);
+    this.handleSocketConnecting();
+    setTimeout(() => void this.socket.connect(), 1000);
   }
 
   handleAuthUpdated(isAuthenticated: boolean) {
@@ -203,7 +208,8 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
         this.socket.disconnect();
       }
     } else if (!this._disableSocket && !this.socket.isConnected) {
-      this.socket.connect();
+      this.handleSocketConnecting();
+      void this.socket.connect();
     }
   }
 

@@ -54,6 +54,7 @@ class AccountApi extends ApiGroup {
     this.client.socket.on('balanceUpdate', this.handleBalanceUpdate.bind(this));
     this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
     this.client.socket.on('authenticated', this.handleSocketAuthenticated.bind(this));
+    this.client.on('connecting', this.handleServerConnecting.bind(this));
     this.client.on('connected', this.handleServerConnected.bind(this));
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     this.client.auth.on('updated', this.handleAuthUpdated.bind(this));
@@ -70,6 +71,13 @@ class AccountApi extends ApiGroup {
   private handleServerConnected({ network }: { network: SupernetType }) {
     this.currentAccount._update({
       networkStatus: 'connected',
+      network
+    });
+  }
+
+  private handleServerConnecting({ network }: { network: SupernetType }) {
+    this.currentAccount._update({
+      networkStatus: 'connecting',
       network
     });
   }

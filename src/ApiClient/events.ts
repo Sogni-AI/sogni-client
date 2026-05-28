@@ -3,6 +3,12 @@ import { SupernetType } from './WebSocketClient/types.js';
 
 export type ApiClientEvents = {
   /**
+   * @event ApiClient#connecting - The client is attempting to connect to the server.
+   */
+  connecting: {
+    network: SupernetType;
+  };
+  /**
    * @event ApiClient#connected - The client has been connected to the server.
    */
   connected: {
