@@ -87,6 +87,17 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   // actually rebinds its WebSocket (`handleRoleChange(true)`).
   private _wantConnected = false;
   private _supernetType: SupernetType;
+  // Last balanceUpdate the primary observed. Socket events are only forwarded
+  // to secondaries live, so a tab that joins after the balance arrived would
+  // otherwise sit on CurrentAccount's default zero-balance object. Cached here
+  // so the primary can replay it when a secondary (re)connects.
+  private _lastBalanceUpdate: SocketEventMap['balanceUpdate'] | null = null;
+  // Last swarmModels the primary observed. The Projects API builds
+  // `availableModels` purely from this live event, so a late-joining tab would
+  // show an empty model picker until the next server broadcast — which can be
+  // a long wait, since the server skips swarmModels for artists that have
+  // active jobs. Cached and replayed like the balance snapshot.
+  private _lastSwarmModels: SocketEventMap['swarmModels'] | null = null;
 
   constructor(
     baseUrl: string,
@@ -213,6 +224,39 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       case 'connect': {
         if (!this.socketClient.isConnected) {
           await this.socketClient.connect();
+        } else {
+          // Socket is already open under this primary, so connecting is a
+          // no-op and fires no fresh 'connected' event. A secondary tab that
+          // joined after the primary was already connected would otherwise
+          // never learn the live state: its CurrentAccount stays stuck at the
+          // construction-time 'disconnected' default and the app shows an
+          // "offline" banner. (Before we stopped forcing a primary handoff on
+          // every new tab, the handoff's reconnect emitted this event for
+          // free.) Replay current status so the requesting tab syncs.
+          this.coordinator.notify({
+            type: 'socket-event',
+            payload: {
+              type: 'connected',
+              data: { network: this.socketClient.supernetType }
+            }
+          });
+          // Same live-only forwarding applies to balance: replay the last
+          // value the primary saw, or the joining tab keeps the default
+          // zero-balance object until the next live balanceUpdate.
+          if (this._lastBalanceUpdate) {
+            this.coordinator.notify({
+              type: 'socket-event',
+              payload: { type: 'balanceUpdate', data: this._lastBalanceUpdate }
+            });
+          }
+          // Likewise replay the model availability snapshot so the joining
+          // tab's model picker is populated immediately instead of empty.
+          if (this._lastSwarmModels) {
+            this.coordinator.notify({
+              type: 'socket-event',
+              payload: { type: 'swarmModels', data: this._lastSwarmModels }
+            });
+          }
         }
         return;
       }
@@ -268,6 +312,11 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
 
   private handleSocketEvent(eventType: keyof SocketEventMap, payload: any) {
     if (this.coordinator.isPrimary) {
+      if (eventType === 'balanceUpdate') {
+        this._lastBalanceUpdate = payload;
+      } else if (eventType === 'swarmModels') {
+        this._lastSwarmModels = payload;
+      }
       this.coordinator.notify({
         type: 'socket-event',
         payload: { type: eventType, data: payload }
