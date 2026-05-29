@@ -42,9 +42,11 @@
 
 import { SogniClient } from '../dist/index.js';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import imageSize from 'image-size';
 import {
   loadCredentials,
@@ -73,11 +75,13 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
+const execFileAsync = promisify(execFile);
 
 // Default prompt for this workflow
 const DEFAULT_PROMPT = 'A person speaking naturally with synchronized lip movements to the audio';
@@ -111,7 +115,7 @@ async function parseArgs() {
     shift: null,
     sampler: null,
     scheduler: null,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
     disableSafeContentFilter: false
   };
@@ -188,9 +192,9 @@ Available Models:
   lightx2v             - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
   quality              - WAN 2.2 14B S2V (high quality, 20-step)
   ltx23-ia2v-distilled - LTX-2.3 22B Image+Audio to Video (fast, 8-step, requires image)
-  ltx23-ia2v-dev       - LTX-2.3 22B Image+Audio to Video (quality, 25-step, requires image)
+  ltx23-ia2v-dev       - LTX-2.3 22B Image+Audio to Video (quality, 30-step, requires image)
   ltx23-a2v-distilled  - LTX-2.3 22B Audio to Video (fast, 8-step, no image needed)
-  ltx23-a2v-dev        - LTX-2.3 22B Audio to Video (quality, 25-step, no image needed)
+  ltx23-a2v-dev        - LTX-2.3 22B Audio to Video (quality, 30-step, no image needed)
 
 Options:
   --image       Reference image path (required for s2v/ia2v, not used for a2v)
@@ -251,6 +255,47 @@ async function getAudioDuration(audioPath) {
       }
     });
   });
+}
+
+/**
+ * Current video workers fetch the driving audio asset as reference.m4a.
+ * Convert other accepted input formats before upload so the worker's asset lookup resolves.
+ */
+async function prepareAudioForUpload(audioPath) {
+  if (path.extname(audioPath).toLowerCase() === '.m4a') {
+    return { path: audioPath, temporaryDir: null };
+  }
+
+  const temporaryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sogni-s2v-audio-'));
+  const convertedPath = path.join(temporaryDir, 'reference.m4a');
+
+  log('🎵', 'Converting audio to .m4a for worker compatibility...');
+  try {
+    await execFileAsync('ffmpeg', [
+      '-y',
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      audioPath,
+      '-vn',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '192k',
+      '-movflags',
+      '+faststart',
+      convertedPath
+    ]);
+  } catch (error) {
+    fs.rmSync(temporaryDir, { recursive: true, force: true });
+    throw new Error(
+      `Failed to convert audio to .m4a with ffmpeg: ${error.message}. ` +
+        'Install ffmpeg or provide an .m4a audio file.'
+    );
+  }
+
+  return { path: convertedPath, temporaryDir };
 }
 
 /**
@@ -331,7 +376,10 @@ async function main() {
   }
 
   // Get image dimensions (if image is provided)
-  let imageInfo = { width: modelConfig.defaultWidth || 832, height: modelConfig.defaultHeight || 480 };
+  let imageInfo = {
+    width: modelConfig.defaultWidth || 832,
+    height: modelConfig.defaultHeight || 480
+  };
   if (OPTIONS.image) {
     try {
       const dimensions = imageSize(OPTIONS.image);
@@ -439,8 +487,8 @@ async function main() {
   }
 
   // Validate frames
-  if (OPTIONS.frames < VIDEO_CONSTRAINTS.frames.min || OPTIONS.frames > maxFrames) {
-    console.error(`Error: Frames must be between ${VIDEO_CONSTRAINTS.frames.min} and ${maxFrames}`);
+  if (OPTIONS.frames < minFrames || OPTIONS.frames > maxFrames) {
+    console.error(`Error: Frames must be between ${minFrames} and ${maxFrames}`);
     process.exit(1);
   }
 
@@ -613,9 +661,7 @@ async function main() {
       }
       if (balance) {
         const currentBalance = parseFloat(balance.spark.net || 0);
-        console.log(
-          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
-        );
+        console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`);
       }
       console.log(`   USD: $${(totalCost * 0.005).toFixed(4)}`);
     } else {
@@ -629,9 +675,7 @@ async function main() {
       }
       if (balance) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
-        console.log(
-          `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
-        );
+        console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`);
       }
       console.log(`   USD: $${(totalCost * 0.05).toFixed(4)}`);
     }
@@ -670,59 +714,68 @@ async function main() {
     log('🎬', 'Generating video from sound...');
     console.log();
 
-    // CRITICAL: SDK requires Buffer/File/Blob objects for media uploads, NOT string paths.
-    // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
-    const referenceImageBuffer = OPTIONS.image ? readFileAsBuffer(OPTIONS.image) : null;
-    const referenceAudioBuffer = readFileAsBuffer(OPTIONS.audio);
+    let preparedAudio = null;
+    try {
+      preparedAudio = await prepareAudioForUpload(OPTIONS.audio);
 
-    const projectParams = {
-      type: 'video',
-      modelId: modelConfig.id,
-      positivePrompt: OPTIONS.prompt,
-      numberOfMedia: OPTIONS.batch,
-      width: OPTIONS.width,
-      height: OPTIONS.height,
-      frames: OPTIONS.frames,
-      fps: OPTIONS.fps,
-      steps: OPTIONS.steps,
-      shift: OPTIONS.shift,
-      seed: OPTIONS.seed,
-      referenceAudio: referenceAudioBuffer,
-      disableNSFWFilter: OPTIONS.disableSafeContentFilter,
-      tokenType: tokenType
-    };
+      // CRITICAL: SDK requires Buffer/File/Blob objects for media uploads, NOT string paths.
+      // Passing string paths will silently fail (the string text gets uploaded instead of file contents).
+      const referenceImageBuffer = OPTIONS.image ? readFileAsBuffer(OPTIONS.image) : null;
+      const referenceAudioBuffer = readFileAsBuffer(preparedAudio.path);
 
-    // Only include referenceImage for models that need it (s2v, ia2v)
-    if (referenceImageBuffer) {
-      projectParams.referenceImage = referenceImageBuffer;
+      const projectParams = {
+        type: 'video',
+        modelId: modelConfig.id,
+        positivePrompt: OPTIONS.prompt,
+        numberOfMedia: OPTIONS.batch,
+        width: OPTIONS.width,
+        height: OPTIONS.height,
+        frames: OPTIONS.frames,
+        fps: OPTIONS.fps,
+        steps: OPTIONS.steps,
+        shift: OPTIONS.shift,
+        seed: OPTIONS.seed,
+        referenceAudio: referenceAudioBuffer,
+        disableNSFWFilter: OPTIONS.disableSafeContentFilter,
+        tokenType: tokenType
+      };
+
+      // Only include referenceImage for models that need it (s2v, ia2v)
+      if (referenceImageBuffer) {
+        projectParams.referenceImage = referenceImageBuffer;
+      }
+
+      // Video models only support ComfyUI sampler/scheduler
+      if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
+      if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
+
+      // Add S2V-specific audio options
+      if (OPTIONS.audioStart !== undefined) {
+        projectParams.audioStart = OPTIONS.audioStart;
+      }
+      if (OPTIONS.audioDuration !== undefined) {
+        projectParams.audioDuration = OPTIONS.audioDuration;
+      }
+
+      // Add guidance
+      if (OPTIONS.guidance !== undefined && OPTIONS.guidance !== null) {
+        projectParams.guidance = OPTIONS.guidance;
+      }
+
+      // Add optional prompts
+      if (OPTIONS.negative) {
+        projectParams.negativePrompt = OPTIONS.negative;
+      }
+      if (OPTIONS.style) {
+        projectParams.stylePrompt = OPTIONS.style;
+      }
+
+      project = await sogni.projects.create(projectParams);
+    } finally {
+      if (preparedAudio?.temporaryDir) {
+        fs.rmSync(preparedAudio.temporaryDir, { recursive: true, force: true });
+      }
     }
-
-    // Video models only support ComfyUI sampler/scheduler
-    if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
-    if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
-
-    // Add S2V-specific audio options
-    if (OPTIONS.audioStart !== undefined) {
-      projectParams.audioStart = OPTIONS.audioStart;
-    }
-    if (OPTIONS.audioDuration !== undefined) {
-      projectParams.audioDuration = OPTIONS.audioDuration;
-    }
-
-    // Add guidance
-    if (OPTIONS.guidance !== undefined && OPTIONS.guidance !== null) {
-      projectParams.guidance = OPTIONS.guidance;
-    }
-
-    // Add optional prompts
-    if (OPTIONS.negative) {
-      projectParams.negativePrompt = OPTIONS.negative;
-    }
-    if (OPTIONS.style) {
-      projectParams.stylePrompt = OPTIONS.style;
-    }
-
-    project = await sogni.projects.create(projectParams);
 
     // Set up event handlers
     let completedVideos = 0;
@@ -793,13 +846,13 @@ async function main() {
 
       switch (event.type) {
         case 'queued': {
-                    const queuedLabel = getJobLabel(event, jobId);
+          const queuedLabel = getJobLabel(event, jobId);
           log('📋', `${queuedLabel}Job queued at position: ${event.queuePosition}`);
           break;
         }
 
         case 'initiating': {
-                    // Pre-create job state with jobIndex if provided
+          // Pre-create job state with jobIndex if provided
           if (!jobStates.has(jobId) && event.jobIndex !== undefined) {
             jobStates.set(jobId, {
               startTime: null,
@@ -819,7 +872,7 @@ async function main() {
         }
 
         case 'started': {
-                    // Initialize or update state for this job
+          // Initialize or update state for this job
           let jobState = jobStates.get(jobId);
           if (!jobState) {
             jobState = {
@@ -871,7 +924,7 @@ async function main() {
         }
 
         case 'jobETA': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state) {
             state.lastETA = event.etaSeconds;
             state.lastETAUpdate = Date.now();
@@ -880,7 +933,7 @@ async function main() {
         }
 
         case 'progress': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           if (state && event.step !== undefined && event.stepCount !== undefined) {
             state.lastStep = event.step;
             state.lastStepCount = event.stepCount;
@@ -889,7 +942,7 @@ async function main() {
         }
 
         case 'completed': {
-                    const state = jobStates.get(jobId);
+          const state = jobStates.get(jobId);
           const completedLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
 
@@ -903,7 +956,10 @@ async function main() {
 
           if (!event.resultUrl || event.error) {
             failedVideos++;
-            log('❌', `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`);
+            log(
+              '❌',
+              `${completedLabel}Job completed with error: ${event.error || 'No result URL'}`
+            );
             jobStates.delete(jobId);
             checkWorkflowCompletion();
           } else {
@@ -918,7 +974,7 @@ async function main() {
             const jobElapsed = jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?';
 
             // Use actual seed from job completion event (server generates unique seeds for batch items)
-            const jobSeed = event.seed ?? (OPTIONS.seed + (state?.jobIndex || 0));
+            const jobSeed = event.seed ?? OPTIONS.seed + (state?.jobIndex || 0);
 
             const desiredPath = generateVideoFilename({
               modelId: modelConfig.id,
@@ -954,9 +1010,8 @@ async function main() {
 
         case 'error':
         case 'failed': {
-                    const errorLabel = getJobLabel(event, jobId);
+          const errorLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
-          projectFailed = true;
           failedVideos++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
             displaySafeContentFilterMessage();
@@ -1013,12 +1068,9 @@ async function main() {
       checkCompletion();
     });
 
-    if (projectFailed || failedVideos > 0) {
-      const failureCount = projectFailed ? totalVideos : failedVideos;
-      log('❌', `Workflow failed with ${failureCount} failed video${failureCount > 1 ? 's' : ''}`);
+    // If checkWorkflowCompletion didn't already exit (e.g. project-level error before all jobs reported)
+    if (projectFailed) {
       process.exit(1);
-    } else {
-      log('✅', 'Workflow completed successfully!');
     }
   } catch (error) {
     log('❌', `Error: ${error.message}`);
@@ -1045,7 +1097,16 @@ async function main() {
   }
 }
 
-async function getVideoJobEstimate(tokenType, modelId, width, height, frames, fps, steps, videoCount = 1) {
+async function getVideoJobEstimate(
+  tokenType,
+  modelId,
+  width,
+  height,
+  frames,
+  fps,
+  steps,
+  videoCount = 1
+) {
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
     baseUrl = baseUrl.replace('wss://', 'https://');

@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 /**
- * Text Chat with Sogni Platform Tools
+ * Text Chat with Core Sogni Platform Tool Pipelines
  *
  * Single-turn chat that generates images, videos, and music through natural
  * language. Uses LLM tool calling to detect media generation intent, then
  * routes through specialized composition pipelines (IMAGE_SYSTEM_PROMPT,
  * VIDEO_SYSTEM_PROMPT, AUDIO_SYSTEM_PROMPT) for prompt engineering before
  * generating media via the Sogni Projects API.
+ *
+ * This example intentionally focuses on the core text-to-image, text-to-video,
+ * and text-to-music flows. The SDK's built-in public SogniTools surface also
+ * includes `edit_image`, `sound_to_video`, and
+ * `video_to_video` for explicit asset-backed workflows.
  *
  * Architecture: Hybrid Tool Calling + Composition Pipeline
  *   1. LLM receives user message with tool definitions (tool_choice: 'auto')
@@ -34,10 +39,11 @@
  *   node workflow_text_chat_sogni_tools.mjs "Tell me about ocean waves"  (conversation, no generation)
  *
  * Options:
- *   --model         LLM model ID (default: qwen3.5-35b-a3b-gguf-q4km)
+ *   --model         LLM model ID (default: qwen3.6-35b-a3b-gguf-iq4xs)
  *   --max-tokens    Maximum tokens to generate (default: from model, or 8192)
- *   --temperature   Sampling temperature 0-2 (default: 0.7)
- *   --top-p         Top-p sampling 0-1 (default: 0.9)
+ *   --temperature   Sampling temperature 0-2 (default: from model, or 0.7)
+ *   --top-p         Top-p sampling 0-1 (default: from model, or 0.9)
+ *   --top-k         Top-k sampling (default: from model, if available)
  *   --system        System prompt override
  *   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
  *   --duration      Video duration in seconds, 1-20 (default: 10)
@@ -49,17 +55,23 @@
 
 import { SogniClient, isSogniToolCall, parseToolCallArguments } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
-import { askQuestion, calculateVideoFrames, formatDuration, MODELS } from './workflow-helpers.mjs';
+import {
+  askQuestion,
+  calculateVideoFrames,
+  defaultExamplesOutputDir,
+  formatDuration,
+  MODELS
+} from './workflow-helpers.mjs';
 import * as fs from 'node:fs';
 import { execFile } from 'node:child_process';
 import { platform } from 'node:os';
 import { resolve } from 'node:path';
 
-const DEFAULT_LLM_MODEL = 'qwen3.5-35b-a3b-gguf-q4km';
+const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_IMAGE_MODEL = 'z_image_turbo_bf16';
 const DEFAULT_VIDEO_MODEL = 'ltx23-22b-fp8_t2v_distilled';
 const DEFAULT_AUDIO_MODEL = 'ace_step_1.5_turbo';
-const OUTPUT_DIR = './output';
+const OUTPUT_DIR = defaultExamplesOutputDir();
 
 // ============================================================
 // CLI Argument Parsing
@@ -71,8 +83,9 @@ function parseArgs() {
     prompt: null,
     model: DEFAULT_LLM_MODEL,
     maxTokens: null,
-    temperature: 0.7,
-    topP: 0.9,
+    temperature: null,
+    topP: null,
+    topK: null,
     system: null,
     think: true,
     thinkExplicit: false,
@@ -95,6 +108,8 @@ function parseArgs() {
       options.temperature = parseFloat(args[++i]);
     } else if (arg === '--top-p' && args[i + 1]) {
       options.topP = parseFloat(args[++i]);
+    } else if (arg === '--top-k' && args[i + 1]) {
+      options.topK = parseInt(args[++i], 10);
     } else if (arg === '--system' && args[i + 1]) {
       options.system = args[++i];
     } else if (arg === '--no-think') {
@@ -129,7 +144,7 @@ function parseArgs() {
 
 function showHelp() {
   console.log(`
-Text Chat with Sogni Platform Tools (Image, Video, Music Generation)
+Text Chat with Core Sogni Platform Tool Pipelines (Image, Video, Music Generation)
 
 Usage:
   node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city at night"
@@ -139,8 +154,9 @@ Usage:
 Options:
   --model         LLM model ID (default: ${DEFAULT_LLM_MODEL})
   --max-tokens    Maximum tokens to generate (default: from model, or 8192)
-  --temperature   Sampling temperature 0-2 (default: 0.7)
-  --top-p         Top-p sampling 0-1 (default: 0.9)
+  --temperature   Sampling temperature 0-2 (default: from model, or 0.7)
+  --top-p         Top-p sampling 0-1 (default: from model, or 0.9)
+  --top-k         Top-k sampling (default: from model, if available)
   --system        System prompt override
   --quantity, -n  Number of media to generate per request, 1-512 (default: 1)
   --duration      Video duration in seconds, 1-20 (default: 10)
@@ -168,7 +184,7 @@ const HYBRID_TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'sogni_generate_image',
+      name: 'generate_image',
       description: 'Generate an image. Call this when the user wants to create, draw, or make an image or picture.',
       parameters: {
         type: 'object',
@@ -183,7 +199,7 @@ const HYBRID_TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'sogni_generate_video',
+      name: 'generate_video',
       description: 'Generate a short video. Call this when the user wants to create, make, or generate a video, clip, or animation.',
       parameters: {
         type: 'object',
@@ -200,7 +216,7 @@ const HYBRID_TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'sogni_generate_music',
+      name: 'generate_music',
       description: 'Generate a music track or song. Call this when the user wants to create, compose, or make music, a song, a beat, or audio.',
       parameters: {
         type: 'object',
@@ -216,9 +232,9 @@ const HYBRID_TOOLS = [
 ];
 
 function toolNameToMediaType(name) {
-  if (name === 'sogni_generate_image') return 'image';
-  if (name === 'sogni_generate_video') return 'video';
-  if (name === 'sogni_generate_music') return 'audio';
+  if (name === 'generate_image') return 'image';
+  if (name === 'generate_video') return 'video';
+  if (name === 'generate_music') return 'audio';
   return null;
 }
 
@@ -330,6 +346,7 @@ async function streamComposition(sogni, messages, options, tokenType, tools) {
         stream: true,
         tokenType,
         think: false,
+        taskProfile: 'reasoning',
         tools,
         tool_choice: 'required',
       });
@@ -1286,8 +1303,10 @@ async function chatWithLLM(sogni, messages, options, tokenType) {
       max_tokens: options.maxTokens,
       temperature: options.temperature,
       top_p: options.topP,
+      ...(options.topK != null && { top_k: options.topK }),
       stream: true,
       tokenType,
+      taskProfile: 'general',
     });
 
     let content = '';
@@ -1488,6 +1507,12 @@ async function main() {
     || modelInfo?.maxOutputTokens?.default
     || 8192;
 
+  // Resolve sampling parameters: CLI override > server defaults for thinking mode > hardcoded fallback
+  const samplingDefaults = options.think ? modelInfo?.defaultsThinking : modelInfo?.defaultsNonThinking;
+  options.temperature = options.temperature ?? samplingDefaults?.temperature ?? 0.7;
+  options.topP = options.topP ?? samplingDefaults?.top_p ?? 0.9;
+  options.topK = options.topK ?? samplingDefaults?.top_k;
+
   // Wait for media models to be available
   try {
     await sogni.projects.waitForModels(15000);
@@ -1539,9 +1564,11 @@ async function main() {
       max_tokens: options.maxTokens,
       temperature: options.temperature,
       top_p: options.topP,
+      ...(options.topK != null && { top_k: options.topK }),
       stream: true,
       tokenType,
       think: options.think,
+      taskProfile: 'reasoning',
       tools: HYBRID_TOOLS,
       tool_choice: 'auto',
     });

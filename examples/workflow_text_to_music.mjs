@@ -61,7 +61,8 @@ import {
   displayConfig,
   generateRandomSeed,
   toKebabCase,
-  getUniqueFilename
+  getUniqueFilename,
+  defaultExamplesOutputDir
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -165,7 +166,7 @@ function parseArgs() {
     format: null,
     seed: null,
     batch: 1,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true
   };
 
@@ -377,7 +378,7 @@ function generateAudioFilename(params) {
     prompt,
     format = 'mp3',
     generationTime,
-    outputDir = './output'
+    outputDir = defaultExamplesOutputDir()
   } = params;
 
   const promptSlug = toKebabCase(prompt || 'audio', 30);
@@ -1016,7 +1017,6 @@ async function main() {
         case 'failed': {
           const errorLabel = getJobLabel(event, jobId);
           stopJobProgress(jobId);
-          projectFailed = true;
           failedTracks++;
           const errorMsg = event.error?.message || event.error || 'Unknown error';
           const errorCode = event.error?.code;
@@ -1068,12 +1068,9 @@ async function main() {
       poll();
     });
 
-    if (projectFailed || failedTracks > 0) {
-      const failureCount = projectFailed ? totalTracks : failedTracks;
-      log('❌', `Workflow failed with ${failureCount} failed track${failureCount > 1 ? 's' : ''}`);
+    // If checkCompletion didn't already exit (e.g. project-level error before all jobs reported)
+    if (projectFailed) {
       process.exit(1);
-    } else {
-      log('✅', 'Workflow completed successfully!');
     }
   } catch (error) {
     log('❌', `Error: ${error.message}`);

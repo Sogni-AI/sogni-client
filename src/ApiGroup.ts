@@ -1,6 +1,6 @@
-import ApiClient from './ApiClient';
-import EIP712Helper from './lib/EIP712Helper';
-import TypedEventEmitter, { EventMap } from './lib/TypedEventEmitter';
+import ApiClient from './ApiClient/index.js';
+import EIP712Helper from './lib/EIP712Helper.js';
+import TypedEventEmitter, { EventMap } from './lib/TypedEventEmitter.js';
 
 export interface ApiConfig {
   client: ApiClient;

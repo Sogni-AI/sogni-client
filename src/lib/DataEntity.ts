@@ -1,5 +1,5 @@
-import cloneDeep from 'lodash/cloneDeep';
-import TypedEventEmitter from './TypedEventEmitter';
+import cloneDeep from 'lodash/cloneDeep.js';
+import TypedEventEmitter from './TypedEventEmitter.js';
 
 /**
  * @inline

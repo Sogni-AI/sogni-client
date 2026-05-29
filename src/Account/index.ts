@@ -13,14 +13,18 @@ import {
   TxHistoryData,
   TxHistoryEntry,
   TxHistoryParams
-} from './types';
-import ApiGroup, { ApiConfig } from '../ApiGroup';
+} from './types.js';
+import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
-import { ApiError, ApiResponse } from '../ApiClient';
-import CurrentAccount from './CurrentAccount';
-import { SupernetType } from '../ApiClient/WebSocketClient/types';
-import { delay } from '../lib/utils';
-import { ApiKeyAuthManager, CookieAuthManager, TokenAuthManager } from '../lib/AuthManager';
+import { ApiError, ApiResponse } from '../ApiClient/index.js';
+import CurrentAccount from './CurrentAccount.js';
+import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
+import { delay } from '../lib/utils/index.js';
+import {
+  ApiKeyAuthManager,
+  CookieAuthManager,
+  TokenAuthManager
+} from '../lib/AuthManager/index.js';
 
 const MAX_DEPOSIT_ATTEMPTS = 4;
 enum ErrorCode {
@@ -50,6 +54,7 @@ class AccountApi extends ApiGroup {
     this.client.socket.on('balanceUpdate', this.handleBalanceUpdate.bind(this));
     this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
     this.client.socket.on('authenticated', this.handleSocketAuthenticated.bind(this));
+    this.client.on('connecting', this.handleServerConnecting.bind(this));
     this.client.on('connected', this.handleServerConnected.bind(this));
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     this.client.auth.on('updated', this.handleAuthUpdated.bind(this));
@@ -66,6 +71,13 @@ class AccountApi extends ApiGroup {
   private handleServerConnected({ network }: { network: SupernetType }) {
     this.currentAccount._update({
       networkStatus: 'connected',
+      network
+    });
+  }
+
+  private handleServerConnecting({ network }: { network: SupernetType }) {
+    this.currentAccount._update({
+      networkStatus: 'connecting',
       network
     });
   }
@@ -133,7 +145,15 @@ class AccountApi extends ApiGroup {
    * @internal
    */
   async create(
-    { username, email, password, subscribe, turnstileToken, referralCode }: AccountCreateParams,
+    {
+      username,
+      email,
+      password,
+      subscribe,
+      turnstileToken,
+      referralCode,
+      appSource
+    }: AccountCreateParams,
     rememberMe = false
   ): Promise<AccountCreateData> {
     const wallet = this.getWallet(username, password);
@@ -146,9 +166,11 @@ class AccountApi extends ApiGroup {
       walletAddress: wallet.address,
       turnstileToken
     };
+    const resolvedAppSource = appSource?.trim() || this.client.appSource;
     const signature = await this.eip712.signTypedData(wallet, 'signup', { ...payload, nonce });
     const res = await this.client.rest.post<ApiResponse<AccountCreateData>>('/v1/account/create', {
       ...payload,
+      ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
       referralCode,
       signature,
       rememberMe
@@ -175,17 +197,26 @@ class AccountApi extends ApiGroup {
    * @param password
    * @param rememberMe - Whether to establish a long-lived session. Default is false. Only
    * applicable for cookie-based authentication.
+   * @param appSource - Optional client app/source label for login attribution. Defaults to the
+   * SogniClient connection appSource when configured.
    */
-  async login(username: string, password: string, rememberMe = false): Promise<LoginData> {
+  async login(
+    username: string,
+    password: string,
+    rememberMe = false,
+    appSource?: string
+  ): Promise<LoginData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
     const signature = await this.eip712.signTypedData(wallet, 'authentication', {
       walletAddress: wallet.address,
       nonce
     });
+    const resolvedAppSource = appSource?.trim() || this.client.appSource;
     const res = await this.client.rest.post<ApiResponse<LoginData>>('/v1/account/login', {
       walletAddress: wallet.address,
       signature,
+      ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
       rememberMe
     });
     const auth = this.client.auth;
@@ -414,6 +445,7 @@ class AccountApi extends ApiGroup {
         tokenType: raw.tokenType,
         claimed: !!raw.claimed,
         canClaim: !!raw.canClaim,
+        cantClaimReason: raw.cantClaimReason ?? null,
         lastClaim: new Date(raw.lastClaimTimestamp * 1000),
         provider: query.provider || 'base',
         nextClaim:

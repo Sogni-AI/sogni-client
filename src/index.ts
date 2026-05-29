@@ -1,17 +1,27 @@
 // Account API
-import AccountApi from './Account';
-import CurrentAccount from './Account/CurrentAccount';
+import AccountApi from './Account/index.js';
+import CurrentAccount from './Account/CurrentAccount.js';
 // ApiClient
-import ApiClient, { ApiError, ApiResponse } from './ApiClient';
-import { SupernetType } from './ApiClient/WebSocketClient/types';
-import { ApiConfig } from './ApiGroup';
+import ApiClient, { ApiError, ApiResponse } from './ApiClient/index.js';
+import { SupernetType } from './ApiClient/WebSocketClient/types.js';
+import type {
+  SocketEventName,
+  SocketEventSubscriptionsUpdatedData
+} from './ApiClient/WebSocketClient/events.js';
+import type {
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptionName,
+  SocketEventSubscriptions,
+  SocketEventSubscriptionUpdate
+} from './ApiClient/WebSocketClient/eventSubscriptions.js';
+import { ApiConfig } from './ApiGroup.js';
 // Utils
-import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger';
-import EIP712Helper from './lib/EIP712Helper';
+import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger.js';
+import EIP712Helper from './lib/EIP712Helper.js';
 // Projects API
-import ProjectsApi from './Projects';
-import Job, { JobStatus } from './Projects/Job';
-import Project, { ProjectStatus } from './Projects/Project';
+import ProjectsApi from './Projects/index.js';
+import Job, { JobStatus } from './Projects/Job.js';
+import Project, { ProjectStatus } from './Projects/Project.js';
 import {
   AudioOutputFormat,
   AudioProjectParams,
@@ -23,26 +33,46 @@ import {
   AudioFormat,
   VideoFormat,
   VideoOutputFormat,
-  VideoWorkflowType
-} from './Projects/types';
+  VideoWorkflowType,
+  SizePreset,
+  EstimateRequest,
+  CostEstimation,
+  InputMedia
+} from './Projects/types/index.js';
+import type { ProjectEvent, JobEvent } from './Projects/types/events.js';
+import type { RawProject } from './Projects/types/RawProject.js';
+import type { Balances, Reward, TxHistoryEntry } from './Account/types.js';
+import type { ToastMessage } from './ApiClient/WebSocketClient/events.js';
+import type DataEntity from './lib/DataEntity.js';
 import {
   ControlNetName,
   ControlNetParams,
   ControlNetMode,
   VideoControlNetName,
   VideoControlNetParams
-} from './Projects/types/ControlNetParams';
+} from './Projects/types/ControlNetParams.js';
 // Chat API
-import ChatApi from './Chat';
-import ChatStream from './Chat/ChatStream';
-import ChatToolsApi from './Chat/ChatTools';
+import ChatApi from './Chat/index.js';
+import ChatStream from './Chat/ChatStream.js';
+import ChatToolsApi from './Chat/ChatTools.js';
 import {
   ChatMessage,
   ChatCompletionParams,
   ChatCompletionChunk,
   ChatCompletionResult,
   ChatJobStateEvent,
+  ChatResponseFormat,
+  ChatRunEvent,
+  ChatRunRecord,
+  ChatRunStatus,
+  StartChatRunParams,
+  StreamChatRunEventsOptions,
   ContentPart,
+  HostedChatCompletionParams,
+  HostedChatCompletionResult,
+  HostedChatCompletionChoice,
+  HostedChatCompletionMessage,
+  HostedCreativeWorkflowReference,
   TextContentPart,
   ImageUrlContentPart,
   TokenUsage as ChatTokenUsage,
@@ -50,30 +80,78 @@ import {
   LLMJobCost,
   LLMModelInfo,
   LLMParamConstraint,
+  LLMSamplingDefaults,
   ToolDefinition,
   ToolCall,
   ToolCallDelta,
   ToolCallFunction,
   ToolChoice,
   ToolFunction,
+  SogniToolsMode,
   ToolExecutionProgress,
   ToolExecutionResult,
   ToolHistoryEntry,
   ToolExecutionOptions
-} from './Chat/types';
-import { SogniTools, buildSogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools';
+} from './Chat/types.js';
+import { SogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools.js';
+// Creative Workflows API
+import CreativeWorkflowsApi, { parseCreativeWorkflowSseChunk } from './CreativeWorkflows/index.js';
+import CreativeWorkflowTemplatesApi from './CreativeWorkflows/Templates/index.js';
+import {
+  CreativeWorkflowArtifact,
+  CreativeWorkflowEvent,
+  CreativeWorkflowRecord,
+  CreativeWorkflowSseEvent,
+  CreativeWorkflowStatus,
+  CreativeWorkflowHostedToolName,
+  ListCreativeWorkflowOptions,
+  ReseedCreativeWorkflowOptions,
+  ReseedCreativeWorkflowParams,
+  ReseedCreativeWorkflowResult,
+  ResumeCreativeWorkflowOptions,
+  ResumeCreativeWorkflowParams,
+  ResumeCreativeWorkflowResult,
+  StartCreativeWorkflowOptions,
+  StartCreativeWorkflowParams,
+  StartCreativeWorkflowDependency,
+  StartCreativeWorkflowInput,
+  StartCreativeWorkflowStep,
+  StreamCreativeWorkflowEventsOptions
+} from './CreativeWorkflows/types.js';
+import {
+  ForkWorkflowTemplateBody,
+  ListWorkflowTemplatesOptions,
+  ListWorkflowTemplatesResult,
+  WorkflowTemplate,
+  WorkflowTemplateAuthor,
+  WorkflowTemplateRequestOptions,
+  WorkflowTemplateStability,
+  WorkflowTemplateVisibility,
+  WorkflowTemplateVisibilityFilter
+} from './CreativeWorkflows/Templates/types.js';
 // Stats API
-import StatsApi from './Stats';
+import StatsApi from './Stats/index.js';
+// Replay records
+import ReplayApi from './Replay/index.js';
+import {
+  GetReplayRecordResult,
+  ListReplayRecordsOptions,
+  ListReplayRecordsResult,
+  ReplayRecordSummary,
+  ReplayRequestOptions,
+  ReplayWriteResult,
+  RunRecord
+} from './Replay/types.js';
 // Base Types
-import ErrorData from './types/ErrorData';
-import { TokenType } from './types/token';
+import ErrorData from './types/ErrorData.js';
+import { TokenType } from './types/token.js';
 import {
   ApiKeyAuthManager,
   CookieAuthManager,
   TokenAuthData,
   TokenAuthManager
-} from './lib/AuthManager';
-import { MeData } from './Account/types';
+} from './lib/AuthManager/index.js';
+import { MeData } from './Account/types.js';
 
 export type {
   AudioFormat,
@@ -85,13 +163,31 @@ export type {
   ChatCompletionResult,
   ChatJobStateEvent,
   ChatMessage,
+  ChatResponseFormat,
+  ChatRunEvent,
+  ChatRunRecord,
+  ChatRunStatus,
   ChatTokenUsage,
+  StartChatRunParams,
+  StreamChatRunEventsOptions,
   ContentPart,
+  HostedChatCompletionChoice,
+  HostedChatCompletionMessage,
+  HostedChatCompletionParams,
+  HostedChatCompletionResult,
+  HostedCreativeWorkflowReference,
+  CreativeWorkflowArtifact,
+  CreativeWorkflowEvent,
+  CreativeWorkflowRecord,
+  CreativeWorkflowSseEvent,
+  CreativeWorkflowStatus,
   ImageUrlContentPart,
+  ListCreativeWorkflowOptions,
   LLMCostEstimation,
   LLMJobCost,
   LLMModelInfo,
   LLMParamConstraint,
+  LLMSamplingDefaults,
   ControlNetMode,
   ControlNetName,
   ControlNetParams,
@@ -104,6 +200,35 @@ export type {
   LogLevel,
   ProjectParams,
   ProjectStatus,
+  CreativeWorkflowHostedToolName,
+  StartCreativeWorkflowOptions,
+  StartCreativeWorkflowParams,
+  StartCreativeWorkflowDependency,
+  StartCreativeWorkflowInput,
+  StartCreativeWorkflowStep,
+  StreamCreativeWorkflowEventsOptions,
+  ResumeCreativeWorkflowOptions,
+  ResumeCreativeWorkflowParams,
+  ResumeCreativeWorkflowResult,
+  ReseedCreativeWorkflowOptions,
+  ReseedCreativeWorkflowParams,
+  ReseedCreativeWorkflowResult,
+  ForkWorkflowTemplateBody,
+  ListWorkflowTemplatesOptions,
+  ListWorkflowTemplatesResult,
+  WorkflowTemplate,
+  WorkflowTemplateAuthor,
+  WorkflowTemplateRequestOptions,
+  WorkflowTemplateStability,
+  WorkflowTemplateVisibility,
+  WorkflowTemplateVisibilityFilter,
+  RunRecord,
+  ReplayWriteResult,
+  ReplayRecordSummary,
+  ReplayRequestOptions,
+  ListReplayRecordsOptions,
+  ListReplayRecordsResult,
+  GetReplayRecordResult,
   SupernetType,
   TokenType,
   ToolCall,
@@ -116,12 +241,33 @@ export type {
   ToolExecutionResult,
   ToolFunction,
   ToolHistoryEntry,
+  SogniToolsMode,
+  SocketEventName,
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptionName,
+  SocketEventSubscriptions,
+  SocketEventSubscriptionsUpdatedData,
+  SocketEventSubscriptionUpdate,
   VideoControlNetName,
   VideoControlNetParams,
   VideoFormat,
   VideoOutputFormat,
   VideoProjectParams,
-  VideoWorkflowType
+  VideoWorkflowType,
+  // Primitives promoted from deep paths so consumers can import from the
+  // package root rather than reaching into `./dist/*`.
+  Balances,
+  Reward,
+  TxHistoryEntry,
+  SizePreset,
+  EstimateRequest,
+  CostEstimation,
+  ProjectEvent,
+  JobEvent,
+  RawProject,
+  ToastMessage,
+  DataEntity,
+  InputMedia
 };
 
 export {
@@ -129,12 +275,15 @@ export {
   ApiKeyAuthManager,
   ChatStream,
   ChatToolsApi,
+  CreativeWorkflowsApi,
+  CreativeWorkflowTemplatesApi,
+  ReplayApi,
   CurrentAccount,
   Job,
   Project,
   SogniTools,
-  buildSogniTools,
   isSogniToolCall,
+  parseCreativeWorkflowSseChunk,
   parseToolCallArguments
 };
 
@@ -143,6 +292,19 @@ export interface SogniClientConfig {
    * The application ID string. Must be unique, multiple connections with the same ID will be rejected.
    */
   appId: string;
+  /**
+   * Optional client app/source label to attach to this connection for server-side attribution.
+   * The socket server uses this as the default source for project and chat requests from this client.
+   */
+  appSource?: string;
+  /**
+   * Initial WebSocket event subscriptions for this connection.
+   *
+   * Omit this option to receive the default socket event stream. To reduce socket traffic for
+   * proxy or headless clients that do not need live worker counts, set
+   * `{ modelAvailability: false }` to opt out of `swarmModels` and `swarmLLMModels` updates.
+   */
+  socketEventSubscriptions?: SocketEventSubscriptions;
   /**
    * Override the default REST API endpoint
    * @internal
@@ -211,7 +373,30 @@ export class SogniClient {
   account: AccountApi;
   projects: ProjectsApi;
   stats: StatsApi;
+  /**
+   * Chat surfaces.
+   * - `chat.completions.create` — socket-native chat completion.
+   * - `chat.hosted.create` — hosted REST chat completion (synchronous).
+   * - `chat.runs.{create, get, cancel, confirmCost, streamEvents}` — durable hosted
+   *   chat runs that survive client disconnect, browser close, network
+   *   drop, and API worker restart. See `/v1/chat/runs` REST surface.
+   * - `chat.tools.execute*` — execute Sogni platform tools surfaced by
+   *   the chat completion (image / video / music generation).
+   */
   chat: ChatApi;
+  /**
+   * Durable creative workflows (`/v1/creative-agent/workflows`). Submit
+   * an explicit step sequence and follow its progress without keeping
+   * the client connected.
+   */
+  workflows: CreativeWorkflowsApi;
+  /**
+   * Replay records (`/v1/replay/records`). Writes one RunRecord per
+   * chat / harness turn and exposes list + get for the replay viewer.
+   * Per-owner isolation is enforced server-side via the SDK auth
+   * identity.
+   */
+  replay: ReplayApi;
 
   apiClient: ApiClient;
 
@@ -220,6 +405,8 @@ export class SogniClient {
     this.projects = new ProjectsApi(config);
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
+    this.workflows = new CreativeWorkflowsApi(config);
+    this.replay = new ReplayApi(config);
 
     this.apiClient = config.client;
   }
@@ -276,6 +463,16 @@ export class SogniClient {
   }
 
   /**
+   * Update WebSocket event subscriptions for this live client.
+   *
+   * This is useful when a process needs the initial model availability snapshot for startup, but
+   * does not need ongoing worker count updates afterward.
+   */
+  async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
+    await this.apiClient.setSocketEventSubscriptions(update);
+  }
+
+  /**
    * Create client instance, with default configuration
    * @param config
    */
@@ -291,6 +488,8 @@ export class SogniClient {
       baseUrl: restEndpoint,
       socketUrl: socketEndpoint,
       appId: config.appId,
+      appSource: config.appSource,
+      socketEventSubscriptions: config.socketEventSubscriptions,
       networkType: network,
       logger,
       authType,

@@ -1,0 +1,274 @@
+{
+  "version": "2026-04-28.1",
+  "source": {
+    "aliases": "src/backbone/knowledge/tool-aliases.json",
+    "hostedTools": "src/backbone/openai-tools/generation-tools.json",
+    "sdkGeneratedTools": "sogni-api /v1/chat/completions creative-tools",
+    "apiImportedTools": "@sogni/creative-agent/backbone/openai-tools/generation-tools.json"
+  },
+  "description": "Golden parity vector proving direct creative-agent tool aliases resolve to the creative-tools hosted API definitions.",
+  "tools": [
+    {
+      "creativeToolName": "generate_image",
+      "executionMode": "direct",
+      "hostedToolName": "generate_image",
+      "sdkToolName": "generate_image",
+      "hostedSchemaSha256": "d811d45c336d7fbbd65040d14fde8b951d0eec929d8d3a4c8a004d59ddd2e5f0",
+      "hostedRequired": [
+        "prompt"
+      ],
+      "hostedPropertyNames": [
+        "prompt",
+        "model",
+        "width",
+        "height",
+        "numberOfVariations",
+        "negativePrompt",
+        "starting_image_strength",
+        "sourceImageIndex",
+        "seed",
+        "guidance",
+        "gptImageQuality",
+        "outputFormat",
+        "aspectRatio"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "numberOfVariations",
+        "model",
+        "gptImageQuality",
+        "outputFormat",
+        "width",
+        "height",
+        "seed"
+      ],
+      "mediaAliasTargets": []
+    },
+    {
+      "creativeToolName": "edit_image",
+      "executionMode": "direct",
+      "hostedToolName": "edit_image",
+      "sdkToolName": "edit_image",
+      "hostedSchemaSha256": "6c894ffcc439de3cc5bde99092cdaf08f21ebd8b7232b0bdaf5e62d7a8d9c27b",
+      "hostedRequired": [
+        "prompt"
+      ],
+      "hostedPropertyNames": [
+        "prompt",
+        "model",
+        "sourceImageIndex",
+        "numberOfVariations",
+        "width",
+        "height",
+        "aspectRatio",
+        "gptImageQuality",
+        "outputFormat",
+        "personaName"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "numberOfVariations",
+        "model",
+        "gptImageQuality",
+        "outputFormat",
+        "width",
+        "height"
+      ],
+      "mediaAliasTargets": [
+        "sourceImageIndex"
+      ]
+    },
+    {
+      "creativeToolName": "generate_video",
+      "executionMode": "direct",
+      "hostedToolName": "generate_video",
+      "sdkToolName": "generate_video",
+      "hostedSchemaSha256": "77d7b81d1dfd9cd40937ca013c82accf92609449cd0d7a12f7415afbed103979",
+      "hostedRequired": [
+        "prompt"
+      ],
+      "hostedPropertyNames": [
+        "prompt",
+        "expandPrompt",
+        "skipPromptProcessing",
+        "duration",
+        "negativePrompt",
+        "videoModel",
+        "generateAudio",
+        "referenceImageIndices",
+        "referenceVideoIndices",
+        "referenceAudioIndices",
+        "width",
+        "height",
+        "targetResolution",
+        "numberOfVariations",
+        "aspectRatio",
+        "voicePersonaName"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "negativePrompt",
+        "duration",
+        "videoModel",
+        "numberOfVariations",
+        "width",
+        "height",
+        "expandPrompt"
+      ],
+      "mediaAliasTargets": [
+        "referenceImageIndices",
+        "referenceVideoIndices",
+        "referenceAudioIndices"
+      ]
+    },
+    {
+      "creativeToolName": "animate_photo",
+      "executionMode": "direct",
+      "hostedToolName": "animate_photo",
+      "sdkToolName": "animate_photo",
+      "hostedSchemaSha256": "8d3288daaa5a5a8602089bc54a11fc9940ec813c58c8137c0c03961926a54e44",
+      "hostedRequired": [
+        "prompt"
+      ],
+      "hostedPropertyNames": [
+        "prompt",
+        "expandPrompt",
+        "skipPromptProcessing",
+        "videoModel",
+        "negativePrompt",
+        "duration",
+        "targetResolution",
+        "sourceImageIndex",
+        "sourceImageIndices",
+        "prompts",
+        "numberOfVariations",
+        "aspectRatio",
+        "frameRole",
+        "endImageIndex",
+        "endImageIndices",
+        "voicePersonaName"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "prompts",
+        "negativePrompt",
+        "duration",
+        "videoModel",
+        "numberOfVariations",
+        "targetResolution",
+        "expandPrompt"
+      ],
+      "mediaAliasTargets": [
+        "sourceImageIndex",
+        "sourceImageIndices",
+        "endImageIndex",
+        "endImageIndices"
+      ]
+    },
+    {
+      "creativeToolName": "sound_to_video",
+      "executionMode": "direct",
+      "hostedToolName": "sound_to_video",
+      "sdkToolName": "sound_to_video",
+      "hostedSchemaSha256": "ea18153c694e3de308d97c8f3bb7aece5d02d9f6ca293797acc01c3df1d16056",
+      "hostedRequired": [
+        "prompt"
+      ],
+      "hostedPropertyNames": [
+        "prompt",
+        "expandPrompt",
+        "audioSourceIndex",
+        "sourceImageIndex",
+        "audioStart",
+        "duration",
+        "videoModel",
+        "generateAudio",
+        "numberOfVariations",
+        "targetResolution",
+        "aspectRatio"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "duration",
+        "videoModel",
+        "numberOfVariations",
+        "targetResolution",
+        "expandPrompt",
+        "generateAudio"
+      ],
+      "mediaAliasTargets": [
+        "audioSourceIndex",
+        "sourceImageIndex"
+      ]
+    },
+    {
+      "creativeToolName": "video_to_video",
+      "executionMode": "direct",
+      "hostedToolName": "video_to_video",
+      "sdkToolName": "video_to_video",
+      "hostedSchemaSha256": "385c1166118a36e880123e70c5821e2fcfb331da60cfc62bdef56114cb55a90a",
+      "hostedRequired": [
+        "prompt"
+      ],
+      "hostedPropertyNames": [
+        "prompt",
+        "expandPrompt",
+        "videoSourceIndex",
+        "controlMode",
+        "negativePrompt",
+        "videoModel",
+        "generateAudio",
+        "targetResolution",
+        "sourceImageIndex",
+        "duration",
+        "numberOfVariations"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "negativePrompt",
+        "controlMode",
+        "duration",
+        "numberOfVariations",
+        "videoModel",
+        "targetResolution",
+        "generateAudio",
+        "expandPrompt"
+      ],
+      "mediaAliasTargets": [
+        "videoSourceIndex",
+        "sourceImageIndex"
+      ]
+    },
+    {
+      "creativeToolName": "generate_music",
+      "executionMode": "direct",
+      "hostedToolName": "generate_music",
+      "sdkToolName": "generate_music",
+      "hostedSchemaSha256": "e28f78276e8a7215ce0bf7bbce6e0f38ea2184f7f26b998408c6da78de2b58ed",
+      "hostedRequired": [
+        "prompt"
+      ],
+      "hostedPropertyNames": [
+        "prompt",
+        "duration",
+        "bpm",
+        "keyscale",
+        "lyrics",
+        "model",
+        "timesig",
+        "numberOfVariations"
+      ],
+      "argumentAliasTargets": [
+        "prompt",
+        "lyrics",
+        "duration",
+        "bpm",
+        "keyscale",
+        "timesig",
+        "model",
+        "numberOfVariations"
+      ],
+      "mediaAliasTargets": []
+    }
+  ]
+}

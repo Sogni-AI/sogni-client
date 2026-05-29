@@ -1,3 +1,370 @@
+# [5.0.0-alpha.17](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.16...v5.0.0-alpha.17) (2026-05-28)
+
+
+### Bug Fixes
+
+* report socket connecting state ([e71ad74](https://github.com/Sogni-AI/sogni-client/commit/e71ad743324f61a706282d26a92a791813d0b172))
+
+# [5.0.0-alpha.16](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.15...v5.0.0-alpha.16) (2026-05-28)
+
+
+### Bug Fixes
+
+* **websocket:** replay sticky socket state to late-joining secondary tabs ([9bbc53d](https://github.com/Sogni-AI/sogni-client/commit/9bbc53d05e7acb4753c2e47aeb1792937f1ec2ed))
+
+# [5.0.0-alpha.15](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.14...v5.0.0-alpha.15) (2026-05-24)
+
+
+### Bug Fixes
+
+* **deps:** bump sogni protocol to 1.0.0-alpha.6 ([6121018](https://github.com/Sogni-AI/sogni-client/commit/6121018d2ad42769a21b882ea13f6bce67ae5f40))
+
+# [5.0.0-alpha.14](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.13...v5.0.0-alpha.14) (2026-05-24)
+
+
+### Bug Fixes
+
+* **deps:** pin sogni protocol alpha ([ceef1ef](https://github.com/Sogni-AI/sogni-client/commit/ceef1ef3dfb12fde4d2caff417042ed80daaa436))
+
+# [5.0.0-alpha.13](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.12...v5.0.0-alpha.13) (2026-05-23)
+
+
+### Bug Fixes
+
+* **deps:** update protocol dependency ([7e0b931](https://github.com/Sogni-AI/sogni-client/commit/7e0b931755c065941ee4b8bf1b8fc5c9dc16358f))
+
+# [5.0.0-alpha.12](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.11...v5.0.0-alpha.12) (2026-05-21)
+
+
+### Bug Fixes
+
+* **deps:** update protocol dependency ([a8d5a8f](https://github.com/Sogni-AI/sogni-client/commit/a8d5a8f5fa51bdd485ecaac362f35134aa8b3cfb))
+
+# [5.0.0-alpha.11](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.10...v5.0.0-alpha.11) (2026-05-20)
+
+
+### Bug Fixes
+
+* **coordinator:** re-elect primary before forwarding requests after stale heartbeat ([4819364](https://github.com/Sogni-AI/sogni-client/commit/48193641cfa4f5fb72d3822c5446cf280939ec51))
+
+
+### Features
+
+* **chat,workflows:** default appSource to client.appSource when omitted ([2c45af3](https://github.com/Sogni-AI/sogni-client/commit/2c45af3ad8ae45a6a0b845f1740d1561f5e95b3f))
+
+# [5.0.0-alpha.10](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.9...v5.0.0-alpha.10) (2026-05-20)
+
+
+### Bug Fixes
+
+* **esm:** add .js extensions to relative imports for Node ESM resolver ([0577b73](https://github.com/Sogni-AI/sogni-client/commit/0577b73923f8ca2e900ad098699445e9746d8cdb))
+
+# [5.0.0-alpha.9](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.8...v5.0.0-alpha.9) (2026-05-19)
+
+
+### Bug Fixes
+
+* **deps:** bump @sogni-ai/sogni-protocol to ^1.0.0-alpha.3 ([c8c2b91](https://github.com/Sogni-AI/sogni-client/commit/c8c2b917e51cc170b41848a12342962964acd668))
+
+# [5.0.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.7...v5.0.0-alpha.8) (2026-05-19)
+
+
+### Bug Fixes
+
+* **workflows:** unwrap templates api `{status,data}` envelope ([61480b5](https://github.com/Sogni-AI/sogni-client/commit/61480b5d741bcbd45f82d09f3246dafbd95bb718))
+
+# [5.0.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.6...v5.0.0-alpha.7) (2026-05-19)
+
+
+### Bug Fixes
+
+* **client:** preserve auth and surface upstream status on transient errors ([f9145ce](https://github.com/Sogni-AI/sogni-client/commit/f9145ce7593fa9564ec5b047114d215c388ed27c))
+
+# [5.0.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.5...v5.0.0-alpha.6) (2026-05-18)
+
+
+### Features
+
+* **exports:** expose additional SDK root types ([761cb4e](https://github.com/Sogni-AI/sogni-client/commit/761cb4ef363fb748168b525c430b5aac2642618d))
+
+# [5.0.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.4...v5.0.0-alpha.5) (2026-05-18)
+
+
+### Bug Fixes
+
+* **build:** run codegen on prepare and watch to populate generated manifest ([89734d5](https://github.com/Sogni-AI/sogni-client/commit/89734d5327135be2fc8ddb3575c8d57bf56089b9))
+* **deps:** make sogni-protocol a regular dependency so CI install resolves ([b4d428b](https://github.com/Sogni-AI/sogni-client/commit/b4d428b675ecf143e0174652dd132b0bb76449fc))
+* **deps:** regenerate lockfile to resolve sogni-protocol from npm registry ([4159987](https://github.com/Sogni-AI/sogni-client/commit/41599870e73512c32439c34c1b923f563a35bc0d))
+
+# [5.0.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.3...v5.0.0-alpha.4) (2026-05-16)
+
+
+### Bug Fixes
+
+* **deps:** point dev file:// at the renamed sogni-intelligence-client dir ([9e11029](https://github.com/Sogni-AI/sogni-client/commit/9e11029e0439c1140a7b85e4d3d7897e59ea3bac))
+* **deps:** point file:// at canonical wrapper path ([173cff2](https://github.com/Sogni-AI/sogni-client/commit/173cff2eb35d711516acd59905012a87ad63ccb2))
+* **deps:** regenerate lockfile to match renamed sogni-intelligence-client sibling ([d195c2f](https://github.com/Sogni-AI/sogni-client/commit/d195c2f238f72a41da06fb2f0a7c26556cc6724a))
+
+
+### Features
+
+* **chat:** replace hostedToolValidation codegen with re-export ([f2fae51](https://github.com/Sogni-AI/sogni-client/commit/f2fae51bcbb42e85077cbe9deaff92f3aac17cd0))
+
+# [5.0.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.2...v5.0.0-alpha.3) (2026-05-16)
+
+
+### Features
+
+* **chat-runs:** sdk method for cost-approval resume ([e944765](https://github.com/Sogni-AI/sogni-client/commit/e9447659ac319b1ec9c6010a9449f4030400d1c9))
+
+# [5.0.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0-alpha.1...v5.0.0-alpha.2) (2026-05-16)
+
+
+### Features
+
+* forward runtimeConfig to chat runs for cloud executor parity ([c8002df](https://github.com/Sogni-AI/sogni-client/commit/c8002df94bc4cd1e163956803a9d237b64dc9f61))
+
+# [5.0.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.26...v5.0.0-alpha.1) (2026-05-15)
+
+
+* feat!: align SogniTools surface to canonical 24 tools, remove buildSogniTools ([2f04de9](https://github.com/Sogni-AI/sogni-client/commit/2f04de9fdb4d4423f3c46426488d6c520522c62f))
+
+
+### BREAKING CHANGES
+
+* buildSogniTools is no longer exported. Replace
+buildSogniTools(availableModels) with SogniTools.all, or set
+sogni_tools: 'creative-tools' on chat.hosted.create() / chat.runs.create()
+for server-side injection.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+# [4.2.0-alpha.26](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.25...v4.2.0-alpha.26) (2026-05-15)
+
+
+### Features
+
+* add replay records API ([ef98975](https://github.com/Sogni-AI/sogni-client/commit/ef98975a618523e23799aa28ab292609cbe32de6))
+
+# [4.2.0-alpha.25](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.24...v4.2.0-alpha.25) (2026-05-15)
+
+
+### Features
+
+* **workflows:** add templates CRUD, resume, reseed, and template-id runs ([fbec2b7](https://github.com/Sogni-AI/sogni-client/commit/fbec2b756df10cac3455626cd314a0fdbbde5982))
+
+# [4.2.0-alpha.24](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.23...v4.2.0-alpha.24) (2026-05-15)
+
+
+### Bug Fixes
+
+* **websocket:** preserve primary tab on new-tab open, fix promoted-primary rebind ([b74382a](https://github.com/Sogni-AI/sogni-client/commit/b74382a1b3bc02d61257bc3158ecbd96c10dee57))
+
+# [4.2.0-alpha.23](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.22...v4.2.0-alpha.23) (2026-05-15)
+
+
+### Bug Fixes
+
+* **chat:** validate remote media inputs ([daa078d](https://github.com/Sogni-AI/sogni-client/commit/daa078de22919698d87d1669298658a268565653))
+
+# [4.2.0-alpha.22](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.21...v4.2.0-alpha.22) (2026-05-15)
+
+
+### Features
+
+* **sdk:** add durable chat runs, flatten creative workflows, dual ESM build ([03d37d7](https://github.com/Sogni-AI/sogni-client/commit/03d37d7e873e3e6ac8718b407fd612bab757907b))
+
+# [4.2.0-alpha.21](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.20...v4.2.0-alpha.21) (2026-05-14)
+
+
+### Bug Fixes
+
+* **chat:** align hosted creative tool surfaces ([6e9e094](https://github.com/Sogni-AI/sogni-client/commit/6e9e094803bad7fdda994103f12bd40f726ae08e))
+
+
+### Features
+
+* **chat:** expose hosted completions wrapper ([da3799d](https://github.com/Sogni-AI/sogni-client/commit/da3799d2e99877d4bdd1990741611bac6243cdad))
+
+# [4.2.0-alpha.20](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.19...v4.2.0-alpha.20) (2026-05-12)
+
+
+### Features
+
+* **sdk:** add socket event subscription controls ([a450acd](https://github.com/Sogni-AI/sogni-client/commit/a450acd22087a690657c82de8e20cda96cd81512))
+
+# [4.2.0-alpha.19](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.18...v4.2.0-alpha.19) (2026-05-11)
+
+
+### Features
+
+* **sdk:** re-export ChatResponseFormat type from package root ([b48849c](https://github.com/Sogni-AI/sogni-client/commit/b48849c517375d7879d55653398a65f0d93f161c))
+
+# [4.2.0-alpha.18](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.17...v4.2.0-alpha.18) (2026-05-09)
+
+
+### Bug Fixes
+
+* **examples:** prepare sound-to-video audio uploads ([52e6cc2](https://github.com/Sogni-AI/sogni-client/commit/52e6cc210e67da49742229a9d1ff2d0edd5e14fa))
+
+# [4.2.0-alpha.17](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.16...v4.2.0-alpha.17) (2026-05-09)
+
+
+### Features
+
+* **alpha:** merge agentic harness refactor ([e4e1ddc](https://github.com/Sogni-AI/sogni-client/commit/e4e1ddcc4b1cd1272ed7ccc8c4b68ee5a9f7df8c))
+* **chat:** plumb response_format through createCompletion ([b711a68](https://github.com/Sogni-AI/sogni-client/commit/b711a68e4dc7fc27d8d781f8cab40f74b23393eb))
+
+# [4.2.0-alpha.16](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.15...v4.2.0-alpha.16) (2026-05-06)
+
+
+### Bug Fixes
+
+* **client:** preserve external job progress ([6390c16](https://github.com/Sogni-AI/sogni-client/commit/6390c165b9c492b8fa0df07b331cb6193c8b3916))
+
+# [4.2.0-alpha.15](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.14...v4.2.0-alpha.15) (2026-05-04)
+
+
+### Bug Fixes
+
+* update gpt-image-2 hosted tool guidance ([e346969](https://github.com/Sogni-AI/sogni-client/commit/e346969d8898d5a78ffd026bb0f2839a68366428))
+
+# [4.2.0-alpha.14](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.13...v4.2.0-alpha.14) (2026-05-04)
+
+
+### Features
+
+* **chat:** update creative workflow client metadata ([bda4a28](https://github.com/Sogni-AI/sogni-client/commit/bda4a28a78dcce41c4bf0fd796767019f8d69ce8))
+
+# [4.2.0-alpha.13](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.12...v4.2.0-alpha.13) (2026-05-04)
+
+
+### Features
+
+* **client:** expose GPT Image 2 project options ([5f8ff31](https://github.com/Sogni-AI/sogni-client/commit/5f8ff31d147c6869b9d7a238a45b117fee80fea1))
+* **client:** route GPT Image 2 aliases ([a946fe2](https://github.com/Sogni-AI/sogni-client/commit/a946fe2ae556a1d9d788d3bc0c3c7c0e223996f1))
+
+# [4.2.0-alpha.12](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.11...v4.2.0-alpha.12) (2026-05-03)
+
+
+### Bug Fixes
+
+* align Seedance routing and estimates ([93c3315](https://github.com/Sogni-AI/sogni-client/commit/93c3315352b014ce04583bbf7342691f4b88b63f))
+
+# [4.2.0-alpha.11](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.10...v4.2.0-alpha.11) (2026-05-01)
+
+
+### Bug Fixes
+
+* document monthly free Spark credits ([9a89533](https://github.com/Sogni-AI/sogni-client/commit/9a89533d3c12d05eec8b2ddf61b654879fcef243))
+
+# [4.2.0-alpha.10](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.9...v4.2.0-alpha.10) (2026-05-01)
+
+
+### Features
+
+* **seedance:** add guided partner video workflow ([36b8880](https://github.com/Sogni-AI/sogni-client/commit/36b8880f6fd33e3cfc7eeb0a828a2f3663c57996))
+
+# [4.2.0-alpha.9](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.8...v4.2.0-alpha.9) (2026-04-30)
+
+
+### Bug Fixes
+
+* **seedance:** omit negative prompt in example workflow ([07a0973](https://github.com/Sogni-AI/sogni-client/commit/07a0973dfebd44b082ebc3b6883fd21b1761d576))
+
+# [4.2.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.7...v4.2.0-alpha.8) (2026-04-30)
+
+
+### Bug Fixes
+
+* **projects:** share negative prompt params ([9545e95](https://github.com/Sogni-AI/sogni-client/commit/9545e956ccedecff499d00e8ad02b8c877aacf11))
+
+
+### Features
+
+* **seedance:** support multimodal context references ([4f1a0ec](https://github.com/Sogni-AI/sogni-client/commit/4f1a0ecfbb958bfc8f5d4e2e43f79fee718314dc))
+
+# [4.2.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.6...v4.2.0-alpha.7) (2026-04-30)
+
+
+### Bug Fixes
+
+* align Seedance video tool handling ([337af3a](https://github.com/Sogni-AI/sogni-client/commit/337af3ad0aaf9e0ddc15d6f01c4f235691806e71))
+
+# [4.2.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.5...v4.2.0-alpha.6) (2026-04-30)
+
+
+### Features
+
+* centralize chat model routing ([51a0841](https://github.com/Sogni-AI/sogni-client/commit/51a084119966fa2239512fdad1e2b549b83bd098))
+* **chat:** align hosted tool routing helpers ([bf57eca](https://github.com/Sogni-AI/sogni-client/commit/bf57eca06e255429dd43a4e2614006be774967f3))
+* **chat:** expose server-side Sogni tool controls ([7218ee7](https://github.com/Sogni-AI/sogni-client/commit/7218ee7f7cd11b85e2f3c7c1dd42fc68c89734bf))
+* generate hosted chat tool definitions ([2e56f57](https://github.com/Sogni-AI/sogni-client/commit/2e56f57a9f1acb72ce6c2d4744edaa291fc19582))
+
+# [4.2.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.4...v4.2.0-alpha.5) (2026-04-22)
+
+
+### Bug Fixes
+
+* validate inline media inputs for tools and vision requests ([c4bd7c1](https://github.com/Sogni-AI/sogni-client/commit/c4bd7c15cd530896065cf5ed41cd280b5db63938))
+
+# [4.2.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.3...v4.2.0-alpha.4) (2026-04-22)
+
+
+### Features
+
+* expand chat sogni media tools ([fb0d6c7](https://github.com/Sogni-AI/sogni-client/commit/fb0d6c77e4b73fbbe57d8b64b4a37bb610eb8c68))
+
+# [4.2.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.2...v4.2.0-alpha.3) (2026-04-20)
+
+
+### Bug Fixes
+
+* use thinkingComplexDefault in LLMModelInfo cost estimates ([162011f](https://github.com/Sogni-AI/sogni-client/commit/162011f698b56229629cea8d09fad1b3e313294f))
+
+# [4.2.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v4.2.0-alpha.1...v4.2.0-alpha.2) (2026-04-20)
+
+
+### Features
+
+* update qwen3.6 chat presets and examples ([96b3e23](https://github.com/Sogni-AI/sogni-client/commit/96b3e23169780874ca8273305e2fd4171d0d8dd3))
+
+# [4.2.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v4.1.1...v4.2.0-alpha.1) (2026-04-06)
+
+
+### Bug Fixes
+
+* allow up to 20s duration for Wan Animate Move/Replace models (321 frames) ([23897fa](https://github.com/Sogni-AI/sogni-client/commit/23897fa3eeacc997548390d4a41569a424ba1485))
+* update LTX-2.3 dev defaults to match tuned workflow parameters ([7ca69ab](https://github.com/Sogni-AI/sogni-client/commit/7ca69ab828bf821cf19438687d0eecd090a7e54c))
+
+
+### Features
+
+* add ID-LoRA speaker identity transfer support (referenceAudioIdentity) ([4969cce](https://github.com/Sogni-AI/sogni-client/commit/4969cce72c46d7527a8d66ff251adc1e9d022013))
+* add top_k parameter and server-provided sampling defaults for thinking modes ([ad4ac85](https://github.com/Sogni-AI/sogni-client/commit/ad4ac85e75fad0c7d18af976fe03d4d90c6c5f3d))
+
+# [4.1.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.7...v4.1.0-alpha.8) (2026-03-29)
+
+
+### Features
+
+* add ID-LoRA speaker identity transfer support (referenceAudioIdentity) ([4969cce](https://github.com/Sogni-AI/sogni-client/commit/4969cce72c46d7527a8d66ff251adc1e9d022013))
+
+# [4.1.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.6...v4.1.0-alpha.7) (2026-03-24)
+
+
+### Features
+
+* add top_k parameter and server-provided sampling defaults for thinking modes ([ad4ac85](https://github.com/Sogni-AI/sogni-client/commit/ad4ac85e75fad0c7d18af976fe03d4d90c6c5f3d))
+
+# [4.1.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0-alpha.5...v4.1.0-alpha.6) (2026-03-23)
+
+
+### Bug Fixes
+
+* allow up to 20s duration for Wan Animate Move/Replace models (321 frames) ([23897fa](https://github.com/Sogni-AI/sogni-client/commit/23897fa3eeacc997548390d4a41569a424ba1485))
+* update LTX-2.3 dev defaults to match tuned workflow parameters ([7ca69ab](https://github.com/Sogni-AI/sogni-client/commit/7ca69ab828bf821cf19438687d0eecd090a7e54c))
+
 ## [4.1.1](https://github.com/Sogni-AI/sogni-client/compare/v4.1.0...v4.1.1) (2026-03-25)
 
 

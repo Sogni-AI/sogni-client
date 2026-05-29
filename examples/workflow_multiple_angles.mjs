@@ -57,6 +57,7 @@ import {
   getUniqueFilename,
   generateImageFilename,
   generateRandomSeed,
+  defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -117,7 +118,7 @@ async function parseArgs() {
     steps: null,
     width: 1024,
     height: 1024,
-    output: './output',
+    output: defaultExamplesOutputDir(),
     interactive: true,
     disableSafeContentFilter: false
   };
@@ -740,7 +741,6 @@ async function main() {
         case 'error':
         case 'failed':
                     clearProgress();
-          projectFailed = true;
           failedImages++;
           if (isSensitiveContentError(event) && !OPTIONS.disableSafeContentFilter) {
             displaySafeContentFilterMessage({ showDisableHint: true });

@@ -1,5 +1,5 @@
-import AuthManagerBase from './AuthManagerBase';
-import { Logger } from '../DefaultLogger';
+import AuthManagerBase from './AuthManagerBase.js';
+import { Logger } from '../DefaultLogger.js';
 import { ClientOptions } from 'ws';
 
 class ApiKeyAuthManager extends AuthManagerBase<string | null> {

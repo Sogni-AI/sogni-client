@@ -10,7 +10,14 @@ export default class Cache<V = any> {
 
   constructor(defaultTTL: number) {
     this.ttl = defaultTTL;
-    setInterval(() => this.cleanup(), 10000);
+    const timer = setInterval(() => this.cleanup(), 10000) as unknown as {
+      unref?: () => void;
+    };
+    // Node timers have unref() so a module-level Cache doesn't keep one-shot
+    // scripts alive. Browser timers return numbers and don't expose unref.
+    if (typeof timer.unref === 'function') {
+      timer.unref();
+    }
   }
 
   write(key: string, value: V, ttl?: number) {

@@ -1,12 +1,12 @@
-import Job, { JobData } from './Job';
-import DataEntity, { EntityEvents } from '../lib/DataEntity';
-import { isImageParams, ProjectParams } from './types';
-import cloneDeep from 'lodash/cloneDeep';
-import ErrorData from '../types/ErrorData';
-import getUUID from '../lib/getUUID';
-import { RawJob, RawProject } from './types/RawProject';
-import ProjectsApi from './index';
-import { Logger } from '../lib/DefaultLogger';
+import Job, { JobData } from './Job.js';
+import DataEntity, { EntityEvents } from '../lib/DataEntity.js';
+import { isImageParams, ProjectParams } from './types/index.js';
+import cloneDeep from 'lodash/cloneDeep.js';
+import ErrorData from '../types/ErrorData.js';
+import getUUID from '../lib/getUUID.js';
+import { RawJob, RawProject } from './types/RawProject.js';
+import ProjectsApi from './index.js';
+import { Logger } from '../lib/DefaultLogger.js';
 
 // If project is not finished and had no updates for 2 minutes, force refresh
 const PROJECT_TIMEOUT = 2 * 60 * 1000;
@@ -126,11 +126,17 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    * Progress of the project in percentage (0-100).
    */
   get progress() {
+    if (this.status === 'completed') return 100;
     // Worker can reduce the number of steps in the job, so we need to calculate the progress based on the actual number of steps
-    const stepsPerJob = this.jobs.length ? this.jobs[0].stepCount : (this.data.params.steps ?? 0);
-    const jobCount = this.data.params.numberOfMedia;
+    const jobCount = Math.max(1, this.data.params.numberOfMedia);
+    if (this._jobs.length) {
+      const progressTotal = this._jobs.reduce((acc, job) => acc + job.progress, 0);
+      return Math.max(0, Math.min(100, Math.round(progressTotal / jobCount)));
+    }
+    const stepsPerJob = this.data.params.steps ?? 0;
+    if (stepsPerJob <= 0) return 0;
     const stepsDone = this._jobs.reduce((acc, job) => acc + job.step, 0);
-    return Math.round((stepsDone / ((stepsPerJob ?? 1) * jobCount)) * 100);
+    return Math.max(0, Math.min(100, Math.round((stepsDone / (stepsPerJob * jobCount)) * 100)));
   }
 
   get queuePosition() {
@@ -268,6 +274,10 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
           this._logger.error(
             `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
           );
+          this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
+            this._logger.error(`Failed to notify socket server that project ${this.id} timed out`);
+            this._logger.error(cancelError);
+          });
           clearInterval(this._timeout!);
           this._timeout = null;
           this.jobs.forEach((job) => {

@@ -1,13 +1,21 @@
-import { MessageType, SocketMessageMap } from './messages';
-import { SocketEventMap } from './events';
-import RestClient from '../../lib/RestClient';
-import { IWebSocketClient, SupernetType } from './types';
+import { MessageType, SocketMessageMap } from './messages.js';
+import { SocketEventMap } from './events.js';
+import RestClient from '../../lib/RestClient.js';
+import { IWebSocketClient, SupernetType } from './types.js';
 import WebSocket, { CloseEvent, ErrorEvent, MessageEvent } from 'isomorphic-ws';
-import { base64Decode, base64Encode } from '../../lib/base64';
-import isNodejs from '../../lib/isNodejs';
-import { LIB_VERSION } from '../../version';
-import { Logger } from '../../lib/DefaultLogger';
-import { AuthManager } from '../../lib/AuthManager';
+import { base64Decode, base64Encode } from '../../lib/base64.js';
+import isNodejs from '../../lib/isNodejs.js';
+import { LIB_VERSION } from '../../version.js';
+import { Logger } from '../../lib/DefaultLogger.js';
+import { AuthManager } from '../../lib/AuthManager/index.js';
+import {
+  normalizeSocketEventSubscriptionUpdate,
+  serializeSocketEventSubscriptions
+} from './eventSubscriptions.js';
+import type {
+  SocketEventSubscriptionInput,
+  SocketEventSubscriptions
+} from './eventSubscriptions.js';
 
 const PROTOCOL_VERSION = '3.0.0';
 
@@ -15,7 +23,9 @@ const PING_INTERVAL = 15000;
 
 class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketClient {
   appId: string;
+  appSource?: string;
   baseUrl: string;
+  socketEventSubscriptions?: SocketEventSubscriptions;
   private socket: WebSocket | null = null;
   private _supernetType: SupernetType;
   private _pingInterval: NodeJS.Timeout | null = null;
@@ -25,7 +35,9 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     auth: AuthManager,
     appId: string,
     supernetType: SupernetType,
-    logger: Logger
+    logger: Logger,
+    appSource?: string,
+    socketEventSubscriptions?: SocketEventSubscriptions
   ) {
     const _baseUrl = new URL(baseUrl);
     switch (_baseUrl.protocol) {
@@ -42,8 +54,17 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     }
     super(_baseUrl.toString(), auth, logger);
     this.appId = appId;
+    this.appSource = appSource?.trim() || undefined;
+    this.socketEventSubscriptions = socketEventSubscriptions;
     this.baseUrl = _baseUrl.toString();
     this._supernetType = supernetType;
+    // Mirror the server's authoritative subscriptions snapshot so reconnects keep any
+    // runtime updates applied via `setSocketEventSubscriptions` after the initial connect.
+    this.on('socketEventSubscriptionsUpdated', (payload) => {
+      if (payload && payload.socketEventSubscriptions) {
+        this.socketEventSubscriptions = { ...payload.socketEventSubscriptions };
+      }
+    });
   }
 
   get supernetType(): SupernetType {
@@ -63,6 +84,15 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     const isNotSecure = url.protocol === 'http:' || url.protocol === 'ws:';
     url.protocol = isNotSecure ? 'ws:' : 'wss:';
     url.searchParams.set('appId', this.appId);
+    if (this.appSource) {
+      url.searchParams.set('appSource', this.appSource);
+    }
+    const socketEventSubscriptions = serializeSocketEventSubscriptions(
+      this.socketEventSubscriptions
+    );
+    if (socketEventSubscriptions) {
+      url.searchParams.set('socketEventSubscriptions', socketEventSubscriptions);
+    }
     url.searchParams.set('clientName', userAgent);
     url.searchParams.set('clientType', 'artist');
     //At this point 'relaxed' does not work as expected, so we use 'fast' or empty
@@ -113,6 +143,11 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
       });
       await this.send('changeNetwork', supernetType);
     });
+  }
+
+  async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
+    const normalizedUpdate = normalizeSocketEventSubscriptionUpdate(update);
+    await this.send('setSocketEventSubscriptions', normalizedUpdate);
   }
 
   /**

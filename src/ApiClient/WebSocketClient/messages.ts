@@ -1,6 +1,7 @@
-import { JobRequestRaw } from '../../Projects/createJobRequestMessage';
-import { SupernetType } from './types';
-import { ChatRequestMessage } from '../../Chat/types';
+import { JobRequestRaw } from '../../Projects/createJobRequestMessage.js';
+import { SupernetType } from './types.js';
+import { ChatRequestMessage } from '../../Chat/types.js';
+import type { SocketEventSubscriptionUpdate } from './eventSubscriptions.js';
 
 export interface JobErrorMessage {
   jobID: string;
@@ -14,6 +15,7 @@ export interface SocketMessageMap {
   jobError: JobErrorMessage;
   changeNetwork: SupernetType;
   llmJobRequest: ChatRequestMessage;
+  setSocketEventSubscriptions: SocketEventSubscriptionUpdate;
 }
 
 export type MessageType = keyof SocketMessageMap;
