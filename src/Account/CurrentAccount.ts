@@ -110,7 +110,7 @@ class CurrentAccount extends DataEntity<AccountData> {
 
   /**
    * Convenience getter — `true` when the account has an active or trialing
-   * subscription with the `"unlimited"` tier.
+   * subscription on any Unlimited tier (`"unlimited"` or `"unlimited_pro"`).
    *
    * Returns `false` when no entitlement snapshot has been fetched yet or when
    * the subscription is not active/trialing. Call
@@ -120,7 +120,7 @@ class CurrentAccount extends DataEntity<AccountData> {
     const sub = this.data.subscription;
     if (!sub || !sub.active) return false;
     const liveStatus = sub.status === 'active' || sub.status === 'trialing';
-    return liveStatus && sub.tier === 'unlimited';
+    return liveStatus && (sub.tier === 'unlimited' || sub.tier === 'unlimited_pro');
   }
 }
 
