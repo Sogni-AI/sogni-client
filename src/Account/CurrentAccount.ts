@@ -1,5 +1,6 @@
 import DataEntity from '../lib/DataEntity.js';
 import { Balances } from './types.js';
+import { SubscriptionEntitlementSnapshot } from './subscription.types.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 /**
  * @inline
@@ -20,6 +21,16 @@ export interface AccountData {
   walletAddress?: string;
   username?: string;
   email?: string;
+  /**
+   * The most recently fetched subscription entitlement snapshot.
+   * `undefined` until {@link AccountApi.getSubscriptionStatus} or
+   * {@link AccountApi.refreshSubscription} has been called.
+   *
+   * Subscribe to the `'updated'` event (inherited from `DataEntity`) to react
+   * to changes — the `changedKeys` array will include `'subscription'` when
+   * this field is refreshed.
+   */
+  subscription?: SubscriptionEntitlementSnapshot;
 }
 
 function getDefaults(): AccountData {
@@ -42,7 +53,8 @@ function getDefaults(): AccountData {
       }
     },
     walletAddress: undefined,
-    username: undefined
+    username: undefined,
+    subscription: undefined
   };
 }
 
@@ -85,6 +97,30 @@ class CurrentAccount extends DataEntity<AccountData> {
 
   get email() {
     return this.data.email;
+  }
+
+  /**
+   * The most recently cached subscription entitlement snapshot.
+   * `undefined` until {@link AccountApi.getSubscriptionStatus} or
+   * {@link AccountApi.refreshSubscription} has been called.
+   */
+  get subscription(): SubscriptionEntitlementSnapshot | undefined {
+    return this.data.subscription;
+  }
+
+  /**
+   * Convenience getter — `true` when the account has an active or trialing
+   * subscription with the `"unlimited"` tier.
+   *
+   * Returns `false` when no entitlement snapshot has been fetched yet or when
+   * the subscription is not active/trialing. Call
+   * {@link AccountApi.refreshSubscription} to populate the snapshot first.
+   */
+  get isUnlimited(): boolean {
+    const sub = this.data.subscription;
+    if (!sub || !sub.active) return false;
+    const liveStatus = sub.status === 'active' || sub.status === 'trialing';
+    return liveStatus && sub.tier === 'unlimited';
   }
 }
 

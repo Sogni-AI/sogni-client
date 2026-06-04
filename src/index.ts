@@ -42,6 +42,15 @@ import {
 import type { ProjectEvent, JobEvent } from './Projects/types/events.js';
 import type { RawProject } from './Projects/types/RawProject.js';
 import type { Balances, Reward, TxHistoryEntry } from './Account/types.js';
+import type {
+  BillingMode,
+  SubscriptionEntitlementSnapshot,
+  SubscriptionLimits,
+  SubscriptionPlan,
+  SubscriptionStatus,
+  SubscriptionTerm,
+  SubscriptionUsage
+} from './Account/subscription.types.js';
 import type { ToastMessage } from './ApiClient/WebSocketClient/events.js';
 import type DataEntity from './lib/DataEntity.js';
 import {
@@ -259,6 +268,13 @@ export type {
   Balances,
   Reward,
   TxHistoryEntry,
+  BillingMode,
+  SubscriptionEntitlementSnapshot,
+  SubscriptionLimits,
+  SubscriptionPlan,
+  SubscriptionStatus,
+  SubscriptionTerm,
+  SubscriptionUsage,
   SizePreset,
   EstimateRequest,
   CostEstimation,

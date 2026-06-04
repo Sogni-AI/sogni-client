@@ -14,6 +14,11 @@ import {
   TxHistoryEntry,
   TxHistoryParams
 } from './types.js';
+import {
+  SubscriptionEntitlementSnapshot,
+  SubscriptionPlan,
+  SubscriptionUsage
+} from './subscription.types.js';
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
@@ -612,6 +617,132 @@ class AccountApi extends ApiGroup {
       deadline: message.deadline,
       approveSignature: signature
     });
+  }
+
+  // ─── Subscription ────────────────────────────────────────────────────────
+
+  /**
+   * Fetch the current user's subscription entitlement snapshot.
+   *
+   * Returns an object describing whether the account has an active
+   * subscription, the plan/tier, period boundaries, usage, limits, and
+   * enabled capabilities. When no subscription exists, `active` is `false`.
+   *
+   * Also updates `currentAccount.subscription` so callers can read the
+   * snapshot from the observable entity without re-fetching.
+   *
+   * @example
+   * ```typescript
+   * const snap = await sogni.account.getSubscriptionStatus();
+   * if (snap.active) {
+   *   console.log('Plan:', snap.tier, 'until', snap.currentPeriodEnd);
+   * }
+   * ```
+   */
+  async getSubscriptionStatus(): Promise<SubscriptionEntitlementSnapshot> {
+    const res = await this.client.rest.get<ApiResponse<SubscriptionEntitlementSnapshot>>(
+      '/v1/subscriptions/status'
+    );
+    this.currentAccount._update({ subscription: res.data });
+    return res.data;
+  }
+
+  /**
+   * Fetch the list of available subscription plans.
+   *
+   * This is a public endpoint — no authentication is required.
+   *
+   * @example
+   * ```typescript
+   * const plans = await sogni.account.getSubscriptionPlans();
+   * plans.forEach(p => console.log(p.name, p.displayPrice));
+   * ```
+   */
+  async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
+    const res = await this.client.rest.get<ApiResponse<SubscriptionPlan[]>>(
+      '/v1/subscriptions/plans'
+    );
+    return res.data;
+  }
+
+  /**
+   * Fetch per-period usage counters for the authenticated user's active subscription.
+   *
+   * @example
+   * ```typescript
+   * const usage = await sogni.account.getSubscriptionUsage();
+   * console.log('Images generated this period:', usage.imagesGenerated);
+   * ```
+   */
+  async getSubscriptionUsage(): Promise<SubscriptionUsage> {
+    const res = await this.client.rest.get<ApiResponse<SubscriptionUsage>>(
+      '/v1/subscriptions/usage'
+    );
+    return res.data;
+  }
+
+  /**
+   * Create a Stripe checkout session to subscribe to a plan.
+   *
+   * Returns a `url` to which the user should be redirected to complete payment.
+   * After a successful checkout Stripe will redirect back to your configured
+   * return URL and the subscription entitlement will become active.
+   *
+   * @param planId - The plan identifier from {@link getSubscriptionPlans}
+   * @param term   - Billing cadence: `'monthly'` or `'annual'`
+   *
+   * @example
+   * ```typescript
+   * const { url } = await sogni.account.createSubscriptionCheckout('unlimited_monthly', 'monthly');
+   * window.location.href = url;
+   * ```
+   */
+  async createSubscriptionCheckout(
+    planId: string,
+    term: 'monthly' | 'annual'
+  ): Promise<{ url: string }> {
+    const res = await this.client.rest.post<ApiResponse<{ url: string }>>(
+      '/v1/iap/stripe/subscribe',
+      { planId, term }
+    );
+    return res.data;
+  }
+
+  /**
+   * Create a Stripe customer portal session for managing an existing subscription.
+   *
+   * Returns a `url` to which the user should be redirected. The portal lets
+   * them update payment methods, cancel, or view invoices.
+   *
+   * @example
+   * ```typescript
+   * const { url } = await sogni.account.createSubscriptionPortalSession();
+   * window.location.href = url;
+   * ```
+   */
+  async createSubscriptionPortalSession(): Promise<{ url: string }> {
+    const res = await this.client.rest.post<ApiResponse<{ url: string }>>(
+      '/v1/subscriptions/stripe/portal',
+      {}
+    );
+    return res.data;
+  }
+
+  /**
+   * Refresh the cached subscription entitlement on `currentAccount`.
+   *
+   * Convenience wrapper around {@link getSubscriptionStatus} that makes the
+   * intent — "I want to pull fresh entitlement data into the observable
+   * account entity" — explicit at the call site.
+   *
+   * @example
+   * ```typescript
+   * await sogni.account.refreshSubscription();
+   * console.log(sogni.account.currentAccount.isUnlimited);
+   * ```
+   */
+  async refreshSubscription(): Promise<SubscriptionEntitlementSnapshot> {
+    return this.getSubscriptionStatus();
   }
 }
 
