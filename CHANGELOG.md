@@ -1,3 +1,16 @@
+# [5.1.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0...v5.1.0-alpha.1) (2026-06-05)
+
+
+### Bug Fixes
+
+* **subscription:** accept unlimited_pro tier in isUnlimited getter ([dd60513](https://github.com/Sogni-AI/sogni-client/commit/dd60513650071a46a2e43f7d81bae96026c4af93))
+* **subscription:** align entitlement SDK surface ([df2b752](https://github.com/Sogni-AI/sogni-client/commit/df2b7527f479778f073ac8f05b39912e84874666))
+
+
+### Features
+
+* **account:** add subscription entitlement accessors ([22682c4](https://github.com/Sogni-AI/sogni-client/commit/22682c4ac8a970b4189ec94ea9f7bc3fa215533e))
+
 # [5.0.0](https://github.com/Sogni-AI/sogni-client/compare/v4.1.1...v5.0.0) (2026-05-29)
 
 
