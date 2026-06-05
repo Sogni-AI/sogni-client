@@ -1,129 +1,130 @@
 /**
  * Subscription-related types for the Sogni SDK.
  *
- * These types mirror the server-side subscription surface exposed under
- * `/v1/subscriptions/*` and `/v1/iap/stripe/*`. They are intentionally
- * additive — the existing token-based balance and `tokenType` APIs are
- * unchanged.
+ * These types mirror the public subscription API exposed by `sogni-api` under
+ * `/v1/subscriptions/*` and `/v1/iap/stripe/subscribe`.
  */
 
 /**
- * How the current account session is billed:
- * - `'auto'`         — no explicit mode; server picks based on context
- * - `'tokens'`       — usage charged against the SOGNI/Spark token balance
- * - `'subscription'` — usage covered by an active subscription entitlement
- */
-export type BillingMode = 'auto' | 'tokens' | 'subscription';
-
-/**
- * Lifecycle state of a subscription. Mirrors the server-side status enum.
+ * Lifecycle state returned by `GET /v1/subscriptions/status`.
  */
 export type SubscriptionStatus =
-  | 'active'
+  | 'none'
   | 'trialing'
+  | 'active'
+  | 'grace_period'
   | 'past_due'
+  | 'paused'
+  | 'cancel_at_period_end'
   | 'canceled'
-  | 'unpaid'
-  | 'incomplete'
-  | 'incomplete_expired'
-  | 'paused';
+  | 'expired'
+  | 'refunded';
 
 /**
- * Billing term — monthly or annual.
+ * Plan/tier identifiers accepted by the subscription checkout endpoint.
+ */
+export type SubscriptionPlanId = 'unlimited' | 'unlimited_pro';
+
+/**
+ * Billing term selector accepted by the subscription checkout endpoint.
  */
 export type SubscriptionTerm = 'monthly' | 'annual';
+
+/**
+ * Stripe recurring interval implied by the billing term.
+ */
+export type SubscriptionPlanInterval = 'month' | 'year';
+
+/**
+ * Checkout redirect target. The server uses this to choose the post-checkout
+ * return URL.
+ */
+export type SubscriptionRedirectType = 'web' | 'app' | 'dashboard' | 'photobooth';
 
 /**
  * Current subscription entitlement snapshot returned by
  * `GET /v1/subscriptions/status`.
  *
- * When the user has no active subscription, `active` will be `false` and
- * most other fields will be absent.
+ * When the user has no effective subscription, `active` is `false` and
+ * `status` is `'none'`.
  */
 export interface SubscriptionEntitlementSnapshot {
-  /** Whether there is a currently active (or trialing) entitlement. */
+  /** Whether the wallet currently has an effective entitlement. */
   active: boolean;
-  /** Lifecycle status of the subscription. Present when a subscription record exists. */
-  status?: SubscriptionStatus;
-  /** Internal plan identifier (e.g. `"unlimited_monthly"`). */
-  planId?: string;
-  /** Human-readable tier name (e.g. `"unlimited"`). */
-  tier?: string;
-  /** Payment provider (e.g. `"stripe"`, `"apple"`, `"google"`). */
-  provider?: string;
-  /** Unix timestamp (seconds) for the start of the current billing period. */
-  currentPeriodStart?: number;
-  /** Unix timestamp (seconds) for the end of the current billing period. */
-  currentPeriodEnd?: number;
-  /** When `true` the subscription will not auto-renew and will cancel at period end. */
+  /** Rich status string for display and entitlement state. */
+  status: SubscriptionStatus;
+  /** Plan/tier identifier, present when an entitlement exists. */
+  tier?: SubscriptionPlanId | string;
+  /** Payment provider, present when returned by the server. */
+  provider?: 'stripe' | 'apple' | 'google' | string;
+  /** ISO timestamp for the current period start, when returned by the server. */
+  currentPeriodStart?: string;
+  /** ISO timestamp for the current or effective entitlement period end. */
+  currentPeriodEnd?: string;
+  /** When `true`, the subscription remains entitled until `currentPeriodEnd`. */
   cancelAtPeriodEnd?: boolean;
-  /** Per-period usage counters, if returned by the server. */
-  usage?: SubscriptionUsage;
-  /** Usage limits associated with the current plan, if returned by the server. */
-  limits?: SubscriptionLimits;
-  /**
-   * Feature flags or capability names enabled by this subscription.
-   * The exact set of strings is server-defined and may grow over time.
-   */
-  capabilities?: string[];
+  /** Feature flags or capability names enabled by this subscription. */
+  capabilities?: Record<string, boolean>;
 }
 
 /**
- * Per-period usage counters returned by `GET /v1/subscriptions/usage`.
+ * Public subscription plan returned by `GET /v1/subscriptions/plans`.
  *
- * All counts reflect the current billing period unless noted otherwise.
- */
-export interface SubscriptionUsage {
-  /** Number of image-generation jobs run in the current period. */
-  imagesGenerated?: number;
-  /** Number of video-generation jobs run in the current period. */
-  videosGenerated?: number;
-  /** Number of LLM chat tokens consumed in the current period. */
-  tokensUsed?: number;
-  /** Server-defined usage period start (Unix seconds). */
-  periodStart?: number;
-  /** Server-defined usage period end (Unix seconds). */
-  periodEnd?: number;
-}
-
-/**
- * Plan-level limits associated with a subscription tier.
- */
-export interface SubscriptionLimits {
-  /** Maximum images per billing period, or `null` for unlimited. */
-  imagesPerPeriod?: number | null;
-  /** Maximum videos per billing period, or `null` for unlimited. */
-  videosPerPeriod?: number | null;
-  /** Maximum LLM tokens per billing period, or `null` for unlimited. */
-  tokensPerPeriod?: number | null;
-}
-
-/**
- * A single purchasable subscription plan returned by
- * `GET /v1/subscriptions/plans`.
+ * Stripe price identifiers are intentionally not exposed by the public API.
  */
 export interface SubscriptionPlan {
-  /** Server-assigned plan identifier passed to checkout. */
-  planId: string;
-  /** Human-readable plan name (e.g. `"Unlimited Monthly"`). */
-  name: string;
-  /** Billing cadence for this plan variant. */
+  /** Plan/tier identifier passed to checkout. */
+  planId: SubscriptionPlanId;
+  /** Alias of `planId`, included for display and filtering. */
+  tier: SubscriptionPlanId;
+  /** Billing cadence for this plan entry. */
   term: SubscriptionTerm;
-  /** ISO 4217 currency code for `price` (e.g. `"usd"`). */
-  currency: string;
+  /** Stripe recurring interval implied by `term`. */
+  interval: SubscriptionPlanInterval;
+  /** Display-only list price in whole USD. */
+  priceUsd: number;
+  /** Human-readable label supplied by the server. */
+  displayName: string;
+}
+
+/**
+ * Options for `AccountApi.createSubscriptionCheckout`.
+ */
+export interface CreateSubscriptionCheckoutOptions {
   /**
-   * Price in the smallest currency unit (e.g. cents for USD).
-   * Use `displayPrice` when showing to users.
+   * Post-checkout redirect target. Defaults to `'web'`.
    */
-  price: number;
-  /** Human-readable formatted price string supplied by the server (e.g. `"$9.99/mo"`). */
-  displayPrice?: string;
-  /** Tier name this plan belongs to (e.g. `"unlimited"`). */
-  tier?: string;
-  /** Whether a free trial is available when subscribing via this plan. */
-  trialAvailable?: boolean;
-  /** Length of the free trial in days, if applicable. */
-  trialDays?: number;
-  /** Feature bullets or descriptions included with this plan. */
-  features?: string[];
+  redirectType?: SubscriptionRedirectType;
+  /**
+   * Optional client app/source label stored in Stripe metadata.
+   */
+  appSource?: string;
+}
+
+/**
+ * Result returned by `AccountApi.createSubscriptionCheckout`.
+ */
+export interface SubscriptionCheckoutResult {
+  /** Optional server message describing the checkout session. */
+  message?: string;
+  /** Stripe Checkout URL to open in the user's browser. */
+  url: string;
+}
+
+/**
+ * Result returned by `AccountApi.createSubscriptionPortalSession`.
+ */
+export interface SubscriptionPortalSession {
+  /** Stripe Billing Portal URL to open in the user's browser. */
+  url: string;
+}
+
+/** @internal */
+export interface SubscriptionStatusResponseData {
+  subscription: SubscriptionEntitlementSnapshot;
+}
+
+/** @internal */
+export interface SubscriptionPlansResponseData {
+  plans: SubscriptionPlan[];
 }

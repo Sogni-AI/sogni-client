@@ -43,13 +43,16 @@ import type { ProjectEvent, JobEvent } from './Projects/types/events.js';
 import type { RawProject } from './Projects/types/RawProject.js';
 import type { Balances, Reward, TxHistoryEntry } from './Account/types.js';
 import type {
-  BillingMode,
+  CreateSubscriptionCheckoutOptions,
+  SubscriptionCheckoutResult,
   SubscriptionEntitlementSnapshot,
-  SubscriptionLimits,
+  SubscriptionPlanId,
+  SubscriptionPlanInterval,
   SubscriptionPlan,
+  SubscriptionPortalSession,
+  SubscriptionRedirectType,
   SubscriptionStatus,
-  SubscriptionTerm,
-  SubscriptionUsage
+  SubscriptionTerm
 } from './Account/subscription.types.js';
 import type { ToastMessage } from './ApiClient/WebSocketClient/events.js';
 import type DataEntity from './lib/DataEntity.js';
@@ -268,13 +271,16 @@ export type {
   Balances,
   Reward,
   TxHistoryEntry,
-  BillingMode,
+  CreateSubscriptionCheckoutOptions,
+  SubscriptionCheckoutResult,
   SubscriptionEntitlementSnapshot,
-  SubscriptionLimits,
+  SubscriptionPlanId,
+  SubscriptionPlanInterval,
   SubscriptionPlan,
+  SubscriptionPortalSession,
+  SubscriptionRedirectType,
   SubscriptionStatus,
   SubscriptionTerm,
-  SubscriptionUsage,
   SizePreset,
   EstimateRequest,
   CostEstimation,

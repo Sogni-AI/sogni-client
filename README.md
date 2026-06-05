@@ -176,6 +176,36 @@ sogni.client.on('disconnected', ({ code, reason }) => {
 });
 ```
 
+### Subscription entitlements
+
+The account API exposes the public subscription plan catalog and the current wallet's entitlement snapshot:
+
+```typescript
+const plans = await sogni.account.getSubscriptionPlans();
+
+const subscription = await sogni.account.refreshSubscription();
+if (sogni.account.currentAccount.isUnlimited) {
+  console.log('Unlimited tier:', subscription.tier);
+}
+```
+
+`currentAccount.isUnlimited` is `true` when the latest entitlement snapshot has `active: true` and `tier` is either `unlimited` or `unlimited_pro`. The server keeps `active` true for entitled states such as trials, grace periods, and cancel-at-period-end windows until access actually ends. Period dates are ISO timestamp strings.
+
+Unlimited fair-use accounting and enforcement are handled dynamically by the Sogni socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as durable user-facing limits.
+
+To start Stripe checkout, use a plan's `planId` (`unlimited` or `unlimited_pro`) and `term` (`monthly` or `annual`). Checkout and portal sessions require user authentication; API-key auth is rejected for those browser redirect operations.
+
+```typescript
+const { url } = await sogni.account.createSubscriptionCheckout('unlimited_pro', 'annual', {
+  redirectType: 'web',
+  appSource: 'my-integration'
+});
+window.location.href = url;
+
+const portal = await sogni.account.createSubscriptionPortalSession();
+window.location.href = portal.url;
+```
+
 ## Image Generation
 
 Sogni supports a wide range of models for image generation. You can find a list of available models in

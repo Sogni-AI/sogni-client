@@ -15,9 +15,15 @@ import {
   TxHistoryParams
 } from './types.js';
 import {
+  CreateSubscriptionCheckoutOptions,
+  SubscriptionCheckoutResult,
   SubscriptionEntitlementSnapshot,
+  SubscriptionPlanId,
+  SubscriptionPlansResponseData,
   SubscriptionPlan,
-  SubscriptionUsage
+  SubscriptionPortalSession,
+  SubscriptionStatusResponseData,
+  SubscriptionTerm
 } from './subscription.types.js';
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
@@ -619,14 +625,15 @@ class AccountApi extends ApiGroup {
     });
   }
 
-  // ─── Subscription ────────────────────────────────────────────────────────
+  // Subscription
 
   /**
    * Fetch the current user's subscription entitlement snapshot.
    *
-   * Returns an object describing whether the account has an active
-   * subscription, the plan/tier, period boundaries, usage, limits, and
-   * enabled capabilities. When no subscription exists, `active` is `false`.
+   * Returns an object describing whether the account has an effective
+   * subscription entitlement, the tier, period boundaries, usage, limits, and
+   * enabled capabilities. When no subscription exists, `active` is `false` and
+   * `status` is `'none'`.
    *
    * Also updates `currentAccount.subscription` so callers can read the
    * snapshot from the observable entity without re-fetching.
@@ -640,45 +647,30 @@ class AccountApi extends ApiGroup {
    * ```
    */
   async getSubscriptionStatus(): Promise<SubscriptionEntitlementSnapshot> {
-    const res = await this.client.rest.get<ApiResponse<SubscriptionEntitlementSnapshot>>(
+    const res = await this.client.rest.get<ApiResponse<SubscriptionStatusResponseData>>(
       '/v1/subscriptions/status'
     );
-    this.currentAccount._update({ subscription: res.data });
-    return res.data;
+    this.currentAccount._update({ subscription: res.data.subscription });
+    return res.data.subscription;
   }
 
   /**
    * Fetch the list of available subscription plans.
    *
-   * This is a public endpoint — no authentication is required.
+   * This is a public endpoint; no authentication is required.
    *
    * @example
    * ```typescript
    * const plans = await sogni.account.getSubscriptionPlans();
-   * plans.forEach(p => console.log(p.name, p.displayPrice));
+   * plans.forEach(p => console.log(p.displayName, p.priceUsd));
    * ```
    */
   async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
-    const res = await this.client.rest.get<ApiResponse<SubscriptionPlan[]>>(
-      '/v1/subscriptions/plans'
-    );
-    return res.data;
-  }
-
-  /**
-   * Fetch per-period usage counters for the authenticated user's active subscription.
-   *
-   * @example
-   * ```typescript
-   * const usage = await sogni.account.getSubscriptionUsage();
-   * console.log('Images generated this period:', usage.imagesGenerated);
-   * ```
-   */
-  async getSubscriptionUsage(): Promise<SubscriptionUsage> {
-    const res = await this.client.rest.get<ApiResponse<SubscriptionUsage>>(
-      '/v1/subscriptions/usage'
-    );
-    return res.data;
+    const res =
+      await this.client.rest.get<ApiResponse<SubscriptionPlansResponseData>>(
+        '/v1/subscriptions/plans'
+      );
+    return res.data.plans;
   }
 
   /**
@@ -690,20 +682,27 @@ class AccountApi extends ApiGroup {
    *
    * @param planId - The plan identifier from {@link getSubscriptionPlans}
    * @param term   - Billing cadence: `'monthly'` or `'annual'`
+   * @param options - Optional checkout metadata and redirect target.
    *
    * @example
    * ```typescript
-   * const { url } = await sogni.account.createSubscriptionCheckout('unlimited_monthly', 'monthly');
+   * const { url } = await sogni.account.createSubscriptionCheckout('unlimited', 'monthly');
    * window.location.href = url;
    * ```
    */
   async createSubscriptionCheckout(
-    planId: string,
-    term: 'monthly' | 'annual'
-  ): Promise<{ url: string }> {
-    const res = await this.client.rest.post<ApiResponse<{ url: string }>>(
+    planId: SubscriptionPlanId,
+    term: SubscriptionTerm,
+    options: CreateSubscriptionCheckoutOptions = {}
+  ): Promise<SubscriptionCheckoutResult> {
+    const res = await this.client.rest.post<ApiResponse<SubscriptionCheckoutResult>>(
       '/v1/iap/stripe/subscribe',
-      { planId, term }
+      {
+        planId,
+        term,
+        redirectType: options.redirectType ?? 'web',
+        ...(options.appSource ? { appSource: options.appSource } : {})
+      }
     );
     return res.data;
   }
@@ -720,8 +719,8 @@ class AccountApi extends ApiGroup {
    * window.location.href = url;
    * ```
    */
-  async createSubscriptionPortalSession(): Promise<{ url: string }> {
-    const res = await this.client.rest.post<ApiResponse<{ url: string }>>(
+  async createSubscriptionPortalSession(): Promise<SubscriptionPortalSession> {
+    const res = await this.client.rest.post<ApiResponse<SubscriptionPortalSession>>(
       '/v1/subscriptions/stripe/portal',
       {}
     );
@@ -732,8 +731,8 @@ class AccountApi extends ApiGroup {
    * Refresh the cached subscription entitlement on `currentAccount`.
    *
    * Convenience wrapper around {@link getSubscriptionStatus} that makes the
-   * intent — "I want to pull fresh entitlement data into the observable
-   * account entity" — explicit at the call site.
+   * intent ("I want to pull fresh entitlement data into the observable
+   * account entity") explicit at the call site.
    *
    * @example
    * ```typescript

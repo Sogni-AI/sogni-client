@@ -27,7 +27,7 @@ export interface AccountData {
    * {@link AccountApi.refreshSubscription} has been called.
    *
    * Subscribe to the `'updated'` event (inherited from `DataEntity`) to react
-   * to changes — the `changedKeys` array will include `'subscription'` when
+   * to changes; the `changedKeys` array will include `'subscription'` when
    * this field is refreshed.
    */
   subscription?: SubscriptionEntitlementSnapshot;
@@ -109,18 +109,19 @@ class CurrentAccount extends DataEntity<AccountData> {
   }
 
   /**
-   * Convenience getter — `true` when the account has an active or trialing
-   * subscription on any Unlimited tier (`"unlimited"` or `"unlimited_pro"`).
+   * Convenience getter - `true` when the account has an effective
+   * subscription entitlement on any Unlimited tier (`"unlimited"` or
+   * `"unlimited_pro"`).
    *
-   * Returns `false` when no entitlement snapshot has been fetched yet or when
-   * the subscription is not active/trialing. Call
-   * {@link AccountApi.refreshSubscription} to populate the snapshot first.
+   * Returns `false` when no entitlement snapshot has been fetched yet, when
+   * the server reports no active entitlement, or when the tier is not an
+   * Unlimited tier. Call {@link AccountApi.refreshSubscription} to populate the
+   * snapshot first.
    */
   get isUnlimited(): boolean {
     const sub = this.data.subscription;
     if (!sub || !sub.active) return false;
-    const liveStatus = sub.status === 'active' || sub.status === 'trialing';
-    return liveStatus && (sub.tier === 'unlimited' || sub.tier === 'unlimited_pro');
+    return sub.tier === 'unlimited' || sub.tier === 'unlimited_pro';
   }
 }
 

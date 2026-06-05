@@ -175,6 +175,44 @@ await sogni.account.refreshBalance();
 console.log(sogni.account.currentAccount.balance);
 ```
 
+SUBSCRIPTION ENTITLEMENTS:
+
+```javascript
+// Public plan catalog. Each entry is one plan/tier + billing term.
+const plans = await sogni.account.getSubscriptionPlans();
+// [{ planId, tier, term, interval, priceUsd, displayName }]
+
+// Current wallet entitlement snapshot. Also updates currentAccount.subscription.
+const subscription = await sogni.account.refreshSubscription();
+if (sogni.account.currentAccount.isUnlimited) {
+  console.log('Unlimited tier:', subscription.tier);
+}
+```
+
+`SubscriptionEntitlementSnapshot.status` values are `none`, `trialing`,
+`active`, `grace_period`, `past_due`, `paused`, `cancel_at_period_end`,
+`canceled`, `expired`, and `refunded`. Period dates are ISO timestamp strings.
+`currentAccount.isUnlimited` is true when the latest snapshot has `active:true`
+and `tier` is `unlimited` or `unlimited_pro`; the server keeps `active:true`
+through trials, grace periods, and cancel-at-period-end windows until access
+actually ends.
+
+Unlimited fair-use accounting and enforcement are dynamic and server-side in
+the socket service. The SDK does not expose per-period usage counters or plan
+limit tables for clients to store or display as fixed user-facing limits.
+
+Stripe checkout uses catalog plan IDs (`unlimited` or `unlimited_pro`) plus a
+term (`monthly` or `annual`). Checkout and portal sessions require user
+authentication; API-key auth is rejected for those browser redirect operations.
+
+```javascript
+const { url } = await sogni.account.createSubscriptionCheckout('unlimited_pro', 'annual', {
+  redirectType: 'web',
+  appSource: 'my-integration'
+});
+const portal = await sogni.account.createSubscriptionPortalSession();
+```
+
 `checkAuth()` is only for cookie-auth browser flows on permitted Sogni domains. API-key auth auto-authenticates during `createInstance()`. Username/password auth uses `sogni.account.login()`. Token auth can be resumed with `sogni.setTokens()`.
 
 NETWORK TYPES:
