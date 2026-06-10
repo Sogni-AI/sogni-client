@@ -55,8 +55,17 @@ export interface SubscriptionEntitlementSnapshot {
   status: SubscriptionStatus;
   /** Plan/tier identifier, present when an entitlement exists. */
   tier?: SubscriptionPlanId | string;
-  /** Payment provider, present when returned by the server. */
-  provider?: 'stripe' | 'apple' | 'google' | string;
+  /**
+   * Billing term (`'monthly'` / `'annual'`) for the effective entitlement,
+   * present when an entitlement exists. Provider-agnostic — returned for
+   * Stripe, Apple, and Google subscriptions alike.
+   */
+  term?: SubscriptionTerm | string;
+  /**
+   * Payment provider, present when returned by the server. `'manual'` denotes
+   * an administratively granted subscription.
+   */
+  provider?: 'stripe' | 'apple' | 'google' | 'manual' | string;
   /** ISO timestamp for the current period start, when returned by the server. */
   currentPeriodStart?: string;
   /** ISO timestamp for the current or effective entitlement period end. */
@@ -145,6 +154,16 @@ export interface SubscriptionPlan {
   priceUsd: number;
   /** Human-readable label supplied by the server. */
   displayName: string;
+  /**
+   * Google Play product configuration for this `(tier, term)`, present only
+   * when a Play subscription product is configured server-side. The
+   * `productId` is the public Play SKU a Trusted Web Activity / Android client
+   * passes to the Digital Goods API to start a Play Billing purchase. Absent
+   * for plans with no Play product (e.g. on web-only deployments). There is no
+   * Stripe/Apple analog: Stripe price ids are intentionally not exposed, and
+   * Apple SKUs are supplied by StoreKit rather than this catalog.
+   */
+  google?: { productId: string };
 }
 
 /**
