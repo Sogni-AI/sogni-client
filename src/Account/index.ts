@@ -23,7 +23,11 @@ import {
   SubscriptionPlan,
   SubscriptionPortalSession,
   SubscriptionStatusResponseData,
-  SubscriptionTerm
+  SubscriptionTerm,
+  SubscriptionUsage,
+  SubscriptionUsageResponseData,
+  TrialEligibility,
+  TrialEligibilityResponseData
 } from './subscription.types.js';
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
@@ -655,6 +659,76 @@ class AccountApi extends ApiGroup {
   }
 
   /**
+   * Fetch the current user's usage for the active billing cycle.
+   *
+   * Returns the render/job counters for the subscriber's current billing cycle
+   * (not a calendar month). While the entitlement is `'trialing'`, the response
+   * also carries `trialEndsAt`, `trialCreditsLimit`, and `trialCreditsUsed` so
+   * you can render "X of N trial credits used" messaging; those fields are
+   * omitted for non-trial subscriptions.
+   *
+   * Note: these trial usage fields come from this endpoint, NOT from
+   * {@link getSubscriptionStatus} — the entitlement snapshot never carries
+   * trial usage.
+   *
+   * @example
+   * ```typescript
+   * const usage = await sogni.account.getSubscriptionUsage();
+   * if (usage.trialCreditsLimit !== undefined) {
+   *   console.log(`${usage.trialCreditsUsed} of ${usage.trialCreditsLimit} trial credits used`);
+   * }
+   * ```
+   */
+  async getSubscriptionUsage(): Promise<SubscriptionUsage> {
+    const res = await this.client.rest.get<ApiResponse<SubscriptionUsageResponseData>>(
+      '/v1/subscriptions/usage'
+    );
+    return res.data.usage;
+  }
+
+  /**
+   * Check whether the current account is eligible to start a free trial.
+   *
+   * Returns `{ eligible, reasonCode }`. `reasonCode` is ALWAYS present: it is
+   * `'eligible'` when a trial may be started, or a deny reason otherwise (e.g.
+   * `'wallet_already_used'`, `'strong_signal_match'`, `'weak_combo'`). Use this
+   * before offering a "start free trial" flow.
+   *
+   * @example
+   * ```typescript
+   * const { eligible, reasonCode } = await sogni.account.getTrialEligibility();
+   * if (eligible) {
+   *   const { url } = await sogni.account.createSubscriptionCheckout('unlimited', 'monthly', {
+   *     startTrial: true
+   *   });
+   * }
+   * ```
+   */
+  async getTrialEligibility(): Promise<TrialEligibility> {
+    const res = await this.client.rest.get<ApiResponse<TrialEligibilityResponseData>>(
+      '/v1/subscriptions/trial-eligibility'
+    );
+    return { eligible: res.data.eligible, reasonCode: res.data.reasonCode };
+  }
+
+  /**
+   * Persist a raw persistent device identifier for the current account.
+   *
+   * Used for free-trial anti-abuse attribution so the server can detect device
+   * reuse across accounts. Requires an authenticated session.
+   *
+   * @param deviceId - Raw persistent device identifier.
+   *
+   * @example
+   * ```typescript
+   * await sogni.account.setDeviceId(myPersistentDeviceId);
+   * ```
+   */
+  async setDeviceId(deviceId: string): Promise<void> {
+    await this.client.rest.post('/v1/account/device-id', { deviceId });
+  }
+
+  /**
    * Fetch the list of available subscription plans.
    *
    * This is a public endpoint; no authentication is required.
@@ -680,9 +754,15 @@ class AccountApi extends ApiGroup {
    * After a successful checkout Stripe will redirect back to your configured
    * return URL and the subscription entitlement will become active.
    *
+   * Pass `options.startTrial` to control free-trial behavior: `true` starts a
+   * trial when the account is eligible, while `false` is sent verbatim to
+   * subscribe immediately with no trial even if the account is eligible.
+   * Pass `options.deviceId` to forward a raw persistent device identifier for
+   * trial anti-abuse attribution.
+   *
    * @param planId - The plan identifier from {@link getSubscriptionPlans}
    * @param term   - Billing cadence: `'monthly'` or `'annual'`
-   * @param options - Optional checkout metadata and redirect target.
+   * @param options - Optional checkout metadata, redirect target, and trial controls.
    *
    * @example
    * ```typescript
@@ -701,7 +781,9 @@ class AccountApi extends ApiGroup {
         planId,
         term,
         redirectType: options.redirectType ?? 'web',
-        ...(options.appSource ? { appSource: options.appSource } : {})
+        ...(options.appSource ? { appSource: options.appSource } : {}),
+        ...(options.startTrial !== undefined ? { startTrial: options.startTrial } : {}),
+        ...(options.deviceId !== undefined ? { deviceId: options.deviceId } : {})
       }
     );
     return res.data;
