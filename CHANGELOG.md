@@ -1,3 +1,15 @@
+# [5.1.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.1...v5.1.0-alpha.2) (2026-06-10)
+
+
+### Bug Fixes
+
+* **account:** correct trial usage SDK surface and eligibility reason docs ([222252d](https://github.com/Sogni-AI/sogni-client/commit/222252d87305f72b0be71f23b26a6607ad25bf46))
+
+
+### Features
+
+* **account:** add trial eligibility, device-id, and startTrial checkout ([6564c82](https://github.com/Sogni-AI/sogni-client/commit/6564c8225aec37245a4c4a051119a48da6fc14a5))
+
 # [5.1.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0...v5.1.0-alpha.1) (2026-06-05)
 
 
