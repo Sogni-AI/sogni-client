@@ -377,8 +377,8 @@ async function run() {
     ca._update({ subscription: { active: true, status: 'trialing', tier: 'unlimited_pro' } });
     assert.equal(ca.isUnlimited, true, 'isUnlimited must be true for trialing unlimited_pro');
 
-    ca._update({ subscription: { active: true, status: 'grace_period', tier: 'unlimited' } });
-    assert.equal(ca.isUnlimited, true, 'isUnlimited must be true during grace period');
+    ca._update({ subscription: { active: false, status: 'grace_period', tier: 'unlimited' } });
+    assert.equal(ca.isUnlimited, false, 'isUnlimited must be false during grace period');
 
     ca._update({
       subscription: { active: true, status: 'cancel_at_period_end', tier: 'unlimited_pro' }

@@ -118,7 +118,7 @@ const subscription = await sogni.account.refreshSubscription(); // unwraps data.
 const isUnlimited = sogni.account.currentAccount.isUnlimited; // active && tier is unlimited/unlimited_pro
 ```
 
-`subscription.status` is one of `none`, `trialing`, `active`, `grace_period`, `past_due`, `paused`, `cancel_at_period_end`, `canceled`, `expired`, or `refunded`. Period dates are ISO strings. `isUnlimited` trusts the server's `active` entitlement flag, so trialing/grace/cancel-at-period-end snapshots remain entitled until the server returns `active:false`.
+`subscription.status` is one of `none`, `trialing`, `active`, `grace_period`, `past_due`, `paused`, `cancel_at_period_end`, `canceled`, `expired`, or `refunded`. Period dates are ISO strings. `isUnlimited` trusts the server's `active` entitlement flag, so trialing and cancel-at-period-end snapshots remain entitled until the server returns `active:false`; grace-period snapshots are not entitled.
 
 Unlimited fair-use accounting and enforcement are dynamic and server-side in the socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as fixed user-facing limits.
 
