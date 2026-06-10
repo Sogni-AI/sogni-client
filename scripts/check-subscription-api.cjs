@@ -219,7 +219,8 @@ async function run() {
 
   {
     const { api, client } = makeApi();
-    client.rest._nextPayload = apiResponse({ eligible: true });
+    // The server ALWAYS returns a reasonCode, including 'eligible' when true.
+    client.rest._nextPayload = apiResponse({ eligible: true, reasonCode: 'eligible' });
 
     const eligible = await api.getTrialEligibility();
     assert.equal(
@@ -228,14 +229,18 @@ async function run() {
       'getTrialEligibility() must GET /v1/subscriptions/trial-eligibility'
     );
     assert.equal(client.rest._lastCall.method, 'GET');
-    assert.deepEqual(eligible, { eligible: true, reasonCode: undefined });
+    assert.deepEqual(
+      eligible,
+      { eligible: true, reasonCode: 'eligible' },
+      "getTrialEligibility() must surface reasonCode 'eligible' when eligible"
+    );
 
-    client.rest._nextPayload = apiResponse({ eligible: false, reasonCode: 'already_subscribed' });
+    client.rest._nextPayload = apiResponse({ eligible: false, reasonCode: 'wallet_already_used' });
     const ineligible = await api.getTrialEligibility();
     assert.deepEqual(
       ineligible,
-      { eligible: false, reasonCode: 'already_subscribed' },
-      'getTrialEligibility() must surface reasonCode when present'
+      { eligible: false, reasonCode: 'wallet_already_used' },
+      'getTrialEligibility() must surface the deny reasonCode'
     );
   }
 
@@ -255,16 +260,18 @@ async function run() {
   }
 
   {
+    // getSubscriptionStatus() must NOT carry trial usage fields — those come
+    // only from GET /v1/subscriptions/usage. The /status snapshot the real
+    // server returns (buildEntitlementSnapshot) never includes them.
     const { api, client } = makeApi();
     const snapshot = {
       active: true,
       status: 'trialing',
       tier: 'unlimited',
       provider: 'stripe',
+      currentPeriodStart: '2026-06-13T00:00:00.000Z',
       currentPeriodEnd: '2026-07-01T00:00:00.000Z',
-      trialEndsAt: '2026-06-16T00:00:00.000Z',
-      trialCreditsLimit: 500,
-      trialCreditsUsed: 120
+      cancelAtPeriodEnd: false
     };
     client.rest._nextPayload = apiResponse({ subscription: snapshot });
 
@@ -272,9 +279,51 @@ async function run() {
     assert.deepEqual(
       result,
       snapshot,
-      'getSubscriptionStatus() must pass through trial usage fields'
+      'getSubscriptionStatus() must unwrap data.subscription without inventing trial fields'
     );
-    assert.equal(api.currentAccount.subscription.trialCreditsUsed, 120);
+    assert.equal(
+      result.trialCreditsUsed,
+      undefined,
+      'getSubscriptionStatus() must NOT carry trial usage fields'
+    );
+  }
+
+  {
+    // getSubscriptionUsage() must GET /v1/subscriptions/usage and unwrap
+    // data.usage, surfacing the trial fields the server nests there while
+    // trialing.
+    const { api, client } = makeApi();
+    const usage = {
+      periodRenderSpark: 312,
+      periodJobs: 24,
+      trialEndsAt: '2026-06-16T00:00:00.000Z',
+      trialCreditsLimit: 500,
+      trialCreditsUsed: 120
+    };
+    client.rest._nextPayload = apiResponse({ usage });
+
+    const result = await api.getSubscriptionUsage();
+
+    assert.equal(
+      client.rest._lastCall.endpoint,
+      '/v1/subscriptions/usage',
+      'getSubscriptionUsage() must GET /v1/subscriptions/usage'
+    );
+    assert.equal(client.rest._lastCall.method, 'GET');
+    assert.deepEqual(result, usage, 'getSubscriptionUsage() must unwrap data.usage');
+    assert.equal(result.trialCreditsUsed, 120);
+    assert.equal(result.trialCreditsLimit, 500);
+    assert.equal(result.trialEndsAt, '2026-06-16T00:00:00.000Z');
+
+    // Non-trial response: trial fields are omitted entirely by the server.
+    client.rest._nextPayload = apiResponse({ usage: { periodRenderSpark: 0, periodJobs: 0 } });
+    const nonTrial = await api.getSubscriptionUsage();
+    assert.deepEqual(
+      nonTrial,
+      { periodRenderSpark: 0, periodJobs: 0 },
+      'getSubscriptionUsage() must surface a non-trial usage shape unchanged'
+    );
+    assert.equal(nonTrial.trialCreditsUsed, undefined);
   }
 
   {
@@ -386,28 +435,31 @@ async function run() {
     const declarations = fs.readFileSync(path.join(__dirname, '../dist/index.d.ts'), 'utf8');
     for (const exportedType of [
       'SubscriptionEntitlementSnapshot',
+      'SubscriptionUsage',
       'SubscriptionPlan',
       'SubscriptionPlanId',
       'SubscriptionRedirectType',
       'SubscriptionCheckoutResult',
       'SubscriptionPortalSession',
       'CreateSubscriptionCheckoutOptions',
-      'TrialEligibility'
+      'TrialEligibility',
+      'TrialReasonCode'
     ]) {
       assert.ok(
         declarations.includes(exportedType),
         `${exportedType} must be exported from root declarations`
       );
     }
-    assert.equal(
-      declarations.includes('getSubscriptionUsage'),
-      false,
-      'getSubscriptionUsage must not be part of the public SDK surface'
+
+    // The Account API declarations must surface the new usage method so the
+    // trial usage fields are reachable from the type that actually carries them.
+    const accountDeclarations = fs.readFileSync(
+      path.join(__dirname, '../dist/Account/index.d.ts'),
+      'utf8'
     );
-    assert.equal(
-      declarations.includes('SubscriptionUsage'),
-      false,
-      'SubscriptionUsage must not be exported from root declarations'
+    assert.ok(
+      accountDeclarations.includes('getSubscriptionUsage'),
+      'getSubscriptionUsage must be part of the public Account API surface'
     );
   }
 

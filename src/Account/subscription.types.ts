@@ -65,22 +65,52 @@ export interface SubscriptionEntitlementSnapshot {
   cancelAtPeriodEnd?: boolean;
   /** Feature flags or capability names enabled by this subscription. */
   capabilities?: Record<string, boolean>;
+}
+
+/**
+ * Current-period usage returned by `GET /v1/subscriptions/usage`.
+ *
+ * The render/job counters are scoped to the subscriber's current billing
+ * cycle (not a calendar month). The `trial*` fields are present only while the
+ * entitlement is `'trialing'` and drive "X of N trial credits used" messaging;
+ * they are omitted entirely for non-trial subscriptions.
+ */
+export interface SubscriptionUsage {
+  /** Render spark consumed in the current billing cycle. */
+  periodRenderSpark: number;
+  /** Number of paid jobs run in the current billing cycle. */
+  periodJobs: number;
   /**
-   * ISO timestamp when the free trial ends. Present only while `status` is
-   * `'trialing'`.
+   * ISO timestamp when the free trial ends. Present only while the entitlement
+   * is `'trialing'`.
    */
   trialEndsAt?: string;
   /**
-   * Total number of credits granted for the free trial. Present only while
-   * `status` is `'trialing'`.
+   * Total number of render credits granted for the free trial. Present only
+   * while the entitlement is `'trialing'`.
    */
   trialCreditsLimit?: number;
   /**
-   * Number of trial credits consumed so far. Present only while `status` is
-   * `'trialing'`.
+   * Number of trial render credits consumed so far. Present only while the
+   * entitlement is `'trialing'`.
    */
   trialCreditsUsed?: number;
 }
+
+/**
+ * Machine-readable reason for a trial-eligibility verdict. The server returns
+ * a code on every response: `'eligible'` when a trial may be started, or one of
+ * the deny codes explaining why it cannot. This is a closed set defined by the
+ * server's `TrialReasonCode` union.
+ */
+export type TrialReasonCode =
+  | 'eligible'
+  | 'wallet_already_used'
+  | 'strong_signal_match'
+  | 'weak_combo'
+  | 'admin_override_allow'
+  | 'admin_override_deny'
+  | 'abuse_prevention_disabled';
 
 /**
  * Free-trial eligibility result returned by
@@ -90,10 +120,11 @@ export interface TrialEligibility {
   /** Whether the current account is eligible to start a free trial. */
   eligible: boolean;
   /**
-   * Machine-readable reason the account is ineligible, present only when
-   * `eligible` is `false` (e.g. `'already_subscribed'`, `'device_reused'`).
+   * Machine-readable reason for the verdict — ALWAYS present. When `eligible`
+   * is `true` this is `'eligible'`; otherwise it is the deny reason (e.g.
+   * `'wallet_already_used'`, `'strong_signal_match'`, `'weak_combo'`).
    */
-  reasonCode?: string;
+  reasonCode: TrialReasonCode;
 }
 
 /**
@@ -173,5 +204,10 @@ export interface SubscriptionPlansResponseData {
 /** @internal */
 export interface TrialEligibilityResponseData {
   eligible: boolean;
-  reasonCode?: string;
+  reasonCode: TrialReasonCode;
+}
+
+/** @internal */
+export interface SubscriptionUsageResponseData {
+  usage: SubscriptionUsage;
 }

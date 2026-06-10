@@ -24,6 +24,8 @@ import {
   SubscriptionPortalSession,
   SubscriptionStatusResponseData,
   SubscriptionTerm,
+  SubscriptionUsage,
+  SubscriptionUsageResponseData,
   TrialEligibility,
   TrialEligibilityResponseData
 } from './subscription.types.js';
@@ -657,11 +659,40 @@ class AccountApi extends ApiGroup {
   }
 
   /**
+   * Fetch the current user's usage for the active billing cycle.
+   *
+   * Returns the render/job counters for the subscriber's current billing cycle
+   * (not a calendar month). While the entitlement is `'trialing'`, the response
+   * also carries `trialEndsAt`, `trialCreditsLimit`, and `trialCreditsUsed` so
+   * you can render "X of N trial credits used" messaging; those fields are
+   * omitted for non-trial subscriptions.
+   *
+   * Note: these trial usage fields come from this endpoint, NOT from
+   * {@link getSubscriptionStatus} — the entitlement snapshot never carries
+   * trial usage.
+   *
+   * @example
+   * ```typescript
+   * const usage = await sogni.account.getSubscriptionUsage();
+   * if (usage.trialCreditsLimit !== undefined) {
+   *   console.log(`${usage.trialCreditsUsed} of ${usage.trialCreditsLimit} trial credits used`);
+   * }
+   * ```
+   */
+  async getSubscriptionUsage(): Promise<SubscriptionUsage> {
+    const res = await this.client.rest.get<ApiResponse<SubscriptionUsageResponseData>>(
+      '/v1/subscriptions/usage'
+    );
+    return res.data.usage;
+  }
+
+  /**
    * Check whether the current account is eligible to start a free trial.
    *
-   * Returns `{ eligible }` and, when `eligible` is `false`, a machine-readable
-   * `reasonCode` describing why (e.g. the account already subscribed or the
-   * device was reused). Use this before offering a "start free trial" flow.
+   * Returns `{ eligible, reasonCode }`. `reasonCode` is ALWAYS present: it is
+   * `'eligible'` when a trial may be started, or a deny reason otherwise (e.g.
+   * `'wallet_already_used'`, `'strong_signal_match'`, `'weak_combo'`). Use this
+   * before offering a "start free trial" flow.
    *
    * @example
    * ```typescript
