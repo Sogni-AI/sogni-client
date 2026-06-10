@@ -194,8 +194,8 @@ if (sogni.account.currentAccount.isUnlimited) {
 `canceled`, `expired`, and `refunded`. Period dates are ISO timestamp strings.
 `currentAccount.isUnlimited` is true when the latest snapshot has `active:true`
 and `tier` is `unlimited` or `unlimited_pro`; the server keeps `active:true`
-through trials, grace periods, and cancel-at-period-end windows until access
-actually ends.
+through trials and cancel-at-period-end windows until access actually ends.
+Grace-period snapshots are not entitled and return `active:false`.
 
 Unlimited fair-use accounting and enforcement are dynamic and server-side in
 the socket service. The SDK does not expose per-period usage counters or plan

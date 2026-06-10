@@ -189,7 +189,7 @@ if (sogni.account.currentAccount.isUnlimited) {
 }
 ```
 
-`currentAccount.isUnlimited` is `true` when the latest entitlement snapshot has `active: true` and `tier` is either `unlimited` or `unlimited_pro`. The server keeps `active` true for entitled states such as trials, grace periods, and cancel-at-period-end windows until access actually ends. Period dates are ISO timestamp strings.
+`currentAccount.isUnlimited` is `true` when the latest entitlement snapshot has `active: true` and `tier` is either `unlimited` or `unlimited_pro`. The server keeps `active` true for entitled states such as trials and cancel-at-period-end windows until access actually ends; grace-period snapshots are not entitled and return `active: false`. Period dates are ISO timestamp strings.
 
 Unlimited fair-use accounting and enforcement are handled dynamically by the Sogni socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as durable user-facing limits.
 
