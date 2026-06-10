@@ -52,7 +52,8 @@ import type {
   SubscriptionPortalSession,
   SubscriptionRedirectType,
   SubscriptionStatus,
-  SubscriptionTerm
+  SubscriptionTerm,
+  TrialEligibility
 } from './Account/subscription.types.js';
 import type { ToastMessage } from './ApiClient/WebSocketClient/events.js';
 import type DataEntity from './lib/DataEntity.js';
@@ -281,6 +282,7 @@ export type {
   SubscriptionRedirectType,
   SubscriptionStatus,
   SubscriptionTerm,
+  TrialEligibility,
   SizePreset,
   EstimateRequest,
   CostEstimation,

@@ -65,6 +65,35 @@ export interface SubscriptionEntitlementSnapshot {
   cancelAtPeriodEnd?: boolean;
   /** Feature flags or capability names enabled by this subscription. */
   capabilities?: Record<string, boolean>;
+  /**
+   * ISO timestamp when the free trial ends. Present only while `status` is
+   * `'trialing'`.
+   */
+  trialEndsAt?: string;
+  /**
+   * Total number of credits granted for the free trial. Present only while
+   * `status` is `'trialing'`.
+   */
+  trialCreditsLimit?: number;
+  /**
+   * Number of trial credits consumed so far. Present only while `status` is
+   * `'trialing'`.
+   */
+  trialCreditsUsed?: number;
+}
+
+/**
+ * Free-trial eligibility result returned by
+ * `GET /v1/subscriptions/trial-eligibility`.
+ */
+export interface TrialEligibility {
+  /** Whether the current account is eligible to start a free trial. */
+  eligible: boolean;
+  /**
+   * Machine-readable reason the account is ineligible, present only when
+   * `eligible` is `false` (e.g. `'already_subscribed'`, `'device_reused'`).
+   */
+  reasonCode?: string;
 }
 
 /**
@@ -99,6 +128,18 @@ export interface CreateSubscriptionCheckoutOptions {
    * Optional client app/source label stored in Stripe metadata.
    */
   appSource?: string;
+  /**
+   * Whether to start a free trial when the account is eligible. Defaults to the
+   * server's behavior when omitted. Pass `false` to explicitly subscribe now
+   * with no trial even if the account is otherwise eligible — the value is sent
+   * verbatim so the backend honors the "no trial" intent.
+   */
+  startTrial?: boolean;
+  /**
+   * Optional raw persistent device identifier used for trial anti-abuse
+   * attribution. Forwarded to the server only when provided.
+   */
+  deviceId?: string;
 }
 
 /**
@@ -127,4 +168,10 @@ export interface SubscriptionStatusResponseData {
 /** @internal */
 export interface SubscriptionPlansResponseData {
   plans: SubscriptionPlan[];
+}
+
+/** @internal */
+export interface TrialEligibilityResponseData {
+  eligible: boolean;
+  reasonCode?: string;
 }

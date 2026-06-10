@@ -184,6 +184,101 @@ async function run() {
 
   {
     const { api, client } = makeApi();
+    client.rest._nextPayload = apiResponse({ url: 'https://checkout.stripe.com/pay/cs_test_trial' });
+
+    await api.createSubscriptionCheckout('unlimited', 'monthly', {
+      startTrial: true,
+      deviceId: 'device-abc'
+    });
+    assert.deepEqual(
+      client.rest._lastCall.body,
+      {
+        planId: 'unlimited',
+        term: 'monthly',
+        redirectType: 'web',
+        startTrial: true,
+        deviceId: 'device-abc'
+      },
+      'createSubscriptionCheckout() must forward startTrial and deviceId when provided'
+    );
+
+    await api.createSubscriptionCheckout('unlimited', 'monthly', { startTrial: false });
+    assert.deepEqual(
+      client.rest._lastCall.body,
+      { planId: 'unlimited', term: 'monthly', redirectType: 'web', startTrial: false },
+      'createSubscriptionCheckout() must send startTrial:false explicitly (subscribe now, no trial)'
+    );
+
+    await api.createSubscriptionCheckout('unlimited', 'monthly');
+    assert.deepEqual(
+      client.rest._lastCall.body,
+      { planId: 'unlimited', term: 'monthly', redirectType: 'web' },
+      'createSubscriptionCheckout() must omit startTrial/deviceId when not provided'
+    );
+  }
+
+  {
+    const { api, client } = makeApi();
+    client.rest._nextPayload = apiResponse({ eligible: true });
+
+    const eligible = await api.getTrialEligibility();
+    assert.equal(
+      client.rest._lastCall.endpoint,
+      '/v1/subscriptions/trial-eligibility',
+      'getTrialEligibility() must GET /v1/subscriptions/trial-eligibility'
+    );
+    assert.equal(client.rest._lastCall.method, 'GET');
+    assert.deepEqual(eligible, { eligible: true, reasonCode: undefined });
+
+    client.rest._nextPayload = apiResponse({ eligible: false, reasonCode: 'already_subscribed' });
+    const ineligible = await api.getTrialEligibility();
+    assert.deepEqual(
+      ineligible,
+      { eligible: false, reasonCode: 'already_subscribed' },
+      'getTrialEligibility() must surface reasonCode when present'
+    );
+  }
+
+  {
+    const { api, client } = makeApi();
+    client.rest._nextPayload = apiResponse(undefined);
+
+    const result = await api.setDeviceId('device-xyz');
+    assert.equal(
+      client.rest._lastCall.endpoint,
+      '/v1/account/device-id',
+      'setDeviceId() must POST /v1/account/device-id'
+    );
+    assert.equal(client.rest._lastCall.method, 'POST');
+    assert.deepEqual(client.rest._lastCall.body, { deviceId: 'device-xyz' });
+    assert.equal(result, undefined, 'setDeviceId() resolves to void');
+  }
+
+  {
+    const { api, client } = makeApi();
+    const snapshot = {
+      active: true,
+      status: 'trialing',
+      tier: 'unlimited',
+      provider: 'stripe',
+      currentPeriodEnd: '2026-07-01T00:00:00.000Z',
+      trialEndsAt: '2026-06-16T00:00:00.000Z',
+      trialCreditsLimit: 500,
+      trialCreditsUsed: 120
+    };
+    client.rest._nextPayload = apiResponse({ subscription: snapshot });
+
+    const result = await api.getSubscriptionStatus();
+    assert.deepEqual(
+      result,
+      snapshot,
+      'getSubscriptionStatus() must pass through trial usage fields'
+    );
+    assert.equal(api.currentAccount.subscription.trialCreditsUsed, 120);
+  }
+
+  {
+    const { api, client } = makeApi();
     client.rest._nextPayload = apiResponse({ url: 'https://billing.stripe.com/session/bps_test' });
 
     const result = await api.createSubscriptionPortalSession();
@@ -296,7 +391,8 @@ async function run() {
       'SubscriptionRedirectType',
       'SubscriptionCheckoutResult',
       'SubscriptionPortalSession',
-      'CreateSubscriptionCheckoutOptions'
+      'CreateSubscriptionCheckoutOptions',
+      'TrialEligibility'
     ]) {
       assert.ok(
         declarations.includes(exportedType),
