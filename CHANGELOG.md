@@ -1,3 +1,10 @@
+# [5.1.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.2...v5.1.0-alpha.3) (2026-06-10)
+
+
+### Features
+
+* **subscription:** mirror term, google productId, and manual provider ([78b3114](https://github.com/Sogni-AI/sogni-client/commit/78b311457c71448578b8f561cc7865e7bcaf9f20))
+
 # [5.1.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.1...v5.1.0-alpha.2) (2026-06-10)
 
 
