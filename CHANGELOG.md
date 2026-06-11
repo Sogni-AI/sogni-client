@@ -1,3 +1,10 @@
+# [5.1.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.4...v5.1.0-alpha.5) (2026-06-11)
+
+
+### Features
+
+* **subscription:** pending plan-change snapshot fields and grace-period doc fix ([596e4a0](https://github.com/Sogni-AI/sogni-client/commit/596e4a030dc1114e5fdd90d3dce3dd799c5f1ede))
+
 # [5.1.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.3...v5.1.0-alpha.4) (2026-06-11)
 
 
