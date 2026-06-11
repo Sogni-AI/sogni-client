@@ -1,3 +1,10 @@
+# [5.1.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.3...v5.1.0-alpha.4) (2026-06-11)
+
+
+### Bug Fixes
+
+* **projects:** forward billing mode metadata ([975fdb0](https://github.com/Sogni-AI/sogni-client/commit/975fdb09adcbd74c11fa6786edb6f1d2392583eb))
+
 # [5.1.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.2...v5.1.0-alpha.3) (2026-06-10)
 
 
