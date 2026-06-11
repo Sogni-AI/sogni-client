@@ -636,6 +636,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     jobID: id,
     disableSafety: !!params.disableNSFWFilter,
     tokenType: params.tokenType,
+    billingMode: params.billingMode,
     outputFormat:
       params.outputFormat || (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png')
   };

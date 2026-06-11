@@ -1,4 +1,7 @@
 import { TokenType } from '../types/token.js';
+import type { BillingMode } from '../Projects/types/index.js';
+
+export type TransactionPaymentModel = 'subscription' | 'paid_spark' | 'free_spark' | 'sogni' | string;
 
 export interface Nonce {
   nonce: string;
@@ -103,6 +106,11 @@ export interface TxRaw {
   endTime: number;
   type: 'debit' | string;
   tokenType: TokenType;
+  billingMode?: BillingMode;
+  paymentModel?: TransactionPaymentModel;
+  subscriptionTier?: string | null;
+  subscriptionTrialing?: boolean;
+  subscriptionThrottled?: boolean;
 }
 
 export interface TxHistoryEntry {
@@ -118,6 +126,11 @@ export interface TxHistoryEntry {
   source: 'project' | string;
   endTime: Date;
   type: 'debit' | string;
+  billingMode?: BillingMode;
+  paymentModel?: TransactionPaymentModel;
+  subscriptionTier?: string | null;
+  subscriptionTrialing?: boolean;
+  subscriptionThrottled?: boolean;
 }
 
 export type RewardType = 'instant' | 'conditioned';

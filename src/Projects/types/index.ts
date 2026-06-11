@@ -37,6 +37,7 @@ export type GptImageQuality = 'low' | 'medium' | 'high' | 'auto' | 'standard' | 
 export type GptImageBackground = 'opaque' | 'auto';
 export type VideoOutputFormat = 'mp4';
 export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
+export type BillingMode = 'auto' | 'subscription' | 'tokens';
 
 export interface BaseProjectParams {
   /**
@@ -87,6 +88,13 @@ export interface BaseProjectParams {
    * If not specified, the Sogni token will be used.
    */
   tokenType?: TokenType;
+  /**
+   * Select how eligible jobs should be billed.
+   * - auto: use Unlimited subscription coverage when available, otherwise use tokens.
+   * - subscription: require Unlimited subscription coverage; fail if unavailable.
+   * - tokens: opt out of Unlimited coverage and use Spark/SOGNI tokens.
+   */
+  billingMode?: BillingMode;
   /**
    * Optional client app/source label to attach to the project request for server-side attribution.
    */

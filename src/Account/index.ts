@@ -430,7 +430,12 @@ class AccountApi extends ApiGroup {
           description: tx.description,
           source: tx.source,
           endTime: new Date(tx.endTime),
-          type: tx.type
+          type: tx.type,
+          billingMode: tx.billingMode,
+          paymentModel: tx.paymentModel,
+          subscriptionTier: tx.subscriptionTier,
+          subscriptionTrialing: tx.subscriptionTrialing,
+          subscriptionThrottled: tx.subscriptionThrottled
         })
       ),
       next: {
