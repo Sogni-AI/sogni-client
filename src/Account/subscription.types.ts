@@ -7,6 +7,13 @@
 
 /**
  * Lifecycle state returned by `GET /v1/subscriptions/status`.
+ *
+ * `'grace_period'` does not by itself mean access was lost: provider-approved
+ * billing-grace windows (Apple billing grace, Google Play grace) remain
+ * entitled, with `active: true` and `currentPeriodEnd` reflecting the grace
+ * end. A grace/delinquency state without a provider-granted window is not
+ * entitled and returns `active: false`. Always rely on `active` for the
+ * entitlement decision rather than the status string.
  */
 export type SubscriptionStatus =
   | 'none'
@@ -72,6 +79,23 @@ export interface SubscriptionEntitlementSnapshot {
   currentPeriodEnd?: string;
   /** When `true`, the subscription remains entitled until `currentPeriodEnd`. */
   cancelAtPeriodEnd?: boolean;
+  /**
+   * Tier the subscription will switch to at the next renewal when a downgrade
+   * or plan change is scheduled. Absent when no change is pending; the current
+   * `tier` keeps its benefits until `scheduledChangeAt`.
+   */
+  scheduledTier?: SubscriptionPlanId | string;
+  /**
+   * Billing term (`'monthly'` / `'annual'`) the subscription will switch to at
+   * the next renewal when a term change (e.g. annual → monthly) is scheduled.
+   * Absent when no change is pending.
+   */
+  scheduledTerm?: SubscriptionTerm | string;
+  /**
+   * ISO timestamp when the scheduled plan/term change takes effect (the next
+   * renewal date). Absent when no change is pending.
+   */
+  scheduledChangeAt?: string;
   /** Feature flags or capability names enabled by this subscription. */
   capabilities?: Record<string, boolean>;
 }
