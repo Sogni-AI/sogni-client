@@ -90,10 +90,16 @@ async function run() {
       active: true,
       status: 'active',
       tier: 'unlimited',
+      term: 'annual',
       provider: 'stripe',
       currentPeriodStart: '2026-06-01T00:00:00.000Z',
       currentPeriodEnd: '2026-07-01T00:00:00.000Z',
-      cancelAtPeriodEnd: false
+      cancelAtPeriodEnd: false,
+      // Pending plan-change fields must pass through untouched (downgrades
+      // apply at renewal; the current tier keeps benefits until then).
+      scheduledTier: 'unlimited',
+      scheduledTerm: 'monthly',
+      scheduledChangeAt: '2026-07-01T00:00:00.000Z'
     };
     client.rest._nextPayload = apiResponse({ subscription: snapshot });
 
@@ -378,7 +384,18 @@ async function run() {
     assert.equal(ca.isUnlimited, true, 'isUnlimited must be true for trialing unlimited_pro');
 
     ca._update({ subscription: { active: false, status: 'grace_period', tier: 'unlimited' } });
-    assert.equal(ca.isUnlimited, false, 'isUnlimited must be false during grace period');
+    assert.equal(
+      ca.isUnlimited,
+      false,
+      'isUnlimited must be false for grace without a provider-granted window (active=false)'
+    );
+
+    ca._update({ subscription: { active: true, status: 'grace_period', tier: 'unlimited' } });
+    assert.equal(
+      ca.isUnlimited,
+      true,
+      'isUnlimited must stay true during a provider-approved grace window (active=true)'
+    );
 
     ca._update({
       subscription: { active: true, status: 'cancel_at_period_end', tier: 'unlimited_pro' }

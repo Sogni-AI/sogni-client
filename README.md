@@ -189,7 +189,9 @@ if (sogni.account.currentAccount.isUnlimited) {
 }
 ```
 
-`currentAccount.isUnlimited` is `true` when the latest entitlement snapshot has `active: true` and `tier` is either `unlimited` or `unlimited_pro`. The server keeps `active` true for entitled states such as trials and cancel-at-period-end windows until access actually ends; grace-period snapshots are not entitled and return `active: false`. Period dates are ISO timestamp strings.
+`currentAccount.isUnlimited` is `true` when the latest entitlement snapshot has `active: true` and `tier` is either `unlimited` or `unlimited_pro`. The server keeps `active` true for entitled states until access actually ends: trials, cancel-at-period-end windows, and provider-approved grace windows (Apple billing grace / Google Play grace) all remain entitled, with `currentPeriodEnd` reflecting the effective paid-through or grace-end date. A `grace_period` snapshot without a provider-granted window is not entitled and returns `active: false`. Period dates are ISO timestamp strings.
+
+A canceled-but-still-paid subscription carries `cancelAtPeriodEnd: true` and keeps access until `currentPeriodEnd`. When a downgrade or plan switch is scheduled for the next renewal, the snapshot may also carry `scheduledTier`, `scheduledTerm`, and `scheduledChangeAt` (ISO timestamp) — absent when no change is pending — so UIs can render "Your plan will change to X on date" messaging while the current tier keeps its benefits.
 
 Unlimited fair-use accounting and enforcement are handled dynamically by the Sogni socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as durable user-facing limits.
 
