@@ -1,3 +1,19 @@
+# [5.1.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.6...v5.1.0-alpha.7) (2026-06-12)
+
+
+### Bug Fixes
+
+* **account:** map real socket entitlement status domain without dropping fields ([c2e7499](https://github.com/Sogni-AI/sogni-client/commit/c2e7499c5d254e8ce61da257b44307bca97ea56c))
+
+
+### Features
+
+* **account:** accept chat checkout redirect target ([3900336](https://github.com/Sogni-AI/sogni-client/commit/390033692aaa46eff521030d80ba712f15bd3302))
+* **account:** guard subscription writes against stale transports ([c60af1f](https://github.com/Sogni-AI/sogni-client/commit/c60af1ff4e4a9a8af1a8e2393899026f176a3f53))
+* **chat:** preserve job error codes via typed ChatJobError ([dd5ad1d](https://github.com/Sogni-AI/sogni-client/commit/dd5ad1d585c709382547bfa4cff2aa98d734414c))
+* **chat:** serialize billingMode on all three chat transports ([787dd43](https://github.com/Sogni-AI/sogni-client/commit/787dd4391dee1735a6d3d3a7953f25ec6c722a4d))
+* **types:** export subscription billing socket error-code constants ([2fd5af4](https://github.com/Sogni-AI/sogni-client/commit/2fd5af49ffa76d6f1a304c6a06577468f5865c2e))
+
 # [5.1.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.5...v5.1.0-alpha.6) (2026-06-12)
 
 
