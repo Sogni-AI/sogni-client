@@ -53,7 +53,7 @@ export type SubscriptionPlanInterval = 'month' | 'year';
  * Checkout redirect target. The server uses this to choose the post-checkout
  * return URL.
  */
-export type SubscriptionRedirectType = 'web' | 'app' | 'dashboard' | 'photobooth';
+export type SubscriptionRedirectType = 'web' | 'app' | 'dashboard' | 'photobooth' | 'chat';
 
 /**
  * Current subscription entitlement snapshot returned by

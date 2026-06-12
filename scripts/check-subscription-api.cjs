@@ -1204,6 +1204,35 @@ async function run() {
     );
   }
 
+  // ---------------------------------------------------------------------
+  // 'chat' checkout redirect target
+  // ---------------------------------------------------------------------
+
+  {
+    const { api, client } = makeApi();
+    client.rest._nextPayload = apiResponse({ url: 'https://checkout.stripe.com/pay/cs_test_chat' });
+
+    await api.createSubscriptionCheckout('unlimited', 'monthly', {
+      redirectType: 'chat',
+      appSource: 'sogni-chat'
+    });
+    assert.deepEqual(
+      client.rest._lastCall.body,
+      { planId: 'unlimited', term: 'monthly', redirectType: 'chat', appSource: 'sogni-chat' },
+      "createSubscriptionCheckout() must pass redirectType 'chat' through"
+    );
+
+    const redirectDeclarations = fs.readFileSync(
+      path.join(__dirname, '../dist/Account/subscription.types.d.ts'),
+      'utf8'
+    );
+    assert.match(
+      redirectDeclarations,
+      /SubscriptionRedirectType = [^;]*'chat'/,
+      "SubscriptionRedirectType must accept 'chat'"
+    );
+  }
+
   console.log('check-subscription-api: ALL TESTS PASSED');
 }
 
