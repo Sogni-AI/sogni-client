@@ -160,7 +160,8 @@ import {
   RunRecord
 } from './Replay/types.js';
 // Base Types
-import ErrorData from './types/ErrorData.js';
+import ErrorData, { SUBSCRIPTION_ERROR_CODES } from './types/ErrorData.js';
+import type { SubscriptionErrorCode } from './types/ErrorData.js';
 import { TokenType } from './types/token.js';
 import {
   ApiKeyAuthManager,
@@ -284,6 +285,7 @@ export type {
   SubscriptionPlanId,
   SubscriptionPlanInterval,
   SubscriptionPlan,
+  SubscriptionErrorCode,
   SubscriptionPortalSession,
   SubscriptionRedirectType,
   SubscriptionStatus,
@@ -314,6 +316,7 @@ export {
   Job,
   Project,
   SogniTools,
+  SUBSCRIPTION_ERROR_CODES,
   isSogniToolCall,
   parseCreativeWorkflowSseChunk,
   parseToolCallArguments

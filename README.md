@@ -193,6 +193,12 @@ if (sogni.account.currentAccount.isUnlimited) {
 
 A canceled-but-still-paid subscription carries `cancelAtPeriodEnd: true` and keeps access until `currentPeriodEnd`. When a downgrade or plan switch is scheduled for the next renewal, the snapshot may also carry `scheduledTier`, `scheduledTerm`, and `scheduledChangeAt` (ISO timestamp) — absent when no change is pending — so UIs can render "Your plan will change to X on date" messaging while the current tier keeps its benefits.
 
+When a job is explicitly submitted with `billingMode: 'subscription'` and the subscription cannot cover it, the platform rejects the job with a subscription-specific error code, exported as `SUBSCRIPTION_ERROR_CODES` from the package root:
+
+- `4078` (`NOT_ENTITLED`) — no active subscription entitlement covers the job.
+- `4079` (`QUEUE_CAP`) — the subscription's concurrent job queue cap was reached.
+- `4080` (`GRACE_RETRY`) — the subscription is in its billing-grace window: the renewal payment is being retried and unlimited access is paused until it succeeds. On `4080`, offer the user a "pay with Spark/SOGNI" fallback (token billing) instead of auto-retrying the subscription job in a loop — it will keep failing until the renewal succeeds.
+
 Unlimited fair-use accounting and enforcement are handled dynamically by the Sogni socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as durable user-facing limits.
 
 To start Stripe checkout, use a plan's `planId` (`unlimited` or `unlimited_pro`) and `term` (`monthly` or `annual`). Checkout and portal sessions require user authentication; API-key auth is rejected for those browser redirect operations.
