@@ -51,6 +51,25 @@ enum ErrorCode {
   INSUFFICIENT_BALANCE = 123,
   INSUFFICIENT_ALLOWANCE = 149
 }
+
+/**
+ * Parse the numeric entitlement `version` that socket payloads carry as a
+ * string (and that the REST status endpoint may add later). Returns `null`
+ * for missing or non-numeric values so unversioned payloads remain
+ * apply-able.
+ */
+function parseSubscriptionVersion(version: unknown): number | null {
+  if (typeof version === 'number' && Number.isFinite(version)) {
+    return version;
+  }
+  if (typeof version === 'string' && version.trim() !== '') {
+    const parsed = Number(version);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+}
 /**
  * Account API methods that let you interact with the user's account.
  * Can be accessed via `sogni.account`. Look for more samples below.
@@ -64,6 +83,22 @@ enum ErrorCode {
  */
 class AccountApi extends ApiGroup {
   readonly currentAccount = new CurrentAccount();
+
+  /**
+   * Highest entitlement `version` applied to `currentAccount.subscription`.
+   * Socket payloads carry a monotonically increasing version; writes that
+   * carry an older version than the one already applied are discarded instead
+   * of overwriting fresher data.
+   */
+  private lastAppliedSubscriptionVersion: number | null = null;
+
+  /**
+   * Logical clock counting applied socket entitlement writes. A REST refresh
+   * captures this counter before its request goes on the wire; if it advanced
+   * by the time the response arrives, a fresher socket push landed mid-flight
+   * and the REST snapshot is discarded as stale.
+   */
+  private appliedSubscriptionSocketWrites = 0;
 
   constructor(config: ApiConfig) {
     super(config);
@@ -191,10 +226,70 @@ class AccountApi extends ApiGroup {
     };
   }
 
+  /**
+   * Single chokepoint through which every subscription entitlement writer
+   * (REST refresh, socket entitlement push, socket authenticated seeding)
+   * must route.
+   *
+   * Guards against last-writer-wins races between the two transports: writes
+   * carrying an older `version` than the one already applied are discarded,
+   * and an unversioned REST snapshot whose request started before a socket
+   * push was applied is discarded as stale. Snapshots deep-equal to the
+   * current one are accepted without re-applying, so reconnect re-seeds and
+   * tab replays do not emit redundant 'updated' events.
+   *
+   * @returns `true` when the snapshot was accepted (even if identical to the
+   * current one), `false` when it was discarded as stale.
+   */
+  private applySubscriptionSnapshot(
+    subscription: SubscriptionEntitlementSnapshot,
+    source: 'rest' | 'socket',
+    options: { version?: number | null; socketWritesAtRequestStart?: number } = {}
+  ): boolean {
+    const version = options.version ?? null;
+    if (
+      version !== null &&
+      this.lastAppliedSubscriptionVersion !== null &&
+      version < this.lastAppliedSubscriptionVersion
+    ) {
+      this.client.logger.debug(
+        `[account] Discarding ${source} subscription snapshot: version ${version} is older ` +
+          `than applied version ${this.lastAppliedSubscriptionVersion}`
+      );
+      return false;
+    }
+    if (
+      source === 'rest' &&
+      version === null &&
+      options.socketWritesAtRequestStart !== undefined &&
+      this.appliedSubscriptionSocketWrites !== options.socketWritesAtRequestStart
+    ) {
+      this.client.logger.debug(
+        '[account] Discarding stale REST subscription snapshot: a socket entitlement push was ' +
+          'applied while the request was in flight'
+      );
+      return false;
+    }
+    if (version !== null) {
+      this.lastAppliedSubscriptionVersion = version;
+    }
+    if (source === 'socket') {
+      this.appliedSubscriptionSocketWrites += 1;
+    }
+    const current = this.currentAccount.subscription;
+    if (current && JSON.stringify(current) === JSON.stringify(subscription)) {
+      return true;
+    }
+    this.currentAccount._update({ subscription });
+    return true;
+  }
+
   private handleSubscriptionEntitlementUpdated(data: SocketSubscriptionEntitlementData) {
     const subscription = this.mapSocketSubscriptionEntitlement(data);
     if (subscription) {
-      this.currentAccount._update({ subscription });
+      this.applySubscriptionSnapshot(subscription, 'socket', {
+        version: parseSubscriptionVersion(data.subscription?.version)
+      });
     }
   }
 
@@ -204,16 +299,28 @@ class AccountApi extends ApiGroup {
     if (this.client.auth instanceof ApiKeyAuthManager) {
       this.currentAccount._update({
         username: data.username,
-        walletAddress: data.address,
-        ...(subscription ? { subscription } : {})
+        walletAddress: data.address
       });
-    } else if (subscription) {
-      this.currentAccount._update({ subscription });
+    }
+    if (subscription) {
+      this.applySubscriptionSnapshot(subscription, 'socket', {
+        version: parseSubscriptionVersion(data.subscriptionEntitlement?.subscription?.version)
+      });
+    } else {
+      // The authenticated payload carried no entitlement snapshot (older
+      // socket build or feature flag off). Schedule a best-effort REST
+      // refresh so the cached snapshot cannot silently go stale across
+      // reconnects; failures are swallowed because this is opportunistic.
+      this.refreshSubscription().catch(() => undefined);
     }
   }
 
   private handleAuthUpdated(isAuthenticated: boolean) {
     if (!isAuthenticated) {
+      // Reset the entitlement recency guard together with the account data so
+      // the next login starts from a clean slate.
+      this.lastAppliedSubscriptionVersion = null;
+      this.appliedSubscriptionSocketWrites = 0;
       this.currentAccount._clear();
     } else {
       this.me();
@@ -754,11 +861,28 @@ class AccountApi extends ApiGroup {
    * ```
    */
   async getSubscriptionStatus(): Promise<SubscriptionEntitlementSnapshot> {
+    // Capture the socket write clock before the request goes out so a socket
+    // push that lands mid-flight marks this response as stale.
+    const socketWritesAtRequestStart = this.appliedSubscriptionSocketWrites;
     const res = await this.client.rest.get<ApiResponse<SubscriptionStatusResponseData>>(
       '/v1/subscriptions/status'
     );
-    this.currentAccount._update({ subscription: res.data.subscription });
-    return res.data.subscription;
+    const subscription = res.data.subscription;
+    const applied = this.applySubscriptionSnapshot(subscription, 'rest', {
+      // The REST snapshot does not carry a version today; prefer version
+      // comparison over the in-flight heuristic as soon as the API adds one.
+      version: parseSubscriptionVersion(
+        (subscription as SubscriptionEntitlementSnapshot & { version?: unknown }).version
+      ),
+      socketWritesAtRequestStart
+    });
+    if (!applied && this.currentAccount.subscription) {
+      // A fresher socket push was applied while this request was in flight.
+      // Return the fresher cached snapshot so callers stay consistent with
+      // currentAccount.subscription.
+      return this.currentAccount.subscription;
+    }
+    return subscription;
   }
 
   /**
