@@ -1,3 +1,10 @@
+# [5.1.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.5...v5.1.0-alpha.6) (2026-06-12)
+
+
+### Features
+
+* sync socket subscription entitlement ([fa5d24d](https://github.com/Sogni-AI/sogni-client/commit/fa5d24d307992993ac312c3b1e8ab94277529aa4))
+
 # [5.1.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.4...v5.1.0-alpha.5) (2026-06-11)
 
 
