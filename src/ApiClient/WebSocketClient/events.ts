@@ -199,6 +199,14 @@ export type LLMJobResultData = {
 export type LLMJobErrorData = {
   jobID: string;
   error: string;
+  /**
+   * Server error code as a string (e.g. `'4078'`, `'4080'`). The socket
+   * server (jobsController `handleLLMJobRequest`) attaches it to
+   * `subscription_unavailable` denials of jobs submitted with
+   * `billingMode: 'subscription'`; absent on other errors. See
+   * `SUBSCRIPTION_ERROR_CODES`.
+   */
+  error_code?: string;
   error_message: string;
   /** Worker username that was processing this request (if assigned) */
   workerName?: string;

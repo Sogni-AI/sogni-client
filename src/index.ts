@@ -71,6 +71,7 @@ import {
 } from './Projects/types/ControlNetParams.js';
 // Chat API
 import ChatApi from './Chat/index.js';
+import ChatJobError, { ChatJobErrorFields } from './Chat/ChatJobError.js';
 import ChatStream from './Chat/ChatStream.js';
 import ChatToolsApi from './Chat/ChatTools.js';
 import {
@@ -181,6 +182,7 @@ export type {
   ChatCompletionChunk,
   ChatCompletionParams,
   ChatCompletionResult,
+  ChatJobErrorFields,
   ChatJobStateEvent,
   ChatMessage,
   ChatResponseFormat,
@@ -309,6 +311,7 @@ export type {
 export {
   ApiError,
   ApiKeyAuthManager,
+  ChatJobError,
   ChatStream,
   ChatToolsApi,
   CreativeWorkflowsApi,

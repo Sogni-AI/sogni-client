@@ -124,6 +124,8 @@ Jobs explicitly submitted with `billingMode: 'subscription'` that the subscripti
 
 `billingMode` (`'auto' | 'subscription' | 'tokens'`, exported as `BillingMode`) is accepted by project params and by all three chat transports — `chat.completions.create()` (socket), `chat.hosted.create()` (REST `/v1/chat/completions`), and `chat.runs.create()` (durable runs serialize it as `billing_mode`).
 
+Chat job failures surface as `ChatJobError` (exported from the package root): `.message` stays the human-readable server message, `code`/`errorCode` carry the wire code string (e.g. `'4080'`), `errorType` carries the server tag (e.g. `'subscription_unavailable'`), and the `subscriptionErrorCode` getter maps back to the numeric `SUBSCRIPTION_ERROR_CODES` value — branch on these instead of string-matching messages.
+
 Unlimited fair-use accounting and enforcement are dynamic and server-side in the socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as fixed user-facing limits.
 
 Stripe checkout uses catalog plan IDs, not monthly/annual suffixed IDs:

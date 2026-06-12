@@ -201,6 +201,8 @@ When a job is explicitly submitted with `billingMode: 'subscription'` and the su
 
 `billingMode` (`'auto' | 'subscription' | 'tokens'`, exported as `BillingMode`) is accepted by project params and by all three chat transports: `sogni.chat.completions.create()` (socket), `sogni.chat.hosted.create()` (REST `/v1/chat/completions`), and `sogni.chat.runs.create()` (durable runs, where it serializes as `billing_mode`).
 
+Chat job failures preserve this error contract. Streamed and non-streaming chat completions, hosted REST chat, and durable chat runs fail with a `ChatJobError` (exported from the package root): `.message` stays the human-readable server message, while `code`/`errorCode` carry the wire code string (e.g. `'4080'`), `errorType` carries the server's tag (e.g. `'subscription_unavailable'`), and the `subscriptionErrorCode` getter maps the code back to the numeric `SUBSCRIPTION_ERROR_CODES` value when applicable — so apps can branch without string-matching.
+
 Unlimited fair-use accounting and enforcement are handled dynamically by the Sogni socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as durable user-facing limits.
 
 To start Stripe checkout, use a plan's `planId` (`unlimited` or `unlimited_pro`) and `term` (`monthly` or `annual`). Checkout and portal sessions require user authentication; API-key auth is rejected for those browser redirect operations.

@@ -1,9 +1,11 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
+import { ApiError } from '../ApiClient/index.js';
 import {
   JobTokensData,
   LLMJobResultData,
   LLMJobErrorData
 } from '../ApiClient/WebSocketClient/events.js';
+import ChatJobError, { extractChatJobErrorFields } from './ChatJobError.js';
 import ChatStream from './ChatStream.js';
 import ChatToolsApi from './ChatTools.js';
 import { isSogniToolCall } from './tools.js';
@@ -171,7 +173,17 @@ export interface ChatApiEvents {
   /** Emitted when a chat completion finishes */
   completed: ChatCompletionResult;
   /** Emitted when a chat completion fails */
-  error: { jobID: string; error: string; message: string; workerName?: string };
+  error: {
+    jobID: string;
+    error: string;
+    /**
+     * Server error code as a string (e.g. `'4080'`) when the failure carries
+     * one — see `SUBSCRIPTION_ERROR_CODES` for subscription denials.
+     */
+    errorCode?: string;
+    message: string;
+    workerName?: string;
+  };
   /** Emitted when the job state changes (queued, assigned to worker, started, etc.) */
   jobState: ChatJobStateEvent;
   /** Emitted when the available LLM models list is updated from the network */
@@ -494,35 +506,53 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const normalizedMessages = await normalizeVisionMessages(params.messages);
     const chatTemplateKwargs =
       params.chat_template_kwargs ?? this.buildChatTemplateKwargs(params.think);
-    return this.client.rest.post<HostedChatCompletionResult>(
-      '/v1/chat/completions',
-      {
-        model: params.model,
-        messages: normalizedMessages,
-        app_source: params.app_source ?? params.appSource ?? this.client.appSource,
-        max_tokens: params.max_tokens,
-        temperature: params.temperature,
-        top_p: params.top_p,
-        top_k: params.top_k,
-        min_p: params.min_p,
-        repetition_penalty: params.repetition_penalty,
-        frequency_penalty: params.frequency_penalty,
-        presence_penalty: params.presence_penalty,
-        stop: params.stop,
-        token_type: params.token_type ?? params.tokenType,
-        ...(params.billingMode && { billingMode: params.billingMode }),
-        tools: params.tools,
-        tool_choice: params.tool_choice,
-        sogni_tools: this.normalizeSogniToolsMode(params.sogni_tools),
-        sogni_tool_execution: params.sogni_tool_execution,
-        task_profile: params.task_profile ?? params.taskProfile,
-        media_references: params.media_references ?? params.mediaReferences,
-        api_media_references: params.api_media_references ?? params.apiMediaReferences,
-        ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs }),
-        ...(params.response_format && { response_format: params.response_format })
-      },
-      { timeoutMs: 300000 }
-    );
+    try {
+      return await this.client.rest.post<HostedChatCompletionResult>(
+        '/v1/chat/completions',
+        {
+          model: params.model,
+          messages: normalizedMessages,
+          app_source: params.app_source ?? params.appSource ?? this.client.appSource,
+          max_tokens: params.max_tokens,
+          temperature: params.temperature,
+          top_p: params.top_p,
+          top_k: params.top_k,
+          min_p: params.min_p,
+          repetition_penalty: params.repetition_penalty,
+          frequency_penalty: params.frequency_penalty,
+          presence_penalty: params.presence_penalty,
+          stop: params.stop,
+          token_type: params.token_type ?? params.tokenType,
+          ...(params.billingMode && { billingMode: params.billingMode }),
+          tools: params.tools,
+          tool_choice: params.tool_choice,
+          sogni_tools: this.normalizeSogniToolsMode(params.sogni_tools),
+          sogni_tool_execution: params.sogni_tool_execution,
+          task_profile: params.task_profile ?? params.taskProfile,
+          media_references: params.media_references ?? params.mediaReferences,
+          api_media_references: params.api_media_references ?? params.apiMediaReferences,
+          ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs }),
+          ...(params.response_format && { response_format: params.response_format })
+        },
+        { timeoutMs: 300000 }
+      );
+    } catch (error) {
+      // Re-throw recognized chat-job error bodies (e.g. subscription
+      // denials) as ChatJobError so apps can branch on code/errorType.
+      // Unrecognized failures pass through as the original ApiError.
+      if (error instanceof ApiError) {
+        const extracted = extractChatJobErrorFields(error.payload);
+        if (extracted) {
+          throw new ChatJobError(error.message || extracted.message || 'Chat completion failed', {
+            code: extracted.code,
+            errorType: extracted.errorType,
+            status: error.status,
+            payload: error.payload
+          });
+        }
+      }
+      throw error;
+    }
   }
 
   private async chatRunFetch(path: string, options: RequestInit = {}): Promise<Response> {
@@ -545,6 +575,17 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         (payload && typeof payload.message === 'string' && payload.message) ||
         response.statusText ||
         `Chat run request failed with status ${response.status}`;
+      // Same message as before; recognized chat-job error bodies (e.g.
+      // subscription denials) additionally surface typed code/errorType.
+      const extracted = extractChatJobErrorFields(payload);
+      if (extracted) {
+        throw new ChatJobError(message, {
+          code: extracted.code,
+          errorType: extracted.errorType,
+          status: response.status,
+          payload
+        });
+      }
       const err = new Error(message);
       (err as { status?: number }).status = response.status;
       throw err;
@@ -790,7 +831,15 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       const errorOff = this.on('error', (err) => {
         if (err.jobID === jobID) {
           cleanup();
-          reject(new Error(`${err.error}: ${err.message}`));
+          // Same composed message as before; typed fields added so callers
+          // can branch on subscription denial codes.
+          reject(
+            new ChatJobError(`${err.error}: ${err.message}`, {
+              code: err.errorCode,
+              errorType: err.error,
+              jobID
+            })
+          );
         }
       });
     });
@@ -938,12 +987,23 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     }
 
     const errorMsg = data.error_message || String(data.error);
-    stream._fail(new Error(errorMsg));
+    // Preserve the server's error contract (error / error_code / error_message)
+    // so apps can branch on machine-readable fields — e.g. subscription
+    // denials ('4078'/'4080') — instead of string-matching the message.
+    stream._fail(
+      new ChatJobError(errorMsg, {
+        code: data.error_code,
+        errorType: data.error !== undefined ? String(data.error) : undefined,
+        jobID: data.jobID,
+        payload: data
+      })
+    );
     this.activeStreams.delete(data.jobID);
 
     this.emit('error', {
       jobID: data.jobID,
       error: String(data.error),
+      ...(data.error_code !== undefined && { errorCode: data.error_code }),
       message: errorMsg,
       workerName: data.workerName
     });

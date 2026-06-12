@@ -14,6 +14,9 @@ const path = require('node:path');
 const AccountApi = require('../dist/Account/index.js').default;
 const CurrentAccount = require('../dist/Account/CurrentAccount.js').default;
 const ChatApi = require('../dist/Chat/index.js').default;
+const { ChatJobError } = require('../dist/Chat/ChatJobError.js');
+const { ApiError } = require('../dist/ApiClient/index.js');
+const { SUBSCRIPTION_ERROR_CODES } = require('../dist/types/ErrorData.js');
 
 class StubListeners {
   constructor() {
@@ -117,6 +120,10 @@ function makeChatApi() {
 }
 
 const CHAT_MESSAGES = [{ role: 'user', content: 'hi' }];
+
+function flushMicrotasks() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
 
 function apiResponse(data) {
   return { status: 'success', data };
@@ -1001,6 +1008,199 @@ async function run() {
     assert.ok(
       declarations.includes('BillingMode'),
       'BillingMode must be exported from root declarations'
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // ChatJobError: subscription denial codes preserved on failure paths
+  // ---------------------------------------------------------------------
+
+  {
+    // Socket stream failure: llmJobError with error_code '4080' must surface
+    // a ChatJobError carrying code/errorCode/errorType, message unchanged.
+    const { api, client } = makeChatApi();
+    const emittedErrors = [];
+    api.on('error', (event) => emittedErrors.push(event));
+
+    const stream = await api.completions.create({
+      model: 'qwen3.6-test',
+      messages: CHAT_MESSAGES,
+      stream: true,
+      billingMode: 'subscription'
+    });
+    const { jobID } = client.socket._sent.at(-1).data;
+    client.socket.emit('llmJobError', {
+      jobID,
+      error: 'subscription_unavailable',
+      error_code: '4080',
+      error_message: 'Subscription renewal payment is being retried'
+    });
+
+    let failure;
+    try {
+      for await (const chunk of stream) {
+        void chunk;
+      }
+    } catch (err) {
+      failure = err;
+    }
+    assert.ok(failure instanceof ChatJobError, 'stream failure must be a ChatJobError');
+    assert.equal(
+      failure.message,
+      'Subscription renewal payment is being retried',
+      'message must stay the server error_message'
+    );
+    assert.equal(failure.code, '4080');
+    assert.equal(failure.errorCode, '4080');
+    assert.equal(failure.errorType, 'subscription_unavailable');
+    assert.equal(failure.jobID, jobID);
+    assert.equal(
+      failure.subscriptionErrorCode,
+      SUBSCRIPTION_ERROR_CODES.GRACE_RETRY,
+      'string wire code must map back to the numeric SUBSCRIPTION_ERROR_CODES constant'
+    );
+
+    assert.equal(emittedErrors.length, 1);
+    assert.equal(
+      emittedErrors[0].errorCode,
+      '4080',
+      "the emitted 'error' event must carry errorCode"
+    );
+    assert.equal(emittedErrors[0].error, 'subscription_unavailable');
+  }
+
+  {
+    // Non-streaming completion rejection must keep the composed message and
+    // still carry the denial code; errors without error_code keep code
+    // undefined (and no fabricated subscription mapping).
+    const { api, client } = makeChatApi();
+
+    const pending = api.completions.create({ model: 'qwen3.6-test', messages: CHAT_MESSAGES });
+    await flushMicrotasks();
+    const { jobID } = client.socket._sent.at(-1).data;
+    client.socket.emit('llmJobError', {
+      jobID,
+      error: 'subscription_unavailable',
+      error_code: '4078',
+      error_message: 'No active subscription'
+    });
+    await assert.rejects(pending, (err) => {
+      assert.ok(err instanceof ChatJobError);
+      assert.equal(err.message, 'subscription_unavailable: No active subscription');
+      assert.equal(err.code, '4078');
+      assert.equal(err.errorType, 'subscription_unavailable');
+      assert.equal(err.subscriptionErrorCode, SUBSCRIPTION_ERROR_CODES.NOT_ENTITLED);
+      return true;
+    });
+
+    const streamNoCode = await api.completions.create({
+      model: 'qwen3.6-test',
+      messages: CHAT_MESSAGES,
+      stream: true
+    });
+    const noCodeJobID = client.socket._sent.at(-1).data.jobID;
+    client.socket.emit('llmJobError', {
+      jobID: noCodeJobID,
+      error: 'model_unavailable',
+      error_message: 'Model "x" is not currently available'
+    });
+    let noCodeFailure;
+    try {
+      for await (const chunk of streamNoCode) {
+        void chunk;
+      }
+    } catch (err) {
+      noCodeFailure = err;
+    }
+    assert.ok(noCodeFailure instanceof ChatJobError);
+    assert.equal(noCodeFailure.code, undefined, 'errors without error_code must not invent one');
+    assert.equal(noCodeFailure.errorType, 'model_unavailable');
+    assert.equal(noCodeFailure.subscriptionErrorCode, undefined);
+  }
+
+  {
+    // Hosted REST failure: an OpenAI-style error envelope (sogni-socket
+    // handleHTTPLLMJobRequest shape forwarded by /v1/chat/completions) must
+    // convert to ChatJobError; unrecognized ApiErrors pass through untouched.
+    const { api, client } = makeChatApi();
+
+    client.rest.post = async () => {
+      throw new ApiError(402, {
+        error: {
+          message: 'Subscription cannot cover this job',
+          type: 'subscription_unavailable',
+          code: '4078'
+        }
+      });
+    };
+    await assert.rejects(
+      api.hosted.create({ model: 'qwen3.6-test', messages: CHAT_MESSAGES }),
+      (err) => {
+        assert.ok(err instanceof ChatJobError, 'envelope-shaped 402 must become ChatJobError');
+        assert.equal(err.code, '4078');
+        assert.equal(err.errorType, 'subscription_unavailable');
+        assert.equal(err.status, 402);
+        assert.equal(err.message, 'Subscription cannot cover this job');
+        return true;
+      }
+    );
+
+    client.rest.post = async () => {
+      throw new ApiError(500, { status: 'error', message: 'boom', errorCode: 1234 });
+    };
+    await assert.rejects(
+      api.hosted.create({ model: 'qwen3.6-test', messages: CHAT_MESSAGES }),
+      (err) => {
+        assert.ok(err instanceof ApiError, 'generic api errors must stay ApiError');
+        assert.ok(!(err instanceof ChatJobError));
+        assert.equal(err.message, 'boom');
+        return true;
+      }
+    );
+  }
+
+  {
+    // Durable run REST failure with a recognized envelope must also surface
+    // typed fields while keeping the legacy message computation.
+    const { api } = makeChatApi();
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+      ok: false,
+      status: 402,
+      statusText: 'Payment Required',
+      async text() {
+        return JSON.stringify({
+          error: {
+            message: 'Subscription cannot cover this job',
+            type: 'subscription_unavailable',
+            code: '4080'
+          }
+        });
+      }
+    });
+    try {
+      await assert.rejects(api.runs.create({ messages: CHAT_MESSAGES }), (err) => {
+        assert.ok(err instanceof ChatJobError);
+        assert.equal(err.message, 'Payment Required', 'message computation must stay unchanged');
+        assert.equal(err.code, '4080');
+        assert.equal(err.errorType, 'subscription_unavailable');
+        assert.equal(err.status, 402);
+        return true;
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  }
+
+  {
+    // ChatJobError must be reachable from the package root so apps can
+    // instanceof/type-narrow chat job failures.
+    const pkgRoot = require('../dist/index.js');
+    assert.equal(typeof pkgRoot.ChatJobError, 'function', 'ChatJobError must be exported');
+    const declarations = fs.readFileSync(path.join(__dirname, '../dist/index.d.ts'), 'utf8');
+    assert.ok(
+      declarations.includes('ChatJobErrorFields'),
+      'ChatJobErrorFields must be exported from root declarations'
     );
   }
 
