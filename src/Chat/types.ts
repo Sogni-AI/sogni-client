@@ -1,3 +1,5 @@
+import type { BillingMode } from '../Projects/types/index.js';
+
 export interface ToolFunction {
   name: string;
   description?: string;
@@ -106,6 +108,14 @@ export interface ChatCompletionParams {
   stop?: string | string[];
   /** Token type to use for billing. Defaults to 'sogni'. */
   tokenType?: 'sogni' | 'spark';
+  /**
+   * Billing mode for this request. `'subscription'` bills the job against the
+   * active subscription entitlement, `'tokens'` forces token billing, and
+   * `'auto'` (the server default when omitted) lets the server decide.
+   * Explicit `'subscription'` requests the entitlement cannot cover fail with
+   * one of the `SUBSCRIPTION_ERROR_CODES` exported from the package root.
+   */
+  billingMode?: BillingMode;
   /** Tool definitions for function calling. */
   tools?: ToolDefinition[];
   /** Controls which (if any) tool is called by the model. */
@@ -182,6 +192,8 @@ export interface ChatRequestMessage {
   presence_penalty?: number;
   stop?: string | string[];
   tokenType?: 'sogni' | 'spark';
+  /** Billing mode read by the socket server (`data.billingMode`) — see {@link ChatCompletionParams.billingMode}. */
+  billingMode?: BillingMode;
   tools?: ToolDefinition[];
   tool_choice?: ToolChoice;
   sogni_tools?: SogniToolsMode;
@@ -387,6 +399,13 @@ export interface StartChatRunParams {
   clientMessageId?: string;
   /** Token type for billing. */
   tokenType?: 'sogni' | 'spark';
+  /**
+   * Billing mode for the run. `'subscription'` bills against the active
+   * subscription entitlement, `'tokens'` forces token billing, `'auto'`
+   * (server default when omitted) lets the server decide. Serialized as
+   * `billing_mode` to match the durable-run body's snake_case convention.
+   */
+  billingMode?: BillingMode;
   /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
   /** Idempotency key (also accepted via `Idempotency-Key` header). */

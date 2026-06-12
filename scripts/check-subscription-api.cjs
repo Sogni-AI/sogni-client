@@ -13,6 +13,7 @@ const path = require('node:path');
 
 const AccountApi = require('../dist/Account/index.js').default;
 const CurrentAccount = require('../dist/Account/CurrentAccount.js').default;
+const ChatApi = require('../dist/Chat/index.js').default;
 
 class StubListeners {
   constructor() {
@@ -56,12 +57,21 @@ class StubAuth extends StubListeners {
 }
 
 class StubSocket extends StubListeners {
+  constructor() {
+    super();
+    this._sent = [];
+  }
+
   get isConnected() {
     return false;
   }
 
   get supernetType() {
     return 'fast';
+  }
+
+  async send(messageType, data) {
+    this._sent.push({ messageType, data });
   }
 }
 
@@ -99,6 +109,14 @@ function makeApi() {
   const api = new AccountApi({ client, eip712: {} });
   return { api, client };
 }
+
+function makeChatApi() {
+  const client = makeStubClient();
+  const api = new ChatApi({ client, eip712: {} });
+  return { api, client };
+}
+
+const CHAT_MESSAGES = [{ role: 'user', content: 'hi' }];
 
 function apiResponse(data) {
   return { status: 'success', data };
@@ -211,7 +229,9 @@ async function run() {
 
   {
     const { api, client } = makeApi();
-    client.rest._nextPayload = apiResponse({ url: 'https://checkout.stripe.com/pay/cs_test_trial' });
+    client.rest._nextPayload = apiResponse({
+      url: 'https://checkout.stripe.com/pay/cs_test_trial'
+    });
 
     await api.createSubscriptionCheckout('unlimited', 'monthly', {
       startTrial: true,
@@ -567,7 +587,9 @@ async function run() {
       "producer 'trialing' must map to 'trialing'"
     );
 
-    const grace = map(socketEntitlement({ active: false }, { status: 'grace', graceEnd: GRACE_END }));
+    const grace = map(
+      socketEntitlement({ active: false }, { status: 'grace', graceEnd: GRACE_END })
+    );
     assert.equal(grace.status, 'grace_period', "producer 'grace' must map to 'grace_period'");
     assert.equal(grace.active, false, 'grace is never entitled — active must stay false');
     assert.equal(
@@ -854,6 +876,131 @@ async function run() {
       api.currentAccount.subscription?.tier,
       'unlimited_pro',
       'after logout the version guard must reset and accept lower versions again'
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Chat transports: billingMode serialization
+  // ---------------------------------------------------------------------
+
+  {
+    // Socket transport (llmJobRequest): billingMode must be serialized when
+    // set and absent when not — the socket server reads data.billingMode.
+    const { api, client } = makeChatApi();
+
+    await api.completions.create({
+      model: 'qwen3.6-test',
+      messages: CHAT_MESSAGES,
+      stream: true,
+      tokenType: 'spark',
+      billingMode: 'subscription'
+    });
+    const withMode = client.socket._sent.at(-1);
+    assert.equal(withMode.messageType, 'llmJobRequest');
+    assert.equal(
+      withMode.data.billingMode,
+      'subscription',
+      'socket llmJobRequest must carry billingMode when set'
+    );
+    assert.equal(withMode.data.tokenType, 'spark');
+
+    await api.completions.create({ model: 'qwen3.6-test', messages: CHAT_MESSAGES, stream: true });
+    assert.ok(
+      !('billingMode' in client.socket._sent.at(-1).data),
+      'socket llmJobRequest must omit billingMode when not set'
+    );
+  }
+
+  {
+    // Hosted REST transport (POST /v1/chat/completions): billingMode in the
+    // body when set, absent when not.
+    const { api, client } = makeChatApi();
+    client.rest._nextPayload = {
+      id: 'chatcmpl-1',
+      object: 'chat.completion',
+      created: 1,
+      model: 'qwen3.6-test',
+      choices: []
+    };
+
+    await api.hosted.create({
+      model: 'qwen3.6-test',
+      messages: CHAT_MESSAGES,
+      billingMode: 'subscription'
+    });
+    assert.equal(client.rest._lastCall.endpoint, '/v1/chat/completions');
+    assert.equal(
+      client.rest._lastCall.body.billingMode,
+      'subscription',
+      'hosted REST body must carry billingMode when set'
+    );
+
+    await api.hosted.create({ model: 'qwen3.6-test', messages: CHAT_MESSAGES });
+    assert.ok(
+      !('billingMode' in client.rest._lastCall.body),
+      'hosted REST body must omit billingMode when not set'
+    );
+  }
+
+  {
+    // Durable run transport (POST /v1/chat/runs): serialized as billing_mode
+    // to match the body's snake_case convention (the api accepts both).
+    const { api } = makeChatApi();
+    const fetchCalls = [];
+    const originalFetch = global.fetch;
+    global.fetch = async (url, init) => {
+      fetchCalls.push({ url, init });
+      return {
+        ok: true,
+        async json() {
+          return { status: 'success', data: { run: { runId: 'run_1', status: 'queued' } } };
+        }
+      };
+    };
+    try {
+      const run = await api.runs.create({
+        messages: CHAT_MESSAGES,
+        tokenType: 'spark',
+        billingMode: 'subscription'
+      });
+      assert.equal(run.runId, 'run_1');
+      const body = JSON.parse(fetchCalls.at(-1).init.body);
+      assert.equal(
+        body.billing_mode,
+        'subscription',
+        'durable run body must carry billing_mode when set'
+      );
+      assert.equal(body.token_type, 'spark');
+      assert.ok(!('billingMode' in body), 'durable run body must use snake_case billing_mode');
+
+      await api.runs.create({ messages: CHAT_MESSAGES });
+      const bare = JSON.parse(fetchCalls.at(-1).init.body);
+      assert.ok(
+        !('billing_mode' in bare) && !('billingMode' in bare),
+        'durable run body must omit billing mode entirely when not set'
+      );
+    } finally {
+      global.fetch = originalFetch;
+    }
+  }
+
+  {
+    // billingMode must be part of the public chat param types, reusing the
+    // BillingMode union exported from the package root.
+    const chatTypeDeclarations = fs.readFileSync(
+      path.join(__dirname, '../dist/Chat/types.d.ts'),
+      'utf8'
+    );
+    const billingModeFields = chatTypeDeclarations.match(/billingMode\?: BillingMode;/g) ?? [];
+    assert.ok(
+      billingModeFields.length >= 3,
+      'billingMode must be typed on ChatCompletionParams, ChatRequestMessage, and StartChatRunParams'
+    );
+
+    const declarations = fs.readFileSync(path.join(__dirname, '../dist/index.d.ts'), 'utf8');
+    assert.ok(
+      declarations.includes('BillingMode'),
+      'BillingMode must be exported from root declarations'
     );
   }
 

@@ -510,6 +510,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         presence_penalty: params.presence_penalty,
         stop: params.stop,
         token_type: params.token_type ?? params.tokenType,
+        ...(params.billingMode && { billingMode: params.billingMode }),
         tools: params.tools,
         tool_choice: params.tool_choice,
         sogni_tools: this.normalizeSogniToolsMode(params.sogni_tools),
@@ -573,6 +574,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       ...(params.sessionId ? { session_id: params.sessionId } : {}),
       ...(params.clientMessageId ? { client_message_id: params.clientMessageId } : {}),
       ...(params.tokenType ? { token_type: params.tokenType } : {}),
+      ...(params.billingMode ? { billing_mode: params.billingMode } : {}),
       ...(appSource ? { app_source: appSource } : {}),
       ...(params.runtimeConfig ? { runtime_config: params.runtimeConfig } : {})
     };
@@ -619,21 +621,21 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
    */
   private async confirmChatRunCost(
     runId: string,
-    params: ConfirmChatRunCostParams,
+    params: ConfirmChatRunCostParams
   ): Promise<ChatRunRecord> {
     const body: Record<string, unknown> = {
       tool_call_id: params.toolCallId,
       decision: params.decision,
       ...(params.overrides ? { overrides: params.overrides } : {}),
-      ...(params.reason ? { reason: params.reason } : {}),
+      ...(params.reason ? { reason: params.reason } : {})
     };
     const response = await this.chatRunJson<{ status: string; data: { run: ChatRunRecord } }>(
       `/v1/chat/runs/${encodeURIComponent(runId)}/confirm-cost`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
+        body: JSON.stringify(body)
+      }
     );
     return response.data.run;
   }
@@ -742,6 +744,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       presence_penalty: params.presence_penalty,
       stop: params.stop,
       tokenType: params.tokenType,
+      ...(params.billingMode && { billingMode: params.billingMode }),
       tools: params.tools,
       tool_choice: params.tool_choice,
       sogni_tools: this.normalizeSogniToolsMode(params.sogni_tools),

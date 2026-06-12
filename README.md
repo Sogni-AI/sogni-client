@@ -199,6 +199,8 @@ When a job is explicitly submitted with `billingMode: 'subscription'` and the su
 - `4079` (`QUEUE_CAP`) — the subscription's concurrent job queue cap was reached.
 - `4080` (`GRACE_RETRY`) — the subscription is in its billing-grace window: the renewal payment is being retried and unlimited access is paused until it succeeds. On `4080`, offer the user a "pay with Spark/SOGNI" fallback (token billing) instead of auto-retrying the subscription job in a loop — it will keep failing until the renewal succeeds.
 
+`billingMode` (`'auto' | 'subscription' | 'tokens'`, exported as `BillingMode`) is accepted by project params and by all three chat transports: `sogni.chat.completions.create()` (socket), `sogni.chat.hosted.create()` (REST `/v1/chat/completions`), and `sogni.chat.runs.create()` (durable runs, where it serializes as `billing_mode`).
+
 Unlimited fair-use accounting and enforcement are handled dynamically by the Sogni socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as durable user-facing limits.
 
 To start Stripe checkout, use a plan's `planId` (`unlimited` or `unlimited_pro`) and `term` (`monthly` or `annual`). Checkout and portal sessions require user authentication; API-key auth is rejected for those browser redirect operations.

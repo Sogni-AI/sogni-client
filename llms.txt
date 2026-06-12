@@ -122,6 +122,8 @@ const isUnlimited = sogni.account.currentAccount.isUnlimited; // active && tier 
 
 Jobs explicitly submitted with `billingMode: 'subscription'` that the subscription cannot cover fail with `SUBSCRIPTION_ERROR_CODES` (exported from the package root): `4078` `NOT_ENTITLED` (no active subscription), `4079` `QUEUE_CAP` (subscription queue cap reached), `4080` `GRACE_RETRY` (billing-grace window — the renewal payment is being retried and unlimited access is paused until it succeeds). On `4080`, offer a "pay with Spark/SOGNI" fallback instead of auto-retrying in a loop.
 
+`billingMode` (`'auto' | 'subscription' | 'tokens'`, exported as `BillingMode`) is accepted by project params and by all three chat transports — `chat.completions.create()` (socket), `chat.hosted.create()` (REST `/v1/chat/completions`), and `chat.runs.create()` (durable runs serialize it as `billing_mode`).
+
 Unlimited fair-use accounting and enforcement are dynamic and server-side in the socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as fixed user-facing limits.
 
 Stripe checkout uses catalog plan IDs, not monthly/annual suffixed IDs:
