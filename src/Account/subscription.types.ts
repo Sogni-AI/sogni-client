@@ -8,12 +8,19 @@
 /**
  * Lifecycle state returned by `GET /v1/subscriptions/status`.
  *
- * `'grace_period'` does not by itself mean access was lost: provider-approved
- * billing-grace windows (Apple billing grace, Google Play grace) remain
- * entitled, with `active: true` and `currentPeriodEnd` reflecting the grace
- * end. A grace/delinquency state without a provider-granted window is not
- * entitled and returns `active: false`. Always rely on `active` for the
- * entitlement decision rather than the status string.
+ * `'grace_period'` never grants entitlement: `active` is `false` during grace.
+ * Grace means the billing provider (Apple billing grace, Google Play grace,
+ * Stripe retries) keeps retrying the renewal payment until the grace window
+ * ends; unlimited access is paused while the retry is in progress and resumes
+ * automatically once the renewal succeeds. Renders can still be paid with
+ * Spark/SOGNI in the meantime. During grace, `currentPeriodEnd` reflects when
+ * the payment-retry window ends — not paid-through access.
+ *
+ * Canceling during a free trial ends Unlimited access immediately by default:
+ * the server cuts the entitlement projection right away instead of letting the
+ * trial run to its end date. A regular cancel-at-period-end keeps access until
+ * `currentPeriodEnd`. Always rely on `active` for the entitlement decision
+ * rather than the status string.
  */
 export type SubscriptionStatus =
   | 'none'
