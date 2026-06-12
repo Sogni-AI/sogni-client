@@ -5,8 +5,10 @@ import CurrentAccount from './Account/CurrentAccount.js';
 import ApiClient, { ApiError, ApiResponse } from './ApiClient/index.js';
 import { SupernetType } from './ApiClient/WebSocketClient/types.js';
 import type {
+  AuthenticatedData,
   SocketEventName,
-  SocketEventSubscriptionsUpdatedData
+  SocketEventSubscriptionsUpdatedData,
+  SocketSubscriptionEntitlementData
 } from './ApiClient/WebSocketClient/events.js';
 import type {
   SocketEventSubscriptionInput,
@@ -257,12 +259,14 @@ export type {
   ToolFunction,
   ToolHistoryEntry,
   SogniToolsMode,
+  AuthenticatedData,
   SocketEventName,
   SocketEventSubscriptionInput,
   SocketEventSubscriptionName,
   SocketEventSubscriptions,
   SocketEventSubscriptionsUpdatedData,
   SocketEventSubscriptionUpdate,
+  SocketSubscriptionEntitlementData,
   VideoControlNetName,
   VideoControlNetParams,
   VideoFormat,

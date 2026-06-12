@@ -22,6 +22,7 @@ import {
   SubscriptionPlansResponseData,
   SubscriptionPlan,
   SubscriptionPortalSession,
+  SubscriptionStatus,
   SubscriptionStatusResponseData,
   SubscriptionTerm,
   SubscriptionUsage,
@@ -124,19 +125,24 @@ class AccountApi extends ApiGroup {
       };
     }
 
-    const status =
+    // The producer status domain (socket payload `subscription.status`) is:
+    // trialing | active | grace | cancelled | expired | revoked |
+    // needs_reconciliation. Mirror the REST snapshot mapping: grace →
+    // grace_period, revoked → canceled, needs_reconciliation → past_due, and
+    // cancelled → cancel_at_period_end while the paid period still runs.
+    const status: SubscriptionStatus =
       sub.status === 'grace'
         ? 'grace_period'
         : sub.status === 'cancelled'
           ? data.active
             ? 'cancel_at_period_end'
             : 'canceled'
-          : sub.status === 'canceled'
+          : sub.status === 'revoked'
             ? 'canceled'
-            : sub.status === 'expired'
-              ? 'expired'
-              : sub.status === 'past_due'
-                ? 'past_due'
+            : sub.status === 'needs_reconciliation'
+              ? 'past_due'
+              : sub.status === 'expired'
+                ? 'expired'
                 : sub.status === 'trialing'
                   ? 'trialing'
                   : sub.status === 'active'
@@ -145,6 +151,22 @@ class AccountApi extends ApiGroup {
                       ? 'active'
                       : 'none';
 
+    // During grace the date that matters is when the provider stops retrying
+    // the renewal payment. Mirror REST semantics by projecting `graceEnd`
+    // into `currentPeriodEnd`, falling back to `periodEnd` for older sockets
+    // that do not populate it.
+    const effectivePeriodEnd =
+      status === 'grace_period' && sub.graceEnd ? sub.graceEnd : sub.periodEnd;
+
+    // Newer sockets carry an explicit cancelAtPeriodEnd flag; older sockets
+    // only imply it through the 'cancelled' producer status.
+    const cancelAtPeriodEnd =
+      typeof sub.cancelAtPeriodEnd === 'boolean'
+        ? sub.cancelAtPeriodEnd
+        : sub.status === 'cancelled'
+          ? true
+          : undefined;
+
     return {
       active: data.active,
       status,
@@ -152,12 +174,20 @@ class AccountApi extends ApiGroup {
       ...(sub.term ? { term: sub.term } : {}),
       ...(sub.provider ? { provider: sub.provider } : {}),
       ...(sub.periodStart ? { currentPeriodStart: new Date(sub.periodStart).toISOString() } : {}),
-      ...(sub.periodEnd ? { currentPeriodEnd: new Date(sub.periodEnd).toISOString() } : {}),
-      ...(sub.status === 'cancelled' ? { cancelAtPeriodEnd: true } : {}),
+      ...(effectivePeriodEnd
+        ? { currentPeriodEnd: new Date(effectivePeriodEnd).toISOString() }
+        : {}),
+      ...(cancelAtPeriodEnd !== undefined ? { cancelAtPeriodEnd } : {}),
+      ...(sub.scheduledTier ? { scheduledTier: sub.scheduledTier } : {}),
+      ...(sub.scheduledTerm ? { scheduledTerm: sub.scheduledTerm } : {}),
+      ...(sub.scheduledChangeAt
+        ? { scheduledChangeAt: new Date(sub.scheduledChangeAt).toISOString() }
+        : {}),
       capabilities:
-        data.active && (sub.tier === 'unlimited' || sub.tier === 'unlimited_pro')
+        sub.capabilities ??
+        (data.active && (sub.tier === 'unlimited' || sub.tier === 'unlimited_pro')
           ? { unlimited: true }
-          : {}
+          : {})
     };
   }
 

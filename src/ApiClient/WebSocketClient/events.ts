@@ -16,6 +16,34 @@ export interface SocketSubscriptionEntitlementData {
     graceEnd: number;
     trialEnd: number;
     version: string | null;
+    /**
+     * Whether the subscription is set to end when the current period ends.
+     * Carried by newer socket builds only; when absent the SDK falls back to
+     * inferring it from `status === 'cancelled'`.
+     */
+    cancelAtPeriodEnd?: boolean;
+    /**
+     * Tier the plan switches to at the next renewal when a change is
+     * scheduled. Carried by newer socket builds only; `null` when no change
+     * is pending.
+     */
+    scheduledTier?: string | null;
+    /**
+     * Billing term the plan switches to at the next renewal when a change is
+     * scheduled. Carried by newer socket builds only; `null` when no change
+     * is pending.
+     */
+    scheduledTerm?: string | null;
+    /**
+     * Epoch milliseconds when the scheduled plan/term change takes effect.
+     * Carried by newer socket builds only; `null` when no change is pending.
+     */
+    scheduledChangeAt?: number | null;
+    /**
+     * Capability flags enabled by this subscription, when provided by the
+     * server. When absent the SDK derives a minimal local map.
+     */
+    capabilities?: Record<string, boolean> | null;
   } | null;
 }
 
