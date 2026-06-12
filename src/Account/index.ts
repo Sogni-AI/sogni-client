@@ -34,6 +34,10 @@ import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import CurrentAccount from './CurrentAccount.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
+import {
+  AuthenticatedData,
+  SocketSubscriptionEntitlementData
+} from '../ApiClient/WebSocketClient/events.js';
 import { delay } from '../lib/utils/index.js';
 import {
   ApiKeyAuthManager,
@@ -69,6 +73,10 @@ class AccountApi extends ApiGroup {
     this.client.socket.on('balanceUpdate', this.handleBalanceUpdate.bind(this));
     this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
     this.client.socket.on('authenticated', this.handleSocketAuthenticated.bind(this));
+    this.client.socket.on(
+      'subscriptionEntitlementUpdated',
+      this.handleSubscriptionEntitlementUpdated.bind(this)
+    );
     this.client.on('connecting', this.handleServerConnecting.bind(this));
     this.client.on('connected', this.handleServerConnected.bind(this));
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
@@ -104,13 +112,73 @@ class AccountApi extends ApiGroup {
     });
   }
 
-  private handleSocketAuthenticated(data: { username: string; address: string }) {
+  private mapSocketSubscriptionEntitlement(
+    data: SocketSubscriptionEntitlementData | undefined
+  ): SubscriptionEntitlementSnapshot | undefined {
+    if (!data) return undefined;
+    const sub = data.subscription;
+    if (!sub?.status) {
+      return {
+        active: false,
+        status: 'none'
+      };
+    }
+
+    const status =
+      sub.status === 'grace'
+        ? 'grace_period'
+        : sub.status === 'cancelled'
+          ? data.active
+            ? 'cancel_at_period_end'
+            : 'canceled'
+          : sub.status === 'canceled'
+            ? 'canceled'
+            : sub.status === 'expired'
+              ? 'expired'
+              : sub.status === 'past_due'
+                ? 'past_due'
+                : sub.status === 'trialing'
+                  ? 'trialing'
+                  : sub.status === 'active'
+                    ? 'active'
+                    : data.active
+                      ? 'active'
+                      : 'none';
+
+    return {
+      active: data.active,
+      status,
+      ...(sub.tier ? { tier: sub.tier } : {}),
+      ...(sub.term ? { term: sub.term } : {}),
+      ...(sub.provider ? { provider: sub.provider } : {}),
+      ...(sub.periodStart ? { currentPeriodStart: new Date(sub.periodStart).toISOString() } : {}),
+      ...(sub.periodEnd ? { currentPeriodEnd: new Date(sub.periodEnd).toISOString() } : {}),
+      ...(sub.status === 'cancelled' ? { cancelAtPeriodEnd: true } : {}),
+      capabilities:
+        data.active && (sub.tier === 'unlimited' || sub.tier === 'unlimited_pro')
+          ? { unlimited: true }
+          : {}
+    };
+  }
+
+  private handleSubscriptionEntitlementUpdated(data: SocketSubscriptionEntitlementData) {
+    const subscription = this.mapSocketSubscriptionEntitlement(data);
+    if (subscription) {
+      this.currentAccount._update({ subscription });
+    }
+  }
+
+  private handleSocketAuthenticated(data: AuthenticatedData) {
     // Populate account early from socket authenticated event (me() will overwrite with full data)
+    const subscription = this.mapSocketSubscriptionEntitlement(data.subscriptionEntitlement);
     if (this.client.auth instanceof ApiKeyAuthManager) {
       this.currentAccount._update({
         username: data.username,
-        walletAddress: data.address
+        walletAddress: data.address,
+        ...(subscription ? { subscription } : {})
       });
+    } else if (subscription) {
+      this.currentAccount._update({ subscription });
     }
   }
 
@@ -685,9 +753,10 @@ class AccountApi extends ApiGroup {
    * ```
    */
   async getSubscriptionUsage(): Promise<SubscriptionUsage> {
-    const res = await this.client.rest.get<ApiResponse<SubscriptionUsageResponseData>>(
-      '/v1/subscriptions/usage'
-    );
+    const res =
+      await this.client.rest.get<ApiResponse<SubscriptionUsageResponseData>>(
+        '/v1/subscriptions/usage'
+      );
     return res.data.usage;
   }
 

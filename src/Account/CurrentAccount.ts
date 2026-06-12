@@ -23,8 +23,9 @@ export interface AccountData {
   email?: string;
   /**
    * The most recently fetched subscription entitlement snapshot.
-   * `undefined` until {@link AccountApi.getSubscriptionStatus} or
-   * {@link AccountApi.refreshSubscription} has been called.
+   * `undefined` until the account receives a socket entitlement snapshot or
+   * {@link AccountApi.getSubscriptionStatus} / {@link AccountApi.refreshSubscription}
+   * has been called.
    *
    * Subscribe to the `'updated'` event (inherited from `DataEntity`) to react
    * to changes; the `changedKeys` array will include `'subscription'` when
@@ -101,8 +102,9 @@ class CurrentAccount extends DataEntity<AccountData> {
 
   /**
    * The most recently cached subscription entitlement snapshot.
-   * `undefined` until {@link AccountApi.getSubscriptionStatus} or
-   * {@link AccountApi.refreshSubscription} has been called.
+   * `undefined` until the account receives a socket entitlement snapshot or
+   * {@link AccountApi.getSubscriptionStatus} / {@link AccountApi.refreshSubscription}
+   * has been called.
    */
   get subscription(): SubscriptionEntitlementSnapshot | undefined {
     return this.data.subscription;
@@ -115,8 +117,8 @@ class CurrentAccount extends DataEntity<AccountData> {
    *
    * Returns `false` when no entitlement snapshot has been fetched yet, when
    * the server reports no active entitlement, or when the tier is not an
-   * Unlimited tier. Call {@link AccountApi.refreshSubscription} to populate the
-   * snapshot first.
+   * Unlimited tier. Call {@link AccountApi.refreshSubscription} to force a REST
+   * refresh when no socket entitlement snapshot has been received yet.
    */
   get isUnlimited(): boolean {
     const sub = this.data.subscription;

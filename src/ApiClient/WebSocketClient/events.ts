@@ -2,6 +2,23 @@ import { SupernetType } from './types.js';
 import { Balances } from '../../Account/types.js';
 import { LLMJobCost, LLMModelInfo, ToolCallDelta } from '../../Chat/types.js';
 
+export interface SocketSubscriptionEntitlementData {
+  active: boolean;
+  trialing: boolean;
+  trialCapped: boolean;
+  subscription: {
+    provider: string | null;
+    tier: string | null;
+    term: string | null;
+    status: string | null;
+    periodStart: number;
+    periodEnd: number;
+    graceEnd: number;
+    trialEnd: number;
+    version: string | null;
+  } | null;
+}
+
 export interface AuthenticatedData {
   id: string;
   clientType: 'artist' | 'worker';
@@ -25,6 +42,7 @@ export interface AuthenticatedData {
       net: string;
     };
   };
+  subscriptionEntitlement?: SocketSubscriptionEntitlementData;
   activeProjects: [];
   unclaimedCompletedProjects: [];
   isMainnet: boolean;
@@ -167,6 +185,10 @@ export type SocketEventMap = {
    * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
    */
   authenticated: AuthenticatedData;
+  /**
+   * @event WebSocketClient#subscriptionEntitlementUpdated - Subscription entitlement changed while connected
+   */
+  subscriptionEntitlementUpdated: SocketSubscriptionEntitlementData;
   /**
    * @event WebSocketClient#balanceUpdate - Received balance update
    */
