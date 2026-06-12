@@ -14,8 +14,35 @@ const path = require('node:path');
 const AccountApi = require('../dist/Account/index.js').default;
 const CurrentAccount = require('../dist/Account/CurrentAccount.js').default;
 
-class StubAuth {
+class StubListeners {
   constructor() {
+    this._listeners = new Map();
+  }
+
+  on(event, handler) {
+    const list = this._listeners.get(event) ?? [];
+    list.push(handler);
+    this._listeners.set(event, list);
+  }
+
+  off(event, handler) {
+    const list = this._listeners.get(event) ?? [];
+    this._listeners.set(
+      event,
+      list.filter((h) => h !== handler)
+    );
+  }
+
+  emit(event, data) {
+    for (const handler of this._listeners.get(event) ?? []) {
+      handler(data);
+    }
+  }
+}
+
+class StubAuth extends StubListeners {
+  constructor() {
+    super();
     this.isAuthenticated = true;
   }
 
@@ -26,12 +53,9 @@ class StubAuth {
   clear() {
     this.isAuthenticated = false;
   }
-
-  on() {}
-  off() {}
 }
 
-class StubSocket {
+class StubSocket extends StubListeners {
   get isConnected() {
     return false;
   }
@@ -39,9 +63,6 @@ class StubSocket {
   get supernetType() {
     return 'fast';
   }
-
-  on() {}
-  off() {}
 }
 
 function makeStubClient() {
@@ -383,18 +404,20 @@ async function run() {
     ca._update({ subscription: { active: true, status: 'trialing', tier: 'unlimited_pro' } });
     assert.equal(ca.isUnlimited, true, 'isUnlimited must be true for trialing unlimited_pro');
 
+    // Grace never grants entitlement: access pauses while the provider
+    // retries the renewal payment, so the server always projects active=false.
     ca._update({ subscription: { active: false, status: 'grace_period', tier: 'unlimited' } });
     assert.equal(
       ca.isUnlimited,
       false,
-      'isUnlimited must be false for grace without a provider-granted window (active=false)'
+      'isUnlimited must be false during grace (access pauses while the renewal payment retries)'
     );
 
-    ca._update({ subscription: { active: true, status: 'grace_period', tier: 'unlimited' } });
+    ca._update({ subscription: { active: false, status: 'grace_period', tier: 'unlimited_pro' } });
     assert.equal(
       ca.isUnlimited,
-      true,
-      'isUnlimited must stay true during a provider-approved grace window (active=true)'
+      false,
+      'grace never grants entitlement regardless of tier — active is false until the renewal succeeds'
     );
 
     ca._update({
@@ -477,6 +500,360 @@ async function run() {
     assert.ok(
       accountDeclarations.includes('getSubscriptionUsage'),
       'getSubscriptionUsage must be part of the public Account API surface'
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Socket entitlement mapper: real producer status domain + lossy fields
+  // ---------------------------------------------------------------------
+
+  const PERIOD_START = Date.UTC(2026, 5, 1); // 2026-06-01T00:00:00.000Z
+  const PERIOD_END = Date.UTC(2026, 6, 1); // 2026-07-01T00:00:00.000Z
+  const GRACE_END = Date.UTC(2026, 6, 8); // 2026-07-08T00:00:00.000Z
+
+  function socketEntitlement(overrides = {}, subOverrides = {}) {
+    return {
+      active: true,
+      trialing: false,
+      trialCapped: false,
+      subscription: {
+        provider: 'stripe',
+        tier: 'unlimited',
+        term: 'monthly',
+        status: 'active',
+        periodStart: PERIOD_START,
+        periodEnd: PERIOD_END,
+        graceEnd: 0,
+        trialEnd: 0,
+        version: null,
+        ...subOverrides
+      },
+      ...overrides
+    };
+  }
+
+  {
+    // mapSocketSubscriptionEntitlement maps the REAL producer status domain
+    // (trialing/active/grace/cancelled/expired/revoked/needs_reconciliation)
+    // to REST snapshot statuses, converting epoch ms to ISO strings.
+    const { api } = makeApi();
+    const map = (data) => api.mapSocketSubscriptionEntitlement(data);
+
+    assert.equal(map(undefined), undefined, 'mapper must return undefined for missing payloads');
+    assert.deepEqual(
+      map({ active: false, trialing: false, trialCapped: false, subscription: null }),
+      { active: false, status: 'none' },
+      'a null subscription object must map to an inactive none snapshot'
+    );
+
+    assert.deepEqual(
+      map(socketEntitlement()),
+      {
+        active: true,
+        status: 'active',
+        tier: 'unlimited',
+        term: 'monthly',
+        provider: 'stripe',
+        currentPeriodStart: '2026-06-01T00:00:00.000Z',
+        currentPeriodEnd: '2026-07-01T00:00:00.000Z',
+        capabilities: { unlimited: true }
+      },
+      "producer 'active' must map to 'active' with epoch ms converted to ISO timestamps"
+    );
+
+    assert.equal(
+      map(socketEntitlement({}, { status: 'trialing' })).status,
+      'trialing',
+      "producer 'trialing' must map to 'trialing'"
+    );
+
+    const grace = map(socketEntitlement({ active: false }, { status: 'grace', graceEnd: GRACE_END }));
+    assert.equal(grace.status, 'grace_period', "producer 'grace' must map to 'grace_period'");
+    assert.equal(grace.active, false, 'grace is never entitled — active must stay false');
+    assert.equal(
+      grace.currentPeriodEnd,
+      '2026-07-08T00:00:00.000Z',
+      'grace must project graceEnd into currentPeriodEnd (the renewal-retry window end)'
+    );
+    assert.deepEqual(grace.capabilities, {}, 'inactive grace must not fabricate capabilities');
+
+    const graceNoEnd = map(socketEntitlement({ active: false }, { status: 'grace' }));
+    assert.equal(
+      graceNoEnd.currentPeriodEnd,
+      '2026-07-01T00:00:00.000Z',
+      'grace without graceEnd (older sockets) must fall back to periodEnd'
+    );
+
+    const cancelRunning = map(socketEntitlement({ active: true }, { status: 'cancelled' }));
+    assert.equal(
+      cancelRunning.status,
+      'cancel_at_period_end',
+      "producer 'cancelled' with active=true must map to 'cancel_at_period_end'"
+    );
+    assert.equal(
+      cancelRunning.cancelAtPeriodEnd,
+      true,
+      "producer 'cancelled' must infer cancelAtPeriodEnd when the socket omits the flag"
+    );
+
+    const cancelEnded = map(socketEntitlement({ active: false }, { status: 'cancelled' }));
+    assert.equal(
+      cancelEnded.status,
+      'canceled',
+      "producer 'cancelled' with active=false must map to 'canceled'"
+    );
+
+    assert.equal(
+      map(socketEntitlement({ active: false }, { status: 'expired' })).status,
+      'expired',
+      "producer 'expired' must map to 'expired'"
+    );
+    assert.equal(
+      map(socketEntitlement({ active: false }, { status: 'revoked' })).status,
+      'canceled',
+      "producer 'revoked' must map to 'canceled' (mirrors the REST snapshot mapping)"
+    );
+    assert.equal(
+      map(socketEntitlement({ active: false }, { status: 'needs_reconciliation' })).status,
+      'past_due',
+      "producer 'needs_reconciliation' must map to 'past_due' (mirrors the REST snapshot mapping)"
+    );
+  }
+
+  {
+    // Newer socket payload fields must pass through: explicit cancelAtPeriodEnd
+    // wins over the status inference, scheduled-change fields surface with
+    // epoch ms converted to ISO, and provided capabilities are not clobbered.
+    const { api } = makeApi();
+    const map = (data) => api.mapSocketSubscriptionEntitlement(data);
+
+    assert.equal(
+      map(socketEntitlement({ active: true }, { status: 'cancelled', cancelAtPeriodEnd: false }))
+        .cancelAtPeriodEnd,
+      false,
+      'an explicit cancelAtPeriodEnd:false must win over the cancelled-status inference'
+    );
+    assert.equal(
+      map(socketEntitlement({}, { cancelAtPeriodEnd: true })).cancelAtPeriodEnd,
+      true,
+      'an explicit cancelAtPeriodEnd:true must pass through on non-cancelled statuses'
+    );
+    assert.equal(
+      map(socketEntitlement()).cancelAtPeriodEnd,
+      undefined,
+      'cancelAtPeriodEnd must stay absent when the socket omits it and status is not cancelled'
+    );
+
+    const scheduled = map(
+      socketEntitlement(
+        {},
+        {
+          tier: 'unlimited_pro',
+          scheduledTier: 'unlimited',
+          scheduledTerm: 'monthly',
+          scheduledChangeAt: PERIOD_END
+        }
+      )
+    );
+    assert.equal(scheduled.scheduledTier, 'unlimited', 'scheduledTier must pass through');
+    assert.equal(scheduled.scheduledTerm, 'monthly', 'scheduledTerm must pass through');
+    assert.equal(
+      scheduled.scheduledChangeAt,
+      '2026-07-01T00:00:00.000Z',
+      'scheduledChangeAt must convert epoch ms to an ISO timestamp'
+    );
+
+    const unscheduled = map(socketEntitlement());
+    assert.equal(unscheduled.scheduledTier, undefined, 'no scheduledTier when none is pending');
+    assert.equal(unscheduled.scheduledTerm, undefined, 'no scheduledTerm when none is pending');
+    assert.equal(
+      unscheduled.scheduledChangeAt,
+      undefined,
+      'no scheduledChangeAt when none is pending'
+    );
+
+    assert.deepEqual(
+      map(socketEntitlement({}, { capabilities: { unlimited: true, priority_queue: true } }))
+        .capabilities,
+      { unlimited: true, priority_queue: true },
+      'server-provided capabilities must pass through without being clobbered'
+    );
+    assert.deepEqual(
+      map(socketEntitlement()).capabilities,
+      { unlimited: true },
+      'capabilities must only be fabricated locally when the payload omits them'
+    );
+  }
+
+  {
+    // handleSubscriptionEntitlementUpdated must write the mapped snapshot into
+    // currentAccount via the socket event.
+    const { api, client } = makeApi();
+    client.socket.emit('subscriptionEntitlementUpdated', socketEntitlement({}, { version: '3' }));
+
+    assert.equal(api.currentAccount.subscription?.status, 'active');
+    assert.equal(api.currentAccount.subscription?.tier, 'unlimited');
+    assert.equal(api.currentAccount.isUnlimited, true);
+  }
+
+  {
+    // authenticated-event seeding must populate the snapshot without any REST
+    // call when the payload carries an entitlement.
+    const { api, client } = makeApi();
+    client.socket.emit('authenticated', {
+      username: 'tester',
+      address: '0xabc',
+      subscriptionEntitlement: socketEntitlement({}, { version: '4' })
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(api.currentAccount.subscription?.status, 'active');
+    assert.equal(
+      client.rest._lastCall,
+      null,
+      'authenticated seeding must not trigger a REST refresh when entitlement was provided'
+    );
+  }
+
+  {
+    // Reconnect fallback: an authenticated payload with NO entitlement (older
+    // socket or flag off) must schedule a best-effort REST refresh.
+    const { api, client } = makeApi();
+    const snapshot = { active: true, status: 'active', tier: 'unlimited' };
+    client.rest._nextPayload = apiResponse({ subscription: snapshot });
+
+    client.socket.emit('authenticated', { username: 'tester', address: '0xabc' });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(
+      client.rest._lastCall?.endpoint,
+      '/v1/subscriptions/status',
+      'authenticated without entitlement must fall back to a REST subscription refresh'
+    );
+    assert.deepEqual(api.currentAccount.subscription, snapshot);
+  }
+
+  {
+    // Version guard: a stale REST response that started before a socket push
+    // was applied must be discarded instead of overwriting the fresher push.
+    const { api, client } = makeApi();
+    const socketPush = socketEntitlement({ active: true }, { version: '2' });
+
+    const staleRestSnapshot = { active: false, status: 'none' };
+    const originalGet = client.rest.get.bind(client.rest);
+    client.rest.get = async (endpoint, query) => {
+      // Simulate the socket push landing while the REST request is in flight.
+      client.socket.emit('subscriptionEntitlementUpdated', socketPush);
+      return originalGet(endpoint, query);
+    };
+    client.rest._nextPayload = apiResponse({ subscription: staleRestSnapshot });
+
+    const result = await api.getSubscriptionStatus();
+
+    assert.equal(
+      api.currentAccount.subscription?.status,
+      'active',
+      'the socket push applied mid-flight must win over the stale REST response'
+    );
+    assert.equal(
+      result.status,
+      'active',
+      'getSubscriptionStatus() must return the fresher cached snapshot when REST is discarded'
+    );
+    assert.equal(api.currentAccount.isUnlimited, true);
+  }
+
+  {
+    // Version guard: REST applies normally when no socket push lands mid-flight.
+    const { api, client } = makeApi();
+    client.socket.emit('subscriptionEntitlementUpdated', socketEntitlement({}, { version: '2' }));
+
+    const restSnapshot = { active: false, status: 'canceled', tier: 'unlimited' };
+    client.rest._nextPayload = apiResponse({ subscription: restSnapshot });
+    const result = await api.getSubscriptionStatus();
+
+    assert.deepEqual(result, restSnapshot);
+    assert.deepEqual(
+      api.currentAccount.subscription,
+      restSnapshot,
+      'a REST refresh started after the socket push must apply normally'
+    );
+  }
+
+  {
+    // Version guard: a socket push older than the applied version is ignored,
+    // while a missing version still applies conservatively.
+    const { api, client } = makeApi();
+    client.socket.emit(
+      'subscriptionEntitlementUpdated',
+      socketEntitlement({}, { version: '5', tier: 'unlimited_pro' })
+    );
+    assert.equal(api.currentAccount.subscription?.tier, 'unlimited_pro');
+
+    client.socket.emit(
+      'subscriptionEntitlementUpdated',
+      socketEntitlement({ active: false }, { version: '3', status: 'expired' })
+    );
+    assert.equal(
+      api.currentAccount.subscription?.tier,
+      'unlimited_pro',
+      'a socket push with a lower version than the applied one must be ignored'
+    );
+    assert.equal(api.currentAccount.subscription?.status, 'active');
+
+    client.socket.emit(
+      'subscriptionEntitlementUpdated',
+      socketEntitlement({ active: false }, { version: null, status: 'expired' })
+    );
+    assert.equal(
+      api.currentAccount.subscription?.status,
+      'expired',
+      'a socket push without a version must apply conservatively'
+    );
+  }
+
+  {
+    // Redundant emits: re-applying a deep-equal snapshot (reconnect re-seed /
+    // tab replay) must not emit another 'updated' event.
+    const { api, client } = makeApi();
+    let subscriptionUpdates = 0;
+    api.currentAccount.on('updated', (keys) => {
+      if (keys.includes('subscription')) subscriptionUpdates += 1;
+    });
+
+    client.socket.emit('subscriptionEntitlementUpdated', socketEntitlement({}, { version: '2' }));
+    client.socket.emit('subscriptionEntitlementUpdated', socketEntitlement({}, { version: '2' }));
+    assert.equal(
+      subscriptionUpdates,
+      1,
+      'an identical entitlement re-seed must not emit a redundant updated event'
+    );
+
+    client.socket.emit(
+      'subscriptionEntitlementUpdated',
+      socketEntitlement({ active: false }, { version: '3', status: 'expired' })
+    );
+    assert.equal(subscriptionUpdates, 2, 'a changed snapshot must still emit an updated event');
+  }
+
+  {
+    // Logout must reset both the snapshot and the version guard so the next
+    // login starts from a clean slate.
+    const { api, client } = makeApi();
+    client.socket.emit('subscriptionEntitlementUpdated', socketEntitlement({}, { version: '5' }));
+    assert.equal(api.currentAccount.isUnlimited, true);
+
+    client.auth.emit('updated', false);
+    assert.equal(api.currentAccount.subscription, undefined, 'logout must clear the snapshot');
+
+    client.socket.emit(
+      'subscriptionEntitlementUpdated',
+      socketEntitlement({}, { version: '1', tier: 'unlimited_pro' })
+    );
+    assert.equal(
+      api.currentAccount.subscription?.tier,
+      'unlimited_pro',
+      'after logout the version guard must reset and accept lower versions again'
     );
   }
 
