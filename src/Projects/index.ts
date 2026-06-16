@@ -426,6 +426,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         message: data.error_message
       };
     }
+    if (data.subscriptionLimit) {
+      error.subscriptionLimit = true;
+      if (data.requiredPlans) error.requiredPlans = data.requiredPlans;
+      if (data.feature) error.feature = data.feature;
+      if (data.limitation) error.limitation = data.limitation;
+    }
     if (!data.imgID) {
       this.emit('project', {
         type: 'error',

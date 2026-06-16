@@ -20,6 +20,7 @@ const {
 } = require('../dist/Chat/ChatJobError.js');
 const { ApiError } = require('../dist/ApiClient/index.js');
 const { SUBSCRIPTION_ERROR_CODES } = require('../dist/types/ErrorData.js');
+const ProjectsApi = require('../dist/Projects/index.js').default;
 
 class StubListeners {
   constructor() {
@@ -1356,6 +1357,35 @@ async function run() {
     assert.deepEqual(err.requiredPlans, ['unlimited_pro']);
     assert.equal(err.feature, 'video_4k_render');
     assert.equal(err.limitation, '4K video render requires Unlimited Pro');
+  }
+
+  {
+    // Render path: a jobError carrying the 4081 discriminator must populate the
+    // structured fields on the emitted ErrorData (project-level, no imgID).
+    const client = makeStubClient();
+    const projects = new ProjectsApi({ client, eip712: {} });
+    const events = [];
+    projects.on('project', (e) => events.push(e));
+
+    // Drive the private mapper through the socket 'jobError' event the API wires.
+    client.socket.emit('jobError', {
+      jobID: 'proj_4k',
+      isFromWorker: true,
+      error: 4081,
+      error_message: '4K video render requires Unlimited Pro',
+      subscriptionLimit: true,
+      requiredPlans: ['unlimited_pro'],
+      feature: 'video_4k_render',
+      limitation: '4K video render requires Unlimited Pro'
+    });
+
+    const errEvent = events.find((e) => e.type === 'error' && e.projectId === 'proj_4k');
+    assert.ok(errEvent, 'a project-level error event must be emitted for an imgID-less jobError');
+    assert.equal(errEvent.error.code, 4081, 'numeric error must pass through as code');
+    assert.equal(errEvent.error.subscriptionLimit, true, 'render ErrorData must carry subscriptionLimit');
+    assert.deepEqual(errEvent.error.requiredPlans, ['unlimited_pro']);
+    assert.equal(errEvent.error.feature, 'video_4k_render');
+    assert.equal(errEvent.error.limitation, '4K video render requires Unlimited Pro');
   }
 
   console.log('check-subscription-api: ALL TESTS PASSED');
