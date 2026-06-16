@@ -1073,6 +1073,44 @@ async function run() {
   }
 
   {
+    // Socket llmJobError with the flat 4081 contract must surface the typed
+    // structured fields on the streamed ChatJobError.
+    const { api, client } = makeChatApi();
+    const stream = await api.completions.create({
+      model: 'qwen3.6-test',
+      messages: CHAT_MESSAGES,
+      stream: true,
+      billingMode: 'subscription'
+    });
+    const { jobID } = client.socket._sent.at(-1).data;
+    client.socket.emit('llmJobError', {
+      jobID,
+      error: 'subscription_unavailable',
+      error_code: '4081',
+      error_message: '4K video render requires Unlimited Pro',
+      subscriptionLimit: true,
+      requiredPlans: ['unlimited_pro'],
+      feature: 'video_4k_render',
+      limitation: '4K video render requires Unlimited Pro'
+    });
+    let failure;
+    try {
+      for await (const chunk of stream) {
+        void chunk;
+      }
+    } catch (err) {
+      failure = err;
+    }
+    assert.ok(failure instanceof ChatJobError, 'socket 4081 must be a ChatJobError');
+    assert.equal(failure.code, '4081');
+    assert.equal(failure.subscriptionErrorCode, 4081);
+    assert.equal(failure.subscriptionLimit, true, 'socket path must forward subscriptionLimit');
+    assert.deepEqual(failure.requiredPlans, ['unlimited_pro']);
+    assert.equal(failure.feature, 'video_4k_render');
+    assert.equal(failure.limitation, '4K video render requires Unlimited Pro');
+  }
+
+  {
     // Non-streaming completion rejection must keep the composed message and
     // still carry the denial code; errors without error_code keep code
     // undefined (and no fabricated subscription mapping).
@@ -1130,9 +1168,15 @@ async function run() {
     client.rest.post = async () => {
       throw new ApiError(402, {
         error: {
-          message: 'Subscription cannot cover this job',
+          message: '4K video render requires Unlimited Pro',
           type: 'subscription_unavailable',
-          code: '4078'
+          code: '4081',
+          subscription: {
+            subscriptionLimit: true,
+            requiredPlans: ['unlimited_pro'],
+            feature: 'video_4k_render',
+            limitation: '4K video render requires Unlimited Pro'
+          }
         }
       });
     };
@@ -1140,10 +1184,13 @@ async function run() {
       api.hosted.create({ model: 'qwen3.6-test', messages: CHAT_MESSAGES }),
       (err) => {
         assert.ok(err instanceof ChatJobError, 'envelope-shaped 402 must become ChatJobError');
-        assert.equal(err.code, '4078');
+        assert.equal(err.code, '4081');
         assert.equal(err.errorType, 'subscription_unavailable');
         assert.equal(err.status, 402);
-        assert.equal(err.message, 'Subscription cannot cover this job');
+        assert.equal(err.subscriptionLimit, true, 'hosted REST must forward subscriptionLimit');
+        assert.deepEqual(err.requiredPlans, ['unlimited_pro']);
+        assert.equal(err.feature, 'video_4k_render');
+        assert.equal(err.limitation, '4K video render requires Unlimited Pro');
         return true;
       }
     );

@@ -547,7 +547,11 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
             code: extracted.code,
             errorType: extracted.errorType,
             status: error.status,
-            payload: error.payload
+            payload: error.payload,
+            subscriptionLimit: extracted.subscriptionLimit,
+            requiredPlans: extracted.requiredPlans,
+            feature: extracted.feature,
+            limitation: extracted.limitation
           });
         }
       }
@@ -583,7 +587,11 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
           code: extracted.code,
           errorType: extracted.errorType,
           status: response.status,
-          payload
+          payload,
+          subscriptionLimit: extracted.subscriptionLimit,
+          requiredPlans: extracted.requiredPlans,
+          feature: extracted.feature,
+          limitation: extracted.limitation
         });
       }
       const err = new Error(message);
@@ -995,7 +1003,11 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         code: data.error_code,
         errorType: data.error !== undefined ? String(data.error) : undefined,
         jobID: data.jobID,
-        payload: data
+        payload: data,
+        subscriptionLimit: data.subscriptionLimit,
+        requiredPlans: data.requiredPlans,
+        feature: data.feature,
+        limitation: data.limitation
       })
     );
     this.activeStreams.delete(data.jobID);
