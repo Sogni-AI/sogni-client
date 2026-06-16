@@ -1233,6 +1233,26 @@ async function run() {
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Subscription FEATURE-limit (code 4081): const + structured ErrorData
+  // ---------------------------------------------------------------------
+
+  {
+    // 4081 must be a recognized subscription error code so downstream
+    // getters/helpers treat a feature-gate denial as a subscription denial.
+    assert.equal(
+      SUBSCRIPTION_ERROR_CODES.SUBSCRIPTION_FEATURE_REQUIRES_UPGRADE,
+      4081,
+      'SUBSCRIPTION_ERROR_CODES must define SUBSCRIPTION_FEATURE_REQUIRES_UPGRADE = 4081'
+    );
+    const known = Object.values(SUBSCRIPTION_ERROR_CODES);
+    assert.ok(known.includes(4081), '4081 must be enumerable in SUBSCRIPTION_ERROR_CODES');
+    assert.ok(
+      known.includes(4078) && known.includes(4079) && known.includes(4080),
+      'the existing subscription denial codes must remain intact'
+    );
+  }
+
   console.log('check-subscription-api: ALL TESTS PASSED');
 }
 
