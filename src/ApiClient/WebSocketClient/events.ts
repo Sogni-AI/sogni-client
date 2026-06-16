@@ -1,6 +1,7 @@
 import { SupernetType } from './types.js';
 import { Balances } from '../../Account/types.js';
 import { LLMJobCost, LLMModelInfo, ToolCallDelta } from '../../Chat/types.js';
+import { SubscriptionPlanId } from '../../Account/subscription.types.js';
 
 export interface SocketSubscriptionEntitlementData {
   active: boolean;
@@ -85,6 +86,14 @@ export type JobErrorData = {
   isFromWorker: boolean;
   error_message: string;
   error: number | string;
+  /** `true` when this render failure is a subscription FEATURE-gate denial (4081). */
+  subscriptionLimit?: boolean;
+  /** Plans that would satisfy the gated feature, cheapest-first. */
+  requiredPlans?: SubscriptionPlanId[];
+  /** Stable machine key for the gated capability, e.g. `'video_4k_render'`. */
+  feature?: string;
+  /** Standalone user-facing English describing the limitation. */
+  limitation?: string;
 };
 
 export type JobProgressData = {
@@ -210,6 +219,14 @@ export type LLMJobErrorData = {
   error_message: string;
   /** Worker username that was processing this request (if assigned) */
   workerName?: string;
+  /** `true` when this failure is a subscription FEATURE-gate denial (4081). */
+  subscriptionLimit?: boolean;
+  /** Plans that would satisfy the gated feature, cheapest-first. */
+  requiredPlans?: SubscriptionPlanId[];
+  /** Stable machine key for the gated capability, e.g. `'video_4k_render'`. */
+  feature?: string;
+  /** Standalone user-facing English describing the limitation. */
+  limitation?: string;
 };
 
 export type SocketEventSubscriptionsUpdatedData = {
