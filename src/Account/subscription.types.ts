@@ -105,6 +105,15 @@ export interface SubscriptionEntitlementSnapshot {
   scheduledChangeAt?: string;
   /** Feature flags or capability names enabled by this subscription. */
   capabilities?: Record<string, boolean>;
+  /**
+   * Frontier vendor-model discount (basis points) this member currently
+   * receives on the artist-facing price of premium third-party vendor models
+   * (`gpt-image-2`, `seedance-2-0`, `seedance-2-0-fast`). Present only when the
+   * entitlement is active (the discount applies); absent otherwise. The
+   * authoritative charge is enforced server-side; this drives UI display. For
+   * example `500` = 5% (Unlimited), `1000` = 10% (Unlimited Pro).
+   */
+  frontierDiscountBps?: number;
 }
 
 /**
@@ -195,6 +204,15 @@ export interface SubscriptionPlan {
    * Apple SKUs are supplied by StoreKit rather than this catalog.
    */
   google?: { productId: string };
+  /**
+   * Frontier vendor-model discount for this tier, in basis points, applied to
+   * the artist-facing price of premium third-party vendor models
+   * (`gpt-image-2`, `seedance-2-0`, `seedance-2-0-fast`) while the member is
+   * subscribed. Drives member-benefit display and non-member upsell copy so
+   * consumers render the rate without hardcoding it (`500` = 5%, `1000` = 10%).
+   * The discount itself is enforced server-side at the cost layer.
+   */
+  vendorDiscountBps: number;
 }
 
 /**

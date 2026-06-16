@@ -150,7 +150,10 @@ async function run() {
       // apply at renewal; the current tier keeps benefits until then).
       scheduledTier: 'unlimited',
       scheduledTerm: 'monthly',
-      scheduledChangeAt: '2026-07-01T00:00:00.000Z'
+      scheduledChangeAt: '2026-07-01T00:00:00.000Z',
+      // Frontier vendor-model discount (bps) the active member currently
+      // receives on gpt-image-2 / seedance pricing must pass through.
+      frontierDiscountBps: 500
     };
     client.rest._nextPayload = apiResponse({ subscription: snapshot });
 
@@ -163,6 +166,11 @@ async function run() {
     );
     assert.equal(client.rest._lastCall.method, 'GET');
     assert.deepEqual(result, snapshot, 'getSubscriptionStatus() must unwrap data.subscription');
+    assert.equal(
+      result.frontierDiscountBps,
+      500,
+      'getSubscriptionStatus() must surface frontierDiscountBps for an active member'
+    );
     assert.deepEqual(
       api.currentAccount.subscription,
       snapshot,
@@ -180,7 +188,8 @@ async function run() {
         term: 'monthly',
         interval: 'month',
         priceUsd: 20,
-        displayName: 'Unlimited (Monthly)'
+        displayName: 'Unlimited (Monthly)',
+        vendorDiscountBps: 500
       },
       {
         planId: 'unlimited_pro',
@@ -188,7 +197,8 @@ async function run() {
         term: 'annual',
         interval: 'year',
         priceUsd: 498,
-        displayName: 'Unlimited Pro (Annual)'
+        displayName: 'Unlimited Pro (Annual)',
+        vendorDiscountBps: 1000
       }
     ];
     client.rest._nextPayload = apiResponse({ plans });
@@ -203,6 +213,16 @@ async function run() {
     assert.deepEqual(result, plans, 'getSubscriptionPlans() must unwrap data.plans');
     assert.equal(result[1].planId, 'unlimited_pro');
     assert.equal(result[1].priceUsd, 498);
+    assert.equal(
+      result[0].vendorDiscountBps,
+      500,
+      'getSubscriptionPlans() must surface vendorDiscountBps for the unlimited plan'
+    );
+    assert.equal(
+      result[1].vendorDiscountBps,
+      1000,
+      'getSubscriptionPlans() must surface vendorDiscountBps for the unlimited_pro plan'
+    );
   }
 
   {
@@ -1448,6 +1468,25 @@ async function run() {
         `ChatJobError declarations must expose the ${field} field`
       );
     }
+  }
+
+  {
+    // Frontier vendor-model discount: lock the typed public surface so the
+    // SubscriptionEntitlementSnapshot carries frontierDiscountBps and the
+    // public SubscriptionPlan carries vendorDiscountBps in the compiled
+    // declarations (a regression fails the gate before release).
+    const subscriptionDecl = fs.readFileSync(
+      path.join(__dirname, '../dist/Account/subscription.types.d.ts'),
+      'utf8'
+    );
+    assert.ok(
+      subscriptionDecl.includes('frontierDiscountBps'),
+      'SubscriptionEntitlementSnapshot declarations must expose frontierDiscountBps'
+    );
+    assert.ok(
+      subscriptionDecl.includes('vendorDiscountBps'),
+      'SubscriptionPlan declarations must expose vendorDiscountBps'
+    );
   }
 
   console.log('check-subscription-api: ALL TESTS PASSED');
