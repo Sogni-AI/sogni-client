@@ -1416,6 +1416,40 @@ async function run() {
     assert.equal(isSubscriptionLimitError(chatErr), true, 'a ChatJobError carrying 4081 is recognized');
   }
 
+  {
+    const declarations = fs.readFileSync(path.join(__dirname, '../dist/index.d.ts'), 'utf8');
+    assert.ok(
+      declarations.includes('isSubscriptionLimitError'),
+      'isSubscriptionLimitError must be exported from root declarations'
+    );
+
+    const errorDataDecl = fs.readFileSync(
+      path.join(__dirname, '../dist/types/ErrorData.d.ts'),
+      'utf8'
+    );
+    assert.ok(
+      errorDataDecl.includes('SUBSCRIPTION_FEATURE_REQUIRES_UPGRADE'),
+      'ErrorData declarations must expose SUBSCRIPTION_FEATURE_REQUIRES_UPGRADE'
+    );
+    for (const field of ['subscriptionLimit', 'requiredPlans', 'feature', 'limitation']) {
+      assert.ok(
+        errorDataDecl.includes(field),
+        `ErrorData declarations must expose the ${field} field`
+      );
+    }
+
+    const chatErrDecl = fs.readFileSync(
+      path.join(__dirname, '../dist/Chat/ChatJobError.d.ts'),
+      'utf8'
+    );
+    for (const field of ['subscriptionLimit', 'requiredPlans', 'feature', 'limitation']) {
+      assert.ok(
+        chatErrDecl.includes(field),
+        `ChatJobError declarations must expose the ${field} field`
+      );
+    }
+  }
+
   console.log('check-subscription-api: ALL TESTS PASSED');
 }
 
