@@ -1,4 +1,5 @@
 import { SUBSCRIPTION_ERROR_CODES, SubscriptionErrorCode } from '../types/ErrorData.js';
+import { SubscriptionPlanId } from '../Account/subscription.types.js';
 
 /** Structured fields preserved from a failed chat/LLM job. */
 export interface ChatJobErrorFields {
@@ -20,13 +21,25 @@ export interface ChatJobErrorFields {
   status?: number;
   /** Raw error payload as received from the server (socket message or REST body). */
   payload?: unknown;
+  /** `true` when this failure is a subscription FEATURE-gate denial (4081). */
+  subscriptionLimit?: boolean;
+  /** Plans that would satisfy the gated feature, cheapest-first. */
+  requiredPlans?: SubscriptionPlanId[];
+  /** Stable machine key for the gated capability, e.g. `'video_4k_render'`. */
+  feature?: string;
+  /** Standalone user-facing English describing the limitation. */
+  limitation?: string;
 }
 
-/** Fields extracted from a recognized REST chat error body. @internal */
+/** Fields extracted from a recognized REST/socket chat error body. @internal */
 export interface ExtractedChatJobErrorFields {
   code?: string;
   errorType?: string;
   message?: string;
+  subscriptionLimit?: boolean;
+  requiredPlans?: SubscriptionPlanId[];
+  feature?: string;
+  limitation?: string;
 }
 
 /**
@@ -65,6 +78,14 @@ export class ChatJobError extends Error {
   readonly status?: number;
   /** Raw error payload as received from the server. */
   readonly payload?: unknown;
+  /** `true` when this failure is a subscription FEATURE-gate denial (4081). */
+  readonly subscriptionLimit?: boolean;
+  /** Plans that would satisfy the gated feature, cheapest-first. */
+  readonly requiredPlans?: SubscriptionPlanId[];
+  /** Stable machine key for the gated capability, e.g. `'video_4k_render'`. */
+  readonly feature?: string;
+  /** Standalone user-facing English describing the limitation. */
+  readonly limitation?: string;
 
   constructor(message: string, fields: ChatJobErrorFields = {}) {
     super(message);
@@ -75,6 +96,10 @@ export class ChatJobError extends Error {
     this.jobID = fields.jobID;
     this.status = fields.status;
     this.payload = fields.payload;
+    this.subscriptionLimit = fields.subscriptionLimit;
+    this.requiredPlans = fields.requiredPlans;
+    this.feature = fields.feature;
+    this.limitation = fields.limitation;
   }
 
   /**
@@ -112,25 +137,50 @@ export function extractChatJobErrorFields(
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
   const record = payload as Record<string, unknown>;
 
-  // Shape 1: OpenAI-style envelope { error: { message, type, code } }
+  const readStructured = (
+    source: Record<string, unknown>
+  ): Pick<
+    ExtractedChatJobErrorFields,
+    'subscriptionLimit' | 'requiredPlans' | 'feature' | 'limitation'
+  > => {
+    const subscriptionLimit = source.subscriptionLimit === true ? true : undefined;
+    const requiredPlans = Array.isArray(source.requiredPlans)
+      ? (source.requiredPlans.filter((p) => typeof p === 'string') as SubscriptionPlanId[])
+      : undefined;
+    const feature = typeof source.feature === 'string' ? source.feature : undefined;
+    const limitation = typeof source.limitation === 'string' ? source.limitation : undefined;
+    return { subscriptionLimit, requiredPlans, feature, limitation };
+  };
+
+  // Shape 1: OpenAI-style envelope { error: { message, type, code, subscription } }
   const envelope = record.error;
   if (envelope && typeof envelope === 'object' && !Array.isArray(envelope)) {
     const err = envelope as Record<string, unknown>;
     const code = typeof err.code === 'string' ? err.code : undefined;
     const errorType = typeof err.type === 'string' ? err.type : undefined;
     const message = typeof err.message === 'string' ? err.message : undefined;
-    if (code !== undefined || errorType !== undefined) {
-      return { code, errorType, message };
+    const sub =
+      err.subscription && typeof err.subscription === 'object' && !Array.isArray(err.subscription)
+        ? (err.subscription as Record<string, unknown>)
+        : undefined;
+    const structured = sub ? readStructured(sub) : {};
+    if (code !== undefined || errorType !== undefined || structured.subscriptionLimit) {
+      return { code, errorType, message, ...structured };
     }
     return undefined;
   }
 
-  // Shape 2: flat socket llmJobError fields { error, error_code, error_message }
+  // Shape 2: flat socket llmJobError fields { error, error_code, error_message, ...structured }
   const errorType = typeof record.error === 'string' ? record.error : undefined;
   const code = typeof record.error_code === 'string' ? record.error_code : undefined;
   const message = typeof record.error_message === 'string' ? record.error_message : undefined;
-  if (code !== undefined || (errorType !== undefined && message !== undefined)) {
-    return { code, errorType, message };
+  const structured = readStructured(record);
+  if (
+    code !== undefined ||
+    (errorType !== undefined && message !== undefined) ||
+    structured.subscriptionLimit
+  ) {
+    return { code, errorType, message, ...structured };
   }
   return undefined;
 }

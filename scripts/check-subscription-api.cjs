@@ -14,7 +14,10 @@ const path = require('node:path');
 const AccountApi = require('../dist/Account/index.js').default;
 const CurrentAccount = require('../dist/Account/CurrentAccount.js').default;
 const ChatApi = require('../dist/Chat/index.js').default;
-const { ChatJobError } = require('../dist/Chat/ChatJobError.js');
+const {
+  ChatJobError,
+  extractChatJobErrorFields
+} = require('../dist/Chat/ChatJobError.js');
 const { ApiError } = require('../dist/ApiClient/index.js');
 const { SUBSCRIPTION_ERROR_CODES } = require('../dist/types/ErrorData.js');
 
@@ -1251,6 +1254,61 @@ async function run() {
       known.includes(4078) && known.includes(4079) && known.includes(4080),
       'the existing subscription denial codes must remain intact'
     );
+  }
+
+  {
+    // Shape 2 (flat socket llmJobError): the 5 contract fields are FLAT.
+    const flat = extractChatJobErrorFields({
+      error: 'subscription_unavailable',
+      error_code: '4081',
+      error_message: '4K video render requires Unlimited Pro',
+      subscriptionLimit: true,
+      requiredPlans: ['unlimited_pro'],
+      feature: 'video_4k_render',
+      limitation: '4K video render requires Unlimited Pro'
+    });
+    assert.ok(flat, 'flat socket shape with a code must be recognized');
+    assert.equal(flat.code, '4081');
+    assert.equal(flat.subscriptionLimit, true, 'flat shape must surface subscriptionLimit');
+    assert.deepEqual(flat.requiredPlans, ['unlimited_pro']);
+    assert.equal(flat.feature, 'video_4k_render');
+    assert.equal(flat.limitation, '4K video render requires Unlimited Pro');
+
+    // Shape 1 (OpenAI envelope): the 5 fields live under error.subscription.
+    const nested = extractChatJobErrorFields({
+      error: {
+        message: '4K video render requires Unlimited Pro',
+        type: 'subscription_unavailable',
+        code: '4081',
+        subscription: {
+          subscriptionLimit: true,
+          requiredPlans: ['unlimited_pro'],
+          feature: 'video_4k_render',
+          limitation: '4K video render requires Unlimited Pro'
+        }
+      }
+    });
+    assert.ok(nested, 'OpenAI envelope must be recognized');
+    assert.equal(nested.code, '4081');
+    assert.equal(nested.subscriptionLimit, true, 'envelope must read error.subscription');
+    assert.deepEqual(nested.requiredPlans, ['unlimited_pro']);
+    assert.equal(nested.feature, 'video_4k_render');
+    assert.equal(nested.limitation, '4K video render requires Unlimited Pro');
+
+    // The class must carry the fields and recognize 4081 as a subscription code.
+    const err = new ChatJobError(flat.message, {
+      code: flat.code,
+      errorType: flat.errorType,
+      subscriptionLimit: flat.subscriptionLimit,
+      requiredPlans: flat.requiredPlans,
+      feature: flat.feature,
+      limitation: flat.limitation
+    });
+    assert.equal(err.subscriptionErrorCode, 4081, 'ChatJobError must recognize 4081');
+    assert.equal(err.subscriptionLimit, true);
+    assert.deepEqual(err.requiredPlans, ['unlimited_pro']);
+    assert.equal(err.feature, 'video_4k_render');
+    assert.equal(err.limitation, '4K video render requires Unlimited Pro');
   }
 
   console.log('check-subscription-api: ALL TESTS PASSED');
