@@ -1,3 +1,15 @@
+# [5.1.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.7...v5.1.0-alpha.8) (2026-06-16)
+
+
+### Features
+
+* **chat:** carry subscription-limit fields on ChatJobError ([33c7ecd](https://github.com/Sogni-AI/sogni-client/commit/33c7ecdab22c571f6983fbb479bdbb5eb885a672))
+* **chat:** forward 4081 limit fields at error call sites ([ef5b66a](https://github.com/Sogni-AI/sogni-client/commit/ef5b66a8b28dd52755f22cf76609258ecf2fe6dc))
+* **projects:** surface 4081 limit fields on render errors ([13fa158](https://github.com/Sogni-AI/sogni-client/commit/13fa158f00c4e4415bb4d0f3c7eaf9979f1f7d40))
+* **socket:** type 4081 limit fields on job error events ([0026438](https://github.com/Sogni-AI/sogni-client/commit/0026438ccbfb1cefe5be38861372d1430ade0eb2))
+* **subscription:** add isSubscriptionLimitError helper ([139953b](https://github.com/Sogni-AI/sogni-client/commit/139953bc003aefc2f3ba09f8e4000982a071f7e8))
+* **subscription:** recognize 4081 feature-gate denial code ([c513fe6](https://github.com/Sogni-AI/sogni-client/commit/c513fe67243c91e0ca8ccb5d301a3be20dcf1486))
+
 # [5.1.0-alpha.7](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.6...v5.1.0-alpha.7) (2026-06-12)
 
 
