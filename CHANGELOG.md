@@ -1,3 +1,10 @@
+# [5.1.0-alpha.9](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.8...v5.1.0-alpha.9) (2026-06-16)
+
+
+### Features
+
+* **subscription:** expose frontier vendor discount in types ([1e06f99](https://github.com/Sogni-AI/sogni-client/commit/1e06f99e54e39c2d09d65263c0ed6a5f52dbac18))
+
 # [5.1.0-alpha.8](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.7...v5.1.0-alpha.8) (2026-06-16)
 
 
