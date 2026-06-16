@@ -164,6 +164,7 @@ import {
 // Base Types
 import ErrorData, { SUBSCRIPTION_ERROR_CODES } from './types/ErrorData.js';
 import type { SubscriptionErrorCode } from './types/ErrorData.js';
+import isSubscriptionLimitError from './lib/isSubscriptionLimitError.js';
 import { TokenType } from './types/token.js';
 import {
   ApiKeyAuthManager,
@@ -322,6 +323,7 @@ export {
   Project,
   SogniTools,
   SUBSCRIPTION_ERROR_CODES,
+  isSubscriptionLimitError,
   isSogniToolCall,
   parseCreativeWorkflowSseChunk,
   parseToolCallArguments

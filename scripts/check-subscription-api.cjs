@@ -21,6 +21,7 @@ const {
 const { ApiError } = require('../dist/ApiClient/index.js');
 const { SUBSCRIPTION_ERROR_CODES } = require('../dist/types/ErrorData.js');
 const ProjectsApi = require('../dist/Projects/index.js').default;
+const { isSubscriptionLimitError } = require('../dist/index.js');
 
 class StubListeners {
   constructor() {
@@ -1386,6 +1387,33 @@ async function run() {
     assert.deepEqual(errEvent.error.requiredPlans, ['unlimited_pro']);
     assert.equal(errEvent.error.feature, 'video_4k_render');
     assert.equal(errEvent.error.limitation, '4K video render requires Unlimited Pro');
+  }
+
+  {
+    assert.equal(typeof isSubscriptionLimitError, 'function', 'isSubscriptionLimitError must be exported');
+    assert.equal(isSubscriptionLimitError(4081), true, 'numeric 4081 is a subscription limit error');
+    assert.equal(isSubscriptionLimitError('4081'), true, 'string 4081 is a subscription limit error');
+    assert.equal(isSubscriptionLimitError(4078), false, 'other subscription codes are not feature-limit errors');
+    assert.equal(isSubscriptionLimitError(5000), false, 'unrelated codes return false');
+    assert.equal(isSubscriptionLimitError(undefined), false, 'undefined returns false');
+    assert.equal(isSubscriptionLimitError(null), false, 'null returns false');
+    assert.equal(
+      isSubscriptionLimitError({ code: 4081, message: 'x' }),
+      true,
+      'an ErrorData with code 4081 is recognized'
+    );
+    assert.equal(
+      isSubscriptionLimitError({ subscriptionLimit: true, code: 5000, message: 'x' }),
+      true,
+      'the subscriptionLimit discriminator alone is sufficient'
+    );
+    const chatErr = new ChatJobError('4K video render requires Unlimited Pro', {
+      code: '4081',
+      subscriptionLimit: true,
+      requiredPlans: ['unlimited_pro'],
+      feature: 'video_4k_render'
+    });
+    assert.equal(isSubscriptionLimitError(chatErr), true, 'a ChatJobError carrying 4081 is recognized');
   }
 
   console.log('check-subscription-api: ALL TESTS PASSED');
