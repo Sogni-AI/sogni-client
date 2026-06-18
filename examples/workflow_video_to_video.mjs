@@ -33,6 +33,8 @@
  *   --video       Source video path (required)
  *   --model       Model to use (see available models below)
  *   --control-type Control type for LTX-2.3 V2V: canny, pose, depth, detailer
+ *                 (LTX-2.3 in/outpaint is backed by the official IC-LoRA but is not yet
+ *                  exposed here: the SDK has no mask/canvas input to drive it.)
  *   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
  *                 Format: "x,y" where x,y are normalized 0-1 coordinates
  *   --video-start Video start position in seconds (where to begin reading from source video)
