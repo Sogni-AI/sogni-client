@@ -90,6 +90,8 @@ export const PREFERRED_MODEL_IDS = {
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
   audio: {
+    aceStepXlTurbo: 'ace_step_1.5_xl_turbo',
+    aceStepXlSft: 'ace_step_1.5_xl_sft',
     aceStepTurbo: 'ace_step_1.5_turbo',
     aceStepSft: 'ace_step_1.5_sft'
   }
@@ -185,11 +187,6 @@ const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'ltx23-a2v': PREFERRED_MODEL_IDS.video.a2v
 };
 
-const MUSIC_MODEL_SELECTORS: Record<string, string> = {
-  turbo: PREFERRED_MODEL_IDS.audio.aceStepTurbo,
-  sft: PREFERRED_MODEL_IDS.audio.aceStepSft
-};
-
 export function clampVariationCount(value: unknown, fallback = 1): number {
   const count = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
   return Math.max(1, Math.min(16, Math.round(count)));
@@ -280,9 +277,6 @@ export function resolveHostedToolModelSelector(
       break;
     case 'video_to_video':
       selectors = VIDEO_TO_VIDEO_MODEL_SELECTORS;
-      break;
-    case 'generate_music':
-      selectors = MUSIC_MODEL_SELECTORS;
       break;
     default:
       return requestedModel;

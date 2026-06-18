@@ -25,7 +25,7 @@
  * Default Generation Models:
  *   Image: z_image_turbo_bf16
  *   Video: ltx23-22b-fp8_t2v_distilled (LTX-2.3)
- *   Audio: ace_step_1.5_turbo (ACE-Step 1.5)
+ *   Audio: ace_step_1.5_xl_turbo (ACE-Step 1.5 XL Turbo)
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file
@@ -70,7 +70,13 @@ import { resolve } from 'node:path';
 const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_IMAGE_MODEL = 'z_image_turbo_bf16';
 const DEFAULT_VIDEO_MODEL = 'ltx23-22b-fp8_t2v_distilled';
-const DEFAULT_AUDIO_MODEL = 'ace_step_1.5_turbo';
+const DEFAULT_AUDIO_MODEL = {
+  id: 'ace_step_1.5_xl_turbo',
+  name: 'ACE-Step 1.5 XL Turbo',
+  steps: 8,
+  sampler: 'euler',
+  scheduler: 'simple'
+};
 const OUTPUT_DIR = defaultExamplesOutputDir();
 
 // ============================================================
@@ -169,7 +175,7 @@ Options:
 Default Generation Models:
   Image: ${DEFAULT_IMAGE_MODEL}
   Video: ${DEFAULT_VIDEO_MODEL} (LTX-2.3)
-  Audio: ${DEFAULT_AUDIO_MODEL} (ACE-Step 1.5)
+  Audio: ${DEFAULT_AUDIO_MODEL.id} (${DEFAULT_AUDIO_MODEL.name})
 `);
 }
 
@@ -1210,14 +1216,9 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
     }
 
     case 'audio': {
-      const modelId = DEFAULT_AUDIO_MODEL;
+      const modelId = DEFAULT_AUDIO_MODEL.id;
       const songParams = promptOrParams; // structured object for audio
-      const AUDIO_MODEL_DEFAULTS = {
-        'ace_step_1.5_turbo': { steps: 8, sampler: 'euler', scheduler: 'simple' },
-        'ace_step_1.5_sft': { steps: 50, sampler: 'er_sde', scheduler: 'linear_quadratic' },
-      };
-      const audioDefaults = AUDIO_MODEL_DEFAULTS[modelId] || AUDIO_MODEL_DEFAULTS['ace_step_1.5_turbo'];
-      const audioSteps = audioDefaults.steps;
+      const audioSteps = DEFAULT_AUDIO_MODEL.steps;
 
       try {
         const estimate = await getAudioJobEstimate(tokenType, modelId, songParams.duration, audioSteps, quantity);
@@ -1241,8 +1242,8 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         keyscale: songParams.keyscale,
         timesignature: songParams.timesignature,
         steps: audioSteps,
-        sampler: audioDefaults.sampler,
-        scheduler: audioDefaults.scheduler,
+        sampler: DEFAULT_AUDIO_MODEL.sampler,
+        scheduler: DEFAULT_AUDIO_MODEL.scheduler,
         seed: -1,
         outputFormat: 'mp3',
         tokenType,

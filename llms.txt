@@ -329,17 +329,19 @@ Aliases used by chat tools and examples: `seedance2` and `seedance2-fast`. V2V u
 
 ### Model Variants
 
-| Model ID           | Name          | Description                          |
-| ------------------ | ------------- | ------------------------------------ |
-| ace_step_1.5_turbo | Fast & Catchy | Quick generation, best quality sound |
-| ace_step_1.5_sft   | More Control  | More accurate lyrics, less stable    |
+| Model ID                | Name                       | Description                                      |
+| ----------------------- | -------------------------- | ------------------------------------------------ |
+| ace_step_1.5_xl_turbo   | ACE-Step 1.5 XL Turbo      | Default fast generation, no CFG guidance         |
+| ace_step_1.5_xl_sft     | ACE-Step 1.5 XL SFT        | XL quality model with CFG guidance               |
+| ace_step_1.5_turbo      | ACE-Step 1.5 Turbo Legacy  | Legacy fast generation, no CFG guidance          |
+| ace_step_1.5_sft        | ACE-Step 1.5 SFT Legacy    | Legacy SFT model with CFG guidance               |
 
 ### Text-to-Music (Instrumental)
 
 ```javascript
 const project = await sogni.projects.create({
   type: 'audio',
-  modelId: 'ace_step_1.5_turbo',
+  modelId: 'ace_step_1.5_xl_turbo',
   positivePrompt: 'Upbeat electronic dance music with synth leads',
   numberOfMedia: 1,
   duration: 30, // 10-600 seconds
@@ -357,7 +359,7 @@ const urls = await project.waitForCompletion();
 ```javascript
 const project = await sogni.projects.create({
   type: 'audio',
-  modelId: 'ace_step_1.5_sft',
+  modelId: 'ace_step_1.5_xl_sft',
   positivePrompt: 'Soft acoustic folk ballad',
   lyrics: 'Verse 1:\nWalking down a quiet road...',
   language: 'en',
@@ -384,7 +386,9 @@ const project = await sogni.projects.create({
 | composerMode   | boolean      | true    | AI composer mode            |
 | promptStrength | 0-10         | 2.0     | Prompt adherence            |
 | creativity     | 0-2          | 0.85    | Composition temperature     |
-| steps          | 4-16         | 8       | Inference steps             |
+| guidance       | 1-15         | model   | CFG guidance, SFT only      |
+| shift          | 1-5          | 3       | Denoising distribution      |
+| steps          | model        | model   | Turbo default 8, SFT default 50 |
 | outputFormat   | mp3/wav/flac | mp3     | Audio format                |
 
 ---
@@ -527,7 +531,7 @@ Default generation models used by platform tools:
 | `generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
 | `sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
 | `video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
-| `generate_music` | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music |
+| `generate_music` | ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo, fast music |
 
 ---
 

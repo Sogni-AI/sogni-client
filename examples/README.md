@@ -619,7 +619,7 @@ Generate the core text-to-image, text-to-video, and text-to-music flows through 
 
 **Canonical hosted creative-tool surface** (the full 24-tool family exposed via `SogniTools.all`, executed server-side via `chat.hosted.create()` / `chat.runs.create()`):
 
-- **Generation** — `generate_image` (defaults to `z_image_turbo_bf16`), `edit_image`, `generate_video` (defaults to `ltx23-22b-fp8_t2v_distilled`), `generate_music` (defaults to `ace_step_1.5_turbo`), `sound_to_video`, `video_to_video`
+- **Generation** — `generate_image` (defaults to `z_image_turbo_bf16`), `edit_image`, `generate_video` (defaults to `ltx23-22b-fp8_t2v_distilled`), `generate_music` (defaults to `ace_step_1.5_xl_turbo`), `sound_to_video`, `video_to_video`
 - **Image adapters** — `restore_photo`, `apply_style`, `refine_result`, `change_angle`, `animate_photo` (image-to-video with multi-source fan-out)
 - **Video composition / post-production** — `stitch_video`, `orbit_video`, `dance_montage`, `extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`
 - **Synchronous composition and planning** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`

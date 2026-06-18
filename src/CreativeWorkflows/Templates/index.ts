@@ -57,8 +57,12 @@ function parseSuccessEnvelope(text: string): TemplateEnvelope {
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
   const record = parsed as RawJsonBody;
-  if (record.status === 'success' && record.data && typeof record.data === 'object'
-      && !Array.isArray(record.data)) {
+  if (
+    record.status === 'success' &&
+    record.data &&
+    typeof record.data === 'object' &&
+    !Array.isArray(record.data)
+  ) {
     return record.data as TemplateEnvelope;
   }
   return record as TemplateEnvelope;

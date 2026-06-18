@@ -11,8 +11,8 @@
 //   - oneOf / anyOf / allOf composition
 //   - Primitive coercion (string -> number / boolean) when enabled
 //   - Unknown-property stripping when enabled
-//   - skipEnumProperties (default ['model']) so model names don't have
-//     to be exhaustively listed in the schema
+//   - skipEnumProperties (default ['model'] for most tools) so image/video
+//     model names don't have to be exhaustively listed in the schema
 
 export interface HostedToolSchemaProperty {
   type?: string | string[];
@@ -202,7 +202,9 @@ function validateStringConstraints(
         errors.push(`Argument "${path}" must match pattern ${JSON.stringify(schema.pattern)}`);
       }
     } catch {
-      errors.push(`Schema for "${path}" contains invalid pattern ${JSON.stringify(schema.pattern)}`);
+      errors.push(
+        `Schema for "${path}" contains invalid pattern ${JSON.stringify(schema.pattern)}`
+      );
     }
   }
 }
@@ -433,8 +435,9 @@ export function validateAndNormalizeHostedToolArguments(
     return { ok: true, errors: [], cleaned: args, warnings: [] };
   }
 
+  const defaultSkipEnumProperties = toolName === 'generate_music' ? [] : ['model'];
   const context: SchemaValidationContext = {
-    skipEnumProperties: new Set(options.skipEnumProperties ?? ['model']),
+    skipEnumProperties: new Set(options.skipEnumProperties ?? defaultSkipEnumProperties),
     coercePrimitives: options.coercePrimitives === true,
     stripUnknownProperties: options.stripUnknownProperties === true,
     errors: [],

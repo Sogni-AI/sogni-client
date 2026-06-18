@@ -636,10 +636,7 @@ class ChatToolsApi {
     const modelId = await this.selectModel({
       mediaType: 'audio',
       requestedModel: resolveHostedToolModelSelector('generate_music', args),
-      preferredModelIds: [
-        PREFERRED_MODEL_IDS.audio.aceStepTurbo,
-        PREFERRED_MODEL_IDS.audio.aceStepSft
-      ]
+      preferredModelIds: Object.values(PREFERRED_MODEL_IDS.audio)
     });
 
     const projectParams: Record<string, unknown> = {

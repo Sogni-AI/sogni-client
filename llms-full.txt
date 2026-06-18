@@ -37,7 +37,7 @@ for AI inference. It supports:
 
 - Image Generation: Stable Diffusion, Flux, Z-Image, Z-Image Turbo, Qwen Image Edit
 - Video Generation: WAN 2.2 (5 workflows), LTX-2.3 models, Seedance 2.0 external API models
-- Audio Generation: ACE-Step 1.5 music generation (Turbo and SFT models)
+- Audio Generation: ACE-Step 1.5 music generation (XL Turbo, XL SFT, and legacy models)
 - LLM Text Generation: Chat completions with streaming, multi-turn, and thinking mode
 - LLM Tool Calling: OpenAI-compatible function calling with custom and platform tools
 - Sogni Platform Tools: Generate images, image edits, videos, audio-driven videos, video transforms, and music via natural language chat
@@ -741,20 +741,22 @@ IA2V, V2V, and multimodal context through the hosted Sogni tools and hosted work
 ================================================================================
 
 ACE-Step 1.5 models generate music from text descriptions with optional lyrics.
-Two model variants are available:
+Use canonical model IDs; `ace_step_1.5_xl_turbo` is the default.
 
 MODEL VARIANTS:
 | Model ID | Name | Description |
 |----------|------|-------------|
-| ace_step_1.5_turbo | Fast & Catchy | Quick generation, best quality sound |
-| ace_step_1.5_sft | More Control | More accurate lyrics, less stable |
+| ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo | Default fast generation, no CFG guidance |
+| ace_step_1.5_xl_sft | ACE-Step 1.5 XL SFT | XL quality model with CFG guidance |
+| ace_step_1.5_turbo | ACE-Step 1.5 Turbo Legacy | Legacy fast generation, no CFG guidance |
+| ace_step_1.5_sft | ACE-Step 1.5 SFT Legacy | Legacy SFT model with CFG guidance |
 
 TEXT-TO-MUSIC (Instrumental):
 
 ```javascript
 const project = await sogni.projects.create({
   type: 'audio',
-  modelId: 'ace_step_1.5_turbo',
+  modelId: 'ace_step_1.5_xl_turbo',
   positivePrompt: 'Upbeat electronic dance music with synth leads and driving bass',
   numberOfMedia: 1,
   duration: 30, // seconds (10-600)
@@ -774,7 +776,7 @@ TEXT-TO-MUSIC (With Lyrics):
 ```javascript
 const project = await sogni.projects.create({
   type: 'audio',
-  modelId: 'ace_step_1.5_sft',
+  modelId: 'ace_step_1.5_xl_sft',
   positivePrompt: 'Soft acoustic folk ballad with fingerpicked guitar',
   lyrics:
     'Verse 1:\nWalking down a quiet road\nWith the wind upon my face\n\nChorus:\nThis is where I find my peace\nIn this gentle, open space',
@@ -807,8 +809,9 @@ ACE-STEP 1.5 AUDIO PARAMETERS:
 | composerMode | boolean | - | true | AI composer for higher quality |
 | promptStrength | number | 0-10 | 2.0 | Prompt adherence (higher = stricter) |
 | creativity | number | 0-2 | 0.85 | Composition temperature |
-| shift | number | 1-5 | 3 | Denoising distribution (turbo only) |
-| steps | number | 4-16 | 8 | Inference steps |
+| guidance | number | 1-15 | model | CFG guidance, SFT only |
+| shift | number | 1-5 | 3 | Denoising distribution |
+| steps | number | model | model | Turbo default 8; SFT default 50 |
 | outputFormat | string | mp3, wav, flac | mp3 | Audio output format |
 
 SUPPORTED KEYS:
@@ -1182,7 +1185,7 @@ DEFAULT GENERATION MODELS (used by the canonical generation tools):
 | `generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
 | `sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
 | `video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
-| `generate_music` | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music generation |
+| `generate_music` | ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo, fast music generation |
 
 PLATFORM TOOL WORKFLOW:
 

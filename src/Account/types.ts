@@ -1,7 +1,12 @@
 import { TokenType } from '../types/token.js';
 import type { BillingMode } from '../Projects/types/index.js';
 
-export type TransactionPaymentModel = 'subscription' | 'paid_spark' | 'free_spark' | 'sogni' | string;
+export type TransactionPaymentModel =
+  | 'subscription'
+  | 'paid_spark'
+  | 'free_spark'
+  | 'sogni'
+  | string;
 
 export interface Nonce {
   nonce: string;

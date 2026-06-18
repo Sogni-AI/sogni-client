@@ -63,10 +63,7 @@ class ReplayApi extends ApiGroup {
    * redaction pass server-side as defense-in-depth, so the returned
    * `redacted` flag reflects what was actually stored.
    */
-  async write(
-    record: RunRecord,
-    options: ReplayRequestOptions = {}
-  ): Promise<ReplayWriteResult> {
+  async write(record: RunRecord, options: ReplayRequestOptions = {}): Promise<ReplayWriteResult> {
     const body = await this.request('/v1/replay/records', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -98,9 +95,7 @@ class ReplayApi extends ApiGroup {
     if (typeof options.limit === 'number' && options.limit > 0) {
       query.set('limit', String(Math.floor(options.limit)));
     }
-    const path = query.toString()
-      ? `/v1/replay/records?${query.toString()}`
-      : '/v1/replay/records';
+    const path = query.toString() ? `/v1/replay/records?${query.toString()}` : '/v1/replay/records';
     const body = await this.request(path, {
       method: 'GET',
       signal: options.signal
@@ -110,14 +105,11 @@ class ReplayApi extends ApiGroup {
   }
 
   /** GET /v1/replay/records/:id — full RunRecord for the viewer detail. */
-  async get(
-    runId: string,
-    options: ReplayRequestOptions = {}
-  ): Promise<GetReplayRecordResult> {
-    const body = await this.request(
-      `/v1/replay/records/${encodeURIComponent(runId)}`,
-      { method: 'GET', signal: options.signal }
-    );
+  async get(runId: string, options: ReplayRequestOptions = {}): Promise<GetReplayRecordResult> {
+    const body = await this.request(`/v1/replay/records/${encodeURIComponent(runId)}`, {
+      method: 'GET',
+      signal: options.signal
+    });
     if (!body.record || typeof body.record !== 'object') {
       throw new ApiError(500, {
         status: 'error',
@@ -131,10 +123,7 @@ class ReplayApi extends ApiGroup {
     };
   }
 
-  private async request(
-    path: string,
-    options: RequestInit = {}
-  ): Promise<ReplayEnvelope> {
+  private async request(path: string, options: RequestInit = {}): Promise<ReplayEnvelope> {
     const response = await this.fetch(path, options);
     if (!response.ok) {
       throw await this.toApiError(response);
@@ -154,8 +143,7 @@ class ReplayApi extends ApiGroup {
       this.client.auth.clear();
     }
     const body = parseJsonResponse(await response.text());
-    const payload =
-      body.status === 'error' ? body : (body as Record<string, unknown>);
+    const payload = body.status === 'error' ? body : (body as Record<string, unknown>);
     const message = typeof payload.message === 'string' ? payload.message : response.statusText;
     const errorCode = typeof payload.errorCode === 'number' ? payload.errorCode : 0;
     return new ApiError(response.status, { status: 'error', message, errorCode });

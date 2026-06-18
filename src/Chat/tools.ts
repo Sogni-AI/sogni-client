@@ -1,16 +1,17 @@
-// The manifest is sourced from `@sogni-ai/sogni-protocol/manifests/openai-tools.json`
-// and inlined at build time by `scripts/generate-hosted-tools-manifest.mjs`
-// into the .gitignored `_hostedToolsManifest.generated.ts`. This avoids the
-// Node ESM JSON-import-attribute requirement that TypeScript cannot emit
-// conditionally for the dual CJS+ESM build.
+// The manifest is sourced from `@sogni-ai/sogni-protocol/manifests/openai-tools.json`,
+// patched by `scripts/generate-hosted-tools-manifest.mjs`, and inlined into the
+// .gitignored `_hostedToolsManifest.generated.ts`. This avoids the Node ESM
+// JSON-import-attribute requirement that TypeScript cannot emit conditionally
+// for the dual CJS+ESM build.
 import { SOGNI_HOSTED_TOOLS_MANIFEST } from './_hostedToolsManifest.generated.js';
 import { ToolDefinition, ToolCall } from './types.js';
 
 /**
  * Canonical hosted creative-tool names. The manifest data is the canonical
- * source — kept in sync with `@sogni-ai/sogni-protocol/manifests/openai-tools.json`
- * (the language-neutral protocol package). The legacy `sogni_*`-prefixed
- * names were retired; tool names are now flat.
+ * source — derived from `@sogni-ai/sogni-protocol/manifests/openai-tools.json`
+ * (the language-neutral protocol package) plus SDK-local compatibility
+ * patches. The legacy `sogni_*`-prefixed names were retired; tool names are
+ * now flat.
  */
 export type SogniHostedToolName =
   | 'generate_image'
@@ -53,8 +54,9 @@ function getHostedTool(name: SogniHostedToolName): ToolDefinition {
  * Built-in Sogni platform tool definitions for use with LLM tool calling.
  *
  * Sourced from `@sogni-ai/sogni-protocol/manifests/openai-tools.json` (the
- * language-neutral protocol artifact package). Inlined at build time via
- * the codegen script; see `_hostedToolsManifest.generated.ts`.
+ * language-neutral protocol artifact package), patched locally where needed,
+ * and inlined at build time via the codegen script; see
+ * `_hostedToolsManifest.generated.ts`.
  */
 
 // Generation tools (image / video / audio).
@@ -87,7 +89,9 @@ export const composeLyricsTool: ToolDefinition = getHostedTool('compose_lyrics')
 export const composeInstrumentalTool: ToolDefinition = getHostedTool('compose_instrumental');
 export const composeScriptTool: ToolDefinition = getHostedTool('compose_script');
 export const composeWorkflowTool: ToolDefinition = getHostedTool('compose_workflow');
-export const composeWorkflowTemplateTool: ToolDefinition = getHostedTool('compose_workflow_template');
+export const composeWorkflowTemplateTool: ToolDefinition = getHostedTool(
+  'compose_workflow_template'
+);
 
 export const SogniTools = {
   generateImage: generateImageTool,
@@ -118,11 +122,11 @@ export const SogniTools = {
    * Full canonical hosted creative-tools surface (24 tools) — generation
    * tools, image adapters, video composition / post-production, and
    * synchronous composition tools. Sourced from
-   * `@sogni-ai/sogni-protocol/manifests/openai-tools.json`. Route tool calls
-   * through `chat.hosted.create()` or `chat.runs.create()` for server-side
-   * execution. Server-side enforcement validates per-account model access,
-   * so the manifest's model enums are advisory hints to the LLM, not
-   * access control.
+   * `@sogni-ai/sogni-protocol/manifests/openai-tools.json` plus SDK-local
+   * compatibility patches. Route tool calls through `chat.hosted.create()` or
+   * `chat.runs.create()` for server-side execution. Server-side enforcement
+   * validates per-account model access, so the manifest's model enums are
+   * advisory hints to the LLM, not access control.
    */
   get all(): ToolDefinition[] {
     return [...hostedTools];
@@ -133,7 +137,8 @@ export const SogniTools = {
  * True if the tool call targets a canonical Sogni hosted creative tool.
  * Replaces the legacy `sogni_` prefix check; tool names are now flat and
  * verified against the manifest in
- * `@sogni-ai/sogni-protocol/manifests/openai-tools.json`.
+ * `@sogni-ai/sogni-protocol/manifests/openai-tools.json` plus SDK-local
+ * compatibility patches.
  */
 export function isSogniToolCall(toolCall: ToolCall): boolean {
   return HOSTED_TOOL_NAMES.has(toolCall.function.name);

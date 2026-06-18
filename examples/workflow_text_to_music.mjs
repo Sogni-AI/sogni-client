@@ -5,9 +5,7 @@
  * This script generates music from text prompts using ACE-Step models
  * via the SDK's native audio project support.
  *
- * Two models are available:
- *   - ACE-Step 1.5 Turbo: Fast generation (4-16 steps), no CFG guidance, half cost
- *   - ACE-Step 1.5 SFT:   Higher quality (10-200 steps), CFG guidance, full cost
+ * Run with --help to print supported canonical model IDs and model-specific defaults.
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
@@ -17,10 +15,10 @@
  *   node workflow_text_to_music.mjs                                    # Interactive mode
  *   node workflow_text_to_music.mjs "upbeat electronic dance music"    # With prompt
  *   node workflow_text_to_music.mjs "jazz ballad" --duration 60        # With options
- *   node workflow_text_to_music.mjs "rock anthem" --model sft          # Use SFT model
+ *   node workflow_text_to_music.mjs "rock anthem" --model ace_step_1.5_xl_sft
  *
  * Options:
- *   --model           Model: turbo, sft (default: turbo)
+ *   --model           Canonical model ID (default: see --help)
  *   --duration        Duration in seconds (10-600, default: 30)
  *   --bpm             Beats per minute (30-300, default: 120)
  *   --keyscale        Musical key (e.g., "C major", "A minor", default: C major)
@@ -67,21 +65,39 @@ import {
 
 const streamPipeline = promisify(pipeline);
 
+const DEFAULT_AUDIO_MODEL_ID = 'ace_step_1.5_xl_turbo';
+
 const AUDIO_MODELS = {
-  turbo: {
-    id: 'ace_step_1.5_turbo',
-    name: 'ACE-Step 1.5 Turbo',
-    description: 'Fast generation, no CFG guidance, half cost',
+  [DEFAULT_AUDIO_MODEL_ID]: {
+    name: 'ACE-Step 1.5 XL Turbo',
+    description: 'New default, fast generation, no CFG guidance',
     steps: { min: 4, max: 16, default: 8 },
     shift: { min: 1, max: 5, default: 3 },
     guidance: null, // Turbo does not use CFG guidance
     sampler: { allowed: ['euler', 'euler_ancestral'], default: 'euler' },
     scheduler: { allowed: ['simple'], default: 'simple' }
   },
-  sft: {
-    id: 'ace_step_1.5_sft',
-    name: 'ACE-Step 1.5 SFT',
-    description: 'Higher quality, CFG guidance, more steps',
+  'ace_step_1.5_xl_sft': {
+    name: 'ACE-Step 1.5 XL SFT',
+    description: 'XL quality model, CFG guidance, more steps',
+    steps: { min: 10, max: 200, default: 50 },
+    shift: { min: 1, max: 5, default: 3 },
+    guidance: { min: 1, max: 15, default: 7 },
+    sampler: { allowed: ['euler', 'euler_ancestral'], default: 'euler' },
+    scheduler: { allowed: ['simple'], default: 'simple' }
+  },
+  'ace_step_1.5_turbo': {
+    name: 'ACE-Step 1.5 Turbo (Legacy)',
+    description: 'Legacy fast generation, no CFG guidance, half cost',
+    steps: { min: 4, max: 16, default: 8 },
+    shift: { min: 1, max: 5, default: 3 },
+    guidance: null, // Turbo does not use CFG guidance
+    sampler: { allowed: ['euler', 'euler_ancestral'], default: 'euler' },
+    scheduler: { allowed: ['simple'], default: 'simple' }
+  },
+  'ace_step_1.5_sft': {
+    name: 'ACE-Step 1.5 SFT (Legacy)',
+    description: 'Legacy SFT model, CFG guidance, more steps',
     steps: { min: 10, max: 200, default: 50 },
     shift: { min: 1, max: 5, default: 3 },
     guidance: { min: 1, max: 15, default: 5 },
@@ -89,6 +105,13 @@ const AUDIO_MODELS = {
     scheduler: { allowed: ['simple', 'linear_quadratic'], default: 'linear_quadratic' }
   }
 };
+
+const AUDIO_MODEL_IDS = Object.keys(AUDIO_MODELS);
+
+function formatAudioModelHelpLine(modelId) {
+  const model = AUDIO_MODELS[modelId];
+  return `  ${modelId.padEnd(24)} ${model.name} - ${model.description}`;
+}
 
 const AUDIO_CONSTRAINTS = {
   duration: { min: 10, max: 600, default: 30 },
@@ -178,7 +201,7 @@ function parseArgs() {
     } else if (arg === '--no-interactive') {
       options.interactive = false;
     } else if (arg === '--model' && args[i + 1]) {
-      options.model = args[++i].toLowerCase();
+      options.model = args[++i].trim();
     } else if (arg === '--duration' && args[i + 1]) {
       options.duration = parseInt(args[++i], 10);
     } else if (arg === '--bpm' && args[i + 1]) {
@@ -235,14 +258,13 @@ Usage:
   node workflow_text_to_music.mjs                                    # Interactive mode
   node workflow_text_to_music.mjs "upbeat electronic dance music"    # With prompt
   node workflow_text_to_music.mjs "jazz ballad" --duration 60        # With options
-  node workflow_text_to_music.mjs "rock anthem" --model sft          # Use SFT model
+  node workflow_text_to_music.mjs "rock anthem" --model ace_step_1.5_xl_sft
 
 Models:
-  turbo (default)   ACE-Step 1.5 Turbo - Fast, 4-16 steps, no CFG, half cost
-  sft               ACE-Step 1.5 SFT   - Quality, 10-200 steps, CFG guidance
+${AUDIO_MODEL_IDS.map(formatAudioModelHelpLine).join('\n')}
 
 Options:
-  --model           Model: turbo, sft (default: turbo)
+  --model           Canonical model ID (default: ${DEFAULT_AUDIO_MODEL_ID})
   --duration        Duration in seconds (10-600, default: 30)
   --bpm             Beats per minute (30-300, default: 120)
   --keyscale        Musical key, e.g. "C major", "A minor" (default: C major)
@@ -253,7 +275,7 @@ Options:
                                ms, ne, nl, no, pa, pl, pt, ro, ru, sa, sk, sr, sv,
                                sw, ta, te, th, tl, tr, uk, ur, vi, yue, zh, unknown
   --lyrics          Song lyrics (default: included)
-  --steps           Inference steps (turbo: 4-16 default 8, sft: 10-200 default 50)
+  --steps           Inference steps (model-specific default)
   --guidance        Diffusion CFG guidance (1-15, default: 5, SFT only)
   --shift           Denoising shift (1-5, default: 3)
   --composer-mode   Enable AI composer planner (true/false, default: true)
@@ -261,8 +283,8 @@ Options:
   --prompt-strength How closely composer follows your prompt (0-10, default: 2.0)
   --creativity      Composition variation (0-2, default: 0.85)
                     Higher = more creative, lower = more predictable
-  --sampler         Sampler algorithm (turbo: euler, sft: er_sde)
-  --scheduler       Scheduler algorithm (turbo: simple, sft: linear_quadratic)
+  --sampler         Sampler algorithm (model-specific default)
+  --scheduler       Scheduler algorithm (model-specific default)
   --seed            Random seed (default: -1 for random)
   --format          Output format: mp3, wav, flac (default: mp3)
   --batch           Number of tracks to generate (default: 1)
@@ -279,19 +301,19 @@ Options:
 async function promptAudioOptions(options) {
   // Model selection
   if (!options.model) {
-    console.log('Select a model:\n');
-    console.log('  1. ACE-Step 1.5 Turbo  (fast, 4-16 steps, no CFG, half cost)');
-    console.log('  2. ACE-Step 1.5 SFT    (quality, 10-200 steps, CFG guidance)');
+    console.log('Available models:\n');
+    AUDIO_MODEL_IDS.forEach((modelId) => {
+      const model = AUDIO_MODELS[modelId];
+      console.log(`  ${modelId} - ${model.name} (${model.description})`);
+    });
     console.log();
-    const modelChoice = await askQuestion('Enter choice [1/2] (default: 1): ');
-    const modelChoiceTrimmed = modelChoice.trim() || '1';
-    if (modelChoiceTrimmed === '2' || modelChoiceTrimmed.toLowerCase() === 'sft') {
-      options.model = 'sft';
-      console.log('  → Using ACE-Step 1.5 SFT\n');
-    } else {
-      options.model = 'turbo';
-      console.log('  → Using ACE-Step 1.5 Turbo\n');
-    }
+    const modelChoice = await askQuestion(
+      `Enter canonical model ID (default: ${DEFAULT_AUDIO_MODEL_ID}): `
+    );
+    const modelChoiceTrimmed = modelChoice.trim();
+    options.model = modelChoiceTrimmed || DEFAULT_AUDIO_MODEL_ID;
+    const selectedModel = AUDIO_MODELS[options.model];
+    console.log(`  → Using ${selectedModel ? selectedModel.name : options.model}\n`);
   }
 
   // Prompt
@@ -419,7 +441,7 @@ async function main() {
     await promptAudioOptions(OPTIONS);
 
     // Resolve model config for interactive prompts
-    const interactiveModelConfig = AUDIO_MODELS[OPTIONS.model] || AUDIO_MODELS.turbo;
+    const interactiveModelConfig = AUDIO_MODELS[OPTIONS.model] || AUDIO_MODELS[DEFAULT_AUDIO_MODEL_ID];
 
     const advancedChoice = await askQuestion('\nCustomize advanced options (steps, guidance, shift, composer, seed)? [y/N]: ');
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
@@ -488,13 +510,13 @@ async function main() {
   }
 
   // Apply model default
-  if (!OPTIONS.model) OPTIONS.model = 'turbo';
+  if (!OPTIONS.model) OPTIONS.model = DEFAULT_AUDIO_MODEL_ID;
   const modelConfig = AUDIO_MODELS[OPTIONS.model];
   if (!modelConfig) {
     console.error(`Error: Unknown model "${OPTIONS.model}". Must be one of: ${Object.keys(AUDIO_MODELS).join(', ')}`);
     process.exit(1);
   }
-  const AUDIO_MODEL_ID = modelConfig.id;
+  const AUDIO_MODEL_ID = OPTIONS.model;
 
   // Apply defaults (model-specific where applicable)
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;

@@ -42,9 +42,7 @@ function sha256(value) {
 
 // Hosted creative-tool surface parity: `SogniTools.all` is the full canonical
 // surface mirrored from @sogni/creative-agent.
-const sdkHostedToolsByName = new Map(
-  SogniTools.all.map((tool) => [tool.function.name, tool])
-);
+const sdkHostedToolsByName = new Map(SogniTools.all.map((tool) => [tool.function.name, tool]));
 
 for (const expectedHostedName of new Set(
   hostedAliasParityVector.tools.map((vector) => vector.hostedToolName)
@@ -95,8 +93,10 @@ const models = [
   { id: PREFERRED_MODEL_IDS.video.seedanceFastT2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceFastI2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceV2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.audio.aceStepXlTurbo, media: 'audio', workerCount: 1 },
+  { id: PREFERRED_MODEL_IDS.audio.aceStepXlSft, media: 'audio', workerCount: 10 },
   { id: PREFERRED_MODEL_IDS.audio.aceStepTurbo, media: 'audio', workerCount: 1 },
-  { id: PREFERRED_MODEL_IDS.audio.aceStepSft, media: 'audio', workerCount: 10 }
+  { id: PREFERRED_MODEL_IDS.audio.aceStepSft, media: 'audio', workerCount: 20 }
 ];
 
 assert.equal(clampVariationCount(99), 16);
@@ -159,12 +159,9 @@ assert.equal(
 assert.equal(
   selectBackboneModel(models, {
     mediaType: 'audio',
-    preferredModelIds: [
-      PREFERRED_MODEL_IDS.audio.aceStepTurbo,
-      PREFERRED_MODEL_IDS.audio.aceStepSft
-    ]
+    preferredModelIds: Object.values(PREFERRED_MODEL_IDS.audio)
   }).modelId,
-  PREFERRED_MODEL_IDS.audio.aceStepTurbo
+  PREFERRED_MODEL_IDS.audio.aceStepXlTurbo
 );
 
 assert.equal(
@@ -320,8 +317,29 @@ assert.equal(
   PREFERRED_MODEL_IDS.video.seedanceIa2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('generate_music', { model: 'turbo' }),
-  PREFERRED_MODEL_IDS.audio.aceStepTurbo
+  resolveHostedToolModelSelector('generate_music', {
+    model: PREFERRED_MODEL_IDS.audio.aceStepXlTurbo
+  }),
+  PREFERRED_MODEL_IDS.audio.aceStepXlTurbo
+);
+assert.deepEqual(
+  validateHostedToolArguments(SogniTools.all, 'generate_music', {
+    prompt: 'lo-fi beat',
+    model: PREFERRED_MODEL_IDS.audio.aceStepXlTurbo
+  }),
+  { ok: true, errors: [] }
+);
+assert.deepEqual(
+  validateHostedToolArguments(SogniTools.all, 'generate_music', {
+    prompt: 'lo-fi beat',
+    model: 'turbo'
+  }),
+  {
+    ok: false,
+    errors: [
+      'Argument "model" must be one of "ace_step_1.5_xl_turbo", "ace_step_1.5_xl_sft", "ace_step_1.5_turbo", "ace_step_1.5_sft"'
+    ]
+  }
 );
 assert.equal(resolveHostedToolModelSelector('generate_image', {}), undefined);
 
@@ -337,12 +355,16 @@ assert.deepEqual(
   { ok: true, errors: [] }
 );
 assert.deepEqual(
-  validateHostedToolArguments(SogniTools.all, 'generate_image', null),
-  {
-    ok: false,
-    errors: ['Tool arguments must be a JSON object']
-  }
+  validateHostedToolArguments(SogniTools.all, 'generate_image', {
+    prompt: 'cat',
+    model: 'future_live_model'
+  }),
+  { ok: true, errors: [] }
 );
+assert.deepEqual(validateHostedToolArguments(SogniTools.all, 'generate_image', null), {
+  ok: false,
+  errors: ['Tool arguments must be a JSON object']
+});
 assert.throws(
   () => assertHostedToolArguments(SogniTools.all, 'generate_image', null),
   /Invalid generate_image arguments: Tool arguments must be a JSON object/
