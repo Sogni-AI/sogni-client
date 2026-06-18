@@ -23,7 +23,7 @@ export type ControlNetName =
  * Video ControlNet model names for LTX-2.3 v2v workflows
  * @inline
  */
-export type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer';
+export type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer' | 'outpaint' | 'inpaint';
 
 /**
  * Raw ControlNet parameters passed to the API
@@ -109,6 +109,8 @@ export interface VideoControlNetParams {
    * - 'pose': Body pose detection (supports optional referenceImage for appearance)
    * - 'depth': Depth estimation
    * - 'detailer': Quality enhancement
+   * - 'outpaint': Extend the canvas around the reference video (requires referenceMask)
+   * - 'inpaint': Regenerate a masked region of the reference video (requires referenceMask)
    */
   name: VideoControlNetName;
   /**

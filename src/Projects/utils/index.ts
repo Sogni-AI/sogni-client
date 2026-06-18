@@ -202,55 +202,63 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
     referenceAudioIdentity: 'optional',
-    referenceVideo: 'forbidden'
+    referenceVideo: 'forbidden',
+    referenceMask: 'forbidden'
   },
   i2v: {
     referenceImage: 'optional',
     referenceImageEnd: 'optional',
     referenceAudio: 'forbidden',
     referenceAudioIdentity: 'optional',
-    referenceVideo: 'forbidden'
+    referenceVideo: 'forbidden',
+    referenceMask: 'forbidden'
   },
   s2v: {
     referenceImage: 'required',
     referenceImageEnd: 'forbidden',
     referenceAudio: 'required',
     referenceAudioIdentity: 'forbidden',
-    referenceVideo: 'forbidden'
+    referenceVideo: 'forbidden',
+    referenceMask: 'forbidden'
   },
   ia2v: {
     referenceImage: 'required',
     referenceImageEnd: 'forbidden',
     referenceAudio: 'required',
     referenceAudioIdentity: 'forbidden',
-    referenceVideo: 'forbidden'
+    referenceVideo: 'forbidden',
+    referenceMask: 'forbidden'
   },
   a2v: {
     referenceImage: 'forbidden',
     referenceImageEnd: 'forbidden',
     referenceAudio: 'required',
     referenceAudioIdentity: 'forbidden',
-    referenceVideo: 'forbidden'
+    referenceVideo: 'forbidden',
+    referenceMask: 'forbidden'
   },
   'animate-move': {
     referenceImage: 'required',
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
     referenceAudioIdentity: 'forbidden',
-    referenceVideo: 'required'
+    referenceVideo: 'required',
+    referenceMask: 'forbidden'
   },
   'animate-replace': {
     referenceImage: 'required',
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
     referenceAudioIdentity: 'forbidden',
-    referenceVideo: 'required'
+    referenceVideo: 'required',
+    referenceMask: 'forbidden'
   },
   v2v: {
     referenceImage: 'optional', // Required for pose control, optional for other control types
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
     referenceAudioIdentity: 'optional',
-    referenceVideo: 'required'
+    referenceVideo: 'required',
+    referenceMask: 'optional' // Required for inpaint/outpaint control types
   }
 };

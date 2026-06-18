@@ -737,6 +737,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (data?.referenceVideo && data.referenceVideo !== true) {
       await this.uploadReferenceVideo(project.id, data.referenceVideo);
     }
+    if (data?.referenceMask && data.referenceMask !== true) {
+      await this.uploadReferenceMask(project.id, data.referenceMask);
+    }
   }
 
   private _annotateVideoAssetContentTypes(request: Record<string, any>, data: VideoProjectParams) {
@@ -759,6 +762,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     if (data.referenceVideo && data.referenceVideo !== true) {
       keyFrame.referenceVideoContentType = getFileContentType(data.referenceVideo);
+    }
+    if (data.referenceMask && data.referenceMask !== true) {
+      keyFrame.referenceMaskContentType = getFileContentType(data.referenceMask);
     }
   }
 
@@ -950,6 +956,36 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         status: 'error',
         errorCode: 0,
         message: 'Failed to upload reference image'
+      });
+    }
+    return imageId;
+  }
+
+  /**
+   * Upload reference mask IMAGE for LTX-2.3 v2v inpaint/outpaint workflows
+   * @internal
+   */
+  private async uploadReferenceMask(projectId: string, file: File | Buffer | Blob) {
+    const imageId = getUUID();
+    const contentType = getFileContentType(file);
+    const presignedUrl = await this.uploadUrl({
+      imageId,
+      jobId: projectId,
+      type: 'referenceMask',
+      contentType
+    });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: toFetchBody(file),
+      headers
+    });
+    if (!res.ok) {
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: 'Failed to upload reference mask'
       });
     }
     return imageId;

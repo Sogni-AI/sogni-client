@@ -414,6 +414,9 @@ function applyVideoParams(
   if (params.referenceVideo) {
     keyFrame.hasReferenceVideo = true;
   }
+  if (params.referenceMask) {
+    keyFrame.hasReferenceMask = true;
+  }
   const referenceVideoUrls = asReferenceUrlArray(params.referenceVideoUrls);
   if (referenceVideoUrls.length) {
     keyFrame.referenceVideoURLs = referenceVideoUrls;
@@ -507,6 +510,11 @@ function applyVideoParams(
   if (params.width && params.height) {
     keyFrame.width = validateVideoSize(params.width, 'width');
     keyFrame.height = validateVideoSize(params.height, 'height');
+  }
+
+  // Outpaint canvas anchor for LTX-2.3 v2v outpaint workflows
+  if (params.outpaintPosition !== undefined) {
+    keyFrame.outpaintPosition = params.outpaintPosition;
   }
 
   keyFrame.comfySampler = validateSampler(params.sampler, options);

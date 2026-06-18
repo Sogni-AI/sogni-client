@@ -13,6 +13,8 @@
  * - pose: Skeleton/pose-based control (optional image for appearance + video for motion)
  * - depth: Depth map control (video only)
  * - detailer: Quality enhancement (video only)
+ * - outpaint: Extend the canvas around the source video (requires --mask IMAGE)
+ * - inpaint: Regenerate a masked region of the source video (requires --mask IMAGE)
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
@@ -32,9 +34,9 @@
  *   --image       Reference image path (required for WAN animate, optional for pose)
  *   --video       Source video path (required)
  *   --model       Model to use (see available models below)
- *   --control-type Control type for LTX-2.3 V2V: canny, pose, depth, detailer
- *                 (LTX-2.3 in/outpaint is backed by the official IC-LoRA but is not yet
- *                  exposed here: the SDK has no mask/canvas input to drive it.)
+ *   --control-type Control type for LTX-2.3 V2V: canny, pose, depth, detailer, outpaint, inpaint
+ *   --mask        Mask IMAGE for inpaint/outpaint (white pixels = region to regenerate)
+ *   --outpaint-position  Outpaint canvas anchor: center, top, bottom, left, right (default: center)
  *   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
  *                 Format: "x,y" where x,y are normalized 0-1 coordinates
  *   --video-start Video start position in seconds (where to begin reading from source video)
@@ -126,6 +128,8 @@ async function parseArgs() {
     image: null,
     video: null,
     controlNetType: null,
+    mask: null,
+    outpaintPosition: null,
     sam2Coordinates: null,
     videoStart: null,
     modelKey: null,
@@ -162,6 +166,10 @@ async function parseArgs() {
       options.video = args[++i];
     } else if (arg === '--control-type' && args[i + 1]) {
       options.controlNetType = args[++i];
+    } else if (arg === '--mask' && args[i + 1]) {
+      options.mask = args[++i];
+    } else if (arg === '--outpaint-position' && args[i + 1]) {
+      options.outpaintPosition = args[++i];
     } else if (arg === '--strength' && args[i + 1]) {
       options.strength = parseFloat(args[++i]);
     } else if (arg === '--detailer-strength' && args[i + 1]) {
@@ -246,12 +254,16 @@ Control Types (LTX-2.3 V2V only):
     pose     - Skeleton control (optional image for appearance + video for motion)
     depth    - Depth map control (preserves spatial relationships, video only)
     detailer - Quality enhancement (no preprocessing, video only)
+    outpaint - Extend the canvas around the source video (requires --mask IMAGE)
+    inpaint  - Regenerate a masked region of the source video (requires --mask IMAGE)
 
 Options:
   --video         Source video path (required)
   --image         Reference image path (required for WAN animate, optional for pose)
   --model         Model key (see available models above)
-  --control-type  Control type for LTX-2.3 V2V: canny, pose, depth, detailer
+  --control-type  Control type for LTX-2.3 V2V: canny, pose, depth, detailer, outpaint, inpaint
+  --mask          Mask IMAGE for inpaint/outpaint (white pixels = region to regenerate)
+  --outpaint-position  Outpaint canvas anchor: center, top, bottom, left, right (default: center)
   --sam2-coords   SAM2 click coordinates for animate-replace (format: "x,y", 0-1 normalized)
   --video-start   Video start position in seconds (default: 0)
   --negative      Negative prompt (default: none)
@@ -282,6 +294,12 @@ Examples:
 
   # LTX-2.3 V2V with pose control (requires image for appearance)
   node workflow_video_to_video.mjs "A robot dancing" --image robot.jpg --video dance.mp4 --control-type pose
+
+  # LTX-2.3 V2V outpaint (extend canvas; mask IMAGE white = area to fill)
+  node workflow_video_to_video.mjs --video clip.mp4 --control-type outpaint --mask mask.png --outpaint-position right
+
+  # LTX-2.3 V2V inpaint (regenerate masked region; mask IMAGE white = region to regenerate)
+  node workflow_video_to_video.mjs "A red car" --video street.mp4 --control-type inpaint --mask mask.png
 
   # WAN animate-move with reference image
   node workflow_video_to_video.mjs --image portrait.jpg --video camera_motion.mp4 --model move-lightx2v
@@ -424,6 +442,31 @@ async function main() {
     }
 
     log('🎛️', `Control type: ${CONTROL_NET_TYPES[OPTIONS.controlNetType].name}`);
+
+    // Inpaint/outpaint require a mask IMAGE (white pixels = region to regenerate)
+    if (OPTIONS.controlNetType === 'inpaint' || OPTIONS.controlNetType === 'outpaint') {
+      if (OPTIONS.interactive && !OPTIONS.mask) {
+        OPTIONS.mask = await pickImageFile(null, 'mask image (white = region to regenerate)');
+      }
+      if (!OPTIONS.mask) {
+        console.error(
+          `Error: ${OPTIONS.controlNetType} control requires a mask IMAGE. Provide one with --mask <path> (white pixels mark the region to regenerate).`
+        );
+        process.exit(1);
+      }
+      log('🎭', `Mask image: ${OPTIONS.mask}`);
+    }
+
+    // Validate outpaint canvas anchor
+    if (OPTIONS.outpaintPosition) {
+      const validPositions = ['center', 'top', 'bottom', 'left', 'right'];
+      if (!validPositions.includes(OPTIONS.outpaintPosition)) {
+        console.error(
+          `Error: Invalid --outpaint-position '${OPTIONS.outpaintPosition}'. Use one of: ${validPositions.join(', ')}`
+        );
+        process.exit(1);
+      }
+    }
   }
 
   // Determine if this model requires a reference image
@@ -1142,6 +1185,17 @@ async function main() {
       // Detailer LoRA strength (always loaded alongside control LoRA)
       if (OPTIONS.detailerStrength !== undefined && OPTIONS.detailerStrength !== null) {
         projectParams.detailerStrength = OPTIONS.detailerStrength;
+      }
+      // Inpaint/outpaint mask IMAGE (white = region to regenerate)
+      if (
+        (OPTIONS.controlNetType === 'outpaint' || OPTIONS.controlNetType === 'inpaint') &&
+        OPTIONS.mask
+      ) {
+        projectParams.referenceMask = readFileAsBuffer(OPTIONS.mask);
+      }
+      // Outpaint canvas anchor
+      if (OPTIONS.controlNetType === 'outpaint' && OPTIONS.outpaintPosition) {
+        projectParams.outpaintPosition = OPTIONS.outpaintPosition;
       }
     }
 

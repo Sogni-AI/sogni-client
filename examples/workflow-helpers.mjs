@@ -1153,7 +1153,7 @@ export const MODELS = {
       hasAudio: true,
       requiresReferenceImage: false,
       supportsControlNet: true,
-      controlNetTypes: ['canny', 'pose', 'depth', 'detailer']
+      controlNetTypes: ['canny', 'pose', 'depth', 'detailer', 'outpaint', 'inpaint']
     },
     'ltx23-v2v-dev': {
       id: 'ltx23-22b-fp8_v2v_dev',
@@ -1192,7 +1192,7 @@ export const MODELS = {
       hasAudio: true,
       requiresReferenceImage: false,
       supportsControlNet: true,
-      controlNetTypes: ['canny', 'pose', 'depth', 'detailer']
+      controlNetTypes: ['canny', 'pose', 'depth', 'detailer', 'outpaint', 'inpaint']
     },
     // WAN Animate Models (require both reference image and source video)
     'move-lightx2v': {
@@ -2481,6 +2481,14 @@ export const CONTROL_NET_TYPES = {
   detailer: {
     name: 'Detailer (Quality Enhancement)',
     description: 'Enhances quality without preprocessing - uses raw video frames'
+  },
+  outpaint: {
+    name: 'Outpaint (Canvas Extension)',
+    description: 'Extends the video canvas into a masked region (requires --mask IMAGE)'
+  },
+  inpaint: {
+    name: 'Inpaint (Region Regeneration)',
+    description: 'Regenerates a masked region of the video (requires --mask IMAGE)'
   }
 };
 

@@ -252,6 +252,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceVideo?: InputMedia;
   /**
+   * Inpaint/outpaint mask IMAGE for LTX-2.3 v2v workflows.
+   * White pixels mark the region to regenerate (inpaint) or the area to fill (outpaint).
+   * Maps to jobKey 'referenceMask'.
+   */
+  referenceMask?: InputMedia;
+  /**
    * Seedance-only video context references. These must be publicly accessible
    * HTTPS URLs and map to Seedance reference_video assets.
    */
@@ -326,6 +332,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Example: [{ x: 0.5, y: 0.5 }] for center of frame
    */
   sam2Coordinates?: Array<{ x: number; y: number }>;
+  /**
+   * Outpaint canvas anchor for LTX-2.3 v2v outpaint workflows.
+   * Determines where the original frame is placed within the expanded canvas.
+   * Default: 'center'.
+   */
+  outpaintPosition?: 'center' | 'top' | 'bottom' | 'left' | 'right';
 }
 
 export interface ImageProjectParams extends BaseProjectParams {
@@ -515,7 +527,8 @@ export type ImageUrlParams = {
     | 'contextImage15'
     | 'contextImage16'
     | 'referenceImage'
-    | 'referenceImageEnd';
+    | 'referenceImageEnd'
+    | 'referenceMask';
   startContentType?: string;
   contentType?: string;
 };
@@ -675,4 +688,5 @@ export type VideoAssetKey =
   | 'referenceImageEnd'
   | 'referenceAudio'
   | 'referenceAudioIdentity'
-  | 'referenceVideo';
+  | 'referenceVideo'
+  | 'referenceMask';
