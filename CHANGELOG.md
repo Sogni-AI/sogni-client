@@ -1,3 +1,11 @@
+# [5.1.0-alpha.10](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.9...v5.1.0-alpha.10) (2026-06-18)
+
+
+### Features
+
+* **audio:** prefer ACE-Step XL music models ([ec5a715](https://github.com/Sogni-AI/sogni-client/commit/ec5a71579d04b42863ce9627c8ea4935b0190f70))
+* **projects:** expose LTX-2.3 v2v outpaint and inpaint controls ([1a60576](https://github.com/Sogni-AI/sogni-client/commit/1a605766e42b6fa5cdedf0a64425deb51cbf81b1))
+
 # [5.1.0-alpha.9](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.8...v5.1.0-alpha.9) (2026-06-16)
 
 
