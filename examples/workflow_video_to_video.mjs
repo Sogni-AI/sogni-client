@@ -28,7 +28,8 @@
  *   # LTX-2.3 V2V ControlNet
  *   node workflow_video_to_video.mjs --video source.mp4 --model ltx23-v2v-distilled --control-type canny
  *   node workflow_video_to_video.mjs "A dancing figure" --video dance.mp4 --control-type pose
- *   node workflow_video_to_video.mjs "A robot" --image robot.jpg --video dance.mp4 --control-type pose
+ *   node workflow_video_to_video.mjs --video clip.mp4 --control-type outpaint --outpaint-position right
+ *   node workflow_video_to_video.mjs "glowing blue eyes" --video face.mp4 --control-type inpaint --mask mask.png
  *
  * Options:
  *   --image       Reference image path (required for WAN animate, optional for pose)
@@ -728,8 +729,13 @@ async function main() {
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: true });
 
-      // LTX-2.3 V2V: Control injection strength
-      if (modelConfig.supportsControlNet && modelConfig.defaultStrength !== undefined) {
+      // LTX-2.3 V2V: Control injection strength (control-signal types only; outpaint/inpaint use a fixed IC-LoRA strength)
+      if (
+        modelConfig.supportsControlNet &&
+        modelConfig.defaultStrength !== undefined &&
+        OPTIONS.controlNetType !== 'outpaint' &&
+        OPTIONS.controlNetType !== 'inpaint'
+      ) {
         console.log('\n🎚️  Control Strength (how closely to follow the control signal)\n');
         const strengthInput = await askQuestion(
           `  Strength (${modelConfig.minStrength}-${modelConfig.maxStrength}, default: ${modelConfig.defaultStrength}): `
@@ -742,8 +748,13 @@ async function main() {
         }
       }
 
-      // LTX-2.3 V2V: Detailer LoRA strength
-      if (modelConfig.supportsControlNet && OPTIONS.controlNetType !== 'detailer') {
+      // LTX-2.3 V2V: Detailer LoRA strength (control-signal types only; not used by outpaint/inpaint)
+      if (
+        modelConfig.supportsControlNet &&
+        OPTIONS.controlNetType !== 'detailer' &&
+        OPTIONS.controlNetType !== 'outpaint' &&
+        OPTIONS.controlNetType !== 'inpaint'
+      ) {
         console.log('\n🔍 Detailer LoRA Strength (enhances fine detail quality)\n');
         const detailerInput = await askQuestion('  Detailer strength (0.0-1.0, default: 0.6): ');
         if (detailerInput.trim()) {
@@ -784,9 +795,11 @@ async function main() {
     OPTIONS.guidance = modelConfig.defaultGuidance;
   }
   if (!OPTIONS.steps) OPTIONS.steps = modelConfig.defaultSteps;
-  // LTX-2.3 V2V: strength (control injection strength)
+  // LTX-2.3 V2V: strength (control injection strength; outpaint/inpaint use a fixed IC-LoRA strength)
   if (
     modelConfig.defaultStrength !== undefined &&
+    OPTIONS.controlNetType !== 'outpaint' &&
+    OPTIONS.controlNetType !== 'inpaint' &&
     (OPTIONS.strength === undefined || OPTIONS.strength === null)
   ) {
     OPTIONS.strength = modelConfig.defaultStrength;
@@ -1042,10 +1055,10 @@ async function main() {
     if (OPTIONS.shift !== undefined && OPTIONS.shift !== null) {
       configDisplay['Shift'] = OPTIONS.shift;
     }
-    if (modelConfig.supportsControlNet && OPTIONS.strength !== undefined) {
+    if (modelConfig.supportsControlNet && OPTIONS.strength != null) {
       configDisplay['Strength'] = OPTIONS.strength;
     }
-    if (modelConfig.supportsControlNet && OPTIONS.detailerStrength !== undefined) {
+    if (modelConfig.supportsControlNet && OPTIONS.detailerStrength != null) {
       configDisplay['Detailer Strength'] = OPTIONS.detailerStrength;
     }
 
