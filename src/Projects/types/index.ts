@@ -252,9 +252,9 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceVideo?: InputMedia;
   /**
-   * Inpaint/outpaint mask IMAGE for LTX-2.3 v2v workflows.
-   * White pixels mark the region to regenerate (inpaint) or the area to fill (outpaint).
-   * Maps to jobKey 'referenceMask'.
+   * Inpaint mask IMAGE for LTX-2.3 v2v inpaint workflows.
+   * White pixels mark the region to regenerate. Maps to jobKey 'referenceMask'.
+   * Used by the 'inpaint' control type.
    */
   referenceMask?: InputMedia;
   /**

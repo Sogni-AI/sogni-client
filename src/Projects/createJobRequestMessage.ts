@@ -30,7 +30,8 @@ import {
   calculateVideoFrames,
   isLtx2Model,
   isWanAnimateModel,
-  isSeedanceModel
+  isSeedanceModel,
+  usesReferenceMask
 } from './utils/index.js';
 import { ApiError } from '../ApiClient/index.js';
 import {
@@ -414,7 +415,7 @@ function applyVideoParams(
   if (params.referenceVideo) {
     keyFrame.hasReferenceVideo = true;
   }
-  if (params.referenceMask) {
+  if (params.referenceMask && usesReferenceMask(params)) {
     keyFrame.hasReferenceMask = true;
   }
   const referenceVideoUrls = asReferenceUrlArray(params.referenceVideoUrls);

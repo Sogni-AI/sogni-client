@@ -39,6 +39,7 @@ import {
   getVideoWorkflowType,
   isAudioModel,
   isVideoModel,
+  usesReferenceMask,
   VIDEO_WORKFLOW_ASSETS
 } from './utils/index.js';
 import { TokenType } from '../types/token.js';
@@ -737,7 +738,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (data?.referenceVideo && data.referenceVideo !== true) {
       await this.uploadReferenceVideo(project.id, data.referenceVideo);
     }
-    if (data?.referenceMask && data.referenceMask !== true) {
+    if (data?.referenceMask && data.referenceMask !== true && usesReferenceMask(data)) {
       await this.uploadReferenceMask(project.id, data.referenceMask);
     }
   }
@@ -763,7 +764,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (data.referenceVideo && data.referenceVideo !== true) {
       keyFrame.referenceVideoContentType = getFileContentType(data.referenceVideo);
     }
-    if (data.referenceMask && data.referenceMask !== true) {
+    if (data.referenceMask && data.referenceMask !== true && usesReferenceMask(data)) {
       keyFrame.referenceMaskContentType = getFileContentType(data.referenceMask);
     }
   }

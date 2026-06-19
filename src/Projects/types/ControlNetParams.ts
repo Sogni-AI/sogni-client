@@ -109,8 +109,9 @@ export interface VideoControlNetParams {
    * - 'pose': Body pose detection (supports optional referenceImage for appearance)
    * - 'depth': Depth estimation
    * - 'detailer': Quality enhancement
-   * - 'outpaint': Extend the canvas around the reference video (requires referenceMask)
-   * - 'inpaint': Regenerate a masked region of the reference video (requires referenceMask)
+   * - 'outpaint': Extend the reference video's canvas. Positional, driven by
+   *   `outpaintPosition` (plus width/height).
+   * - 'inpaint': Regenerate a masked region of the reference video (requires `referenceMask`)
    */
   name: VideoControlNetName;
   /**

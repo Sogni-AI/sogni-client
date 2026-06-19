@@ -2484,7 +2484,8 @@ export const CONTROL_NET_TYPES = {
   },
   outpaint: {
     name: 'Outpaint (Canvas Extension)',
-    description: 'Extends the video canvas into a masked region (requires --mask IMAGE)'
+    description:
+      'Extends the video canvas using a positional anchor (requires --outpaint-position)'
   },
   inpaint: {
     name: 'Inpaint (Region Regeneration)',

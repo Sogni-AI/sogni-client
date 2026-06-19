@@ -2,6 +2,7 @@ import {
   AssetRequirement,
   EnhancementStrength,
   VideoAssetKey,
+  VideoProjectParams,
   VideoWorkflowType
 } from '../types/index.js';
 
@@ -259,6 +260,14 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceAudio: 'forbidden',
     referenceAudioIdentity: 'optional',
     referenceVideo: 'required',
-    referenceMask: 'optional' // Required for inpaint/outpaint control types
+    referenceMask: 'optional' // Used only by the inpaint control type; outpaint is positional
   }
 };
+
+/**
+ * Whether a `referenceMask` should be honored for the given video params.
+ * Only the LTX-2.3 v2v 'inpaint' control type consumes a mask.
+ */
+export function usesReferenceMask(params: VideoProjectParams): boolean {
+  return params.controlNet?.name === 'inpaint';
+}

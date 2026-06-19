@@ -13,7 +13,7 @@
  * - pose: Skeleton/pose-based control (optional image for appearance + video for motion)
  * - depth: Depth map control (video only)
  * - detailer: Quality enhancement (video only)
- * - outpaint: Extend the canvas around the source video (requires --mask IMAGE)
+ * - outpaint: Extend the canvas around the source video (positional, requires --outpaint-position)
  * - inpaint: Regenerate a masked region of the source video (requires --mask IMAGE)
  *
  * Prerequisites:
@@ -35,8 +35,8 @@
  *   --video       Source video path (required)
  *   --model       Model to use (see available models below)
  *   --control-type Control type for LTX-2.3 V2V: canny, pose, depth, detailer, outpaint, inpaint
- *   --mask        Mask IMAGE for inpaint/outpaint (white pixels = region to regenerate)
- *   --outpaint-position  Outpaint canvas anchor: center, top, bottom, left, right (default: center)
+ *   --mask        Mask IMAGE for inpaint (white pixels = region to regenerate)
+ *   --outpaint-position  Outpaint canvas anchor: center, top, bottom, left, right (required for outpaint)
  *   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
  *                 Format: "x,y" where x,y are normalized 0-1 coordinates
  *   --video-start Video start position in seconds (where to begin reading from source video)
@@ -254,7 +254,7 @@ Control Types (LTX-2.3 V2V only):
     pose     - Skeleton control (optional image for appearance + video for motion)
     depth    - Depth map control (preserves spatial relationships, video only)
     detailer - Quality enhancement (no preprocessing, video only)
-    outpaint - Extend the canvas around the source video (requires --mask IMAGE)
+    outpaint - Extend the canvas around the source video (positional, requires --outpaint-position)
     inpaint  - Regenerate a masked region of the source video (requires --mask IMAGE)
 
 Options:
@@ -262,8 +262,8 @@ Options:
   --image         Reference image path (required for WAN animate, optional for pose)
   --model         Model key (see available models above)
   --control-type  Control type for LTX-2.3 V2V: canny, pose, depth, detailer, outpaint, inpaint
-  --mask          Mask IMAGE for inpaint/outpaint (white pixels = region to regenerate)
-  --outpaint-position  Outpaint canvas anchor: center, top, bottom, left, right (default: center)
+  --mask          Mask IMAGE for inpaint (white pixels = region to regenerate)
+  --outpaint-position  Outpaint canvas anchor: center, top, bottom, left, right (required for outpaint)
   --sam2-coords   SAM2 click coordinates for animate-replace (format: "x,y", 0-1 normalized)
   --video-start   Video start position in seconds (default: 0)
   --negative      Negative prompt (default: none)
@@ -295,8 +295,8 @@ Examples:
   # LTX-2.3 V2V with pose control (requires image for appearance)
   node workflow_video_to_video.mjs "A robot dancing" --image robot.jpg --video dance.mp4 --control-type pose
 
-  # LTX-2.3 V2V outpaint (extend canvas; mask IMAGE white = area to fill)
-  node workflow_video_to_video.mjs --video clip.mp4 --control-type outpaint --mask mask.png --outpaint-position right
+  # LTX-2.3 V2V outpaint (extend canvas; positional anchor)
+  node workflow_video_to_video.mjs --video clip.mp4 --control-type outpaint --outpaint-position right
 
   # LTX-2.3 V2V inpaint (regenerate masked region; mask IMAGE white = region to regenerate)
   node workflow_video_to_video.mjs "A red car" --video street.mp4 --control-type inpaint --mask mask.png
@@ -443,29 +443,37 @@ async function main() {
 
     log('🎛️', `Control type: ${CONTROL_NET_TYPES[OPTIONS.controlNetType].name}`);
 
-    // Inpaint/outpaint require a mask IMAGE (white pixels = region to regenerate)
-    if (OPTIONS.controlNetType === 'inpaint' || OPTIONS.controlNetType === 'outpaint') {
+    // Inpaint requires a mask IMAGE (white pixels = region to regenerate).
+    if (OPTIONS.controlNetType === 'inpaint') {
       if (OPTIONS.interactive && !OPTIONS.mask) {
         OPTIONS.mask = await pickImageFile(null, 'mask image (white = region to regenerate)');
       }
       if (!OPTIONS.mask) {
         console.error(
-          `Error: ${OPTIONS.controlNetType} control requires a mask IMAGE. Provide one with --mask <path> (white pixels mark the region to regenerate).`
+          'Error: inpaint control requires a mask IMAGE. Provide one with --mask <path> (white pixels mark the region to regenerate).'
         );
         process.exit(1);
       }
       log('🎭', `Mask image: ${OPTIONS.mask}`);
     }
 
-    // Validate outpaint canvas anchor
-    if (OPTIONS.outpaintPosition) {
+    // Outpaint is positional: it extends the canvas using --outpaint-position
+    // (plus width/height). Require an anchor and validate it.
+    if (OPTIONS.controlNetType === 'outpaint') {
       const validPositions = ['center', 'top', 'bottom', 'left', 'right'];
+      if (!OPTIONS.outpaintPosition) {
+        console.error(
+          `Error: outpaint control requires --outpaint-position <anchor>. Use one of: ${validPositions.join(', ')}`
+        );
+        process.exit(1);
+      }
       if (!validPositions.includes(OPTIONS.outpaintPosition)) {
         console.error(
           `Error: Invalid --outpaint-position '${OPTIONS.outpaintPosition}'. Use one of: ${validPositions.join(', ')}`
         );
         process.exit(1);
       }
+      log('🧭', `Outpaint position: ${OPTIONS.outpaintPosition}`);
     }
   }
 
@@ -1186,11 +1194,8 @@ async function main() {
       if (OPTIONS.detailerStrength !== undefined && OPTIONS.detailerStrength !== null) {
         projectParams.detailerStrength = OPTIONS.detailerStrength;
       }
-      // Inpaint/outpaint mask IMAGE (white = region to regenerate)
-      if (
-        (OPTIONS.controlNetType === 'outpaint' || OPTIONS.controlNetType === 'inpaint') &&
-        OPTIONS.mask
-      ) {
+      // Inpaint mask IMAGE (white = region to regenerate); attached only for inpaint.
+      if (OPTIONS.controlNetType === 'inpaint' && OPTIONS.mask) {
         projectParams.referenceMask = readFileAsBuffer(OPTIONS.mask);
       }
       // Outpaint canvas anchor
