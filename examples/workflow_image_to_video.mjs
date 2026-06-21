@@ -17,6 +17,8 @@
  * Options:
  *   --image     Input image path (required)
  *   --end-image Optional end image for keyframe interpolation (i2v only)
+ *   --transition  Attach the LTX-2.3 transition/morph LoRA (requires --end-image, LTX-2.3 i2v);
+ *                 morphs the first image into the end image and appends the 'zhuanchang' trigger
  *   --model     Model ID (default: wan_v2.2-14b-fp8_i2v_lightx2v)
  *   --width     Video width (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
  *   --height    Video height (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
@@ -126,7 +128,9 @@ async function parseArgs() {
     interactive: true,
     disableSafeContentFilter: false,
     identityAudio: null,
-    audioIdentityStrength: null
+    audioIdentityStrength: null,
+    transition: false,
+    transitionStrength: null
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -140,6 +144,10 @@ async function parseArgs() {
       options.image = args[++i];
     } else if (arg === '--end-image' && args[i + 1]) {
       options.endImage = args[++i];
+    } else if (arg === '--transition') {
+      options.transition = true;
+    } else if (arg === '--transition-strength' && args[i + 1]) {
+      options.transitionStrength = parseFloat(args[++i]);
     } else if (arg === '--model' && args[i + 1]) {
       options.modelKey = args[++i];
     } else if (arg === '--width' && args[i + 1]) {
@@ -200,6 +208,7 @@ Usage:
   node workflow_image_to_video.mjs --image input.jpg       # Interactive mode
   node workflow_image_to_video.mjs "zoom in" --image pic.jpg
   node workflow_image_to_video.mjs --image img.jpg --end-image img2.jpg  # Interpolation
+  node workflow_image_to_video.mjs "a woman morphs into a fox" --image woman.jpg --end-image fox.jpg --transition --model ltx23-22b-fp8_i2v_distilled  # LTX-2.3 transition LoRA
 
 Available Models:
   wan_v2.2-14b-fp8_i2v_lightx2v       (WAN 2.2, fast 4-step, 1-10s, default)
@@ -216,6 +225,8 @@ Model-Specific Constraints:
 Options:
   --image     Input image path (required)
   --end-image Optional end image for transition
+  --transition  Attach the LTX-2.3 transition/morph LoRA (LTX-2.3 i2v + --end-image only)
+  --transition-strength  Transition LoRA strength 0-2 (default: 1.0)
   --model     Model ID (default: wan_v2.2-14b-fp8_i2v_lightx2v)
   --negative  Negative prompt (default: none)
   --style     Style prompt (default: none)
@@ -326,6 +337,24 @@ async function main() {
 
   // Prompt for frame strength values when end image is provided (LTX keyframes only)
   const isLtx2Model = OPTIONS.modelKey.startsWith('ltx2-') || OPTIONS.modelKey.startsWith('ltx23-');
+
+  // The transition/morph LoRA is an LTX-2.3 keyframe feature: it morphs the first image
+  // into the end image, so it needs an LTX-2.3 i2v model and both keyframes.
+  if (OPTIONS.transition) {
+    if (!isLtx2Model) {
+      console.error(
+        'Error: --transition (transition LoRA) is only supported on LTX-2.3 i2v models. Use --model ltx23-22b-fp8_i2v_distilled.'
+      );
+      process.exit(1);
+    }
+    if (!OPTIONS.endImage) {
+      console.error(
+        'Error: --transition requires --end-image — the LoRA morphs the first image into the end image.'
+      );
+      process.exit(1);
+    }
+    log('🔀', 'Transition LoRA enabled (morph first → end image)');
+  }
   if (OPTIONS.interactive && OPTIONS.endImage && isLtx2Model) {
     console.log('\n📊 Frame Strength Settings (0.0-1.0, higher = more exact match):');
 
@@ -720,6 +749,19 @@ async function main() {
     }
     if (OPTIONS.lastFrameStrength !== undefined) {
       projectParams.lastFrameStrength = OPTIONS.lastFrameStrength;
+    }
+
+    // LTX-2.3 transition/morph LoRA (ValiantCat): attach it via the generic loras param and
+    // append the 'zhuanchang' trigger so the model morphs the first image into the end image.
+    // The worker resolves the 'transition' LoRA id to its file and injects it into the graph.
+    if (OPTIONS.transition) {
+      projectParams.loras = ['transition'];
+      projectParams.loraStrengths = [OPTIONS.transitionStrength ?? 1.0];
+      const trigger = 'zhuanchang';
+      const prompt = projectParams.positivePrompt || '';
+      if (!new RegExp(`\\b${trigger}\\b`, 'i').test(prompt)) {
+        projectParams.positivePrompt = prompt ? `${prompt}, ${trigger}` : trigger;
+      }
     }
 
     // Add guidance
