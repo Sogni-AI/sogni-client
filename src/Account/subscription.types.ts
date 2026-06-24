@@ -106,6 +106,13 @@ export interface SubscriptionEntitlementSnapshot {
   /** Feature flags or capability names enabled by this subscription. */
   capabilities?: Record<string, boolean>;
   /**
+   * True when a Google Play deferred payment (e.g. QRIS) is awaiting
+   * confirmation and there is no active entitlement yet. Display-only. Carried
+   * by the REST status snapshot; absent on older servers. Pairs with `active`:
+   * consumers should show a pending hint only while `paymentPending && !active`.
+   */
+  paymentPending?: boolean;
+  /**
    * Frontier vendor-model discount (basis points) this member currently
    * receives on the artist-facing price of premium third-party vendor models
    * (`gpt-image-2`, `seedance-2-0`, `seedance-2-0-fast`). Present only when the
