@@ -218,6 +218,7 @@ class AccountApi extends ApiGroup {
       ...(sub.scheduledChangeAt
         ? { scheduledChangeAt: new Date(sub.scheduledChangeAt).toISOString() }
         : {}),
+      ...(sub.paymentPending ? { paymentPending: true } : {}),
       capabilities:
         sub.capabilities ??
         (data.active && (sub.tier === 'unlimited' || sub.tier === 'unlimited_pro')

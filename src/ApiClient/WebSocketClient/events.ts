@@ -45,6 +45,12 @@ export interface SocketSubscriptionEntitlementData {
      * server. When absent the SDK derives a minimal local map.
      */
     capabilities?: Record<string, boolean> | null;
+    /**
+     * Whether a deferred payment is awaiting confirmation. Not emitted by the
+     * backend socket publisher today (the REST snapshot is the source); typed
+     * here so the mapper can pass it through if a future build adds it.
+     */
+    paymentPending?: boolean | null;
   } | null;
 }
 
