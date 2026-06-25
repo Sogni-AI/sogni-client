@@ -1,3 +1,10 @@
+# [5.1.0-alpha.11](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.10...v5.1.0-alpha.11) (2026-06-25)
+
+
+### Features
+
+* **video:** expose Seedance 4K client metadata ([19e1dd5](https://github.com/Sogni-AI/sogni-client/commit/19e1dd5319bd0a859cbae8fb8ff6672ef068fddc))
+
 # [5.1.0-alpha.10](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.9...v5.1.0-alpha.10) (2026-06-18)
 
 
