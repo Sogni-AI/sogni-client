@@ -1,3 +1,10 @@
+# [5.1.0-alpha.13](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.12...v5.1.0-alpha.13) (2026-06-25)
+
+
+### Features
+
+* add Seedance Mini routing ([11c2855](https://github.com/Sogni-AI/sogni-client/commit/11c28552ed4834a0861201b305420c9e930f5daf))
+
 # [5.1.0-alpha.12](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.11...v5.1.0-alpha.12) (2026-06-25)
 
 
