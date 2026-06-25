@@ -283,22 +283,40 @@ function dimensionPresets(options) {
 
   return [
     {
-      label: 'Cinematic landscape - 1920x1088',
+      label: 'Cinematic landscape - 1920x1080',
       description: 'Full Seedance default for polished widescreen video.',
       width: 1920,
-      height: 1088
+      height: 1080
     },
     {
-      label: 'Vertical social - 1088x1920',
+      label: '4K landscape - 3840x2160',
+      description: 'Full Seedance 4K widescreen output.',
+      width: 3840,
+      height: 2160
+    },
+    {
+      label: 'Vertical social - 1080x1920',
       description: 'Portrait format for reels, shorts, and mobile-first spots.',
-      width: 1088,
+      width: 1080,
       height: 1920
     },
     {
-      label: 'Square premium - 1088x1088',
+      label: '4K vertical - 2160x3840',
+      description: 'Full Seedance 4K portrait output.',
+      width: 2160,
+      height: 3840
+    },
+    {
+      label: 'Square premium - 1080x1080',
       description: 'Balanced square format for feeds and product showcases.',
-      width: 1088,
-      height: 1088
+      width: 1080,
+      height: 1080
+    },
+    {
+      label: '4K square - 2880x2880',
+      description: 'Full Seedance 4K square output.',
+      width: 2880,
+      height: 2880
     },
     {
       label: 'Custom size',
@@ -375,7 +393,7 @@ async function promptTier(options) {
       {
         label: 'Seedance 2.0',
         value: 'full',
-        description: 'Full-quality external API model with 1920x1088 default output.'
+        description: 'Full-quality external API model with optional 4K output.'
       },
       {
         label: 'Seedance 2.0 Fast',
@@ -798,7 +816,7 @@ Options:
   --duration <seconds>   4-15 seconds for Seedance (default: 4)
   --fps <n>              Seedance endpoint FPS; must be 24 (default: 24)
   --width <px>           Output width (default: 1280 for fast, 1920 otherwise)
-  --height <px>          Output height (default: 720 for fast, 1088 otherwise)
+  --height <px>          Output height (default: 720 for fast, 1080 otherwise)
   --image <path|https>   Reference image for i2v, ia2v, or v2v context; repeatable
   --context <path|https> Alias for --image; repeatable
   --end-image <path|https> Optional final frame image for i2v interpolation
@@ -980,7 +998,7 @@ function defaultDimensions(options) {
   const fast = selectedModelId(options).includes('fast');
   return {
     width: options.width || (fast ? 1280 : 1920),
-    height: options.height || (fast ? 720 : 1088)
+    height: options.height || (fast ? 720 : 1080)
   };
 }
 

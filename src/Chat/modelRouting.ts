@@ -393,7 +393,7 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
     return { width: 1280, height: 720, fps: 24 };
   }
   if (isSeedance) {
-    return { width: 1920, height: 1088, fps: 24 };
+    return { width: 1920, height: 1080, fps: 24 };
   }
   if (isLtx2) {
     return { width: 1920, height: 1088, fps: 24 };

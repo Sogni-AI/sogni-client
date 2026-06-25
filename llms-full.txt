@@ -643,7 +643,7 @@ LTX VIDEO PARAMETERS:
 
 Seedance 2.0 models use the external API path. They generate at fixed 24fps and
 currently support 4-15 second direct SDK outputs. Seedance models are premium/external API models and are Spark-only.
-Seedance 2.0 Fast accepts the same optional image, video, and audio references and caps output at 720p.
+Seedance 2.0 full supports up to 4K output. Seedance 2.0 Fast accepts the same optional image, video, and audio references and caps output at 720p.
 Seedance can combine reference media in one request: up to 9 image assets, 3 video
 assets, 3 audio assets, and 12 total assets. Text+audio-only is unsupported; use at
 least one image or video reference with audio references. Prompt-visible reference
@@ -655,7 +655,7 @@ real-human-reference behavior need review.
 SEEDANCE MODEL IDS:
 | Model ID | Context Assets | Notes |
 |----------|----------------|-------|
-| seedance-2-0 | Optional image, video, and audio refs | 24fps, 4-15s, 1080p |
+| seedance-2-0 | Optional image, video, and audio refs | 24fps, 4-15s, 4K |
 | seedance-2-0-fast | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
 
 SEEDANCE TEXT-TO-VIDEO:
@@ -670,7 +670,7 @@ const project = await sogni.projects.create({
   duration: 5,
   fps: 24,
   width: 1920,
-  height: 1088,
+  height: 1080,
   tokenType: 'spark'
 });
 ```
@@ -692,7 +692,7 @@ const project = await sogni.projects.create({
   duration: 8,
   fps: 24,
   width: 1920,
-  height: 1088,
+  height: 1080,
   referenceImageUrls: [
     'https://cdn.example.com/product-front.png',
     'https://cdn.example.com/product-detail.png'

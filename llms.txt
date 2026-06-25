@@ -302,7 +302,7 @@ Seedance models are external API-backed Spark-only video models. They generate a
 
 | Model ID              | Context Assets                         | Notes                |
 | --------------------- | -------------------------------------- | -------------------- |
-| `seedance-2-0`        | Optional image, video, and audio refs  | 24fps, 4-15s, 1080p  |
+| `seedance-2-0`        | Optional image, video, and audio refs  | 24fps, 4-15s, 4K     |
 | `seedance-2-0-fast`   | Optional image, video, and audio refs  | 24fps, 4-15s, 720p   |
 
 ```javascript
@@ -314,7 +314,7 @@ const project = await sogni.projects.create({
   duration: 5,
   fps: 24,
   width: 1920,
-  height: 1088,
+  height: 1080,
   tokenType: 'spark'
 });
 ```

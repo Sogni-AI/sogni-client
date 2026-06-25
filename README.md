@@ -646,7 +646,7 @@ WAN workflows have two model variants optimized for different use cases:
 - **Speed variant** (with `_lightx2v` suffix) - Faster inference (4-step), good quality
 - **Quality variant** (without `_lightx2v`) - Slower inference, best quality
 
-LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available through two canonical multimodal model IDs: `seedance-2-0` and `seedance-2-0-fast`. Both accept optional image, video, and audio references, run at fixed 24fps, and require Spark billing; the Fast model caps output at 720p.
+LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available through two canonical multimodal model IDs: `seedance-2-0` and `seedance-2-0-fast`. Both accept optional image, video, and audio references, run at fixed 24fps, and require Spark billing; the full model supports up to 4K and the Fast model caps output at 720p.
 
 Example model IDs:
 
@@ -661,7 +661,7 @@ Example model IDs:
 - `ltx23-22b-fp8_t2v_distilled` (LTX-2.3 Text-to-Video, fast)
 - `ltx23-22b-fp8_i2v_distilled` (LTX-2.3 Image-to-Video, fast)
 - `ltx23-22b-fp8_v2v_distilled` (LTX-2.3 Video-to-Video ControlNet, fast)
-- `seedance-2-0` (Seedance 2.0 multimodal video, external API)
+- `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-fast` (Seedance 2.0 Fast multimodal video, external API, 720p cap)
 
 ### Video Parameters
@@ -714,7 +714,7 @@ const project = await sogni.projects.create({
   duration: 5,
   fps: 24,
   width: 1920,
-  height: 1088,
+  height: 1080,
   tokenType: 'spark'
 });
 
@@ -733,7 +733,7 @@ const project = await sogni.projects.create({
   duration: 8,
   fps: 24,
   width: 1920,
-  height: 1088,
+  height: 1080,
   referenceImageUrls: [
     'https://cdn.example.com/product-front.png',
     'https://cdn.example.com/product-detail.png'
@@ -1073,7 +1073,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing   | Rapid reference-based image generation                                                                       |
 | `qwen_image_edit_2511_fp8`           | **Qwen Image Edit** - High quality 20-step editing    | Professional image editing with context awareness                                                            |
 | `wan_v2.2-14b-fp8_t2v_lightx2v`      | **Wan 2.2 T2V** - Text-to-video                       | Generate videos from text prompts                                                                            |
-| `seedance-2-0`                       | **Seedance 2.0** - External API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
+| `seedance-2-0`                       | **Seedance 2.0** - 4K external API multimodal video   | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-fast`                  | **Seedance 2.0 Fast** - 720p external API video       | Faster 24fps video generation where fast tiers are enabled                                                   |
 | `qwen3.6-35b-a3b-gguf-iq4xs`         | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
 

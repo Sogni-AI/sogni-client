@@ -142,6 +142,7 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - External API-backed video models for text-to-video, image-to-video,
  *   multimodal reference generation, image+audio-to-video, and video-to-video
  * - Generate at fixed 24fps
+ * - Full tier supports up to 4K output; Fast caps at 720p
  * - Direct SDK project duration range is 4 to 15 seconds
  * - Frame count is calculated as: `duration * 24 + 1`
  * - Vendor reference limits are 9 images, 3 videos, 3 audios, and 12 asset files total

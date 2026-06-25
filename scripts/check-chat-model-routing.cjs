@@ -189,7 +189,7 @@ assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.s2v), {
 });
 assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceT2v), {
   width: 1920,
-  height: 1088,
+  height: 1080,
   fps: 24
 });
 assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceFastT2v), {
