@@ -83,6 +83,8 @@ export const PREFERRED_MODEL_IDS = {
     seedanceT2v: 'seedance-2-0',
     seedanceI2v: 'seedance-2-0',
     seedanceIa2v: 'seedance-2-0',
+    seedanceMiniT2v: 'seedance-2-0-mini',
+    seedanceMiniI2v: 'seedance-2-0-mini',
     seedanceFastT2v: 'seedance-2-0-fast',
     seedanceFastI2v: 'seedance-2-0-fast',
     seedanceV2v: 'seedance-2-0',
@@ -164,6 +166,7 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.t2v,
   wan22: 'wan_v2.2-14b-fp8_t2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceT2v,
+  'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastT2v
 };
 
@@ -171,6 +174,7 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.i2v,
   wan22: 'wan_v2.2-14b-fp8_i2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceI2v,
+  'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastI2v
 };
 
@@ -182,6 +186,7 @@ const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
 
 const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'wan-s2v': PREFERRED_MODEL_IDS.video.s2v,
+  'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceIa2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'ltx23-ia2v': PREFERRED_MODEL_IDS.video.ia2v,
   'ltx23-a2v': PREFERRED_MODEL_IDS.video.a2v
@@ -361,7 +366,11 @@ export function isEditImageModel(modelId: string): boolean {
 const SEEDANCE_CANONICAL_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'ia2v', 'v2v'];
 
 function getCompatibleVideoWorkflows(modelId: string): VideoWorkflow[] {
-  if (modelId === 'seedance-2-0' || modelId === 'seedance-2-0-fast') {
+  if (
+    modelId === 'seedance-2-0' ||
+    modelId === 'seedance-2-0-mini' ||
+    modelId === 'seedance-2-0-fast'
+  ) {
     return SEEDANCE_CANONICAL_WORKFLOWS;
   }
   const workflow = getVideoWorkflowType(modelId);
@@ -389,7 +398,7 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
   }
-  if (modelId.includes('seedance-2-0-fast')) {
+  if (modelId.includes('seedance-2-0-mini') || modelId.includes('seedance-2-0-fast')) {
     return { width: 1280, height: 720, fps: 24 };
   }
   if (isSeedance) {

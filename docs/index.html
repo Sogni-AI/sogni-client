@@ -230,7 +230,7 @@ info and usage samples in <a href="https://docs.sogni.ai/learn/basics/controlnet
 <li><strong>Speed variant</strong> (with <code>_lightx2v</code> suffix) - Faster inference (4-step), good quality</li>
 <li><strong>Quality variant</strong> (without <code>_lightx2v</code>) - Slower inference, best quality</li>
 </ul>
-<p>LTX-2.3 models use <code>distilled</code> and <code>dev</code> variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available through two canonical multimodal model IDs: <code>seedance-2-0</code> and <code>seedance-2-0-fast</code>. Both accept optional image, video, and audio references, run at fixed 24fps, and require Spark billing; the Fast model caps output at 720p.</p>
+<p>LTX-2.3 models use <code>distilled</code> and <code>dev</code> variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available through three canonical multimodal model IDs: <code>seedance-2-0</code>, <code>seedance-2-0-mini</code>, and <code>seedance-2-0-fast</code>. All accept optional image, video, and audio references, run at fixed 24fps, and require Spark billing; the full model supports up to 4K, while Mini and Fast cap output at 720p.</p>
 <p>Example model IDs:</p>
 <ul>
 <li><code>wan_v2.2-14b-fp8_t2v_lightx2v</code> (Text-to-Video, speed)</li>
@@ -244,7 +244,8 @@ info and usage samples in <a href="https://docs.sogni.ai/learn/basics/controlnet
 <li><code>ltx23-22b-fp8_t2v_distilled</code> (LTX-2.3 Text-to-Video, fast)</li>
 <li><code>ltx23-22b-fp8_i2v_distilled</code> (LTX-2.3 Image-to-Video, fast)</li>
 <li><code>ltx23-22b-fp8_v2v_distilled</code> (LTX-2.3 Video-to-Video ControlNet, fast)</li>
-<li><code>seedance-2-0</code> (Seedance 2.0 multimodal video, external API)</li>
+<li><code>seedance-2-0</code> (Seedance 2.0 multimodal video, external API, 4K capable)</li>
+<li><code>seedance-2-0-mini</code> (Seedance 2.0 Mini multimodal video, external API, 720p cap)</li>
 <li><code>seedance-2-0-fast</code> (Seedance 2.0 Fast multimodal video, external API, 720p cap)</li>
 </ul>
 <a id="video-parameters" class="tsd-anchor"></a><h3 class="tsd-anchor-link">Video Parameters<a href="#video-parameters" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3><p>When creating video projects, you can specify:</p>
@@ -465,13 +466,18 @@ info and usage samples in <a href="https://docs.sogni.ai/learn/basics/controlnet
 </tr>
 <tr>
 <td><code>seedance-2-0</code></td>
-<td><strong>Seedance 2.0</strong> - External API multimodal video</td>
+<td><strong>Seedance 2.0</strong> - 4K external API multimodal video</td>
 <td>Full Seedance 2.0 24fps video generation with optional image, video, and audio context</td>
+</tr>
+<tr>
+<td><code>seedance-2-0-mini</code></td>
+<td><strong>Seedance 2.0 Mini</strong> - 720p external API video</td>
+<td>Fastest, lower-cost 24fps Seedance video generation</td>
 </tr>
 <tr>
 <td><code>seedance-2-0-fast</code></td>
 <td><strong>Seedance 2.0 Fast</strong> - 720p external API video</td>
-<td>Faster 24fps video generation where fast tiers are enabled</td>
+<td>Legacy faster 24fps video generation where fast tiers are enabled</td>
 </tr>
 <tr>
 <td><code>qwen3.6-35b-a3b-gguf-iq4xs</code></td>

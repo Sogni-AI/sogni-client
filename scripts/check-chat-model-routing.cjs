@@ -90,6 +90,8 @@ const models = [
   { id: PREFERRED_MODEL_IDS.video.seedanceT2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceI2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceIa2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.video.seedanceMiniT2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.video.seedanceMiniI2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceFastT2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceFastI2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceV2v, media: 'video', workerCount: 999 },
@@ -192,6 +194,11 @@ assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceT2v), {
   height: 1080,
   fps: 24
 });
+assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceMiniT2v), {
+  width: 1280,
+  height: 720,
+  fps: 24
+});
 assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceFastT2v), {
   width: 1280,
   height: 720,
@@ -287,6 +294,10 @@ assert.equal(
   PREFERRED_MODEL_IDS.video.seedanceT2v
 );
 assert.equal(
+  resolveHostedToolModelSelector('generate_video', { model: 'seedance2-mini' }),
+  PREFERRED_MODEL_IDS.video.seedanceMiniT2v
+);
+assert.equal(
   resolveHostedToolModelSelector('generate_video', { model: 'seedance2-fast' }),
   PREFERRED_MODEL_IDS.video.seedanceFastT2v
 );
@@ -296,6 +307,13 @@ assert.equal(
     reference_image_url: 'data:image/png;base64,aaa'
   }),
   PREFERRED_MODEL_IDS.video.seedanceI2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', {
+    model: 'seedance2-mini',
+    reference_image_url: 'data:image/png;base64,aaa'
+  }),
+  PREFERRED_MODEL_IDS.video.seedanceMiniI2v
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', {
@@ -314,6 +332,10 @@ assert.equal(
 );
 assert.equal(
   resolveHostedToolModelSelector('sound_to_video', { model: 'seedance2' }),
+  PREFERRED_MODEL_IDS.video.seedanceIa2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('sound_to_video', { model: 'seedance2-mini' }),
   PREFERRED_MODEL_IDS.video.seedanceIa2v
 );
 assert.equal(

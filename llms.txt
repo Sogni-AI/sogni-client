@@ -303,6 +303,7 @@ Seedance models are external API-backed Spark-only video models. They generate a
 | Model ID              | Context Assets                         | Notes                |
 | --------------------- | -------------------------------------- | -------------------- |
 | `seedance-2-0`        | Optional image, video, and audio refs  | 24fps, 4-15s, 4K     |
+| `seedance-2-0-mini`   | Optional image, video, and audio refs  | 24fps, 4-15s, 720p   |
 | `seedance-2-0-fast`   | Optional image, video, and audio refs  | 24fps, 4-15s, 720p   |
 
 ```javascript
@@ -321,7 +322,7 @@ const project = await sogni.projects.create({
 
 Use `referenceImageUrls`, `referenceVideoUrls`, and `referenceAudioUrls` for Seedance HTTPS context URLs. Use `referenceImage`/`referenceImageEnd`, `referenceVideo`, and `referenceAudio` for single local file references. Example prompt: `Use @Image1 for product identity, @Video1 for camera movement, and @Audio1 for music rhythm. Keep the product silhouette and logo placement consistent.`
 
-Aliases used by chat tools and examples: `seedance2` and `seedance2-fast`. V2V uses `seedance2` as the model selector and `seedance-v2v` as the control mode. Seedance Fast accepts optional image, video, and audio references and caps at 720p. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
+Aliases used by chat tools and examples: `seedance2`, `seedance2-mini`, and `seedance2-fast`. V2V uses `seedance2` or `seedance2-mini` as the model selector and `seedance-v2v` as the control mode. Seedance Mini is the preferred lower-cost 720p tier; Seedance Fast remains a legacy 720p tier. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
 
 ---
 
