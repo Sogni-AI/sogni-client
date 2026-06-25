@@ -1,3 +1,10 @@
+# [5.1.0-alpha.12](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.11...v5.1.0-alpha.12) (2026-06-25)
+
+
+### Features
+
+* **subscription:** add paymentPending to entitlement snapshot ([#17](https://github.com/Sogni-AI/sogni-client/issues/17)) ([792d959](https://github.com/Sogni-AI/sogni-client/commit/792d959710fac8daaf5ea358c2746de916e650e2))
+
 # [5.1.0-alpha.11](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.10...v5.1.0-alpha.11) (2026-06-25)
 
 
