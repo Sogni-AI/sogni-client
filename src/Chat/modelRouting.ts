@@ -1,6 +1,10 @@
-import { getVideoWorkflowType } from '../Projects/utils/index.js';
+import {
+  getVideoWorkflowType,
+  isHappyhorseModel,
+  isExternalApiVideoModel
+} from '../Projects/utils/index.js';
 
-export { getVideoWorkflowType };
+export { getVideoWorkflowType, isHappyhorseModel, isExternalApiVideoModel };
 
 /**
  * Public SDK-local routing helpers. The hosted-tool argument validator
@@ -33,6 +37,7 @@ export type VideoWorkflow =
   | 'ia2v'
   | 'a2v'
   | 'v2v'
+  | 'r2v'
   | 'animate-move'
   | 'animate-replace';
 
@@ -88,6 +93,9 @@ export const PREFERRED_MODEL_IDS = {
     seedanceFastT2v: 'seedance-2-0-fast',
     seedanceFastI2v: 'seedance-2-0-fast',
     seedanceV2v: 'seedance-2-0',
+    happyhorseT2v: 'happyhorse-1.1-t2v',
+    happyhorseI2v: 'happyhorse-1.1-i2v',
+    happyhorseR2v: 'happyhorse-1.1-r2v',
     animateMove: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
@@ -167,7 +175,9 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   wan22: 'wan_v2.2-14b-fp8_t2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceT2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
-  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastT2v
+  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastT2v,
+  happyhorse: PREFERRED_MODEL_IDS.video.happyhorseT2v,
+  'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseT2v
 };
 
 const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
@@ -175,7 +185,9 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   wan22: 'wan_v2.2-14b-fp8_i2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceI2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
-  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastI2v
+  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastI2v,
+  happyhorse: PREFERRED_MODEL_IDS.video.happyhorseI2v,
+  'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseI2v
 };
 
 const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
@@ -394,6 +406,7 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   const workflow = getVideoWorkflowType(modelId);
   const isLtx2 = modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
   const isSeedance = modelId.startsWith('seedance-2-0');
+  const isHappyhorse = modelId.startsWith('happyhorse-1.1');
 
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
@@ -401,7 +414,7 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   if (modelId.includes('seedance-2-0-mini') || modelId.includes('seedance-2-0-fast')) {
     return { width: 1280, height: 720, fps: 24 };
   }
-  if (isSeedance) {
+  if (isSeedance || isHappyhorse) {
     return { width: 1920, height: 1080, fps: 24 };
   }
   if (isLtx2) {

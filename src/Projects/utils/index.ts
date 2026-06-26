@@ -27,7 +27,8 @@ export function isVideoModel(modelId: string): boolean {
     modelId.startsWith('wan_') ||
     modelId.startsWith('ltx2-') ||
     modelId.startsWith('ltx23-') ||
-    modelId.startsWith('seedance-2-0')
+    modelId.startsWith('seedance-2-0') ||
+    modelId.startsWith('happyhorse-1.1')
   );
 }
 
@@ -86,6 +87,35 @@ export function isLtx2Model(modelId: string): boolean {
  */
 export function isSeedanceModel(modelId: string): boolean {
   return modelId.startsWith('seedance-2-0');
+}
+
+/**
+ * Check if a model ID is an Alibaba HappyHorse 1.1 video model.
+ *
+ * HappyHorse models are external API-backed video models. They generate at
+ * 24fps with native audio and support 3-15 second direct SDK project
+ * durations. They accept image-only reference context: the i2v variant takes
+ * a single first-frame image and the r2v variant takes 1-9 reference images.
+ * Unlike Seedance, HappyHorse does not accept reference video or reference
+ * audio assets.
+ */
+export function isHappyhorseModel(modelId: string): boolean {
+  return modelId.startsWith('happyhorse-1.1');
+}
+
+/**
+ * Check if a model ID is an external API-backed video model (Seedance 2.0 or
+ * HappyHorse 1.1).
+ *
+ * These vendor families share the external API routing path: fixed 24fps
+ * generation, Spark-only billing, no negative prompt, and HTTPS/local
+ * reference context handling. Use this where the same gate applies to both
+ * families; use the model-specific checks (`isSeedanceModel` /
+ * `isHappyhorseModel`) for behavior that differs, such as reference asset
+ * validation and minimum duration.
+ */
+export function isExternalApiVideoModel(modelId: string): boolean {
+  return isSeedanceModel(modelId) || isHappyhorseModel(modelId);
 }
 
 /**
@@ -161,8 +191,18 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   const isWan = modelId.startsWith('wan_');
   const isLtx2 = modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
   const isSeedance = modelId.startsWith('seedance-2-0');
+  const isHappyhorse = modelId.startsWith('happyhorse-1.1');
 
-  if (!isWan && !isLtx2 && !isSeedance) return null;
+  if (!isWan && !isLtx2 && !isSeedance && !isHappyhorse) return null;
+
+  // HappyHorse encodes the workflow directly in the model id using hyphenated
+  // suffixes: happyhorse-1.1-t2v, happyhorse-1.1-i2v, happyhorse-1.1-r2v.
+  if (isHappyhorse) {
+    if (modelId.includes('-r2v')) return 'r2v';
+    if (modelId.includes('-i2v')) return 'i2v';
+    if (modelId.includes('-t2v')) return 't2v';
+    return null;
+  }
 
   // WAN, LTX-2.3, and Seedance models share similar workflow type suffixes
   if (modelId.includes('_i2v')) return 'i2v';
@@ -261,6 +301,17 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceAudioIdentity: 'optional',
     referenceVideo: 'required',
     referenceMask: 'optional' // Used only by the inpaint control type; outpaint is positional
+  },
+  r2v: {
+    // HappyHorse reference-to-video: 1-9 image references (via referenceImage
+    // and/or referenceImageUrls), no video/audio context. Detailed count
+    // limits are enforced by validateHappyhorseReferenceAssets.
+    referenceImage: 'optional',
+    referenceImageEnd: 'forbidden',
+    referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'forbidden',
+    referenceVideo: 'forbidden',
+    referenceMask: 'forbidden'
   }
 };
 

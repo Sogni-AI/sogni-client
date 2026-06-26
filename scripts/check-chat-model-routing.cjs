@@ -10,6 +10,7 @@ const {
   clampVariationCount,
   getHostedVariationCount,
   getVideoDefaults,
+  getVideoWorkflowType,
   isEditImageModel,
   isNonEmptyString,
   normalizeTimeSignature,
@@ -95,6 +96,9 @@ const models = [
   { id: PREFERRED_MODEL_IDS.video.seedanceFastT2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceFastI2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceV2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.video.happyhorseT2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.video.happyhorseI2v, media: 'video', workerCount: 999 },
+  { id: PREFERRED_MODEL_IDS.video.happyhorseR2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.audio.aceStepXlTurbo, media: 'audio', workerCount: 1 },
   { id: PREFERRED_MODEL_IDS.audio.aceStepXlSft, media: 'audio', workerCount: 10 },
   { id: PREFERRED_MODEL_IDS.audio.aceStepTurbo, media: 'audio', workerCount: 1 },
@@ -204,6 +208,45 @@ assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceFastT2v), {
   height: 720,
   fps: 24
 });
+assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.happyhorseT2v), {
+  width: 1920,
+  height: 1080,
+  fps: 24
+});
+assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.happyhorseI2v), {
+  width: 1920,
+  height: 1080,
+  fps: 24
+});
+assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.happyhorseR2v), {
+  width: 1920,
+  height: 1080,
+  fps: 24
+});
+
+// HappyHorse encodes the workflow in the model id (hyphenated suffixes).
+assert.equal(getVideoWorkflowType(PREFERRED_MODEL_IDS.video.happyhorseT2v), 't2v');
+assert.equal(getVideoWorkflowType(PREFERRED_MODEL_IDS.video.happyhorseI2v), 'i2v');
+assert.equal(getVideoWorkflowType(PREFERRED_MODEL_IDS.video.happyhorseR2v), 'r2v');
+
+// HappyHorse r2v is the only model in the fixture compatible with the r2v
+// workflow, so a workflow-only selection must resolve to it.
+assert.equal(
+  selectBackboneModel(models, {
+    mediaType: 'video',
+    requestedModel: PREFERRED_MODEL_IDS.video.happyhorseR2v,
+    workflows: ['r2v'],
+    preferredModelIds: [PREFERRED_MODEL_IDS.video.happyhorseR2v]
+  }).modelId,
+  PREFERRED_MODEL_IDS.video.happyhorseR2v
+);
+assert.equal(
+  selectBackboneModel(models, {
+    mediaType: 'video',
+    workflows: ['r2v']
+  }).modelId,
+  PREFERRED_MODEL_IDS.video.happyhorseR2v
+);
 
 assert.equal(serializeUnknownError(new Error('plain failure')), 'plain failure');
 assert.equal(
@@ -321,6 +364,32 @@ assert.equal(
     reference_image_url: 'data:image/png;base64,aaa'
   }),
   PREFERRED_MODEL_IDS.video.seedanceFastI2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', { model: 'happyhorse' }),
+  PREFERRED_MODEL_IDS.video.happyhorseT2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', { model: 'happyhorse1.1' }),
+  PREFERRED_MODEL_IDS.video.happyhorseT2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', { model: 'HappyHorse' }),
+  PREFERRED_MODEL_IDS.video.happyhorseT2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', {
+    model: 'happyhorse',
+    reference_image_url: 'data:image/png;base64,aaa'
+  }),
+  PREFERRED_MODEL_IDS.video.happyhorseI2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', {
+    model: 'happyhorse1.1',
+    reference_image_url: 'data:image/png;base64,aaa'
+  }),
+  PREFERRED_MODEL_IDS.video.happyhorseI2v
 );
 assert.equal(
   resolveHostedToolModelSelector('video_to_video', { model: 'seedance2' }),

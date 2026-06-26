@@ -31,6 +31,8 @@ import {
   isLtx2Model,
   isWanAnimateModel,
   isSeedanceModel,
+  isHappyhorseModel,
+  isExternalApiVideoModel,
   usesReferenceMask
 } from './utils/index.js';
 import { ApiError } from '../ApiClient/index.js';
@@ -46,6 +48,10 @@ import {
  * Throws an error if required assets are missing or forbidden assets are provided.
  */
 function validateVideoWorkflowAssets(params: VideoProjectParams): void {
+  if (isHappyhorseModel(params.modelId)) {
+    validateHappyhorseReferenceAssets(params);
+    return;
+  }
   if (isSeedanceModel(params.modelId)) {
     validateSeedanceReferenceAssets(params);
     return;
@@ -55,7 +61,7 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
       status: 'error',
       errorCode: 0,
       message:
-        'referenceImageUrls, referenceVideoUrls, and referenceAudioUrls are supported only by Seedance models.'
+        'referenceImageUrls, referenceVideoUrls, and referenceAudioUrls are supported only by Seedance and HappyHorse models.'
     });
   }
 
@@ -185,8 +191,83 @@ function validateSeedanceReferenceAssets(params: VideoProjectParams): void {
   }
 }
 
+/**
+ * HappyHorse 1.1 reference validation. HappyHorse is image-only and does not
+ * reuse Seedance's reference-video / reference-audio handling:
+ * - t2v: no reference images
+ * - i2v: exactly one first-frame reference image
+ * - r2v: between 1 and 9 reference images
+ *
+ * Reference images may be supplied as a single local `referenceImage` and/or
+ * as `referenceImageUrls` HTTPS references. Reference video, reference audio,
+ * audio identity, and a separate end-frame image are all unsupported.
+ */
+function validateHappyhorseReferenceAssets(params: VideoProjectParams): void {
+  validateReferenceUrlArray(params.referenceImageUrls, 'referenceImageUrls');
+  validateReferenceUrlArray(params.referenceVideoUrls, 'referenceVideoUrls');
+  validateReferenceUrlArray(params.referenceAudioUrls, 'referenceAudioUrls');
+
+  if (params.referenceVideo || asReferenceUrlArray(params.referenceVideoUrls).length > 0) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'HappyHorse models do not support reference video assets.'
+    });
+  }
+  if (
+    params.referenceAudio ||
+    params.referenceAudioIdentity ||
+    asReferenceUrlArray(params.referenceAudioUrls).length > 0
+  ) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'HappyHorse models do not support reference audio assets.'
+    });
+  }
+  if (params.referenceImageEnd) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'HappyHorse models do not support a separate end-frame image (referenceImageEnd).'
+    });
+  }
+
+  const workflowType = getVideoWorkflowType(params.modelId);
+  const imageCount =
+    (params.referenceImage ? 1 : 0) + asReferenceUrlArray(params.referenceImageUrls).length;
+
+  if (workflowType === 'i2v') {
+    if (imageCount !== 1) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: 'HappyHorse i2v requires exactly one first-frame reference image.'
+      });
+    }
+    return;
+  }
+  if (workflowType === 'r2v') {
+    if (imageCount < 1 || imageCount > 9) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: 'HappyHorse r2v requires between 1 and 9 reference images.'
+      });
+    }
+    return;
+  }
+  if (imageCount > 0) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'HappyHorse t2v does not support reference images.'
+    });
+  }
+}
+
 function getMaxVideoDuration(modelId: string): number {
-  if (isSeedanceModel(modelId)) {
+  if (isExternalApiVideoModel(modelId)) {
     return 15;
   }
   if (isLtx2Model(modelId) || isWanAnimateModel(modelId)) {
@@ -436,23 +517,28 @@ function applyVideoParams(
   // Note: fps must be processed before duration to correctly calculate frames for LTX-2.3 models
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;
-  } else if (isSeedanceModel(params.modelId)) {
+  } else if (isExternalApiVideoModel(params.modelId)) {
     keyFrame.fps = 24;
   }
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
   }
   if (params.duration !== undefined) {
-    const isSeedance = isSeedanceModel(params.modelId);
+    // Minimum direct-SDK duration: HappyHorse 3s, Seedance 4s, others 1s.
+    const minDuration = isHappyhorseModel(params.modelId)
+      ? 3
+      : isSeedanceModel(params.modelId)
+        ? 4
+        : 1;
     const duration = validateVideoDuration(
       params.duration,
-      isSeedance ? 4 : 1,
+      minDuration,
       getMaxVideoDuration(params.modelId)
     );
     // Use fps from params or default based on model type:
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
     // - LTX-2.3: fps directly affects frame count (default 24fps if not specified)
-    // - Seedance: fixed 24fps external API generation
+    // - Seedance / HappyHorse: fixed 24fps external API generation
     const fps = params.fps ?? 24;
     keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
   }
@@ -571,7 +657,7 @@ function applyAudioParams(
 function createJobRequestMessage(id: string, params: ProjectParams, options: ModelOptions) {
   const template = getTemplate();
   const negativePrompt =
-    isImageParams(params) || (isVideoParams(params) && !isSeedanceModel(params.modelId))
+    isImageParams(params) || (isVideoParams(params) && !isExternalApiVideoModel(params.modelId))
       ? params.negativePrompt
       : undefined;
   // Base keyFrame with common params
@@ -591,7 +677,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     ...(params.loraStrengths &&
       params.loraStrengths.length > 0 && { loraStrengths: params.loraStrengths })
   };
-  if (isAudioParams(params) || (isVideoParams(params) && isSeedanceModel(params.modelId))) {
+  if (isAudioParams(params) || (isVideoParams(params) && isExternalApiVideoModel(params.modelId))) {
     delete keyFrame.negativePrompt;
   }
 

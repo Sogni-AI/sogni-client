@@ -3,11 +3,11 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "5.1.0-alpha.14",
+  "version": "5.1.0-alpha.15",
   "engines": {
     "node": ">=22"
   },
-  "description": "Sogni SDK - AI image, video & audio generation plus LLM chat with vision via the Sogni Supernet (Stable Diffusion, Flux, WAN 2.2, LTX-2, Seedance, Qwen VLM)",
+  "description": "Sogni SDK - AI image, video & audio generation plus LLM chat with vision via the Sogni Supernet (Stable Diffusion, Flux, WAN 2.2, LTX-2, Seedance, HappyHorse, Qwen VLM)",
   "keywords": [
     "ai",
     "image-generation",
@@ -17,6 +17,8 @@
     "wan",
     "ltx",
     "seedance",
+    "happyhorse",
+    "alibaba",
     "text-to-image",
     "text-to-video",
     "image-to-video",

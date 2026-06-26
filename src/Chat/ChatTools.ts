@@ -11,6 +11,7 @@ import {
   getHostedVariationCount,
   getVideoDefaults,
   isEditImageModel,
+  isExternalApiVideoModel,
   isNonEmptyString,
   normalizeTimeSignature,
   normalizeVideoControlMode,
@@ -404,7 +405,7 @@ class ChatToolsApi {
       preferredModelIds
     });
     const defaults = getVideoDefaults(modelId);
-    const isSeedanceModel = modelId.startsWith('seedance-2-0');
+    const isExternalApiModel = isExternalApiVideoModel(modelId);
 
     const projectParams: Record<string, unknown> = {
       type: 'video' as const,
@@ -416,7 +417,7 @@ class ChatToolsApi {
       fps: (args.fps as number) || defaults.fps
     };
 
-    if (args.negative_prompt && !isSeedanceModel) {
+    if (args.negative_prompt && !isExternalApiModel) {
       projectParams.negativePrompt = args.negative_prompt;
     }
     if (args.duration !== undefined) projectParams.duration = args.duration;
@@ -559,7 +560,7 @@ class ChatToolsApi {
       preferredModelIds
     });
     const defaults = getVideoDefaults(modelId);
-    const isSeedanceModel = modelId.startsWith('seedance-2-0');
+    const isExternalApiModel = isExternalApiVideoModel(modelId);
 
     if (isAnimateMode && !isNonEmptyString(args.reference_image_url)) {
       throw new Error(`${controlMode} requires reference_image_url`);
@@ -579,7 +580,7 @@ class ChatToolsApi {
       duration: asFiniteNumber(args.duration) ?? 5
     };
 
-    if (args.negative_prompt && !isSeedanceModel) {
+    if (args.negative_prompt && !isExternalApiModel) {
       projectParams.negativePrompt = args.negative_prompt;
     }
     if (args.seed !== undefined) projectParams.seed = args.seed;
@@ -606,13 +607,13 @@ class ChatToolsApi {
     if (args.generate_audio !== undefined) {
       projectParams.generateAudio = Boolean(args.generate_audio);
     }
-    if (!isAnimateMode && !isSeedanceModel) {
+    if (!isAnimateMode && !isExternalApiModel) {
       projectParams.controlNet = {
         name: controlMode,
         strength: controlMode === 'detailer' ? 1 : 0.85
       };
     }
-    if (!isSeedanceModel && args.detailer_strength !== undefined) {
+    if (!isExternalApiModel && args.detailer_strength !== undefined) {
       projectParams.detailerStrength = args.detailer_strength;
     }
     if (options?.tokenType) projectParams.tokenType = options.tokenType;

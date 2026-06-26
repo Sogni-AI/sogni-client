@@ -146,6 +146,16 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Direct SDK project duration range is 4 to 15 seconds
  * - Frame count is calculated as: `duration * 24 + 1`
  * - Vendor reference limits are 9 images, 3 videos, 3 audios, and 12 asset files total
+ *
+ * ### HappyHorse 1.1 Models (happyhorse-1.1-*)
+ * - External API-backed (Alibaba) video models with native audio
+ * - `happyhorse-1.1-t2v` (text-to-video), `happyhorse-1.1-i2v` (single
+ *   first-frame image-to-video), and `happyhorse-1.1-r2v` (1-9 reference
+ *   images-to-video)
+ * - Generate at fixed 24fps; output up to 720P/1080P
+ * - Direct SDK project duration range is 3 to 15 seconds
+ * - Frame count is calculated as: `duration * 24 + 1`
+ * - Image-only reference context: no reference video or reference audio assets
  */
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
@@ -157,12 +167,13 @@ export interface VideoProjectParams extends BaseProjectParams {
   frames?: number;
   /**
    * Duration of the video in seconds. Supported range 1 to 10 (WAN), 4 to 20 (LTX-2.3),
-   * or 4 to 15 (Seedance direct SDK projects).
+   * 4 to 15 (Seedance direct SDK projects), or 3 to 15 (HappyHorse direct SDK projects).
    *
    * The SDK automatically calculates the correct frame count based on the model:
    * - WAN 2.2: `duration * 16 + 1` (always 16fps generation)
    * - LTX-2.3: `duration * fps + 1`, snapped to frame step constraint
    * - Seedance: `duration * 24 + 1`
+   * - HappyHorse: `duration * 24 + 1`
    */
   duration?: number;
   /**
@@ -175,6 +186,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    * frame rate - there is no post-render interpolation.
    *
    * **Seedance Models:** Fixed 24fps external API generation.
+   *
+   * **HappyHorse Models:** Fixed 24fps external API generation.
    */
   fps?: number;
   /**
@@ -195,9 +208,10 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceImage?: InputMedia;
   /**
-   * Seedance-only loose image context references. These must be publicly
-   * accessible HTTPS URLs that the vendor can fetch. Use referenceImage /
-   * referenceImageEnd when the image should lock the first or last frame.
+   * Loose image context references for external API video models (Seedance and
+   * HappyHorse). These must be publicly accessible HTTPS URLs that the vendor
+   * can fetch. Use referenceImage / referenceImageEnd when the image should lock
+   * the first or last frame. HappyHorse r2v accepts 1-9 reference images here.
    */
   referenceImageUrls?: string[];
   /**
@@ -669,7 +683,8 @@ export interface CostEstimation {
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
 
 /**
- * Video workflow types for WAN, LTX-2.3, and Seedance models
+ * Video workflow types for WAN, LTX-2.3, Seedance, and HappyHorse models.
+ * `r2v` (reference-to-video) is the HappyHorse multi-reference-image workflow.
  */
 export type VideoWorkflowType =
   | 't2v'
@@ -678,6 +693,7 @@ export type VideoWorkflowType =
   | 'ia2v'
   | 'a2v'
   | 'v2v'
+  | 'r2v'
   | 'animate-move'
   | 'animate-replace'
   | null;
