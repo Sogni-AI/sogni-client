@@ -76,7 +76,8 @@ export const PREFERRED_MODEL_IDS = {
     flux1Schnell: 'flux1-schnell-fp8',
     flux2: 'flux2_dev_fp8',
     chromaFlash: 'chroma-v.46-flash_fp8',
-    zTurbo: 'z_image_turbo_bf16'
+    zTurbo: 'z_image_turbo_bf16',
+    krea2Turbo: 'krea2_turbo_fp8_scaled'
   },
   video: {
     t2v: 'ltx23-22b-fp8_t2v_distilled',
@@ -139,6 +140,8 @@ const IMAGE_MODEL_SELECTORS: Record<string, string> = {
     GPT_IMAGE_MODEL_ALIASES.map((alias) => [alias, PREFERRED_MODEL_IDS.image.gptImage2])
   ),
   'z-turbo': 'z_image_turbo_bf16',
+  'krea-2-turbo': 'krea2_turbo_fp8_scaled',
+  'krea2-turbo': 'krea2_turbo_fp8_scaled',
   'z-image': 'z_image_bf16',
   'chroma-v46-flash': 'chroma-v.46-flash_fp8',
   'chroma-detail': 'chroma-v48-detail-svd_fp8',

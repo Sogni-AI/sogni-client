@@ -4,6 +4,7 @@ import { ModelOptions } from '../Projects/types/ModelOptions.js';
 const EXTENDED_IMAGE_SIZE_MODEL_IDS = new Set([
   'z_image_bf16',
   'z_image_turbo_bf16',
+  'krea2_turbo_fp8_scaled',
   'qwen_image_edit_2511_fp8',
   'qwen_image_edit_2511_fp8_lightning',
   'qwen_image_2512_fp8',
@@ -105,7 +106,7 @@ export function validateTeacacheThreshold(value?: number): number | undefined {
 }
 
 export function isComfyModel(modelId: string): boolean {
-  const COMFY_PREFIXES = ['z_image_', 'qwen_image_', 'flux2_', 'wan_', 'ace_step'];
+  const COMFY_PREFIXES = ['z_image_', 'krea2_', 'qwen_image_', 'flux2_', 'wan_', 'ace_step'];
   return COMFY_PREFIXES.some((prefix) => modelId.startsWith(prefix));
 }
 

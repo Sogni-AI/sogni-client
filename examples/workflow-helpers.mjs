@@ -239,6 +239,28 @@ export const MODELS = {
       defaultComfySampler: 'res_multistep',
       defaultComfyScheduler: 'simple'
     },
+    'krea-2-turbo': {
+      id: 'krea2_turbo_fp8_scaled',
+      name: 'Krea 2 Turbo',
+      description: 'Fast 8-step generation (distilled)',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2560,
+      maxHeight: 2560,
+      minSteps: 4,
+      maxSteps: 12,
+      defaultSteps: 8,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 0.6,
+      maxGuidance: 1.6,
+      supportsDenoise: true,
+      defaultDenoise: 0.7,
+      supportsStartingImage: true,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
     'z-image': {
       id: 'z_image_bf16',
       name: 'Z-Image',
