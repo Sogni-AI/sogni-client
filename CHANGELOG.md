@@ -1,3 +1,16 @@
+# [5.1.0-alpha.15](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.14...v5.1.0-alpha.15) (2026-06-28)
+
+
+### Bug Fixes
+
+* **deps:** bump @sogni-ai/sogni-protocol to 1.0.0-alpha.9 ([05008b9](https://github.com/Sogni-AI/sogni-client/commit/05008b9fc62f326f52c72d43a1b71e8b9cd3f1f3))
+
+
+### Features
+
+* **models:** add Krea 2 Turbo image model support ([19572e2](https://github.com/Sogni-AI/sogni-client/commit/19572e214390b79af0138a687c45ec37b26eb4ac))
+* **video:** add HappyHorse 1.1 video model routing ([75f2ebe](https://github.com/Sogni-AI/sogni-client/commit/75f2ebea4be8a65d2a055e22d6625c3c1cfcd053))
+
 # [5.1.0-alpha.14](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.13...v5.1.0-alpha.14) (2026-06-25)
 
 
