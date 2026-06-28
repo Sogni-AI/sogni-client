@@ -287,12 +287,16 @@ The workflow examples showcase these powerful new models:
 | ------------------------------------ | ----------------- | ------------ | ---------------------------------------------------------------------------------- |
 | `z_image_turbo_bf16`                 | Z-Image Turbo     | Image        | Fast 8-step turbo generation - great for quick iterations                          |
 | `z_image_bf16`                       | Z-Image           | Image        | High quality 20-step generation with detailed output                               |
+| `krea2_turbo_fp8_scaled`             | Krea 2 Turbo      | Image        | Fast 8-step text-to-image + image-to-image, crisp in-image text, up to 2K          |
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning    | Image Edit   | Fast 4-step reference-based generation                                             |
 | `qwen_image_edit_2511_fp8`           | Qwen Image Edit   | Image Edit   | High-quality 20-step image editing with context                                    |
 | `flux2_dev_fp8`                      | Flux.2 Dev        | Image        | Professional quality with context image support                                    |
 | `seedance-2-0`                       | Seedance 2.0      | Video        | External API multimodal video at 24fps                                             |
 | `seedance-2-0-mini`                  | Seedance 2.0 Mini | Video        | Fastest, lower-cost 720p-capped external API multimodal video at 24fps             |
 | `seedance-2-0-fast`                  | Seedance 2.0 Fast | Video        | Legacy 720p-capped external API multimodal video at 24fps                          |
+| `happyhorse-1.1-t2v`                 | Happy Horse 1.1   | Video        | External API video, text-to-video (image-only references)                          |
+| `happyhorse-1.1-i2v`                 | Happy Horse 1.1   | Video        | External API video, image-to-video from one first-frame image                      |
+| `happyhorse-1.1-r2v`                 | Happy Horse 1.1   | Video        | External API video, reference-to-video from 1-9 images                             |
 | `qwen3.6-35b-a3b-gguf-iq4xs`         | Qwen3.6 35B       | LLM + Vision | Text generation, chat, reasoning, tool calling, and multimodal image understanding |
 
 **Try them out:**
@@ -303,6 +307,9 @@ node workflow_text_to_image.mjs "A cyberpunk city" --model z-turbo
 
 # Z-Image - high quality output
 node workflow_text_to_image.mjs "A cyberpunk city" --model z-image
+
+# Krea 2 Turbo - fast 8-step, strong in-image text, up to 2K
+node workflow_text_to_image.mjs "A neon sign that reads OPEN" --model krea-2-turbo
 
 # Qwen Image Edit Lightning - quick reference-based generation
 node workflow_image_edit.mjs "portrait" --context test-assets/placeholder.jpg --model qwen-lightning

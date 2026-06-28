@@ -646,7 +646,7 @@ WAN workflows have two model variants optimized for different use cases:
 - **Speed variant** (with `_lightx2v` suffix) - Faster inference (4-step), good quality
 - **Quality variant** (without `_lightx2v`) - Slower inference, best quality
 
-LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available through three canonical multimodal model IDs: `seedance-2-0`, `seedance-2-0-mini`, and `seedance-2-0-fast`. All accept optional image, video, and audio references, run at fixed 24fps, and require Spark billing; the full model supports up to 4K, while Mini and Fast cap output at 720p.
+LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available through three canonical multimodal model IDs: `seedance-2-0`, `seedance-2-0-mini`, and `seedance-2-0-fast`. All accept optional image, video, and audio references, run at fixed 24fps, and require Spark billing; the full model supports up to 4K, while Mini and Fast cap output at 720p. Happy Horse 1.1 is an external-API video model with text-to-video, image-to-video, and reference-to-video modes (`happyhorse-1.1-t2v` / `-i2v` / `-r2v`); it accepts image-only references (no video or audio reference assets), and is Spark-only.
 
 Example model IDs:
 
@@ -664,6 +664,9 @@ Example model IDs:
 - `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-mini` (Seedance 2.0 Mini multimodal video, external API, 720p cap)
 - `seedance-2-0-fast` (Seedance 2.0 Fast multimodal video, external API, 720p cap)
+- `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
+- `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
+- `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
 
 ### Video Parameters
 
