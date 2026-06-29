@@ -131,6 +131,10 @@ async function parseArgs() {
       options.startingImage = args[++i];
     } else if (arg === '--strength' && args[i + 1]) {
       options.strength = parseFloat(args[++i]);
+    } else if (arg === '--style-lora' && args[i + 1]) {
+      options.styleLora = args[++i];
+    } else if (arg === '--lora-strength' && args[i + 1]) {
+      options.loraStrength = parseFloat(args[++i]);
     } else if (arg === '--previews' && args[i + 1]) {
       options.previews = parseInt(args[++i], 10);
     } else if (arg === '--output' && args[i + 1]) {
@@ -158,6 +162,7 @@ Usage:
   node workflow_text_to_image.mjs "your prompt here"       # With prompt
   node workflow_text_to_image.mjs "Portrait" --model flux2 # With specific model
   node workflow_text_to_image.mjs "Fantasy art" --model chroma-v46-flash --starting-image ref.jpg --strength 0.7
+  node workflow_text_to_image.mjs "A portrait" --model krea-2-turbo --style-lora krea2-filter-bypass-3 --lora-strength 1.0
 
 Available Models:
   z-turbo              - Z-Image Turbo (fast generation, max: 2048x2048, supports img2img)
@@ -183,6 +188,8 @@ Options:
   --scheduler Scheduler name (default: simple)
   --starting-image  Starting image for img2img (supported models only)
   --strength  Starting image strength 0-1 (default: 0.5, higher = more influence)
+  --style-lora      Attach a style LoRA by id (e.g. krea2-filter-bypass-3 for Krea 2 Turbo)
+  --lora-strength   Style LoRA strength 0.0-2.0 (default: 1.0)
   --previews  Number of preview thumbnails during generation (default: 0, set to 5+ to enable)
   --output    Output directory (default: ./output)
   --disable-safe-content-filter  Disable NSFW/safety filter
@@ -581,6 +588,16 @@ async function main() {
     }
     if (OPTIONS.style) {
       projectParams.stylePrompt = OPTIONS.style;
+    }
+
+    // Attach an optional style LoRA (e.g. Krea 2 'krea2-filter-bypass-3') with a strength.
+    // LoRAs are applied via the loras/loraStrengths arrays, resolved to filenames by the worker.
+    if (OPTIONS.styleLora) {
+      projectParams.loras = [OPTIONS.styleLora];
+      projectParams.loraStrengths = [
+        OPTIONS.loraStrength !== undefined && OPTIONS.loraStrength !== null ? OPTIONS.loraStrength : 1.0
+      ];
+      log('🎚️', `Attaching style LoRA: ${OPTIONS.styleLora} (strength: ${projectParams.loraStrengths[0]})`);
     }
 
     // Add model-specific parameters
