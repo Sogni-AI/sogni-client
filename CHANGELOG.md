@@ -1,3 +1,10 @@
+# [5.1.0-alpha.16](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.15...v5.1.0-alpha.16) (2026-06-30)
+
+
+### Features
+
+* **examples:** expose Krea 2 style LoRA in text-to-image example ([62aa174](https://github.com/Sogni-AI/sogni-client/commit/62aa17416bd1868e2a62b02993a169a06cd8e9a7))
+
 # [5.1.0-alpha.15](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.14...v5.1.0-alpha.15) (2026-06-28)
 
 
