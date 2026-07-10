@@ -1,4 +1,5 @@
 import { TokenType } from '../types/token.js';
+import type { BillingMode } from '../Projects/types/index.js';
 
 export type CreativeWorkflowStatus =
   | 'queued'
@@ -135,6 +136,12 @@ export interface StartCreativeWorkflowParams {
    */
   inputs?: Record<string, unknown>;
   tokenType?: TokenType;
+  /**
+   * Billing mode for workflows. `'subscription'` requests subscription
+   * entitlement billing, `'tokens'` forces token billing, and `'auto'` lets the
+   * server decide.
+   */
+  billingMode?: BillingMode;
   /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
   idempotencyKey?: string;
@@ -146,6 +153,8 @@ export interface StartCreativeWorkflowParams {
   workflow_id?: string;
   /** @internal Undocumented compatibility alias. Use tokenType. */
   token_type?: TokenType;
+  /** @internal Undocumented compatibility alias. Use billingMode. */
+  billing_mode?: BillingMode;
   /** @internal Undocumented compatibility alias. Use appSource. */
   app_source?: string;
   /** @internal Undocumented compatibility alias. Use idempotencyKey. */
@@ -161,10 +170,14 @@ export interface StartCreativeWorkflowParams {
 export interface ResumeCreativeWorkflowParams {
   /** Override the token type charged to the resumed run. */
   tokenType?: TokenType;
+  /** Override the billing mode charged to the resumed run. */
+  billingMode?: BillingMode;
   /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
   /** @internal Undocumented compatibility alias. Use tokenType. */
   token_type?: TokenType;
+  /** @internal Undocumented compatibility alias. Use billingMode. */
+  billing_mode?: BillingMode;
   /** @internal Undocumented compatibility alias. Use appSource. */
   app_source?: string;
 }
@@ -186,12 +199,16 @@ export interface ReseedCreativeWorkflowParams {
   seedOverrides?: Record<string, number>;
   /** Override the token type charged to the new run. */
   tokenType?: TokenType;
+  /** Override the billing mode charged to the new run. */
+  billingMode?: BillingMode;
   /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
   /** @internal Undocumented compatibility alias. Use seedOverrides. */
   seed_overrides?: Record<string, number>;
   /** @internal Undocumented compatibility alias. Use tokenType. */
   token_type?: TokenType;
+  /** @internal Undocumented compatibility alias. Use billingMode. */
+  billing_mode?: BillingMode;
   /** @internal Undocumented compatibility alias. Use appSource. */
   app_source?: string;
 }

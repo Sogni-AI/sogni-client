@@ -22,6 +22,59 @@ export function defaultExamplesOutputDir(...segments) {
   return relativePath || '.';
 }
 
+export const BILLING_MODES = ['auto', 'subscription', 'tokens'];
+
+export function normalizeBillingMode(value = 'auto') {
+  const normalized = String(value || 'auto')
+    .trim()
+    .toLowerCase();
+  if (BILLING_MODES.includes(normalized)) {
+    return normalized;
+  }
+  throw new Error(
+    `Invalid billing mode "${value}". Use auto, subscription, or tokens.`
+  );
+}
+
+export function defaultBillingMode() {
+  return normalizeBillingMode(process.env.SOGNI_BILLING_MODE || 'auto');
+}
+
+export function parseBillingModeArg(args, index, options) {
+  const arg = args[index];
+  if ((arg === '--billing-mode' || arg === '--billing') && args[index + 1]) {
+    options.billingMode = normalizeBillingMode(args[index + 1]);
+    return index + 1;
+  }
+  if (arg === '--subscription') {
+    options.billingMode = 'subscription';
+    return index;
+  }
+  if (arg === '--tokens') {
+    options.billingMode = 'tokens';
+    return index;
+  }
+  return null;
+}
+
+export function billingModeHelpText(indent = '  ') {
+  return [
+    `${indent}--billing-mode <mode>  Billing mode: auto, subscription, or tokens (default: SOGNI_BILLING_MODE or auto)`,
+    `${indent}--subscription         Shortcut for --billing-mode subscription`,
+    `${indent}--tokens               Shortcut for --billing-mode tokens`
+  ].join('\n');
+}
+
+export function billingModeLabel(billingMode) {
+  if (billingMode === 'subscription') return 'subscription required';
+  if (billingMode === 'tokens') return 'tokens only';
+  return 'auto';
+}
+
+export function shouldCheckTokenBalance(billingMode) {
+  return billingMode !== 'subscription';
+}
+
 // ============================================
 // Video Model FPS/Frame Calculation Helpers
 // ============================================
@@ -331,6 +384,30 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
     },
+    'chroma-hd': {
+      id: 'chroma1-hd_fp8_scaled',
+      name: 'Chroma1-HD',
+      description: 'Final high-res Chroma (uncensored, LoRA-capable)',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 20,
+      maxSteps: 50,
+      defaultSteps: 26,
+      supportsGuidance: true,
+      defaultGuidance: 3.8,
+      minGuidance: 1.0,
+      maxGuidance: 8.0,
+      supportsDenoise: true,
+      defaultDenoise: 0.7,
+      supportsStartingImage: true,
+      defaultNegativePrompt:
+        'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
     'flux1-krea-dev': {
       id: 'flux1-krea-dev_fp8_scaled',
       name: 'Flux.1 Krea Dev',
@@ -429,6 +506,74 @@ export const MODELS = {
       defaultGuidance: 4.0,
       minGuidance: 3.0,
       maxGuidance: 6.0,
+      supportsStartingImage: true,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
+    // Community fine-tunes (CivitAI). These are uncensored; 2K output on the
+    // Dark Beast models requires a 24GB+ VRAM worker.
+    'dark-beast-z-image-turbo': {
+      id: 'dark_beast_z_image_turbo_v9_bf16',
+      name: 'Dark Beast Z-Image Turbo v9',
+      description: 'Community Z-Image Turbo fine-tune (uncensored, fast)',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 4,
+      maxSteps: 12,
+      defaultSteps: 8,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      supportsDenoise: true,
+      defaultDenoise: 0.7,
+      supportsStartingImage: true,
+      isComfyModel: true,
+      defaultComfySampler: 'res_multistep',
+      defaultComfyScheduler: 'simple'
+    },
+    'dark-beast-krea-2': {
+      id: 'dark_beast_krea2_fp8',
+      name: 'Dark Beast KREA 2',
+      description: 'Community Krea 2 fine-tune (uncensored)',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 8,
+      maxSteps: 20,
+      defaultSteps: 16,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      supportsDenoise: true,
+      defaultDenoise: 0.7,
+      supportsStartingImage: true,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
+    'one-obsession-v22': {
+      id: 'one_obsession_v22_fp16',
+      name: 'One Obsession v22',
+      description: 'Community Illustrious/anime checkpoint (LoRA-capable)',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 1920,
+      maxHeight: 1920,
+      minSteps: 20,
+      maxSteps: 35,
+      defaultSteps: 28,
+      supportsGuidance: true,
+      defaultGuidance: 6.0,
+      minGuidance: 3.0,
+      maxGuidance: 10.0,
+      supportsDenoise: true,
+      defaultDenoise: 0.7,
       supportsStartingImage: true,
       isComfyModel: true,
       defaultComfySampler: 'euler',

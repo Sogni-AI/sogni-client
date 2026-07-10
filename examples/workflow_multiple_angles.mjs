@@ -49,6 +49,8 @@ import { loadCredentials, loadTokenTypePreference, saveTokenTypePreference } fro
 import {
   MODELS,
   askQuestion,
+  billingModeHelpText,
+  billingModeLabel,
   promptBatchCount,
   pickImageFile,
   readFileAsBuffer,
@@ -57,7 +59,9 @@ import {
   getUniqueFilename,
   generateImageFilename,
   generateRandomSeed,
+  defaultBillingMode,
   defaultExamplesOutputDir,
+  parseBillingModeArg,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -120,12 +124,16 @@ async function parseArgs() {
     height: 1024,
     output: defaultExamplesOutputDir(),
     interactive: true,
-    disableSafeContentFilter: false
+    disableSafeContentFilter: false,
+    billingMode: defaultBillingMode()
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--no-interactive') {
@@ -217,6 +225,7 @@ Options:
   --output        Output directory (default: ./output)
   --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
+${billingModeHelpText()}
   --help          Show this help
 
 Examples:
@@ -559,7 +568,8 @@ async function main() {
       'Guidance': OPTIONS.guidance,
       'Batch': OPTIONS.batch,
       'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1,
-      'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
+      'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled',
+      'Billing': billingModeLabel(OPTIONS.billingMode)
     };
 
     if (OPTIONS.description) {
@@ -618,6 +628,7 @@ async function main() {
       seed: OPTIONS.seed,
       contextImages: [contextImageBuffer],
       tokenType: tokenType,
+      billingMode: OPTIONS.billingMode,
       sizePreset: 'custom',
       width: OPTIONS.width,
       height: OPTIONS.height,

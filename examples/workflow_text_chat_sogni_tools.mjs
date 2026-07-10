@@ -57,10 +57,14 @@ import { SogniClient, isSogniToolCall, parseToolCallArguments } from '../dist/in
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 import {
   askQuestion,
+  billingModeHelpText,
+  billingModeLabel,
   calculateVideoFrames,
+  defaultBillingMode,
   defaultExamplesOutputDir,
   formatDuration,
-  MODELS
+  MODELS,
+  parseBillingModeArg
 } from './workflow-helpers.mjs';
 import * as fs from 'node:fs';
 import { execFile } from 'node:child_process';
@@ -99,11 +103,15 @@ function parseArgs() {
     quantity: 1,
     duration: null,
     aspect_ratio: null,
+    billingMode: defaultBillingMode(),
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--model' && args[i + 1]) {
@@ -170,6 +178,7 @@ Options:
                   portrait_4_3, landscape_4_3, or shortcuts like 16:9, 9:16, 4:3 (default: portrait)
   --no-think      Disable model thinking/reasoning (enabled by default)
   --show-thinking  Show <think> blocks in output (hidden by default)
+${billingModeHelpText()}
   --help          Show this help message
 
 Default Generation Models:
@@ -351,6 +360,7 @@ async function streamComposition(sogni, messages, options, tokenType, tools) {
         top_p: options.topP,
         stream: true,
         tokenType,
+        billingMode: options.billingMode,
         think: false,
         taskProfile: 'reasoning',
         tools,
@@ -1139,6 +1149,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         height: size.height,
         outputFormat: 'jpg',
         tokenType,
+        billingMode: options.billingMode,
       });
 
       const files = await trackJobsAndDownload(project, quantity, 'image', sogni);
@@ -1204,6 +1215,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         sampler: modelConfig?.defaultComfySampler,
         scheduler: modelConfig?.defaultComfyScheduler,
         tokenType,
+        billingMode: options.billingMode,
       });
 
       const files = await trackJobsAndDownload(project, quantity, 'video', sogni);
@@ -1247,6 +1259,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         seed: -1,
         outputFormat: 'mp3',
         tokenType,
+        billingMode: options.billingMode,
       };
 
       // Only include lyrics if present (omit for instrumentals)
@@ -1307,6 +1320,7 @@ async function chatWithLLM(sogni, messages, options, tokenType) {
       ...(options.topK != null && { top_k: options.topK }),
       stream: true,
       tokenType,
+      billingMode: options.billingMode,
       taskProfile: 'general',
     });
 
@@ -1532,6 +1546,7 @@ async function main() {
   }
   console.log(`Thinking:    ${options.think ? 'enabled' : 'disabled'}`);
   console.log(`Payment:     ${tokenLabel}`);
+  console.log(`Billing:     ${billingModeLabel(options.billingMode)}`);
   if (options.quantity > 1) console.log(`Quantity:    ${options.quantity}`);
   console.log();
 
@@ -1568,6 +1583,7 @@ async function main() {
       ...(options.topK != null && { top_k: options.topK }),
       stream: true,
       tokenType,
+      billingMode: options.billingMode,
       think: options.think,
       taskProfile: 'reasoning',
       tools: HYBRID_TOOLS,

@@ -50,6 +50,8 @@ import { loadCredentials, loadTokenTypePreference, saveTokenTypePreference } fro
 import {
   MODELS,
   askQuestion,
+  billingModeHelpText,
+  billingModeLabel,
   selectModel,
   promptAdvancedOptions,
   promptBatchCount,
@@ -62,7 +64,10 @@ import {
   getUniqueFilename,
   generateImageFilename,
   generateRandomSeed,
+  defaultBillingMode,
   defaultExamplesOutputDir,
+  parseBillingModeArg,
+  shouldCheckTokenBalance,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -95,12 +100,16 @@ async function parseArgs() {
     height: null,
     output: defaultExamplesOutputDir(),
     interactive: true,
-    disableSafeContentFilter: false
+    disableSafeContentFilter: false,
+    billingMode: defaultBillingMode()
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--no-interactive') {
@@ -195,6 +204,7 @@ Options:
   --output      Output directory (default: ./output)
   --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
+${billingModeHelpText()}
   --help        Show this help message
 
 Reference Images:
@@ -547,7 +557,8 @@ async function main() {
       'Batch': OPTIONS.batch,
       'Steps': steps,
       'Seed': OPTIONS.seed !== null ? OPTIONS.seed : -1,
-      'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
+      'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled',
+      'Billing': billingModeLabel(OPTIONS.billingMode)
     };
 
     // Add reference images to display
@@ -582,7 +593,7 @@ async function main() {
       } else {
         console.log(`   Spark: ${cost.toFixed(2)}`);
       }
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.spark.net || 0);
         console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Spark`);
       }
@@ -596,7 +607,7 @@ async function main() {
       } else {
         console.log(`   Sogni: ${cost.toFixed(2)}`);
       }
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
         console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Sogni`);
       }
@@ -652,6 +663,7 @@ async function main() {
       seed: OPTIONS.seed,
       contextImages: contextImageBuffers,
       tokenType: tokenType,
+      billingMode: OPTIONS.billingMode,
       sizePreset: 'custom',
       width: outputWidth,
       height: outputHeight,

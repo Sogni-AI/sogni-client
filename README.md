@@ -199,7 +199,7 @@ When a job is explicitly submitted with `billingMode: 'subscription'` and the su
 - `4079` (`QUEUE_CAP`) — the subscription's concurrent job queue cap was reached.
 - `4080` (`GRACE_RETRY`) — the subscription is in its billing-grace window: the renewal payment is being retried and unlimited access is paused until it succeeds. On `4080`, offer the user a "pay with Spark/SOGNI" fallback (token billing) instead of auto-retrying the subscription job in a loop — it will keep failing until the renewal succeeds.
 
-`billingMode` (`'auto' | 'subscription' | 'tokens'`, exported as `BillingMode`) is accepted by project params and by all three chat transports: `sogni.chat.completions.create()` (socket), `sogni.chat.hosted.create()` (REST `/v1/chat/completions`), and `sogni.chat.runs.create()` (durable runs, where it serializes as `billing_mode`).
+`billingMode` (`'auto' | 'subscription' | 'tokens'`, exported as `BillingMode`) is accepted by project params, creative workflows (`sogni.workflows.start()`, `resume()`, and `reseed()`, where it serializes as `billing_mode`), and all three chat transports: `sogni.chat.completions.create()` (socket), `sogni.chat.hosted.create()` (REST `/v1/chat/completions`), and `sogni.chat.runs.create()` (durable runs, where it serializes as `billing_mode`).
 
 Chat job failures preserve this error contract. Streamed and non-streaming chat completions, hosted REST chat, and durable chat runs fail with a `ChatJobError` (exported from the package root): `.message` stays the human-readable server message, while `code`/`errorCode` carry the wire code string (e.g. `'4080'`), `errorType` carries the server's tag (e.g. `'subscription_unavailable'`), and the `subscriptionErrorCode` getter maps the code back to the numeric `SUBSCRIPTION_ERROR_CODES` value when applicable — so apps can branch without string-matching.
 
@@ -625,7 +625,7 @@ export interface ControlNetParams {
 }
 ```
 
-## Video Generation with Wan 2.2 Models
+## Video Generation (WAN 2.2, LTX-2.3, Seedance 2.0 & Happy Horse 1.1)
 
 The Sogni SDK supports advanced video generation workflows powered by **Wan 2.2 14B FP8** models. These models are available on the `fast` network and support various video generation workflows.
 
@@ -682,7 +682,7 @@ When creating video projects, you can specify:
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
 - `referenceVideo` - Reference video for animate and v2v workflows
 - `referenceAudio` - Reference audio for sound-to-video workflow
-- `referenceImageUrls` - Seedance-only loose image context URLs; combined with `referenceImage`/`referenceImageEnd`, max 9 image assets
+- `referenceImageUrls` - Loose image context URLs for Seedance and Happy Horse (Happy Horse r2v takes 1-9 reference images here); combined with `referenceImage`/`referenceImageEnd`, max 9 image assets
 - `referenceVideoUrls` - Seedance-only video context URLs; combined with `referenceVideo`, max 3 video assets
 - `referenceAudioUrls` - Seedance-only audio context URLs; combined with `referenceAudio`/`referenceAudioIdentity`, max 3 audio assets
 - `hasVideoInput` - Estimate-only flag for `estimateVideoCost`; set this when estimating a canonical Seedance video-input job without passing `referenceVideo`/`referenceVideoUrls`
@@ -1074,12 +1074,18 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | ------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `z_image_turbo_bf16`                 | **Z-Image Turbo** - Ultra-fast 8-step generation      | Quick text-to-image prototyping and iteration                                                                |
 | `z_image_bf16`                       | **Z-Image** - High quality 20-step generation         | Detailed, high quality image output                                                                          |
+| `krea2_turbo_fp8_scaled`             | **Krea 2 Turbo** - Fast 8-step, strong in-image text  | Text-heavy images and fast iteration, up to 2K                                                               |
+| `chroma1-hd_fp8_scaled`              | **Chroma1-HD** - Final high-res Chroma (uncensored)   | Highest-fidelity Chroma output, LoRA-capable                                                                 |
+| `flux2_dev_fp8`                      | **Flux.2 \[dev\]** - Pro quality, context images      | Professional images and reference-guided editing (up to 6 context images)                                    |
 | `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing   | Rapid reference-based image generation                                                                       |
 | `qwen_image_edit_2511_fp8`           | **Qwen Image Edit** - High quality 20-step editing    | Professional image editing with context awareness                                                            |
 | `wan_v2.2-14b-fp8_t2v_lightx2v`      | **Wan 2.2 T2V** - Text-to-video                       | Generate videos from text prompts                                                                            |
 | `seedance-2-0`                       | **Seedance 2.0** - 4K external API multimodal video   | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-mini`                  | **Seedance 2.0 Mini** - 720p external API video       | Fastest, lower-cost 24fps Seedance video generation                                                          |
 | `seedance-2-0-fast`                  | **Seedance 2.0 Fast** - 720p external API video       | Legacy faster 24fps video generation where fast tiers are enabled                                            |
+| `dark_beast_z_image_turbo_v9_bf16`   | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                    |
+| `dark_beast_krea2_fp8`               | **Dark Beast KREA 2** - Community (uncensored)        | Uncensored Krea 2 fine-tune (2K output needs a 24GB+ VRAM worker)                                            |
+| `one_obsession_v22_fp16`             | **One Obsession v22** - Community (Illustrious/anime) | Anime/illustration checkpoint, LoRA-capable                                                                  |
 | `qwen3.6-35b-a3b-gguf-iq4xs`         | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
 
 All workflow examples include:

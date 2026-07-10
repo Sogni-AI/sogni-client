@@ -31,6 +31,13 @@
 
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
+import {
+  billingModeHelpText,
+  billingModeLabel,
+  defaultBillingMode,
+  parseBillingModeArg,
+  shouldCheckTokenBalance
+} from './workflow-helpers.mjs';
 
 const DEFAULT_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_SYSTEM = 'You are a helpful assistant.';
@@ -49,11 +56,15 @@ function parseArgs() {
     presencePenalty: null,
     think: false,
     thinkExplicit: false,
+    billingMode: defaultBillingMode(),
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--model' && args[i + 1]) {
@@ -113,6 +124,7 @@ Options:
   --pres-penalty  Presence penalty -2 to 2 (default: 0)
   --think         Enable model thinking/reasoning (shows <think> blocks)
   --no-think      Disable model thinking (default)
+${billingModeHelpText()}
   --help          Show this help message
 `);
 }
@@ -252,6 +264,7 @@ async function main() {
   console.log(`Temperature: ${options.temperature}`);
   console.log(`Thinking:    ${options.think ? 'enabled' : 'disabled'}`);
   console.log(`Payment:     ${tokenLabel}`);
+  console.log(`Billing:     ${billingModeLabel(options.billingMode)}`);
   console.log(`Prompt:      ${options.prompt.length > 80 ? options.prompt.slice(0, 80) + '...' : options.prompt}`);
   console.log();
 
@@ -267,10 +280,12 @@ async function main() {
     const balance = sogni.account.currentAccount.balance;
     const available = parseFloat(tokenType === 'spark' ? balance.spark.net : balance.sogni.net);
     console.log(`Est. Cost:   ${estimate.costInToken.toFixed(6)} ${tokenLabel} (~$${estimate.costInUSD.toFixed(6)})`);
-    console.log(`Balance:     ${available.toFixed(4)} ${tokenLabel}`);
+    if (shouldCheckTokenBalance(options.billingMode)) {
+      console.log(`Balance:     ${available.toFixed(4)} ${tokenLabel}`);
+    }
     console.log();
 
-    if (available < estimate.costInToken) {
+    if (shouldCheckTokenBalance(options.billingMode) && available < estimate.costInToken) {
       console.error(`Insufficient balance. You need at least ${estimate.costInToken.toFixed(6)} ${tokenLabel} but have ${available.toFixed(4)} ${tokenLabel}.`);
       console.error(`Tip: Reduce --max-tokens to lower the estimated cost, or add funds at https://app.sogni.ai`);
       process.exit(1);
@@ -315,6 +330,7 @@ async function main() {
       presence_penalty: options.presencePenalty,
       stream: false,
       tokenType,
+      billingMode: options.billingMode,
       think: options.think,
       taskProfile: 'general',
     });

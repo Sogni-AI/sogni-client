@@ -28,7 +28,12 @@ import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 import {
   askMultilinePrompt,
   askQuestion,
-  displayConfig
+  billingModeHelpText,
+  billingModeLabel,
+  defaultBillingMode,
+  displayConfig,
+  normalizeBillingMode,
+  parseBillingModeArg
 } from './workflow-helpers.mjs';
 
 const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
@@ -644,6 +649,10 @@ async function promptOutputOptions(options) {
   if (tokenType.trim()) {
     options.tokenType = tokenType.trim().toLowerCase();
   }
+  const billingMode = await askQuestion(`Billing mode [${options.billingMode}]: `);
+  if (billingMode.trim()) {
+    options.billingMode = normalizeBillingMode(billingMode);
+  }
 }
 
 async function promptInteractiveOptions(options) {
@@ -691,6 +700,7 @@ function parseArgs() {
     target: undefined,
     execute: true,
     tokenType: loadTokenTypePreference() || process.env.SOGNI_TOKEN_TYPE || 'spark',
+    billingMode: defaultBillingMode(),
     estimate: true,
     interactive: args.length === 0 && process.stdin.isTTY,
     inspectWorkflow: false,
@@ -701,7 +711,10 @@ function parseArgs() {
   let modeWasProvided = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--interactive') {
@@ -884,6 +897,7 @@ Options:
   --llm-model <id>       Chat model (default: ${DEFAULT_LLM_MODEL})
   --endpoint <url>       REST endpoint (default: SOGNI_REST_ENDPOINT or ${DEFAULT_REST_ENDPOINT})
   --token-type <type>    spark, sogni, or auto
+${billingModeHelpText()}
   --json                 Print raw response
 
 Execution requires SOGNI_API_KEY in examples/.env or the environment. Local media inputs are uploaded with the existing Sogni media upload endpoints before workflow execution. Workflow dry-runs also upload local media so the printed request contains real HTTPS media URLs. Seedance accepts at most 9 image assets, 3 video assets, 3 audio assets, and 12 assets total. In prompts, use @Image1/@Video1/@Audio1 role tags counted independently by modality in attachment order, and use positive preservation language. Exact readable text/logos, lip-sync, voice cloning, and real-human-reference behavior need review.
@@ -1529,6 +1543,7 @@ async function postChatCompletion(credentials, options, toolName, toolArguments)
       max_tokens: 1600,
       chat_template_kwargs: { enable_thinking: false },
       token_type: options.tokenType,
+      billingMode: options.billingMode,
       sogni_tools: true,
       sogni_tool_execution: options.execute,
       tools: [chatToolDefinition(toolName)],
@@ -1546,6 +1561,7 @@ function workflowRequest(options, toolName, toolArguments) {
   const workflowToolName = toolName.replace(/^sogni_/, '');
   return {
     token_type: options.tokenType,
+    billing_mode: options.billingMode,
     input: {
       title: `Seedance ${options.mode.toUpperCase()} example`,
       steps: [
@@ -1747,7 +1763,8 @@ function printRunConfiguration(options, toolName, toolArguments) {
     Videos: summarizeList(options.videos),
     Audios: summarizeList(options.audios),
     Seed: Number.isInteger(toolArguments.seed) ? toolArguments.seed : 'random',
-    Token: options.tokenType
+    Token: options.tokenType,
+    Billing: billingModeLabel(options.billingMode)
   });
 }
 

@@ -152,6 +152,7 @@ class CreativeWorkflowsApi extends ApiGroup {
     options: StartCreativeWorkflowOptions = {}
   ): Promise<CreativeWorkflowRecord> {
     const tokenType = params.tokenType ?? params.token_type;
+    const billingMode = params.billingMode ?? params.billing_mode;
     const appSource = params.appSource ?? params.app_source ?? this.client.appSource;
     const idempotencyKey = params.idempotencyKey ?? params.idempotency_key;
     const mediaReferences = params.mediaReferences ?? params.media_references;
@@ -177,6 +178,7 @@ class CreativeWorkflowsApi extends ApiGroup {
       if (params.inputs) body.inputs = params.inputs;
     }
     if (tokenType) body.token_type = tokenType;
+    if (billingMode) body.billing_mode = billingMode;
     if (appSource) body.app_source = appSource;
     if (maxEstimatedCapacityUnits !== undefined) {
       body.max_estimated_capacity_units = maxEstimatedCapacityUnits;
@@ -213,9 +215,11 @@ class CreativeWorkflowsApi extends ApiGroup {
     options: ResumeCreativeWorkflowOptions = {}
   ): Promise<ResumeCreativeWorkflowResult> {
     const tokenType = params.tokenType ?? params.token_type;
+    const billingMode = params.billingMode ?? params.billing_mode;
     const appSource = params.appSource ?? params.app_source ?? this.client.appSource;
     const body: Record<string, unknown> = {};
     if (tokenType) body.token_type = tokenType;
+    if (billingMode) body.billing_mode = billingMode;
     if (appSource) body.app_source = appSource;
 
     const response = await this.request<CreativeWorkflowEnvelope>(
@@ -245,10 +249,12 @@ class CreativeWorkflowsApi extends ApiGroup {
   ): Promise<ReseedCreativeWorkflowResult> {
     const seedOverrides = params.seedOverrides ?? params.seed_overrides;
     const tokenType = params.tokenType ?? params.token_type;
+    const billingMode = params.billingMode ?? params.billing_mode;
     const appSource = params.appSource ?? params.app_source ?? this.client.appSource;
     const body: Record<string, unknown> = {};
     if (seedOverrides) body.seed_overrides = seedOverrides;
     if (tokenType) body.token_type = tokenType;
+    if (billingMode) body.billing_mode = billingMode;
     if (appSource) body.app_source = appSource;
 
     const response = await this.request<CreativeWorkflowEnvelope>(

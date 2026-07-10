@@ -49,7 +49,7 @@ Public chat and workflow media rules:
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image, Qwen image-edit models, GPT Image 2), video generation (WAN 2.2, LTX-2.3, Seedance 2.0), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`).
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Flux.2, Z-Image / Z-Image Turbo, Krea 2 Turbo, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, and One Obsession v22), video generation (WAN 2.2, LTX-2.3, Seedance 2.0, HappyHorse 1.1), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
 
 Runtime and packaging:
 
@@ -201,6 +201,14 @@ The SDK supports two families of video models with **fundamentally different FPS
 - **Frame calculation**: `duration * 16 + 1` (always uses 16, ignores fps)
 - Example: 5 seconds at 32fps = 81 frames generated → interpolated to 161 output frames
 
+### External-API Partner Models (Seedance 2.0, Happy Horse 1.1)
+
+**Seedance 2.0** (`seedance-2-0` / `-mini` / `-fast`) and **Happy Horse 1.1** (`happyhorse-1.1-t2v` / `-i2v` / `-r2v`) run on partner external APIs, not Sogni GPU workers:
+- **Spark-only** billing, **fixed 24fps**, and **native audio** (no separate audio params to set).
+- No local diffusion steps — progress is provider/ETA-derived (still a finite 0-100). Results can arrive as direct hosted URLs, preserved on `job.resultUrl` / `job.getResultUrl()`.
+- **Seedance** accepts image + video + audio references (up to 9 / 3 / 3, 12 total) via `referenceImage*` / `referenceImageUrls` / `referenceVideoUrls` / `referenceAudioUrls`. **Happy Horse** accepts **image-only** references (r2v takes 1-9 images via `referenceImage` / `referenceImageUrls`).
+- Family predicates: `isSeedanceModel()`, `isHappyhorseModel()`, `isExternalApiVideoModel()` in `src/Projects/utils/index.ts`.
+
 ### Key Files
 - `src/Projects/utils/index.ts` - `isWanModel()`, `isLtx2Model()`, `calculateVideoFrames()`
 - `src/Projects/createJobRequestMessage.ts` - Uses `calculateVideoFrames()` for duration→frames conversion
@@ -290,6 +298,7 @@ const urls = await project.waitForCompletion();
 |----------|---------------|-----------------|
 | Text-to-Video | `*_t2v*` | None |
 | Image-to-Video | `*_i2v*` | `referenceImage` (and/or `referenceImageEnd`) |
+| Reference-to-Video | `*_r2v*` (Happy Horse) | 1-9 images via `referenceImage`/`referenceImageUrls` |
 | Video-to-Video | `*_v2v*` (LTX-2.3) | `referenceVideo` + `controlNet` |
 | Sound-to-Video | `*_s2v*` (WAN only) | `referenceImage` + `referenceAudio` |
 | Image+Audio-to-Video | `*_ia2v*` (LTX-2.3) | `referenceImage` + `referenceAudio` |

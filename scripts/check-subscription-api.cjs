@@ -21,6 +21,7 @@ const {
 const { ApiError } = require('../dist/ApiClient/index.js');
 const { SUBSCRIPTION_ERROR_CODES } = require('../dist/types/ErrorData.js');
 const ProjectsApi = require('../dist/Projects/index.js').default;
+const CreativeWorkflowsApi = require('../dist/CreativeWorkflows/index.js').default;
 const { isSubscriptionLimitError } = require('../dist/index.js');
 
 class StubListeners {
@@ -121,6 +122,12 @@ function makeApi() {
 function makeChatApi() {
   const client = makeStubClient();
   const api = new ChatApi({ client, eip712: {} });
+  return { api, client };
+}
+
+function makeWorkflowApi() {
+  const client = makeStubClient();
+  const api = new CreativeWorkflowsApi({ client, eip712: {} });
   return { api, client };
 }
 
@@ -1033,6 +1040,81 @@ async function run() {
     assert.ok(
       declarations.includes('BillingMode'),
       'BillingMode must be exported from root declarations'
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Creative workflows: billingMode serialization
+  // ---------------------------------------------------------------------
+
+  {
+    // Durable workflow requests follow the REST API's snake_case convention,
+    // and the SDK accepts both public camelCase and compatibility snake_case.
+    const { api } = makeWorkflowApi();
+    const fetchCalls = [];
+    const originalFetch = global.fetch;
+    global.fetch = async (url, init) => {
+      fetchCalls.push({ url, init });
+      return {
+        ok: true,
+        async json() {
+          return {
+            status: 'success',
+            data: {
+              workflow: { workflowId: 'workflow_1', status: 'queued' },
+              resumed: true,
+              reseed: { cloned_from_run_id: 'workflow_1', steps: [] }
+            }
+          };
+        }
+      };
+    };
+    try {
+      await api.start({
+        input: { title: 'billing test', steps: [] },
+        tokenType: 'spark',
+        billingMode: 'subscription'
+      });
+      const startBody = JSON.parse(fetchCalls.at(-1).init.body);
+      assert.equal(startBody.billing_mode, 'subscription');
+      assert.equal(startBody.token_type, 'spark');
+      assert.ok(!('billingMode' in startBody), 'workflow start body must use billing_mode');
+
+      await api.resume('workflow_1', { billing_mode: 'tokens' });
+      const resumeBody = JSON.parse(fetchCalls.at(-1).init.body);
+      assert.equal(resumeBody.billing_mode, 'tokens');
+      assert.ok(!('billingMode' in resumeBody), 'workflow resume body must use billing_mode');
+
+      await api.reseed('workflow_1', { seedOverrides: { step_1: 123 }, billingMode: 'auto' });
+      const reseedBody = JSON.parse(fetchCalls.at(-1).init.body);
+      assert.equal(reseedBody.billing_mode, 'auto');
+      assert.deepEqual(reseedBody.seed_overrides, { step_1: 123 });
+      assert.ok(!('billingMode' in reseedBody), 'workflow reseed body must use billing_mode');
+
+      await api.start({ input: { title: 'bare billing test', steps: [] } });
+      const bare = JSON.parse(fetchCalls.at(-1).init.body);
+      assert.ok(
+        !('billing_mode' in bare) && !('billingMode' in bare),
+        'workflow start body must omit billing mode entirely when not set'
+      );
+    } finally {
+      global.fetch = originalFetch;
+    }
+  }
+
+  {
+    // billingMode must be part of the public workflow param types too.
+    const declarations = fs.readFileSync(
+      path.join(__dirname, '../dist/CreativeWorkflows/types.d.ts'),
+      'utf8'
+    );
+    assert.ok(
+      declarations.includes('billingMode?: BillingMode;'),
+      'workflow parameter declarations must expose billingMode'
+    );
+    assert.ok(
+      declarations.includes('billing_mode?: BillingMode;'),
+      'workflow parameter declarations must expose the snake_case compatibility alias'
     );
   }
 

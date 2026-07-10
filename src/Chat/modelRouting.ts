@@ -145,8 +145,18 @@ const IMAGE_MODEL_SELECTORS: Record<string, string> = {
   'z-image': 'z_image_bf16',
   'chroma-v46-flash': 'chroma-v.46-flash_fp8',
   'chroma-detail': 'chroma-v48-detail-svd_fp8',
+  'chroma-hd': 'chroma1-hd_fp8_scaled',
+  'chroma1-hd': 'chroma1-hd_fp8_scaled',
   'flux1-krea': 'flux1-krea-dev_fp8_scaled',
   flux2: PREFERRED_MODEL_IDS.image.flux2,
+  // Community fine-tunes (uncensored). Selectors mirror the sogni-homepage
+  // catalog slugs; the raw model ids always pass through regardless.
+  'dark-beast-z-image-turbo': 'dark_beast_z_image_turbo_v9_bf16',
+  'dark-beast-z-turbo': 'dark_beast_z_image_turbo_v9_bf16',
+  'dark-beast-krea-2': 'dark_beast_krea2_fp8',
+  'dark-beast-krea2': 'dark_beast_krea2_fp8',
+  'one-obsession-v22': 'one_obsession_v22_fp16',
+  'one-obsession': 'one_obsession_v22_fp16',
   'pony-v7': 'coreml-cyberrealisticPony_v7',
   'qwen-2512': 'qwen_image_2512_fp8',
   'qwen-2512-lightning': 'qwen_image_2512_fp8_lightning',

@@ -18,7 +18,12 @@
 
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
-import { askQuestion } from './workflow-helpers.mjs';
+import {
+  askQuestion,
+  billingModeHelpText,
+  defaultBillingMode,
+  parseBillingModeArg
+} from './workflow-helpers.mjs';
 
 const DEFAULT_IMAGE_MODEL = 'flux2';
 const DEFAULT_VIDEO_MODEL = 'ltx23';
@@ -37,6 +42,7 @@ function parseArgs() {
     numberOfMedia: 1,
     seed: undefined,
     tokenType: loadTokenTypePreference() || 'spark',
+    billingMode: defaultBillingMode(),
     list: false,
     get: undefined,
     events: undefined,
@@ -48,7 +54,10 @@ function parseArgs() {
   const positional = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--list') {
@@ -117,6 +126,7 @@ Options:
   --number <n>            Number of outputs (default: 1)
   --seed <n>              Seed
   --token-type <type>     spark or sogni (default from .env or spark)
+${billingModeHelpText()}
 
 Requires SOGNI_API_KEY in examples/.env or the environment.
 `);
@@ -217,6 +227,7 @@ async function main() {
     console.log('Starting durable generated-keyframe video workflow...\n');
     const workflow = await sogni.workflows.start({
       tokenType: options.tokenType,
+      billingMode: options.billingMode,
       input: {
         title: 'Generated keyframe to video',
         steps: [

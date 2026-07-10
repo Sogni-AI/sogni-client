@@ -41,9 +41,13 @@ import { promisify } from 'node:util';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 import {
   MODELS,
+  billingModeHelpText,
+  billingModeLabel,
+  defaultBillingMode,
   log,
   generateRandomSeed,
-  defaultExamplesOutputDir
+  defaultExamplesOutputDir,
+  parseBillingModeArg
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -61,15 +65,21 @@ const DEFAULT_BENCHMARK_PROMPT =
 // ============================================
 
 const MODEL_TIER_STEPS = {
-  'z_image_turbo_bf16':              { min: 4,  max: 10, default: 8 },
-  'z_image_bf16':                    { min: 20, max: 50, default: 25 },
-  'chroma-v.46-flash_fp8':           { min: 10, max: 20, default: 10 },
-  'chroma-v48-detail-svd_fp8':       { min: 20, max: 40, default: 20 },
-  'flux1-krea-dev_fp8_scaled':       { min: 12, max: 40, default: 20 },
-  'flux1-schnell-fp8':               { min: 1,  max: 5,  default: 4 },
-  'flux2_dev_fp8':                   { min: 20, max: 50, default: 20 },
-  'qwen_image_2512_fp8_lightning':   { min: 4,  max: 8,  default: 4 },
-  'qwen_image_2512_fp8':             { min: 20, max: 50, default: 20 }
+  'z_image_turbo_bf16':               { min: 4,  max: 10, default: 8 },
+  'z_image_bf16':                     { min: 20, max: 50, default: 25 },
+  'krea2_turbo_fp8_scaled':           { min: 4,  max: 12, default: 8 },
+  'chroma-v.46-flash_fp8':            { min: 10, max: 20, default: 10 },
+  'chroma-v48-detail-svd_fp8':        { min: 20, max: 40, default: 20 },
+  'chroma1-hd_fp8_scaled':            { min: 20, max: 50, default: 26 },
+  'flux1-krea-dev_fp8_scaled':        { min: 12, max: 40, default: 20 },
+  'flux1-schnell-fp8':                { min: 1,  max: 5,  default: 4 },
+  'flux2_dev_fp8':                    { min: 20, max: 50, default: 20 },
+  'qwen_image_2512_fp8_lightning':    { min: 4,  max: 8,  default: 4 },
+  'qwen_image_2512_fp8':              { min: 20, max: 50, default: 20 },
+  // Community fine-tunes (uncensored)
+  'dark_beast_z_image_turbo_v9_bf16': { min: 4,  max: 12, default: 8 },
+  'dark_beast_krea2_fp8':             { min: 8,  max: 20, default: 16 },
+  'one_obsession_v22_fp16':           { min: 20, max: 35, default: 28 }
 };
 
 // ============================================
@@ -85,12 +95,16 @@ function parseArgs() {
     runs: 3,
     warmup: 1,
     output: defaultExamplesOutputDir('benchmark'),
-    download: true
+    download: true,
+    billingMode: defaultBillingMode()
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--network' && args[i + 1]) {
@@ -161,6 +175,7 @@ Options:
   --warmup       Warmup runs to discard (default: 1)
   --output       Output directory (default: ./output/benchmark)
   --no-download  Skip downloading generated images
+${billingModeHelpText()}
   --help         Show this help message
 `);
 }
@@ -176,9 +191,10 @@ Options:
  * @param {string} prompt - Text prompt
  * @param {string} tokenType - Payment token type
  * @param {number} steps - Number of inference steps to use
+ * @param {string} billingMode - Billing mode selector
  * @returns {Promise<{durationMs, resultUrl, seed, success, error}>}
  */
-function runSingleGeneration(sogni, modelConfig, prompt, tokenType, steps) {
+function runSingleGeneration(sogni, modelConfig, prompt, tokenType, steps, billingMode) {
   return new Promise(async (resolve) => {
     const seed = generateRandomSeed();
     const startTime = Date.now();
@@ -194,6 +210,7 @@ function runSingleGeneration(sogni, modelConfig, prompt, tokenType, steps) {
       disableNSFWFilter: false,
       outputFormat: 'jpg',
       tokenType,
+      billingMode,
       width: modelConfig.defaultWidth,
       height: modelConfig.defaultHeight
     };
@@ -275,7 +292,7 @@ function runSingleGeneration(sogni, modelConfig, prompt, tokenType, steps) {
 /**
  * Run a batch of generations at a given step count and return stats.
  */
-async function benchmarkAtStepCount(sogni, modelConfig, prompt, tokenType, steps, totalRuns, warmupRuns, download, outputDir, modelKey) {
+async function benchmarkAtStepCount(sogni, modelConfig, prompt, tokenType, steps, totalRuns, warmupRuns, download, outputDir, modelKey, billingMode) {
   const measuredRunCount = totalRuns - warmupRuns;
   const runs = [];
 
@@ -287,7 +304,7 @@ async function benchmarkAtStepCount(sogni, modelConfig, prompt, tokenType, steps
 
     process.stdout.write(`${label}: generating...`);
 
-    const result = await runSingleGeneration(sogni, modelConfig, prompt, tokenType, steps);
+    const result = await runSingleGeneration(sogni, modelConfig, prompt, tokenType, steps, billingMode);
 
     if (result.success) {
       process.stdout.write(`\r${label}: ${formatDuration(result.durationMs)}${isWarmup ? ' (warmup - discarded)' : ''}\n`);
@@ -402,12 +419,13 @@ async function main() {
   console.log(`  Prompt:              ${OPTIONS.prompt.substring(0, 70)}${OPTIONS.prompt.length > 70 ? '...' : ''}`);
   console.log(`  Download images:     ${OPTIONS.download ? 'yes' : 'no'}`);
   console.log(`  Output:              ${OPTIONS.output}`);
+  console.log(`  Billing:             ${billingModeLabel(OPTIONS.billingMode)}`);
   console.log();
 
   // Load credentials and connect
   const credentials = await loadCredentials();
   let tokenType = loadTokenTypePreference() || 'spark';
-  console.log(`Using ${tokenType} tokens for payment.`);
+  console.log(`Using ${tokenType} tokens for payment fallback.`);
   console.log();
 
   log('🔄', `Connecting to Sogni (${OPTIONS.network} network)...`);
@@ -475,7 +493,7 @@ async function main() {
     console.log(`\n  ▸ Phase 1: ${minSteps} steps (min)`);
     const minResult = await benchmarkAtStepCount(
       sogni, modelConfig, OPTIONS.prompt, tokenType,
-      minSteps, OPTIONS.runs, OPTIONS.warmup, OPTIONS.download, OPTIONS.output, modelKey
+      minSteps, OPTIONS.runs, OPTIONS.warmup, OPTIONS.download, OPTIONS.output, modelKey, OPTIONS.billingMode
     );
 
     if (minResult.avgMs !== null) {
@@ -494,7 +512,7 @@ async function main() {
       console.log(`\n  ▸ Phase 2: ${defaultSteps} steps (default — validation)`);
       defaultResult = await benchmarkAtStepCount(
         sogni, modelConfig, OPTIONS.prompt, tokenType,
-        defaultSteps, OPTIONS.runs, OPTIONS.warmup, OPTIONS.download, OPTIONS.output, modelKey
+        defaultSteps, OPTIONS.runs, OPTIONS.warmup, OPTIONS.download, OPTIONS.output, modelKey, OPTIONS.billingMode
       );
 
       if (defaultResult.avgMs !== null) {
@@ -512,7 +530,7 @@ async function main() {
     console.log(`\n  ▸ Phase ${maxPhaseNum}: ${maxSteps} steps (max)`);
     const maxResult = await benchmarkAtStepCount(
       sogni, modelConfig, OPTIONS.prompt, tokenType,
-      maxSteps, OPTIONS.runs, OPTIONS.warmup, OPTIONS.download, OPTIONS.output, modelKey
+      maxSteps, OPTIONS.runs, OPTIONS.warmup, OPTIONS.download, OPTIONS.output, modelKey, OPTIONS.billingMode
     );
 
     if (maxResult.avgMs !== null) {

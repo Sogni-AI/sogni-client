@@ -80,6 +80,8 @@ import {
   VIDEO_CONSTRAINTS,
   CONTROL_NET_TYPES,
   askQuestion,
+  billingModeHelpText,
+  billingModeLabel,
   selectModel,
   promptCoreOptions,
   promptVideoFps,
@@ -102,7 +104,10 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultBillingMode,
   defaultExamplesOutputDir,
+  parseBillingModeArg,
+  shouldCheckTokenBalance,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -151,12 +156,16 @@ async function parseArgs() {
     interactive: true,
     disableSafeContentFilter: false,
     identityAudio: null,
-    audioIdentityStrength: null
+    audioIdentityStrength: null,
+    billingMode: defaultBillingMode()
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--no-interactive') {
@@ -287,6 +296,7 @@ Options:
   --output        Output directory (default: ./output)
   --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
+${billingModeHelpText()}
   --help          Show this help message
 
 Examples:
@@ -1068,6 +1078,7 @@ async function main() {
     configDisplay['Comfy Sampler'] = OPTIONS.sampler;
     configDisplay['Comfy Scheduler'] = OPTIONS.scheduler;
     configDisplay['Safety'] = OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled';
+    configDisplay['Billing'] = billingModeLabel(OPTIONS.billingMode);
     if (OPTIONS.identityAudio) {
       configDisplay['Identity Audio'] = OPTIONS.identityAudio;
       if (OPTIONS.audioIdentityStrength !== null && OPTIONS.audioIdentityStrength !== undefined) {
@@ -1114,7 +1125,7 @@ async function main() {
     } else {
       console.log(`   ${tokenLabel}: ${totalCost.toFixed(2)}`);
     }
-    if (balance) {
+    if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
       const currentBalance =
         parseFloat(tokenType === 'spark' ? balance.spark.net : balance.sogni.net) || 0;
       console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} ${tokenLabel}`);
@@ -1179,7 +1190,8 @@ async function main() {
       seed: OPTIONS.seed,
       referenceVideo: referenceVideoBuffer,
       disableNSFWFilter: OPTIONS.disableSafeContentFilter,
-      tokenType: tokenType
+      tokenType: tokenType,
+      billingMode: OPTIONS.billingMode
     };
 
     // Add reference image if provided (handles both required and optional cases like pose control)

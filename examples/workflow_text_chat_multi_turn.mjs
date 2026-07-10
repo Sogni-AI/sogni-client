@@ -42,6 +42,13 @@
 
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
+import {
+  billingModeHelpText,
+  billingModeLabel,
+  defaultBillingMode,
+  parseBillingModeArg,
+  shouldCheckTokenBalance
+} from './workflow-helpers.mjs';
 import * as readline from 'node:readline';
 
 const DEFAULT_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
@@ -59,11 +66,15 @@ function parseArgs() {
     think: false,
     thinkExplicit: false,
     showThinking: false,
+    billingMode: defaultBillingMode(),
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--model' && args[i + 1]) {
@@ -115,6 +126,7 @@ Options:
   --think         Enable model thinking/reasoning (shows <think> blocks)
   --no-think      Disable model thinking (default)
   --show-thinking  Show <think> blocks in output (hidden by default)
+${billingModeHelpText()}
   --help          Show this help message
 
 In-conversation commands:
@@ -290,6 +302,7 @@ async function main() {
   console.log(`Temperature: ${options.temperature}`);
   console.log(`Thinking:    ${think ? 'enabled' : 'disabled'}`);
   console.log(`Payment:     ${tokenLabel}`);
+  console.log(`Billing:     ${billingModeLabel(options.billingMode)}`);
   console.log(`System:      ${options.system}`);
   console.log();
   console.log('Type your message and press Enter. Type "exit" to quit.');
@@ -441,7 +454,7 @@ async function main() {
       const balance = sogni.account.currentAccount.balance;
       const available = parseFloat(tokenType === 'spark' ? balance.spark.net : balance.sogni.net);
 
-      if (available < estimate.costInToken) {
+      if (shouldCheckTokenBalance(options.billingMode) && available < estimate.costInToken) {
         console.error(`\n  Insufficient balance. You need at least ${estimate.costInToken.toFixed(6)} ${tokenLabel} but have ${available.toFixed(4)} ${tokenLabel}.`);
         console.error(`  Tip: Reduce --max-tokens to lower the estimated cost, or add funds at https://app.sogni.ai\n`);
         history.pop();
@@ -466,6 +479,7 @@ async function main() {
         ...(options.topK != null && { top_k: options.topK }),
         stream: true,
         tokenType,
+        billingMode: options.billingMode,
         think,
         taskProfile: 'general',
       });

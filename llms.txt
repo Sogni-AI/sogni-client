@@ -122,7 +122,7 @@ const isUnlimited = sogni.account.currentAccount.isUnlimited; // active && tier 
 
 Jobs explicitly submitted with `billingMode: 'subscription'` that the subscription cannot cover fail with `SUBSCRIPTION_ERROR_CODES` (exported from the package root): `4078` `NOT_ENTITLED` (no active subscription), `4079` `QUEUE_CAP` (subscription queue cap reached), `4080` `GRACE_RETRY` (billing-grace window — the renewal payment is being retried and unlimited access is paused until it succeeds). On `4080`, offer a "pay with Spark/SOGNI" fallback instead of auto-retrying in a loop.
 
-`billingMode` (`'auto' | 'subscription' | 'tokens'`, exported as `BillingMode`) is accepted by project params and by all three chat transports — `chat.completions.create()` (socket), `chat.hosted.create()` (REST `/v1/chat/completions`), and `chat.runs.create()` (durable runs serialize it as `billing_mode`).
+`billingMode` (`'auto' | 'subscription' | 'tokens'`, exported as `BillingMode`) is accepted by project params, creative workflows (`workflows.start()`, `resume()`, and `reseed()` serialize it as `billing_mode`), and all three chat transports — `chat.completions.create()` (socket), `chat.hosted.create()` (REST `/v1/chat/completions`), and `chat.runs.create()` (durable runs serialize it as `billing_mode`).
 
 Chat job failures surface as `ChatJobError` (exported from the package root): `.message` stays the human-readable server message, `code`/`errorCode` carry the wire code string (e.g. `'4080'`), `errorType` carries the server tag (e.g. `'subscription_unavailable'`), and the `subscriptionErrorCode` getter maps back to the numeric `SUBSCRIPTION_ERROR_CODES` value — branch on these instead of string-matching messages.
 
@@ -194,6 +194,33 @@ Checkout and portal sessions require user authentication; API-key auth is reject
   }
 }
 ```
+
+### Notable Image Models
+
+The full catalog is dynamic — enumerate it at runtime with
+`sogni.projects.getAvailableModels()`. Frequently used ids:
+
+| Model ID | Notes |
+|----------|-------|
+| `z_image_turbo_bf16` | Z-Image Turbo — ultra-fast 8-step (free-tier eligible) |
+| `z_image_bf16` | Z-Image — high quality 20-50 step |
+| `krea2_turbo_fp8_scaled` | Krea 2 Turbo — few-step, strong in-image text, up to 2K |
+| `chroma-v.46-flash_fp8` | Chroma v.46 Flash — fast, high quality |
+| `chroma-v48-detail-svd_fp8` | Chroma v.48 Detail — high detail |
+| `chroma1-hd_fp8_scaled` | Chroma1-HD — final high-res Chroma (uncensored, LoRA-capable) |
+| `flux1-schnell-fp8` | Flux.1 [schnell] — 1-5 step |
+| `flux1-krea-dev_fp8_scaled` | Flux.1 Krea [dev] — creative detail |
+| `flux2_dev_fp8` | Flux.2 [dev] — pro quality + context images (also image edit) |
+| `qwen_image_2512_fp8` / `_lightning` | Qwen Image 2512 — text rendering |
+| `gpt-image-2` | GPT Image 2 — OpenAI partner (premium, Spark-only) |
+
+Community fine-tunes (uncensored; pass the id directly):
+`dark_beast_z_image_turbo_v9_bf16` (fast Z-Image fine-tune, 2K needs 24GB VRAM),
+`dark_beast_krea2_fp8` (Krea 2 fine-tune, 2K needs 24GB VRAM),
+`one_obsession_v22_fp16` (Illustrious/anime, LoRA-capable).
+
+Krea 2 Turbo supports the `krea2-filter-bypass-3` style LoRA via
+`loras: ['krea2-filter-bypass-3']` + `loraStrengths: [1.0]`.
 
 ---
 
@@ -323,6 +350,31 @@ const project = await sogni.projects.create({
 Use `referenceImageUrls`, `referenceVideoUrls`, and `referenceAudioUrls` for Seedance HTTPS context URLs. Use `referenceImage`/`referenceImageEnd`, `referenceVideo`, and `referenceAudio` for single local file references. Example prompt: `Use @Image1 for product identity, @Video1 for camera movement, and @Audio1 for music rhythm. Keep the product silhouette and logo placement consistent.`
 
 Aliases used by chat tools and examples: `seedance2`, `seedance2-mini`, and `seedance2-fast`. V2V uses `seedance2` or `seedance2-mini` as the model selector and `seedance-v2v` as the control mode. Seedance Mini is the preferred lower-cost 720p tier; Seedance Fast remains a legacy 720p tier. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
+
+### Happy Horse 1.1 (external API)
+
+Happy Horse 1.1 (Alibaba) is another external-API, Spark-only video partner. It has native always-on audio, runs at 24fps, and accepts **image-only** references (no video or audio reference assets). Three canonical model IDs, one per mode:
+
+| Model ID              | Mode                | References                    |
+| --------------------- | ------------------- | ----------------------------- |
+| `happyhorse-1.1-t2v`  | Text-to-video       | none                          |
+| `happyhorse-1.1-i2v`  | Image-to-video      | one first-frame image         |
+| `happyhorse-1.1-r2v`  | Reference-to-video  | 1-9 reference images          |
+
+Chat/tool aliases: `happyhorse` and `happyhorse1.1` (resolve to t2v, or i2v when a `reference_image_url` is present).
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'happyhorse-1.1-t2v',
+  positivePrompt: 'A galloping horse kicking up dust at golden hour',
+  duration: 5,
+  width: 1920,
+  height: 1080,
+  tokenType: 'spark'
+});
+```
 
 ---
 

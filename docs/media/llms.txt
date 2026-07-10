@@ -110,6 +110,36 @@ await sogni.account.login(username, password);
 - **API key**: Pass `apiKey` to `createInstance()`. Auto-authenticates via WebSocket. No `login()` call needed. Most REST API calls (balance, profile, etc.) available. Sensitive operations (withdrawals, staking, 2FA) not available.
 - **Username/password**: Call `sogni.account.login()` after creating instance. Full REST API access.
 
+### Subscription Entitlements
+
+```javascript
+const plans = await sogni.account.getSubscriptionPlans(); // [{ planId, tier, term, interval, priceUsd, displayName }]
+const subscription = await sogni.account.refreshSubscription(); // unwraps data.subscription
+const isUnlimited = sogni.account.currentAccount.isUnlimited; // active && tier is unlimited/unlimited_pro
+```
+
+`subscription.status` is one of `none`, `trialing`, `active`, `grace_period`, `past_due`, `paused`, `cancel_at_period_end`, `canceled`, `expired`, or `refunded`. Period dates are ISO strings. `isUnlimited` trusts the server's `active` entitlement flag: trialing and cancel-at-period-end snapshots stay entitled until the period ends — though canceling during a free trial ends Unlimited access immediately by default — but a `grace_period` snapshot is never entitled (`active:false`) — the provider is retrying the renewal payment, unlimited render access is paused, and render submissions under the plan return a specific error explaining the renewal retry; access resumes automatically once the renewal succeeds, and renders can still be paid with Spark/SOGNI in the meantime. The snapshot's effective period end during grace indicates the payment-retry window, not access. Pending plan changes surface as optional `scheduledTier`, `scheduledTerm`, and `scheduledChangeAt` (absent when no change is pending).
+
+Jobs explicitly submitted with `billingMode: 'subscription'` that the subscription cannot cover fail with `SUBSCRIPTION_ERROR_CODES` (exported from the package root): `4078` `NOT_ENTITLED` (no active subscription), `4079` `QUEUE_CAP` (subscription queue cap reached), `4080` `GRACE_RETRY` (billing-grace window — the renewal payment is being retried and unlimited access is paused until it succeeds). On `4080`, offer a "pay with Spark/SOGNI" fallback instead of auto-retrying in a loop.
+
+`billingMode` (`'auto' | 'subscription' | 'tokens'`, exported as `BillingMode`) is accepted by project params, creative workflows (`workflows.start()`, `resume()`, and `reseed()` serialize it as `billing_mode`), and all three chat transports — `chat.completions.create()` (socket), `chat.hosted.create()` (REST `/v1/chat/completions`), and `chat.runs.create()` (durable runs serialize it as `billing_mode`).
+
+Chat job failures surface as `ChatJobError` (exported from the package root): `.message` stays the human-readable server message, `code`/`errorCode` carry the wire code string (e.g. `'4080'`), `errorType` carries the server tag (e.g. `'subscription_unavailable'`), and the `subscriptionErrorCode` getter maps back to the numeric `SUBSCRIPTION_ERROR_CODES` value — branch on these instead of string-matching messages.
+
+Unlimited fair-use accounting and enforcement are dynamic and server-side in the socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as fixed user-facing limits.
+
+Stripe checkout uses catalog plan IDs, not monthly/annual suffixed IDs:
+
+```javascript
+const { url } = await sogni.account.createSubscriptionCheckout('unlimited_pro', 'annual', {
+  redirectType: 'web',
+  appSource: 'my-integration'
+});
+const portal = await sogni.account.createSubscriptionPortalSession();
+```
+
+Checkout and portal sessions require user authentication; API-key auth is rejected for those redirect operations.
+
 ### Network Types
 
 - `fast` - High-end GPUs, faster, more expensive. **Required for video.**
@@ -164,6 +194,33 @@ await sogni.account.login(username, password);
   }
 }
 ```
+
+### Notable Image Models
+
+The full catalog is dynamic — enumerate it at runtime with
+`sogni.projects.getAvailableModels()`. Frequently used ids:
+
+| Model ID | Notes |
+|----------|-------|
+| `z_image_turbo_bf16` | Z-Image Turbo — ultra-fast 8-step (free-tier eligible) |
+| `z_image_bf16` | Z-Image — high quality 20-50 step |
+| `krea2_turbo_fp8_scaled` | Krea 2 Turbo — few-step, strong in-image text, up to 2K |
+| `chroma-v.46-flash_fp8` | Chroma v.46 Flash — fast, high quality |
+| `chroma-v48-detail-svd_fp8` | Chroma v.48 Detail — high detail |
+| `chroma1-hd_fp8_scaled` | Chroma1-HD — final high-res Chroma (uncensored, LoRA-capable) |
+| `flux1-schnell-fp8` | Flux.1 [schnell] — 1-5 step |
+| `flux1-krea-dev_fp8_scaled` | Flux.1 Krea [dev] — creative detail |
+| `flux2_dev_fp8` | Flux.2 [dev] — pro quality + context images (also image edit) |
+| `qwen_image_2512_fp8` / `_lightning` | Qwen Image 2512 — text rendering |
+| `gpt-image-2` | GPT Image 2 — OpenAI partner (premium, Spark-only) |
+
+Community fine-tunes (uncensored; pass the id directly):
+`dark_beast_z_image_turbo_v9_bf16` (fast Z-Image fine-tune, 2K needs 24GB VRAM),
+`dark_beast_krea2_fp8` (Krea 2 fine-tune, 2K needs 24GB VRAM),
+`one_obsession_v22_fp16` (Illustrious/anime, LoRA-capable).
+
+Krea 2 Turbo supports the `krea2-filter-bypass-3` style LoRA via
+`loras: ['krea2-filter-bypass-3']` + `loraStrengths: [1.0]`.
 
 ---
 
@@ -285,7 +342,7 @@ const project = await sogni.projects.create({
   duration: 5,
   fps: 24,
   width: 1920,
-  height: 1088,
+  height: 1080,
   tokenType: 'spark'
 });
 ```
@@ -294,23 +351,50 @@ Use `referenceImageUrls`, `referenceVideoUrls`, and `referenceAudioUrls` for See
 
 Aliases used by chat tools and examples: `seedance2`, `seedance2-mini`, and `seedance2-fast`. V2V uses `seedance2` or `seedance2-mini` as the model selector and `seedance-v2v` as the control mode. Seedance Mini is the preferred lower-cost 720p tier; Seedance Fast remains a legacy 720p tier. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
 
+### Happy Horse 1.1 (external API)
+
+Happy Horse 1.1 (Alibaba) is another external-API, Spark-only video partner. It has native always-on audio, runs at 24fps, and accepts **image-only** references (no video or audio reference assets). Three canonical model IDs, one per mode:
+
+| Model ID              | Mode                | References                    |
+| --------------------- | ------------------- | ----------------------------- |
+| `happyhorse-1.1-t2v`  | Text-to-video       | none                          |
+| `happyhorse-1.1-i2v`  | Image-to-video      | one first-frame image         |
+| `happyhorse-1.1-r2v`  | Reference-to-video  | 1-9 reference images          |
+
+Chat/tool aliases: `happyhorse` and `happyhorse1.1` (resolve to t2v, or i2v when a `reference_image_url` is present).
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'happyhorse-1.1-t2v',
+  positivePrompt: 'A galloping horse kicking up dust at golden hour',
+  duration: 5,
+  width: 1920,
+  height: 1080,
+  tokenType: 'spark'
+});
+```
+
 ---
 
 ## 6. Audio Generation (ACE-Step 1.5)
 
 ### Model Variants
 
-| Model ID           | Name          | Description                          |
-| ------------------ | ------------- | ------------------------------------ |
-| ace_step_1.5_turbo | Fast & Catchy | Quick generation, best quality sound |
-| ace_step_1.5_sft   | More Control  | More accurate lyrics, less stable    |
+| Model ID                | Name                       | Description                                      |
+| ----------------------- | -------------------------- | ------------------------------------------------ |
+| ace_step_1.5_xl_turbo   | ACE-Step 1.5 XL Turbo      | Default fast generation, no CFG guidance         |
+| ace_step_1.5_xl_sft     | ACE-Step 1.5 XL SFT        | XL quality model with CFG guidance               |
+| ace_step_1.5_turbo      | ACE-Step 1.5 Turbo Legacy  | Legacy fast generation, no CFG guidance          |
+| ace_step_1.5_sft        | ACE-Step 1.5 SFT Legacy    | Legacy SFT model with CFG guidance               |
 
 ### Text-to-Music (Instrumental)
 
 ```javascript
 const project = await sogni.projects.create({
   type: 'audio',
-  modelId: 'ace_step_1.5_turbo',
+  modelId: 'ace_step_1.5_xl_turbo',
   positivePrompt: 'Upbeat electronic dance music with synth leads',
   numberOfMedia: 1,
   duration: 30, // 10-600 seconds
@@ -328,7 +412,7 @@ const urls = await project.waitForCompletion();
 ```javascript
 const project = await sogni.projects.create({
   type: 'audio',
-  modelId: 'ace_step_1.5_sft',
+  modelId: 'ace_step_1.5_xl_sft',
   positivePrompt: 'Soft acoustic folk ballad',
   lyrics: 'Verse 1:\nWalking down a quiet road...',
   language: 'en',
@@ -355,7 +439,9 @@ const project = await sogni.projects.create({
 | composerMode   | boolean      | true    | AI composer mode            |
 | promptStrength | 0-10         | 2.0     | Prompt adherence            |
 | creativity     | 0-2          | 0.85    | Composition temperature     |
-| steps          | 4-16         | 8       | Inference steps             |
+| guidance       | 1-15         | model   | CFG guidance, SFT only      |
+| shift          | 1-5          | 3       | Denoising distribution      |
+| steps          | model        | model   | Turbo default 8, SFT default 50 |
 | outputFormat   | mp3/wav/flac | mp3     | Audio format                |
 
 ---
@@ -498,7 +584,7 @@ Default generation models used by platform tools:
 | `generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
 | `sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
 | `video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
-| `generate_music` | ace_step_1.5_turbo | ACE-Step 1.5 Turbo, fast music |
+| `generate_music` | ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo, fast music |
 
 ---
 

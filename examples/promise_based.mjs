@@ -50,6 +50,7 @@ const project = await sogni.projects.create({
   outputFormat: 'jpg', // Can be 'png' or 'jpg', defaults to 'png'
   numberOfImages: 4,
   tokenType: 'spark', // 'sogni' or 'spark'
+  billingMode: process.env.SOGNI_BILLING_MODE || 'auto', // 'auto', 'subscription', or 'tokens'
   network: 'fast' // 'fast' or 'relaxed'
 });
 

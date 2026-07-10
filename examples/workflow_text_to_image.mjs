@@ -17,7 +17,7 @@
  *   node workflow_text_to_image.mjs "Fantasy art" --model chroma-v46-flash --starting-image ./test-assets/placeholder.jpg --strength 0.7
  *
  * Options:
- *   --model     Model: z-turbo, z-image, krea-2-turbo, chroma-v46-flash, chroma-v48-detail-svd, flux1-krea-dev, flux1-schnell, or flux2 (default: prompts for selection)
+ *   --model     Model key: z-turbo, z-image, krea-2-turbo, chroma-v46-flash, chroma-v48-detail-svd, chroma-hd, flux1-krea-dev, flux1-schnell, flux2, dark-beast-z-image-turbo, dark-beast-krea-2, one-obsession-v22 (default: prompts for selection)
  *   --width     Image width (default: model-specific, max: 2048)
  *   --height    Image height (default: model-specific, max: 2048)
  *   --batch     Number of images to generate (default: 1)
@@ -63,7 +63,12 @@ import {
   getDefaultSampler,
   getDefaultScheduler,
   displaySafeContentFilterMessage,
-  isSensitiveContentError
+  isSensitiveContentError,
+  defaultBillingMode,
+  parseBillingModeArg,
+  billingModeHelpText,
+  billingModeLabel,
+  shouldCheckTokenBalance
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -95,7 +100,8 @@ async function parseArgs() {
     previews: 0,
     output: defaultExamplesOutputDir(),
     interactive: true,
-    disableSafeContentFilter: false
+    disableSafeContentFilter: false,
+    billingMode: defaultBillingMode()
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -103,50 +109,55 @@ async function parseArgs() {
     if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
-    } else if (arg === '--no-interactive') {
-      options.interactive = false;
-    } else if (arg === '--model' && args[i + 1]) {
-      options.modelKey = args[++i];
-    } else if (arg === '--width' && args[i + 1]) {
-      options.width = parseInt(args[++i], 10);
-    } else if (arg === '--height' && args[i + 1]) {
-      options.height = parseInt(args[++i], 10);
-    } else if (arg === '--batch' && args[i + 1]) {
-      options.batch = parseInt(args[++i], 10);
-    } else if (arg === '--guidance' && args[i + 1]) {
-      options.guidance = parseFloat(args[++i]);
-    } else if (arg === '--steps' && args[i + 1]) {
-      options.steps = parseInt(args[++i], 10);
-    } else if (arg === '--negative' && args[i + 1]) {
-      options.negative = args[++i];
-    } else if (arg === '--style' && args[i + 1]) {
-      options.style = args[++i];
-    } else if (arg === '--seed' && args[i + 1]) {
-      options.seed = parseInt(args[++i], 10);
-    } else if (arg === '--sampler' && args[i + 1]) {
-      options.sampler = args[++i];
-    } else if (arg === '--scheduler' && args[i + 1]) {
-      options.scheduler = args[++i];
-    } else if (arg === '--starting-image' && args[i + 1]) {
-      options.startingImage = args[++i];
-    } else if (arg === '--strength' && args[i + 1]) {
-      options.strength = parseFloat(args[++i]);
-    } else if (arg === '--style-lora' && args[i + 1]) {
-      options.styleLora = args[++i];
-    } else if (arg === '--lora-strength' && args[i + 1]) {
-      options.loraStrength = parseFloat(args[++i]);
-    } else if (arg === '--previews' && args[i + 1]) {
-      options.previews = parseInt(args[++i], 10);
-    } else if (arg === '--output' && args[i + 1]) {
-      options.output = args[++i];
-    } else if (arg === '--disable-safe-content-filter') {
-      options.disableSafeContentFilter = true;
-    } else if (!arg.startsWith('--') && !options.prompt) {
-      options.prompt = arg;
     } else {
-      console.error(`Unknown option: ${arg}`);
-      showHelp();
-      process.exit(1);
+      const billingModeIndex = parseBillingModeArg(args, i, options);
+      if (billingModeIndex !== null) {
+        i = billingModeIndex;
+      } else if (arg === '--no-interactive') {
+        options.interactive = false;
+      } else if (arg === '--model' && args[i + 1]) {
+        options.modelKey = args[++i];
+      } else if (arg === '--width' && args[i + 1]) {
+        options.width = parseInt(args[++i], 10);
+      } else if (arg === '--height' && args[i + 1]) {
+        options.height = parseInt(args[++i], 10);
+      } else if (arg === '--batch' && args[i + 1]) {
+        options.batch = parseInt(args[++i], 10);
+      } else if (arg === '--guidance' && args[i + 1]) {
+        options.guidance = parseFloat(args[++i]);
+      } else if (arg === '--steps' && args[i + 1]) {
+        options.steps = parseInt(args[++i], 10);
+      } else if (arg === '--negative' && args[i + 1]) {
+        options.negative = args[++i];
+      } else if (arg === '--style' && args[i + 1]) {
+        options.style = args[++i];
+      } else if (arg === '--seed' && args[i + 1]) {
+        options.seed = parseInt(args[++i], 10);
+      } else if (arg === '--sampler' && args[i + 1]) {
+        options.sampler = args[++i];
+      } else if (arg === '--scheduler' && args[i + 1]) {
+        options.scheduler = args[++i];
+      } else if (arg === '--starting-image' && args[i + 1]) {
+        options.startingImage = args[++i];
+      } else if (arg === '--strength' && args[i + 1]) {
+        options.strength = parseFloat(args[++i]);
+      } else if (arg === '--style-lora' && args[i + 1]) {
+        options.styleLora = args[++i];
+      } else if (arg === '--lora-strength' && args[i + 1]) {
+        options.loraStrength = parseFloat(args[++i]);
+      } else if (arg === '--previews' && args[i + 1]) {
+        options.previews = parseInt(args[++i], 10);
+      } else if (arg === '--output' && args[i + 1]) {
+        options.output = args[++i];
+      } else if (arg === '--disable-safe-content-filter') {
+        options.disableSafeContentFilter = true;
+      } else if (!arg.startsWith('--') && !options.prompt) {
+        options.prompt = arg;
+      } else {
+        console.error(`Unknown option: ${arg}`);
+        showHelp();
+        process.exit(1);
+      }
     }
   }
 
@@ -170,12 +181,17 @@ Available Models:
   krea-2-turbo         - Krea 2 Turbo (fast 8-step, max: 2560x2560, supports img2img, strong text)
   chroma-v46-flash     - Chroma v.46 Flash (fast high-quality, max: 2048x2048, supports img2img)
   chroma-v48-detail-svd - Chroma v48 Detail SVD (high detail, max: 2048x2048, supports img2img)
+  chroma-hd            - Chroma1-HD (final high-res Chroma, max: 2048x2048, supports img2img)
   flux1-krea-dev       - Flux.1 Krea Dev (creative with detail, max: 2048x2048, supports img2img)
   flux1-schnell        - Flux.1 Schnell (very fast, 1-5 steps)
   flux2                - Flux.2 Dev (highest quality, max: 2048x2048, supports up to 6 context images)
+  Community fine-tunes (uncensored):
+  dark-beast-z-image-turbo - Dark Beast Z-Image Turbo v9 (fast, 2K needs 24GB VRAM)
+  dark-beast-krea-2    - Dark Beast KREA 2 (Krea 2 fine-tune, 2K needs 24GB VRAM)
+  one-obsession-v22    - One Obsession v22 (Illustrious/anime checkpoint)
 
 Options:
-  --model     Model: z-turbo, z-image, krea-2-turbo, chroma-v46-flash, chroma-v48-detail-svd, flux1-krea-dev, flux1-schnell, or flux2 (default: prompts for selection)
+  --model     Model key (see "Available Models" above; default: prompts for selection)
   --negative  Negative prompt (default: none)
   --style     Style prompt (default: none)
   --width     Image width (default: model-specific, max: 2048)
@@ -193,6 +209,7 @@ Options:
   --previews  Number of preview thumbnails during generation (default: 0, set to 5+ to enable)
   --output    Output directory (default: ./output)
   --disable-safe-content-filter  Disable NSFW/safety filter
+${billingModeHelpText()}
   --no-interactive  Skip interactive prompts
   --help      Show this help message
 `);
@@ -223,7 +240,8 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'z-turbo';
     modelConfig = MODELS.image[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'z-turbo', 'z-image', 'krea-2-turbo', 'chroma-v46-flash', 'chroma-v48-detail-svd', 'flux1-krea-dev', 'flux1-schnell', or 'flux2'.`);
+      const availableKeys = Object.keys(MODELS.image).map((key) => `'${key}'`).join(', ');
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Available: ${availableKeys}.`);
       process.exit(1);
     }
   }
@@ -486,6 +504,7 @@ async function main() {
       'Sampler': OPTIONS.sampler,
       'Scheduler': OPTIONS.scheduler,
       'Previews': OPTIONS.previews,
+      'Billing': billingModeLabel(OPTIONS.billingMode),
       'Safety': OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
     });
 
@@ -511,7 +530,7 @@ async function main() {
       } else {
         console.log(`   Spark: ${cost.toFixed(2)}`);
       }
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.spark.net || 0);
         console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Spark`);
       }
@@ -525,7 +544,7 @@ async function main() {
       } else {
         console.log(`   Sogni: ${cost.toFixed(2)}`);
       }
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
         console.log(`   Balance remaining: ${(currentBalance - cost).toFixed(2)} Sogni`);
       }
@@ -578,6 +597,7 @@ async function main() {
       disableNSFWFilter: OPTIONS.disableSafeContentFilter,
       outputFormat: OPTIONS.outputFormat,
       tokenType: tokenType,
+      billingMode: OPTIONS.billingMode,
       width: OPTIONS.width,
       height: OPTIONS.height
     };

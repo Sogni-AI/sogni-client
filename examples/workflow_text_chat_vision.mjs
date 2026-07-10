@@ -42,6 +42,13 @@
 
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
+import {
+  billingModeHelpText,
+  billingModeLabel,
+  defaultBillingMode,
+  parseBillingModeArg,
+  shouldCheckTokenBalance
+} from './workflow-helpers.mjs';
 import * as readline from 'node:readline';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -116,11 +123,15 @@ function parseArgs() {
     topP: null,
     topK: null,
     system: DEFAULT_SYSTEM,
+    billingMode: defaultBillingMode(),
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--image' && args[i + 1]) {
@@ -160,6 +171,7 @@ Options:
   --top-p         Top-p sampling 0-1 (default: from model, or 0.9)
   --top-k         Top-k sampling (default: from model, if available)
   --system        Custom system prompt
+${billingModeHelpText()}
   --help          Show this help message
 
 In-conversation commands:
@@ -390,6 +402,7 @@ async function main() {
   console.log(`Max Tokens:  ${options.maxTokens}`);
   console.log(`Temperature: ${options.temperature}`);
   console.log(`Payment:     ${tokenLabel}`);
+  console.log(`Billing:     ${billingModeLabel(options.billingMode)}`);
   console.log(`Image:       ${currentImage ? `${currentImage.fileName} (${currentImage.format})` : '(none)'}`);
   console.log(`System:      ${systemPrompt.slice(0, 80)}${systemPrompt.length > 80 ? '...' : ''}`);
   console.log();
@@ -620,12 +633,14 @@ async function main() {
       const available = parseFloat(tokenType === 'spark' ? balance.spark.net : balance.sogni.net);
 
       console.log(`  Est. Cost: ${estimate.costInToken.toFixed(6)} ${tokenLabel} (~$${estimate.costInUSD.toFixed(6)})`);
-      console.log(`  Balance:   ${available.toFixed(4)} ${tokenLabel}`);
+      if (shouldCheckTokenBalance(options.billingMode)) {
+        console.log(`  Balance:   ${available.toFixed(4)} ${tokenLabel}`);
+      }
       if (hasImage) {
         console.log(`  (Note: Cost estimate may be less accurate for vision requests)`);
       }
 
-      if (available < estimate.costInToken) {
+      if (shouldCheckTokenBalance(options.billingMode) && available < estimate.costInToken) {
         console.error(
           `\n  Insufficient balance. You need at least ${estimate.costInToken.toFixed(6)} ${tokenLabel} but have ${available.toFixed(4)} ${tokenLabel}.`
         );
@@ -654,6 +669,7 @@ async function main() {
         ...(options.topK != null && { top_k: options.topK }),
         stream: true,
         tokenType,
+        billingMode: options.billingMode,
         think: false,
         taskProfile: 'reasoning',
       });

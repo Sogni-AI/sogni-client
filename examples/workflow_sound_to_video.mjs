@@ -77,7 +77,12 @@ import {
   calculateVideoFrames,
   defaultExamplesOutputDir,
   displaySafeContentFilterMessage,
-  isSensitiveContentError
+  isSensitiveContentError,
+  defaultBillingMode,
+  parseBillingModeArg,
+  billingModeHelpText,
+  billingModeLabel,
+  shouldCheckTokenBalance
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -117,7 +122,8 @@ async function parseArgs() {
     scheduler: null,
     output: defaultExamplesOutputDir(),
     interactive: true,
-    disableSafeContentFilter: false
+    disableSafeContentFilter: false,
+    billingMode: defaultBillingMode()
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -125,6 +131,18 @@ async function parseArgs() {
     if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
+    } else if (
+      arg === '--billing-mode' ||
+      arg === '--billing' ||
+      arg === '--subscription' ||
+      arg === '--tokens'
+    ) {
+      const billingModeIndex = parseBillingModeArg(args, i, options);
+      if (billingModeIndex === null) {
+        console.error('Missing value for --billing-mode');
+        process.exit(1);
+      }
+      i = billingModeIndex;
     } else if (arg === '--no-interactive') {
       options.interactive = false;
     } else if (arg === '--image' && args[i + 1]) {
@@ -216,6 +234,7 @@ Options:
   --comfy-scheduler ComfyUI scheduler name (default: simple)
   --output      Output directory (default: ./output)
   --disable-safe-content-filter  Disable NSFW/safety filter
+${billingModeHelpText()}
   --no-interactive  Skip interactive prompts
   --help        Show this help message
 
@@ -619,6 +638,7 @@ async function main() {
     // Video models only support ComfyUI sampler/scheduler
     configDisplay['Comfy Sampler'] = OPTIONS.sampler;
     configDisplay['Comfy Scheduler'] = OPTIONS.scheduler;
+    configDisplay['Billing'] = billingModeLabel(OPTIONS.billingMode);
     configDisplay['Safety'] = OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled';
 
     if (OPTIONS.audioDuration !== undefined) {
@@ -659,7 +679,7 @@ async function main() {
       } else {
         console.log(`   Spark: ${totalCost.toFixed(2)}`);
       }
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.spark.net || 0);
         console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`);
       }
@@ -673,7 +693,7 @@ async function main() {
       } else {
         console.log(`   Sogni: ${totalCost.toFixed(2)}`);
       }
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
         console.log(`   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`);
       }
@@ -737,7 +757,8 @@ async function main() {
         seed: OPTIONS.seed,
         referenceAudio: referenceAudioBuffer,
         disableNSFWFilter: OPTIONS.disableSafeContentFilter,
-        tokenType: tokenType
+        tokenType: tokenType,
+        billingMode: OPTIONS.billingMode
       };
 
       // Only include referenceImage for models that need it (s2v, ia2v)

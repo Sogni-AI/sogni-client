@@ -54,13 +54,18 @@ import {
 import {
   askQuestion,
   askMultilinePrompt,
+  billingModeHelpText,
+  billingModeLabel,
   log,
   formatDuration,
   displayConfig,
+  defaultBillingMode,
   generateRandomSeed,
   toKebabCase,
   getUniqueFilename,
-  defaultExamplesOutputDir
+  defaultExamplesOutputDir,
+  parseBillingModeArg,
+  shouldCheckTokenBalance
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
@@ -190,12 +195,16 @@ function parseArgs() {
     seed: null,
     batch: 1,
     output: defaultExamplesOutputDir(),
-    interactive: true
+    interactive: true,
+    billingMode: defaultBillingMode()
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--no-interactive') {
@@ -290,6 +299,7 @@ Options:
   --batch           Number of tracks to generate (default: 1)
   --output          Output directory (default: ./output)
   --no-interactive  Skip interactive prompts
+${billingModeHelpText()}
   --help            Show this help message
 `);
 }
@@ -716,7 +726,8 @@ async function main() {
       Scheduler: OPTIONS.scheduler,
       Format: OPTIONS.format,
       Batch: OPTIONS.batch,
-      Seed: OPTIONS.seed !== null && OPTIONS.seed !== -1 ? OPTIONS.seed : '(random)'
+      Seed: OPTIONS.seed !== null && OPTIONS.seed !== -1 ? OPTIONS.seed : '(random)',
+      Billing: billingModeLabel(OPTIONS.billingMode)
     });
     displayConfig('Music Generation Configuration', configDisplay);
 
@@ -742,7 +753,7 @@ async function main() {
       } else {
         console.log(`   Spark: ${totalCost.toFixed(2)}`);
       }
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.spark.net || 0);
         console.log(
           `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Spark`
@@ -758,7 +769,7 @@ async function main() {
       } else {
         console.log(`   Sogni: ${totalCost.toFixed(2)}`);
       }
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
         console.log(
           `   Balance remaining: ${(currentBalance - totalCost).toFixed(2)} Sogni`
@@ -824,7 +835,8 @@ async function main() {
       scheduler: OPTIONS.scheduler,
       outputFormat: OPTIONS.format,
       ...(OPTIONS.lyrics && { lyrics: OPTIONS.lyrics }),
-      tokenType
+      tokenType,
+      billingMode: OPTIONS.billingMode
     });
 
     const projectId = project.id;

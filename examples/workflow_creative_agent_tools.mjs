@@ -15,7 +15,12 @@
  */
 
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
-import { askQuestion } from './workflow-helpers.mjs';
+import {
+  askQuestion,
+  billingModeHelpText,
+  defaultBillingMode,
+  parseBillingModeArg
+} from './workflow-helpers.mjs';
 
 const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_REST_ENDPOINT = 'https://api.sogni.ai';
@@ -28,13 +33,17 @@ function parseArgs() {
     tools: 'creative-tools',
     execute: true,
     tokenType: loadTokenTypePreference() || process.env.SOGNI_TOKEN_TYPE || 'spark',
+    billingMode: defaultBillingMode(),
     json: false
   };
 
   const positional = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--model' && args[i + 1]) {
@@ -70,6 +79,7 @@ Options:
                         creative-tools/rich/hosted/true injects media/planning tools
   --no-execute          Inject tools but disable server-side Sogni tool execution
   --token-type <type>   spark or sogni (default: SOGNI_TOKEN_TYPE or spark)
+${billingModeHelpText()}
   --json                Print the raw response
 
 Requires SOGNI_API_KEY in examples/.env or the environment.
@@ -130,6 +140,7 @@ async function postChatCompletion(credentials, options) {
       temperature: 0.4,
       max_tokens: 1600,
       token_type: options.tokenType,
+      billingMode: options.billingMode,
       sogni_tools: normalizeTools(options.tools),
       sogni_tool_execution: options.execute
     })

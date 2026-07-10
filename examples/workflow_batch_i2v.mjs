@@ -52,6 +52,8 @@ import {
   MODELS,
   VIDEO_CONSTRAINTS,
   askQuestion,
+  billingModeHelpText,
+  billingModeLabel,
   selectModel,
   promptCoreOptions,
   promptVideoDuration,
@@ -64,7 +66,10 @@ import {
   generateVideoFilename,
   generateRandomSeed,
   calculateVideoFrames,
+  defaultBillingMode,
   defaultExamplesOutputDir,
+  parseBillingModeArg,
+  shouldCheckTokenBalance,
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
@@ -108,12 +113,16 @@ async function parseArgs() {
     output: defaultExamplesOutputDir(),
     skipExisting: true,
     interactive: true,
-    disableSafeContentFilter: false
+    disableSafeContentFilter: false,
+    billingMode: defaultBillingMode()
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--help' || arg === '-h') {
+    const billingModeIndex = parseBillingModeArg(args, i, options);
+    if (billingModeIndex !== null) {
+      i = billingModeIndex;
+    } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
     } else if (arg === '--no-interactive') {
@@ -194,6 +203,7 @@ Options:
   --no-skip-existing  Re-process all images
   --disable-safe-content-filter  Disable NSFW/safety filter
   --no-interactive  Skip interactive prompts
+${billingModeHelpText()}
   --help        Show this help message
 
 Directory Structure:
@@ -536,7 +546,8 @@ async function main() {
       Guidance: OPTIONS.guidance,
       Shift: OPTIONS.shift,
       Seed: OPTIONS.seed !== null ? OPTIONS.seed : 'random each',
-      Safety: OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
+      Safety: OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled',
+      Billing: billingModeLabel(OPTIONS.billingMode)
     });
 
     if (OPTIONS.negative) {
@@ -564,7 +575,7 @@ async function main() {
       const totalCost = costPerVideo * filesToProcess.length;
       console.log(`   Per video: ${costPerVideo.toFixed(2)} Spark`);
       console.log(`   Total (${filesToProcess.length} videos): ${totalCost.toFixed(2)} Spark`);
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.spark.net || 0);
         console.log(
           `   Balance: ${currentBalance.toFixed(2)} → ${(currentBalance - totalCost).toFixed(2)} Spark`
@@ -572,7 +583,7 @@ async function main() {
       }
       console.log(`   USD: ~$${(totalCost * 0.005).toFixed(2)}`);
 
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.spark.net || 0);
         if (currentBalance < totalCost) {
           console.log();
@@ -586,7 +597,7 @@ async function main() {
       const totalCost = costPerVideo * filesToProcess.length;
       console.log(`   Per video: ${costPerVideo.toFixed(2)} Sogni`);
       console.log(`   Total (${filesToProcess.length} videos): ${totalCost.toFixed(2)} Sogni`);
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
         console.log(
           `   Balance: ${currentBalance.toFixed(2)} → ${(currentBalance - totalCost).toFixed(2)} Sogni`
@@ -594,7 +605,7 @@ async function main() {
       }
       console.log(`   USD: ~$${(totalCost * 0.05).toFixed(2)}`);
 
-      if (balance) {
+      if (balance && shouldCheckTokenBalance(OPTIONS.billingMode)) {
         const currentBalance = parseFloat(balance.sogni.net || 0);
         if (currentBalance < totalCost) {
           console.log();
@@ -678,7 +689,8 @@ async function main() {
           sampler: OPTIONS.sampler,
           scheduler: OPTIONS.scheduler,
           disableNSFWFilter: OPTIONS.disableSafeContentFilter,
-          tokenType: tokenType
+          tokenType: tokenType,
+          billingMode: OPTIONS.billingMode
         };
 
         if (OPTIONS.guidance !== undefined && OPTIONS.guidance !== null) {

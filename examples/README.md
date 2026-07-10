@@ -69,7 +69,7 @@ You should see version numbers for both commands. The examples require Node.js v
 
 ### 2. Sogni Account
 
-You need an active Sogni account with a positive token balance (SOGNI or Spark tokens).
+You need an active Sogni account with a positive token balance (SOGNI or Spark tokens) or an eligible Unlimited subscription.
 
 - **Create a free account:** Visit [app.sogni.ai](https://app.sogni.ai) or download the [Mac App](https://www.sogni.ai/studio)
 - **Get free tokens:** Confirm your email and claim daily bonus tokens under the Rewards section
@@ -178,6 +178,9 @@ SOGNI_API_KEY=your_api_key_here
 
 # Optional: Payment Token Type (sogni or spark)
 SOGNI_TOKEN_TYPE=spark
+
+# Optional: Billing mode (auto, subscription, or tokens)
+SOGNI_BILLING_MODE=auto
 ```
 
 **Security Note:** The `.env` file contains sensitive information. It's automatically ignored by git and should never be shared or committed to version control.
@@ -255,6 +258,8 @@ node workflow_text_chat_vision.mjs --image photo.jpg
 **Generate images, videos, or music via natural language chat:**
 
 ```bash
+node workflow_creative_agent_cli.mjs
+node workflow_creative_agent_cli.mjs --context ./artist-style.md --subscription
 node workflow_text_chat_sogni_tools.mjs "Create an image of a cyberpunk city"
 node workflow_text_chat_sogni_tools.mjs "Generate a video of ocean waves at sunset"
 node workflow_text_chat_sogni_tools.mjs "Compose a jazz song about the rain"
@@ -288,9 +293,13 @@ The workflow examples showcase these powerful new models:
 | `z_image_turbo_bf16`                 | Z-Image Turbo     | Image        | Fast 8-step turbo generation - great for quick iterations                          |
 | `z_image_bf16`                       | Z-Image           | Image        | High quality 20-step generation with detailed output                               |
 | `krea2_turbo_fp8_scaled`             | Krea 2 Turbo      | Image        | Fast 8-step text-to-image + image-to-image, crisp in-image text, up to 2K          |
+| `chroma1-hd_fp8_scaled`              | Chroma1-HD        | Image        | Final high-res Chroma (uncensored, LoRA-capable)                                   |
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning    | Image Edit   | Fast 4-step reference-based generation                                             |
 | `qwen_image_edit_2511_fp8`           | Qwen Image Edit   | Image Edit   | High-quality 20-step image editing with context                                    |
 | `flux2_dev_fp8`                      | Flux.2 Dev        | Image        | Professional quality with context image support                                    |
+| `dark_beast_z_image_turbo_v9_bf16`   | Dark Beast Z-Image Turbo v9 | Image | Community Z-Image Turbo fine-tune (uncensored, fast; 2K needs 24GB VRAM)            |
+| `dark_beast_krea2_fp8`               | Dark Beast KREA 2 | Image        | Community Krea 2 fine-tune (uncensored; 2K needs 24GB VRAM)                         |
+| `one_obsession_v22_fp16`             | One Obsession v22 | Image        | Community Illustrious/anime checkpoint (LoRA-capable)                              |
 | `seedance-2-0`                       | Seedance 2.0      | Video        | External API multimodal video at 24fps                                             |
 | `seedance-2-0-mini`                  | Seedance 2.0 Mini | Video        | Fastest, lower-cost 720p-capped external API multimodal video at 24fps             |
 | `seedance-2-0-fast`                  | Seedance 2.0 Fast | Video        | Legacy 720p-capped external API multimodal video at 24fps                          |
@@ -310,6 +319,9 @@ node workflow_text_to_image.mjs "A cyberpunk city" --model z-image
 
 # Krea 2 Turbo - fast 8-step, strong in-image text, up to 2K
 node workflow_text_to_image.mjs "A neon sign that reads OPEN" --model krea-2-turbo
+
+# Chroma1-HD - final high-res Chroma
+node workflow_text_to_image.mjs "A detailed oil painting of a harbor at dawn" --model chroma-hd
 
 # Qwen Image Edit Lightning - quick reference-based generation
 node workflow_image_edit.mjs "portrait" --context test-assets/placeholder.jpg --model qwen-lightning
@@ -331,8 +343,18 @@ Generate images from text prompts with support for multiple cutting-edge models.
 |-------|-------------|----------|
 | `z-turbo` | Z-Image Turbo (8-step, fast) | Quick prototyping, iterations |
 | `z-image` | Z-Image (20-step, high quality) | Detailed, high quality output |
+| `krea-2-turbo` | Krea 2 Turbo (8-step, strong in-image text, up to 2K) | Text-heavy images, fast iteration |
+| `chroma-v46-flash` | Chroma v.46 Flash (fast high-quality) | Balanced speed/quality |
+| `chroma-v48-detail-svd` | Chroma v48 Detail SVD (high detail) | Fine detail rendering |
+| `chroma-hd` | Chroma1-HD (final high-res Chroma) | Highest-fidelity Chroma output |
 | `flux1-schnell` | Flux.1 Schnell (1-5 steps) | Ultra-fast generation |
+| `flux1-krea-dev` | Flux.1 Krea Dev (creative detail) | Stylized, detailed output |
 | `flux2` | Flux.2 Dev (20-step, high quality) | Professional quality output |
+| `dark-beast-z-image-turbo` | Dark Beast Z-Image Turbo v9 (community, uncensored, fast) | Uncensored fast generation |
+| `dark-beast-krea-2` | Dark Beast KREA 2 (community, uncensored) | Uncensored Krea 2 style |
+| `one-obsession-v22` | One Obsession v22 (community, Illustrious/anime) | Anime/illustration |
+
+> Run `node workflow_text_to_image.mjs --help` for the complete, always-current model menu. Any raw model id from `sogni.projects.getAvailableModels()` also works.
 
 **Usage:**
 
@@ -340,12 +362,13 @@ Generate images from text prompts with support for multiple cutting-edge models.
 node workflow_text_to_image.mjs                           # Interactive mode
 node workflow_text_to_image.mjs "A beautiful sunset"      # With prompt
 node workflow_text_to_image.mjs "Portrait" --model z-turbo --seed 12345
-node workflow_text_to_image.mjs "Portrait" --model z-image --seed 12345
+node workflow_text_to_image.mjs "A neon sign that reads OPEN" --model chroma-hd
+node workflow_text_to_image.mjs "A portrait" --model krea-2-turbo --style-lora krea2-filter-bypass-3 --lora-strength 1.0
 ```
 
 **Options:**
 
-- `--model` - Model: z-turbo, z-image, flux1-schnell, or flux2
+- `--model` - Model key (see the table above; `--help` lists the full menu)
 - `--width` / `--height` - Output dimensions
 - `--batch` - Number of images (1-10)
 - `--steps` - Inference steps
@@ -523,6 +546,29 @@ node workflow_video_to_video.mjs "restyle as watercolor" --video source.mp4 --mo
 - Animate illustrations with real human motion (Animate-Move)
 - Create puppeteer and motion-capture effects
 
+#### Partner Video Models (external API)
+
+**Seedance 2.0** (ByteDance) and **Happy Horse 1.1** (Alibaba) run on partner external APIs rather than Sogni GPU workers. They are **Spark-only**, generate at a fixed **24fps**, and have **native audio** (no separate audio params).
+
+- **Seedance 2.0** (`seedance-2-0` / `-mini` / `-fast`) has a dedicated, guided example: `workflow_partner_seedance_video.mjs` (T2V/I2V/IA2V/V2V + multimodal image/video/audio references). Run `node workflow_partner_seedance_video.mjs` with no arguments for the guided picker.
+- **Happy Horse 1.1** (`happyhorse-1.1-t2v` / `-i2v` / `-r2v`) accepts **image-only** references. There is no dedicated CLI script yet; call it directly with the SDK, or via the hosted `generate_video` tool with the `happyhorse` selector:
+
+```javascript
+// Reference-to-video: 1-9 reference images (HTTPS URLs, or upload local files first)
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'happyhorse-1.1-r2v',
+  positivePrompt: 'A galloping horse kicking up dust at golden hour',
+  duration: 5,
+  width: 1920,
+  height: 1080,
+  referenceImageUrls: ['https://cdn.example.com/ref-1.jpg'],
+  tokenType: 'spark'
+});
+const urls = await project.waitForCompletion();
+```
+
 ### LLM Text Chat, Vision & Tool Calling Examples
 
 The Sogni SDK provides LLM text generation through the Supernet, with streaming, multi-turn conversations, thinking/reasoning mode, tool calling (function calling), and multimodal vision understanding.
@@ -640,6 +686,16 @@ Run the server-side API-key example:
 node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal perfume bottle"
 node workflow_creative_agent_tools.mjs "Plan a cyberpunk skyline video" --tools creative-tools --no-execute
 ```
+
+Run the interactive hosted Creative Agent CLI when you want a Claude/Codex-style terminal session powered by Sogni's own LLM and creative-agent tools. It auto-loads local Markdown context such as `AGENTS.md`, `STYLE.md`, and `.sogni/*.md`, supports `/add`, `/reload`, `/billing subscription`, `/subscription`, `/save`, and keeps multi-turn history:
+
+```bash
+node workflow_creative_agent_cli.mjs
+node workflow_creative_agent_cli.mjs "Create an image of an apple using Chroma Flash model"
+node workflow_creative_agent_cli.mjs --context ./artist-style.md --context ./shortcuts.md --subscription
+```
+
+This is the right example for customers who want their Unlimited subscription to include local CLI access to Sogni Creative Agent. The separate `sogni-creative-agent-skill` package remains the BYO-agent path for Claude Code, Codex, Hermes, Manus, and other skill loaders.
 
 Run the focused partner Seedance video example. Running it with no arguments starts a guided workflow picker covering T2V, I2V, IA2V, V2V, the full and fast Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:
 
@@ -843,6 +899,10 @@ For LTX-2.3 examples, prefer `--duration`; the scripts calculate model-correct f
 
 ## Token Types and Costs
 
+### Subscription Billing
+
+Every example that can submit a paid job accepts `--billing-mode auto|subscription|tokens`, plus the shortcuts `--subscription` and `--tokens`. You can also set `SOGNI_BILLING_MODE=subscription` in `.env` to make subscription billing the default for the examples.
+
 ### Available Token Types
 
 1. **Spark Tokens**
@@ -1006,6 +1066,7 @@ npm install
 
 **Solution:**
 
+- If you have an eligible Unlimited subscription, rerun with `--subscription` or set `SOGNI_BILLING_MODE=subscription`
 - Claim your monthly free Spark in the app (under Rewards)
 - Purchase more Spark tokens with a credit card
 - Try a cheaper configuration (fewer frames, speed model, lower resolution)
@@ -1052,7 +1113,7 @@ If you encounter issues not covered here:
 - **Use smaller resolutions** - 512x512 or 1024x1024 are good starting points
 - **Keep video frame counts low initially** - 81 frames (default) is perfect for testing
 - **Save your credentials** - Makes running examples much faster
-- **Watch your token balance** - All examples show cost estimates before generation
+- **Choose the right billing mode** - Use `--subscription` for Unlimited subscription jobs or `--tokens` to force Spark/SOGNI billing
 - **Experiment with prompts** - Small changes can make big differences in output
 
 ---
