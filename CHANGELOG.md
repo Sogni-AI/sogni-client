@@ -1,3 +1,48 @@
+# [5.1.0](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0...v5.1.0) (2026-07-10)
+
+
+### Bug Fixes
+
+* **account:** correct trial usage SDK surface and eligibility reason docs ([222252d](https://github.com/Sogni-AI/sogni-client/commit/222252d87305f72b0be71f23b26a6607ad25bf46))
+* **account:** map real socket entitlement status domain without dropping fields ([c2e7499](https://github.com/Sogni-AI/sogni-client/commit/c2e7499c5d254e8ce61da257b44307bca97ea56c))
+* **deps:** bump @sogni-ai/sogni-protocol to 1.0.0-alpha.9 ([05008b9](https://github.com/Sogni-AI/sogni-client/commit/05008b9fc62f326f52c72d43a1b71e8b9cd3f1f3))
+* **deps:** bump sogni protocol alpha ([e2f9a4b](https://github.com/Sogni-AI/sogni-client/commit/e2f9a4b012340a4501145dcb33db9227c4347ff7))
+* **projects:** forward billing mode metadata ([975fdb0](https://github.com/Sogni-AI/sogni-client/commit/975fdb09adcbd74c11fa6786edb6f1d2392583eb))
+* **release:** trigger main stable package publish ([9e917e0](https://github.com/Sogni-AI/sogni-client/commit/9e917e0c6e6c4f9261f9741d4354fb49de6bb34d))
+* **release:** trigger stable SDK publish ([ce5fbf3](https://github.com/Sogni-AI/sogni-client/commit/ce5fbf32414e9f8ff786484259d69b6eb94c5999))
+* **subscription:** accept unlimited_pro tier in isUnlimited getter ([dd60513](https://github.com/Sogni-AI/sogni-client/commit/dd60513650071a46a2e43f7d81bae96026c4af93))
+* **subscription:** align entitlement SDK surface ([df2b752](https://github.com/Sogni-AI/sogni-client/commit/df2b7527f479778f073ac8f05b39912e84874666))
+* **workflows:** pass billing mode through durable workflows ([70ad0ad](https://github.com/Sogni-AI/sogni-client/commit/70ad0ad45c36810397f7c7e83925c94150d909ba))
+
+
+### Features
+
+* **account:** accept chat checkout redirect target ([3900336](https://github.com/Sogni-AI/sogni-client/commit/390033692aaa46eff521030d80ba712f15bd3302))
+* **account:** add subscription entitlement accessors ([22682c4](https://github.com/Sogni-AI/sogni-client/commit/22682c4ac8a970b4189ec94ea9f7bc3fa215533e))
+* **account:** add trial eligibility, device-id, and startTrial checkout ([6564c82](https://github.com/Sogni-AI/sogni-client/commit/6564c8225aec37245a4c4a051119a48da6fc14a5))
+* **account:** guard subscription writes against stale transports ([c60af1f](https://github.com/Sogni-AI/sogni-client/commit/c60af1ff4e4a9a8af1a8e2393899026f176a3f53))
+* add Seedance Mini routing ([11c2855](https://github.com/Sogni-AI/sogni-client/commit/11c28552ed4834a0861201b305420c9e930f5daf))
+* **audio:** prefer ACE-Step XL music models ([ec5a715](https://github.com/Sogni-AI/sogni-client/commit/ec5a71579d04b42863ce9627c8ea4935b0190f70))
+* **chat:** carry subscription-limit fields on ChatJobError ([33c7ecd](https://github.com/Sogni-AI/sogni-client/commit/33c7ecdab22c571f6983fbb479bdbb5eb885a672))
+* **chat:** forward 4081 limit fields at error call sites ([ef5b66a](https://github.com/Sogni-AI/sogni-client/commit/ef5b66a8b28dd52755f22cf76609258ecf2fe6dc))
+* **chat:** preserve job error codes via typed ChatJobError ([dd5ad1d](https://github.com/Sogni-AI/sogni-client/commit/dd5ad1d585c709382547bfa4cff2aa98d734414c))
+* **chat:** serialize billingMode on all three chat transports ([787dd43](https://github.com/Sogni-AI/sogni-client/commit/787dd4391dee1735a6d3d3a7953f25ec6c722a4d))
+* **examples:** expose Krea 2 style LoRA in text-to-image example ([62aa174](https://github.com/Sogni-AI/sogni-client/commit/62aa17416bd1868e2a62b02993a169a06cd8e9a7))
+* **models:** add Krea 2 Turbo image model support ([19572e2](https://github.com/Sogni-AI/sogni-client/commit/19572e214390b79af0138a687c45ec37b26eb4ac))
+* **projects:** expose LTX-2.3 v2v outpaint and inpaint controls ([1a60576](https://github.com/Sogni-AI/sogni-client/commit/1a605766e42b6fa5cdedf0a64425deb51cbf81b1))
+* **projects:** surface 4081 limit fields on render errors ([13fa158](https://github.com/Sogni-AI/sogni-client/commit/13fa158f00c4e4415bb4d0f3c7eaf9979f1f7d40))
+* **socket:** type 4081 limit fields on job error events ([0026438](https://github.com/Sogni-AI/sogni-client/commit/0026438ccbfb1cefe5be38861372d1430ade0eb2))
+* **subscription:** add isSubscriptionLimitError helper ([139953b](https://github.com/Sogni-AI/sogni-client/commit/139953bc003aefc2f3ba09f8e4000982a071f7e8))
+* **subscription:** add paymentPending to entitlement snapshot ([#17](https://github.com/Sogni-AI/sogni-client/issues/17)) ([792d959](https://github.com/Sogni-AI/sogni-client/commit/792d959710fac8daaf5ea358c2746de916e650e2))
+* **subscription:** expose frontier vendor discount in types ([1e06f99](https://github.com/Sogni-AI/sogni-client/commit/1e06f99e54e39c2d09d65263c0ed6a5f52dbac18))
+* **subscription:** mirror term, google productId, and manual provider ([78b3114](https://github.com/Sogni-AI/sogni-client/commit/78b311457c71448578b8f561cc7865e7bcaf9f20))
+* **subscription:** pending plan-change snapshot fields and grace-period doc fix ([596e4a0](https://github.com/Sogni-AI/sogni-client/commit/596e4a030dc1114e5fdd90d3dce3dd799c5f1ede))
+* **subscription:** recognize 4081 feature-gate denial code ([c513fe6](https://github.com/Sogni-AI/sogni-client/commit/c513fe67243c91e0ca8ccb5d301a3be20dcf1486))
+* sync socket subscription entitlement ([fa5d24d](https://github.com/Sogni-AI/sogni-client/commit/fa5d24d307992993ac312c3b1e8ab94277529aa4))
+* **types:** export subscription billing socket error-code constants ([2fd5af4](https://github.com/Sogni-AI/sogni-client/commit/2fd5af49ffa76d6f1a304c6a06577468f5865c2e))
+* **video:** add HappyHorse 1.1 video model routing ([75f2ebe](https://github.com/Sogni-AI/sogni-client/commit/75f2ebea4be8a65d2a055e22d6625c3c1cfcd053))
+* **video:** expose Seedance 4K client metadata ([19e1dd5](https://github.com/Sogni-AI/sogni-client/commit/19e1dd5319bd0a859cbae8fb8ff6672ef068fddc))
+
 # [5.1.0-alpha.17](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.16...v5.1.0-alpha.17) (2026-07-10)
 
 
