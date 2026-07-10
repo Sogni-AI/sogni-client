@@ -1,3 +1,10 @@
+# [5.1.0-alpha.17](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.16...v5.1.0-alpha.17) (2026-07-10)
+
+
+### Bug Fixes
+
+* **workflows:** pass billing mode through durable workflows ([70ad0ad](https://github.com/Sogni-AI/sogni-client/commit/70ad0ad45c36810397f7c7e83925c94150d909ba))
+
 # [5.1.0-alpha.16](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.15...v5.1.0-alpha.16) (2026-06-30)
 
 
