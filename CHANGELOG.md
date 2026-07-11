@@ -1,3 +1,10 @@
+# [5.1.0-alpha.19](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.18...v5.1.0-alpha.19) (2026-07-11)
+
+
+### Features
+
+* add chat safe-content routing flag ([822a863](https://github.com/Sogni-AI/sogni-client/commit/822a863c7a6888defd67ce79b63751bc92c23b7c))
+
 # [5.1.0-alpha.18](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.17...v5.1.0-alpha.18) (2026-07-11)
 
 
