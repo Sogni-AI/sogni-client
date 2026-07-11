@@ -10,6 +10,7 @@
     "v2v": "node workflow_video_to_video.mjs",
     "batch": "node workflow_batch_i2v.mjs",
     "t2i": "node workflow_text_to_image.mjs",
+    "direct-creative-tool": "node workflow_direct_creative_tool.mjs",
     "edit": "node workflow_image_edit.mjs",
     "creative-tools": "node workflow_creative_agent_tools.mjs",
     "creative-agent-cli": "node workflow_creative_agent_cli.mjs",

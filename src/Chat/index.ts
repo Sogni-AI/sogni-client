@@ -21,6 +21,8 @@ import {
   HostedChatCompletionParams,
   ConfirmChatRunCostParams,
   HostedChatCompletionResult,
+  HostedToolExecutionParams,
+  HostedToolExecutionResult,
   LLMCostEstimation,
   LLMEstimateResponse,
   LLMModelInfo,
@@ -249,6 +251,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
    */
   hosted: {
     create: (params: HostedChatCompletionParams) => Promise<HostedChatCompletionResult>;
+    executeTool: (params: HostedToolExecutionParams) => Promise<HostedToolExecutionResult>;
   };
 
   /**
@@ -295,7 +298,8 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       create: this.createCompletion.bind(this) as any
     };
     this.hosted = {
-      create: this.createHostedCompletion.bind(this)
+      create: this.createHostedCompletion.bind(this),
+      executeTool: this.executeHostedTool.bind(this)
     };
     this.runs = {
       create: this.createChatRun.bind(this),
@@ -557,6 +561,21 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       }
       throw error;
     }
+  }
+
+  private async executeHostedTool(
+    params: HostedToolExecutionParams
+  ): Promise<HostedToolExecutionResult> {
+    return this.client.rest.post<HostedToolExecutionResult>(
+      '/v1/creative-agent/tools/execute',
+      {
+        tool: params.tool,
+        arguments: params.arguments,
+        app_source: params.app_source ?? params.appSource ?? this.client.appSource,
+        token_type: params.token_type ?? params.tokenType
+      },
+      { timeoutMs: 300000 }
+    );
   }
 
   private async chatRunFetch(path: string, options: RequestInit = {}): Promise<Response> {

@@ -270,6 +270,39 @@ export interface HostedChatCompletionResult {
   sogni_tool_results?: Record<string, unknown>[];
 }
 
+export type HostedSynchronousToolName =
+  | 'enhance_prompt'
+  | 'compose_script'
+  | 'compose_lyrics'
+  | 'compose_instrumental'
+  | 'compose_workflow'
+  | 'compose_workflow_template';
+
+export interface HostedToolExecutionParams {
+  /** Synchronous hosted composition/planning tool to execute directly. */
+  tool: HostedSynchronousToolName | string;
+  /** Exact JSON arguments for the selected tool. */
+  arguments: Record<string, unknown>;
+  /** Optional source label for this hosted REST request. Defaults to the client appSource when configured. */
+  app_source?: string;
+  /** camelCase alias for {@link HostedToolExecutionParams.app_source}. */
+  appSource?: string;
+  /** Token type to use for hosted REST billing. */
+  token_type?: 'sogni' | 'spark' | 'auto';
+  /** camelCase alias for {@link HostedToolExecutionParams.token_type}. */
+  tokenType?: 'sogni' | 'spark' | 'auto';
+}
+
+export interface HostedToolExecutionResult {
+  status: 'success';
+  data: {
+    toolCallId: string;
+    tool: string;
+    result: Record<string, unknown>;
+    message: string | null;
+  };
+}
+
 export type HostedChatCompletionParams = Omit<
   ChatCompletionParams,
   'stream' | 'autoExecuteTools' | 'onToolCall' | 'onToolProgress' | 'maxToolRounds'

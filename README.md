@@ -906,9 +906,24 @@ Combine LLM intelligence with Sogni's media generation capabilities. The SDK exp
 
 Pass `SogniTools.all` (or individual definitions like `generateImageTool`, `animatePhotoTool`, `composeScriptTool`) to an LLM via the `tools` parameter, then route tool calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()` for server-side execution. Generated artifacts are threaded through a per-request media context so later rounds can reference earlier outputs by index (`sourceImageIndex`, `videoIndices`, `audioIndex`, etc.).
 
+When your app already knows the exact synchronous composition/planning tool and JSON arguments, skip the dispatcher round and call `sogni.chat.hosted.executeTool()` directly. Direct execution supports `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, and `compose_workflow_template`; long-running media generation still belongs on hosted chat/runs or `sogni.workflows`.
+
+```javascript
+const direct = await sogni.chat.hosted.executeTool({
+  tool: 'enhance_prompt',
+  arguments: {
+    prompt: 'A cinematic portrait of a glass robot',
+    destination_tool: 'generate_image'
+  },
+  tokenType: 'spark'
+});
+
+console.log(direct.data.message);
+```
+
 For direct `/v1/chat/completions` hosted-tool execution, media-bearing tool arguments use inline `data:` URIs. For user-uploaded image/audio/video inputs, use the SDK video project examples or the `sogni.workflows` wrapper for `/v1/creative-agent/workflows`; these can consume HTTPS artifact URLs produced by Sogni's upload endpoints. Durable workflows validate explicit steps before the workflow starts and can bind SDK request-level `mediaReferences` into tool arguments with `sourceStepId: "$input_media"`.
 
-The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
+The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. `workflow_direct_creative_tool.mjs` demonstrates direct one-call execution for known synchronous tools. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
 
 ### Hosted Tool Surfaces — `sogni_tools` parameter
 
@@ -953,6 +968,8 @@ const result = await sogni.chat.hosted.create({
 ```
 
 See `examples/workflow_creative_agent_tools.mjs` for a runnable REST API-key example that can toggle tool surface and server-side execution.
+
+See `examples/workflow_direct_creative_tool.mjs` when you already know the hosted synchronous tool to run and want to call it without asking the LLM to select a tool first.
 
 For focused partner Seedance video tests, `examples/workflow_partner_seedance_video.mjs` starts with a guided workflow picker when run with no arguments. The guided path covers T2V, I2V, IA2V, V2V, the full and fast Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:
 

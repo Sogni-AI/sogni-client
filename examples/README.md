@@ -687,6 +687,19 @@ node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal
 node workflow_creative_agent_tools.mjs "Plan a cyberpunk skyline video" --tools creative-tools --no-execute
 ```
 
+#### `workflow_direct_creative_tool.mjs`
+
+Directly execute a known synchronous hosted composition/planning tool without asking the LLM to select the tool first. This is the efficient path for prompt expansion, script/lyrics composition, and workflow planning when your app already has exact JSON arguments.
+
+```bash
+node workflow_direct_creative_tool.mjs "A cinematic portrait of a glass robot"
+node workflow_direct_creative_tool.mjs --tool compose_script "Make this a 5s LTX video prompt"
+node workflow_direct_creative_tool.mjs --tool compose_workflow "Plan a 3-shot neon bakery teaser"
+node workflow_direct_creative_tool.mjs --tool compose_lyrics "A synth-pop song about rain"
+```
+
+The example calls `sogni.chat.hosted.executeTool()`, which wraps `POST /v1/creative-agent/tools/execute`. Supported direct tools are `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, and `compose_workflow_template`.
+
 Run the interactive hosted Creative Agent CLI when you want a Claude/Codex-style terminal session powered by Sogni's own LLM and creative-agent tools. It auto-loads local Markdown context such as `AGENTS.md`, `STYLE.md`, and `.sogni/*.md`, supports `/add`, `/reload`, `/billing subscription`, `/subscription`, `/save`, and keeps multi-turn history:
 
 ```bash

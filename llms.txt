@@ -448,7 +448,7 @@ const project = await sogni.projects.create({
 
 ## 7. LLM Text Generation
 
-The Sogni SDK supports LLM text generation via the Supernet. Socket-native chat uses `sogni.chat.completions.create()`. Hosted REST chat uses `sogni.chat.hosted.create()`. Durable server-side chat runs use `sogni.chat.runs`.
+The Sogni SDK supports LLM text generation via the Supernet. Socket-native chat uses `sogni.chat.completions.create()`. Hosted REST chat uses `sogni.chat.hosted.create()`. Direct synchronous hosted tool execution uses `sogni.chat.hosted.executeTool()`. Durable server-side chat runs use `sogni.chat.runs`.
 
 ### Chat Completion (Non-Streaming)
 
@@ -570,9 +570,11 @@ Canonical hosted creative-tool surface (`SogniTools.all`, 24 tools, executed ser
 
 The default `creative-tools` surface includes the tools above. `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools. Per-request media context lets generated images / videos / audio be addressed by stable indices across tool rounds (each tool result envelope returns `startIndex` and `indices`).
 
+When the caller already knows the exact synchronous composition/planning tool and JSON arguments, use `sogni.chat.hosted.executeTool()` instead of forcing a `/v1/chat/completions` tool-choice round. Direct execution supports `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, and `compose_workflow_template`; long-running media tools still use hosted chat/runs or `sogni.workflows`.
+
 Media-conditioned tools accept explicit inline base64 `data:` URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`. Tool image inputs accept PNG/JPEG, tool audio inputs accept MP3/M4A/WAV, and tool video inputs accept MP4 or MOV/QuickTime. For uploaded or Sogni-hosted HTTP(S) assets, pass media through request-level `mediaReferences` / `mediaContext` or through `sogni.workflows` dependencies.
 
-The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. `workflow_creative_agent_tools.mjs` demonstrates server-side hosted Sogni tool injection through `/v1/chat/completions`. Pass `SogniTools.all` (or individual tool defs) to the LLM and execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
+The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. `workflow_creative_agent_tools.mjs` demonstrates server-side hosted Sogni tool injection through `/v1/chat/completions`. `workflow_direct_creative_tool.mjs` demonstrates `sogni.chat.hosted.executeTool()` for known synchronous tool calls. Pass `SogniTools.all` (or individual tool defs) to the LLM and execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
 
 Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.workflows` (`start`, `list`, `get`, `events`, `streamEvents`, `resume`, `reseed`, `cancel`) backed by `/v1/creative-agent/workflows`. `start()` accepts either an inline `input` plan or a saved `workflowId` + `inputs`. Saved workflow templates are managed via `sogni.workflows.templates` (`list`, `get`, `create`, `update`, `delete`, `fork`). All endpoints use the SDK's active auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
 

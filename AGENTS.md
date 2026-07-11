@@ -36,6 +36,7 @@ The SDK wraps the public Sogni Intelligence endpoints used for text chat, hosted
 
 - `sogni.chat.completions.create()` maps to socket-native chat completions and supports text, streaming, vision input, custom function tools, Sogni tool injection, structured outputs, and `think` / `taskProfile` controls.
 - `sogni.chat.hosted.create()` maps to `POST /v1/chat/completions`, the OpenAI-compatible REST chat endpoint. It can execute Sogni media-generation and composition tools server-side.
+- `sogni.chat.hosted.executeTool()` maps to `POST /v1/creative-agent/tools/execute` for direct execution of known synchronous composition/planning tools (`enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`) without an LLM dispatcher round.
 - `sogni.chat.runs` maps to `/v1/chat/runs`, a durable hosted-chat turn with persisted state, event replay, cancellation, and recovery across client disconnects.
 - `sogni.workflows` maps to `/v1/creative-agent/workflows`, where callers submit exact multi-step creative plans and observe durable execution through snapshots, event logs, or SSE.
 - `sogni.workflows.templates` maps to `/v1/creative-agent/workflows/templates`, the CRUD and fork API for saved, parameterized workflow recipes.
