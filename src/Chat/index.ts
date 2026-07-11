@@ -535,6 +535,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
           task_profile: params.task_profile ?? params.taskProfile,
           media_references: params.media_references ?? params.mediaReferences,
           api_media_references: params.api_media_references ?? params.apiMediaReferences,
+          ...(params.safe_content_filter !== undefined || params.safeContentFilter !== undefined
+            ? { safe_content_filter: params.safe_content_filter ?? params.safeContentFilter }
+            : {}),
           ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs }),
           ...(params.response_format && { response_format: params.response_format })
         },
@@ -572,7 +575,10 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         tool: params.tool,
         arguments: params.arguments,
         app_source: params.app_source ?? params.appSource ?? this.client.appSource,
-        token_type: params.token_type ?? params.tokenType
+        token_type: params.token_type ?? params.tokenType,
+        ...(params.safe_content_filter !== undefined || params.safeContentFilter !== undefined
+          ? { safe_content_filter: params.safe_content_filter ?? params.safeContentFilter }
+          : {})
       },
       { timeoutMs: 300000 }
     );
@@ -812,6 +818,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       presence_penalty: params.presence_penalty,
       stop: params.stop,
       tokenType: params.tokenType,
+      ...(params.safeContentFilter !== undefined
+        ? { safeContentFilter: params.safeContentFilter }
+        : {}),
       ...(params.billingMode && { billingMode: params.billingMode }),
       tools: params.tools,
       tool_choice: params.tool_choice,

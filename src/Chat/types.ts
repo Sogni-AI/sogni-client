@@ -109,6 +109,12 @@ export interface ChatCompletionParams {
   /** Token type to use for billing. Defaults to 'sogni'. */
   tokenType?: 'sogni' | 'spark';
   /**
+   * Whether the caller wants Sogni's safe-content filter applied for this
+   * request context. `false` allows backend routing to adult-capable text LLMs
+   * for prompt expansion when the request itself is text-only.
+   */
+  safeContentFilter?: boolean;
+  /**
    * Billing mode for this request. `'subscription'` bills the job against the
    * active subscription entitlement, `'tokens'` forces token billing, and
    * `'auto'` (the server default when omitted) lets the server decide.
@@ -192,6 +198,8 @@ export interface ChatRequestMessage {
   presence_penalty?: number;
   stop?: string | string[];
   tokenType?: 'sogni' | 'spark';
+  /** Safe-content filter state forwarded to the socket server. */
+  safeContentFilter?: boolean;
   /** Billing mode read by the socket server (`data.billingMode`) — see {@link ChatCompletionParams.billingMode}. */
   billingMode?: BillingMode;
   tools?: ToolDefinition[];
@@ -291,6 +299,10 @@ export interface HostedToolExecutionParams {
   token_type?: 'sogni' | 'spark' | 'auto';
   /** camelCase alias for {@link HostedToolExecutionParams.token_type}. */
   tokenType?: 'sogni' | 'spark' | 'auto';
+  /** Public snake_case safe-content filter state. */
+  safe_content_filter?: boolean;
+  /** camelCase alias for {@link HostedToolExecutionParams.safe_content_filter}. */
+  safeContentFilter?: boolean;
 }
 
 export interface HostedToolExecutionResult {
@@ -325,6 +337,10 @@ export type HostedChatCompletionParams = Omit<
   mediaReferences?: unknown[];
   api_media_references?: unknown[];
   apiMediaReferences?: unknown[];
+  /** Public snake_case safe-content filter state. */
+  safe_content_filter?: boolean;
+  /** camelCase alias for {@link HostedChatCompletionParams.safe_content_filter}. */
+  safeContentFilter?: boolean;
 };
 
 /**

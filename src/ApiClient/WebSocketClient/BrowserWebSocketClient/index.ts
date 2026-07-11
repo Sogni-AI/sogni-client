@@ -98,6 +98,9 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   // a long wait, since the server skips swarmModels for artists that have
   // active jobs. Cached and replayed like the balance snapshot.
   private _lastSwarmModels: SocketEventMap['swarmModels'] | null = null;
+  // Last swarmLLMModels the primary observed. ChatApi builds `models` from
+  // this live event, so replay it to late-joining tabs just like swarmModels.
+  private _lastSwarmLLMModels: SocketEventMap['swarmLLMModels'] | null = null;
   // Last subscription entitlement snapshot observed on the primary tab. Replayed
   // to late-joining secondaries so CurrentAccount reflects purchases made after
   // the shared socket originally connected.
@@ -262,6 +265,12 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
               payload: { type: 'swarmModels', data: this._lastSwarmModels }
             });
           }
+          if (this._lastSwarmLLMModels) {
+            this.coordinator.notify({
+              type: 'socket-event',
+              payload: { type: 'swarmLLMModels', data: this._lastSwarmLLMModels }
+            });
+          }
           if (this._lastSubscriptionEntitlement) {
             this.coordinator.notify({
               type: 'socket-event',
@@ -330,6 +339,8 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         this._lastBalanceUpdate = payload;
       } else if (eventType === 'swarmModels') {
         this._lastSwarmModels = payload;
+      } else if (eventType === 'swarmLLMModels') {
+        this._lastSwarmLLMModels = payload;
       } else if (eventType === 'subscriptionEntitlementUpdated') {
         this._lastSubscriptionEntitlement = payload;
       } else if (eventType === 'authenticated' && payload?.subscriptionEntitlement) {
