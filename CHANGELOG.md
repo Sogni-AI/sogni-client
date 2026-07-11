@@ -1,3 +1,10 @@
+# [5.1.0-alpha.18](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.17...v5.1.0-alpha.18) (2026-07-11)
+
+
+### Features
+
+* **chat:** add direct hosted tool execution ([d5c182a](https://github.com/Sogni-AI/sogni-client/commit/d5c182a14d31a8fdb661c67682fa6cc2401188d3))
+
 # [5.1.0-alpha.17](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.16...v5.1.0-alpha.17) (2026-07-10)
 
 
