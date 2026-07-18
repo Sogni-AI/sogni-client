@@ -1,3 +1,10 @@
+# [5.1.0-alpha.20](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.19...v5.1.0-alpha.20) (2026-07-18)
+
+
+### Features
+
+* add Krea identity edit awareness ([bcb7cc3](https://github.com/Sogni-AI/sogni-client/commit/bcb7cc3068f30233ded5f1f546ed9604c2d98743))
+
 # [5.1.0-alpha.19](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.18...v5.1.0-alpha.19) (2026-07-11)
 
 
