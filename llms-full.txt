@@ -407,6 +407,7 @@ RECOMMENDED MODELS:
 | z_image_turbo_bf16 | Ultra-fast | 8 | 1 | Fastest generation |
 | z_image_bf16 | Quality | 20 | 3 | High quality Z-Image generation |
 | krea2_turbo_fp8_scaled | Fast | 8 | 1 | Distilled few-step, strong in-image text, up to 2K |
+| krea2_identity_edit_v1_2 | Edit | 10 | 1 | Identity-preserving Krea 2 edit LoRA with 1-2 context images |
 | chroma1-hd_fp8_scaled | Quality | 26 | 3.8 | Final high-res Chroma (uncensored, LoRA-capable) |
 | flux2_dev_fp8 | Quality | 20 | 4 | Pro quality + up to 6 context images (also image edit) |
 | qwen_image_edit_2511_fp8_lightning | Edit | 4 | 1 | Multi-image context |
@@ -417,6 +418,7 @@ COMMUNITY FINE-TUNES (uncensored; discover with sogni.projects.getAvailableModel
 |----------|------|-------|----------|-------|
 | dark_beast_z_image_turbo_v9_bf16 | Ultra-fast | 8 | 1 | Community Z-Image Turbo fine-tune (2K needs 24GB VRAM) |
 | dark_beast_krea2_fp8 | Fast | 16 | 1 | Community Krea 2 fine-tune (2K needs 24GB VRAM) |
+| dark_beast_krea2_identity_edit_v1_2 | Edit | 10 | 1 | Community Krea 2 identity edit LoRA with 1-2 context images |
 | one_obsession_v22_fp16 | Quality | 28 | 6 | Community Illustrious/anime checkpoint, LoRA-capable |
 
 ================================================================================ 5. VIDEO GENERATION - WAN 2.2 MODELS

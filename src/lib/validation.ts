@@ -106,7 +106,16 @@ export function validateTeacacheThreshold(value?: number): number | undefined {
 }
 
 export function isComfyModel(modelId: string): boolean {
-  const COMFY_PREFIXES = ['z_image_', 'krea2_', 'qwen_image_', 'flux2_', 'wan_', 'ace_step'];
+  const COMFY_PREFIXES = [
+    'z_image_',
+    'dark_beast_z_image_',
+    'krea2_',
+    'dark_beast_krea2_',
+    'qwen_image_',
+    'flux2_',
+    'wan_',
+    'ace_step'
+  ];
   return COMFY_PREFIXES.some((prefix) => modelId.startsWith(prefix));
 }
 
@@ -115,6 +124,7 @@ export function isComfyModel(modelId: string): boolean {
  * - GPT Image 2: 16 images
  * - Flux.2 Dev: 6 images
  * - Qwen Image Edit: 3 images
+ * - Krea 2 Identity Edit: 2 images
  * - Flux Kontext: 2 images
  * - Default: 3 images
  */
@@ -127,6 +137,9 @@ export function getMaxContextImages(modelId: string): number {
   }
   if (modelId.startsWith('qwen_image_')) {
     return 3;
+  }
+  if (modelId === 'krea2_identity_edit_v1_2' || modelId === 'dark_beast_krea2_identity_edit_v1_2') {
+    return 2;
   }
   if (modelId.includes('kontext')) {
     return 2;

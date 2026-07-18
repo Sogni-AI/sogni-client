@@ -621,6 +621,48 @@ export const MODELS = {
       minGuidance: 2.5,
       maxGuidance: 5.0
     },
+    'krea-identity-edit': {
+      id: 'krea2_identity_edit_v1_2',
+      name: 'Krea 2 Identity Edit LoRA v1.2',
+      description: 'Identity-preserving image edits with 1-2 references',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      defaultSteps: 10,
+      minSteps: 8,
+      maxSteps: 12,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 0.6,
+      maxGuidance: 1.6,
+      supportsContextImages: true,
+      maxContextImages: 2,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
+    'dark-beast-krea2-identity-edit': {
+      id: 'dark_beast_krea2_identity_edit_v1_2',
+      name: 'Dark Beast Krea 2 Identity Edit',
+      description: 'Community identity-preserving Krea 2 edit LoRA',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      defaultSteps: 10,
+      minSteps: 8,
+      maxSteps: 12,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 0.6,
+      maxGuidance: 1.6,
+      supportsContextImages: true,
+      maxContextImages: 2,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
     flux2: {
       id: 'flux2_dev_fp8',
       name: 'Flux.2 Dev',
@@ -2697,7 +2739,7 @@ export async function promptControlNetType(options, modelConfig) {
 }
 
 /**
- * Prompt for context images (Flux.2 Dev, Qwen Image Edit)
+ * Prompt for context images (Flux.2 Dev, Qwen Image Edit, Krea 2 Identity Edit)
  * @param {Object} options - Current options object
  * @param {number} maxImages - Maximum number of context images supported
  * @returns {Promise<Object>} Updated options

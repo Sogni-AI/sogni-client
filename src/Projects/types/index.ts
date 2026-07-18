@@ -378,7 +378,8 @@ export interface ImageProjectParams extends BaseProjectParams {
    * Context images for multi-reference image generation.
    * GPT Image 2 supports up to 16 context images.
    * Flux.2 Dev supports up to 6 context images.
-   * Qwen Image Edit Plus supports up to 3 context images.
+   * Qwen Image Edit supports up to 3 context images.
+   * Krea 2 Identity Edit supports up to 2 context images.
    * Flux Kontext supports up to 2 context images.
    */
   contextImages?: InputMedia[];

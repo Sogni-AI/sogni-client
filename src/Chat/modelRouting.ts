@@ -77,7 +77,9 @@ export const PREFERRED_MODEL_IDS = {
     flux2: 'flux2_dev_fp8',
     chromaFlash: 'chroma-v.46-flash_fp8',
     zTurbo: 'z_image_turbo_bf16',
-    krea2Turbo: 'krea2_turbo_fp8_scaled'
+    krea2Turbo: 'krea2_turbo_fp8_scaled',
+    krea2IdentityEdit: 'krea2_identity_edit_v1_2',
+    darkBeastKrea2IdentityEdit: 'dark_beast_krea2_identity_edit_v1_2'
   },
   video: {
     t2v: 'ltx23-22b-fp8_t2v_distilled',
@@ -180,7 +182,16 @@ const EDIT_IMAGE_MODEL_SELECTORS: Record<string, string> = {
   ),
   'qwen-lightning': 'qwen_image_edit_2511_fp8_lightning',
   qwen: 'qwen_image_edit_2511_fp8',
-  flux2: PREFERRED_MODEL_IDS.image.flux2
+  flux2: PREFERRED_MODEL_IDS.image.flux2,
+  'krea-2-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
+  'krea2-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
+  'krea-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
+  'krea-2-identity-edit-lora': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
+  'krea-2-identity-edit-lora-v1-2': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
+  'dark-beast-krea-2-identity-edit': PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit,
+  'dark-beast-krea2-identity-edit': PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit,
+  'dark-beast-krea-2-identity-edit-lora': PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit,
+  'dark-beast-krea-2-identity-edit-lora-v1-2': PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit
 };
 
 const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
@@ -383,6 +394,8 @@ export function isEditImageModel(modelId: string): boolean {
   return (
     modelId === PREFERRED_MODEL_IDS.image.gptImage2 ||
     modelId.startsWith('qwen_image_edit_') ||
+    modelId === PREFERRED_MODEL_IDS.image.krea2IdentityEdit ||
+    modelId === PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit ||
     modelId.startsWith('flux2_') ||
     modelId.includes('kontext')
   );

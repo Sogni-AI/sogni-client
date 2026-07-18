@@ -3,7 +3,7 @@
  * Image Generation Workflow (with Reference Images)
  *
  * This script generates images using reference/context images to guide the generation.
- * Works with Qwen Image Edit and Flux models that support context-based generation.
+ * Works with Qwen Image Edit, Krea 2 Identity Edit, and Flux models that support context-based generation.
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
@@ -17,11 +17,11 @@
  * Options:
  *   --context     Reference image 1 (required, at least 1 needed)
  *   --context2    Reference image 2 (optional)
- *   --context3    Reference image 3 (optional)
+ *   --context3    Reference image 3 (optional, Qwen/Flux2 only)
  *   --context4    Reference image 4 (optional, Flux2 only)
  *   --context5    Reference image 5 (optional, Flux2 only)
  *   --context6    Reference image 6 (optional, Flux2 only)
- *   --model       Model: qwen, qwen-lightning, or flux2 (default: prompts for selection)
+ *   --model       Model key (default: prompts for selection)
  *   --width       Output image width (default: context image width, max: 2048)
  *   --height      Output image height (default: context image height, max: 2048)
  *   --batch       Number of images to generate (default: 1)
@@ -171,7 +171,7 @@ function showHelp() {
 Image Generation Workflow (with Reference Images)
 
 This workflow generates new images using reference images to guide the style/content.
-Works with Qwen Image Edit and Flux models that support context-based generation.
+Works with Qwen Image Edit, Krea 2 Identity Edit, and Flux models that support context-based generation.
 
 Usage:
   node workflow_image_edit.mjs                                    # Interactive mode
@@ -181,16 +181,18 @@ Usage:
 Available Models:
   qwen-lightning - Qwen Image Edit 2511 Lightning (fast, 4-step, default)
   qwen           - Qwen Image Edit 2511 (high quality, 20-step)
+  krea-identity-edit - Krea 2 Identity Edit LoRA v1.2 (identity edits, up to 2 refs)
+  dark-beast-krea2-identity-edit - Dark Beast Krea 2 Identity Edit (community identity edit)
   flux2          - Flux.2 Dev (high quality with up to 6 context images)
 
 Options:
   --context     Reference image 1 (required, at least 1 needed)
   --context2    Reference image 2 (optional)
-  --context3    Reference image 3 (optional)
+  --context3    Reference image 3 (optional, Qwen/Flux2 only)
   --context4    Reference image 4 (optional, Flux2 only)
   --context5    Reference image 5 (optional, Flux2 only)
   --context6    Reference image 6 (optional, Flux2 only)
-  --model       Model: qwen, qwen-lightning, or flux2 (default: prompts for selection)
+  --model       Model key (default: prompts for selection)
   --width       Output image width (default: context image width, max: 2048)
   --height      Output image height (default: context image height, max: 2048)
   --negative    Negative prompt (default: none)
@@ -258,7 +260,8 @@ async function main() {
     OPTIONS.modelKey = OPTIONS.modelKey || 'qwen-lightning';
     modelConfig = MODELS.imageEdit[OPTIONS.modelKey];
     if (!modelConfig) {
-      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use 'qwen-lightning', 'qwen', or 'flux2'.`);
+      const availableModels = Object.keys(MODELS.imageEdit).join("', '");
+      console.error(`Error: Unknown model '${OPTIONS.modelKey}'. Use '${availableModels}'.`);
       process.exit(1);
     }
   }

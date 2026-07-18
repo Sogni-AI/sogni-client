@@ -205,22 +205,28 @@ The full catalog is dynamic — enumerate it at runtime with
 | `z_image_turbo_bf16` | Z-Image Turbo — ultra-fast 8-step (free-tier eligible) |
 | `z_image_bf16` | Z-Image — high quality 20-50 step |
 | `krea2_turbo_fp8_scaled` | Krea 2 Turbo — few-step, strong in-image text, up to 2K |
+| `krea2_identity_edit_v1_2` | Krea 2 Identity Edit LoRA v1.2 — identity-preserving edits with 1-2 reference images |
 | `chroma-v.46-flash_fp8` | Chroma v.46 Flash — fast, high quality |
 | `chroma-v48-detail-svd_fp8` | Chroma v.48 Detail — high detail |
 | `chroma1-hd_fp8_scaled` | Chroma1-HD — final high-res Chroma (uncensored, LoRA-capable) |
 | `flux1-schnell-fp8` | Flux.1 [schnell] — 1-5 step |
 | `flux1-krea-dev_fp8_scaled` | Flux.1 Krea [dev] — creative detail |
 | `flux2_dev_fp8` | Flux.2 [dev] — pro quality + context images (also image edit) |
+| `dark_beast_krea2_identity_edit_v1_2` | Dark Beast Krea 2 Identity Edit — community identity edit LoRA with 1-2 reference images |
 | `qwen_image_2512_fp8` / `_lightning` | Qwen Image 2512 — text rendering |
 | `gpt-image-2` | GPT Image 2 — OpenAI partner (premium, Spark-only) |
 
 Community fine-tunes (uncensored; pass the id directly):
 `dark_beast_z_image_turbo_v9_bf16` (fast Z-Image fine-tune, 2K needs 24GB VRAM),
 `dark_beast_krea2_fp8` (Krea 2 fine-tune, 2K needs 24GB VRAM),
+`dark_beast_krea2_identity_edit_v1_2` (Krea 2 identity edit LoRA),
 `one_obsession_v22_fp16` (Illustrious/anime, LoRA-capable).
 
 Krea 2 Turbo supports the `krea2-filter-bypass-3` style LoRA via
 `loras: ['krea2-filter-bypass-3']` + `loraStrengths: [1.0]`.
+For identity-preserving edits, use `krea2_identity_edit_v1_2` or
+`dark_beast_krea2_identity_edit_v1_2` with 1-2 `contextImages`, `steps: 10`,
+and `guidance: 1`.
 
 ---
 

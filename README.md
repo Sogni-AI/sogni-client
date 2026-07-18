@@ -1092,6 +1092,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `z_image_turbo_bf16`                 | **Z-Image Turbo** - Ultra-fast 8-step generation      | Quick text-to-image prototyping and iteration                                                                |
 | `z_image_bf16`                       | **Z-Image** - High quality 20-step generation         | Detailed, high quality image output                                                                          |
 | `krea2_turbo_fp8_scaled`             | **Krea 2 Turbo** - Fast 8-step, strong in-image text  | Text-heavy images and fast iteration, up to 2K                                                               |
+| `krea2_identity_edit_v1_2`           | **Krea 2 Identity Edit LoRA v1.2** - Identity editing | Preserve a subject across edits with 1-2 reference images                                                    |
 | `chroma1-hd_fp8_scaled`              | **Chroma1-HD** - Final high-res Chroma (uncensored)   | Highest-fidelity Chroma output, LoRA-capable                                                                 |
 | `flux2_dev_fp8`                      | **Flux.2 \[dev\]** - Pro quality, context images      | Professional images and reference-guided editing (up to 6 context images)                                    |
 | `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing   | Rapid reference-based image generation                                                                       |
@@ -1102,6 +1103,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `seedance-2-0-fast`                  | **Seedance 2.0 Fast** - 720p external API video       | Legacy faster 24fps video generation where fast tiers are enabled                                            |
 | `dark_beast_z_image_turbo_v9_bf16`   | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                    |
 | `dark_beast_krea2_fp8`               | **Dark Beast KREA 2** - Community (uncensored)        | Uncensored Krea 2 fine-tune (2K output needs a 24GB+ VRAM worker)                                            |
+| `dark_beast_krea2_identity_edit_v1_2` | **Dark Beast Krea 2 Identity Edit** - Community       | Uncensored identity-preserving Krea 2 edit LoRA with 1-2 reference images                                    |
 | `one_obsession_v22_fp16`             | **One Obsession v22** - Community (Illustrious/anime) | Anime/illustration checkpoint, LoRA-capable                                                                  |
 | `qwen3.6-35b-a3b-gguf-iq4xs`         | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
 
