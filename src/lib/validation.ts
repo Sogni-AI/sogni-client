@@ -188,3 +188,18 @@ export function validateScheduler(value: string | undefined, options: ModelOptio
     `Invalid scheduler ${value}. Must be one of "${options.scheduler.allowed.join('", "')}".`
   );
 }
+
+/**
+ * Validate a model-specific VAE value against allowed options.
+ * Returns the validated value unchanged; sogni-socket passes the filename to ComfyUI.
+ */
+export function validateVae(value: string | undefined, options: ModelOptions) {
+  if (!('vae' in options) || !options.vae?.allowed.length || !value) {
+    return null;
+  }
+  return validateOption(
+    value,
+    options.vae.allowed,
+    `Invalid VAE ${value}. Must be one of "${options.vae.allowed.join('", "')}".`
+  );
+}

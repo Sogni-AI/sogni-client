@@ -21,7 +21,8 @@ import {
   isComfyModel,
   validateVideoDuration,
   validateSampler,
-  validateScheduler
+  validateScheduler,
+  validateVae
 } from '../lib/validation.js';
 import {
   getVideoWorkflowType,
@@ -420,6 +421,7 @@ function applyImageParams(
     // ComfyUI models use comfySampler/comfyScheduler fields
     keyFrame.comfySampler = validateSampler(params.sampler, options);
     keyFrame.comfyScheduler = validateScheduler(params.scheduler, options);
+    keyFrame.vae = validateVae(params.vae, options);
   } else {
     // Legacy Forge models use scheduler/timeStepSpacing fields
     keyFrame.scheduler = validateSampler(params.sampler, options);

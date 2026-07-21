@@ -394,6 +394,11 @@ export interface ImageProjectParams extends BaseProjectParams {
    */
   scheduler?: string;
   /**
+   * VAE filename, available options depend on the model. Use `sogni.projects.getModelOptions(modelId)`
+   * to get the list of available VAEs.
+   */
+  vae?: string;
+  /**
    * Size preset ID to use. You can query available size presets
    * from `sogni.projects.sizePresets(network, modelId)`
    */
