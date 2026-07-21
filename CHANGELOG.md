@@ -1,3 +1,10 @@
+# [5.1.0-alpha.21](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.20...v5.1.0-alpha.21) (2026-07-21)
+
+
+### Features
+
+* expose image vae options ([1384c4e](https://github.com/Sogni-AI/sogni-client/commit/1384c4e372de2e8e50e4256946fb5dbe5ddae0e8))
+
 # [5.1.0-alpha.20](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.19...v5.1.0-alpha.20) (2026-07-18)
 
 
