@@ -12,28 +12,37 @@ const EXTENDED_IMAGE_SIZE_MODEL_IDS = new Set([
   'flux2_dev_fp8'
 ]);
 
+const KREA_IDENTITY_EDIT_MODEL_IDS = new Set([
+  'krea2_identity_edit_v1_2',
+  'dark_beast_krea2_identity_edit_v1_2'
+]);
+
 interface ImageSizeValidationOptions {
   modelId?: string;
   propertyName?: string;
 }
 
-function getMaxCustomImageSize(modelId?: string): number {
+function getCustomImageSizeBounds(modelId?: string): { min: number; max: number } {
+  if (modelId && KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId)) {
+    return { min: 512, max: 2048 };
+  }
   if (modelId === 'gpt-image-2') {
-    return 3840;
+    return { min: 256, max: 3840 };
   }
   if (modelId && EXTENDED_IMAGE_SIZE_MODEL_IDS.has(modelId)) {
-    return 2560;
+    return { min: 256, max: 2560 };
   }
-  return 2048;
+  return { min: 256, max: 2048 };
 }
 
 export function validateCustomImageSize(
   value: any,
   { modelId, propertyName = 'Width and height' }: ImageSizeValidationOptions = {}
 ): number {
+  const bounds = getCustomImageSizeBounds(modelId);
   return validateNumber(value, {
-    min: 256,
-    max: getMaxCustomImageSize(modelId),
+    min: bounds.min,
+    max: bounds.max,
     propertyName
   });
 }
@@ -138,7 +147,7 @@ export function getMaxContextImages(modelId: string): number {
   if (modelId.startsWith('qwen_image_')) {
     return 3;
   }
-  if (modelId === 'krea2_identity_edit_v1_2' || modelId === 'dark_beast_krea2_identity_edit_v1_2') {
+  if (KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId)) {
     return 2;
   }
   if (modelId.includes('kontext')) {

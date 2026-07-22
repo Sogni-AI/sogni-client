@@ -298,6 +298,13 @@ assert.equal(
   }),
   2048
 );
+assert.equal(
+  validateCustomImageSize(512, {
+    modelId: PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
+    propertyName: 'Width'
+  }),
+  512
+);
 assert.throws(
   () => validateCustomImageSize(3841, { modelId: 'gpt-image-2', propertyName: 'Width' }),
   /Width must be less or equal 3840/
@@ -309,6 +316,14 @@ assert.throws(
       propertyName: 'Width'
     }),
   /Width must be less or equal 2048/
+);
+assert.throws(
+  () =>
+    validateCustomImageSize(511, {
+      modelId: PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
+      propertyName: 'Width'
+    }),
+  /Width must greater or equal 512/
 );
 assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.krea2IdentityEdit), 2);
 assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), 2);
