@@ -1,3 +1,10 @@
+# [5.1.0-alpha.22](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.21...v5.1.0-alpha.22) (2026-07-22)
+
+
+### Bug Fixes
+
+* enforce Krea identity edit bounds ([bb4ddab](https://github.com/Sogni-AI/sogni-client/commit/bb4ddab6c649214eb9e329944c6ee49431e1feff))
+
 # [5.1.0-alpha.21](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.20...v5.1.0-alpha.21) (2026-07-21)
 
 
