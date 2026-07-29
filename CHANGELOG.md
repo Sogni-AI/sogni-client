@@ -1,3 +1,21 @@
+# [5.2.0](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0...v5.2.0) (2026-07-29)
+
+
+### Bug Fixes
+
+* enforce Krea identity edit bounds ([bb4ddab](https://github.com/Sogni-AI/sogni-client/commit/bb4ddab6c649214eb9e329944c6ee49431e1feff))
+
+
+### Features
+
+* add chat safe-content routing flag ([822a863](https://github.com/Sogni-AI/sogni-client/commit/822a863c7a6888defd67ce79b63751bc92c23b7c))
+* add Krea identity edit awareness ([bcb7cc3](https://github.com/Sogni-AI/sogni-client/commit/bcb7cc3068f30233ded5f1f546ed9604c2d98743))
+* **chat:** add direct hosted tool execution ([d5c182a](https://github.com/Sogni-AI/sogni-client/commit/d5c182a14d31a8fdb661c67682fa6cc2401188d3))
+* **examples:** add opt-in 10Eros model ([9ec210d](https://github.com/Sogni-AI/sogni-client/commit/9ec210dce2638375220a05cc2491e6e31c11603d))
+* expose image vae options ([1384c4e](https://github.com/Sogni-AI/sogni-client/commit/1384c4e372de2e8e50e4256946fb5dbe5ddae0e8))
+* **projects:** expose LoRA preparation progress ([3a0b3c3](https://github.com/Sogni-AI/sogni-client/commit/3a0b3c30c627a17f1c51877e72f01ea1d67e718b))
+* **release:** promote latest alpha SDK updates ([d2542f3](https://github.com/Sogni-AI/sogni-client/commit/d2542f3a14f4c8f494c228f3c0da15d45987b0cc))
+
 # [5.1.0](https://github.com/Sogni-AI/sogni-client/compare/v5.0.0...v5.1.0) (2026-07-10)
 
 
