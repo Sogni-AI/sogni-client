@@ -293,12 +293,14 @@ The workflow examples showcase these powerful new models:
 | `z_image_turbo_bf16`                 | Z-Image Turbo     | Image        | Fast 8-step turbo generation - great for quick iterations                          |
 | `z_image_bf16`                       | Z-Image           | Image        | High quality 20-step generation with detailed output                               |
 | `krea2_turbo_fp8_scaled`             | Krea 2 Turbo      | Image        | Fast 8-step text-to-image + image-to-image, crisp in-image text, up to 2K          |
+| `krea2_identity_edit_v1_2`           | Krea 2 Identity Edit | Image Edit | Identity-preserving edits with 1-2 reference images                                |
 | `chroma1-hd_fp8_scaled`              | Chroma1-HD        | Image        | Final high-res Chroma (uncensored, LoRA-capable)                                   |
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning    | Image Edit   | Fast 4-step reference-based generation                                             |
 | `qwen_image_edit_2511_fp8`           | Qwen Image Edit   | Image Edit   | High-quality 20-step image editing with context                                    |
 | `flux2_dev_fp8`                      | Flux.2 Dev        | Image        | Professional quality with context image support                                    |
 | `dark_beast_z_image_turbo_v9_bf16`   | Dark Beast Z-Image Turbo v9 | Image | Community Z-Image Turbo fine-tune (uncensored, fast; 2K needs 24GB VRAM)            |
 | `dark_beast_krea2_fp8`               | Dark Beast KREA 2 | Image        | Community Krea 2 fine-tune (uncensored; 2K needs 24GB VRAM)                         |
+| `dark_beast_krea2_identity_edit_v1_2` | Dark Beast Krea 2 Identity Edit | Image Edit | Community identity edit LoRA with 1-2 reference images                   |
 | `one_obsession_v22_fp16`             | One Obsession v22 | Image        | Community Illustrious/anime checkpoint (LoRA-capable)                              |
 | `seedance-2-0`                       | Seedance 2.0      | Video        | External API multimodal video at 24fps                                             |
 | `seedance-2-0-mini`                  | Seedance 2.0 Mini | Video        | Fastest, lower-cost 720p-capped external API multimodal video at 24fps             |
@@ -325,6 +327,9 @@ node workflow_text_to_image.mjs "A detailed oil painting of a harbor at dawn" --
 
 # Qwen Image Edit Lightning - quick reference-based generation
 node workflow_image_edit.mjs "portrait" --context test-assets/placeholder.jpg --model qwen-lightning
+
+# Krea 2 Identity Edit - preserve an identity from one or two references
+node workflow_image_edit.mjs "cinematic editorial portrait" --context person.jpg --model krea-identity-edit
 
 # Flux.2 Dev - highest quality
 node workflow_text_to_image.mjs "Professional portrait" --model flux2
@@ -382,13 +387,15 @@ node workflow_text_to_image.mjs "A portrait" --model krea-2-turbo --style-lora k
 
 #### `workflow_image_edit.mjs`
 
-Generate new images using reference/context images to guide style and content. Works with the powerful **Qwen Image Edit** models and **Flux.2 Dev**.
+Generate new images using reference/context images to guide style and content. Works with the powerful **Qwen Image Edit**, **Krea 2 Identity Edit**, and **Flux.2 Dev** models.
 
 **Available Models:**
 | Model | Description | Best For |
 |-------|-------------|----------|
 | `qwen-lightning` | Qwen Image Edit Lightning (4-step) | Fast reference-based generation |
 | `qwen` | Qwen Image Edit (20-step) | High-quality image editing |
+| `krea-identity-edit` | Krea 2 Identity Edit LoRA v1.2 (10-step) | Identity-preserving edits with 1-2 references |
+| `dark-beast-krea2-identity-edit` | Dark Beast Krea 2 Identity Edit (10-step) | Community identity-preserving edits |
 | `flux2` | Flux.2 Dev (20-step) | Professional quality with context |
 
 **Usage:**
@@ -402,8 +409,8 @@ node workflow_image_edit.mjs "modern artwork" --context ref1.jpg --context2 ref2
 **Options:**
 
 - `--context` - Reference image 1 (required)
-- `--context2` / `--context3` - Additional reference images (optional)
-- `--model` - Model: qwen-lightning, qwen, or flux2
+- `--context2` / `--context3` - Additional reference images (optional; Krea identity models support up to 2)
+- `--model` - Model key (see the table above; `--help` lists the full menu)
 - `--width` / `--height` - Output dimensions
 - `--batch` - Number of images
 - `--steps` - Inference steps
@@ -686,6 +693,19 @@ Run the server-side API-key example:
 node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal perfume bottle"
 node workflow_creative_agent_tools.mjs "Plan a cyberpunk skyline video" --tools creative-tools --no-execute
 ```
+
+#### `workflow_direct_creative_tool.mjs`
+
+Directly execute a known synchronous hosted composition/planning tool without asking the LLM to select the tool first. This is the efficient path for prompt expansion, script/lyrics composition, and workflow planning when your app already has exact JSON arguments.
+
+```bash
+node workflow_direct_creative_tool.mjs "A cinematic portrait of a glass robot"
+node workflow_direct_creative_tool.mjs --tool compose_script "Make this a 5s LTX video prompt"
+node workflow_direct_creative_tool.mjs --tool compose_workflow "Plan a 3-shot neon bakery teaser"
+node workflow_direct_creative_tool.mjs --tool compose_lyrics "A synth-pop song about rain"
+```
+
+The example calls `sogni.chat.hosted.executeTool()`, which wraps `POST /v1/creative-agent/tools/execute`. Supported direct tools are `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, and `compose_workflow_template`.
 
 Run the interactive hosted Creative Agent CLI when you want a Claude/Codex-style terminal session powered by Sogni's own LLM and creative-agent tools. It auto-loads local Markdown context such as `AGENTS.md`, `STYLE.md`, and `.sogni/*.md`, supports `/add`, `/reload`, `/billing subscription`, `/subscription`, `/save`, and keeps multi-turn history:
 

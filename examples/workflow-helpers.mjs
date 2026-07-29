@@ -621,6 +621,48 @@ export const MODELS = {
       minGuidance: 2.5,
       maxGuidance: 5.0
     },
+    'krea-identity-edit': {
+      id: 'krea2_identity_edit_v1_2',
+      name: 'Krea 2 Identity Edit LoRA v1.2',
+      description: 'Identity-preserving image edits with 1-2 references',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      defaultSteps: 10,
+      minSteps: 8,
+      maxSteps: 12,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 0.6,
+      maxGuidance: 1.6,
+      supportsContextImages: true,
+      maxContextImages: 2,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
+    'dark-beast-krea2-identity-edit': {
+      id: 'dark_beast_krea2_identity_edit_v1_2',
+      name: 'Dark Beast Krea 2 Identity Edit',
+      description: 'Community identity-preserving Krea 2 edit LoRA',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      defaultSteps: 10,
+      minSteps: 8,
+      maxSteps: 12,
+      supportsGuidance: true,
+      defaultGuidance: 1.0,
+      minGuidance: 0.6,
+      maxGuidance: 1.6,
+      supportsContextImages: true,
+      maxContextImages: 2,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
     flux2: {
       id: 'flux2_dev_fp8',
       name: 'Flux.2 Dev',
@@ -844,6 +886,43 @@ export const MODELS = {
       isLightning: false,
       isComfyModel: true,
       hasAudio: true
+    },
+    'ltx23-22b-10eros-v1.4-fp8mixed_i2v': {
+      id: 'ltx23-22b-10eros-v1.4-fp8mixed_i2v',
+      name: 'LTX-2.3 10Eros v1.4 FP8Mixed I2V',
+      description:
+        'Uncensored 9-step image animation with native audio; requires a 30GB+ worker and explicit safety-filter disablement',
+      defaultWidth: 1920,
+      defaultHeight: 1088,
+      minWidth: 640,
+      maxWidth: 3840,
+      minHeight: 640,
+      maxHeight: 3840,
+      dimensionStep: 64,
+      defaultSteps: 9,
+      minSteps: 9,
+      maxSteps: 9,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      defaultStrength: 0.75,
+      minStrength: 0.3,
+      maxStrength: 1.0,
+      defaultComfySampler: 'euler_ancestral',
+      allowedComfySamplers: ['euler', 'euler_ancestral', 'euler_ancestral_cfg_pp'],
+      defaultComfyScheduler: 'manual_sigmas',
+      allowedComfySchedulers: [],
+      minFrames: 25,
+      maxFrames: 505,
+      defaultFrames: 97,
+      frameStep: 8,
+      defaultFps: 24,
+      minFps: 1,
+      maxFps: 60,
+      isLightning: true,
+      isComfyModel: true,
+      hasAudio: true,
+      requiresDisabledSafetyFilter: true
     }
   },
 
@@ -2697,7 +2776,7 @@ export async function promptControlNetType(options, modelConfig) {
 }
 
 /**
- * Prompt for context images (Flux.2 Dev, Qwen Image Edit)
+ * Prompt for context images (Flux.2 Dev, Qwen Image Edit, Krea 2 Identity Edit)
  * @param {Object} options - Current options object
  * @param {number} maxImages - Maximum number of context images supported
  * @returns {Promise<Object>} Updated options

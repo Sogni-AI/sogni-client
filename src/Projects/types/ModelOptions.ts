@@ -31,6 +31,7 @@ export interface ImageModelOptions {
   guidance: NumRange;
   scheduler: Options<string>;
   sampler: Options<string>;
+  vae?: Options<string>;
 }
 
 export interface VideoModelOptions {
@@ -99,7 +100,8 @@ export function mapComfyImageTier(tier: ComfyImageTier): ImageModelOptions {
     steps: mapRange(tier.steps),
     guidance: mapRange(tier.guidance),
     scheduler: mapOptions(tier.comfyScheduler, schedulerValueToAlias),
-    sampler: mapOptions(tier.comfySampler, samplerValueToAlias)
+    sampler: mapOptions(tier.comfySampler, samplerValueToAlias),
+    vae: tier.vae ? mapOptions(tier.vae) : undefined
   };
 }
 

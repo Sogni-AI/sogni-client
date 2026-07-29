@@ -660,6 +660,7 @@ Example model IDs:
 - `wan_v2.2-14b-fp8_animate-replace_lightx2v` (Animate-Replace, speed)
 - `ltx23-22b-fp8_t2v_distilled` (LTX-2.3 Text-to-Video, fast)
 - `ltx23-22b-fp8_i2v_distilled` (LTX-2.3 Image-to-Video, fast)
+- `ltx23-22b-10eros-v1.4-fp8mixed_i2v` (LTX-2.3 10Eros v1.4 Image-to-Video, 30GB+ workers, explicit safety-filter disablement required)
 - `ltx23-22b-fp8_v2v_distilled` (LTX-2.3 Video-to-Video ControlNet, fast)
 - `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-mini` (Seedance 2.0 Mini multimodal video, external API, 720p cap)
@@ -667,6 +668,11 @@ Example model IDs:
 - `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
 - `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
+
+The repository does not bundle sample prompts or input media for the 10Eros model. Creators
+who choose to use it must provide their own prompt and image to
+`examples/workflow_image_to_video.mjs`. Optional test prompts and images are available from the
+[model author's sample gallery](https://civitai.red/models/2447875/ltx23-10eros).
 
 ### Video Parameters
 
@@ -906,9 +912,24 @@ Combine LLM intelligence with Sogni's media generation capabilities. The SDK exp
 
 Pass `SogniTools.all` (or individual definitions like `generateImageTool`, `animatePhotoTool`, `composeScriptTool`) to an LLM via the `tools` parameter, then route tool calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()` for server-side execution. Generated artifacts are threaded through a per-request media context so later rounds can reference earlier outputs by index (`sourceImageIndex`, `videoIndices`, `audioIndex`, etc.).
 
+When your app already knows the exact synchronous composition/planning tool and JSON arguments, skip the dispatcher round and call `sogni.chat.hosted.executeTool()` directly. Direct execution supports `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, and `compose_workflow_template`; long-running media generation still belongs on hosted chat/runs or `sogni.workflows`.
+
+```javascript
+const direct = await sogni.chat.hosted.executeTool({
+  tool: 'enhance_prompt',
+  arguments: {
+    prompt: 'A cinematic portrait of a glass robot',
+    destination_tool: 'generate_image'
+  },
+  tokenType: 'spark'
+});
+
+console.log(direct.data.message);
+```
+
 For direct `/v1/chat/completions` hosted-tool execution, media-bearing tool arguments use inline `data:` URIs. For user-uploaded image/audio/video inputs, use the SDK video project examples or the `sogni.workflows` wrapper for `/v1/creative-agent/workflows`; these can consume HTTPS artifact URLs produced by Sogni's upload endpoints. Durable workflows validate explicit steps before the workflow starts and can bind SDK request-level `mediaReferences` into tool arguments with `sourceStepId: "$input_media"`.
 
-The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
+The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core text-to-image, text-to-video, and text-to-music composition flows. `workflow_direct_creative_tool.mjs` demonstrates direct one-call execution for known synchronous tools. Dedicated workflow examples like `workflow_image_edit.mjs`, `workflow_sound_to_video.mjs`, and `workflow_video_to_video.mjs` cover the asset-backed workflows directly.
 
 ### Hosted Tool Surfaces — `sogni_tools` parameter
 
@@ -953,6 +974,8 @@ const result = await sogni.chat.hosted.create({
 ```
 
 See `examples/workflow_creative_agent_tools.mjs` for a runnable REST API-key example that can toggle tool surface and server-side execution.
+
+See `examples/workflow_direct_creative_tool.mjs` when you already know the hosted synchronous tool to run and want to call it without asking the LLM to select a tool first.
 
 For focused partner Seedance video tests, `examples/workflow_partner_seedance_video.mjs` starts with a guided workflow picker when run with no arguments. The guided path covers T2V, I2V, IA2V, V2V, the full and fast Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:
 
@@ -1075,6 +1098,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `z_image_turbo_bf16`                 | **Z-Image Turbo** - Ultra-fast 8-step generation      | Quick text-to-image prototyping and iteration                                                                |
 | `z_image_bf16`                       | **Z-Image** - High quality 20-step generation         | Detailed, high quality image output                                                                          |
 | `krea2_turbo_fp8_scaled`             | **Krea 2 Turbo** - Fast 8-step, strong in-image text  | Text-heavy images and fast iteration, up to 2K                                                               |
+| `krea2_identity_edit_v1_2`           | **Krea 2 Identity Edit LoRA v1.2** - Identity editing | Preserve a subject across edits with 1-2 reference images                                                    |
 | `chroma1-hd_fp8_scaled`              | **Chroma1-HD** - Final high-res Chroma (uncensored)   | Highest-fidelity Chroma output, LoRA-capable                                                                 |
 | `flux2_dev_fp8`                      | **Flux.2 \[dev\]** - Pro quality, context images      | Professional images and reference-guided editing (up to 6 context images)                                    |
 | `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing   | Rapid reference-based image generation                                                                       |
@@ -1085,6 +1109,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `seedance-2-0-fast`                  | **Seedance 2.0 Fast** - 720p external API video       | Legacy faster 24fps video generation where fast tiers are enabled                                            |
 | `dark_beast_z_image_turbo_v9_bf16`   | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                    |
 | `dark_beast_krea2_fp8`               | **Dark Beast KREA 2** - Community (uncensored)        | Uncensored Krea 2 fine-tune (2K output needs a 24GB+ VRAM worker)                                            |
+| `dark_beast_krea2_identity_edit_v1_2` | **Dark Beast Krea 2 Identity Edit** - Community       | Uncensored identity-preserving Krea 2 edit LoRA with 1-2 reference images                                    |
 | `one_obsession_v22_fp16`             | **One Obsession v22** - Community (Illustrious/anime) | Anime/illustration checkpoint, LoRA-capable                                                                  |
 | `qwen3.6-35b-a3b-gguf-iq4xs`         | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
 

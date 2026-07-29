@@ -21,7 +21,11 @@ const {
   validateHostedToolArguments
 } = require('../dist/Chat/modelRouting.js');
 const { parseCreativeWorkflowSseChunk } = require('../dist/CreativeWorkflows/index.js');
-const { validateCustomImageSize } = require('../dist/lib/validation.js');
+const {
+  getMaxContextImages,
+  isComfyModel,
+  validateCustomImageSize
+} = require('../dist/lib/validation.js');
 const { SogniTools } = require('../dist/Chat/tools.js');
 
 function stableValue(value) {
@@ -80,6 +84,8 @@ for (const vector of hostedAliasParityVector.tools) {
 const models = [
   { id: 'z_image_turbo_bf16', media: 'image', workerCount: 12 },
   { id: 'qwen_image_edit_2511_fp8_lightning', media: 'image', workerCount: 8 },
+  { id: PREFERRED_MODEL_IDS.image.krea2IdentityEdit, media: 'image', workerCount: 7 },
+  { id: PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit, media: 'image', workerCount: 6 },
   { id: 'flux2_dev_fp8', media: 'image', workerCount: 1 },
   { id: PREFERRED_MODEL_IDS.video.t2v, media: 'video', workerCount: 1 },
   { id: 'wan_v2.2-14b-fp8_t2v_lightx2v', media: 'video', workerCount: 20 },
@@ -285,10 +291,44 @@ assert.equal(
   validateCustomImageSize(2560, { modelId: 'flux2_dev_fp8', propertyName: 'Width' }),
   2560
 );
+assert.equal(
+  validateCustomImageSize(2048, {
+    modelId: PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
+    propertyName: 'Width'
+  }),
+  2048
+);
+assert.equal(
+  validateCustomImageSize(512, {
+    modelId: PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
+    propertyName: 'Width'
+  }),
+  512
+);
 assert.throws(
   () => validateCustomImageSize(3841, { modelId: 'gpt-image-2', propertyName: 'Width' }),
   /Width must be less or equal 3840/
 );
+assert.throws(
+  () =>
+    validateCustomImageSize(2049, {
+      modelId: PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit,
+      propertyName: 'Width'
+    }),
+  /Width must be less or equal 2048/
+);
+assert.throws(
+  () =>
+    validateCustomImageSize(511, {
+      modelId: PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
+      propertyName: 'Width'
+    }),
+  /Width must greater or equal 512/
+);
+assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.krea2IdentityEdit), 2);
+assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), 2);
+assert.equal(isComfyModel('dark_beast_krea2_fp8'), true);
+assert.equal(isComfyModel(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), true);
 assert.throws(
   () =>
     validateCustomImageSize(2560, {
@@ -317,6 +357,20 @@ assert.equal(
   resolveHostedToolModelSelector('edit_image', { model: 'OpenAI image' }),
   PREFERRED_MODEL_IDS.image.gptImage2
 );
+assert.equal(
+  resolveHostedToolModelSelector('edit_image', { model: 'krea identity edit' }),
+  PREFERRED_MODEL_IDS.image.krea2IdentityEdit
+);
+assert.equal(
+  resolveHostedToolModelSelector('edit_image', { model: 'krea-2-identity-edit-lora-v1-2' }),
+  PREFERRED_MODEL_IDS.image.krea2IdentityEdit
+);
+assert.equal(
+  resolveHostedToolModelSelector('edit_image', { model: 'dark beast krea2 identity edit' }),
+  PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit
+);
+assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.krea2IdentityEdit), true);
+assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), true);
 assert.equal(
   resolveHostedToolModelSelector('generate_image', { model: 'future_live_model' }),
   'future_live_model'

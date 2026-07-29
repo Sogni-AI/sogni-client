@@ -117,6 +117,17 @@ export type JobETAData = {
   etaSeconds: number;
 };
 
+export type JobPreparation = {
+  phase: 'downloadingAssets';
+  assetType: 'lora';
+  requested: number;
+  cached: number;
+  total: number;
+  completed: number;
+  current: number;
+  currentProgress?: number;
+};
+
 export type JobResultData = {
   jobID: string;
   imgID: string;
@@ -145,6 +156,7 @@ export type JobStateData =
       positivePrompt?: string;
       negativePrompt?: string;
       jobIndex?: number;
+      preparation?: JobPreparation;
     }
   | {
       type: 'assigned';

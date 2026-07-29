@@ -36,6 +36,7 @@ The SDK wraps the public Sogni Intelligence endpoints used for text chat, hosted
 
 - `sogni.chat.completions.create()` maps to socket-native chat completions and supports text, streaming, vision input, custom function tools, Sogni tool injection, structured outputs, and `think` / `taskProfile` controls.
 - `sogni.chat.hosted.create()` maps to `POST /v1/chat/completions`, the OpenAI-compatible REST chat endpoint. It can execute Sogni media-generation and composition tools server-side.
+- `sogni.chat.hosted.executeTool()` maps to `POST /v1/creative-agent/tools/execute` for direct execution of known synchronous composition/planning tools (`enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`) without an LLM dispatcher round.
 - `sogni.chat.runs` maps to `/v1/chat/runs`, a durable hosted-chat turn with persisted state, event replay, cancellation, and recovery across client disconnects.
 - `sogni.workflows` maps to `/v1/creative-agent/workflows`, where callers submit exact multi-step creative plans and observe durable execution through snapshots, event logs, or SSE.
 - `sogni.workflows.templates` maps to `/v1/creative-agent/workflows/templates`, the CRUD and fork API for saved, parameterized workflow recipes.
@@ -49,7 +50,7 @@ Public chat and workflow media rules:
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Flux.2, Z-Image / Z-Image Turbo, Krea 2 Turbo, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, and One Obsession v22), video generation (WAN 2.2, LTX-2.3, Seedance 2.0, HappyHorse 1.1), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Flux.2, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, LTX-2.3, Seedance 2.0, HappyHorse 1.1), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
 
 Runtime and packaging:
 

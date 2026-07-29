@@ -407,6 +407,7 @@ RECOMMENDED MODELS:
 | z_image_turbo_bf16 | Ultra-fast | 8 | 1 | Fastest generation |
 | z_image_bf16 | Quality | 20 | 3 | High quality Z-Image generation |
 | krea2_turbo_fp8_scaled | Fast | 8 | 1 | Distilled few-step, strong in-image text, up to 2K |
+| krea2_identity_edit_v1_2 | Edit | 10 | 1 | Identity-preserving Krea 2 edit LoRA with 1-2 context images |
 | chroma1-hd_fp8_scaled | Quality | 26 | 3.8 | Final high-res Chroma (uncensored, LoRA-capable) |
 | flux2_dev_fp8 | Quality | 20 | 4 | Pro quality + up to 6 context images (also image edit) |
 | qwen_image_edit_2511_fp8_lightning | Edit | 4 | 1 | Multi-image context |
@@ -417,6 +418,7 @@ COMMUNITY FINE-TUNES (uncensored; discover with sogni.projects.getAvailableModel
 |----------|------|-------|----------|-------|
 | dark_beast_z_image_turbo_v9_bf16 | Ultra-fast | 8 | 1 | Community Z-Image Turbo fine-tune (2K needs 24GB VRAM) |
 | dark_beast_krea2_fp8 | Fast | 16 | 1 | Community Krea 2 fine-tune (2K needs 24GB VRAM) |
+| dark_beast_krea2_identity_edit_v1_2 | Edit | 10 | 1 | Community Krea 2 identity edit LoRA with 1-2 context images |
 | one_obsession_v22_fp16 | Quality | 28 | 6 | Community Illustrious/anime checkpoint, LoRA-capable |
 
 ================================================================================ 5. VIDEO GENERATION - WAN 2.2 MODELS
@@ -880,9 +882,10 @@ sv (Swedish), ro (Romanian), el (Greek), and more. Use 'unknown' for auto-detect
 ================================================================================
 
 The Sogni SDK supports LLM text generation through the Supernet with
-socket-native chat completions, hosted REST chat completions, durable hosted
-chat runs, streaming, multi-turn conversations, thinking/reasoning controls,
-structured outputs, and tool calling.
+socket-native chat completions, hosted REST chat completions, direct hosted
+synchronous tool execution, durable hosted chat runs, streaming, multi-turn
+conversations, thinking/reasoning controls, structured outputs, and tool
+calling.
 
 DEFAULT LLM MODEL: qwen3.6-35b-a3b-gguf-iq4xs
 
@@ -892,6 +895,9 @@ PRIMARY CHAT SURFACES:
   `ChatCompletionResult` for `stream: false` and `ChatStream` for `stream: true`.
 - `sogni.chat.hosted.create(params)` - hosted REST chat completion at
   `/v1/chat/completions`; can execute hosted Sogni tools server-side.
+- `sogni.chat.hosted.executeTool(params)` - direct synchronous hosted
+  composition/planning tool execution at `/v1/creative-agent/tools/execute`;
+  use when the caller already has the exact tool and JSON arguments.
 - `sogni.chat.runs.{create,get,cancel,streamEvents}` - durable hosted runs at
   `/v1/chat/runs`; the server owns the LLM/tool loop and clients can reconnect
   through SSE event replay.
@@ -1190,7 +1196,7 @@ Sogni's generation APIs automatically:
 - Music Generation: "Compose a jazz song about the rain"
 
 CANONICAL HOSTED CREATIVE-TOOL SURFACE (`SogniTools.all`, 24 tools):
-The full hosted surface executes server-side via `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`. The default `creative-tools` value of `sogni_tools` injects this surface server-side; `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools on top. The client-side `sogni.chat.tools.execute()` path directly dispatches only the core generation tools (`generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`); composition and post-production tools should be routed through hosted chat or durable runs.
+The full hosted surface executes server-side via `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`. The default `creative-tools` value of `sogni_tools` injects this surface server-side; `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools on top. The client-side `sogni.chat.tools.execute()` path directly dispatches only the core generation tools (`generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`). Known synchronous composition/planning calls can use `sogni.chat.hosted.executeTool()`; post-production tools should be routed through hosted chat, durable runs, or explicit workflows.
 
 - `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video` — core media-generation tools with creative-agent naming.
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` — image-edit adapters backed by the shared image-edit workflow.
@@ -1206,6 +1212,9 @@ The full hosted surface executes server-side via `sogni.chat.hosted.create()` / 
 - `compose_script` — scripts, storyboards, trailers, social shorts, campaign beats, and video prompts.
 - `compose_lyrics`, `compose_instrumental` — vocal lyrics or instrumental music structures.
 - `compose_workflow`, `compose_workflow_template` — durable workflow and workflow-template planners.
+
+DIRECT SYNCHRONOUS HOSTED TOOL EXECUTION:
+When the caller already knows the exact synchronous composition/planning tool and JSON arguments, use `sogni.chat.hosted.executeTool()` instead of forcing a `/v1/chat/completions` tool-choice round. Direct execution supports `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, and `compose_workflow_template`; long-running media tools still use hosted chat/runs or `sogni.workflows`.
 
 PER-REQUEST MEDIA CONTEXT:
 Generated images, videos, and audio are addressable by stable indices across tool rounds. Every hosted Sogni tool result returns `startIndex` and `indices` in its envelope so a later tool can target the result with `sourceImageIndex`, `videoIndices`, `audioIndex`, etc., without the model having to copy URLs back into prompt text.
@@ -1243,6 +1252,8 @@ PLATFORM TOOL WORKFLOW:
 See `workflow_text_chat_sogni_tools.mjs` for a composition-pipeline example
 covering the core image/video/music flows. See `workflow_creative_agent_tools.mjs`
 for server-side hosted Sogni tool injection with `sogni_tools`.
+See `workflow_direct_creative_tool.mjs` for known synchronous tool calls through
+`sogni.chat.hosted.executeTool()`.
 Pass `SogniTools.all` (or individual tool defs) to the LLM via `tools` and
 execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
 
@@ -1274,6 +1285,9 @@ node workflow_text_chat_sogni_tools.mjs -n 4 "Create images of fantasy landscape
 
 # Server-side hosted creative tools
 node workflow_creative_agent_tools.mjs "Create an orbit video plan for a crystal perfume bottle"
+
+# Direct synchronous hosted tool execution
+node workflow_direct_creative_tool.mjs --tool compose_workflow "Plan a 3-shot neon bakery teaser"
 
 # Durable creative-agent workflow
 node workflow_creative_agent_workflows.mjs "A chrome monorail over neon gardens" --watch

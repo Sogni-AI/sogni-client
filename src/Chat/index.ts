@@ -21,6 +21,8 @@ import {
   HostedChatCompletionParams,
   ConfirmChatRunCostParams,
   HostedChatCompletionResult,
+  HostedToolExecutionParams,
+  HostedToolExecutionResult,
   LLMCostEstimation,
   LLMEstimateResponse,
   LLMModelInfo,
@@ -249,6 +251,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
    */
   hosted: {
     create: (params: HostedChatCompletionParams) => Promise<HostedChatCompletionResult>;
+    executeTool: (params: HostedToolExecutionParams) => Promise<HostedToolExecutionResult>;
   };
 
   /**
@@ -295,7 +298,8 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       create: this.createCompletion.bind(this) as any
     };
     this.hosted = {
-      create: this.createHostedCompletion.bind(this)
+      create: this.createHostedCompletion.bind(this),
+      executeTool: this.executeHostedTool.bind(this)
     };
     this.runs = {
       create: this.createChatRun.bind(this),
@@ -531,6 +535,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
           task_profile: params.task_profile ?? params.taskProfile,
           media_references: params.media_references ?? params.mediaReferences,
           api_media_references: params.api_media_references ?? params.apiMediaReferences,
+          ...(params.safe_content_filter !== undefined || params.safeContentFilter !== undefined
+            ? { safe_content_filter: params.safe_content_filter ?? params.safeContentFilter }
+            : {}),
           ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs }),
           ...(params.response_format && { response_format: params.response_format })
         },
@@ -557,6 +564,24 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       }
       throw error;
     }
+  }
+
+  private async executeHostedTool(
+    params: HostedToolExecutionParams
+  ): Promise<HostedToolExecutionResult> {
+    return this.client.rest.post<HostedToolExecutionResult>(
+      '/v1/creative-agent/tools/execute',
+      {
+        tool: params.tool,
+        arguments: params.arguments,
+        app_source: params.app_source ?? params.appSource ?? this.client.appSource,
+        token_type: params.token_type ?? params.tokenType,
+        ...(params.safe_content_filter !== undefined || params.safeContentFilter !== undefined
+          ? { safe_content_filter: params.safe_content_filter ?? params.safeContentFilter }
+          : {})
+      },
+      { timeoutMs: 300000 }
+    );
   }
 
   private async chatRunFetch(path: string, options: RequestInit = {}): Promise<Response> {
@@ -793,6 +818,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       presence_penalty: params.presence_penalty,
       stop: params.stop,
       tokenType: params.tokenType,
+      ...(params.safeContentFilter !== undefined
+        ? { safeContentFilter: params.safeContentFilter }
+        : {}),
       ...(params.billingMode && { billingMode: params.billingMode }),
       tools: params.tools,
       tool_choice: params.tool_choice,

@@ -10,6 +10,7 @@ export interface ComfyImageTier {
   guidance: NumericDefaults;
   steps: NumericDefaults;
   type: 'image';
+  vae?: StringDefaults;
 }
 
 export function isComfyImageTier(t: ModelTier): t is ComfyImageTier {

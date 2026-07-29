@@ -1,5 +1,8 @@
 import { AvailableModel } from './index.js';
 import ErrorData from '../../types/ErrorData.js';
+import type { JobPreparation } from '../../ApiClient/WebSocketClient/events.js';
+
+export type { JobPreparation } from '../../ApiClient/WebSocketClient/events.js';
 
 export interface ProjectEventBase {
   projectId: string;
@@ -32,6 +35,7 @@ export interface JobInitiating extends JobEventBase {
   positivePrompt?: string;
   negativePrompt?: string;
   jobIndex?: number;
+  preparation?: JobPreparation;
 }
 
 export interface JobStarted extends JobEventBase {

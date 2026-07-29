@@ -12,28 +12,37 @@ const EXTENDED_IMAGE_SIZE_MODEL_IDS = new Set([
   'flux2_dev_fp8'
 ]);
 
+const KREA_IDENTITY_EDIT_MODEL_IDS = new Set([
+  'krea2_identity_edit_v1_2',
+  'dark_beast_krea2_identity_edit_v1_2'
+]);
+
 interface ImageSizeValidationOptions {
   modelId?: string;
   propertyName?: string;
 }
 
-function getMaxCustomImageSize(modelId?: string): number {
+function getCustomImageSizeBounds(modelId?: string): { min: number; max: number } {
+  if (modelId && KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId)) {
+    return { min: 512, max: 2048 };
+  }
   if (modelId === 'gpt-image-2') {
-    return 3840;
+    return { min: 256, max: 3840 };
   }
   if (modelId && EXTENDED_IMAGE_SIZE_MODEL_IDS.has(modelId)) {
-    return 2560;
+    return { min: 256, max: 2560 };
   }
-  return 2048;
+  return { min: 256, max: 2048 };
 }
 
 export function validateCustomImageSize(
   value: any,
   { modelId, propertyName = 'Width and height' }: ImageSizeValidationOptions = {}
 ): number {
+  const bounds = getCustomImageSizeBounds(modelId);
   return validateNumber(value, {
-    min: 256,
-    max: getMaxCustomImageSize(modelId),
+    min: bounds.min,
+    max: bounds.max,
     propertyName
   });
 }
@@ -106,7 +115,16 @@ export function validateTeacacheThreshold(value?: number): number | undefined {
 }
 
 export function isComfyModel(modelId: string): boolean {
-  const COMFY_PREFIXES = ['z_image_', 'krea2_', 'qwen_image_', 'flux2_', 'wan_', 'ace_step'];
+  const COMFY_PREFIXES = [
+    'z_image_',
+    'dark_beast_z_image_',
+    'krea2_',
+    'dark_beast_krea2_',
+    'qwen_image_',
+    'flux2_',
+    'wan_',
+    'ace_step'
+  ];
   return COMFY_PREFIXES.some((prefix) => modelId.startsWith(prefix));
 }
 
@@ -115,6 +133,7 @@ export function isComfyModel(modelId: string): boolean {
  * - GPT Image 2: 16 images
  * - Flux.2 Dev: 6 images
  * - Qwen Image Edit: 3 images
+ * - Krea 2 Identity Edit: 2 images
  * - Flux Kontext: 2 images
  * - Default: 3 images
  */
@@ -127,6 +146,9 @@ export function getMaxContextImages(modelId: string): number {
   }
   if (modelId.startsWith('qwen_image_')) {
     return 3;
+  }
+  if (KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId)) {
+    return 2;
   }
   if (modelId.includes('kontext')) {
     return 2;
@@ -173,5 +195,20 @@ export function validateScheduler(value: string | undefined, options: ModelOptio
     value,
     options.scheduler.allowed,
     `Invalid scheduler ${value}. Must be one of "${options.scheduler.allowed.join('", "')}".`
+  );
+}
+
+/**
+ * Validate a model-specific VAE value against allowed options.
+ * Returns the validated value unchanged; sogni-socket passes the filename to ComfyUI.
+ */
+export function validateVae(value: string | undefined, options: ModelOptions) {
+  if (!('vae' in options) || !options.vae?.allowed.length || !value) {
+    return null;
+  }
+  return validateOption(
+    value,
+    options.vae.allowed,
+    `Invalid VAE ${value}. Must be one of "${options.vae.allowed.join('", "')}".`
   );
 }

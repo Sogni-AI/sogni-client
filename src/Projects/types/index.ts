@@ -100,17 +100,31 @@ export interface BaseProjectParams {
    */
   appSource?: string;
   /**
-   * Array of LoRA IDs to apply.
-   * Available LoRAs are model-specific. The worker will download the LoRA
-   * if not already present on the persistent volume.
-   * LoRA IDs are resolved to filenames via the worker config API.
-   * Example: ['multiple_angles']
+   * LoRA IDs to apply, in the order they should be chained.
+   *
+   * Which LoRAs are available depends on the model; the Krea 2 family carries
+   * the largest set. Workers download a LoRA on first use, so the first render
+   * with an uncached one takes longer to start.
+   *
+   * Order is significant. The LoRAs are applied in sequence and the same set in
+   * a different order produces a measurably different image, because these
+   * models run fp8-quantized and the patches do not commute.
+   *
+   * Up to 8 per render. IDs are resolved to filenames by the worker.
+   * Example: ['krea2-detail-enhancer', 'krea2-amateur']
    */
   loras?: string[];
   /**
-   * Array of LoRA strengths corresponding to each LoRA in the loras array.
-   * Values should be between 0.0 and 2.0. Defaults to 1.0 if not specified.
-   * Example: [0.9]
+   * Strength for each entry in `loras`, positionally matched. Defaults to 1.0.
+   *
+   * Not restricted to positive values. Most Krea 2 LoRAs are bipolar sliders
+   * where a negative strength applies the inverse effect and 0 does nothing -
+   * Warm Light warms at 2 and cools at -2. Each LoRA has its own valid range
+   * and its author's recommended band; values outside the valid range are
+   * clamped server-side, and pushing past the recommended band usually costs
+   * detail rather than adding effect.
+   *
+   * Example: [3, -2]
    */
   loraStrengths?: number[];
 }
@@ -378,7 +392,8 @@ export interface ImageProjectParams extends BaseProjectParams {
    * Context images for multi-reference image generation.
    * GPT Image 2 supports up to 16 context images.
    * Flux.2 Dev supports up to 6 context images.
-   * Qwen Image Edit Plus supports up to 3 context images.
+   * Qwen Image Edit supports up to 3 context images.
+   * Krea 2 Identity Edit supports up to 2 context images.
    * Flux Kontext supports up to 2 context images.
    */
   contextImages?: InputMedia[];
@@ -392,6 +407,11 @@ export interface ImageProjectParams extends BaseProjectParams {
    * to get the list of available schedulers.
    */
   scheduler?: string;
+  /**
+   * VAE filename, available options depend on the model. Use `sogni.projects.getModelOptions(modelId)`
+   * to get the list of available VAEs.
+   */
+  vae?: string;
   /**
    * Size preset ID to use. You can query available size presets
    * from `sogni.projects.sizePresets(network, modelId)`

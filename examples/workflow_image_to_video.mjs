@@ -233,12 +233,19 @@ Available Models:
   wan_v2.2-14b-fp8_i2v                (WAN 2.2, high quality 20-step, 1-10s)
   ltx23-22b-fp8_i2v_distilled         (LTX-2.3, fast 8-step, 22B model, 4-20s, 2x upscaled output)
   ltx23-22b-fp8_i2v_dev               (LTX-2.3, high quality 30-step, 22B model, 4-20s, 2x upscaled output)
+  ltx23-22b-10eros-v1.4-fp8mixed_i2v  (LTX-2.3 10Eros, fixed 9-step, 30GB+ workers, requires --disable-safe-content-filter)
 Note: LTX models automatically use keyframe interpolation when --end-image is provided.
 
 Model-Specific Constraints:
   WAN models:         480-1536px (step 16), 16/32 fps, 1-10s, shift 1-8, guidance 0.7-8
   LTX-2.3 distilled:  640-3840px (step 64), 1-60 fps, 4-20s, no shift, guidance 1-2
   LTX-2.3 dev:        640-3840px (step 64), 1-60 fps, 4-20s, no shift, guidance 1-10
+  LTX-2.3 10Eros:     640-3840px (step 64), 1-60 fps, fixed 9 steps/CFG 1, 30GB+ VRAM
+
+10Eros example inputs:
+  No prompt or input image is bundled. Supply both explicitly.
+  Optional test prompts and images can be found in the model author's sample gallery:
+  https://civitai.red/models/2447875/ltx23-10eros
 
 Options:
   --image     Input image path (required)
@@ -346,13 +353,21 @@ async function main() {
     modelConfig = MODELS.i2v[OPTIONS.modelKey];
     if (!modelConfig) {
       console.error(
-        `Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx23-22b-fp8_i2v_distilled, ltx23-22b-fp8_i2v_dev`
+        `Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx23-22b-fp8_i2v_distilled, ltx23-22b-fp8_i2v_dev, ltx23-22b-10eros-v1.4-fp8mixed_i2v`
       );
       process.exit(1);
     }
   }
 
   log('🎬', `Selected model: ${modelConfig.name}`);
+  const requiresUserProvidedInputs = modelConfig.requiresDisabledSafetyFilter === true;
+  if (requiresUserProvidedInputs && !OPTIONS.disableSafeContentFilter) {
+    console.error(
+      'Error: LTX-2.3 10Eros is a sensitive-content model and requires the explicit ' +
+        '--disable-safe-content-filter option.'
+    );
+    process.exit(1);
+  }
 
   // Prompt for frame strength values when end image is provided (LTX keyframes only)
   const isLtx2Model = OPTIONS.modelKey.startsWith('ltx2-') || OPTIONS.modelKey.startsWith('ltx23-');
@@ -423,7 +438,7 @@ async function main() {
   // Interactive mode: prompt for core options
   if (OPTIONS.interactive) {
     await promptCoreOptions(OPTIONS, modelConfig, {
-      defaultPrompt: DEFAULT_PROMPT,
+      defaultPrompt: requiresUserProvidedInputs ? '' : DEFAULT_PROMPT,
       isVideo: true
     });
 
@@ -444,6 +459,14 @@ async function main() {
   }
 
   // Apply defaults
+  if (!OPTIONS.prompt && requiresUserProvidedInputs) {
+    console.error(
+      'Error: A prompt must be supplied for LTX-2.3 10Eros. This repository does not bundle ' +
+        'sample prompts or input images. Optional test material is available from the model ' +
+        "author's gallery: https://civitai.red/models/2447875/ltx23-10eros"
+    );
+    process.exit(1);
+  }
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
   if (!OPTIONS.fps) OPTIONS.fps = modelConfig.defaultFps || VIDEO_CONSTRAINTS.fps.default;
   if (!OPTIONS.shift) OPTIONS.shift = modelConfig.defaultShift;

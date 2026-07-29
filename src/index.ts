@@ -42,7 +42,7 @@ import {
   CostEstimation,
   InputMedia
 } from './Projects/types/index.js';
-import type { ProjectEvent, JobEvent } from './Projects/types/events.js';
+import type { ProjectEvent, JobEvent, JobPreparation } from './Projects/types/events.js';
 import type { RawProject } from './Projects/types/RawProject.js';
 import type { Balances, Reward, TxHistoryEntry } from './Account/types.js';
 import type {
@@ -92,6 +92,9 @@ import {
   HostedChatCompletionChoice,
   HostedChatCompletionMessage,
   HostedCreativeWorkflowReference,
+  HostedSynchronousToolName,
+  HostedToolExecutionParams,
+  HostedToolExecutionResult,
   TextContentPart,
   ImageUrlContentPart,
   TokenUsage as ChatTokenUsage,
@@ -199,6 +202,9 @@ export type {
   HostedChatCompletionParams,
   HostedChatCompletionResult,
   HostedCreativeWorkflowReference,
+  HostedSynchronousToolName,
+  HostedToolExecutionParams,
+  HostedToolExecutionResult,
   CreativeWorkflowArtifact,
   CreativeWorkflowEvent,
   CreativeWorkflowRecord,
@@ -303,6 +309,7 @@ export type {
   CostEstimation,
   ProjectEvent,
   JobEvent,
+  JobPreparation,
   RawProject,
   ToastMessage,
   DataEntity,
