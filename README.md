@@ -660,6 +660,7 @@ Example model IDs:
 - `wan_v2.2-14b-fp8_animate-replace_lightx2v` (Animate-Replace, speed)
 - `ltx23-22b-fp8_t2v_distilled` (LTX-2.3 Text-to-Video, fast)
 - `ltx23-22b-fp8_i2v_distilled` (LTX-2.3 Image-to-Video, fast)
+- `ltx23-22b-10eros-v1.4-fp8mixed_i2v` (LTX-2.3 10Eros v1.4 Image-to-Video, 30GB+ workers, explicit safety-filter disablement required)
 - `ltx23-22b-fp8_v2v_distilled` (LTX-2.3 Video-to-Video ControlNet, fast)
 - `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-mini` (Seedance 2.0 Mini multimodal video, external API, 720p cap)
@@ -667,6 +668,11 @@ Example model IDs:
 - `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
 - `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
+
+The repository does not bundle sample prompts or input media for the 10Eros model. Creators
+who choose to use it must provide their own prompt and image to
+`examples/workflow_image_to_video.mjs`. Optional test prompts and images are available from the
+[model author's sample gallery](https://civitai.red/models/2447875/ltx23-10eros).
 
 ### Video Parameters
 
