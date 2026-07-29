@@ -1,3 +1,10 @@
+# [5.1.0-alpha.24](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.23...v5.1.0-alpha.24) (2026-07-29)
+
+
+### Features
+
+* **examples:** add opt-in 10Eros model ([9ec210d](https://github.com/Sogni-AI/sogni-client/commit/9ec210dce2638375220a05cc2491e6e31c11603d))
+
 # [5.1.0-alpha.23](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.22...v5.1.0-alpha.23) (2026-07-29)
 
 
