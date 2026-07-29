@@ -1,3 +1,10 @@
+# [5.1.0-alpha.23](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.22...v5.1.0-alpha.23) (2026-07-29)
+
+
+### Features
+
+* **projects:** expose LoRA preparation progress ([3a0b3c3](https://github.com/Sogni-AI/sogni-client/commit/3a0b3c30c627a17f1c51877e72f01ea1d67e718b))
+
 # [5.1.0-alpha.22](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0-alpha.21...v5.1.0-alpha.22) (2026-07-22)
 
 
