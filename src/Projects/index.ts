@@ -287,7 +287,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           workerName: data.workerName,
           positivePrompt: data.positivePrompt,
           negativePrompt: data.negativePrompt,
-          jobIndex: data.jobIndex
+          jobIndex: data.jobIndex,
+          preparation: data.preparation
         });
         return;
       case 'jobStarted': {
