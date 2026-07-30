@@ -157,6 +157,43 @@ await sogni.setSocketEventSubscriptions({
 
 Runtime subscription changes made via `setSocketEventSubscriptions` are remembered locally and re-applied on every reconnect, so a long-lived client only needs to express its preference once.
 
+Agent integrations can optionally declare connection and workload attribution without changing `appSource`. Defaults are immutable and per-request overrides are isolated, so concurrent operations cannot leak lineage into one another:
+
+```typescript
+const sogni = await SogniClient.createInstance({
+  appId: 'your-app-id',
+  appSource: 'my-agent-integration',
+  apiKey: 'your-api-key',
+  attribution: {
+    connection: {
+      interactionKind: 'external_agent',
+      agentFramework: 'codex',
+      agentSurface: 'plugin'
+    },
+    workload: {
+      workloadKind: 'agent_mediated',
+      agentFramework: 'codex',
+      agentSurface: 'plugin',
+      executionMode: 'server'
+    }
+  }
+});
+
+await sogni.projects.create({
+  type: 'image',
+  modelId: 'z_image_turbo_bf16',
+  positivePrompt: 'A cinematic mountain observatory',
+  numberOfMedia: 1,
+  attribution: {
+    operationScope: 'child',
+    rootOperationId: 'turn-123',
+    parentOperationId: 'tool-call-456'
+  }
+});
+```
+
+The SDK supplies the project/job operation ID when it is omitted. Standalone attributed calls default to `top_level`; child calls should provide their stable root and immediate parent IDs. All attribution is optional, normalized again by the server, and excluded entirely from the wire for callers that do not configure it.
+
 ## Usage
 
 After authentication, the client will have an active WebSocket connection to Sogni Supernet. Within a short period of time the

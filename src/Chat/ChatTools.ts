@@ -155,6 +155,7 @@ class ChatToolsApi {
           tokenType: options?.tokenType,
           network: options?.network,
           numberOfMedia: options?.numberOfMedia,
+          attribution: options?.attribution,
           timeout: options?.timeout,
           onProgress: options?.onToolProgress
             ? (progress: ToolExecutionProgress) => options.onToolProgress!(toolCall, progress)
@@ -213,7 +214,10 @@ class ChatToolsApi {
   ): Promise<ToolExecutionResult> {
     options?.onProgress?.({ status: 'creating', percent: 0 });
 
-    const project = await this.projects.create(projectParams as any);
+    const project = await this.projects.create({
+      ...projectParams,
+      ...(options?.attribution ? { attribution: options.attribution } : {})
+    } as any);
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let jobsCompleted = 0;

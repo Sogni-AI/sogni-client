@@ -1,4 +1,5 @@
 import type { BillingMode } from '../Projects/types/index.js';
+import type { WorkloadAttributionInput } from '../types/attribution.js';
 
 export interface ToolFunction {
   name: string;
@@ -96,6 +97,8 @@ export interface ChatCompletionParams {
   messages: ChatMessage[];
   /** Optional source label for this request. Defaults to the client appSource when configured. */
   appSource?: string;
+  /** Optional workload attribution overriding this client's defaults. */
+  attribution?: WorkloadAttributionInput;
   max_tokens?: number;
   temperature?: number;
   top_p?: number;
@@ -181,7 +184,7 @@ export interface ChatCompletionParams {
   maxToolRounds?: number;
 }
 
-export interface ChatRequestMessage {
+export interface ChatRequestMessage extends WorkloadAttributionInput {
   jobID: string;
   type: 'llm';
   model: string;
@@ -295,6 +298,8 @@ export interface HostedToolExecutionParams {
   app_source?: string;
   /** camelCase alias for {@link HostedToolExecutionParams.app_source}. */
   appSource?: string;
+  /** Optional workload attribution overriding this client's defaults. */
+  attribution?: WorkloadAttributionInput;
   /** Token type to use for hosted REST billing. */
   token_type?: 'sogni' | 'spark' | 'auto';
   /** camelCase alias for {@link HostedToolExecutionParams.token_type}. */
@@ -457,6 +462,8 @@ export interface StartChatRunParams {
   billingMode?: BillingMode;
   /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
+  /** Optional workload attribution overriding this client's defaults. */
+  attribution?: WorkloadAttributionInput;
   /** Idempotency key (also accepted via `Idempotency-Key` header). */
   idempotencyKey?: string;
   /**
@@ -647,6 +654,8 @@ export interface ToolExecutionOptions {
   network?: 'fast' | 'relaxed';
   /** Number of media items to generate per tool call. Default: 1. */
   numberOfMedia?: number;
+  /** Optional workload attribution for media projects executed by the tool. */
+  attribution?: WorkloadAttributionInput;
   /** Progress callback fired during media generation. */
   onProgress?: (progress: ToolExecutionProgress) => void;
   /**

@@ -16,6 +16,11 @@ import type {
   SocketEventSubscriptionInput,
   SocketEventSubscriptions
 } from './eventSubscriptions.js';
+import {
+  appendConnectionAttributionQuery,
+  normalizeConnectionAttribution,
+  type NormalizedConnectionAttribution
+} from '../../lib/attribution.js';
 
 const PROTOCOL_VERSION = '3.0.0';
 
@@ -24,6 +29,7 @@ const PING_INTERVAL = 15000;
 class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketClient {
   appId: string;
   appSource?: string;
+  connectionAttribution?: NormalizedConnectionAttribution;
   baseUrl: string;
   socketEventSubscriptions?: SocketEventSubscriptions;
   private socket: WebSocket | null = null;
@@ -37,7 +43,8 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     supernetType: SupernetType,
     logger: Logger,
     appSource?: string,
-    socketEventSubscriptions?: SocketEventSubscriptions
+    socketEventSubscriptions?: SocketEventSubscriptions,
+    connectionAttribution?: NormalizedConnectionAttribution
   ) {
     const _baseUrl = new URL(baseUrl);
     switch (_baseUrl.protocol) {
@@ -55,6 +62,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     super(_baseUrl.toString(), auth, logger);
     this.appId = appId;
     this.appSource = appSource?.trim() || undefined;
+    this.connectionAttribution = normalizeConnectionAttribution(connectionAttribution);
     this.socketEventSubscriptions = socketEventSubscriptions;
     this.baseUrl = _baseUrl.toString();
     this._supernetType = supernetType;
@@ -87,6 +95,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     if (this.appSource) {
       url.searchParams.set('appSource', this.appSource);
     }
+    appendConnectionAttributionQuery(url, this.connectionAttribution);
     const socketEventSubscriptions = serializeSocketEventSubscriptions(
       this.socketEventSubscriptions
     );

@@ -14,6 +14,7 @@ import type {
   SocketEventSubscriptionInput,
   SocketEventSubscriptions
 } from '../eventSubscriptions.js';
+import type { NormalizedConnectionAttribution } from '../../../lib/attribution.js';
 
 interface SocketSend<T extends MessageType = MessageType> {
   type: 'socket-send';
@@ -114,7 +115,8 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     supernetType: SupernetType,
     logger: Logger,
     appSource?: string,
-    socketEventSubscriptions?: SocketEventSubscriptions
+    socketEventSubscriptions?: SocketEventSubscriptions,
+    connectionAttribution?: NormalizedConnectionAttribution
   ) {
     const socketClient = new WrappedClient(
       baseUrl,
@@ -123,7 +125,8 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       supernetType,
       logger,
       appSource,
-      socketEventSubscriptions
+      socketEventSubscriptions,
+      connectionAttribution
     );
     super(socketClient.baseUrl, auth, logger);
     this.socketClient = socketClient;

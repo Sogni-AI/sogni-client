@@ -16,6 +16,17 @@ import CookieAuthManager from '../lib/AuthManager/CookieAuthManager.js';
 import { AuthManager, TokenAuthManager } from '../lib/AuthManager/index.js';
 import isNodejs from '../lib/isNodejs.js';
 import BrowserWebSocketClient from './WebSocketClient/BrowserWebSocketClient/index.js';
+import {
+  buildSogniAttributionHeaders,
+  normalizeConnectionAttribution,
+  resolveWorkloadAttribution,
+  type NormalizedConnectionAttribution
+} from '../lib/attribution.js';
+import type {
+  SogniAttributionConfig,
+  WorkloadAttributionDefaults,
+  WorkloadAttributionInput
+} from '../types/attribution.js';
 
 const WS_RECONNECT_ATTEMPTS = 5;
 
@@ -46,6 +57,7 @@ export interface ApiClientOptions {
   socketUrl: string;
   appId: string;
   appSource?: string;
+  attribution?: SogniAttributionConfig;
   socketEventSubscriptions?: SocketEventSubscriptions;
   networkType: SupernetType;
   logger: Logger;
@@ -57,6 +69,10 @@ export interface ApiClientOptions {
 class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   readonly appId: string;
   readonly appSource?: string;
+  readonly attribution: Readonly<{
+    connection?: Readonly<NormalizedConnectionAttribution>;
+    workload?: Readonly<WorkloadAttributionDefaults>;
+  }>;
   readonly logger: Logger;
   private _rest: RestClient;
   private _socket: IWebSocketClient;
@@ -69,6 +85,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     socketUrl,
     appId,
     appSource,
+    attribution,
     socketEventSubscriptions,
     networkType,
     authType,
@@ -79,6 +96,11 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     super();
     this.appId = appId;
     this.appSource = appSource?.trim() || undefined;
+    const connectionAttribution = normalizeConnectionAttribution(attribution?.connection);
+    this.attribution = Object.freeze({
+      ...(connectionAttribution ? { connection: Object.freeze(connectionAttribution) } : {}),
+      ...(attribution?.workload ? { workload: Object.freeze({ ...attribution.workload }) } : {})
+    });
     this.logger = logger;
     if (authType === 'apiKey') {
       this._auth = new ApiKeyAuthManager(logger);
@@ -98,7 +120,8 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
         networkType,
         logger,
         this.appSource,
-        socketEventSubscriptions
+        socketEventSubscriptions,
+        this.attribution.connection
       );
     } else {
       this._socket = new WebSocketClient(
@@ -108,7 +131,8 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
         networkType,
         logger,
         this.appSource,
-        socketEventSubscriptions
+        socketEventSubscriptions,
+        this.attribution.connection
       );
     }
     this._disableSocket = disableSocket;
@@ -135,6 +159,22 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
 
   get socketEnabled(): boolean {
     return !this._disableSocket;
+  }
+
+  resolveWorkloadAttribution(override?: WorkloadAttributionInput, fallbackOperationId?: string) {
+    return resolveWorkloadAttribution(this.attribution.workload, override, fallbackOperationId);
+  }
+
+  attributionHeaders(
+    appSource: string | undefined,
+    override?: WorkloadAttributionInput,
+    fallbackOperationId?: string
+  ): Record<string, string> {
+    return buildSogniAttributionHeaders({
+      appSource,
+      connection: this.attribution.connection,
+      workload: this.resolveWorkloadAttribution(override, fallbackOperationId)
+    });
   }
 
   setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {

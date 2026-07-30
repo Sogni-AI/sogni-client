@@ -176,6 +176,20 @@ import {
   TokenAuthManager
 } from './lib/AuthManager/index.js';
 import { MeData } from './Account/types.js';
+import type {
+  AgentAttributionMetadata,
+  AgentSurface,
+  ConnectionAttribution,
+  ExecutionMode,
+  InteractionKind,
+  OperationLineage,
+  OperationScope,
+  SogniAttributionConfig,
+  WorkloadAttribution,
+  WorkloadAttributionDefaults,
+  WorkloadAttributionInput,
+  WorkloadKind
+} from './types/attribution.js';
 
 export type {
   AudioFormat,
@@ -313,7 +327,19 @@ export type {
   RawProject,
   ToastMessage,
   DataEntity,
-  InputMedia
+  InputMedia,
+  AgentAttributionMetadata,
+  AgentSurface,
+  ConnectionAttribution,
+  ExecutionMode,
+  InteractionKind,
+  OperationLineage,
+  OperationScope,
+  SogniAttributionConfig,
+  WorkloadAttribution,
+  WorkloadAttributionDefaults,
+  WorkloadAttributionInput,
+  WorkloadKind
 };
 
 export {
@@ -346,6 +372,13 @@ export interface SogniClientConfig {
    * The socket server uses this as the default source for project and chat requests from this client.
    */
   appSource?: string;
+  /**
+   * Optional immutable connection and per-workload attribution defaults.
+   *
+   * Individual project, chat, tool, and workflow calls can override workload
+   * fields without mutating other concurrent requests.
+   */
+  attribution?: SogniAttributionConfig;
   /**
    * Initial WebSocket event subscriptions for this connection.
    *
@@ -538,6 +571,7 @@ export class SogniClient {
       socketUrl: socketEndpoint,
       appId: config.appId,
       appSource: config.appSource,
+      attribution: config.attribution,
       socketEventSubscriptions: config.socketEventSubscriptions,
       networkType: network,
       logger,

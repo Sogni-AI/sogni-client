@@ -8,6 +8,11 @@ interface RestRequestInit extends RequestInit {
   timeoutMs?: number;
 }
 
+interface RestPostOptions {
+  timeoutMs?: number;
+  headers?: Record<string, string>;
+}
+
 class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   readonly baseUrl: string;
   protected _auth: AuthManager;
@@ -120,15 +125,17 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   post<T = JSONValue>(
     path: string,
     body: Record<string, unknown> = {},
-    options: Pick<RestRequestInit, 'timeoutMs'> = {}
+    options: RestPostOptions = {}
   ): Promise<T> {
+    const { headers = {}, ...requestOptions } = options;
     return this.request<T>(this.formatUrl(path), {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...headers
       },
       body: JSON.stringify(body),
-      ...options
+      ...requestOptions
     });
   }
 }

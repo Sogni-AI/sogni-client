@@ -254,6 +254,33 @@ const portal = await sogni.account.createSubscriptionPortalSession();
 
 `checkAuth()` is only for cookie-auth browser flows on permitted Sogni domains. API-key auth auto-authenticates during `createInstance()`. Username/password auth uses `sogni.account.login()`. Token auth can be resumed with `sogni.setTokens()`.
 
+AGENT ATTRIBUTION:
+
+Keep `appSource` as the stable product/integration identifier. Agent wrappers may add immutable `attribution.connection` and `attribution.workload` defaults:
+
+```typescript
+const sogni = await SogniClient.createInstance({
+  appId: 'my-agent',
+  appSource: 'my-agent-integration',
+  apiKey: process.env.SOGNI_API_KEY,
+  attribution: {
+    connection: {
+      interactionKind: 'external_agent',
+      agentFramework: 'codex',
+      agentSurface: 'plugin'
+    },
+    workload: {
+      workloadKind: 'agent_mediated',
+      agentFramework: 'codex',
+      agentSurface: 'plugin',
+      executionMode: 'server'
+    }
+  }
+});
+```
+
+Project, socket chat, hosted chat/tool, durable chat run, and creative workflow calls accept an optional per-operation `attribution` override. Standalone attributed requests default to `operationScope: 'top_level'` and use the underlying project/job request ID. For child work, pass `operationScope: 'child'`, a stable `rootOperationId`, and the immediate `parentOperationId`; omit `operationId` to use the request's generated ID. The exported attribution types include `native_desktop`. Invalid metadata is dropped, the server remains authoritative, and all new wire fields are omitted when attribution is not configured.
+
 NETWORK TYPES:
 
 - 'fast': High-end GPU workers. Faster, higher cost. REQUIRED for video.
