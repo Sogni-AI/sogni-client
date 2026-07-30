@@ -34,6 +34,8 @@ import {
 import getUUID from '../lib/getUUID.js';
 import type ProjectsApi from '../Projects/index.js';
 import { mediaInputToInlineDataUri } from '../lib/mediaValidation.js';
+import { workloadAttributionToWireFields } from '../lib/attribution.js';
+import type { WorkloadAttributionInput } from '../types/attribution.js';
 
 const MAX_VISION_IMAGE_COUNT = 20;
 const MAX_VISION_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -510,13 +512,15 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const normalizedMessages = await normalizeVisionMessages(params.messages);
     const chatTemplateKwargs =
       params.chat_template_kwargs ?? this.buildChatTemplateKwargs(params.think);
+    const appSource = params.app_source ?? params.appSource ?? this.client.appSource;
+    const attributionHeaders = this.attributionHeaders(appSource, params.attribution, getUUID());
     try {
       return await this.client.rest.post<HostedChatCompletionResult>(
         '/v1/chat/completions',
         {
           model: params.model,
           messages: normalizedMessages,
-          app_source: params.app_source ?? params.appSource ?? this.client.appSource,
+          app_source: appSource,
           max_tokens: params.max_tokens,
           temperature: params.temperature,
           top_p: params.top_p,
@@ -541,7 +545,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
           ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs }),
           ...(params.response_format && { response_format: params.response_format })
         },
-        { timeoutMs: 300000 }
+        { timeoutMs: 300000, headers: attributionHeaders }
       );
     } catch (error) {
       // Re-throw recognized chat-job error bodies (e.g. subscription
@@ -569,18 +573,22 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private async executeHostedTool(
     params: HostedToolExecutionParams
   ): Promise<HostedToolExecutionResult> {
+    const appSource = params.app_source ?? params.appSource ?? this.client.appSource;
     return this.client.rest.post<HostedToolExecutionResult>(
       '/v1/creative-agent/tools/execute',
       {
         tool: params.tool,
         arguments: params.arguments,
-        app_source: params.app_source ?? params.appSource ?? this.client.appSource,
+        app_source: appSource,
         token_type: params.token_type ?? params.tokenType,
         ...(params.safe_content_filter !== undefined || params.safeContentFilter !== undefined
           ? { safe_content_filter: params.safe_content_filter ?? params.safeContentFilter }
           : {})
       },
-      { timeoutMs: 300000 }
+      {
+        timeoutMs: 300000,
+        headers: this.attributionHeaders(appSource, params.attribution, getUUID())
+      }
     );
   }
 
@@ -633,6 +641,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private async createChatRun(params: StartChatRunParams): Promise<ChatRunRecord> {
     assertChatRunUsesExternalMedia(params);
     const appSource = params.appSource ?? this.client.appSource;
+    const operationId = getUUID();
     const body: Record<string, unknown> = {
       messages: params.messages,
       ...(params.tools ? { tools: params.tools } : {}),
@@ -652,7 +661,10 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       ...(appSource ? { app_source: appSource } : {}),
       ...(params.runtimeConfig ? { runtime_config: params.runtimeConfig } : {})
     };
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...this.attributionHeaders(appSource, params.attribution, operationId)
+    };
     if (params.idempotencyKey) headers['Idempotency-Key'] = params.idempotencyKey;
     const response = await this.chatRunJson<{
       status: string;
@@ -828,7 +840,8 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       sogni_tool_execution: params.sogni_tool_execution,
       taskProfile: params.taskProfile,
       ...(chatTemplateKwargs && { chat_template_kwargs: chatTemplateKwargs }),
-      ...(params.response_format && { response_format: params.response_format })
+      ...(params.response_format && { response_format: params.response_format }),
+      ...workloadAttributionToWireFields(this.resolveWorkloadAttribution(params.attribution, jobID))
     };
 
     const stream = new ChatStream(jobID);
@@ -891,13 +904,18 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const maxRounds = params.maxToolRounds || 5;
     const toolHistory: ToolHistoryEntry[] = [];
     let messages = [...params.messages];
+    const logicalOperation = this.resolveWorkloadAttribution(params.attribution, getUUID());
+    const autoToolChildAttribution = this.createAutoToolChildAttribution(logicalOperation);
 
     for (let round = 0; round < maxRounds; round++) {
       const result = (await this.createSingleCompletion({
         ...params,
         messages,
         stream: false,
-        autoExecuteTools: false
+        autoExecuteTools: false,
+        // The first LLM admission represents the logical auto-tool request.
+        // Later rounds and tool/media work are compute children of that root.
+        attribution: round === 0 ? logicalOperation : autoToolChildAttribution
       })) as ChatCompletionResult;
 
       // If model didn't request tools, return final result
@@ -911,6 +929,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       // Execute tool calls
       const toolResults = await this.tools.executeAll(result.tool_calls, {
         tokenType: params.tokenType,
+        attribution: autoToolChildAttribution,
         onToolCall: params.onToolCall,
         onToolProgress: params.onToolProgress
       });
@@ -940,6 +959,26 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     }
 
     throw new Error(`Max tool calling rounds (${maxRounds}) exceeded`);
+  }
+
+  /**
+   * Build attribution for compute spawned by one logical auto-tool operation.
+   * Each child receives its own transport operation ID while retaining the
+   * logical operation as its immediate parent.
+   */
+  private createAutoToolChildAttribution(
+    attribution: WorkloadAttributionInput | undefined
+  ): WorkloadAttributionInput | undefined {
+    const logicalOperation = this.resolveWorkloadAttribution(attribution, getUUID());
+    if (!logicalOperation?.operationId) return undefined;
+    const rootOperationId = logicalOperation.rootOperationId ?? logicalOperation.operationId;
+    return {
+      ...logicalOperation,
+      operationScope: 'child',
+      operationId: undefined,
+      rootOperationId,
+      parentOperationId: logicalOperation.operationId
+    };
   }
 
   private handleJobTokens(data: JobTokensData): void {

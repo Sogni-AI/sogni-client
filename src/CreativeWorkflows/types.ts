@@ -1,5 +1,6 @@
 import { TokenType } from '../types/token.js';
 import type { BillingMode } from '../Projects/types/index.js';
+import type { WorkloadAttributionInput } from '../types/attribution.js';
 
 export type CreativeWorkflowStatus =
   | 'queued'
@@ -144,6 +145,8 @@ export interface StartCreativeWorkflowParams {
   billingMode?: BillingMode;
   /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
+  /** Optional workload attribution overriding this client's defaults. */
+  attribution?: WorkloadAttributionInput;
   idempotencyKey?: string;
   /** Durable workflows require uploaded HTTP(S) URLs, not inline data URIs. */
   mediaReferences?: unknown[];
@@ -174,6 +177,8 @@ export interface ResumeCreativeWorkflowParams {
   billingMode?: BillingMode;
   /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
+  /** Optional workload attribution overriding this client's defaults. */
+  attribution?: WorkloadAttributionInput;
   /** @internal Undocumented compatibility alias. Use tokenType. */
   token_type?: TokenType;
   /** @internal Undocumented compatibility alias. Use billingMode. */
@@ -203,6 +208,8 @@ export interface ReseedCreativeWorkflowParams {
   billingMode?: BillingMode;
   /** Optional source label for attribution. Defaults to the client appSource when configured. */
   appSource?: string;
+  /** Optional workload attribution overriding this client's defaults. */
+  attribution?: WorkloadAttributionInput;
   /** @internal Undocumented compatibility alias. Use seedOverrides. */
   seed_overrides?: Record<string, number>;
   /** @internal Undocumented compatibility alias. Use tokenType. */

@@ -16,6 +16,7 @@ import {
   StartCreativeWorkflowParams,
   StreamCreativeWorkflowEventsOptions
 } from './types.js';
+import getUUID from '../lib/getUUID.js';
 
 interface CreativeWorkflowEnvelope {
   workflow?: CreativeWorkflowRecord;
@@ -187,7 +188,8 @@ class CreativeWorkflowsApi extends ApiGroup {
     if (mediaReferences !== undefined) body.media_references = mediaReferences;
 
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...this.attributionHeaders(appSource, params.attribution, getUUID())
     };
     if (idempotencyKey) {
       headers['Idempotency-Key'] = idempotencyKey;
@@ -226,7 +228,10 @@ class CreativeWorkflowsApi extends ApiGroup {
       `/v1/creative-agent/workflows/${encodeURIComponent(workflowId)}/resume`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.attributionHeaders(appSource, params.attribution, getUUID())
+        },
         body: JSON.stringify(body),
         signal: options.signal
       }
@@ -261,7 +266,10 @@ class CreativeWorkflowsApi extends ApiGroup {
       `/v1/creative-agent/workflows/${encodeURIComponent(workflowId)}/reseed`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.attributionHeaders(appSource, params.attribution, getUUID())
+        },
         body: JSON.stringify(body),
         signal: options.signal
       }

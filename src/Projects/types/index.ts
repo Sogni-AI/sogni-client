@@ -1,6 +1,7 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types.js';
 import { ControlNetParams, VideoControlNetParams } from './ControlNetParams.js';
 import { TokenType } from '../../types/token.js';
+import type { WorkloadAttributionInput } from '../../types/attribution.js';
 
 export interface SupportedModel {
   id: string;
@@ -99,6 +100,11 @@ export interface BaseProjectParams {
    * Optional client app/source label to attach to the project request for server-side attribution.
    */
   appSource?: string;
+  /**
+   * Optional workload attribution for this project. Fields override the
+   * immutable defaults configured on SogniClient.
+   */
+  attribution?: WorkloadAttributionInput;
   /**
    * LoRA IDs to apply, in the order they should be chained.
    *

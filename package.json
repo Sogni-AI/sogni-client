@@ -61,6 +61,7 @@
     "prepublishOnly": "npm run build",
     "build": "npm run clean && npm run codegen && tsc --project tsconfig.json && tsc --project tsconfig.esm.json && node scripts/write-dist-esm-package-json.mjs",
     "test:chat-routing": "npm run build && node scripts/check-chat-model-routing.cjs",
+    "test:attribution": "npm run build && node scripts/check-attribution-transport.cjs",
     "test:subscription-api": "npm run build && node scripts/check-subscription-api.cjs",
     "test:workflow-template-envelope": "npm run build && node scripts/check-workflow-template-envelope.cjs",
     "watch": "npm run clean && npm run codegen && tsc --watch --project tsconfig.json",

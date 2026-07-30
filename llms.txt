@@ -140,6 +140,10 @@ const portal = await sogni.account.createSubscriptionPortalSession();
 
 Checkout and portal sessions require user authentication; API-key auth is rejected for those redirect operations.
 
+AGENT ATTRIBUTION:
+
+Keep `appSource` as the stable product/integration ID. Agent wrappers may additionally set immutable `attribution.connection` and `attribution.workload` defaults on `createInstance()`, then override `attribution` per project, socket/hosted/durable chat request, hosted tool, or creative workflow. Exported unions cover `interactionKind`, `workloadKind`, `agentSurface` (including `native_desktop`), `executionMode`, and operation lineage. Standalone attributed calls receive a top-level operation ID from the underlying job/request; child calls should provide `operationScope: 'child'`, `rootOperationId`, and `parentOperationId`. All fields are optional and omitted for legacy callers.
+
 ### Network Types
 
 - `fast` - High-end GPUs, faster, more expensive. **Required for video.**

@@ -667,7 +667,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const modelOptions = await this.getModelOptions(data.modelId);
     const requestParams = {
       ...data,
-      appSource: data.appSource || this.client.appSource
+      appSource: data.appSource || this.client.appSource,
+      attribution: this.resolveWorkloadAttribution(data.attribution, project.id)
     } as ProjectParams;
     const request = createJobRequestMessage(project.id, requestParams, modelOptions);
 

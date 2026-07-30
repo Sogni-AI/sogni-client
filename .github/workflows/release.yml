@@ -35,6 +35,8 @@ jobs:
         run: npm audit signatures
       - name: Run subscription API checks (builds dist first)
         run: npm run test:subscription-api
+      - name: Run attribution transport checks
+        run: npm run test:attribution
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
