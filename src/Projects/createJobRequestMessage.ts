@@ -735,7 +735,9 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     tokenType: params.tokenType,
     billingMode: params.billingMode,
     outputFormat:
-      params.outputFormat || (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png')
+      params.outputFormat ||
+      (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),
+    ...(isImageParams(params) ? { embedPromptMetadata: params.embedPromptMetadata !== false } : {})
   };
 
   if (params.network) {

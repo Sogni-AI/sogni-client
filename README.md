@@ -251,7 +251,8 @@ const project = await sogni.projects.create({
   steps: 20,
   guidance: 7.5,
   numberOfMedia: 1,
-  outputFormat: 'jpg', // Can be 'png' or 'jpg', defaults to 'png'
+  outputFormat: 'jpg', // Can be 'png', 'jpg', or 'webp'; defaults to 'png'
+  embedPromptMetadata: true, // Set false to strip prompt/workflow metadata
   tokenType: 'spark', // 'sogni' or 'spark'
   network: 'fast' // 'fast' or 'relaxed'
 });
@@ -373,7 +374,8 @@ Here is a full list of project parameters that you can use:
 - `startingImage` - guide image in PNG format. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
 - `startingImageStrength` - strong effect of starting image should be. From 0 to 1, default 0.5.
 - `controlNet` - Stable Diffusion ControlNet parameters. See **ControlNets** section below for more info.
-- `outputFormat` - output image format. Can be `png`, `jpg`, or `webp` for GPT Image 2; most native image models support `png` or `jpg`. If not specified, `png` will be used.
+- `outputFormat` - output image format. All image models support `png`, `jpg`, and `webp`. If not specified, `png` will be used.
+- `embedPromptMetadata` - whether prompt/workflow metadata is embedded in exported images. Defaults to `true`; set to `false` to strip generation metadata.
 
 TypeScript type definitions for project parameters can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 

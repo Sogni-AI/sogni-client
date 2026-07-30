@@ -1446,6 +1446,7 @@ IMAGE-SPECIFIC PARAMETERS:
   contextImages?: (File | Buffer | Blob)[];
   controlNet?: ControlNetParams;
   outputFormat?: 'png' | 'jpg' | 'webp';
+  embedPromptMetadata?: boolean;
 }
 ```
 
@@ -1854,6 +1855,7 @@ interface ImageProjectParams extends BaseProjectParams {
   height?: number;
   controlNet?: ControlNetParams;
   outputFormat?: 'png' | 'jpg' | 'webp';
+  embedPromptMetadata?: boolean;
 }
 
 interface VideoProjectParams extends BaseProjectParams {

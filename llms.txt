@@ -167,7 +167,8 @@ Checkout and portal sessions require user authentication; API-key auth is reject
   seed?: number,
   sampler?: string,
   scheduler?: string,
-  outputFormat?: 'png' | 'jpg' | 'webp'
+  outputFormat?: 'png' | 'jpg' | 'webp',
+  embedPromptMetadata?: boolean // defaults true; false strips prompt/workflow metadata
 }
 ```
 

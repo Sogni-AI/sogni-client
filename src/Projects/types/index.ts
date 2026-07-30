@@ -430,9 +430,14 @@ export interface ImageProjectParams extends BaseProjectParams {
    */
   controlNet?: ControlNetParams;
   /**
-   * Output format. Can be 'png' or 'jpg'. Defaults to 'png'.
+   * Output format. Can be 'png', 'jpg', or 'webp'. Defaults to 'png'.
    */
   outputFormat?: ImageOutputFormat;
+  /**
+   * Embed the prompt and workflow metadata in the exported image.
+   * Defaults to true. Set to false to strip generation metadata from the file.
+   */
+  embedPromptMetadata?: boolean;
   /**
    * GPT Image 2 quality preset. Only used by external OpenAI image models.
    * Defaults to 'medium'.
