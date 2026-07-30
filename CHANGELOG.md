@@ -1,3 +1,10 @@
+## [5.3.1](https://github.com/Sogni-AI/sogni-client/compare/v5.3.0...v5.3.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **deps:** bump protocol package to alpha.10 ([dfe635e](https://github.com/Sogni-AI/sogni-client/commit/dfe635eb1d2c02db3caa4beae035d3917449b847))
+
 # [5.3.0](https://github.com/Sogni-AI/sogni-client/compare/v5.2.0...v5.3.0) (2026-07-30)
 
 
