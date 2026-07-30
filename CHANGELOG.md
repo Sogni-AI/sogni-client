@@ -1,3 +1,11 @@
+# [5.3.0](https://github.com/Sogni-AI/sogni-client/compare/v5.2.0...v5.3.0) (2026-07-30)
+
+
+### Features
+
+* **telemetry:** add agent attribution contract ([8da7c28](https://github.com/Sogni-AI/sogni-client/commit/8da7c2884afa8b79396f83381cb282284c5fc616))
+* **telemetry:** add agent attribution contract ([#19](https://github.com/Sogni-AI/sogni-client/issues/19)) ([287a5d8](https://github.com/Sogni-AI/sogni-client/commit/287a5d82b71d27e2699aae4a075c7608c993edf8))
+
 # [5.2.0](https://github.com/Sogni-AI/sogni-client/compare/v5.1.0...v5.2.0) (2026-07-29)
 
 
