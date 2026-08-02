@@ -1,3 +1,10 @@
+## [5.3.3-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v5.3.2...v5.3.3-alpha.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* **release:** refresh alpha security package ([6187728](https://github.com/Sogni-AI/sogni-client/commit/61877280fd977f28de408ec84a8c2e2d5f5317d0))
+
 ## [5.3.2](https://github.com/Sogni-AI/sogni-client/compare/v5.3.1...v5.3.2) (2026-08-02)
 
 
