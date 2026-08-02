@@ -402,7 +402,7 @@ Here is a full list of project parameters that you can use:
   Turbo and LCM models are designed for quality output in as little as 1 step. ([More info](https://docs.sogni.ai/learn/basics/inference-steps)).
 - `guidance` - guidance scale. For most Stable Diffusion models, optimal value is 7.5 ([More info](https://docs.sogni.ai/learn/basics/guidance-scale)).
 - `network` - network type to use, `fast` or `relaxed`. This parameter allows to override default network type for this project.
-- `disableNSFWFilter` - disable NSFW filter for this project. NSFW filter is enabled by default and workers won't upload resulting images if they are detected as NSFW.
+- `disableNSFWFilter` - request the alternate content policy for this project; the server remains authoritative.
 - `seed` - uint32 number to use as seed. If not provided, random seed will be used. If `numberOfImages` is greater than 1, provided seed will be user only for one of them. ([More info](https://docs.sogni.ai/learn/basics/generation-seed)).
 - `numberOfPreviews` - number of preview images to generate. If not provided, no preview images will be generated.
 - `sampler` - sampler algorithm ([More info](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers)). For available options, see the **"Samplers"** section below.
@@ -697,7 +697,7 @@ Example model IDs:
 - `wan_v2.2-14b-fp8_animate-replace_lightx2v` (Animate-Replace, speed)
 - `ltx23-22b-fp8_t2v_distilled` (LTX-2.3 Text-to-Video, fast)
 - `ltx23-22b-fp8_i2v_distilled` (LTX-2.3 Image-to-Video, fast)
-- `ltx23-22b-10eros-v1.4-fp8mixed_i2v` (LTX-2.3 10Eros v1.4 Image-to-Video, 30GB+ workers, explicit safety-filter disablement required)
+- `ltx23-22b-10eros-v1.4-fp8mixed_i2v` (LTX-2.3 10Eros v1.4 Image-to-Video, 30GB+ workers, subject to server authorization)
 - `ltx23-22b-fp8_v2v_distilled` (LTX-2.3 Video-to-Video ControlNet, fast)
 - `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-mini` (Seedance 2.0 Mini multimodal video, external API, 720p cap)

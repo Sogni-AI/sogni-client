@@ -226,8 +226,6 @@ Community fine-tunes (uncensored; pass the id directly):
 `dark_beast_krea2_identity_edit_v1_2` (Krea 2 identity edit LoRA),
 `one_obsession_v22_fp16` (Illustrious/anime, LoRA-capable).
 
-Krea 2 Turbo supports the `krea2-filter-bypass-3` style LoRA via
-`loras: ['krea2-filter-bypass-3']` + `loraStrengths: [1.0]`.
 For identity-preserving edits, use `krea2_identity_edit_v1_2` or
 `dark_beast_krea2_identity_edit_v1_2` with 1-2 `contextImages`, `steps: 10`,
 and `guidance: 1`.

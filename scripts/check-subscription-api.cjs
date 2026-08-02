@@ -321,11 +321,11 @@ async function run() {
       "getTrialEligibility() must surface reasonCode 'eligible' when eligible"
     );
 
-    client.rest._nextPayload = apiResponse({ eligible: false, reasonCode: 'wallet_already_used' });
+    client.rest._nextPayload = apiResponse({ eligible: false, reasonCode: 'not_eligible' });
     const ineligible = await api.getTrialEligibility();
     assert.deepEqual(
       ineligible,
-      { eligible: false, reasonCode: 'wallet_already_used' },
+      { eligible: false, reasonCode: 'not_eligible' },
       'getTrialEligibility() must surface the deny reasonCode'
     );
   }

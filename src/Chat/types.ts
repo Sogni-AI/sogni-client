@@ -111,11 +111,7 @@ export interface ChatCompletionParams {
   stop?: string | string[];
   /** Token type to use for billing. Defaults to 'sogni'. */
   tokenType?: 'sogni' | 'spark';
-  /**
-   * Whether the caller wants Sogni's safe-content filter applied for this
-   * request context. `false` allows backend routing to adult-capable text LLMs
-   * for prompt expansion when the request itself is text-only.
-   */
+  /** Requested content-filter policy. The server remains authoritative. */
   safeContentFilter?: boolean;
   /**
    * Billing mode for this request. `'subscription'` bills the job against the

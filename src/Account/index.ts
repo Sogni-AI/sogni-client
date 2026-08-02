@@ -918,10 +918,8 @@ class AccountApi extends ApiGroup {
   /**
    * Check whether the current account is eligible to start a free trial.
    *
-   * Returns `{ eligible, reasonCode }`. `reasonCode` is ALWAYS present: it is
-   * `'eligible'` when a trial may be started, or a deny reason otherwise (e.g.
-   * `'wallet_already_used'`, `'strong_signal_match'`, `'weak_combo'`). Use this
-   * before offering a "start free trial" flow.
+   * Returns `{ eligible, reasonCode }`. Use `eligible` as the decision and
+   * treat `reasonCode` as an opaque display hint.
    *
    * @example
    * ```typescript
@@ -941,12 +939,10 @@ class AccountApi extends ApiGroup {
   }
 
   /**
-   * Persist a raw persistent device identifier for the current account.
+   * Associate an opaque host-application identifier with the current account.
+   * Requires an authenticated session.
    *
-   * Used for free-trial anti-abuse attribution so the server can detect device
-   * reuse across accounts. Requires an authenticated session.
-   *
-   * @param deviceId - Raw persistent device identifier.
+   * @param deviceId - Opaque host-application identifier.
    *
    * @example
    * ```typescript
@@ -986,8 +982,8 @@ class AccountApi extends ApiGroup {
    * Pass `options.startTrial` to control free-trial behavior: `true` starts a
    * trial when the account is eligible, while `false` is sent verbatim to
    * subscribe immediately with no trial even if the account is eligible.
-   * Pass `options.deviceId` to forward a raw persistent device identifier for
-   * trial anti-abuse attribution.
+   * Host applications may pass `options.deviceId` when their integration
+   * requires the corresponding server-side context.
    *
    * @param planId - The plan identifier from {@link getSubscriptionPlans}
    * @param term   - Billing cadence: `'monthly'` or `'annual'`

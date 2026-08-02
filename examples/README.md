@@ -368,7 +368,6 @@ node workflow_text_to_image.mjs                           # Interactive mode
 node workflow_text_to_image.mjs "A beautiful sunset"      # With prompt
 node workflow_text_to_image.mjs "Portrait" --model z-turbo --seed 12345
 node workflow_text_to_image.mjs "A neon sign that reads OPEN" --model chroma-hd
-node workflow_text_to_image.mjs "A portrait" --model krea-2-turbo --style-lora krea2-filter-bypass-3 --lora-strength 1.0
 ```
 
 **Options:**
@@ -383,7 +382,7 @@ node workflow_text_to_image.mjs "A portrait" --model krea-2-turbo --style-lora k
 - `--style` - Style prompt
 - `--sampler` / `--scheduler` - Sampler and scheduler
 - `--output` - Output directory (default: ./output)
-- `--disable-safe-content-filter` - Disable NSFW filter
+- `--disable-safe-content-filter` - Request the alternate server-authorized content policy
 
 #### `workflow_image_edit.mjs`
 

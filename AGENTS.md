@@ -30,6 +30,27 @@ Current public API anchors:
 - `checkAuth()` is only for cookie-auth browser flows. API-key auth auto-authenticates during `createInstance()`, and token auth uses `login()` or `setTokens()`.
 - `ChatCompletionResult` is SDK-shaped (`content`, `role`, `finishReason`, `tool_calls`, `usage`, `cost`). Streaming chunks expose `chunk.content` and optional `chunk.tool_calls`.
 
+## Public Release Security
+
+This repository, its history, npm tarballs, generated declarations, documentation,
+examples, tests, and release notes are public and may be inspected by adversarial
+automation. Treat every committed or published byte as externally visible.
+
+- Publish only the minimum client contract needed for interoperability. Do not
+  expose private enforcement logic, diagnostic classifications, thresholds,
+  control state, administrative behavior, or instructions for evading controls.
+- Keep authorization, billing, eligibility, abuse prevention, and content-policy
+  enforcement server-authoritative. Client-provided values are untrusted and may
+  be omitted, forged, replayed, or varied deliberately.
+- Public responses and types should use coarse, stable, user-actionable results.
+  Detailed diagnostics belong in private service logs and authenticated internal
+  administration surfaces.
+- Before changing a sensitive public surface, inspect all consumers and generated
+  artifacts, preserve required wire compatibility, and review the packed release
+  for accidental disclosure.
+- If implementation details have already been published, assume they are known.
+  Fix or rotate the server-side control instead of relying on deletion or renaming.
+
 ## Sogni Intelligence APIs
 
 The SDK wraps the public Sogni Intelligence endpoints used for text chat, hosted creative tools, durable chat turns, and deterministic multi-step workflows.

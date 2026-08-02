@@ -155,19 +155,11 @@ export interface SubscriptionUsage {
 }
 
 /**
- * Machine-readable reason for a trial-eligibility verdict. The server returns
- * a code on every response: `'eligible'` when a trial may be started, or one of
- * the deny codes explaining why it cannot. This is a closed set defined by the
- * server's `TrialReasonCode` union.
+ * Client-facing trial-eligibility reason. Consumers should use `eligible` as
+ * the decision and treat this value as an opaque display hint. The open string
+ * arm preserves compatibility with older and non-production servers.
  */
-export type TrialReasonCode =
-  | 'eligible'
-  | 'wallet_already_used'
-  | 'strong_signal_match'
-  | 'weak_combo'
-  | 'admin_override_allow'
-  | 'admin_override_deny'
-  | 'abuse_prevention_disabled';
+export type TrialReasonCode = 'eligible' | 'not_eligible' | (string & {});
 
 /**
  * Free-trial eligibility result returned by
@@ -177,9 +169,7 @@ export interface TrialEligibility {
   /** Whether the current account is eligible to start a free trial. */
   eligible: boolean;
   /**
-   * Machine-readable reason for the verdict — ALWAYS present. When `eligible`
-   * is `true` this is `'eligible'`; otherwise it is the deny reason (e.g.
-   * `'wallet_already_used'`, `'strong_signal_match'`, `'weak_combo'`).
+   * Opaque client-facing hint. Do not use it as an authorization decision.
    */
   reasonCode: TrialReasonCode;
 }
@@ -244,8 +234,7 @@ export interface CreateSubscriptionCheckoutOptions {
    */
   startTrial?: boolean;
   /**
-   * Optional raw persistent device identifier used for trial anti-abuse
-   * attribution. Forwarded to the server only when provided.
+   * Optional opaque host-application context forwarded only when provided.
    */
   deviceId?: string;
 }

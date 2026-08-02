@@ -75,10 +75,7 @@ export interface BaseProjectParams {
    * Override current network type. Default value can be read from `sogni.account.currentAccount.network`
    */
   network?: SupernetType;
-  /**
-   * Disable NSFW filter for Project. Default is false, meaning NSFW filter is enabled.
-   * If image triggers NSFW filter, it will not be available for download.
-   */
+  /** Requested content-filter policy. The server remains authoritative. */
   disableNSFWFilter?: boolean;
   /**
    * Seed for one of images in project. Other will get random seed. Must be Uint32

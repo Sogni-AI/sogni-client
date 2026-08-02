@@ -148,7 +148,9 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
     if (token) {
       Cookie.set('authorization', token, {
         domain: '.sogni.ai',
-        expires: 1
+        expires: 1,
+        secure: true,
+        sameSite: 'strict'
       });
     } else {
       Cookie.remove('authorization', {
