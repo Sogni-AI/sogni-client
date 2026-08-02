@@ -1,3 +1,10 @@
+## [5.3.3](https://github.com/Sogni-AI/sogni-client/compare/v5.3.2...v5.3.3) (2026-08-02)
+
+
+### Bug Fixes
+
+* **docs:** normalize release metadata ([40a1f4d](https://github.com/Sogni-AI/sogni-client/commit/40a1f4d0a1444c1e767ff81a1489123d3af58189))
+
 ## [5.3.1](https://github.com/Sogni-AI/sogni-client/compare/v5.3.0...v5.3.1) (2026-07-30)
 
 
