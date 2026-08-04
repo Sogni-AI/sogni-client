@@ -502,6 +502,19 @@ class ChatToolsApi {
       hasReferenceImages && referenceImageIndices.length === 0
         ? { ...args, referenceImageIndices: [0] }
         : args;
+    // MiniMax H3 r2v is schema-valid but has no direct-execution route yet: no
+    // selector maps the alias, so it used to fall through model selection as a
+    // soft preference and silently render on LTX i2v — the user paid for the
+    // wrong model. Until reference-index mapping to the H3 upload slots is
+    // implemented here, fail loudly like the hosted-only tools do.
+    if ((args.videoModel as string | undefined) === 'minimax-h3-r2v') {
+      return this.makeErrorResult(
+        toolCall,
+        "generate_video with videoModel 'minimax-h3-r2v' is not supported by direct SDK tool execution. " +
+          'Execute it via chat.hosted.create() / chat.runs.create(), or submit the render directly with ' +
+          "projects.create({ type: 'video', modelId: 'minimax-h3-ref2va-fp8_r2v', referenceImage, contextImages, ... })."
+      );
+    }
     const requestedModel = resolveHostedToolModelSelector('generate_video', routingArgs);
     const requestedWorkflow = requestedModel ? getVideoWorkflowType(requestedModel) : null;
     const workflowPreference: VideoWorkflow[] =
