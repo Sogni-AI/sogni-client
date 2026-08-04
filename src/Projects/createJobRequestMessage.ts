@@ -33,8 +33,18 @@ import {
   isWanAnimateModel,
   isSeedanceModel,
   isHappyhorseModel,
+  isMinimaxH3Model,
   isExternalApiVideoModel,
-  usesReferenceMask
+  usesReferenceMask,
+  MINIMAX_H3_MIN_DURATION,
+  MINIMAX_H3_MAX_DURATION,
+  MINIMAX_H3_DIMENSION_STEP,
+  MINIMAX_H3_MAX_DIMENSION,
+  MINIMAX_H3_MAX_PIXELS,
+  MINIMAX_H3_MIN_FRAMES,
+  MINIMAX_H3_MAX_FRAMES,
+  MINIMAX_H3_FRAME_STEP,
+  MINIMAX_H3_BASE_FRAMES
 } from './utils/index.js';
 import { ApiError } from '../ApiClient/index.js';
 import {
@@ -113,6 +123,59 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
         errorCode: 0,
         message: `${workflowType} workflow does not support ${assetKey}. Please remove this asset.`
       });
+    }
+  }
+}
+
+function validateMinimaxH3Params(params: VideoProjectParams): void {
+  if (!isMinimaxH3Model(params.modelId)) return;
+
+  const invalid = (message: string): never => {
+    throw new ApiError(400, { status: 'error', errorCode: 0, message });
+  };
+  if (params.fps !== undefined && params.fps !== 24) {
+    invalid('MiniMax H3 fps is fixed at 24. Omit fps or set it to 24.');
+  }
+  if (params.steps !== undefined && params.steps !== 20) {
+    invalid('MiniMax H3 steps are fixed at 20.');
+  }
+  if (params.guidance !== undefined && params.guidance !== 1) {
+    invalid('MiniMax H3 guidance is fixed at 1.');
+  }
+  if (params.negativePrompt?.trim()) {
+    invalid('MiniMax H3 has no negative-prompt input. Put requested exclusions in positivePrompt.');
+  }
+  if (params.frames !== undefined) {
+    const frames = Number(params.frames);
+    if (
+      !Number.isInteger(frames) ||
+      frames < MINIMAX_H3_MIN_FRAMES ||
+      frames > MINIMAX_H3_MAX_FRAMES ||
+      (frames - MINIMAX_H3_BASE_FRAMES) % MINIMAX_H3_FRAME_STEP !== 0
+    ) {
+      invalid('MiniMax H3 frames must be 124 + n*17 in the inclusive range 124-362.');
+    }
+  }
+  if ((params.width === undefined) !== (params.height === undefined)) {
+    invalid('MiniMax H3 width and height must be provided together.');
+  }
+  if (params.width !== undefined && params.height !== undefined) {
+    const width = Number(params.width);
+    const height = Number(params.height);
+    if (
+      !Number.isInteger(width) ||
+      !Number.isInteger(height) ||
+      width < MINIMAX_H3_DIMENSION_STEP ||
+      height < MINIMAX_H3_DIMENSION_STEP ||
+      width > MINIMAX_H3_MAX_DIMENSION ||
+      height > MINIMAX_H3_MAX_DIMENSION ||
+      width % MINIMAX_H3_DIMENSION_STEP !== 0 ||
+      height % MINIMAX_H3_DIMENSION_STEP !== 0 ||
+      width * height > MINIMAX_H3_MAX_PIXELS
+    ) {
+      invalid(
+        'MiniMax H3 dimensions must use a 32px grid, stay at or below 1344px per axis, and fit within 1,032,192 pixels.'
+      );
     }
   }
 }
@@ -269,6 +332,10 @@ function validateHappyhorseReferenceAssets(params: VideoProjectParams): void {
 }
 
 function getMaxVideoDuration(modelId: string): number {
+  if (isMinimaxH3Model(modelId)) {
+    // 362 frames at a fixed 24fps, the top of the H3 frame grid.
+    return MINIMAX_H3_MAX_DURATION;
+  }
   if (isExternalApiVideoModel(modelId)) {
     return 15;
   }
@@ -478,6 +545,7 @@ function applyVideoParams(
     });
   }
   validateVideoWorkflowAssets(params);
+  validateMinimaxH3Params(params);
   const keyFrame: Record<string, any> = { ...inputKeyframe };
   if (params.referenceImage) {
     keyFrame.hasReferenceImage = true;
@@ -520,19 +588,22 @@ function applyVideoParams(
   // Note: fps must be processed before duration to correctly calculate frames for LTX-2.3 models
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;
-  } else if (isExternalApiVideoModel(params.modelId)) {
+  } else if (isExternalApiVideoModel(params.modelId) || isMinimaxH3Model(params.modelId)) {
     keyFrame.fps = 24;
   }
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
   }
   if (params.duration !== undefined) {
-    // Minimum direct-SDK duration: HappyHorse 3s, Seedance 4s, others 1s.
-    const minDuration = isHappyhorseModel(params.modelId)
-      ? 3
-      : isSeedanceModel(params.modelId)
-        ? 4
-        : 1;
+    // Minimum direct-SDK duration: MiniMax H3 5.167s (124 frames at 24fps,
+    // the bottom of its frame grid), HappyHorse 3s, Seedance 4s, others 1s.
+    const minDuration = isMinimaxH3Model(params.modelId)
+      ? MINIMAX_H3_MIN_DURATION
+      : isHappyhorseModel(params.modelId)
+        ? 3
+        : isSeedanceModel(params.modelId)
+          ? 4
+          : 1;
     const duration = validateVideoDuration(
       params.duration,
       minDuration,
@@ -598,8 +669,13 @@ function applyVideoParams(
 
   // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
   if (params.width && params.height) {
-    keyFrame.width = validateVideoSize(params.width, 'width');
-    keyFrame.height = validateVideoSize(params.height, 'height');
+    if (isMinimaxH3Model(params.modelId)) {
+      keyFrame.width = Number(params.width);
+      keyFrame.height = Number(params.height);
+    } else {
+      keyFrame.width = validateVideoSize(params.width, 'width');
+      keyFrame.height = validateVideoSize(params.height, 'height');
+    }
   }
 
   // Outpaint canvas anchor for LTX-2.3 v2v outpaint workflows
@@ -660,7 +736,10 @@ function applyAudioParams(
 function createJobRequestMessage(id: string, params: ProjectParams, options: ModelOptions) {
   const template = getTemplate();
   const negativePrompt =
-    isImageParams(params) || (isVideoParams(params) && !isExternalApiVideoModel(params.modelId))
+    isImageParams(params) ||
+    (isVideoParams(params) &&
+      !isExternalApiVideoModel(params.modelId) &&
+      !isMinimaxH3Model(params.modelId))
       ? params.negativePrompt
       : undefined;
   // Base keyFrame with common params
@@ -680,7 +759,11 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     ...(params.loraStrengths &&
       params.loraStrengths.length > 0 && { loraStrengths: params.loraStrengths })
   };
-  if (isAudioParams(params) || (isVideoParams(params) && isExternalApiVideoModel(params.modelId))) {
+  if (
+    isAudioParams(params) ||
+    (isVideoParams(params) &&
+      (isExternalApiVideoModel(params.modelId) || isMinimaxH3Model(params.modelId)))
+  ) {
     delete keyFrame.negativePrompt;
   }
 

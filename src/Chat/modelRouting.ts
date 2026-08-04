@@ -1,10 +1,18 @@
 import {
+  calculateVideoFrames,
   getVideoWorkflowType,
   isHappyhorseModel,
-  isExternalApiVideoModel
+  isExternalApiVideoModel,
+  isMinimaxH3Model
 } from '../Projects/utils/index.js';
 
-export { getVideoWorkflowType, isHappyhorseModel, isExternalApiVideoModel };
+export {
+  calculateVideoFrames,
+  getVideoWorkflowType,
+  isHappyhorseModel,
+  isExternalApiVideoModel,
+  isMinimaxH3Model
+};
 
 /**
  * Public SDK-local routing helpers. The hosted-tool argument validator
@@ -33,6 +41,7 @@ export type BackboneMediaType = 'image' | 'video' | 'audio';
 export type VideoWorkflow =
   | 't2v'
   | 'i2v'
+  | 'flf2v'
   | 's2v'
   | 'ia2v'
   | 'a2v'
@@ -99,6 +108,9 @@ export const PREFERRED_MODEL_IDS = {
     happyhorseT2v: 'happyhorse-1.1-t2v',
     happyhorseI2v: 'happyhorse-1.1-i2v',
     happyhorseR2v: 'happyhorse-1.1-r2v',
+    minimaxH3T2v: 'minimax-h3-fl2va-fp8_t2v',
+    minimaxH3I2v: 'minimax-h3-fl2va-fp8_i2v',
+    minimaxH3Flf2v: 'minimax-h3-fl2va-fp8_flf2v',
     animateMove: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
@@ -200,6 +212,8 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   seedance2: PREFERRED_MODEL_IDS.video.seedanceT2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastT2v,
+  'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
+  'minimax-h3-t2v': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseT2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseT2v
 };
@@ -210,8 +224,13 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   seedance2: PREFERRED_MODEL_IDS.video.seedanceI2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastI2v,
+  'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
+  'minimax-h3-i2v': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
+  'minimax-h3-flf2v': PREFERRED_MODEL_IDS.video.minimaxH3Flf2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseI2v,
-  'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseI2v
+  'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseI2v,
+  'happyhorse-1.1-i2v': PREFERRED_MODEL_IDS.video.happyhorseI2v,
+  'happyhorse-1.1-r2v': PREFERRED_MODEL_IDS.video.happyhorseR2v
 };
 
 const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
@@ -280,8 +299,8 @@ export function getHostedVariationCount(
   args: Record<string, unknown>,
   fallback: unknown = 1
 ): number {
-  if (args.number_of_variations !== undefined) {
-    return clampVariationCount(args.number_of_variations);
+  if (args.numberOfVariations !== undefined) {
+    return clampVariationCount(args.numberOfVariations);
   }
   return clampVariationCount(fallback, 1);
 }
@@ -294,7 +313,13 @@ export function resolveHostedToolModelSelector(
     return undefined;
   }
 
-  const requestedModel = isNonEmptyString(args.model) ? args.model : undefined;
+  const usesVideoModel =
+    toolName === 'generate_video' ||
+    toolName === 'animate_photo' ||
+    toolName === 'sound_to_video' ||
+    toolName === 'video_to_video';
+  const requestedModelValue = usesVideoModel ? args.videoModel : args.model;
+  const requestedModel = isNonEmptyString(requestedModelValue) ? requestedModelValue : undefined;
   if (!requestedModel) {
     return undefined;
   }
@@ -309,9 +334,12 @@ export function resolveHostedToolModelSelector(
       break;
     case 'generate_video':
       selectors =
-        isNonEmptyString(args.reference_image_url) || isNonEmptyString(args.reference_image_end_url)
+        Array.isArray(args.referenceImageIndices) && args.referenceImageIndices.length > 0
           ? IMAGE_VIDEO_MODEL_SELECTORS
           : TEXT_VIDEO_MODEL_SELECTORS;
+      break;
+    case 'animate_photo':
+      selectors = IMAGE_VIDEO_MODEL_SELECTORS;
       break;
     case 'sound_to_video':
       selectors = SOUND_TO_VIDEO_MODEL_SELECTORS;
@@ -433,6 +461,10 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   const isLtx2 = modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
   const isSeedance = modelId.startsWith('seedance-2-0');
   const isHappyhorse = modelId.startsWith('happyhorse-1.1');
+
+  if (isMinimaxH3Model(modelId)) {
+    return { width: 1344, height: 768, fps: 24 };
+  }
 
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };

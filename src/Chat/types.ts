@@ -652,6 +652,20 @@ export interface ToolExecutionOptions {
   numberOfMedia?: number;
   /** Optional workload attribution for media projects executed by the tool. */
   attribution?: WorkloadAttributionInput;
+  /**
+   * Indexed media available to canonical hosted-tool arguments such as
+   * `referenceImageIndices`. Non-negative indices address generated media;
+   * negative indices address uploaded media (`-1` is the first upload).
+   * Values must be inline data URIs or trusted Sogni/S3/CloudFront HTTPS URLs.
+   */
+  mediaContext?: {
+    images?: string[];
+    videos?: string[];
+    audio?: string[];
+    uploadedImages?: string[];
+    uploadedVideos?: string[];
+    uploadedAudio?: string[];
+  };
   /** Progress callback fired during media generation. */
   onProgress?: (progress: ToolExecutionProgress) => void;
   /**

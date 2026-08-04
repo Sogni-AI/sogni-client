@@ -173,6 +173,18 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Direct SDK project duration range is 3 to 15 seconds
  * - Frame count is calculated as: `duration * 24 + 1`
  * - Image-only reference context: no reference video or reference audio assets
+ *
+ * ### MiniMax H3 Models (minimax-h3-*)
+ * - Text-to-video, first-frame image-to-video, and first-and-last-frame video.
+ * - Video and 32kHz stereo audio are generated jointly. Audio is included by
+ *   default; set `generateAudio: false` to return a video without an audio track.
+ * - Generation is fixed at 24fps, 20 steps, guidance 1,
+ *   `res_multistep`/`simple`, with no separate negative-prompt input.
+ * - Frames follow `124 + n*17` from 124 through 362. Dimensions use a 32px
+ *   grid, with a 1344px per-axis limit and a 1032192-pixel canvas limit.
+ * - The `flf2v` model requires both `referenceImage` and `referenceImageEnd`.
+ * - See the repository's authoring examples:
+ *   https://github.com/Sogni-AI/sogni-client/blob/alpha/examples/workflow_minimax_h3_video.mjs
  */
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
@@ -184,13 +196,16 @@ export interface VideoProjectParams extends BaseProjectParams {
   frames?: number;
   /**
    * Duration of the video in seconds. Supported range 1 to 10 (WAN), 4 to 20 (LTX-2.3),
-   * 4 to 15 (Seedance direct SDK projects), or 3 to 15 (HappyHorse direct SDK projects).
+   * 4 to 15 (Seedance direct SDK projects), 3 to 15 (HappyHorse direct SDK projects),
+   * or 124/24 to 362/24 seconds (MiniMax H3).
    *
    * The SDK automatically calculates the correct frame count based on the model:
    * - WAN 2.2: `duration * 16 + 1` (always 16fps generation)
    * - LTX-2.3: `duration * fps + 1`, snapped to frame step constraint
    * - Seedance: `duration * 24 + 1`
    * - HappyHorse: `duration * 24 + 1`
+   * - MiniMax H3: `duration * 24` snapped to the `124 + n*17` grid and clamped
+   *   to 124-362 frames (always 24fps generation, and no `+1` term)
    */
   duration?: number;
   /**
@@ -205,6 +220,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    * **Seedance Models:** Fixed 24fps external API generation.
    *
    * **HappyHorse Models:** Fixed 24fps external API generation.
+   *
+   * **MiniMax H3 Models:** Fixed 24fps. Omit this field or pass 24.
    */
   fps?: number;
   /**
@@ -234,6 +251,10 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * Optional end image for i2v interpolation workflows.
    * When provided with referenceImage, the video will interpolate between the two images.
+   *
+   * Required, together with `referenceImage`, for the MiniMax H3 `flf2v`
+   * workflow (`minimax-h3-fl2va-fp8_flf2v`), which always interpolates between
+   * two anchor frames.
    */
   referenceImageEnd?: InputMedia;
   /**
@@ -247,8 +268,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceAudioUrls?: string[];
   /**
-   * Enable native audio generation for external API-backed video models that support it.
-   * Seedance defaults to audio enabled server-side; set to false to request a silent video.
+   * Include the model's generated/native audio track when supported. Audio is
+   * enabled by default; set to false to return a video without an audio track.
    */
   generateAudio?: boolean;
   /**
@@ -706,12 +727,16 @@ export interface CostEstimation {
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
 
 /**
- * Video workflow types for WAN, LTX-2.3, Seedance, and HappyHorse models.
+ * Video workflow types for WAN, LTX-2.3, Seedance, HappyHorse, and MiniMax H3
+ * models.
  * `r2v` (reference-to-video) is the HappyHorse multi-reference-image workflow.
+ * `flf2v` (first-and-last-frame-to-video) is the MiniMax H3 workflow that
+ * interpolates between two required anchor images.
  */
 export type VideoWorkflowType =
   | 't2v'
   | 'i2v'
+  | 'flf2v'
   | 's2v'
   | 'ia2v'
   | 'a2v'

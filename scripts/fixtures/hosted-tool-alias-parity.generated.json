@@ -83,7 +83,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_video",
       "sdkToolName": "generate_video",
-      "hostedSchemaSha256": "1b6f26fec4c79a45de79aa1fee5550ec77e8727010d57b6a625e923645932452",
+      "hostedSchemaSha256": "6650711393daa661945c500fcc538951b64df121de402533ca4c940b99d24beb",
       "hostedRequired": [
         "prompt"
       ],
@@ -126,7 +126,7 @@
       "executionMode": "direct",
       "hostedToolName": "animate_photo",
       "sdkToolName": "animate_photo",
-      "hostedSchemaSha256": "75092d0106e74ea205c0a85dba2d7efde262135eea63437b0a6488125f5058d6",
+      "hostedSchemaSha256": "9bffbc9163b120cf0bd7a0f54ee795c782256dcfc8fbe704ad1e403e5821a490",
       "hostedRequired": [
         "prompt"
       ],
@@ -135,6 +135,7 @@
         "expandPrompt",
         "skipPromptProcessing",
         "videoModel",
+        "generateAudio",
         "negativePrompt",
         "duration",
         "targetResolution",
@@ -170,7 +171,7 @@
       "executionMode": "direct",
       "hostedToolName": "sound_to_video",
       "sdkToolName": "sound_to_video",
-      "hostedSchemaSha256": "d4256ae213fcd3b516c9967f2e3aacf0e2af3ca39375e98c3a19c89b664ccd1b",
+      "hostedSchemaSha256": "9dcdde5355f9790b432c643df6c8fcde64486e4ce13b8f2e9eba2c2332cedc21",
       "hostedRequired": [
         "prompt"
       ],
@@ -206,7 +207,7 @@
       "executionMode": "direct",
       "hostedToolName": "video_to_video",
       "sdkToolName": "video_to_video",
-      "hostedSchemaSha256": "54b3996f970a5272d6989e602f62c45b54c3d3c1a191c1619a0dd7a96515ccdc",
+      "hostedSchemaSha256": "a4b0d8197f08f39d07836c85685ca48883bd36a0d45ccd0b237c1b9b11338e70",
       "hostedRequired": [
         "prompt"
       ],

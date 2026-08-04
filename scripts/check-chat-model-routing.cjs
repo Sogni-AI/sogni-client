@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
+const { EventEmitter } = require('node:events');
 const hostedAliasParityVector = require('./fixtures/hosted-tool-alias-parity.generated.json');
 const {
   PREFERRED_MODEL_IDS,
@@ -21,12 +22,19 @@ const {
   validateHostedToolArguments
 } = require('../dist/Chat/modelRouting.js');
 const { parseCreativeWorkflowSseChunk } = require('../dist/CreativeWorkflows/index.js');
+const createJobRequestMessage = require('../dist/Projects/createJobRequestMessage.js').default;
+const {
+  calculateVideoFrames,
+  isMinimaxH3Model,
+  VIDEO_WORKFLOW_ASSETS
+} = require('../dist/Projects/utils/index.js');
 const {
   getMaxContextImages,
   isComfyModel,
   validateCustomImageSize
 } = require('../dist/lib/validation.js');
 const { SogniTools } = require('../dist/Chat/tools.js');
+const ChatToolsApi = require('../dist/Chat/ChatTools.js').default;
 
 function stableValue(value) {
   if (Array.isArray(value)) return value.map(stableValue);
@@ -235,6 +243,101 @@ assert.equal(getVideoWorkflowType(PREFERRED_MODEL_IDS.video.happyhorseT2v), 't2v
 assert.equal(getVideoWorkflowType(PREFERRED_MODEL_IDS.video.happyhorseI2v), 'i2v');
 assert.equal(getVideoWorkflowType(PREFERRED_MODEL_IDS.video.happyhorseR2v), 'r2v');
 
+const minimaxH3ModelIds = {
+  t2v: 'minimax-h3-fl2va-fp8_t2v',
+  i2v: 'minimax-h3-fl2va-fp8_i2v',
+  flf2v: 'minimax-h3-fl2va-fp8_flf2v'
+};
+assert.ok(Object.values(minimaxH3ModelIds).every(isMinimaxH3Model));
+assert.equal(getVideoWorkflowType(minimaxH3ModelIds.t2v), 't2v');
+assert.equal(getVideoWorkflowType(minimaxH3ModelIds.i2v), 'i2v');
+assert.equal(getVideoWorkflowType(minimaxH3ModelIds.flf2v), 'flf2v');
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3T2v, minimaxH3ModelIds.t2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3I2v, minimaxH3ModelIds.i2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3Flf2v, minimaxH3ModelIds.flf2v);
+assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 5, 24, 125), 141);
+assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 5, 24, undefined, 125), 124);
+assert.throws(
+  () => calculateVideoFrames(minimaxH3ModelIds.t2v, 5, 24, 125, 130),
+  /No valid MiniMax H3 frame count exists/
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'minimax-h3-t2v' }),
+  minimaxH3ModelIds.t2v
+);
+assert.deepEqual(getVideoDefaults(minimaxH3ModelIds.t2v), { width: 1344, height: 768, fps: 24 });
+assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 5, 60), 124);
+assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 8, 60), 192);
+assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 10, 60), 243);
+assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 15, 60), 362);
+assert.deepEqual(VIDEO_WORKFLOW_ASSETS.flf2v, {
+  referenceImage: 'required',
+  referenceImageEnd: 'required',
+  referenceAudio: 'forbidden',
+  referenceAudioIdentity: 'forbidden',
+  referenceVideo: 'forbidden',
+  referenceMask: 'forbidden'
+});
+
+const minimaxH3Options = {
+  type: 'video',
+  steps: { min: 20, max: 20, step: 1, default: 20 },
+  guidance: { min: 1, max: 1, step: 1, default: 1 },
+  fps: { allowed: [24], default: 24 },
+  sampler: { allowed: ['res_multistep'], default: 'res_multistep' },
+  scheduler: { allowed: ['simple'], default: 'simple' }
+};
+const minimaxH3Params = {
+  type: 'video',
+  modelId: minimaxH3ModelIds.t2v,
+  numberOfMedia: 1,
+  positivePrompt: 'A continuous cinematic shot with synchronized location sound.',
+  duration: 10,
+  width: 1344,
+  height: 768,
+  steps: 20,
+  guidance: 1,
+  sampler: 'res_multistep',
+  scheduler: 'simple'
+};
+const minimaxH3Request = createJobRequestMessage(
+  'h3-test',
+  { ...minimaxH3Params, generateAudio: false },
+  minimaxH3Options
+);
+assert.equal(minimaxH3Request.keyFrames[0].fps, 24);
+assert.equal(minimaxH3Request.keyFrames[0].frames, 243);
+assert.equal(minimaxH3Request.keyFrames[0].width, 1344);
+assert.equal(minimaxH3Request.keyFrames[0].height, 768);
+assert.equal('negativePrompt' in minimaxH3Request.keyFrames[0], false);
+assert.equal(minimaxH3Request.keyFrames[0].generateAudio, false);
+assert.throws(
+  () => createJobRequestMessage('h3-bad-fps', { ...minimaxH3Params, fps: 25 }, minimaxH3Options),
+  /MiniMax H3 fps is fixed at 24/
+);
+assert.throws(
+  () =>
+    createJobRequestMessage(
+      'h3-bad-negative',
+      { ...minimaxH3Params, negativePrompt: 'blurry' },
+      minimaxH3Options
+    ),
+  /MiniMax H3 has no negative-prompt input/
+);
+assert.throws(
+  () =>
+    createJobRequestMessage(
+      'h3-missing-end',
+      {
+        ...minimaxH3Params,
+        modelId: minimaxH3ModelIds.flf2v,
+        referenceImage: true
+      },
+      minimaxH3Options
+    ),
+  /flf2v workflow requires referenceImageEnd/
+);
+
 // HappyHorse r2v is the only model in the fixture compatible with the r2v
 // workflow, so a workflow-only selection must resolve to it.
 assert.equal(
@@ -281,7 +384,7 @@ assert.equal(normalizeTimeSignature(3.8), '4');
 assert.equal(normalizeVideoControlMode('depth'), 'depth');
 assert.equal(normalizeVideoControlMode('seedance-v2v'), 'seedance-v2v');
 assert.equal(normalizeVideoControlMode('unknown'), 'animate-move');
-assert.equal(getHostedVariationCount({ number_of_variations: 20 }), 16);
+assert.equal(getHostedVariationCount({ numberOfVariations: 20 }), 16);
 assert.equal(getHostedVariationCount({}, 4.2), 4);
 assert.equal(
   validateCustomImageSize(3840, { modelId: 'gpt-image-2', propertyName: 'Width' }),
@@ -376,89 +479,101 @@ assert.equal(
   'future_live_model'
 );
 assert.equal(
-  resolveHostedToolModelSelector('generate_video', { model: 'ltx23' }),
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'ltx23' }),
   PREFERRED_MODEL_IDS.video.t2v
 );
 assert.equal(
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'minimax-h3-t2v' }),
+  PREFERRED_MODEL_IDS.video.minimaxH3T2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('animate_photo', { videoModel: 'minimax-h3-i2v' }),
+  PREFERRED_MODEL_IDS.video.minimaxH3I2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('animate_photo', { videoModel: 'minimax-h3-flf2v' }),
+  PREFERRED_MODEL_IDS.video.minimaxH3Flf2v
+);
+assert.equal(
   resolveHostedToolModelSelector('generate_video', {
-    model: 'ltx23',
-    reference_image_url: 'data:image/png;base64,aaa'
+    videoModel: 'ltx23',
+    referenceImageIndices: [-1]
   }),
   PREFERRED_MODEL_IDS.video.i2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('generate_video', { model: 'seedance2' }),
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'seedance2' }),
   PREFERRED_MODEL_IDS.video.seedanceT2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('generate_video', { model: 'seedance2-mini' }),
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'seedance2-mini' }),
   PREFERRED_MODEL_IDS.video.seedanceMiniT2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('generate_video', { model: 'seedance2-fast' }),
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'seedance2-fast' }),
   PREFERRED_MODEL_IDS.video.seedanceFastT2v
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', {
-    model: 'seedance2',
-    reference_image_url: 'data:image/png;base64,aaa'
+    videoModel: 'seedance2',
+    referenceImageIndices: [-1]
   }),
   PREFERRED_MODEL_IDS.video.seedanceI2v
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', {
-    model: 'seedance2-mini',
-    reference_image_url: 'data:image/png;base64,aaa'
+    videoModel: 'seedance2-mini',
+    referenceImageIndices: [-1]
   }),
   PREFERRED_MODEL_IDS.video.seedanceMiniI2v
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', {
-    model: 'seedance2-fast',
-    reference_image_url: 'data:image/png;base64,aaa'
+    videoModel: 'seedance2-fast',
+    referenceImageIndices: [-1]
   }),
   PREFERRED_MODEL_IDS.video.seedanceFastI2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('generate_video', { model: 'happyhorse' }),
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'happyhorse' }),
   PREFERRED_MODEL_IDS.video.happyhorseT2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('generate_video', { model: 'happyhorse1.1' }),
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'happyhorse1.1' }),
   PREFERRED_MODEL_IDS.video.happyhorseT2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('generate_video', { model: 'HappyHorse' }),
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'HappyHorse' }),
   PREFERRED_MODEL_IDS.video.happyhorseT2v
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', {
-    model: 'happyhorse',
-    reference_image_url: 'data:image/png;base64,aaa'
+    videoModel: 'happyhorse',
+    referenceImageIndices: [-1]
   }),
   PREFERRED_MODEL_IDS.video.happyhorseI2v
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', {
-    model: 'happyhorse1.1',
-    reference_image_url: 'data:image/png;base64,aaa'
+    videoModel: 'happyhorse1.1',
+    referenceImageIndices: [-1]
   }),
   PREFERRED_MODEL_IDS.video.happyhorseI2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('video_to_video', { model: 'seedance2' }),
+  resolveHostedToolModelSelector('video_to_video', { videoModel: 'seedance2' }),
   PREFERRED_MODEL_IDS.video.seedanceV2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('sound_to_video', { model: 'wan-s2v' }),
+  resolveHostedToolModelSelector('sound_to_video', { videoModel: 'wan-s2v' }),
   PREFERRED_MODEL_IDS.video.s2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('sound_to_video', { model: 'seedance2' }),
+  resolveHostedToolModelSelector('sound_to_video', { videoModel: 'seedance2' }),
   PREFERRED_MODEL_IDS.video.seedanceIa2v
 );
 assert.equal(
-  resolveHostedToolModelSelector('sound_to_video', { model: 'seedance2-mini' }),
+  resolveHostedToolModelSelector('sound_to_video', { videoModel: 'seedance2-mini' }),
   PREFERRED_MODEL_IDS.video.seedanceIa2v
 );
 assert.equal(
@@ -529,4 +644,101 @@ assert.deepEqual(
   ]
 );
 
-console.log('chat model routing parity checks passed');
+async function checkCanonicalDirectVideoExecution() {
+  const tinyPng =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  let capturedParams;
+  const projects = {
+    waitForModels: async () => [
+      { id: PREFERRED_MODEL_IDS.video.i2v, media: 'video', workerCount: 1 },
+      { id: PREFERRED_MODEL_IDS.video.happyhorseR2v, media: 'video', workerCount: 1 }
+    ],
+    create: async (params) => {
+      capturedParams = params;
+      const project = new EventEmitter();
+      project.id = 'project_direct_video_test';
+      project.waitForCompletion = async () => ['https://cdn.sogni.ai/direct-video-test.mp4'];
+      project.cancel = async () => {};
+      return project;
+    }
+  };
+  const api = new ChatToolsApi(projects);
+  const toolCall = {
+    id: 'call_direct_video_test',
+    type: 'function',
+    function: {
+      name: 'generate_video',
+      arguments: JSON.stringify({
+        prompt: 'Animate this still frame.',
+        videoModel: 'ltx23',
+        referenceImageIndices: [-1],
+        numberOfVariations: 3
+      })
+    }
+  };
+
+  const missingContext = await api.execute(toolCall);
+  assert.equal(missingContext.success, false);
+  assert.match(missingContext.error, /ToolExecutionOptions\.mediaContext/);
+  assert.equal(capturedParams, undefined);
+
+  const result = await api.execute(toolCall, {
+    mediaContext: { uploadedImages: [tinyPng] }
+  });
+  assert.equal(result.success, true);
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.video.i2v);
+  assert.equal(capturedParams.numberOfMedia, 3);
+  assert.ok(capturedParams.referenceImage instanceof Blob);
+
+  const happyhorseCall = {
+    ...toolCall,
+    id: 'call_direct_happyhorse_test',
+    function: {
+      name: 'generate_video',
+      arguments: JSON.stringify({
+        prompt: 'Use both images as character references.',
+        videoModel: 'happyhorse-1.1-r2v',
+        referenceImageIndices: [-1, -2]
+      })
+    }
+  };
+  const happyhorseResult = await api.execute(happyhorseCall, {
+    mediaContext: {
+      uploadedImages: [
+        'https://cdn.sogni.ai/reference-a.png',
+        'https://cdn.sogni.ai/reference-b.png'
+      ]
+    }
+  });
+  assert.equal(happyhorseResult.success, true);
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.video.happyhorseR2v);
+  assert.deepEqual(capturedParams.referenceImageUrls, [
+    'https://cdn.sogni.ai/reference-a.png',
+    'https://cdn.sogni.ai/reference-b.png'
+  ]);
+
+  const invalidH3Call = {
+    ...toolCall,
+    id: 'call_direct_h3_reference_test',
+    function: {
+      name: 'generate_video',
+      arguments: JSON.stringify({
+        prompt: 'Animate this image.',
+        videoModel: 'minimax-h3-t2v',
+        referenceImageIndices: [-1]
+      })
+    }
+  };
+  const invalidH3Result = await api.execute(invalidH3Call, {
+    mediaContext: { uploadedImages: [tinyPng] }
+  });
+  assert.equal(invalidH3Result.success, false);
+  assert.match(invalidH3Result.error, /minimax-h3-t2v does not accept reference images/);
+}
+
+checkCanonicalDirectVideoExecution()
+  .then(() => console.log('chat model routing parity checks passed'))
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

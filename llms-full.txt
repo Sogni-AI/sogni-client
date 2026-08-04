@@ -1257,6 +1257,8 @@ MEDIA-CONDITIONED TOOL INPUTS:
 - `reference_video_url`
   These direct media arguments use inline base64-encoded `data:` URIs. Tool image inputs accept PNG/JPEG, tool audio inputs accept MP3/M4A/WAV, and tool video inputs accept MP4 or MOV/QuickTime. For uploaded or Sogni-hosted HTTP(S) assets, pass media through request-level `mediaReferences` / `mediaContext` or through `sogni.workflows` dependencies.
 
+For client-side `sogni.chat.tools.execute()` / `executeAll()`, canonical indexed arguments such as `referenceImageIndices` resolve through `ToolExecutionOptions.mediaContext`. Non-negative indices address `images` / `videos` / `audio`; negative indices address `uploadedImages` / `uploadedVideos` / `uploadedAudio` (`-1` is the first upload). The SDK's non-streaming `autoExecuteTools` loop builds image context from vision-message inputs and carries successful generated-media URLs into later rounds automatically.
+
 DEFAULT GENERATION MODELS (used by the canonical generation tools):
 | Tool | Model ID | Description |
 |------|----------|-------------|
