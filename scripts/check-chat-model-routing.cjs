@@ -881,6 +881,8 @@ async function checkCanonicalDirectVideoExecution() {
       capturedParams = params;
       const project = new EventEmitter();
       project.id = 'project_direct_video_test';
+      project.jobs = [];
+      project.finished = false;
       project.waitForCompletion = async () => ['https://cdn.sogni.ai/direct-video-test.mp4'];
       project.cancel = async () => {};
       return project;

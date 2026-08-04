@@ -210,9 +210,12 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       this._lastEmitedProgress = progress;
     }
     // If project is finished stop watching for timeout
-    if (this._timeout && this.finished) {
-      clearInterval(this._timeout!);
-      this._timeout = null;
+    if (this.finished) {
+      if (this._timeout) {
+        clearInterval(this._timeout);
+        this._timeout = null;
+      }
+      this._jobs.forEach((job) => job._stopRuntimeTimeout());
     }
     if (keys.includes('status') || keys.includes('jobs')) {
       const allJobsStarted = this.jobs.length >= this.params.numberOfMedia;
@@ -259,6 +262,37 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       this.emit('jobFailed', job);
     });
     return job;
+  }
+
+  /**
+   * Fail and cancel a project when one actual worker job exceeds its hard
+   * runtime ceiling. Queue time is deliberately excluded: the Job timer starts
+   * only after jobStarted changes that job to processing.
+   * @internal
+   */
+  _handleJobRuntimeTimeout(job: Job) {
+    if (this.finished || job.finished || !this._jobs.includes(job)) return;
+
+    const jobError: ErrorData = {
+      code: 0,
+      message: 'Job exceeded the maximum runtime of 30 minutes'
+    };
+    this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
+      this._logger.error(`Failed to cancel project ${this.id} after job ${job.id} timed out`);
+      this._logger.error(cancelError);
+    });
+    this._jobs.forEach((projectJob) => {
+      if (!projectJob.finished) {
+        projectJob._update({ status: 'failed', error: jobError });
+      }
+    });
+    this._update({
+      status: 'failed',
+      error: {
+        code: 0,
+        message: `Job ${job.id} exceeded the maximum runtime of 30 minutes; project canceled`
+      }
+    });
   }
 
   private _checkForTimeout() {

@@ -11,6 +11,11 @@ import { getEnhacementStrength } from './utils/index.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
 
+// A worker job must never occupy a worker indefinitely. This starts only when
+// the socket reports jobStarted (or progress proves the job has started) and is
+// intentionally not refreshed by progress events.
+const JOB_RUNTIME_TIMEOUT = 30 * 60 * 1000;
+
 export const enhancementDefaults = {
   network: 'fast' as SupernetType,
   modelId: 'flux1-schnell-fp8',
@@ -153,6 +158,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
   private readonly _logger: Logger;
   private readonly _project: Project;
   private _enhancementProject: Project | null = null;
+  private _runtimeTimeout: NodeJS.Timeout | null = null;
 
   constructor(data: JobData, options: JobOptions) {
     super(data);
@@ -163,6 +169,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
 
     this.on('updated', this.handleUpdated.bind(this));
     this.handleEnhancementUpdate = this.handleEnhancementUpdate.bind(this);
+
+    if (this.status === 'processing') {
+      this._startRuntimeTimeout();
+    }
   }
 
   get id() {
@@ -438,6 +448,30 @@ class Job extends DataEntity<JobData, JobEventMap> {
       }
     }
     super._update(delta);
+    if (this.status === 'processing') {
+      this._startRuntimeTimeout();
+    } else if (this.finished) {
+      this._stopRuntimeTimeout();
+    }
+  }
+
+  /** @internal */
+  _stopRuntimeTimeout() {
+    if (this._runtimeTimeout) {
+      clearTimeout(this._runtimeTimeout);
+      this._runtimeTimeout = null;
+    }
+  }
+
+  private _startRuntimeTimeout() {
+    // Never reset the deadline on progress. The first processing transition is
+    // the hard start time for this actual worker job.
+    if (this._runtimeTimeout || this.finished) return;
+    this._runtimeTimeout = setTimeout(() => {
+      this._runtimeTimeout = null;
+      if (this.status !== 'processing' || this._project.finished) return;
+      this._project._handleJobRuntimeTimeout(this);
+    }, JOB_RUNTIME_TIMEOUT);
   }
 
   private handleUpdated(keys: string[]) {

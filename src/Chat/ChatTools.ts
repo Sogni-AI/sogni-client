@@ -32,7 +32,7 @@ import {
   ToolExecutionResult
 } from './types.js';
 
-const DEFAULT_TIMEOUT = 30 * 60 * 1000;
+const DEFAULT_TIMEOUT = 90 * 60 * 1000;
 const MAX_SOGNI_TOOL_CALLS_PER_ROUND = 8;
 
 const DIRECT_PROJECT_DISPATCH_TOOL_NAMES: ReadonlySet<string> = new Set([
@@ -285,9 +285,57 @@ class ChatToolsApi {
     } as any);
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let rejectQueueTimeout: ((error: Error) => void) | null = null;
     let jobsCompleted = 0;
     let jobsFailed = 0;
     const totalJobs = (projectParams.numberOfMedia as number) || 1;
+    const watchedJobs = new Map<(typeof project.jobs)[number], (keys: string[]) => void>();
+    let hadProcessingJob = project.jobs.some((job) => job.status === 'processing');
+
+    const clearQueueTimeout = () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+    const hasProcessingJob = () => project.jobs.some((job) => job.status === 'processing');
+    const armQueueTimeout = () => {
+      clearQueueTimeout();
+      if (project.finished || hasProcessingJob() || !rejectQueueTimeout) return;
+      timeoutId = setTimeout(() => {
+        timeoutId = null;
+        // A job may have started on the same turn as the timer fired. Active
+        // worker jobs are governed by their own non-resetting 30-minute limit.
+        if (project.finished || hasProcessingJob() || !rejectQueueTimeout) return;
+        rejectQueueTimeout(
+          new Error(
+            `${mediaType} generation waited ${Math.round(timeout / 1000)}s without an active job ` +
+              `(project: ${project.id}, jobs: ${jobsCompleted}/${totalJobs} completed, ${jobsFailed} failed). ` +
+              `Increase the timeout option or check network worker availability.`
+          )
+        );
+      }, timeout);
+    };
+    const syncQueueTimeout = () => {
+      if (hasProcessingJob()) {
+        hadProcessingJob = true;
+        clearQueueTimeout();
+      } else if (hadProcessingJob) {
+        // Only a real processing interval earns a fresh queue window. Pending
+        // or initiating status changes must not extend one continuous wait.
+        hadProcessingJob = false;
+        armQueueTimeout();
+      }
+    };
+    const watchJob = (job: (typeof project.jobs)[number]) => {
+      if (watchedJobs.has(job)) return;
+      const onUpdated = (keys: string[]) => {
+        if (keys.includes('status')) syncQueueTimeout();
+      };
+      watchedJobs.set(job, onUpdated);
+      job.on('updated', onUpdated);
+    };
+    const onJobAdded = (job: (typeof project.jobs)[number]) => watchJob(job);
 
     const onJobCompleted = () => {
       jobsCompleted++;
@@ -308,6 +356,8 @@ class ChatToolsApi {
     project.on('progress', onProgress);
     project.on('jobCompleted', onJobCompleted);
     project.on('jobFailed', onJobFailed);
+    project.on('jobStarted', onJobAdded);
+    project.jobs.forEach(watchJob);
 
     options?.onProgress?.({ status: 'queued', percent: 0 });
 
@@ -315,15 +365,8 @@ class ChatToolsApi {
       const resultUrls = await Promise.race<string[]>([
         project.waitForCompletion(),
         new Promise<never>((_, reject) => {
-          timeoutId = setTimeout(() => {
-            reject(
-              new Error(
-                `${mediaType} generation timed out after ${Math.round(timeout / 1000)}s ` +
-                  `(project: ${project.id}, jobs: ${jobsCompleted}/${totalJobs} completed, ${jobsFailed} failed). ` +
-                  `Increase the timeout option or check network worker availability.`
-              )
-            );
-          }, timeout);
+          rejectQueueTimeout = reject;
+          armQueueTimeout();
         })
       ]);
 
@@ -352,10 +395,13 @@ class ChatToolsApi {
       options?.onProgress?.({ status: 'failed', percent: 0 });
       throw err;
     } finally {
-      if (timeoutId !== null) clearTimeout(timeoutId);
+      rejectQueueTimeout = null;
+      clearQueueTimeout();
       project.off('progress', onProgress);
       project.off('jobCompleted', onJobCompleted);
       project.off('jobFailed', onJobFailed);
+      project.off('jobStarted', onJobAdded);
+      watchedJobs.forEach((onUpdated, job) => job.off('updated', onUpdated));
     }
   }
 

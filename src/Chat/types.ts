@@ -669,11 +669,13 @@ export interface ToolExecutionOptions {
   /** Progress callback fired during media generation. */
   onProgress?: (progress: ToolExecutionProgress) => void;
   /**
-   * Timeout in milliseconds for media generation. If the project does not
-   * complete within this time, the tool call will fail with a timeout error
-   * and the project will be canceled.
+   * Maximum continuous time in milliseconds to wait without an actual worker
+   * job processing. The countdown pauses while any job is processing and
+   * restarts between jobs, so this is not a total project-duration limit.
+   * Actual worker jobs have a separate, non-configurable 30-minute runtime
+   * safety limit beginning at jobStart.
    *
-   * Default: 1800000 (30 minutes).
+   * Default: 5400000 (90 minutes).
    */
   timeout?: number;
 }

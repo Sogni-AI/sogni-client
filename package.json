@@ -64,6 +64,7 @@
     "test:attribution": "npm run build && node scripts/check-attribution-transport.cjs",
     "test:subscription-api": "npm run build && node scripts/check-subscription-api.cjs",
     "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
+    "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
     "test:workflow-template-envelope": "npm run build && node scripts/check-workflow-template-envelope.cjs",
     "watch": "npm run clean && npm run codegen && tsc --watch --project tsconfig.json",
     "watch:esm": "npm run codegen && tsc --watch --project tsconfig.esm.json",
