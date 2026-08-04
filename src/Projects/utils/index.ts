@@ -490,6 +490,23 @@ export const MINIMAX_H3_R2V_ASSETS: Record<VideoAssetKey, AssetRequirement> = {
 };
 
 /**
+ * MiniMax H3 i2v takes ONLY a first-frame anchor. The generic i2v table marks
+ * `referenceImageEnd` optional because other i2v models interpolate toward an
+ * optional closing frame, but the deployed `minimax-h3-i2v` workflow template
+ * declares no end-frame asset at all — an end image would be uploaded, paid
+ * for, and silently ignored by the worker. Forbid it here so the mistake fails
+ * fast; two-anchor interpolation is `minimax-h3-fl2va-fp8_flf2v`.
+ */
+export const MINIMAX_H3_I2V_ASSETS: Record<VideoAssetKey, AssetRequirement> = {
+  referenceImage: 'required',
+  referenceImageEnd: 'forbidden',
+  referenceAudio: 'forbidden',
+  referenceAudioIdentity: 'forbidden',
+  referenceVideo: 'forbidden',
+  referenceMask: 'forbidden'
+};
+
+/**
  * One reference image, resolved to the upload slot that carries it.
  */
 export interface VideoContextImageSlot {
@@ -591,6 +608,9 @@ export function getVideoAssetRequirements(
   if (!workflowType) return null;
   if (workflowType === 'r2v' && isMinimaxH3Model(modelId)) {
     return MINIMAX_H3_R2V_ASSETS;
+  }
+  if (workflowType === 'i2v' && isMinimaxH3Model(modelId)) {
+    return MINIMAX_H3_I2V_ASSETS;
   }
   return VIDEO_WORKFLOW_ASSETS[workflowType];
 }
