@@ -1,3 +1,10 @@
+# [5.4.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.3...v5.4.0-alpha.4) (2026-08-04)
+
+
+### Bug Fixes
+
+* **projects:** resolve project liveness from the socket, not a 404 ([561dab4](https://github.com/Sogni-AI/sogni-client/commit/561dab4527253e5e84b3a2a6b2d64874fba1a088))
+
 # [5.4.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.2...v5.4.0-alpha.3) (2026-08-04)
 
 
