@@ -1,3 +1,12 @@
+# [5.4.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.2...v5.4.0-alpha.3) (2026-08-04)
+
+
+### Bug Fixes
+
+* **chat:** reject minimax-h3-r2v direct tool execution loudly ([d830290](https://github.com/Sogni-AI/sogni-client/commit/d83029021035ab58ff2b6d03531ab051c97b31b9))
+* **projects:** forbid referenceImageEnd on MiniMax H3 i2v uploads ([f1c1018](https://github.com/Sogni-AI/sogni-client/commit/f1c10181c3efbb363f1c353fc1016bb817e23ae6))
+* **projects:** stop cancelling healthy queued projects on 404 sync ([5e4232f](https://github.com/Sogni-AI/sogni-client/commit/5e4232f134e9389ad7c8e1eb54c6223a55e58e8a))
+
 # [5.4.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.1...v5.4.0-alpha.2) (2026-08-04)
 
 
