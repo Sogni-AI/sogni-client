@@ -263,37 +263,52 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
 
   private _checkForTimeout() {
     if (this.lastUpdated.getTime() + PROJECT_TIMEOUT < Date.now()) {
-      this._syncToServer().catch((error) => {
-        // 404 errors are expected when project is still initializing and not yet available via REST API
-        // Only log non-404 errors to avoid confusing users
-        if (error.status !== 404) {
+      this._syncToServer()
+        .then(() => {
+          this._failedSyncAttempts = 0;
+        })
+        .catch((error) => {
+          // 404 means the project is not (yet) visible via the REST API. That is
+          // the NORMAL state for a project sitting in the socket queue before a
+          // worker picks it up: the socket sends `queued` once and then nothing,
+          // so a long queue wait produces no events AND no REST record. Counting
+          // these expected 404s toward MAX_FAILED_SYNC_ATTEMPTS made the SDK
+          // cancel perfectly healthy queued jobs after ~3 idle windows (observed
+          // killing real MiniMax H3 renders queued behind a busy fleet,
+          // 2026-08-04). Only non-404 sync failures count toward the cancel
+          // threshold; genuine project death still reaches us as socket error
+          // events or non-404 REST failures.
+          if (error.status === 404) {
+            return;
+          }
           this._logger.error(error);
-        }
-        this._failedSyncAttempts++;
-        if (this._failedSyncAttempts >= MAX_FAILED_SYNC_ATTEMPTS) {
-          this._logger.error(
-            `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
-          );
-          this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
-            this._logger.error(`Failed to notify socket server that project ${this.id} timed out`);
-            this._logger.error(cancelError);
-          });
-          clearInterval(this._timeout!);
-          this._timeout = null;
-          this.jobs.forEach((job) => {
-            if (!job.finished) {
-              job._update({
-                status: 'failed',
-                error: { code: 0, message: 'Job timed out' }
-              });
-            }
-          });
-          this._update({
-            status: 'failed',
-            error: { code: 0, message: 'Project timed out. Please try again or contact support.' }
-          });
-        }
-      });
+          this._failedSyncAttempts++;
+          if (this._failedSyncAttempts >= MAX_FAILED_SYNC_ATTEMPTS) {
+            this._logger.error(
+              `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
+            );
+            this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
+              this._logger.error(
+                `Failed to notify socket server that project ${this.id} timed out`
+              );
+              this._logger.error(cancelError);
+            });
+            clearInterval(this._timeout!);
+            this._timeout = null;
+            this.jobs.forEach((job) => {
+              if (!job.finished) {
+                job._update({
+                  status: 'failed',
+                  error: { code: 0, message: 'Job timed out' }
+                });
+              }
+            });
+            this._update({
+              status: 'failed',
+              error: { code: 0, message: 'Project timed out. Please try again or contact support.' }
+            });
+          }
+        });
     }
   }
 
