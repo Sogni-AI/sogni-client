@@ -832,6 +832,32 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
+   * Ids of this account's projects that are currently live on the socket,
+   * including ones still queued with no worker assigned.
+   *
+   * The REST API above only stores a project once it finishes, so it cannot
+   * distinguish "still queued" from "lost" — both are 404. The socket holds the
+   * only live copy, and answers scoped to the caller's own authenticated
+   * address (the response carries no artist identity at all).
+   *
+   * @internal
+   * @returns live project ids, or `null` when liveness could not be determined
+   *   (endpoint unavailable on an older socket, unauthenticated client, or a
+   *   transport error) — callers must treat `null` as "unknown", never as "gone".
+   */
+  async _listActiveProjectIds(): Promise<string[] | null> {
+    try {
+      const r = await this.client.socket.get<{ projects?: Array<{ id?: string }> }>(
+        '/api/v1/artist/projects/active'
+      );
+      if (!r || !Array.isArray(r.projects)) return null;
+      return r.projects.map((p) => p?.id).filter((id): id is string => typeof id === 'string');
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Cancel project by id. This will cancel all jobs in the project and mark project as canceled.
    * Client may still receive job events for the canceled jobs as it takes some time, but they will
    * be ignored

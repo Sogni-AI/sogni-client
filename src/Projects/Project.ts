@@ -263,53 +263,74 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
 
   private _checkForTimeout() {
     if (this.lastUpdated.getTime() + PROJECT_TIMEOUT < Date.now()) {
-      this._syncToServer()
-        .then(() => {
-          this._failedSyncAttempts = 0;
-        })
-        .catch((error) => {
-          // 404 means the project is not (yet) visible via the REST API. That is
-          // the NORMAL state for a project sitting in the socket queue before a
-          // worker picks it up: the socket sends `queued` once and then nothing,
-          // so a long queue wait produces no events AND no REST record. Counting
-          // these expected 404s toward MAX_FAILED_SYNC_ATTEMPTS made the SDK
-          // cancel perfectly healthy queued jobs after ~3 idle windows (observed
-          // killing real MiniMax H3 renders queued behind a busy fleet,
-          // 2026-08-04). Only non-404 sync failures count toward the cancel
-          // threshold; genuine project death still reaches us as socket error
-          // events or non-404 REST failures.
-          if (error.status === 404) {
-            return;
-          }
-          this._logger.error(error);
-          this._failedSyncAttempts++;
-          if (this._failedSyncAttempts >= MAX_FAILED_SYNC_ATTEMPTS) {
-            this._logger.error(
-              `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
-            );
-            this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
-              this._logger.error(
-                `Failed to notify socket server that project ${this.id} timed out`
-              );
-              this._logger.error(cancelError);
-            });
-            clearInterval(this._timeout!);
-            this._timeout = null;
-            this.jobs.forEach((job) => {
-              if (!job.finished) {
-                job._update({
-                  status: 'failed',
-                  error: { code: 0, message: 'Job timed out' }
-                });
-              }
-            });
-            this._update({
-              status: 'failed',
-              error: { code: 0, message: 'Project timed out. Please try again or contact support.' }
-            });
-          }
-        });
+      void this._runStalenessCheck();
     }
+  }
+
+  /**
+   * Decide whether a silent project is still alive.
+   *
+   * Two sources answer different halves of the question. The socket holds every
+   * in-flight project, including ones still queued with no worker assigned, so
+   * it is the only place that can say "yes, still waiting". The REST API only
+   * stores a project once it FINISHES, so it answers "it completed while you
+   * weren't listening" — and returns 404 for the entire queued/rendering
+   * window, which is why a bare 404 must never be read as "lost".
+   *
+   * - socket says alive -> waiting is normal, keep the project alive.
+   * - socket says gone AND REST has no record -> genuinely lost, count a strike.
+   * - liveness unknown (older socket, unauthenticated, transport error) -> fall
+   *   back to the lenient rule: only non-404 REST failures count.
+   */
+  private async _runStalenessCheck() {
+    const liveProjectIds = await this._api._listActiveProjectIds();
+    if (liveProjectIds?.includes(this.id)) {
+      // A queued project emits no events by design; this is not staleness.
+      this._failedSyncAttempts = 0;
+      this._keepAlive();
+      return;
+    }
+    const socketConfirmsGone = liveProjectIds !== null;
+
+    return this._syncToServer()
+      .then(() => {
+        this._failedSyncAttempts = 0;
+      })
+      .catch((error) => {
+        // A 404 alone is ambiguous: it is the normal state for a queued project
+        // as well as for a lost one. It only becomes evidence of loss when the
+        // socket has also confirmed the project is no longer in flight.
+        if (error.status === 404 && !socketConfirmsGone) {
+          return;
+        }
+        if (error.status !== 404) {
+          this._logger.error(error);
+        }
+        this._failedSyncAttempts++;
+        if (this._failedSyncAttempts >= MAX_FAILED_SYNC_ATTEMPTS) {
+          this._logger.error(
+            `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
+          );
+          this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
+            this._logger.error(`Failed to notify socket server that project ${this.id} timed out`);
+            this._logger.error(cancelError);
+          });
+          clearInterval(this._timeout!);
+          this._timeout = null;
+          this.jobs.forEach((job) => {
+            if (!job.finished) {
+              job._update({
+                status: 'failed',
+                error: { code: 0, message: 'Job timed out' }
+              });
+            }
+          });
+          this._update({
+            status: 'failed',
+            error: { code: 0, message: 'Project timed out. Please try again or contact support.' }
+          });
+        }
+      });
   }
 
   /**
