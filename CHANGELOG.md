@@ -1,3 +1,10 @@
+# [5.4.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.4...v5.4.0-alpha.5) (2026-08-04)
+
+
+### Bug Fixes
+
+* **projects:** separate queue and job runtime timeouts ([dee3d20](https://github.com/Sogni-AI/sogni-client/commit/dee3d209345958046435b81f288324ae71e741a2))
+
 # [5.4.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.3...v5.4.0-alpha.4) (2026-08-04)
 
 
