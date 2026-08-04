@@ -1,3 +1,10 @@
+# [5.4.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v5.3.3-alpha.2...v5.4.0-alpha.1) (2026-08-04)
+
+
+### Features
+
+* **video:** add MiniMax H3 generation workflows ([662b9ff](https://github.com/Sogni-AI/sogni-client/commit/662b9ffd5c6cda707ad8f506f41e595e87556845))
+
 ## [5.3.3-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v5.3.3-alpha.1...v5.3.3-alpha.2) (2026-08-02)
 
 
