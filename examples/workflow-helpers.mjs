@@ -146,6 +146,16 @@ export const MINIMAX_H3_MIN_DURATION = MINIMAX_H3_MIN_FRAMES / MINIMAX_H3_FPS;
 export const MINIMAX_H3_MAX_DURATION = MINIMAX_H3_MAX_FRAMES / MINIMAX_H3_FPS;
 
 /**
+ * MiniMax H3 Ref2VA (r2v) reference ceilings: up to 9 reference images, 3
+ * reference videos (24fps, 2-15s each), and 3 reference audio clips, with at
+ * most 12 reference files in total.
+ */
+export const MINIMAX_H3_MAX_REFERENCE_IMAGES = 9;
+export const MINIMAX_H3_MAX_REFERENCE_VIDEOS = 3;
+export const MINIMAX_H3_MAX_REFERENCE_AUDIOS = 3;
+export const MINIMAX_H3_MAX_REFERENCE_FILES = 12;
+
+/**
  * Snap a frame count onto the MiniMax H3 grid and clamp it to the trained range.
  *
  * @param {number} requestedFrames - Raw frame count
@@ -1536,7 +1546,8 @@ export const MODELS = {
 
   // MiniMax H3 Models (ComfyUI workflow)
   //
-  // One FL2VA checkpoint serves all three workflows. Every sampling parameter
+  // One FL2VA checkpoint serves t2v, i2v, and flf2v; a separate Ref2VA
+  // checkpoint serves the multi-reference r2v workflow. Every sampling parameter
   // is fixed: 24fps, 20 steps, guidance 1 (distilled, so a negative prompt does
   // nothing), res_multistep/simple. Video and 32kHz stereo audio are generated
   // jointly in one pass. Audio is included by default; generateAudio=false
@@ -1662,6 +1673,54 @@ export const MODELS = {
       supportsNegativePrompt: false,
       requiresReferenceImage: true,
       requiresReferenceImageEnd: true
+    },
+    // Ref2VA is a separate checkpoint (minimax_h3_ref2va_pruned_fp8_scaled),
+    // not another workflow on the FL2VA weights. It conditions on labelled
+    // reference material - up to 9 images, 3 videos, and 3 audio clips, 12
+    // reference files in total - instead of frame anchors, so the prompt has to
+    // give every reference an explicit job.
+    'minimax-h3-r2v': {
+      id: 'minimax-h3-ref2va-fp8_r2v',
+      name: 'MiniMax H3 Ref2VA FP8 R2V',
+      description:
+        'Multi-reference video with jointly generated stereo audio; at least one reference image',
+      workflowType: 'r2v',
+      defaultWidth: 1344,
+      defaultHeight: 768,
+      minWidth: 32,
+      maxWidth: 1344,
+      minHeight: 32,
+      maxHeight: 1344,
+      dimensionStep: 32,
+      maxPixels: 1032192,
+      defaultSteps: 20,
+      minSteps: 20,
+      maxSteps: 20,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      defaultComfySampler: 'res_multistep',
+      allowedComfySamplers: ['res_multistep'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple'],
+      minFrames: MINIMAX_H3_MIN_FRAMES,
+      maxFrames: MINIMAX_H3_MAX_FRAMES,
+      defaultFrames: MINIMAX_H3_BASE_FRAMES,
+      frameStep: MINIMAX_H3_FRAME_STEP,
+      frameBase: MINIMAX_H3_BASE_FRAMES,
+      defaultFps: MINIMAX_H3_FPS,
+      allowedFps: [MINIMAX_H3_FPS],
+      minDuration: MINIMAX_H3_MIN_DURATION,
+      maxDuration: MINIMAX_H3_MAX_DURATION,
+      isLightning: false,
+      isComfyModel: true,
+      hasAudio: true,
+      supportsNegativePrompt: false,
+      requiresReferenceImage: true,
+      maxReferenceImages: MINIMAX_H3_MAX_REFERENCE_IMAGES,
+      maxReferenceVideos: MINIMAX_H3_MAX_REFERENCE_VIDEOS,
+      maxReferenceAudios: MINIMAX_H3_MAX_REFERENCE_AUDIOS,
+      maxReferenceFiles: MINIMAX_H3_MAX_REFERENCE_FILES
     }
   }
 };

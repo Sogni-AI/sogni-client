@@ -26,16 +26,25 @@ import {
 } from '../lib/validation.js';
 import {
   getVideoWorkflowType,
+  getVideoAssetRequirements,
   isVideoModel,
-  VIDEO_WORKFLOW_ASSETS,
   calculateVideoFrames,
   isLtx2Model,
   isWanAnimateModel,
   isSeedanceModel,
   isHappyhorseModel,
   isMinimaxH3Model,
+  isMinimaxH3ReferenceModel,
   isExternalApiVideoModel,
   usesReferenceMask,
+  countMinimaxH3References,
+  getVideoContextImageSlots,
+  getMinimaxH3ReferenceVideoSlots,
+  getMinimaxH3ReferenceAudioSlots,
+  MINIMAX_H3_MAX_REFERENCE_IMAGES,
+  MINIMAX_H3_MAX_REFERENCE_VIDEOS,
+  MINIMAX_H3_MAX_REFERENCE_AUDIOS,
+  MINIMAX_H3_MAX_REFERENCE_FILES,
   MINIMAX_H3_MIN_DURATION,
   MINIMAX_H3_MAX_DURATION,
   MINIMAX_H3_DIMENSION_STEP,
@@ -60,6 +69,9 @@ import { workloadAttributionToWireFields } from '../lib/attribution.js';
  * Throws an error if required assets are missing or forbidden assets are provided.
  */
 function validateVideoWorkflowAssets(params: VideoProjectParams): void {
+  validateVideoContextImages(params);
+  validateVideoReferenceArrays(params);
+
   if (isHappyhorseModel(params.modelId)) {
     validateHappyhorseReferenceAssets(params);
     return;
@@ -68,7 +80,9 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
     validateSeedanceReferenceAssets(params);
     return;
   }
-  if (params.referenceImageUrls || params.referenceVideoUrls || params.referenceAudioUrls) {
+  if (isMinimaxH3ReferenceModel(params.modelId)) {
+    validateMinimaxH3ReferenceAssets(params);
+  } else if (params.referenceImageUrls || params.referenceVideoUrls || params.referenceAudioUrls) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
@@ -80,7 +94,7 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
   const workflowType = getVideoWorkflowType(params.modelId);
   if (!workflowType) return;
 
-  const requirements = VIDEO_WORKFLOW_ASSETS[workflowType];
+  const requirements = getVideoAssetRequirements(params.modelId);
   if (!requirements) return;
 
   // Special case for i2v: at least ONE of referenceImage or referenceImageEnd required
@@ -124,6 +138,115 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
         message: `${workflowType} workflow does not support ${assetKey}. Please remove this asset.`
       });
     }
+  }
+}
+
+/**
+ * `contextImages` shape check for video projects.
+ *
+ * The field is the video counterpart of the image-project field of the same
+ * name and belongs to exactly one video workflow: MiniMax H3 r2v is the only
+ * Comfy-native multi-reference video model, and no other video workflow reads
+ * the numbered `contextImage<n>` upload slots. Runs before the external-API
+ * families are dispatched, since those return early.
+ */
+function validateVideoContextImages(params: VideoProjectParams): void {
+  if (params.contextImages === undefined) return;
+
+  if (!isMinimaxH3ReferenceModel(params.modelId)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message:
+        'contextImages is supported only by the MiniMax H3 r2v workflow (minimax-h3-ref2va-fp8_r2v).'
+    });
+  }
+  if (!Array.isArray(params.contextImages)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'contextImages must be an array of reference images.'
+    });
+  }
+  if (params.contextImages.some((image) => !image)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message:
+        'contextImages must not contain empty entries. Reference ordinals follow array position, so a hole would renumber every later reference.'
+    });
+  }
+}
+
+function validateVideoReferenceArrays(params: VideoProjectParams): void {
+  const fields = ['referenceVideos', 'referenceAudios'] as const;
+  for (const field of fields) {
+    const value = params[field];
+    if (value === undefined) continue;
+    if (!isMinimaxH3ReferenceModel(params.modelId)) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `${field} is supported only by the MiniMax H3 r2v workflow (minimax-h3-ref2va-fp8_r2v).`
+      });
+    }
+    if (!Array.isArray(value) || value.some((media) => !media)) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `${field} must be an array without empty entries.`
+      });
+    }
+  }
+}
+
+/**
+ * MiniMax H3 `r2v` reference-set validation.
+ *
+ * r2v takes up to 9 images, 3 videos, 3 audio clips, and 12 files in total.
+ * Because it renders on a Sogni worker rather than at an external vendor, every
+ * reference uses the S3 upload path. At least one image is required.
+ */
+function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {
+  for (const field of ['referenceImageUrls', 'referenceVideoUrls', 'referenceAudioUrls'] as const) {
+    if (params[field] !== undefined) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `MiniMax H3 r2v does not accept ${field}; pass files through the Sogni asset upload fields instead.`
+      });
+    }
+  }
+
+  const references = countMinimaxH3References(params);
+  const ceilings: [number, number, string][] = [
+    [references.images, MINIMAX_H3_MAX_REFERENCE_IMAGES, 'reference images'],
+    [references.videos, MINIMAX_H3_MAX_REFERENCE_VIDEOS, 'reference videos'],
+    [references.audios, MINIMAX_H3_MAX_REFERENCE_AUDIOS, 'reference audios']
+  ];
+  for (const [count, ceiling, label] of ceilings) {
+    if (count > ceiling) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `MiniMax H3 r2v supports at most ${ceiling} uploaded ${label} (got ${count}).`
+      });
+    }
+  }
+  if (references.total > MINIMAX_H3_MAX_REFERENCE_FILES) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: `MiniMax H3 r2v supports at most ${MINIMAX_H3_MAX_REFERENCE_FILES} reference files in total (got ${references.total}: ${references.images} image, ${references.videos} video, ${references.audios} audio).`
+    });
+  }
+  if (references.images < 1) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message:
+        'MiniMax H3 r2v needs at least one uploaded reference image. Attach it as referenceImage or contextImages. Reference videos and audios add to that image set rather than replacing it; for a prompt-only render use minimax-h3-fl2va-fp8_t2v.'
+    });
   }
 }
 
@@ -550,21 +673,34 @@ function applyVideoParams(
   if (params.referenceImage) {
     keyFrame.hasReferenceImage = true;
   }
-  const referenceImageUrls = asReferenceUrlArray(params.referenceImageUrls);
-  if (referenceImageUrls.length) {
-    keyFrame.referenceImageURLs = referenceImageUrls;
+  // MiniMax H3 r2v reference images 2-9 (or 1-9 without a referenceImage).
+  // These are the same numbered upload slots image projects use, and the server
+  // turns each flag into a signed download the worker reads back as
+  // `contextImage<slot>`.
+  for (const { slot } of getVideoContextImageSlots(params)) {
+    keyFrame[`hasContextImage${slot}`] = true;
   }
+  const referenceImageUrls = asReferenceUrlArray(params.referenceImageUrls);
+  if (referenceImageUrls.length) keyFrame.referenceImageURLs = referenceImageUrls;
   if (params.referenceImageEnd) {
     keyFrame.hasReferenceImageEnd = true;
   }
-  if (params.referenceAudio) {
+  if (isMinimaxH3ReferenceModel(params.modelId)) {
+    for (const { slot } of getMinimaxH3ReferenceAudioSlots(params)) {
+      keyFrame[`hasReferenceAudio${slot}`] = true;
+    }
+  } else if (params.referenceAudio) {
     keyFrame.hasReferenceAudio = true;
   }
   const referenceAudioUrls = asReferenceUrlArray(params.referenceAudioUrls);
   if (referenceAudioUrls.length) {
     keyFrame.referenceAudioURLs = referenceAudioUrls;
   }
-  if (params.referenceVideo) {
+  if (isMinimaxH3ReferenceModel(params.modelId)) {
+    for (const { slot } of getMinimaxH3ReferenceVideoSlots(params)) {
+      keyFrame[`hasReferenceVideo${slot}`] = true;
+    }
+  } else if (params.referenceVideo) {
     keyFrame.hasReferenceVideo = true;
   }
   if (params.referenceMask && usesReferenceMask(params)) {

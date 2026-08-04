@@ -1,6 +1,7 @@
 import {
   AssetRequirement,
   EnhancementStrength,
+  InputMedia,
   VideoAssetKey,
   VideoProjectParams,
   VideoWorkflowType
@@ -107,10 +108,30 @@ export function isHappyhorseModel(modelId: string): boolean {
 /**
  * Check if a model ID is a MiniMax H3 video model.
  *
- * Workflow IDs are `minimax-h3-fl2va-fp8_t2v`, `..._i2v`, and `..._flf2v`.
+ * Two separate checkpoints ship under this prefix:
+ * - FL2VA: `minimax-h3-fl2va-fp8_t2v`, `..._i2v`, and `..._flf2v`
+ * - Ref2VA: `minimax-h3-ref2va-fp8_r2v` (the multi-reference workflow)
+ *
+ * Everything else about them is identical - 24fps, 20 steps, guidance 1,
+ * `res_multistep`/`simple`, the `124 + n*17` frame grid, and jointly generated
+ * 32kHz stereo audio - so every H3 rule in this file applies to both.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
   return modelId.startsWith('minimax-h3');
+}
+
+/**
+ * Check if a model ID is the MiniMax H3 Ref2VA multi-reference workflow
+ * (`minimax-h3-ref2va-fp8_r2v`).
+ *
+ * This is the only MiniMax H3 workflow that conditions on more than two input
+ * files, and the only video workflow of any family that carries reference
+ * images through the `contextImages` upload slots. Use it wherever the rule is
+ * "H3, but only the reference workflow"; `isMinimaxH3Model` covers rules that
+ * apply to both H3 checkpoints.
+ */
+export function isMinimaxH3ReferenceModel(modelId: string): boolean {
+  return isMinimaxH3Model(modelId) && getVideoWorkflowType(modelId) === 'r2v';
 }
 
 /**
@@ -265,10 +286,16 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   }
 
   // MiniMax H3 model ids carry the workflow as an underscore suffix on a
-  // shared checkpoint name: minimax-h3-fl2va-fp8_t2v / _i2v / _flf2v.
-  // Check _flf2v explicitly - the shared 'fl2va' checkpoint segment must not be
-  // mistaken for a workflow suffix.
+  // checkpoint name: minimax-h3-fl2va-fp8_t2v / _i2v / _flf2v and
+  // minimax-h3-ref2va-fp8_r2v.
+  //
+  // Every suffix is matched with its leading underscore, which is what keeps
+  // the checkpoint segment out of the match: 'ref2va' contains a bare 'f2v' and
+  // 'fl2va' a bare 'l2v', but neither contains '_t2v', '_i2v', '_flf2v', or
+  // '_r2v'. Check the longer '_flf2v' before '_i2v'/'_t2v', and check '_r2v'
+  // up front so a future suffix cannot shadow it.
   if (isMinimaxH3) {
+    if (modelId.includes('_r2v')) return 'r2v';
     if (modelId.includes('_flf2v')) return 'flf2v';
     if (modelId.includes('_i2v')) return 'i2v';
     if (modelId.includes('_t2v')) return 't2v';
@@ -304,6 +331,13 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
  * - required: Must be provided
  * - optional: Can be provided
  * - forbidden: Must NOT be provided
+ *
+ * `r2v` is the one workflow type shared by two model families with different
+ * asset rules: HappyHorse is image-only, while MiniMax H3 also takes reference
+ * video and reference audio. The entry below is the HappyHorse baseline;
+ * resolve requirements for a concrete model with
+ * `getVideoAssetRequirements(modelId)` rather than indexing this table
+ * directly.
  */
 export const VIDEO_WORKFLOW_ASSETS: Record<
   NonNullable<VideoWorkflowType>,
@@ -388,6 +422,7 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     // HappyHorse reference-to-video: 1-9 image references (via referenceImage
     // and/or referenceImageUrls), no video/audio context. Detailed count
     // limits are enforced by validateHappyhorseReferenceAssets.
+    // MiniMax H3 r2v has different rules - see MINIMAX_H3_R2V_ASSETS.
     referenceImage: 'optional',
     referenceImageEnd: 'forbidden',
     referenceAudio: 'forbidden',
@@ -396,6 +431,169 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceMask: 'forbidden'
   }
 };
+
+/**
+ * MiniMax H3 reference ceilings, taken from the `MiniMaxH3ReferenceToVideo`
+ * node: up to 9 reference images, 3 reference videos (24fps, 2-15s each), and
+ * 3 reference audio clips, with at most 12 reference files in total. Every H3
+ * reference uses the Sogni S3 upload path; see `countMinimaxH3References`.
+ */
+export const MINIMAX_H3_MAX_REFERENCE_IMAGES = 9;
+export const MINIMAX_H3_MAX_REFERENCE_VIDEOS = 3;
+export const MINIMAX_H3_MAX_REFERENCE_AUDIOS = 3;
+export const MINIMAX_H3_MAX_REFERENCE_FILES = 12;
+
+/**
+ * MiniMax H3 `r2v` (Ref2VA) asset requirements - `minimax-h3-ref2va-fp8_r2v`.
+ *
+ * H3 r2v is a multi-reference workflow, not a frame-anchored one: references
+ * are presented to the model as labelled material (`<Picture i>`, `<Video k>`,
+ * `<Audio j>`) that the prompt assigns jobs to, rather than being pinned to the
+ * first or last frame.
+ *
+ * Every entry here is a single-file upload slot, so the table alone cannot
+ * express r2v's real limits. The full arrays are enforced separately when the
+ * job request is built; see
+ * `countMinimaxH3References`.
+ *
+ * ### referenceImage
+ * `optional`, because it is just the first entry of an ordered set rather than a
+ * required anchor: an r2v project may supply its images entirely through
+ * `contextImages`. "At least one reference image" is a count over both image
+ * fields. Note that `referenceImage` and `contextImage1` are two
+ * SEPARATE reference slots, not two names for one - sending both presents two
+ * pictures to the model. `getVideoContextImageSlots` keeps them apart.
+ *
+ * ### referenceImageEnd
+ * Forbidden. r2v has no closing frame - `MiniMaxH3ReferenceToVideo` has no
+ * first_frame/last_frame input at all - so an end-frame upload would be paid
+ * for and then ignored. Reference image 2 is the next entry in `contextImages`.
+ * To interpolate between two anchors, use `minimax-h3-fl2va-fp8_flf2v`.
+ *
+ * ### referenceVideo and referenceAudio
+ * `optional`; the singular fields are the first entries in the uploaded
+ * `referenceVideos` / `referenceAudios` sets. The API stores each numbered slot
+ * under a distinct S3 key.
+ *
+ * `referenceAudioIdentity` (LTX-2.3 ID-LoRA) is forbidden even though r2v does
+ * take reference audio: H3 has no identity-specific audio input. Send the clip
+ * as `referenceAudio` and tell the prompt what to do with it. `referenceMask`
+ * (LTX-2.3 v2v inpaint) belongs to another model family.
+ */
+export const MINIMAX_H3_R2V_ASSETS: Record<VideoAssetKey, AssetRequirement> = {
+  referenceImage: 'optional',
+  referenceImageEnd: 'forbidden',
+  referenceAudio: 'optional',
+  referenceAudioIdentity: 'forbidden',
+  referenceVideo: 'optional',
+  referenceMask: 'forbidden'
+};
+
+/**
+ * One reference image, resolved to the upload slot that carries it.
+ */
+export interface VideoContextImageSlot {
+  /**
+   * 1-based `contextImage<slot>` asset slot, matching the `contextImage1`..
+   * `contextImage16` upload types and the `hasContextImage<slot>` keyFrame
+   * flags.
+   */
+  slot: number;
+  /** The caller-supplied asset for this slot. */
+  media: InputMedia;
+}
+
+/**
+ * Resolve `contextImages` onto the numbered `contextImage<n>` upload slots.
+ *
+ * MiniMax H3 r2v renders on a Sogni worker, so all references use Sogni's asset
+ * upload path. Images travel as the same `referenceImage` / `contextImage<n>`
+ * types Flux.2 and Qwen-Edit already use for image projects. Sogni Socket compacts
+ * them - `referenceImage` first, then `contextImage1`, `contextImage2`, ... in
+ * slot order - into the numbered
+ * `referenceImage1..9` job fields the ComfyUI worker packs into
+ * `ref_images.ref_image_0..8`.
+ *
+ * Each upload type is its OWN reference: `referenceImage` and `contextImage1`
+ * are two pictures, not two spellings of one (the worker de-duplicates only by
+ * resolved file path). Offsetting `contextImages` past `referenceImage` when
+ * both are present therefore is not collision avoidance - it keeps the mapping
+ * one-to-one and readable, so the `<Picture i>` ordinal of every reference is
+ * exactly its position in `[referenceImage, ...contextImages]`.
+ */
+export function getVideoContextImageSlots(
+  params: Pick<VideoProjectParams, 'referenceImage' | 'contextImages'>
+): VideoContextImageSlot[] {
+  const contextImages = params.contextImages;
+  if (!Array.isArray(contextImages) || contextImages.length === 0) return [];
+  const offset = params.referenceImage ? 1 : 0;
+  return contextImages.map((media, index) => ({ slot: offset + index + 1, media }));
+}
+
+/**
+ * A MiniMax H3 r2v reference census, per kind and in total.
+ */
+export interface MinimaxH3ReferenceCounts {
+  images: number;
+  videos: number;
+  audios: number;
+  total: number;
+}
+
+export interface VideoReferenceMediaSlot {
+  slot: number;
+  media: InputMedia;
+}
+
+/**
+ * Resolve the ordered H3 reference-video uploads onto referenceVideo1..3.
+ */
+export function getMinimaxH3ReferenceVideoSlots(
+  params: Pick<VideoProjectParams, 'referenceVideo' | 'referenceVideos'>
+): VideoReferenceMediaSlot[] {
+  return [params.referenceVideo, ...(params.referenceVideos ?? [])]
+    .filter((media): media is InputMedia => Boolean(media))
+    .map((media, index) => ({ slot: index + 1, media }));
+}
+
+/** Resolve the ordered H3 standalone-audio uploads onto referenceAudio1..3. */
+export function getMinimaxH3ReferenceAudioSlots(
+  params: Pick<VideoProjectParams, 'referenceAudio' | 'referenceAudios'>
+): VideoReferenceMediaSlot[] {
+  return [params.referenceAudio, ...(params.referenceAudios ?? [])]
+    .filter((media): media is InputMedia => Boolean(media))
+    .map((media, index) => ({ slot: index + 1, media }));
+}
+
+/** Count the files in an uploaded MiniMax H3 r2v reference set. */
+export function countMinimaxH3References(params: VideoProjectParams): MinimaxH3ReferenceCounts {
+  const images = (params.referenceImage ? 1 : 0) + (params.contextImages?.length ?? 0);
+  const videos = getMinimaxH3ReferenceVideoSlots(params).length;
+  const audios = getMinimaxH3ReferenceAudioSlots(params).length;
+  return { images, videos, audios, total: images + videos + audios };
+}
+
+/**
+ * Resolve the asset requirements for a concrete video model id.
+ *
+ * Use this instead of indexing `VIDEO_WORKFLOW_ASSETS` directly: the `r2v`
+ * workflow type is shared by HappyHorse, which is image-only, and MiniMax H3,
+ * which also takes reference video and reference audio, so the workflow type
+ * alone does not determine the rules.
+ *
+ * @param modelId - The video model ID
+ * @returns The asset requirements, or null when the model has no known workflow
+ */
+export function getVideoAssetRequirements(
+  modelId: string
+): Record<VideoAssetKey, AssetRequirement> | null {
+  const workflowType = getVideoWorkflowType(modelId);
+  if (!workflowType) return null;
+  if (workflowType === 'r2v' && isMinimaxH3Model(modelId)) {
+    return MINIMAX_H3_R2V_ASSETS;
+  }
+  return VIDEO_WORKFLOW_ASSETS[workflowType];
+}
 
 /**
  * Whether a `referenceMask` should be honored for the given video params.

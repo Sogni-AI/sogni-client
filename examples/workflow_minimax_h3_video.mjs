@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * MiniMax H3 Video Workflow (t2v / i2v / flf2v)
+ * MiniMax H3 Video Workflow (t2v / i2v / flf2v / r2v)
  *
  * MiniMax H3 generates video and 32kHz stereo audio jointly in a single pass on
- * Sogni. Every sampling parameter is fixed by the checkpoint:
+ * Sogni. t2v, i2v, and flf2v share the FL2VA checkpoint; r2v is a separate
+ * Ref2VA checkpoint that conditions on labelled reference material rather than
+ * on frame anchors. Every sampling parameter is fixed by the checkpoint:
  * 24fps, 20 steps, guidance 1 (distilled, so a negative prompt does nothing),
  * res_multistep / simple. Frames sit on the 124 + n*17 grid (124-362 frames,
  * 5.167s to 15.083s) and the canvas uses a 32px grid capped at 1032192 pixels,
@@ -35,7 +37,10 @@
  *    separate `negativePrompt` parameter is unsupported and rejected.
  * 6. Lock identity by naming concrete features, and give every reference image
  *    an explicit job ("use the first frame for the character, keep her jacket
- *    and hairstyle").
+ *    and hairstyle"). This matters most in r2v, where several references
+ *    compete: separate identity from style, motion from appearance, and voice
+ *    character from spoken words, and say which reference wins when two of them
+ *    disagree.
  * 7. Use real camera and film vocabulary - lens, movement, exposure, stock -
  *    and describe transitions as physical events rather than named effects.
  *
@@ -73,6 +78,7 @@
  *   node workflow_minimax_h3_video.mjs --mode t2v --no-interactive  # Example t2v prompt
  *   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
+ *   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --print-prompt  # Print prompt, do not submit
  *   node workflow_minimax_h3_video.mjs --mode t2v --prompt-file my_prompt.txt
  *   node workflow_minimax_h3_video.mjs --mode t2v --no-audio        # Strip audio before upload
@@ -97,11 +103,16 @@ import {
   MINIMAX_H3_MAX_FRAMES,
   MINIMAX_H3_MIN_DURATION,
   MINIMAX_H3_MAX_DURATION,
+  MINIMAX_H3_MAX_REFERENCE_IMAGES,
+  MINIMAX_H3_MAX_REFERENCE_VIDEOS,
+  MINIMAX_H3_MAX_REFERENCE_AUDIOS,
+  MINIMAX_H3_MAX_REFERENCE_FILES,
   snapMinimaxH3Frames,
   askQuestion,
   askMultilinePrompt,
   pickImageFile,
   processImageForVideo,
+  readFileAsBuffer,
   log,
   formatDuration,
   displayConfig,
@@ -120,7 +131,7 @@ import {
 
 const streamPipeline = promisify(pipeline);
 
-const MODES = ['t2v', 'i2v', 'flf2v'];
+const MODES = ['t2v', 'i2v', 'flf2v', 'r2v'];
 
 // Shipped canvas presets. Both are 1032192 pixels exactly, which is the cap.
 const RESOLUTION_PRESETS = {
@@ -268,10 +279,44 @@ Music: a single slow ascending synthesiser figure that thins to one sustained to
 Do not cut - this is one unbroken take. No morph, dissolve, or crossfade between the two images. No on-screen text or watermarks, and no change of wardrobe or location.`;
 
 /**
+ * r2v: several references compete, so the first thing the prose does is hand
+ * each one a separate job and settle who wins when two of them disagree.
+ *
+ * Written for three reference images, which is what `--mode r2v` sends when you
+ * pass three `--ref-image` files: reference 1 is `referenceImage` and references
+ * 2 and 3 ride in `contextImages`. Pass fewer and the later assignments simply
+ * have nothing to bind to, so trim them from the prompt.
+ *
+ * Uses MiniMax's own `<Picture i>` tags, which is the form the model literally
+ * sees: `comfy/text_encoders/minimax.py` splices `"<Picture %d>: "` (and
+ * `"<Video %d>: "`, `"<Audio %d>: "`) in front of each reference before your
+ * prompt text, so a sentence written with the same tags shares a token sequence
+ * with the label of the reference it is about. Prose aliases ("Image 1", "the
+ * second photo") do not, which is why every Sogni layer now writes the tags.
+ *
+ * Demonstrates per-reference jobs (identity, wardrobe, environment), the 1-based
+ * per-type numbering, an explicit conflict rule, a timed shot list, deliberate
+ * audio direction, and an explicit statement of what must not appear.
+ */
+const R2V_PROMPT = `<Picture 1> is the identity reference for the woman: her face, her bone structure, and her hairstyle carry over exactly, and nothing else from that frame does. <Picture 2> is the wardrobe reference: the dark red jacket, its collar, and the way it hangs - take the garment, not the person wearing it. <Picture 3> is the location, lighting palette, and film texture: the wet street, the sodium and neon colour, the grain. Do not copy any person, vehicle, or signage from <Picture 3>. Where <Picture 1> and <Picture 3> disagree on colour or exposure, <Picture 1> wins on her face and <Picture 3> wins on everything behind her.
+
+[0-3 seconds] She walks toward camera along the rain-slicked street, hands in the jacket pockets. Handheld medium shot on a fast 50mm, shallow focus, neon reflections sliding across the wet asphalt beneath her.
+
+[3-6 seconds] She stops and glances back over her shoulder. The camera arcs slowly around her as a bus passes behind, its headlights sweeping across her face and briefly blowing out the highlights on the jacket.
+
+[6-8 seconds] She turns back to camera and the shot settles into a medium close-up, the street lights blooming behind her. She says, quietly, almost to herself: "It was never going to be the last train."
+
+Audio: steady rain on asphalt, tyres hissing through standing water, a bus engine passing left to right at 4 seconds, and distant traffic underneath all of it. Her voice is close, dry, and low over the rain.
+
+Music: one low warm synth pad that fades in at 6 seconds and holds under the final line. Nothing before that.
+
+Do not include on-screen text, subtitles, captions, logos, or watermarks. No extra people in frame, no cuts to another location, and no change of wardrobe.`;
+
+/**
  * Pick the example prompt for a mode, optionally prefixed with MiniMax's
  * alignment line (advanced, off by default).
  *
- * @param {string} mode - t2v, i2v, or flf2v
+ * @param {string} mode - t2v, i2v, flf2v, or r2v
  * @param {number} durationSeconds - Effective duration, used by the flf2v line
  * @param {boolean} withAlignmentLine - Prepend the optional alignment line
  * @returns {string} The complete prompt
@@ -284,6 +329,12 @@ function defaultPromptForMode(mode, durationSeconds, withAlignmentLine = false) 
     return withAlignmentLine
       ? `${flf2vAlignmentLine(durationSeconds)}\n\n${FLF2V_PROMPT}`
       : FLF2V_PROMPT;
+  }
+  if (mode === 'r2v') {
+    // r2v references are not pinned to a timecode, so MiniMax's alignment lines
+    // have nothing to say about them - the per-reference jobs in the prose do
+    // that work instead.
+    return R2V_PROMPT;
   }
   // t2v has no reference images, so an alignment line would have nothing to
   // align to.
@@ -299,6 +350,41 @@ function defaultPromptForMode(mode, durationSeconds, withAlignmentLine = false) 
  * slideshow. Below this a single well-written beat is fine.
  */
 const TIMED_BEATS_RECOMMENDED_ABOVE_SECONDS = 8;
+
+/**
+ * Modes where an untimed prompt is a deliberate choice, not an oversight.
+ *
+ * MiniMax documents FL2VA as favouring a single continuous shot between the two
+ * anchor frames - the whole job is one unbroken path from the first image to
+ * the last - so a flf2v prompt with no timed beats is following their guide
+ * rather than missing something. Warning about it there was simply wrong.
+ */
+const SINGLE_SHOT_MODES = new Set(['flf2v']);
+
+/**
+ * Advisory only: does the prompt say outright that it is one continuous take?
+ *
+ * Used for r2v, where either shape is valid - a timed shot list, or one uncut
+ * causal chain the prose commits to explicitly. Nothing here changes what is
+ * sent; a false negative costs one extra advisory line.
+ *
+ * The continuity adjectives have to land on a take/shot/sequence within a few
+ * words, so "a low continuous room ambience" in an audio direction does not
+ * read as a camera instruction.
+ */
+const SINGLE_CONTINUOUS_SHOT_PATTERN =
+  /\b(?:continuous|unbroken|uninterrupted)[\s-](?:\w+[\s-]){0,3}?(?:take|shot|sequence)\b|\b(?:single|one)[\s-](?:take|shot)\b|\boner\b|\bdo(?:es)? not cut\b|\bno cuts?\b|\bnever cuts?\b|\bwithout cutting\b/i;
+
+/**
+ * Advisory only: does the prompt address at least one numbered reference?
+ *
+ * The canonical form is the tag the text encoder emits - `<Picture 1>`,
+ * `<Video 1>`, `<Audio 1>` - but this stays deliberately loose and also matches
+ * prose aliases ("Image 1", "picture 2"), because a warning that fires on a
+ * prompt which DOES assign its references, just informally, is worse than one
+ * that misses an edge case.
+ */
+const NUMBERED_REFERENCE_PATTERN = /\b(?:picture|image|video|audio)\s*#?\s*\d+/i;
 
 /**
  * Prompt length limit for H3, matching what fal.ai documents for the model.
@@ -335,18 +421,54 @@ function findTimedBeats(prompt) {
  *
  * @param {string} prompt - The prompt to review
  * @param {number} durationSeconds - Effective video duration
+ * @param {string} mode - t2v, i2v, flf2v, or r2v
+ * @param {Object} [references] - Attached r2v references
+ * @param {number} [references.videos] - Reference videos attached
+ * @param {number} [references.audios] - Reference audio clips attached
  * @returns {string[]} Warnings, empty when nothing looks off
  */
-function reviewPrompt(prompt, durationSeconds) {
+function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
   const warnings = [];
   const beats = findTimedBeats(prompt);
 
-  if (!beats.length && durationSeconds > TIMED_BEATS_RECOMMENDED_ABOVE_SECONDS) {
+  // flf2v is single-shot by design; r2v is single-shot when the prose says so.
+  const untimedIsIntentional =
+    SINGLE_SHOT_MODES.has(mode) || (mode === 'r2v' && SINGLE_CONTINUOUS_SHOT_PATTERN.test(prompt));
+
+  if (
+    !beats.length &&
+    !untimedIsIntentional &&
+    durationSeconds > TIMED_BEATS_RECOMMENDED_ABOVE_SECONDS
+  ) {
     warnings.push(
       `No timed beats found, and this render is ${durationSeconds.toFixed(2)}s. Over about ` +
         `${TIMED_BEATS_RECOMMENDED_ABOVE_SECONDS}s an untimed prompt tends to drift into a slideshow. ` +
-        'Add a shot list with plain timecodes: "[0-2 seconds] ...", "[2-5 seconds] ...".'
+        'Add a shot list with plain timecodes: "[0-2 seconds] ...", "[2-5 seconds] ...", ' +
+        'or state outright that it is one continuous uncut take.'
     );
+  }
+
+  if (mode === 'r2v') {
+    if (!NUMBERED_REFERENCE_PATTERN.test(prompt)) {
+      warnings.push(
+        'No numbered reference found. r2v conditions on labelled material, and an unassigned ' +
+          'reference just gets averaged into everything. Give each one an explicit job, using the ' +
+          'same tags the text encoder emits: ' +
+          '"Use <Picture 1> for the face and hairstyle. Use <Picture 2> only for environment and lighting."'
+      );
+    }
+    if (references.videos > 0 && !/\bvideo\s*#?\s*\d+/i.test(prompt)) {
+      warnings.push(
+        'A reference video is attached but the prompt never mentions <Video 1>. Say what it is ' +
+          'for - "Use <Video 1> only for the camera movement" - or it competes with the images.'
+      );
+    }
+    if (references.audios > 0 && !/\baudio\s*#?\s*\d+/i.test(prompt)) {
+      warnings.push(
+        'A reference audio clip is attached but the prompt never mentions <Audio 1>. Say whether ' +
+          'it supplies the voice character, the music, or the ambience.'
+      );
+    }
   }
 
   const lastBeat = beats.length ? Math.max(...beats) : 0;
@@ -447,6 +569,9 @@ function parseArgs() {
     modelKey: null,
     image: null,
     endImage: null,
+    refImages: [],
+    refVideos: [],
+    refAudios: [],
     width: null,
     height: null,
     portrait: false,
@@ -490,6 +615,12 @@ function parseArgs() {
       options.image = args[++i];
     } else if ((arg === '--end-image' || arg === '--last-image') && args[i + 1]) {
       options.endImage = args[++i];
+    } else if (arg === '--ref-image' && args[i + 1]) {
+      options.refImages.push(args[++i]);
+    } else if (arg === '--ref-video' && args[i + 1]) {
+      options.refVideos.push(args[++i]);
+    } else if (arg === '--ref-audio' && args[i + 1]) {
+      options.refAudios.push(args[++i]);
     } else if (arg === '--prompt-file' && args[i + 1]) {
       options.promptFile = args[++i];
     } else if (arg === '--width' && args[i + 1]) {
@@ -547,11 +678,13 @@ Usage:
   node workflow_minimax_h3_video.mjs --mode t2v --no-interactive   # Example t2v prompt
   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg
   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
+  node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
 
 Modes:
   t2v    Text-to-video                     (minimax-h3-fl2va-fp8_t2v)
   i2v    First-frame image-to-video        (minimax-h3-fl2va-fp8_i2v,  needs --image)
   flf2v  First-and-last-frame video        (minimax-h3-fl2va-fp8_flf2v, needs --image and --end-image)
+  r2v    Multi-reference video             (minimax-h3-ref2va-fp8_r2v, needs at least one --ref-image)
 
 Fixed model parameters (not configurable):
   fps 24, steps 20, guidance 1, sampler res_multistep, scheduler simple
@@ -562,10 +695,14 @@ Fixed model parameters (not configurable):
   Availability depends on current compatible capacity
 
 Options:
-  --mode <t2v|i2v|flf2v>  Workflow to run (default: t2v)
-  --model <key>           Model key override (minimax-h3-t2v, minimax-h3-i2v, minimax-h3-flf2v)
+  --mode <t2v|i2v|flf2v|r2v>  Workflow to run (default: t2v)
+  --model <key>           Model key override (minimax-h3-t2v, minimax-h3-i2v,
+                          minimax-h3-flf2v, minimax-h3-r2v)
   --image <path>          First-frame reference image (i2v, flf2v)
   --end-image <path>      Last-frame reference image (flf2v)
+  --ref-image <path>      Reference image (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES})
+  --ref-video <path>      Reference video (r2v, one upload slot - see below)
+  --ref-audio <path>      Reference audio (r2v, one upload slot - see below)
   --prompt-file <path>    Read the prompt from a file instead of using the example
   --portrait              Use the 768x1344 preset instead of 1344x768
   --width <px>            Custom width, multiple of 32
@@ -602,6 +739,44 @@ Prompt format:
   - Give every reference image an explicit job, and lock identity by naming
     concrete features.
 
+Multi-reference video (--mode r2v):
+  Ref2VA conditions on labelled reference material instead of frame anchors.
+  The checkpoint accepts up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES} reference images, ${MINIMAX_H3_MAX_REFERENCE_VIDEOS} reference videos (24fps,
+  2-15s each), and ${MINIMAX_H3_MAX_REFERENCE_AUDIOS} reference audio clips, at most ${MINIMAX_H3_MAX_REFERENCE_FILES} reference files
+  in total.
+
+  r2v runs on a Sogni worker rather than at a vendor, so every reference is
+  uploaded through Sogni's asset path before the job is submitted.
+
+  Repeat --ref-image up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES} times; the SDK sends the first as
+  referenceImage and the rest as contextImages, which upload to the numbered
+  slots the worker feeds into ref_images. At least one is required.
+
+  Repeat --ref-video and --ref-audio up to ${MINIMAX_H3_MAX_REFERENCE_VIDEOS} and ${MINIMAX_H3_MAX_REFERENCE_AUDIOS} times respectively. The SDK uploads each file to a distinct S3
+  object. A reference video's own soundtrack is also presented to the model,
+  numbered before any standalone reference audio. Reference videos are read as
+  24fps; a clip at another frame rate plays back time-distorted.
+
+  References are numbered from 1 per type, in the order images, then videos,
+  then standalone audio, and the text encoder labels each one with a literal
+  "<Picture i>: " / "<Video k>: " / "<Audio j>: " tag before your prompt text.
+  Write the prompt with the SAME tags - <Picture 1>, <Video 1>, <Audio 1>, angle
+  brackets included - rather than prose aliases. Give every one of them
+  a separate job - separate identity from style, motion from appearance, and
+  voice character from the words that are spoken - and say which reference wins
+  when two disagree:
+
+    <Picture 1> is the character's face and hairstyle. <Picture 2> is the
+    wardrobe only. <Picture 3> is environment and lighting only. Where
+    <Picture 1> and <Picture 3> disagree on exposure, <Picture 1> wins on her
+    face.
+
+  Reference resolution is a real cost/quality tradeoff. The workflow ships
+  ref_image_size="match", which scales references down to the generation pixel
+  area. The "max" setting uses a 2048px short edge for the best identity
+  fidelity, but its reference tokens ride through every sampling step, making
+  the render several times slower. Sogni does not expose "max".
+
   ADVANCED, optional: MiniMax also defines a speaker-tagged dialogue markup,
 
     ${ADVANCED_DIALOGUE_MARKUP}
@@ -635,9 +810,10 @@ async function main() {
     console.log('  1. t2v    Text-to-video (default)');
     console.log('  2. i2v    First-frame image-to-video');
     console.log('  3. flf2v  First-and-last-frame video');
+    console.log('  4. r2v    Multi-reference video');
     console.log();
-    const answer = await askQuestion('Enter choice [1-3] (default: 1): ');
-    OPTIONS.mode = MODES[Math.max(0, Math.min(2, (parseInt(answer, 10) || 1) - 1))];
+    const answer = await askQuestion(`Enter choice [1-${MODES.length}] (default: 1): `);
+    OPTIONS.mode = MODES[Math.max(0, Math.min(MODES.length - 1, (parseInt(answer, 10) || 1) - 1))];
   }
   OPTIONS.mode = OPTIONS.mode || 't2v';
 
@@ -664,12 +840,39 @@ async function main() {
   log('🎬', `Selected model: ${modelConfig.name} (${modelConfig.id})`);
   console.log();
 
-  // Reference images
-  if (OPTIONS.mode !== 't2v' && !OPTIONS.printPrompt) {
+  // Reference assets. --image/--end-image are frame anchors (i2v, flf2v);
+  // --ref-image/--ref-video/--ref-audio are labelled r2v references. Mixing the
+  // two vocabularies for one slot would make the prompt's reference numbering
+  // ambiguous, so each mode accepts only its own flags.
+  const hasR2vReferences =
+    OPTIONS.refImages.length > 0 || OPTIONS.refVideos.length > 0 || OPTIONS.refAudios.length > 0;
+  if (OPTIONS.mode !== 'r2v' && hasR2vReferences) {
+    console.error(
+      `Error: --ref-image/--ref-video/--ref-audio belong to --mode r2v. In ${OPTIONS.mode}, use --image` +
+        `${OPTIONS.mode === 'flf2v' ? ' and --end-image' : ''}.`
+    );
+    process.exit(1);
+  }
+  if (OPTIONS.mode === 'r2v' && (OPTIONS.image || OPTIONS.endImage)) {
+    console.error(
+      'Error: r2v has no frame anchors. Pass its references as --ref-image (repeatable) instead of ' +
+        '--image/--end-image.'
+    );
+    process.exit(1);
+  }
+
+  if (OPTIONS.mode !== 't2v' && OPTIONS.mode !== 'r2v' && !OPTIONS.printPrompt) {
     OPTIONS.image = await pickImageFile(OPTIONS.image, 'first-frame image');
   }
   if (OPTIONS.mode === 'flf2v' && !OPTIONS.printPrompt) {
     OPTIONS.endImage = await pickImageFile(OPTIONS.endImage, 'last-frame image');
+  }
+  if (OPTIONS.mode === 'r2v' && OPTIONS.refImages.length === 0 && !OPTIONS.printPrompt) {
+    if (!OPTIONS.interactive || !process.stdin.isTTY) {
+      console.error('Error: r2v requires at least one --ref-image.');
+      process.exit(1);
+    }
+    OPTIONS.refImages.push(await pickImageFile(null, 'first reference image'));
   }
   if (OPTIONS.mode === 't2v' && (OPTIONS.image || OPTIONS.endImage)) {
     console.error('Error: t2v does not accept reference images. Use --mode i2v or --mode flf2v.');
@@ -680,6 +883,30 @@ async function main() {
       'Error: the H3 i2v workflow takes only a first frame. Use --mode flf2v for two anchors.'
     );
     process.exit(1);
+  }
+  if (OPTIONS.mode === 'r2v') {
+    // Enforce the model ceilings before reading and uploading the files.
+    const modelCeilings = [
+      ['--ref-image', OPTIONS.refImages.length, MINIMAX_H3_MAX_REFERENCE_IMAGES, 'images'],
+      ['--ref-video', OPTIONS.refVideos.length, MINIMAX_H3_MAX_REFERENCE_VIDEOS, 'videos'],
+      ['--ref-audio', OPTIONS.refAudios.length, MINIMAX_H3_MAX_REFERENCE_AUDIOS, 'audio clips']
+    ];
+    for (const [flag, count, ceiling, label] of modelCeilings) {
+      if (count > ceiling) {
+        console.error(
+          `Error: MiniMax H3 accepts at most ${ceiling} reference ${label}; got ${count} ${flag} values.`
+        );
+        process.exit(1);
+      }
+    }
+    const totalReferences =
+      OPTIONS.refImages.length + OPTIONS.refVideos.length + OPTIONS.refAudios.length;
+    if (totalReferences > MINIMAX_H3_MAX_REFERENCE_FILES) {
+      console.error(
+        `Error: MiniMax H3 accepts at most ${MINIMAX_H3_MAX_REFERENCE_FILES} reference files in total; got ${totalReferences}.`
+      );
+      process.exit(1);
+    }
   }
 
   // Resolution
@@ -743,9 +970,11 @@ async function main() {
   }
   if (!OPTIONS.prompt) {
     OPTIONS.prompt = defaultPromptForMode(OPTIONS.mode, effectiveDuration, OPTIONS.alignmentLine);
-  } else if (OPTIONS.alignmentLine && OPTIONS.mode !== 't2v') {
+  } else if (OPTIONS.alignmentLine && (OPTIONS.mode === 'i2v' || OPTIONS.mode === 'flf2v')) {
     // Prepend to a caller-supplied prompt too, but never rewrite the prompt
-    // itself - markup a caller wrote stays exactly as they wrote it.
+    // itself - markup a caller wrote stays exactly as they wrote it. t2v has no
+    // references and r2v references are not pinned to a timecode, so neither has
+    // an alignment line to prepend.
     const alignmentLine =
       OPTIONS.mode === 'i2v' ? I2V_ALIGNMENT_LINE : flf2vAlignmentLine(effectiveDuration);
     if (!OPTIONS.prompt.startsWith(alignmentLine)) {
@@ -753,7 +982,10 @@ async function main() {
     }
   }
 
-  const promptWarnings = reviewPrompt(OPTIONS.prompt, effectiveDuration);
+  const promptWarnings = reviewPrompt(OPTIONS.prompt, effectiveDuration, OPTIONS.mode, {
+    videos: OPTIONS.refVideos.length,
+    audios: OPTIONS.refAudios.length
+  });
 
   if (OPTIONS.printPrompt) {
     console.log(
@@ -858,31 +1090,77 @@ async function main() {
       console.log(`💳 Using saved payment preference: ${tokenType} tokens\n`);
     }
 
-    // Prepare reference images at the exact output canvas
+    // Prepare reference images at the exact output canvas.
+    //
+    // The image slots mean different things per mode. In i2v/flf2v they are
+    // frame anchors. In r2v there are no anchors at all: reference 1 goes to
+    // referenceImage and references 2-9 to contextImages, which the SDK uploads
+    // to the numbered slots the worker packs into ref_images.
     let referenceImage;
     let referenceImageEnd;
-    if (OPTIONS.image) {
-      const processed = await processImageForVideo(OPTIONS.image, OPTIONS.frames, {
+    let contextImages;
+    let referenceVideo;
+    let referenceVideos;
+    let referenceAudio;
+    let referenceAudios;
+
+    const prepareImage = async (path, label) => {
+      const processed = await processImageForVideo(path, OPTIONS.frames, {
         targetWidth: OPTIONS.width,
         targetHeight: OPTIONS.height,
         dimensionStep: H3_DIMENSION_STEP
       });
-      referenceImage = new Blob([processed.buffer]);
-      log('🖼️', `First frame: ${OPTIONS.image} (${processed.width}x${processed.height})`);
+      log('🖼️', `${label}: ${path} (${processed.width}x${processed.height})`);
+      return new Blob([processed.buffer]);
+    };
+
+    if (OPTIONS.image) {
+      referenceImage = await prepareImage(OPTIONS.image, 'First frame');
     }
     if (OPTIONS.endImage) {
-      const processed = await processImageForVideo(OPTIONS.endImage, OPTIONS.frames, {
-        targetWidth: OPTIONS.width,
-        targetHeight: OPTIONS.height,
-        dimensionStep: H3_DIMENSION_STEP
-      });
-      referenceImageEnd = new Blob([processed.buffer]);
-      log('🖼️', `Last frame: ${OPTIONS.endImage} (${processed.width}x${processed.height})`);
+      referenceImageEnd = await prepareImage(OPTIONS.endImage, 'Last frame');
     }
+    if (OPTIONS.refImages.length) {
+      const prepared = [];
+      for (const [index, path] of OPTIONS.refImages.entries()) {
+        prepared.push(
+          await prepareImage(path, `Reference image ${index + 1} (<Picture ${index + 1}>)`)
+        );
+      }
+      [referenceImage] = prepared;
+      if (prepared.length > 1) {
+        contextImages = prepared.slice(1);
+      }
+    }
+    if (OPTIONS.refVideos.length) {
+      const prepared = OPTIONS.refVideos.map((path, index) => {
+        log('🎞️', `Reference video ${index + 1} (<Video ${index + 1}>): ${path}`);
+        return readFileAsBuffer(path);
+      });
+      [referenceVideo] = prepared;
+      referenceVideos = prepared.slice(1);
+    }
+    if (OPTIONS.refAudios.length) {
+      const prepared = OPTIONS.refAudios.map((path, index) => {
+        log('🔊', `Reference audio ${index + 1} (<Audio ${index + 1}>): ${path}`);
+        return readFileAsBuffer(path);
+      });
+      [referenceAudio] = prepared;
+      referenceAudios = prepared.slice(1);
+    }
+
+    const referenceSummary =
+      OPTIONS.mode === 'r2v'
+        ? {
+            References: `${OPTIONS.refImages.length} image(s), ${OPTIONS.refVideos.length} video(s), ${OPTIONS.refAudios.length} audio clip(s)`,
+            'Reference sizing': 'ref_image_size=match (references scaled to the generation area)'
+          }
+        : {};
 
     displayConfig('MiniMax H3 Generation Configuration', {
       Model: modelConfig.name,
       Workflow: OPTIONS.mode,
+      ...referenceSummary,
       Resolution: `${OPTIONS.width}x${OPTIONS.height}`,
       Duration: `${effectiveDuration.toFixed(2)}s`,
       FPS: `${OPTIONS.fps} (fixed)`,
@@ -987,6 +1265,11 @@ async function main() {
     };
     if (referenceImage) projectParams.referenceImage = referenceImage;
     if (referenceImageEnd) projectParams.referenceImageEnd = referenceImageEnd;
+    if (contextImages) projectParams.contextImages = contextImages;
+    if (referenceVideo) projectParams.referenceVideo = referenceVideo;
+    if (referenceVideos?.length) projectParams.referenceVideos = referenceVideos;
+    if (referenceAudio) projectParams.referenceAudio = referenceAudio;
+    if (referenceAudios?.length) projectParams.referenceAudios = referenceAudios;
 
     const project = await sogni.projects.create(projectParams);
 

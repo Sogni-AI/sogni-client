@@ -810,6 +810,55 @@ const project = await sogni.projects.create({
 });
 ```
 
+MINIMAX H3 (Sogni workers, native video + audio):
+
+MiniMax H3 generates video and 32kHz stereo audio jointly in one pass on Sogni's
+own GPUs. Every sampling parameter is fixed: 24fps, 20 steps, guidance 1,
+res_multistep/simple, and no negative prompt. Frames follow `124 + n*17` from 124
+to 362, and the canvas uses a 32px grid capped at 1,032,192 pixels.
+
+| Model ID | Mode | References |
+|----------|------|------------|
+| minimax-h3-fl2va-fp8_t2v | Text-to-video | none |
+| minimax-h3-fl2va-fp8_i2v | First-frame image-to-video | one first-frame image |
+| minimax-h3-fl2va-fp8_flf2v | First-and-last-frame video | both anchor images required |
+| minimax-h3-ref2va-fp8_r2v | Reference-to-video (Ref2VA) | 1-9 images, up to 3 videos, up to 3 audios, 12 files total |
+
+Ref2VA (`_r2v`) is a separate checkpoint. It has no frame anchors, so
+`referenceImageEnd` is rejected; references are labelled material the prompt
+assigns jobs to (`<Picture i>`, `<Video k>`, `<Audio j>`, numbered from 1 per
+type). Because it renders on a Sogni worker rather than at a vendor, every artist
+reference uses the normal S3 upload path: `referenceImage` + `contextImages` for
+images, `referenceVideo` + `referenceVideos` for videos, and `referenceAudio` +
+`referenceAudios` for audio. Direct URL arrays are rejected. At least one
+reference image is required.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-ref2va-fp8_r2v',
+  positivePrompt:
+    '<Picture 1> is the identity reference for the woman: her face and hairstyle carry over exactly. ' +
+    '<Picture 2> is the wardrobe reference only. <Picture 3> is the location and lighting palette only. ' +
+    'Where <Picture 1> and <Picture 3> disagree on exposure, <Picture 1> wins on her face.\n\n' +
+    '[0-4 seconds] She walks toward camera along a rain-slicked street, handheld medium shot on a fast 50mm.\n\n' +
+    'Audio: steady rain on asphalt and distant traffic. No on-screen text or watermarks.',
+  duration: 8,
+  width: 1344,
+  height: 768,
+  referenceImage: fs.readFileSync('./face.jpg'),       // <Picture 1>
+  contextImages: [                                      // <Picture 2>, <Picture 3>
+    fs.readFileSync('./jacket.jpg'),
+    fs.readFileSync('./street.jpg')
+  ],
+  referenceVideo: fs.readFileSync('./camera-move.mp4'),  // <Video 1>
+  tokenType: 'spark'
+});
+```
+
+See `examples/workflow_minimax_h3_video.mjs` for all four modes.
+
 ================================================================================ 8. AUDIO GENERATION - ACE-STEP 1.5 MODELS
 ================================================================================
 
@@ -1494,7 +1543,13 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceImage?: File | Buffer | Blob;
   referenceImageEnd?: File | Buffer | Blob;
   referenceAudio?: File | Buffer | Blob;
+  referenceAudios?: (File | Buffer | Blob)[];  // MiniMax H3 r2v audio references 2-3
   referenceVideo?: File | Buffer | Blob;
+  referenceVideos?: (File | Buffer | Blob)[];  // MiniMax H3 r2v video references 2-3
+  contextImages?: (File | Buffer | Blob)[];  // MiniMax H3 r2v reference images 2-9
+  referenceImageUrls?: string[];  // Seedance and HappyHorse only
+  referenceVideoUrls?: string[];  // Seedance only
+  referenceAudioUrls?: string[];  // Seedance only
   audioStart?: number;       // Seconds into audio
   audioDuration?: number;    // Seconds of audio
   videoStart?: number;       // Seconds into video
