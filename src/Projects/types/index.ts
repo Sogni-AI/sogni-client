@@ -173,6 +173,58 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Direct SDK project duration range is 3 to 15 seconds
  * - Frame count is calculated as: `duration * 24 + 1`
  * - Image-only reference context: no reference video or reference audio assets
+ *
+ * ### MiniMax H3 Models (minimax-h3-*)
+ * - Text-to-video, first-frame image-to-video, first-and-last-frame video, and
+ *   multi-reference video. Two checkpoints ship: FL2VA
+ *   (`minimax-h3-fl2va-fp8_t2v` / `_i2v` / `_flf2v`) and Ref2VA
+ *   (`minimax-h3-ref2va-fp8_r2v`).
+ * - Video and 32kHz stereo audio are generated jointly. Audio is included by
+ *   default; set `generateAudio: false` to return a video without an audio track.
+ * - Generation is fixed at 24fps, 20 steps, guidance 1,
+ *   `res_multistep`/`simple`, with no separate negative-prompt input.
+ * - Frames follow `124 + n*17` from 124 through 362. Dimensions use a 32px
+ *   grid, with a 1344px per-axis limit and a 1032192-pixel canvas limit.
+ * - The `flf2v` model requires both `referenceImage` and `referenceImageEnd`.
+ *
+ * #### MiniMax H3 `r2v` (Ref2VA) multi-reference video
+ * - `minimax-h3-ref2va-fp8_r2v` conditions on labelled reference material
+ *   rather than on frame anchors. The checkpoint accepts up to 9 reference
+ *   images, 3 reference videos (24fps, 2-15 seconds each), and 3 reference
+ *   audio clips, with at most 12 reference files in total.
+ * - All of those ceilings apply, and at least one reference image is required.
+ * - r2v is the only reference workflow that runs on Sogni's own workers rather
+ *   than at a vendor, so every reference is uploaded to S3 before the request is
+ *   sent. Images use `referenceImage` plus `contextImages`; videos use
+ *   `referenceVideo` plus `referenceVideos`; audio uses `referenceAudio` plus
+ *   `referenceAudios`.
+ * - Upload order is preserved, so a prompt ordinal refers to a predictable file.
+ * - References are presented to the model in a fixed order - images, then
+ *   videos (each video's own soundtrack immediately before it), then standalone
+ *   audio - and are numbered from 1 per type. The H3 text encoder splices a
+ *   literal label in front of each one before your prompt text
+ *   (`comfy/text_encoders/minimax.py` emits `"<Picture %d>: "`, `"<Video %d>: "`
+ *   and `"<Audio %d>: "`), so write the SAME form in the prompt - `<Picture 1>`,
+ *   `<Video 1>`, `<Audio 1>`, angle brackets included - and the reference and
+ *   the sentence about it share one token sequence. Prose aliases like "Image 1"
+ *   or "the second photo" do not.
+ * - Give every reference an explicit job, or the model averages them. Separate
+ *   identity from style, motion from appearance, and voice character from
+ *   spoken words, and state the priority when two references conflict: "Use
+ *   `<Picture 1>` for the character's face and hairstyle. Use `<Picture 2>`
+ *   only for environment and lighting. When `<Picture 1>` and `<Picture 2>`
+ *   disagree, `<Picture 1>` wins."
+ * - Reference resolution has a real cost/quality tradeoff. The workflow's
+ *   `ref_image_size` is `match` by default, which scales references down to the
+ *   generation pixel area. `max` uses a 2048px short edge for the best identity
+ *   fidelity, but its reference tokens ride through every sampling step, making
+ *   the render several times slower. `match` is what Sogni ships; `max` is not
+ *   exposed as an SDK parameter.
+ * - r2v has no frame anchors, so `referenceImageEnd` is rejected. There is no
+ *   closing frame to pin.
+ *
+ * - See the repository's authoring examples:
+ *   https://github.com/Sogni-AI/sogni-client/blob/alpha/examples/workflow_minimax_h3_video.mjs
  */
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
@@ -184,13 +236,16 @@ export interface VideoProjectParams extends BaseProjectParams {
   frames?: number;
   /**
    * Duration of the video in seconds. Supported range 1 to 10 (WAN), 4 to 20 (LTX-2.3),
-   * 4 to 15 (Seedance direct SDK projects), or 3 to 15 (HappyHorse direct SDK projects).
+   * 4 to 15 (Seedance direct SDK projects), 3 to 15 (HappyHorse direct SDK projects),
+   * or 124/24 to 362/24 seconds (MiniMax H3).
    *
    * The SDK automatically calculates the correct frame count based on the model:
    * - WAN 2.2: `duration * 16 + 1` (always 16fps generation)
    * - LTX-2.3: `duration * fps + 1`, snapped to frame step constraint
    * - Seedance: `duration * 24 + 1`
    * - HappyHorse: `duration * 24 + 1`
+   * - MiniMax H3: `duration * 24` snapped to the `124 + n*17` grid and clamped
+   *   to 124-362 frames (always 24fps generation, and no `+1` term)
    */
   duration?: number;
   /**
@@ -205,6 +260,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    * **Seedance Models:** Fixed 24fps external API generation.
    *
    * **HappyHorse Models:** Fixed 24fps external API generation.
+   *
+   * **MiniMax H3 Models:** Fixed 24fps. Omit this field or pass 24.
    */
   fps?: number;
   /**
@@ -222,33 +279,78 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * Reference image for video workflows.
    * Maps to: startImage (i2v), characterImage (animate), referenceImage (s2v, ia2v)
+   *
+   * On the MiniMax H3 `r2v` workflow (`minimax-h3-ref2va-fp8_r2v`) this is
+   * reference image 1 (`<Picture 1>`) rather than a frame anchor, and it is
+   * optional: the same slot can be filled from `contextImages` instead.
    */
   referenceImage?: InputMedia;
   /**
-   * Loose image context references for external API video models (Seedance and
-   * HappyHorse). These must be publicly accessible HTTPS URLs that the vendor
-   * can fetch. Use referenceImage / referenceImageEnd when the image should lock
-   * the first or last frame. HappyHorse r2v accepts 1-9 reference images here.
+   * Loose image context references for Seedance and HappyHorse. These must be
+   * publicly accessible HTTPS URLs and are handed to the external vendor. Use
+   * referenceImage / referenceImageEnd when the
+   * image should lock the first or last frame. HappyHorse r2v accepts 1-9
+   * reference images here.
+   *
+   * MiniMax H3 r2v does not accept URL references; use `referenceImage` and
+   * `contextImages`, which the SDK uploads through Sogni's asset path.
    */
   referenceImageUrls?: string[];
   /**
+   * Uploaded reference images for the MiniMax H3 `r2v` multi-reference workflow
+   * (`minimax-h3-ref2va-fp8_r2v`), in the order the model is shown them.
+   *
+   * This is the video counterpart of `ImageProjectParams.contextImages`, and it
+   * uses the same `contextImage1`..`contextImage9` upload slots that Flux.2 and
+   * Qwen Image Edit already use. It exists because H3 is Comfy-native: the
+   * worker builds the ComfyUI graph locally from Sogni-hosted assets.
+   *
+   * The uploaded reference set is `[referenceImage, ...contextImages]`. Both
+   * fields count against the same 9-image ceiling, and at least one image is
+   * required. Prompt ordinals follow that
+   * order: with `referenceImage` set, `contextImages[0]` is `<Picture 2>`;
+   * without it, `contextImages[0]` is `<Picture 1>`. Entries must not be empty -
+   * a hole would renumber every reference after it.
+   *
+   * Any other video model rejects this field.
+   */
+  contextImages?: InputMedia[];
+  /**
    * Optional end image for i2v interpolation workflows.
    * When provided with referenceImage, the video will interpolate between the two images.
+   *
+   * Required, together with `referenceImage`, for the MiniMax H3 `flf2v`
+   * workflow (`minimax-h3-fl2va-fp8_flf2v`), which always interpolates between
+   * two anchor frames.
+   *
+   * Rejected by the MiniMax H3 `r2v` workflow, which has no closing frame to
+   * pin. Its second reference image is the next entry in `contextImages`.
    */
   referenceImageEnd?: InputMedia;
   /**
    * Reference audio for audio-driven video workflows (s2v, ia2v, a2v).
+   *
+   * On the MiniMax H3 `r2v` workflow this is standalone reference audio 1 - a
+   * voice or soundtrack the prompt assigns a job to, not a track the video is
+   * driven by. It is the first item in `[referenceAudio, ...referenceAudios]`.
    */
   referenceAudio?: InputMedia;
   /**
-   * Seedance-only audio context references. These must be publicly accessible
-   * HTTPS URLs. Seedance does not support text+audio-only requests; include at
-   * least one image or video reference when using audio URL references.
+   * Additional uploaded standalone audio references for MiniMax H3 r2v.
+   * Together with `referenceAudio`, at most three clips are accepted. Entries
+   * are uploaded to distinct S3 objects and retain array order.
+   */
+  referenceAudios?: InputMedia[];
+  /**
+   * Audio context references for Seedance. These must be
+   * publicly accessible HTTPS URLs. Seedance does not support text+audio-only
+   * requests; include at least one image or video reference when using audio
+   * URL references. MiniMax H3 r2v uses uploaded `referenceAudios` instead.
    */
   referenceAudioUrls?: string[];
   /**
-   * Enable native audio generation for external API-backed video models that support it.
-   * Seedance defaults to audio enabled server-side; set to false to request a silent video.
+   * Include the model's generated/native audio track when supported. Audio is
+   * enabled by default; set to false to return a video without an audio track.
    */
   generateAudio?: boolean;
   /**
@@ -281,8 +383,21 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * Reference video for animate and v2v (ControlNet) workflows.
    * Maps to: drivingVideo (animate-move), sourceVideo (animate-replace), referenceVideo (v2v)
+   *
+   * On the MiniMax H3 `r2v` workflow this is reference video 1 (`<Video 1>`,
+   * read as 24fps) that the prompt assigns a job to - camera movement,
+   * blocking, or subject motion - rather than a source clip to transform. Its
+   * own soundtrack is also presented to the model, numbered before any
+   * standalone reference audio. It is the first item in
+   * `[referenceVideo, ...referenceVideos]`.
    */
   referenceVideo?: InputMedia;
+  /**
+   * Additional uploaded video references for MiniMax H3 r2v. Together with
+   * `referenceVideo`, at most three clips are accepted. Entries are uploaded to
+   * distinct S3 objects and retain array order.
+   */
+  referenceVideos?: InputMedia[];
   /**
    * Inpaint mask IMAGE for LTX-2.3 v2v inpaint workflows.
    * White pixels mark the region to regenerate. Maps to jobKey 'referenceMask'.
@@ -290,8 +405,9 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceMask?: InputMedia;
   /**
-   * Seedance-only video context references. These must be publicly accessible
-   * HTTPS URLs and map to Seedance reference_video assets.
+   * Video context references for Seedance. These must be
+   * publicly accessible HTTPS URLs, and map to Seedance reference_video assets.
+   * MiniMax H3 r2v uses uploaded `referenceVideos` instead.
    */
   referenceVideoUrls?: string[];
   /**
@@ -706,12 +822,22 @@ export interface CostEstimation {
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
 
 /**
- * Video workflow types for WAN, LTX-2.3, Seedance, and HappyHorse models.
- * `r2v` (reference-to-video) is the HappyHorse multi-reference-image workflow.
+ * Video workflow types for WAN, LTX-2.3, Seedance, HappyHorse, and MiniMax H3
+ * models.
+ * `r2v` (reference-to-video) is the multi-reference workflow shared by
+ * HappyHorse (1-9 reference images fetched from `referenceImageUrls`) and
+ * MiniMax H3 (`minimax-h3-ref2va-fp8_r2v`, 1-9 reference images uploaded
+ * through `contextImages`). Because the two families do not take the same
+ * assets over the same transport, resolve requirements with
+ * `getVideoAssetRequirements(modelId)` instead of reading
+ * `VIDEO_WORKFLOW_ASSETS.r2v` directly.
+ * `flf2v` (first-and-last-frame-to-video) is the MiniMax H3 workflow that
+ * interpolates between two required anchor images.
  */
 export type VideoWorkflowType =
   | 't2v'
   | 'i2v'
+  | 'flf2v'
   | 's2v'
   | 'ia2v'
   | 'a2v'

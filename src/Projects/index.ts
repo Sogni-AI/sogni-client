@@ -36,11 +36,15 @@ import { enhancementDefaults } from './Job.js';
 import {
   calculateVideoFrames,
   getEnhacementStrength,
+  getVideoAssetRequirements,
+  getVideoContextImageSlots,
+  getMinimaxH3ReferenceAudioSlots,
+  getMinimaxH3ReferenceVideoSlots,
   getVideoWorkflowType,
   isAudioModel,
+  isMinimaxH3ReferenceModel,
   isVideoModel,
-  usesReferenceMask,
-  VIDEO_WORKFLOW_ASSETS
+  usesReferenceMask
 } from './utils/index.js';
 import { TokenType } from '../types/token.js';
 import { getMaxContextImages, validateSampler } from '../lib/validation.js';
@@ -57,6 +61,13 @@ import {
   mapVideoTier,
   ModelOptions
 } from './types/ModelOptions.js';
+
+/**
+ * Zero-based position of a context image, one less than the `contextImage<n>`
+ * upload slot it is written to. Sixteen slots exist; MiniMax H3 r2v uses the
+ * first nine of them.
+ */
+type ContextImageIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 const GARBAGE_COLLECT_TIMEOUT = 30000;
@@ -713,11 +724,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       await Promise.all(
         data.contextImages.map((image, index) => {
           if (image && image !== true) {
-            return this.uploadContextImage(
-              project.id,
-              index as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15,
-              image
-            );
+            return this.uploadContextImage(project.id, index as ContextImageIndex, image);
           }
         })
       );
@@ -725,20 +732,47 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private async _processVideoAssets(project: Project, data: VideoProjectParams) {
+    const isMinimaxH3R2v = isMinimaxH3ReferenceModel(data.modelId);
     if (data?.referenceImage && data.referenceImage !== true) {
       await this.uploadReferenceImage(project.id, data.referenceImage);
     }
+    // MiniMax H3 r2v reference images beyond the first, uploaded to the same
+    // numbered contextImage slots image projects use.
+    // getVideoContextImageSlots offsets them past referenceImage so the two
+    // never land on the same slot. createJobRequestMessage has already checked
+    // the model, the entries, and the 9-image ceiling.
+    await Promise.all(
+      getVideoContextImageSlots(data).map(({ slot, media }) =>
+        typeof media === 'boolean'
+          ? undefined
+          : this.uploadContextImage(project.id, (slot - 1) as ContextImageIndex, media)
+      )
+    );
     if (data?.referenceImageEnd && data.referenceImageEnd !== true) {
       await this.uploadReferenceImageEnd(project.id, data.referenceImageEnd);
     }
-    if (data?.referenceAudio && data.referenceAudio !== true) {
+    if (!isMinimaxH3R2v && data?.referenceAudio && data.referenceAudio !== true) {
       await this.uploadReferenceAudio(project.id, data.referenceAudio);
     }
     if (data?.referenceAudioIdentity && data.referenceAudioIdentity !== true) {
       await this.uploadReferenceAudio(project.id, data.referenceAudioIdentity);
     }
-    if (data?.referenceVideo && data.referenceVideo !== true) {
+    if (!isMinimaxH3R2v && data?.referenceVideo && data.referenceVideo !== true) {
       await this.uploadReferenceVideo(project.id, data.referenceVideo);
+    }
+    if (isMinimaxH3R2v) {
+      await Promise.all([
+        ...getMinimaxH3ReferenceAudioSlots(data).map(({ slot, media }) =>
+          typeof media === 'boolean'
+            ? undefined
+            : this.uploadReferenceAudio(project.id, media, `referenceAudio${slot}`)
+        ),
+        ...getMinimaxH3ReferenceVideoSlots(data).map(({ slot, media }) =>
+          typeof media === 'boolean'
+            ? undefined
+            : this.uploadReferenceVideo(project.id, media, `referenceVideo${slot}`)
+        )
+      ]);
     }
     if (data?.referenceMask && data.referenceMask !== true && usesReferenceMask(data)) {
       await this.uploadReferenceMask(project.id, data.referenceMask);
@@ -755,7 +789,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (data.referenceImageEnd && data.referenceImageEnd !== true) {
       keyFrame.referenceImageEndContentType = getFileContentType(data.referenceImageEnd);
     }
-    if (data.referenceAudio && data.referenceAudio !== true) {
+    const isMinimaxH3R2v = isMinimaxH3ReferenceModel(data.modelId);
+    if (!isMinimaxH3R2v && data.referenceAudio && data.referenceAudio !== true) {
       keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio);
     }
     if (data.referenceAudioIdentity && data.referenceAudioIdentity !== true) {
@@ -763,8 +798,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       keyFrame.referenceAudioIdentityContentType = contentType;
       keyFrame.referenceAudioContentType ??= contentType;
     }
-    if (data.referenceVideo && data.referenceVideo !== true) {
+    if (!isMinimaxH3R2v && data.referenceVideo && data.referenceVideo !== true) {
       keyFrame.referenceVideoContentType = getFileContentType(data.referenceVideo);
+    }
+    if (isMinimaxH3R2v) {
+      for (const { slot, media } of getMinimaxH3ReferenceAudioSlots(data)) {
+        if (typeof media !== 'boolean') {
+          keyFrame[`referenceAudio${slot}ContentType`] = getFileContentType(media);
+        }
+      }
+      for (const { slot, media } of getMinimaxH3ReferenceVideoSlots(data)) {
+        if (typeof media !== 'boolean') {
+          keyFrame[`referenceVideo${slot}ContentType`] = getFileContentType(media);
+        }
+      }
     }
     if (data.referenceMask && data.referenceMask !== true && usesReferenceMask(data)) {
       keyFrame.referenceMaskContentType = getFileContentType(data.referenceMask);
@@ -782,6 +829,32 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       `/v1/projects/${projectId}`
     );
     return data.project;
+  }
+
+  /**
+   * Ids of this account's projects that are currently live on the socket,
+   * including ones still queued with no worker assigned.
+   *
+   * The REST API above only stores a project once it finishes, so it cannot
+   * distinguish "still queued" from "lost" — both are 404. The socket holds the
+   * only live copy, and answers scoped to the caller's own authenticated
+   * address (the response carries no artist identity at all).
+   *
+   * @internal
+   * @returns live project ids, or `null` when liveness could not be determined
+   *   (endpoint unavailable on an older socket, unauthenticated client, or a
+   *   transport error) — callers must treat `null` as "unknown", never as "gone".
+   */
+  async _listActiveProjectIds(): Promise<string[] | null> {
+    try {
+      const r = await this.client.socket.get<{ projects?: Array<{ id?: string }> }>(
+        '/api/v1/artist/projects/active'
+      );
+      if (!r || !Array.isArray(r.projects)) return null;
+      return r.projects.map((p) => p?.id).filter((id): id is string => typeof id === 'string');
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -884,7 +957,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadContextImage(
     projectId: string,
-    index: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15,
+    index: ContextImageIndex,
     file: File | Buffer | Blob
   ) {
     const imageId = getUUID();
@@ -1030,11 +1103,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * Supported formats: mp3, m4a, wav
    * @internal
    */
-  private async uploadReferenceAudio(projectId: string, file: File | Buffer | Blob) {
+  private async uploadReferenceAudio(projectId: string, file: File | Buffer | Blob, id?: string) {
     const contentType = getFileContentType(file);
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
       type: 'referenceAudio',
+      id,
       contentType
     });
     const headers: Record<string, string> = {};
@@ -1060,11 +1134,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * Supported formats: mp4, mov
    * @internal
    */
-  private async uploadReferenceVideo(projectId: string, file: File | Buffer | Blob) {
+  private async uploadReferenceVideo(projectId: string, file: File | Buffer | Blob, id?: string) {
     const contentType = getFileContentType(file);
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
       type: 'referenceVideo',
+      id,
       contentType
     });
     const headers: Record<string, string> = {};
@@ -1444,6 +1519,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * }
    * ```
    *
+   * Requirements are resolved per model, not per workflow type alone: the `r2v`
+   * workflow type is shared by HappyHorse, which is image-only, and MiniMax H3
+   * (`minimax-h3-ref2va-fp8_r2v`), which also takes reference video and
+   * reference audio.
+   *
+   * This table describes the first upload slot only. MiniMax H3 r2v also uses
+   * `contextImages`, `referenceVideos`, and `referenceAudios`; callers should
+   * read those fields on `VideoProjectParams` for the multi-reference limits.
+   *
    * @param {string} modelId - The identifier of the video model to retrieve the configuration for.
    * @return {Object} The video asset configuration object where key is asset field and value is
    * either `required`, `forbidden` or `optional`. Returns `null` if no rules defined for the model.
@@ -1465,7 +1549,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     return {
       workflowType: workflow,
-      assets: VIDEO_WORKFLOW_ASSETS[workflow]
+      assets: getVideoAssetRequirements(modelId)
     };
   }
 

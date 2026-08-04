@@ -63,6 +63,8 @@
     "test:chat-routing": "npm run build && node scripts/check-chat-model-routing.cjs",
     "test:attribution": "npm run build && node scripts/check-attribution-transport.cjs",
     "test:subscription-api": "npm run build && node scripts/check-subscription-api.cjs",
+    "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
+    "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
     "test:workflow-template-envelope": "npm run build && node scripts/check-workflow-template-envelope.cjs",
     "watch": "npm run clean && npm run codegen && tsc --watch --project tsconfig.json",
     "watch:esm": "npm run codegen && tsc --watch --project tsconfig.esm.json",
@@ -85,7 +87,7 @@
   "homepage": "https://github.com/Sogni-AI/sogni-client#readme",
   "dependencies": {
     "@lukeed/uuid": "^2.0.1",
-    "@sogni-ai/sogni-protocol": "1.0.0-alpha.10",
+    "@sogni-ai/sogni-protocol": "1.0.0-alpha.13",
     "@types/js-cookie": "^3.0.6",
     "@types/lodash": "^4.17.23",
     "@types/ws": "^8.5.13",

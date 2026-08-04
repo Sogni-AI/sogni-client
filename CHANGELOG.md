@@ -1,9 +1,65 @@
+# [5.4.0-alpha.6](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.5...v5.4.0-alpha.6) (2026-08-04)
+
+
+### Bug Fixes
+
+* **deps:** bump sogni-protocol to 1.0.0-alpha.13 ([a8374e6](https://github.com/Sogni-AI/sogni-client/commit/a8374e6eca59e4224e1ce959166399a9d260bd65))
+
+# [5.4.0-alpha.5](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.4...v5.4.0-alpha.5) (2026-08-04)
+
+
+### Bug Fixes
+
+* **projects:** separate queue and job runtime timeouts ([dee3d20](https://github.com/Sogni-AI/sogni-client/commit/dee3d209345958046435b81f288324ae71e741a2))
+
+# [5.4.0-alpha.4](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.3...v5.4.0-alpha.4) (2026-08-04)
+
+
+### Bug Fixes
+
+* **projects:** resolve project liveness from the socket, not a 404 ([561dab4](https://github.com/Sogni-AI/sogni-client/commit/561dab4527253e5e84b3a2a6b2d64874fba1a088))
+
+# [5.4.0-alpha.3](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.2...v5.4.0-alpha.3) (2026-08-04)
+
+
+### Bug Fixes
+
+* **chat:** reject minimax-h3-r2v direct tool execution loudly ([d830290](https://github.com/Sogni-AI/sogni-client/commit/d83029021035ab58ff2b6d03531ab051c97b31b9))
+* **projects:** forbid referenceImageEnd on MiniMax H3 i2v uploads ([f1c1018](https://github.com/Sogni-AI/sogni-client/commit/f1c10181c3efbb363f1c353fc1016bb817e23ae6))
+* **projects:** stop cancelling healthy queued projects on 404 sync ([5e4232f](https://github.com/Sogni-AI/sogni-client/commit/5e4232f134e9389ad7c8e1eb54c6223a55e58e8a))
+
+# [5.4.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.1...v5.4.0-alpha.2) (2026-08-04)
+
+
+### Bug Fixes
+
+* **deps:** consume MiniMax H3 reference contract ([19cde2e](https://github.com/Sogni-AI/sogni-client/commit/19cde2eb3ec2e743a188f6dc5dc252a99afe8294))
+
+
+### Features
+
+* **video:** add MiniMax H3 reference uploads ([7f19550](https://github.com/Sogni-AI/sogni-client/commit/7f195504389ebcb944ac0de08e2e13a431598508))
+
+# [5.4.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v5.3.3-alpha.2...v5.4.0-alpha.1) (2026-08-04)
+
+
+### Features
+
+* **video:** add MiniMax H3 generation workflows ([662b9ff](https://github.com/Sogni-AI/sogni-client/commit/662b9ffd5c6cda707ad8f506f41e595e87556845))
+
 ## [5.3.3](https://github.com/Sogni-AI/sogni-client/compare/v5.3.2...v5.3.3) (2026-08-02)
 
 
 ### Bug Fixes
 
 * **docs:** normalize release metadata ([40a1f4d](https://github.com/Sogni-AI/sogni-client/commit/40a1f4d0a1444c1e767ff81a1489123d3af58189))
+
+## [5.3.3-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v5.3.3-alpha.1...v5.3.3-alpha.2) (2026-08-02)
+
+
+### Bug Fixes
+
+* **docs:** normalize release metadata ([419fd20](https://github.com/Sogni-AI/sogni-client/commit/419fd2036b962c0e24b6b051dee62d4f52cb9600))
 
 ## [5.3.1](https://github.com/Sogni-AI/sogni-client/compare/v5.3.0...v5.3.1) (2026-07-30)
 

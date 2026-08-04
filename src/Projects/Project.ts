@@ -210,9 +210,12 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       this._lastEmitedProgress = progress;
     }
     // If project is finished stop watching for timeout
-    if (this._timeout && this.finished) {
-      clearInterval(this._timeout!);
-      this._timeout = null;
+    if (this.finished) {
+      if (this._timeout) {
+        clearInterval(this._timeout);
+        this._timeout = null;
+      }
+      this._jobs.forEach((job) => job._stopRuntimeTimeout());
     }
     if (keys.includes('status') || keys.includes('jobs')) {
       const allJobsStarted = this.jobs.length >= this.params.numberOfMedia;
@@ -261,11 +264,79 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     return job;
   }
 
+  /**
+   * Fail and cancel a project when one actual worker job exceeds its hard
+   * runtime ceiling. Queue time is deliberately excluded: the Job timer starts
+   * only after jobStarted changes that job to processing.
+   * @internal
+   */
+  _handleJobRuntimeTimeout(job: Job) {
+    if (this.finished || job.finished || !this._jobs.includes(job)) return;
+
+    const jobError: ErrorData = {
+      code: 0,
+      message: 'Job exceeded the maximum runtime of 30 minutes'
+    };
+    this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
+      this._logger.error(`Failed to cancel project ${this.id} after job ${job.id} timed out`);
+      this._logger.error(cancelError);
+    });
+    this._jobs.forEach((projectJob) => {
+      if (!projectJob.finished) {
+        projectJob._update({ status: 'failed', error: jobError });
+      }
+    });
+    this._update({
+      status: 'failed',
+      error: {
+        code: 0,
+        message: `Job ${job.id} exceeded the maximum runtime of 30 minutes; project canceled`
+      }
+    });
+  }
+
   private _checkForTimeout() {
     if (this.lastUpdated.getTime() + PROJECT_TIMEOUT < Date.now()) {
-      this._syncToServer().catch((error) => {
-        // 404 errors are expected when project is still initializing and not yet available via REST API
-        // Only log non-404 errors to avoid confusing users
+      void this._runStalenessCheck();
+    }
+  }
+
+  /**
+   * Decide whether a silent project is still alive.
+   *
+   * Two sources answer different halves of the question. The socket holds every
+   * in-flight project, including ones still queued with no worker assigned, so
+   * it is the only place that can say "yes, still waiting". The REST API only
+   * stores a project once it FINISHES, so it answers "it completed while you
+   * weren't listening" — and returns 404 for the entire queued/rendering
+   * window, which is why a bare 404 must never be read as "lost".
+   *
+   * - socket says alive -> waiting is normal, keep the project alive.
+   * - socket says gone AND REST has no record -> genuinely lost, count a strike.
+   * - liveness unknown (older socket, unauthenticated, transport error) -> fall
+   *   back to the lenient rule: only non-404 REST failures count.
+   */
+  private async _runStalenessCheck() {
+    const liveProjectIds = await this._api._listActiveProjectIds();
+    if (liveProjectIds?.includes(this.id)) {
+      // A queued project emits no events by design; this is not staleness.
+      this._failedSyncAttempts = 0;
+      this._keepAlive();
+      return;
+    }
+    const socketConfirmsGone = liveProjectIds !== null;
+
+    return this._syncToServer()
+      .then(() => {
+        this._failedSyncAttempts = 0;
+      })
+      .catch((error) => {
+        // A 404 alone is ambiguous: it is the normal state for a queued project
+        // as well as for a lost one. It only becomes evidence of loss when the
+        // socket has also confirmed the project is no longer in flight.
+        if (error.status === 404 && !socketConfirmsGone) {
+          return;
+        }
         if (error.status !== 404) {
           this._logger.error(error);
         }
@@ -294,7 +365,6 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
           });
         }
       });
-    }
   }
 
   /**

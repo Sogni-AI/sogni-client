@@ -31,9 +31,7 @@ export function normalizeBillingMode(value = 'auto') {
   if (BILLING_MODES.includes(normalized)) {
     return normalized;
   }
-  throw new Error(
-    `Invalid billing mode "${value}". Use auto, subscription, or tokens.`
-  );
+  throw new Error(`Invalid billing mode "${value}". Use auto, subscription, or tokens.`);
 }
 
 export function defaultBillingMode() {
@@ -117,10 +115,57 @@ export function isLtx2Model(modelId) {
 }
 
 /**
+ * Check if a model ID is a MiniMax H3 video model.
+ *
+ * H3 generates video and 32kHz stereo audio jointly at a fixed 24fps.
+ * Frame counts sit on the 124 + n*17 grid (124-362 frames, 5.167s-15.083s),
+ * with no `+1` term, so the generic duration * fps + 1 formula is wrong here.
+ *
+ * @param {string} modelId - The model ID to check
+ * @returns {boolean} True if this is a MiniMax H3 model
+ */
+export function isMinimaxH3Model(modelId) {
+  return modelId?.startsWith('minimax-h3') || false;
+}
+
+/**
  * LTX-2.3 frame step constraint.
  * Valid frame counts follow the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, ...)
  */
 export const LTX2_FRAME_STEP = 8;
+
+/**
+ * MiniMax H3 sampling grid: fixed 24fps, frames = 124 + n*17, 124-362.
+ */
+export const MINIMAX_H3_FPS = 24;
+export const MINIMAX_H3_FRAME_STEP = 17;
+export const MINIMAX_H3_BASE_FRAMES = 124;
+export const MINIMAX_H3_MIN_FRAMES = 124;
+export const MINIMAX_H3_MAX_FRAMES = 362;
+export const MINIMAX_H3_MIN_DURATION = MINIMAX_H3_MIN_FRAMES / MINIMAX_H3_FPS;
+export const MINIMAX_H3_MAX_DURATION = MINIMAX_H3_MAX_FRAMES / MINIMAX_H3_FPS;
+
+/**
+ * MiniMax H3 Ref2VA (r2v) reference ceilings: up to 9 reference images, 3
+ * reference videos (24fps, 2-15s each), and 3 reference audio clips, with at
+ * most 12 reference files in total.
+ */
+export const MINIMAX_H3_MAX_REFERENCE_IMAGES = 9;
+export const MINIMAX_H3_MAX_REFERENCE_VIDEOS = 3;
+export const MINIMAX_H3_MAX_REFERENCE_AUDIOS = 3;
+export const MINIMAX_H3_MAX_REFERENCE_FILES = 12;
+
+/**
+ * Snap a frame count onto the MiniMax H3 grid and clamp it to the trained range.
+ *
+ * @param {number} requestedFrames - Raw frame count
+ * @returns {number} A valid H3 frame count
+ */
+export function snapMinimaxH3Frames(requestedFrames) {
+  const steps = Math.round((requestedFrames - MINIMAX_H3_BASE_FRAMES) / MINIMAX_H3_FRAME_STEP);
+  const frames = MINIMAX_H3_BASE_FRAMES + steps * MINIMAX_H3_FRAME_STEP;
+  return Math.min(MINIMAX_H3_MAX_FRAMES, Math.max(MINIMAX_H3_MIN_FRAMES, frames));
+}
 
 /**
  * Calculate the frame count for a given duration and fps based on the video model.
@@ -134,6 +179,11 @@ export const LTX2_FRAME_STEP = 8;
  * - Generate at the actual specified FPS (no interpolation)
  * - Frame count must follow the pattern: 1 + n*8
  * - Formula: duration * fps + 1, snapped to frame step constraint
+ *
+ * ## MiniMax H3 Models
+ * - Fixed 24fps; the fps argument is ignored
+ * - Frame count must follow the pattern: 124 + n*17, clamped to 124-362
+ * - Formula: duration * 24 snapped to that grid (note: no `+1` term)
  *
  * @param {string} modelId - The video model ID
  * @param {number} duration - Duration in seconds
@@ -153,6 +203,10 @@ export function calculateVideoFrames(modelId, duration, fps, options = {}) {
     // WAN 2.2: Always generates at 16fps, fps param is for post-render interpolation only
     // This is legacy behavior specific to WAN models
     frames = snap(duration * 16) + 1;
+  } else if (isMinimaxH3Model(modelId)) {
+    // MiniMax H3: fixed 24fps on the 124 + n*17 grid. Returned directly because
+    // the caller's generic minFrames/maxFrames would fight the model's own grid.
+    return snapMinimaxH3Frames(snap(duration * MINIMAX_H3_FPS));
   } else {
     // LTX-2.3 and future models: Generate at actual fps
     // This is the standard behavior going forward
@@ -1488,6 +1542,186 @@ export const MODELS = {
       requiresReferenceImage: true
     }
     // NOTE: No official full quality animate-replace exists - only lightx2v version available
+  },
+
+  // MiniMax H3 Models (ComfyUI workflow)
+  //
+  // One FL2VA checkpoint serves t2v, i2v, and flf2v; a separate Ref2VA
+  // checkpoint serves the multi-reference r2v workflow. Every sampling parameter
+  // is fixed: 24fps, 20 steps, guidance 1 (distilled, so a negative prompt does
+  // nothing), res_multistep/simple. Video and 32kHz stereo audio are generated
+  // jointly in one pass. Audio is included by default; generateAudio=false
+  // returns the completed video without an audio track.
+  //
+  // Frames follow the 124 + n*17 grid (124-362 = 5.167s-15.083s) and the canvas
+  // uses a 32px grid capped at 1032192 total pixels, which is why only the two
+  // 1344x768 orientations are exposed.
+  //
+  // See workflow_minimax_h3_video.mjs for complete authoring examples.
+  h3: {
+    'minimax-h3-t2v': {
+      id: 'minimax-h3-fl2va-fp8_t2v',
+      name: 'MiniMax H3 FL2VA FP8 T2V',
+      description: 'Text-to-video with jointly generated 32kHz stereo audio (5.2-15.1s)',
+      workflowType: 't2v',
+      defaultWidth: 1344,
+      defaultHeight: 768,
+      minWidth: 32,
+      maxWidth: 1344,
+      minHeight: 32,
+      maxHeight: 1344,
+      dimensionStep: 32,
+      maxPixels: 1032192,
+      defaultSteps: 20,
+      minSteps: 20,
+      maxSteps: 20,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      defaultComfySampler: 'res_multistep',
+      allowedComfySamplers: ['res_multistep'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple'],
+      minFrames: MINIMAX_H3_MIN_FRAMES,
+      maxFrames: MINIMAX_H3_MAX_FRAMES,
+      defaultFrames: MINIMAX_H3_BASE_FRAMES,
+      frameStep: MINIMAX_H3_FRAME_STEP,
+      frameBase: MINIMAX_H3_BASE_FRAMES,
+      defaultFps: MINIMAX_H3_FPS,
+      allowedFps: [MINIMAX_H3_FPS],
+      minDuration: MINIMAX_H3_MIN_DURATION,
+      maxDuration: MINIMAX_H3_MAX_DURATION,
+      isLightning: false,
+      isComfyModel: true,
+      hasAudio: true,
+      supportsNegativePrompt: false
+    },
+    'minimax-h3-i2v': {
+      id: 'minimax-h3-fl2va-fp8_i2v',
+      name: 'MiniMax H3 FL2VA FP8 I2V',
+      description: 'First-frame image-to-video with jointly generated stereo audio (5.2-15.1s)',
+      workflowType: 'i2v',
+      defaultWidth: 1344,
+      defaultHeight: 768,
+      minWidth: 32,
+      maxWidth: 1344,
+      minHeight: 32,
+      maxHeight: 1344,
+      dimensionStep: 32,
+      maxPixels: 1032192,
+      defaultSteps: 20,
+      minSteps: 20,
+      maxSteps: 20,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      defaultComfySampler: 'res_multistep',
+      allowedComfySamplers: ['res_multistep'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple'],
+      minFrames: MINIMAX_H3_MIN_FRAMES,
+      maxFrames: MINIMAX_H3_MAX_FRAMES,
+      defaultFrames: MINIMAX_H3_BASE_FRAMES,
+      frameStep: MINIMAX_H3_FRAME_STEP,
+      frameBase: MINIMAX_H3_BASE_FRAMES,
+      defaultFps: MINIMAX_H3_FPS,
+      allowedFps: [MINIMAX_H3_FPS],
+      minDuration: MINIMAX_H3_MIN_DURATION,
+      maxDuration: MINIMAX_H3_MAX_DURATION,
+      isLightning: false,
+      isComfyModel: true,
+      hasAudio: true,
+      supportsNegativePrompt: false,
+      requiresReferenceImage: true
+    },
+    'minimax-h3-flf2v': {
+      id: 'minimax-h3-fl2va-fp8_flf2v',
+      name: 'MiniMax H3 FL2VA FP8 FLF2V',
+      description:
+        'First-and-last-frame video with jointly generated stereo audio; both anchors required',
+      workflowType: 'flf2v',
+      defaultWidth: 1344,
+      defaultHeight: 768,
+      minWidth: 32,
+      maxWidth: 1344,
+      minHeight: 32,
+      maxHeight: 1344,
+      dimensionStep: 32,
+      maxPixels: 1032192,
+      defaultSteps: 20,
+      minSteps: 20,
+      maxSteps: 20,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      defaultComfySampler: 'res_multistep',
+      allowedComfySamplers: ['res_multistep'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple'],
+      minFrames: MINIMAX_H3_MIN_FRAMES,
+      maxFrames: MINIMAX_H3_MAX_FRAMES,
+      defaultFrames: MINIMAX_H3_BASE_FRAMES,
+      frameStep: MINIMAX_H3_FRAME_STEP,
+      frameBase: MINIMAX_H3_BASE_FRAMES,
+      defaultFps: MINIMAX_H3_FPS,
+      allowedFps: [MINIMAX_H3_FPS],
+      minDuration: MINIMAX_H3_MIN_DURATION,
+      maxDuration: MINIMAX_H3_MAX_DURATION,
+      isLightning: false,
+      isComfyModel: true,
+      hasAudio: true,
+      supportsNegativePrompt: false,
+      requiresReferenceImage: true,
+      requiresReferenceImageEnd: true
+    },
+    // Ref2VA is a separate checkpoint (minimax_h3_ref2va_pruned_fp8_scaled),
+    // not another workflow on the FL2VA weights. It conditions on labelled
+    // reference material - up to 9 images, 3 videos, and 3 audio clips, 12
+    // reference files in total - instead of frame anchors, so the prompt has to
+    // give every reference an explicit job.
+    'minimax-h3-r2v': {
+      id: 'minimax-h3-ref2va-fp8_r2v',
+      name: 'MiniMax H3 Ref2VA FP8 R2V',
+      description:
+        'Multi-reference video with jointly generated stereo audio; at least one reference image',
+      workflowType: 'r2v',
+      defaultWidth: 1344,
+      defaultHeight: 768,
+      minWidth: 32,
+      maxWidth: 1344,
+      minHeight: 32,
+      maxHeight: 1344,
+      dimensionStep: 32,
+      maxPixels: 1032192,
+      defaultSteps: 20,
+      minSteps: 20,
+      maxSteps: 20,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      defaultComfySampler: 'res_multistep',
+      allowedComfySamplers: ['res_multistep'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple'],
+      minFrames: MINIMAX_H3_MIN_FRAMES,
+      maxFrames: MINIMAX_H3_MAX_FRAMES,
+      defaultFrames: MINIMAX_H3_BASE_FRAMES,
+      frameStep: MINIMAX_H3_FRAME_STEP,
+      frameBase: MINIMAX_H3_BASE_FRAMES,
+      defaultFps: MINIMAX_H3_FPS,
+      allowedFps: [MINIMAX_H3_FPS],
+      minDuration: MINIMAX_H3_MIN_DURATION,
+      maxDuration: MINIMAX_H3_MAX_DURATION,
+      isLightning: false,
+      isComfyModel: true,
+      hasAudio: true,
+      supportsNegativePrompt: false,
+      requiresReferenceImage: true,
+      maxReferenceImages: MINIMAX_H3_MAX_REFERENCE_IMAGES,
+      maxReferenceVideos: MINIMAX_H3_MAX_REFERENCE_VIDEOS,
+      maxReferenceAudios: MINIMAX_H3_MAX_REFERENCE_AUDIOS,
+      maxReferenceFiles: MINIMAX_H3_MAX_REFERENCE_FILES
+    }
   }
 };
 
@@ -2730,8 +2964,7 @@ export const CONTROL_NET_TYPES = {
   },
   outpaint: {
     name: 'Outpaint (Canvas Extension)',
-    description:
-      'Extends the video canvas using a positional anchor (requires --outpaint-position)'
+    description: 'Extends the video canvas using a positional anchor (requires --outpaint-position)'
   },
   inpaint: {
     name: 'Inpaint (Region Regeneration)',
@@ -2964,16 +3197,11 @@ export function readFileAsBuffer(filePath) {
 
   // CRITICAL: Node.js Buffer may be backed by a pooled ArrayBuffer.
   // We must slice to get ONLY our file's data, not the entire pool.
-  const arrayBuffer = buffer.buffer.slice(
-    buffer.byteOffset,
-    buffer.byteOffset + buffer.byteLength
-  );
+  const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   const contentType = getLocalFileContentType(filePath);
 
   // Return as Blob - this is what the SDK's toFetchBody() expects
-  return contentType
-    ? new Blob([arrayBuffer], { type: contentType })
-    : new Blob([arrayBuffer]);
+  return contentType ? new Blob([arrayBuffer], { type: contentType }) : new Blob([arrayBuffer]);
 }
 
 /**

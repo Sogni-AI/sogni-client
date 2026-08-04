@@ -384,6 +384,37 @@ const project = await sogni.projects.create({
 });
 ```
 
+### MiniMax H3 (Sogni workers)
+
+MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. Every sampling parameter is fixed: 24fps, 20 steps, guidance 1, `res_multistep`/`simple`, no negative prompt. Frames follow `124 + n*17` (124-362) and the canvas uses a 32px grid capped at 1,032,192 pixels.
+
+| Model ID                      | Mode                       | References                                                |
+| ----------------------------- | -------------------------- | --------------------------------------------------------- |
+| `minimax-h3-fl2va-fp8_t2v`    | Text-to-video              | none                                                       |
+| `minimax-h3-fl2va-fp8_i2v`    | First-frame image-to-video | one first-frame image                                      |
+| `minimax-h3-fl2va-fp8_flf2v`  | First-and-last-frame video | both anchor images required                                |
+| `minimax-h3-ref2va-fp8_r2v`   | Reference-to-video         | 1-9 images, up to 3 videos, up to 3 audios, 12 files total  |
+
+Ref2VA (`_r2v`) is a separate checkpoint with no frame anchors, so `referenceImageEnd` is rejected. It runs on a Sogni worker, so every artist reference uses the normal S3 upload path: `referenceImage` plus `contextImages`, `referenceVideo` plus `referenceVideos`, and `referenceAudio` plus `referenceAudios`. Direct URL arrays are rejected. At least one reference image is required. Give each reference an explicit job in the prompt: `<Picture 1> is the identity reference. <Picture 2> is environment and lighting only.`
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-ref2va-fp8_r2v',
+  positivePrompt:
+    '<Picture 1> is the identity reference for the woman. <Picture 2> is the location and lighting only.',
+  duration: 8,
+  width: 1344,
+  height: 768,
+  referenceImage: fs.readFileSync('./face.jpg'),
+  contextImages: [fs.readFileSync('./street.jpg')],
+  tokenType: 'spark'
+});
+```
+
+See `examples/workflow_minimax_h3_video.mjs` for all four modes.
+
 ---
 
 ## 6. Audio Generation (ACE-Step 1.5)
@@ -581,6 +612,8 @@ The default `creative-tools` surface includes the tools above. `sogni_tools: "cr
 When the caller already knows the exact synchronous composition/planning tool and JSON arguments, use `sogni.chat.hosted.executeTool()` instead of forcing a `/v1/chat/completions` tool-choice round. Direct execution supports `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, and `compose_workflow_template`; long-running media tools still use hosted chat/runs or `sogni.workflows`.
 
 Media-conditioned tools accept explicit inline base64 `data:` URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`. Tool image inputs accept PNG/JPEG, tool audio inputs accept MP3/M4A/WAV, and tool video inputs accept MP4 or MOV/QuickTime. For uploaded or Sogni-hosted HTTP(S) assets, pass media through request-level `mediaReferences` / `mediaContext` or through `sogni.workflows` dependencies.
+
+Client-side `chat.tools.execute()` / `executeAll()` resolves canonical media indices through `ToolExecutionOptions.mediaContext`: non-negative indices address generated arrays and negative indices address uploaded arrays (`-1` is the first upload). Non-streaming `autoExecuteTools` carries vision-message images and successful generated-media URLs between rounds automatically.
 
 The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. `workflow_creative_agent_tools.mjs` demonstrates server-side hosted Sogni tool injection through `/v1/chat/completions`. `workflow_direct_creative_tool.mjs` demonstrates `sogni.chat.hosted.executeTool()` for known synchronous tool calls. Pass `SogniTools.all` (or individual tool defs) to the LLM and execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
 

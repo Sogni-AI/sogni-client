@@ -29,6 +29,8 @@ import {
   StartChatRunParams,
   StreamChatRunEventsOptions,
   ToolCall,
+  ToolExecutionOptions,
+  ToolExecutionResult,
   ToolHistoryEntry
 } from './types.js';
 import getUUID from '../lib/getUUID.js';
@@ -169,6 +171,39 @@ function assertChatRunUsesExternalMedia(params: StartChatRunParams): void {
   throw new Error(
     `Durable chat runs do not support inline base64/data URI media. Upload media first and pass HTTP(S) URLs instead. Offending field(s): ${violations.join(', ')}`
   );
+}
+
+function createAutoToolMediaContext(
+  messages: ChatMessage[]
+): NonNullable<ToolExecutionOptions['mediaContext']> {
+  const uploadedImages: string[] = [];
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (part.type === 'image_url' && part.image_url.url.trim()) {
+        uploadedImages.push(part.image_url.url);
+      }
+    }
+  }
+  return { images: [], videos: [], audio: [], uploadedImages };
+}
+
+function appendAutoToolMediaResults(
+  mediaContext: NonNullable<ToolExecutionOptions['mediaContext']>,
+  results: ToolExecutionResult[]
+): void {
+  const imageTools = new Set(['generate_image', 'edit_image']);
+  const videoTools = new Set(['generate_video', 'sound_to_video', 'video_to_video']);
+  for (const result of results) {
+    if (!result.success || result.resultUrls.length === 0) continue;
+    if (imageTools.has(result.toolName)) {
+      mediaContext.images!.push(...result.resultUrls);
+    } else if (videoTools.has(result.toolName)) {
+      mediaContext.videos!.push(...result.resultUrls);
+    } else if (result.toolName === 'generate_music') {
+      mediaContext.audio!.push(...result.resultUrls);
+    }
+  }
 }
 
 export interface ChatApiEvents {
@@ -904,6 +939,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const maxRounds = params.maxToolRounds || 5;
     const toolHistory: ToolHistoryEntry[] = [];
     let messages = [...params.messages];
+    const mediaContext = createAutoToolMediaContext(messages);
     const logicalOperation = this.resolveWorkloadAttribution(params.attribution, getUUID());
     const autoToolChildAttribution = this.createAutoToolChildAttribution(logicalOperation);
 
@@ -930,9 +966,11 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       const toolResults = await this.tools.executeAll(result.tool_calls, {
         tokenType: params.tokenType,
         attribution: autoToolChildAttribution,
+        mediaContext,
         onToolCall: params.onToolCall,
         onToolProgress: params.onToolProgress
       });
+      appendAutoToolMediaResults(mediaContext, toolResults);
 
       // Record history
       toolHistory.push({

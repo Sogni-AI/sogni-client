@@ -1,17 +1,20 @@
 import type ProjectsApi from '../Projects/index.js';
 import type { AvailableModel } from '../Projects/types/index.js';
 import { getMaxContextImages } from '../lib/validation.js';
-import { parseInlineMediaDataUri } from '../lib/mediaValidation.js';
+import { mediaInputToInlineDataUri, parseInlineMediaDataUri } from '../lib/mediaValidation.js';
 import type { MediaType } from '../lib/mediaValidation.js';
 import {
   assertHostedToolArguments,
   asBooleanValue,
   asFiniteNumber,
   asStringArray,
+  calculateVideoFrames,
   getHostedVariationCount,
   getVideoDefaults,
+  getVideoWorkflowType,
   isEditImageModel,
   isExternalApiVideoModel,
+  isMinimaxH3Model,
   isNonEmptyString,
   normalizeTimeSignature,
   normalizeVideoControlMode,
@@ -29,7 +32,7 @@ import {
   ToolExecutionResult
 } from './types.js';
 
-const DEFAULT_TIMEOUT = 30 * 60 * 1000;
+const DEFAULT_TIMEOUT = 90 * 60 * 1000;
 const MAX_SOGNI_TOOL_CALLS_PER_ROUND = 8;
 
 const DIRECT_PROJECT_DISPATCH_TOOL_NAMES: ReadonlySet<string> = new Set([
@@ -53,6 +56,67 @@ const MAX_INPUT_MEDIA_BYTES: Record<MediaType, number> = {
 
 function getVariationCount(args: Record<string, unknown>, options?: ToolExecutionOptions): number {
   return getHostedVariationCount(args, options?.numberOfMedia);
+}
+
+function asIntegerArray(value: unknown, argumentName: string): number[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((entry) => !Number.isInteger(entry))) {
+    throw new Error(`${argumentName} must contain only integer media indices`);
+  }
+  return value as number[];
+}
+
+function resolveMediaIndices(
+  indices: number[],
+  mediaType: MediaType,
+  options?: ToolExecutionOptions
+): string[] {
+  if (indices.length === 0) return [];
+
+  const context = options?.mediaContext;
+  if (!context) {
+    throw new Error(
+      `Indexed ${mediaType} arguments require ToolExecutionOptions.mediaContext when using chat.tools.execute()`
+    );
+  }
+
+  const generated =
+    mediaType === 'image' ? context.images : mediaType === 'video' ? context.videos : context.audio;
+  const uploaded =
+    mediaType === 'image'
+      ? context.uploadedImages
+      : mediaType === 'video'
+        ? context.uploadedVideos
+        : context.uploadedAudio;
+
+  return indices.map((index) => {
+    const source = index >= 0 ? generated : uploaded;
+    const sourceIndex = index >= 0 ? index : Math.abs(index) - 1;
+    const resolved = source?.[sourceIndex];
+    if (!isNonEmptyString(resolved)) {
+      throw new Error(
+        `${mediaType} media index ${index} is unavailable in ToolExecutionOptions.mediaContext`
+      );
+    }
+    return resolved;
+  });
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+async function mediaInputToBlob(input: string, mediaType: MediaType): Promise<Blob> {
+  const dataUri = await mediaInputToInlineDataUri(input, mediaType, {
+    maxBytes: MAX_INPUT_MEDIA_BYTES[mediaType]
+  });
+  return parseInlineMediaDataUri(dataUri, mediaType, {
+    maxBytes: MAX_INPUT_MEDIA_BYTES[mediaType]
+  }).blob;
 }
 
 function getStringArg(value: unknown): string | undefined {
@@ -156,6 +220,7 @@ class ChatToolsApi {
           network: options?.network,
           numberOfMedia: options?.numberOfMedia,
           attribution: options?.attribution,
+          mediaContext: options?.mediaContext,
           timeout: options?.timeout,
           onProgress: options?.onToolProgress
             ? (progress: ToolExecutionProgress) => options.onToolProgress!(toolCall, progress)
@@ -220,9 +285,57 @@ class ChatToolsApi {
     } as any);
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let rejectQueueTimeout: ((error: Error) => void) | null = null;
     let jobsCompleted = 0;
     let jobsFailed = 0;
     const totalJobs = (projectParams.numberOfMedia as number) || 1;
+    const watchedJobs = new Map<(typeof project.jobs)[number], (keys: string[]) => void>();
+    let hadProcessingJob = project.jobs.some((job) => job.status === 'processing');
+
+    const clearQueueTimeout = () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+    const hasProcessingJob = () => project.jobs.some((job) => job.status === 'processing');
+    const armQueueTimeout = () => {
+      clearQueueTimeout();
+      if (project.finished || hasProcessingJob() || !rejectQueueTimeout) return;
+      timeoutId = setTimeout(() => {
+        timeoutId = null;
+        // A job may have started on the same turn as the timer fired. Active
+        // worker jobs are governed by their own non-resetting 30-minute limit.
+        if (project.finished || hasProcessingJob() || !rejectQueueTimeout) return;
+        rejectQueueTimeout(
+          new Error(
+            `${mediaType} generation waited ${Math.round(timeout / 1000)}s without an active job ` +
+              `(project: ${project.id}, jobs: ${jobsCompleted}/${totalJobs} completed, ${jobsFailed} failed). ` +
+              `Increase the timeout option or check network worker availability.`
+          )
+        );
+      }, timeout);
+    };
+    const syncQueueTimeout = () => {
+      if (hasProcessingJob()) {
+        hadProcessingJob = true;
+        clearQueueTimeout();
+      } else if (hadProcessingJob) {
+        // Only a real processing interval earns a fresh queue window. Pending
+        // or initiating status changes must not extend one continuous wait.
+        hadProcessingJob = false;
+        armQueueTimeout();
+      }
+    };
+    const watchJob = (job: (typeof project.jobs)[number]) => {
+      if (watchedJobs.has(job)) return;
+      const onUpdated = (keys: string[]) => {
+        if (keys.includes('status')) syncQueueTimeout();
+      };
+      watchedJobs.set(job, onUpdated);
+      job.on('updated', onUpdated);
+    };
+    const onJobAdded = (job: (typeof project.jobs)[number]) => watchJob(job);
 
     const onJobCompleted = () => {
       jobsCompleted++;
@@ -243,6 +356,8 @@ class ChatToolsApi {
     project.on('progress', onProgress);
     project.on('jobCompleted', onJobCompleted);
     project.on('jobFailed', onJobFailed);
+    project.on('jobStarted', onJobAdded);
+    project.jobs.forEach(watchJob);
 
     options?.onProgress?.({ status: 'queued', percent: 0 });
 
@@ -250,15 +365,8 @@ class ChatToolsApi {
       const resultUrls = await Promise.race<string[]>([
         project.waitForCompletion(),
         new Promise<never>((_, reject) => {
-          timeoutId = setTimeout(() => {
-            reject(
-              new Error(
-                `${mediaType} generation timed out after ${Math.round(timeout / 1000)}s ` +
-                  `(project: ${project.id}, jobs: ${jobsCompleted}/${totalJobs} completed, ${jobsFailed} failed). ` +
-                  `Increase the timeout option or check network worker availability.`
-              )
-            );
-          }, timeout);
+          rejectQueueTimeout = reject;
+          armQueueTimeout();
         })
       ]);
 
@@ -287,10 +395,13 @@ class ChatToolsApi {
       options?.onProgress?.({ status: 'failed', percent: 0 });
       throw err;
     } finally {
-      if (timeoutId !== null) clearTimeout(timeoutId);
+      rejectQueueTimeout = null;
+      clearQueueTimeout();
       project.off('progress', onProgress);
       project.off('jobCompleted', onJobCompleted);
       project.off('jobFailed', onJobFailed);
+      project.off('jobStarted', onJobAdded);
+      watchedJobs.forEach((onUpdated, job) => job.off('updated', onUpdated));
     }
   }
 
@@ -395,16 +506,81 @@ class ChatToolsApi {
     args: Record<string, unknown>,
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
+    const referenceImageIndices = asIntegerArray(
+      args.referenceImageIndices,
+      'referenceImageIndices'
+    );
+    const referenceVideoIndices = asIntegerArray(
+      args.referenceVideoIndices,
+      'referenceVideoIndices'
+    );
+    const referenceAudioIndices = asIntegerArray(
+      args.referenceAudioIndices,
+      'referenceAudioIndices'
+    );
+    const indexedReferenceImages = resolveMediaIndices(referenceImageIndices, 'image', options);
+    const indexedReferenceVideos = resolveMediaIndices(referenceVideoIndices, 'video', options);
+    const indexedReferenceAudio = resolveMediaIndices(referenceAudioIndices, 'audio', options);
+    const legacyReferenceImage = isNonEmptyString(args.reference_image_url)
+      ? args.reference_image_url
+      : undefined;
+    const legacyReferenceImageEnd = isNonEmptyString(args.reference_image_end_url)
+      ? args.reference_image_end_url
+      : undefined;
+    if (indexedReferenceImages.length > 0 && (legacyReferenceImage || legacyReferenceImageEnd)) {
+      throw new Error(
+        'Use either referenceImageIndices with mediaContext or legacy inline reference_image_url arguments, not both'
+      );
+    }
+
     const hasReferenceImages =
-      isNonEmptyString(args.reference_image_url) || isNonEmptyString(args.reference_image_end_url);
-    const workflowPreference: VideoWorkflow[] = hasReferenceImages ? ['i2v'] : ['t2v'];
-    const preferredModelIds = hasReferenceImages
-      ? [PREFERRED_MODEL_IDS.video.i2v]
-      : [PREFERRED_MODEL_IDS.video.t2v];
+      indexedReferenceImages.length > 0 || !!legacyReferenceImage || !!legacyReferenceImageEnd;
+    if (
+      hasReferenceImages &&
+      typeof args.videoModel === 'string' &&
+      args.videoModel.trim().toLowerCase() === 'minimax-h3-t2v'
+    ) {
+      throw new Error(
+        'minimax-h3-t2v does not accept reference images; use the MiniMax H3 i2v or flf2v project workflow'
+      );
+    }
+    const routingArgs =
+      hasReferenceImages && referenceImageIndices.length === 0
+        ? { ...args, referenceImageIndices: [0] }
+        : args;
+    // MiniMax H3 r2v is schema-valid but has no direct-execution route yet: no
+    // selector maps the alias, so it used to fall through model selection as a
+    // soft preference and silently render on LTX i2v — the user paid for the
+    // wrong model. Until reference-index mapping to the H3 upload slots is
+    // implemented here, fail loudly like the hosted-only tools do.
+    if ((args.videoModel as string | undefined) === 'minimax-h3-r2v') {
+      return this.makeErrorResult(
+        toolCall,
+        "generate_video with videoModel 'minimax-h3-r2v' is not supported by direct SDK tool execution. " +
+          'Execute it via chat.hosted.create() / chat.runs.create(), or submit the render directly with ' +
+          "projects.create({ type: 'video', modelId: 'minimax-h3-ref2va-fp8_r2v', referenceImage, contextImages, ... })."
+      );
+    }
+    const requestedModel = resolveHostedToolModelSelector('generate_video', routingArgs);
+    const requestedWorkflow = requestedModel ? getVideoWorkflowType(requestedModel) : null;
+    const workflowPreference: VideoWorkflow[] =
+      requestedWorkflow === 'flf2v' || requestedWorkflow === 'r2v'
+        ? [requestedWorkflow]
+        : hasReferenceImages
+          ? ['i2v']
+          : ['t2v'];
+    const preferredModelIds =
+      requestedWorkflow === 'flf2v'
+        ? [PREFERRED_MODEL_IDS.video.minimaxH3Flf2v]
+        : requestedWorkflow === 'r2v'
+          ? [PREFERRED_MODEL_IDS.video.happyhorseR2v]
+          : hasReferenceImages
+            ? [PREFERRED_MODEL_IDS.video.i2v]
+            : [PREFERRED_MODEL_IDS.video.t2v];
 
     const modelId = await this.selectModel({
       mediaType: 'video',
-      requestedModel: resolveHostedToolModelSelector('generate_video', args),
+      requestedModel,
       workflows: workflowPreference,
       preferredModelIds
     });
@@ -421,24 +597,95 @@ class ChatToolsApi {
       fps: (args.fps as number) || defaults.fps
     };
 
-    if (args.negative_prompt && !isExternalApiModel) {
-      projectParams.negativePrompt = args.negative_prompt;
+    if (args.negativePrompt && isMinimaxH3Model(modelId)) {
+      throw new Error('MiniMax H3 has no negative-prompt input; put exclusions in prompt');
     }
-    if (args.duration !== undefined) projectParams.duration = args.duration;
+    if (args.negativePrompt && !isExternalApiModel) {
+      projectParams.negativePrompt = args.negativePrompt;
+    }
+    const requestedDuration = asFiniteNumber(args.duration);
+    if (requestedDuration !== undefined) {
+      if (isMinimaxH3Model(modelId)) {
+        projectParams.frames = calculateVideoFrames(modelId, requestedDuration, 24);
+      } else {
+        projectParams.duration = requestedDuration;
+      }
+    }
     if (args.seed !== undefined) projectParams.seed = args.seed;
-    if (isNonEmptyString(args.reference_image_url)) {
-      projectParams.referenceImage = parseInlineMediaDataUri(args.reference_image_url, 'image', {
+    if (legacyReferenceImage) {
+      projectParams.referenceImage = parseInlineMediaDataUri(legacyReferenceImage, 'image', {
         maxBytes: MAX_INPUT_MEDIA_BYTES.image
       }).blob;
     }
-    if (isNonEmptyString(args.reference_image_end_url)) {
-      projectParams.referenceImageEnd = parseInlineMediaDataUri(
-        args.reference_image_end_url,
-        'image',
-        {
-          maxBytes: MAX_INPUT_MEDIA_BYTES.image
+    if (legacyReferenceImageEnd) {
+      projectParams.referenceImageEnd = parseInlineMediaDataUri(legacyReferenceImageEnd, 'image', {
+        maxBytes: MAX_INPUT_MEDIA_BYTES.image
+      }).blob;
+    }
+    if (indexedReferenceImages.length > 0) {
+      if (isExternalApiModel) {
+        const remoteUrls = indexedReferenceImages.filter(isHttpsUrl);
+        const localInputs = indexedReferenceImages.filter((input) => !isHttpsUrl(input));
+        if (localInputs.length > 1) {
+          throw new Error(
+            'Direct external-API video execution supports at most one inline image; use HTTPS references for additional images'
+          );
         }
-      ).blob;
+        if (localInputs[0]) {
+          projectParams.referenceImage = await mediaInputToBlob(localInputs[0], 'image');
+        }
+        if (remoteUrls.length > 0) projectParams.referenceImageUrls = remoteUrls;
+      } else {
+        const maxImages = requestedWorkflow === 'flf2v' ? 2 : 1;
+        if (indexedReferenceImages.length > maxImages) {
+          throw new Error(
+            `${requestedWorkflow ?? 'video'} accepts at most ${maxImages} image input(s)`
+          );
+        }
+        projectParams.referenceImage = await mediaInputToBlob(indexedReferenceImages[0], 'image');
+        if (indexedReferenceImages[1]) {
+          projectParams.referenceImageEnd = await mediaInputToBlob(
+            indexedReferenceImages[1],
+            'image'
+          );
+        }
+      }
+    }
+    if (indexedReferenceVideos.length > 0 || indexedReferenceAudio.length > 0) {
+      if (!isExternalApiModel) {
+        throw new Error(
+          'Loose referenceVideoIndices/referenceAudioIndices require an external video model'
+        );
+      }
+      const applyExternalReferences = async (
+        inputs: string[],
+        mediaType: 'video' | 'audio',
+        localKey: 'referenceVideo' | 'referenceAudio',
+        urlsKey: 'referenceVideoUrls' | 'referenceAudioUrls'
+      ) => {
+        const remoteUrls = inputs.filter(isHttpsUrl);
+        const localInputs = inputs.filter((input) => !isHttpsUrl(input));
+        if (localInputs.length > 1) {
+          throw new Error(
+            `Direct external-API video execution supports at most one inline ${mediaType}; use HTTPS references for additional ${mediaType} inputs`
+          );
+        }
+        if (localInputs[0])
+          projectParams[localKey] = await mediaInputToBlob(localInputs[0], mediaType);
+        if (remoteUrls.length > 0) projectParams[urlsKey] = remoteUrls;
+      };
+      await applyExternalReferences(
+        indexedReferenceVideos,
+        'video',
+        'referenceVideo',
+        'referenceVideoUrls'
+      );
+      await applyExternalReferences(
+        indexedReferenceAudio,
+        'audio',
+        'referenceAudio',
+        'referenceAudioUrls'
+      );
     }
     if (isNonEmptyString(args.reference_audio_identity_url)) {
       projectParams.referenceAudioIdentity = parseInlineMediaDataUri(
@@ -458,8 +705,9 @@ class ChatToolsApi {
     if (args.last_frame_strength !== undefined) {
       projectParams.lastFrameStrength = args.last_frame_strength;
     }
-    if (args.generate_audio !== undefined) {
-      projectParams.generateAudio = Boolean(args.generate_audio);
+    const generateAudio = asBooleanValue(args.generateAudio);
+    if (generateAudio !== undefined) {
+      projectParams.generateAudio = generateAudio;
     }
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;
@@ -518,8 +766,9 @@ class ChatToolsApi {
       }).blob;
     }
     if (args.audio_start !== undefined) projectParams.audioStart = args.audio_start;
-    if (args.generate_audio !== undefined) {
-      projectParams.generateAudio = Boolean(args.generate_audio);
+    const generateAudio = asBooleanValue(args.generateAudio);
+    if (generateAudio !== undefined) {
+      projectParams.generateAudio = generateAudio;
     }
     if (args.seed !== undefined) projectParams.seed = args.seed;
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
@@ -584,8 +833,8 @@ class ChatToolsApi {
       duration: asFiniteNumber(args.duration) ?? 5
     };
 
-    if (args.negative_prompt && !isExternalApiModel) {
-      projectParams.negativePrompt = args.negative_prompt;
+    if (args.negativePrompt && !isExternalApiModel) {
+      projectParams.negativePrompt = args.negativePrompt;
     }
     if (args.seed !== undefined) projectParams.seed = args.seed;
     if (isNonEmptyString(args.reference_image_url)) {
@@ -608,8 +857,9 @@ class ChatToolsApi {
     if (args.video_start !== undefined) {
       projectParams.videoStart = args.video_start;
     }
-    if (args.generate_audio !== undefined) {
-      projectParams.generateAudio = Boolean(args.generate_audio);
+    const generateAudio = asBooleanValue(args.generateAudio);
+    if (generateAudio !== undefined) {
+      projectParams.generateAudio = generateAudio;
     }
     if (!isAnimateMode && !isExternalApiModel) {
       projectParams.controlNet = {
