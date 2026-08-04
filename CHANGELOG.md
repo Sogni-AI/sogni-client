@@ -1,3 +1,15 @@
+# [5.4.0-alpha.2](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0-alpha.1...v5.4.0-alpha.2) (2026-08-04)
+
+
+### Bug Fixes
+
+* **deps:** consume MiniMax H3 reference contract ([19cde2e](https://github.com/Sogni-AI/sogni-client/commit/19cde2eb3ec2e743a188f6dc5dc252a99afe8294))
+
+
+### Features
+
+* **video:** add MiniMax H3 reference uploads ([7f19550](https://github.com/Sogni-AI/sogni-client/commit/7f195504389ebcb944ac0de08e2e13a431598508))
+
 # [5.4.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v5.3.3-alpha.2...v5.4.0-alpha.1) (2026-08-04)
 
 
