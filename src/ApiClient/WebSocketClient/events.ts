@@ -167,6 +167,13 @@ export type JobStateData =
       jobID: string;
       type: 'queued';
       queuePosition: number;
+      /**
+       * Server-provided estimate of seconds until a worker starts the project.
+       * `null` when no estimate is currently available.
+       */
+      estimatedStartSeconds?: number | null;
+      /** Coarse state for the project's wait in the queue. */
+      queueStatus?: 'waiting' | 'no-workers';
     }
   | {
       type: 'jobCompleted';

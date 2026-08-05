@@ -11,6 +11,16 @@ export interface ProjectEventBase {
 export interface ProjectQueued extends ProjectEventBase {
   type: 'queued';
   queuePosition: number;
+  /**
+   * Server-provided estimate of seconds until a worker starts the project, or `null`
+   * when no estimate is currently available.
+   */
+  estimatedStartSeconds?: number | null;
+  /**
+   * `'no-workers'` when nothing currently connected can run this project's model, in which
+   * case `estimatedStartSeconds` is `null` and the project waits for a worker to come online.
+   */
+  queueStatus?: 'waiting' | 'no-workers';
 }
 
 export interface ProjectCompleted extends ProjectEventBase {

@@ -44,6 +44,16 @@ export interface ProjectData {
    * Is equal to maximum job ETA
    */
   eta?: Date;
+  /**
+   * Estimated time at which a worker will start this project, while it is still queued.
+   * Cleared once the project starts processing. `undefined` when the server cannot
+   * estimate — see {@link ProjectData.queueStatus}.
+   */
+  estimatedStartAt?: Date;
+  /**
+   * `'no-workers'` when nothing currently connected can run this project's model.
+   */
+  queueStatus?: 'waiting' | 'no-workers';
   error?: ErrorData;
 }
 /** @inline */
@@ -141,6 +151,27 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
 
   get queuePosition() {
     return this.data.queuePosition;
+  }
+
+  /**
+   * Time at which a worker is expected to start this project, while it is still queued.
+   * Undefined once processing starts, or when the server cannot estimate a wait.
+   *
+   * Prefer this over {@link Project.queuePosition} when telling a user how long they have
+   * to wait: position counts projects, not time, so being first in line behind a long
+   * video render is still a long wait.
+   */
+  get estimatedStartAt() {
+    return this.data.estimatedStartAt;
+  }
+
+  /**
+   * `'no-workers'` when nothing currently connected can run this project's model, in which
+   * case {@link Project.estimatedStartAt} is undefined and the project is waiting for a
+   * worker to come online rather than for the queue to drain.
+   */
+  get queueStatus() {
+    return this.data.queueStatus;
   }
 
   /**

@@ -280,13 +280,28 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private handleJobState(data: JobStateData) {
     switch (data.type) {
-      case 'queued':
+      case 'queued': {
+        const estimatedStartSeconds =
+          data.estimatedStartSeconds === null
+            ? null
+            : typeof data.estimatedStartSeconds === 'number' &&
+                Number.isFinite(data.estimatedStartSeconds) &&
+                data.estimatedStartSeconds >= 0
+              ? data.estimatedStartSeconds
+              : undefined;
+        const queueStatus =
+          data.queueStatus === 'waiting' || data.queueStatus === 'no-workers'
+            ? data.queueStatus
+            : undefined;
         this.emit('project', {
           type: 'queued',
           projectId: data.jobID,
-          queuePosition: data.queuePosition
+          queuePosition: data.queuePosition,
+          ...(estimatedStartSeconds !== undefined ? { estimatedStartSeconds } : {}),
+          ...(queueStatus !== undefined ? { queueStatus } : {})
         });
         return;
+      }
       case 'jobCompleted':
         this.emit('project', { type: 'completed', projectId: data.jobID });
         return;
@@ -470,7 +485,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       case 'queued':
         project._update({
           status: 'queued',
-          queuePosition: event.queuePosition
+          queuePosition: event.queuePosition,
+          queueStatus: event.queueStatus,
+          estimatedStartAt:
+            typeof event.estimatedStartSeconds === 'number'
+              ? new Date(Date.now() + event.estimatedStartSeconds * 1000)
+              : undefined
         });
         break;
       case 'completed':
@@ -513,6 +533,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         step: 0,
         stepCount: project.params.steps ?? 0
       });
+    }
+    // Any job-level event means a worker has taken this project, so the queue wait is over.
+    // Leaving a stale estimate on the project would keep a "starts in ~2 min" label on
+    // screen next to a job that is already rendering.
+    if (project.estimatedStartAt !== undefined || project.queueStatus !== undefined) {
+      project._update({ estimatedStartAt: undefined, queueStatus: undefined });
     }
     switch (event.type) {
       case 'initiating':
