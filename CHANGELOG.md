@@ -1,3 +1,10 @@
+# [5.5.0](https://github.com/Sogni-AI/sogni-client/compare/v5.4.0...v5.5.0) (2026-08-06)
+
+
+### Features
+
+* **docs:** guide image-edit model choice by intent ([d8903cd](https://github.com/Sogni-AI/sogni-client/commit/d8903cd23644847f27258aedee603c7a02e8fa3f))
+
 # [5.4.0](https://github.com/Sogni-AI/sogni-client/compare/v5.3.3...v5.4.0) (2026-08-04)
 
 
