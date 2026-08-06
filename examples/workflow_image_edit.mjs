@@ -178,12 +178,31 @@ Usage:
   node workflow_image_edit.mjs "portrait in this style" --context ref.jpg
   node workflow_image_edit.mjs "modern artwork" --context ref1.jpg --context2 ref2.jpg
 
+Choosing a model - pick by INTENT, not by step count:
+
+  Editing a person or character and their likeness must survive?
+    -> krea-identity-edit
+  Anything else?
+    -> qwen-lightning (fast) or qwen (higher quality)
+
+  "High quality" on a general-purpose editor does not beat a likeness-preserving
+  one at a likeness task. Pick on what the edit has to preserve, not on step count
+  or quality tier.
+
 Available Models:
+  krea-identity-edit - Krea 2 Identity Edit LoRA v1.2 (1-2 refs)
+                   BEST FOR transforming a person or character while keeping
+                   their likeness: style transfers, makeovers, clothes/person
+                   swaps, face swaps, new poses or expressions, character sheets.
+  dark-beast-krea2-identity-edit - Dark Beast Krea 2 Identity Edit
+                   Same identity-preserving strengths, community tune, allows NSFW.
   qwen-lightning - Qwen Image Edit 2511 Lightning (fast, 4-step, default)
-  qwen           - Qwen Image Edit 2511 (high quality, 20-step)
-  krea-identity-edit - Krea 2 Identity Edit LoRA v1.2 (identity edits, up to 2 refs)
-  dark-beast-krea2-identity-edit - Dark Beast Krea 2 Identity Edit (community identity edit)
-  flux2          - Flux.2 Dev (high quality with up to 6 context images)
+                   BEST FOR fast general-purpose editing: transform photos, edit
+                   text, multi-person changes, combine up to 3 images.
+  qwen           - Qwen Image Edit 2511 (higher quality, 20-step)
+                   Same general-purpose strengths as qwen-lightning, slower.
+                   Still NOT the identity-preserving choice - see above.
+  flux2          - Flux.2 Dev (slower, powerful, up to 6 context images)
 
 Options:
   --context     Reference image 1 (required, at least 1 needed)
