@@ -642,7 +642,8 @@ export const MODELS = {
     'qwen-lightning': {
       id: 'qwen_image_edit_2511_fp8_lightning',
       name: 'Qwen Image Edit 2511 Lightning',
-      description: 'Fast 4-step image editing (recommended)',
+      description:
+        'Fast 4-step general-purpose image editing (recommended default for non-identity edits). Best for transforming photos, editing text, multi-person changes, and combining up to 3 images. To transform a person or character and keep their likeness, use krea-identity-edit instead.',
       maxWidth: 2560,
       maxHeight: 2560,
       defaultSteps: 4,
@@ -660,7 +661,8 @@ export const MODELS = {
     qwen: {
       id: 'qwen_image_edit_2511_fp8',
       name: 'Qwen Image Edit 2511',
-      description: 'High quality image editing, supports context images',
+      description:
+        'General-purpose image editing, higher quality than Lightning. Best for transforming photos, editing text, multi-person changes, and combining up to 3 images. NOT the identity-preserving choice: to transform a person or character and keep their likeness, use krea-identity-edit.',
       maxWidth: 2560,
       maxHeight: 2560,
       defaultSteps: 20,
@@ -678,7 +680,8 @@ export const MODELS = {
     'krea-identity-edit': {
       id: 'krea2_identity_edit_v1_2',
       name: 'Krea 2 Identity Edit LoRA v1.2',
-      description: 'Identity-preserving image edits with 1-2 references',
+      description:
+        'Best for transforming a person or character while keeping their likeness, from 1-2 references: style transfers, makeovers, clothes or person swaps, face swaps, new poses or expressions, and character sheets. Prefer this over a general-purpose editor whenever a likeness has to survive the edit.',
       defaultWidth: 1024,
       defaultHeight: 1024,
       maxWidth: 2048,
@@ -699,7 +702,8 @@ export const MODELS = {
     'dark-beast-krea2-identity-edit': {
       id: 'dark_beast_krea2_identity_edit_v1_2',
       name: 'Dark Beast Krea 2 Identity Edit',
-      description: 'Community identity-preserving Krea 2 edit LoRA',
+      description:
+        'Community Krea 2 identity-edit LoRA. Same likeness-preserving strengths as krea-identity-edit (makeovers, wardrobe/person swaps, poses, character sheets), and allows NSFW.',
       defaultWidth: 1024,
       defaultHeight: 1024,
       maxWidth: 2048,

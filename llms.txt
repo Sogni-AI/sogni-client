@@ -209,7 +209,7 @@ The full catalog is dynamic — enumerate it at runtime with
 | `z_image_turbo_bf16` | Z-Image Turbo — ultra-fast 8-step (free-tier eligible) |
 | `z_image_bf16` | Z-Image — high quality 20-50 step |
 | `krea2_turbo_fp8_scaled` | Krea 2 Turbo — few-step, strong in-image text, up to 2K |
-| `krea2_identity_edit_v1_2` | Krea 2 Identity Edit LoRA v1.2 — identity-preserving edits with 1-2 reference images |
+| `krea2_identity_edit_v1_2` | Krea 2 Identity Edit LoRA v1.2 — best for transforming a person or character while keeping their likeness; 1-2 reference images |
 | `chroma-v.46-flash_fp8` | Chroma v.46 Flash — fast, high quality |
 | `chroma-v48-detail-svd_fp8` | Chroma v.48 Detail — high detail |
 | `chroma1-hd_fp8_scaled` | Chroma1-HD — final high-res Chroma (uncensored, LoRA-capable) |
@@ -226,9 +226,23 @@ Community fine-tunes (uncensored; pass the id directly):
 `dark_beast_krea2_identity_edit_v1_2` (Krea 2 identity edit LoRA),
 `one_obsession_v22_fp16` (Illustrious/anime, LoRA-capable).
 
-For identity-preserving edits, use `krea2_identity_edit_v1_2` or
-`dark_beast_krea2_identity_edit_v1_2` with 1-2 `contextImages`, `steps: 10`,
-and `guidance: 1`.
+### Choosing an image-edit model
+
+Pick by what the edit has to preserve, not by step count or quality tier.
+
+- **A person or character whose likeness must survive the edit** — use
+  `krea2_identity_edit_v1_2` (or `dark_beast_krea2_identity_edit_v1_2` for
+  uncensored) with 1-2 `contextImages`, `steps: 10`, and `guidance: 1`. This is
+  the right model for style transfers, makeovers, clothing or person swaps, face
+  swaps, new poses or expressions, and character sheets.
+- **Everything else** — use `qwen_image_edit_2511_fp8_lightning` (fast) or
+  `qwen_image_edit_2511_fp8`: general-purpose photo transforms, in-image text
+  edits, multi-person changes, and combining up to 3 reference images.
+
+A higher-step general-purpose editor does not beat the identity model at a
+likeness task — it reinterprets the subject instead of preserving it. When an
+edit both preserves a likeness and needs general-purpose work, run the identity
+model first, then edit its output.
 
 ---
 
