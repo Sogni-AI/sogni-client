@@ -339,7 +339,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       jobId: data.imgID,
       ...(typeof data.step === 'number' ? { step: data.step } : {}),
       ...(typeof data.stepCount === 'number' ? { stepCount: data.stepCount } : {}),
-      ...(typeof data.progress === 'number' ? { progress: data.progress } : {})
+      ...(typeof data.progress === 'number' ? { progress: data.progress } : {}),
+      ...(typeof data.etaSeconds === 'number' ? { etaSeconds: data.etaSeconds } : {}),
+      ...(typeof data.etaMin === 'number' ? { etaMin: data.etaMin } : {}),
+      ...(typeof data.etaMax === 'number' ? { etaMax: data.etaMax } : {})
     };
     this.emit('job', event);
 
@@ -568,6 +571,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             step?: number;
             stepCount?: number;
             externalProgress?: number;
+            etaRange?: { min: number; max: number };
           } = {
             status: 'processing'
           };
@@ -580,6 +584,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           }
           if (typeof event.progress === 'number') {
             delta.externalProgress = event.progress;
+          }
+          if (
+            typeof event.etaMin === 'number' &&
+            typeof event.etaMax === 'number' &&
+            event.etaMax > 0
+          ) {
+            // Workers send {etaMin: 0, etaMax: 0} when they have no interval yet
+            delta.etaRange = { min: event.etaMin, max: event.etaMax };
           }
           job._update(delta);
         }

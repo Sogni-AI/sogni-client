@@ -122,6 +122,12 @@ export interface JobData {
    */
   eta?: Date;
   etaStartedAt?: Date;
+  /**
+   * Worker's ETA confidence interval in seconds, updated with each progress
+   * event. Wide early in a render while the worker's step-timing model
+   * settles, narrowing as steps complete.
+   */
+  etaRange?: { min: number; max: number };
 }
 
 export interface JobEventMap extends EntityEvents {
@@ -372,6 +378,16 @@ class Job extends DataEntity<JobData, JobEventMap> {
    */
   get etaSeconds() {
     return this.data.etaSeconds;
+  }
+
+  /**
+   * Worker's ETA confidence interval in seconds, updated with each progress
+   * event. Wide early in a render while the worker's step-timing model
+   * settles, narrowing as steps complete. Undefined until the worker reports
+   * an interval.
+   */
+  get etaRange() {
+    return this.data.etaRange;
   }
 
   /**

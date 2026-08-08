@@ -61,6 +61,18 @@ export interface JobProgress extends JobEventBase {
   step?: number;
   stepCount?: number;
   progress?: number;
+  /**
+   * Worker's time-remaining estimate in seconds, when reported with the step.
+   * `0` means the worker had no estimate for this step.
+   */
+  etaSeconds?: number;
+  /** Lower bound of the worker's ETA confidence interval, in seconds. */
+  etaMin?: number;
+  /**
+   * Upper bound of the worker's ETA confidence interval, in seconds. `0`
+   * (with `etaMin: 0`) means the worker had no interval for this step.
+   */
+  etaMax?: number;
 }
 
 export interface JobETA extends JobEventBase {
