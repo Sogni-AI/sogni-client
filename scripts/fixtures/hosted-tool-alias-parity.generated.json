@@ -207,7 +207,7 @@
       "executionMode": "direct",
       "hostedToolName": "video_to_video",
       "sdkToolName": "video_to_video",
-      "hostedSchemaSha256": "488916da846bb7b4090c5901abaae48058457f8ada93fcea75dc5d9a612b043b",
+      "hostedSchemaSha256": "356c7d03e6b97b55118eb17f0b0d2d81bc28c3aeb6e629ee3ad8a1e7014c803e",
       "hostedRequired": [
         "prompt"
       ],
