@@ -5,69 +5,38 @@
  * MiniMax H3 generates video and 32kHz stereo audio jointly in a single pass on
  * Sogni. t2v, i2v, and flf2v share the FL2VA checkpoint; r2v is a separate
  * Ref2VA checkpoint that conditions on labelled reference material rather than
- * on frame anchors. Every sampling parameter is fixed by the checkpoint:
- * 24fps, 20 steps, guidance 1 (distilled, so a negative prompt does nothing),
- * res_multistep / simple. Frames sit on the 124 + n*17 grid (124-362 frames,
- * 5.167s to 15.083s) and the canvas uses a 32px grid capped at 1032192 pixels,
- * which is why 1344x768 and 768x1344 are the two shipped presets. Availability
- * depends on current compatible capacity. Sogni's open-weights H3 is
- * 768p-class; MiniMax's 2K stage is hosted-only and is not part of the open
- * release.
+ * on frame anchors. Standard H3 uses fixed 24fps, 20 steps, guidance 1, and
+ * res_multistep/simple. The FL2VA Turbo models use fixed 24fps, 4 steps,
+ * guidance 1, and a server-selected sampling path with the simple scheduler;
+ * Ref2VA has no Turbo variant. Frames sit on the
+ * 124 + n*17 grid (124-362 frames, 5.167s to 15.083s) and the canvas uses a
+ * 32px grid capped at 1032192 pixels, which is why 1344x768 and 768x1344 are
+ * the two shipped presets. Availability depends on current compatible
+ * capacity. Sogni's open-weights H3 is 768p-class; MiniMax's 2K stage is
+ * hosted-only and is not part of the open release.
  *
- * ## How to prompt H3: write natural cinematic prose
+ * ## How to prompt H3: use MiniMax's official Context-IR format
  *
- * There is no required structure, no field names, and no tags. Write what a
- * director would write. In priority order:
+ * MiniMax's official prompt-writing skill calls Context-IR critical to quality.
+ * Source: https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills/h3-prompt-writing
+ * T2VA, I2VA, and FL2VA use these fields in this exact order:
  *
- * 1. Natural cinematic prose. Plain sentences describing what is on screen.
- * 2. For anything longer than a single beat, use a timed shot list with plain
- *    bracketed timecodes - "[0-2 seconds] ...", "[2-5 seconds] ...". This is
- *    the single highest-leverage technique for pacing, and it is what stops
- *    long generations from drifting into a slideshow.
- * 3. Direct the audio as deliberately as the picture. H3 generates native
- *    32kHz stereo audio jointly with the video, so describe ambience, specific
- *    SFX, and music with instrumentation and timing ("bring in the low beat at
- *    3 seconds"). Plain labels like "Audio:", "Sound design:", or "Music:"
- *    inside the prose work well. Say so explicitly when you want no music.
- * 4. Dialogue is ordinary quoted prose: `The pilot says: "We need more
- *    datacenters."` (See the ADVANCED note on MiniMax's <d> markup below.)
- * 5. State what you do NOT want directly in the prompt text - negative
- *    direction is unusually effective on H3. There is no negative-prompt
- *    field; the checkpoint is CFG-distilled with guidance locked at 1, so a
- *    separate `negativePrompt` parameter is unsupported and rejected.
- * 6. Lock identity by naming concrete features, and give every reference image
- *    an explicit job ("use the first frame for the character, keep her jacket
- *    and hairstyle"). This matters most in r2v, where several references
- *    compete: separate identity from style, motion from appearance, and voice
- *    character from spoken words, and say which reference wins when two of them
- *    disagree.
- * 7. Use real camera and film vocabulary - lens, movement, exposure, stock -
- *    and describe transitions as physical events rather than named effects.
+ *   integrated_multimodal_description: [Shot 1] ...
+ *   overall_soundscape: ...
+ *   non_diegetic_music: ...
  *
- * Prompts can be long: up to 7000 characters for H3, and
- * timed shot lists get long fast. The Sogni SDK forwards `positivePrompt`
- * without truncating it.
+ * I2VA and FL2VA also require their mode-specific alignment instruction as the
+ * first line, followed by one blank line. `[Shot 1]` has no timestamp; later
+ * shots begin `[Shot N] At MM:SS.mmm, ...`. Speakers keep stable `(S1)` IDs and
+ * exact dialogue belongs inside `<d>[Language] ...</d>`. Soundscape contains
+ * ambience, action, and non-verbal sounds but not dialogue or music.
+ * `non_diegetic_music` describes audience-only score, or `N/A` when absent.
  *
- * ### Why this file no longer ships IR-format prompts
- *
- * MiniMax's tagged formats (`integrated_multimodal_description:` /
- * `overall_soundscape:` / `non_diegetic_music:`, `<d>[English] ...</d>`) are
- * real, but they live in MiniMax's *_ref_en.md rewrite schema - they are the
- * output format of their internal rewriting layer, not something an end user
- * should hand-write.
- *
- * Sogni ran the controlled experiment: identical prompt, seed, and words in
- * three dialogue formats - (a) `<d>[English](S1) ...</d>`, (b) MiniMax's strict
- * three-field IR format, (c) plain quoted prose with no markup. There was no
- * perceptible difference in output quality, speech intelligibility, or lip sync
- * (2026-08-03, RTX 5090, minimax-h3-fl2va-fp8_t2v, 768x1344, 243 frames).
- * fal.ai, a MiniMax day-0 launch partner, documents only natural-language
- * prompting for H3, uses zero markup across 44 worked examples, and ships no
- * prompt_optimizer flag on its H3 endpoints.
- *
- * So: prose is the default. The markup is kept here as an optional advanced
- * path (see ADVANCED_DIALOGUE_MARKUP and --alignment-line), and a caller's own
- * markup is never stripped.
+ * Ref2VA uses six ordered sections instead: `subject_definitions`, `summary`,
+ * `retention_analysis`, `detailed_description`, `overall_soundscape`, and
+ * `non_diegetic_music`. References must keep stable `<Subject N>`, `<Picture N>`,
+ * `<Video N>`, and `<Audio N>` meanings across all sections. Ref2VA requires at
+ * least one visual reference (an image OR video); audio alone is invalid.
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
@@ -145,37 +114,25 @@ const H3_MAX_PIXELS = 1032192;
 // Default duration lands on 192 frames (124 + 4*17), which is exactly 8.00s.
 // Picked deliberately: it divides cleanly into the timed beats of the example
 // prompts below, and it renders exactly in the two-decimal duration slot of the
-// optional flf2v alignment line.
+// required flf2v alignment line.
 const DEFAULT_DURATION = 8;
 
 // ============================================
-// ADVANCED / OPTIONAL: MiniMax rewrite-schema markup
+// Required MiniMax Context-IR instructions
 // ============================================
 
-/**
- * ADVANCED, OPTIONAL. MiniMax's I2VA alignment line, verbatim from their
- * rewrite schema.
- *
- * Sogni A/B testing found no quality difference from writing the same
- * instruction as prose ("use the provided image as the first frame and keep it
- * exactly"), so this is not used by default. Pass --alignment-line to prepend
- * it, which is occasionally useful when you want the anchor timing stated in
- * MiniMax's own wording.
- */
+/** MiniMax's required I2VA alignment line, verbatim from the official guide. */
 const I2V_ALIGNMENT_LINE =
   'For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.';
 
 /**
- * ADVANCED, OPTIONAL. MiniMax's FL2VA alignment line.
+ * MiniMax's required FL2VA alignment line.
  *
  * Note it differs from the I2VA line in three ways that are easy to get wrong:
  * Picture and Shot are bare (no angle or square brackets), the separator is a
  * U+2014 em dash surrounded by spaces, and the second clause carries the
  * effective duration to exactly two decimals. FL2VA generally favors a single
  * shot, so the final shot index is normally 1.
- *
- * Also not used by default - see --alignment-line.
- *
  * @param {number} durationSeconds - Effective video duration
  * @param {number} finalShotIndex - Index N of the final shot
  * @returns {string} The alignment line
@@ -188,166 +145,153 @@ function flf2vAlignmentLine(durationSeconds, finalShotIndex = 1) {
   );
 }
 
-/**
- * ADVANCED, OPTIONAL. MiniMax also defines a dialogue markup where the language
- * tag and the verbatim spoken words go inside a <d> tag and the speaker id sits
- * outside it:
- *
- *   The young woman with a quiet, breathy voice (S1) says: <d>[English] I get off at the next station.</d>
- *
- * It can help disambiguate a scene with many speakers. Sogni A/B testing found
- * no quality difference for ordinary dialogue, so treat it as optional and
- * never required. This example never rewrites or strips a caller's markup - if
- * you pass a prompt that uses it, it is sent through byte-identical.
- */
-const ADVANCED_DIALOGUE_MARKUP =
-  'The young woman with a quiet, breathy voice (S1) says: <d>[English] I get off at the next station.</d>';
-
 // ============================================
-// Example prompts: natural cinematic prose
+// Example prompts: official MiniMax Context-IR
 // ============================================
 
-// All three examples are written for the 8-second default (192 frames). If you
-// change --duration or --frames, rewrite the bracketed timecodes to cover the
-// new length; the prompt review below warns when beats overrun the video.
+// The examples are written for the 8-second default (192 frames). If you change
+// --duration or --frames, update later-shot MM:SS.mmm cut times accordingly.
 
 /**
- * t2v: no reference images, so the prose builds the whole timeline.
- *
- * Demonstrates a timed shot list, camera and lens vocabulary, two speakers as
- * ordinary quoted prose, deliberate audio direction with a timed music cue, and
- * an explicit statement of what should not appear.
+ * T2VA begins directly with the three required fields. Shot 1 has no timestamp;
+ * every later shot has a strictly increasing MM:SS.mmm cut time.
  */
-const T2V_PROMPT = `Live-action cinematic footage on 35mm with an anamorphic lens, shallow depth of field, rain-slick night exterior lit by sodium platform lamps.
+const T2V_PROMPT = `integrated_multimodal_description: [Shot 1] Live-action cinematic footage on 35mm with an anamorphic lens and shallow depth of field. A medium-wide shot frames two railway engineers beside a stopped commuter train on a rain-slick service platform under sodium lamps. The camera pushes in with small amplitude at slow speed. The older engineer in a reflective orange vest, with a low gravelly voice (S1), wipes rain from a clipboard, taps it twice, and says: <d>[English] The eastbound line is clear, but we hold here until the signal turns.</d>
+[Shot 2] At 00:02.000, the camera cuts to the younger engineer in a dark blue jacket leaning from the open carriage door, one hand on the handrail. The younger engineer, with a bright quick voice (S2), answers: <d>[English] Copy that. I'll keep the doors shut.</d>
+[Shot 3] At 00:04.000, the shot cuts to a low-angle close-up of the signal mast against the black sky. Water beads along the housing as the lamp switches from red to green. The camera tilts down with small amplitude at slow speed to reveal both engineers walking toward the front of the train.
+[Shot 4] At 00:06.000, the shot cuts to a static wide composition as the train's marker lights brighten. The engineers (S1,S2) glance at each other and say together, <d>[English] That's our green.</d> The frame contains no on-screen text, subtitles, logos, or watermarks.
 
-[0-2 seconds] A medium-wide shot of two railway engineers beside a stopped commuter train on a wet service platform, the lamps throwing long reflections across the concrete. The camera pushes in slowly on a dolly. The older engineer in a reflective orange vest wipes rain off a clipboard, taps it twice, and says: "The eastbound line is clear, but we hold here until the signal turns."
+overall_soundscape: Steady rain drums on the metal carriage roofs above a low electrical hum. Boots splash through shallow puddles, pressure hisses beneath the train, and the signal relay closes with a dull metallic clunk.
 
-[2-4 seconds] The younger engineer in a dark blue jacket leans out of the open carriage door, one hand still on the handrail, and answers without stepping down: "Copy that. I'll keep the doors shut."
-
-[4-6 seconds] Cut to a low-angle close shot of the signal mast against the black sky, water beading along the housing, as the lamp switches from red to green and the wet metal picks up the new colour. The camera tilts down to find both engineers walking toward the front of the train, their boots throwing up thin sheets of water.
-
-[6-8 seconds] Back to a wide, locked-off shot as the train's marker lights brighten. The two of them glance at each other and say together: "That's our green."
-
-Audio: steady rain drumming on the metal carriage roofs, a low electrical hum from the overhead lamps underneath it, boots splashing through shallow puddles, a pressurised hiss from beneath the train, and a dull metallic clunk as the signal relay switches over at 4 seconds. Both voices sit close and clear over the rain - the older man low and gravelly, the younger one brighter and quicker.
-
-Music: sparse low piano at a slow tempo, with a soft low beat coming in at 4 seconds under the signal change and dropping away again on the final line.
-
-Do not include on-screen text, subtitles, captions, logos, or watermarks. No slow motion, no speed ramping, no lens flares.`;
+non_diegetic_music: Sparse low piano at a slow tempo, joined by a soft low-frequency beat at 00:04.000 and fading after the final line.`;
 
 /**
- * i2v: the first frame is supplied, so the prose gives that image an explicit
- * job and then develops forward from it.
- *
- * Demonstrates identity locking by naming concrete features, a timed shot list,
- * dialogue as quoted prose, and an explicit "no music" instruction - H3 always
- * generates audio, so silence has to be directed rather than assumed.
+ * I2VA's alignment instruction is added by defaultPromptForMode. Its core body
+ * uses the same three ordered fields as T2VA.
  */
-const I2V_PROMPT = `Use the provided image as the first frame and keep it exactly: the same woman, the same dark jacket and hairstyle, the same mug and papers on the table, lit from the same side at the same colour temperature.
+const I2V_PROMPT = `integrated_multimodal_description: [Shot 1] Live-action, cinematic. The young woman shown in <Picture 1> remains at the record-store counter in the exact opening composition, preserving her face, dark wavy hair, brown jacket, the turntable, and the dense rows of album sleeves. The camera pushes in with small amplitude at slow speed as she lifts a vinyl record from its paper sleeve, checks its surface under the warm pendant light, and places it carefully on the turntable. The quiet young woman with a close, dry voice (S1) looks toward the customer beyond the camera and says: <d>[English] This pressing has been waiting here since Tuesday.</d> She lowers the stylus, listens for the first note, and gives a restrained smile while the framing, lighting direction, and fine shelf detail remain consistent with <Picture 1>. No new people enter and no visible text is added.
 
-[0-3 seconds] The shot opens locked off on the framing from the reference image, then begins a slow push-in on her face. She lifts her head, shifts her weight forward, and lets the hand resting on the table open. The jacket keeps the same folds and the same key light. She looks into the lens and says, quietly and evenly: "I told them I would wait until the last train, and I meant it."
+overall_soundscape: Low record-store room tone and rain against the front window continue throughout. The paper sleeve rustles, the vinyl settles onto the platter, and the tonearm produces a soft mechanical click followed by faint surface noise.
 
-[3-6 seconds] She glances down at the table and breathes out once. The push-in continues; the background falls further out of focus.
-
-[6-8 seconds] A hand enters from the right, straightens the mug, and withdraws. The camera settles and holds.
-
-Audio: quiet interior room tone, faint traffic passing somewhere beyond the wall, fabric rustling as she shifts in the chair, one controlled exhale, and a small ceramic scrape as the mug is straightened. Her voice is close, dry, and low.
-
-No music at all - the scene plays on room tone and dialogue only.
-
-Do not change her face, hair, or clothing from the reference image. No on-screen text or subtitles, no cutaway to another location, and no extra people entering the frame.`;
+non_diegetic_music: N/A`;
 
 /**
- * flf2v: both anchors are supplied, so the prose describes the physical path
- * between them in one unbroken take.
- *
- * Demonstrates giving each reference image its own job, describing the
- * transition as a physical event rather than a named effect, and converging on
- * the final composition.
+ * FL2VA uses one continuous shot and reaches Picture 2 at the exact end. Its
+ * duration-specific alignment instruction is added by defaultPromptForMode.
  */
-const FLF2V_PROMPT = `Use the first reference image as the opening frame and the second reference image as the final frame, and generate one continuous take that travels between them. The same woman, the same wardrobe, and the same room throughout - nothing is recast, replaced, or relit between the two anchors.
+const FLF2V_PROMPT = `integrated_multimodal_description: [Shot 1] Live-action, cinematic, one continuous shot inside a densely stocked independent record store. The young woman begins in the exact pose, spacing, wardrobe, warm pendant lighting, and camera composition established by Picture 1. The camera pulls out with small amplitude at slow speed as she shifts her weight naturally, slides one hand beneath a vinyl record, and lifts it from the turntable without changing its orientation abruptly. Her arms follow a smooth physical arc while the album sleeves, counter objects, and rain-lit front window retain stable fine detail. The woman with a warm unhurried voice (S1) says: <d>[English] Give it another second, it's almost there.</d> She turns gradually toward the final eyeline, carries the record to the shelf, and settles it between two sleeves. The camera distance, hand position, head angle, light, and background spacing progressively converge on Picture 2, reaching its exact pose and composition at the end of the shot. There is no cut, morph, dissolve, or crossfade.
 
-[0-3 seconds] Hold near the opening pose from the first image, then begin the move: her weight shifts from one foot to the other and her arms travel along a smooth arc rather than snapping into place. The camera starts a slow dolly-out on a 40mm lens, widening the frame by a small margin.
+overall_soundscape: Low record-store ambience continues beneath rain tapping the front window. Clothing rustles, shoes scuff softly on the wooden floor, the record sleeve brushes against its neighbors, and the movement ends with a quiet cardboard contact sound.
 
-[3-6 seconds] The turn carries on through plausible intermediate positions. Her head rotates gradually toward the direction it faces in the second image, and whatever she is holding moves with her hands. The shadows lengthen at an even rate toward the light angle of the second image. She says, warm and unhurried: "Give it another second, it's almost there."
-
-[6-8 seconds] The pose, the spacing to the background, the camera distance, and the lighting all converge, and the last frame settles into exactly the composition of the second image.
-
-Audio: a low continuous room ambience under the whole shot, clothing rustling as she shifts, quiet footsteps scuffing the floor, and one soft contact sound as the movement settles into its final position.
-
-Music: a single slow ascending synthesiser figure that thins to one sustained tone as the shot reaches its final composition.
-
-Do not cut - this is one unbroken take. No morph, dissolve, or crossfade between the two images. No on-screen text or watermarks, and no change of wardrobe or location.`;
+non_diegetic_music: A single slow ascending synthesizer figure narrows to one sustained tone and fades as the shot reaches Picture 2.`;
 
 /**
- * r2v: several references compete, so the first thing the prose does is hand
- * each one a separate job and settle who wins when two of them disagree.
- *
- * Written for three reference images, which is what `--mode r2v` sends when you
- * pass three `--ref-image` files: reference 1 is `referenceImage` and references
- * 2 and 3 ride in `contextImages`. Pass fewer and the later assignments simply
- * have nothing to bind to, so trim them from the prompt.
- *
- * Uses MiniMax's own `<Picture i>` tags, which is the form the model literally
- * sees: `comfy/text_encoders/minimax.py` splices `"<Picture %d>: "` (and
- * `"<Video %d>: "`, `"<Audio %d>: "`) in front of each reference before your
- * prompt text, so a sentence written with the same tags shares a token sequence
- * with the label of the reference it is about. Prose aliases ("Image 1", "the
- * second photo") do not, which is why every Sogni layer now writes the tags.
- *
- * Demonstrates per-reference jobs (identity, wardrobe, environment), the 1-based
- * per-type numbering, an explicit conflict rule, a timed shot list, deliberate
- * audio direction, and an explicit statement of what must not appear.
+ * Build an official six-section Ref2VA example whose labels match the supplied
+ * media types. With no reported references (for --print-prompt), it shows a
+ * one-picture example. Images used only for reusable identity/style become
+ * <Subject N>; <Picture N> is not misused as a keyframe anchor.
  */
-const R2V_PROMPT = `<Picture 1> is the identity reference for the woman: her face, her bone structure, and her hairstyle carry over exactly, and nothing else from that frame does. <Picture 2> is the wardrobe reference: the dark red jacket, its collar, and the way it hangs - take the garment, not the person wearing it. <Picture 3> is the location, lighting palette, and film texture: the wet street, the sodium and neon colour, the grain. Do not copy any person, vehicle, or signage from <Picture 3>. Where <Picture 1> and <Picture 3> disagree on colour or exposure, <Picture 1> wins on her face and <Picture 3> wins on everything behind her.
+function r2vPromptForReferences(references = {}) {
+  const reportedImages = Math.max(0, references.images ?? 0);
+  const reportedVideos = Math.max(0, references.videos ?? 0);
+  const reportedAudios = Math.max(0, references.audios ?? 0);
+  const imageCount = reportedImages || reportedVideos ? reportedImages : 1;
+  const primarySource = imageCount > 0 ? '<Picture 1>' : '<Video 1>';
+  const subjectDefinitions = [
+    `<Subject 1> is the lead woman whose face, dark wavy hair, and brown jacket come from ${primarySource}.`
+  ];
+  const retention = [
+    '<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - her facial identity, dark wavy hair, and brown jacket remain consistent throughout.'
+  ];
 
-[0-3 seconds] She walks toward camera along the rain-slicked street, hands in the jacket pockets. Handheld medium shot on a fast 50mm, shallow focus, neon reflections sliding across the wet asphalt beneath her.
+  for (let index = 2; index <= imageCount; index++) {
+    subjectDefinitions.push(
+      `<Subject ${index}> is the record-store environment and fine visual detail sourced from <Picture ${index}>, including the warm pendant lights, wooden record bins, album sleeves, turntable, and rain-covered front window.`
+    );
+    retention.push(
+      `<Subject ${index}> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - the store layout, lighting palette, record bins, album sleeves, turntable, and wet window are retained.`
+    );
+  }
+  for (let index = 1; index <= reportedVideos; index++) {
+    subjectDefinitions.push(
+      index === 1 && imageCount === 0
+        ? '<Video 1> is a reference for handheld camera movement, blocking, and temporal rhythm; its lead performer is separately tracked as <Subject 1>, while its other cast and location are not reused.'
+        : `<Video ${index}> is a reference for handheld camera movement, blocking, and temporal rhythm; its cast, wardrobe, and location are not reused.`
+    );
+    retention.push(
+      `<Video ${index}> (camera movement and temporal rhythm): weak_reference - only the handheld movement, blocking cadence, and pacing are followed.`
+    );
+  }
+  for (let index = 1; index <= reportedAudios; index++) {
+    subjectDefinitions.push(
+      `<Audio ${index}> is a voice-timbre and measured-delivery reference for <Subject 1> (S1); its original signal and spoken words are not copied.`
+    );
+    retention.push(
+      `<Audio ${index}>: reference - its voice timbre and measured delivery guide <Subject 1> (S1) without copying the original signal or words.`
+    );
+  }
 
-[3-6 seconds] She stops and glances back over her shoulder. The camera arcs slowly around her as a bus passes behind, its headlights sweeping across her face and briefly blowing out the highlights on the jacket.
+  const environmentSubject = imageCount >= 2 ? ' The setting follows <Subject 2>.' : '';
+  const videoDirection =
+    reportedVideos > 0
+      ? ' The camera movement and blocking rhythm weakly reference <Video 1> without copying its people or location.'
+      : '';
+  const voiceDirection =
+    reportedAudios > 0
+      ? ' Her close, measured delivery references <Audio 1> without copying its original signal or words.'
+      : '';
+  const taskTypes =
+    reportedAudios > 0 ? 'reference generation + audio reference' : 'reference generation';
 
-[6-8 seconds] She turns back to camera and the shot settles into a medium close-up, the street lights blooming behind her. She says, quietly, almost to herself: "It was never going to be the last train."
+  return `subject_definitions:
+${subjectDefinitions.join('\n')}
 
-Audio: steady rain on asphalt, tyres hissing through standing water, a bus engine passing left to right at 4 seconds, and distant traffic underneath all of it. Her voice is close, dry, and low over the rain.
+summary:
+[${taskTypes}] The target video follows <Subject 1> through a three-shot interaction in a densely stocked independent record store.${environmentSubject}${videoDirection}${voiceDirection}
 
-Music: one low warm synth pad that fades in at 6 seconds and holds under the final line. Nothing before that.
+retention_analysis:
+${retention.join('\n')}
 
-Do not include on-screen text, subtitles, captions, logos, or watermarks. No extra people in frame, no cuts to another location, and no change of wardrobe.`;
+detailed_description:
+The target video uses a live-action cinematic style with warm practical lighting, natural skin texture, controlled 35mm film grain, and crisp fine detail across album sleeves, wood grain, glass reflections, and the turntable.
+[Shot 1] A medium-wide shot establishes the narrow independent record store during a rainstorm. Wooden bins packed with individually visible record sleeves run toward the front window, warm pendant lamps reflect in the wet glass, and a turntable sits on the counter. <Subject 1> (S1), preserving the facial identity, dark wavy hair, and brown jacket defined by ${primarySource}, stands behind the counter holding a vinyl record by its edges.${environmentSubject}${videoDirection} The camera pushes in with small amplitude at slow speed as she rotates the record under the pendant light, checks its surface, and slides it carefully into a paper sleeve.
+[Shot 2] At 00:03.000, the camera cuts to a close shot of <Subject 1> (S1) lowering the record onto the turntable. Her fingertips remain anatomically stable as she guides the tonearm toward the outer groove. She listens to the first soft crackle, looks toward a customer beyond the camera, and says in a close measured voice, <d>[English] This pressing has been waiting here since Tuesday.</d>${voiceDirection} She closes her lips after the line, steadies the sleeve against the counter, and gives a restrained smile while the background shelves remain coherent.
+[Shot 3] At 00:06.000, the shot cuts to a low tracking view moving beside <Subject 1> as she carries the sleeved record along the aisle. Fine cover art remains legible as distinct visual shapes without inventing readable text. She stops at a wooden bin, parts two sleeves with one hand, inserts the record between them, and taps the top edge until it aligns with its neighbors. The camera settles into a static medium composition that holds her, the dense shelves, the glowing lamps, and rain moving down the front glass. No extra person enters, and no subtitles, logos, or new on-screen text appear.
+
+overall_soundscape:
+Low record-store room tone continues beneath steady rain against the front window. Paper sleeves rustle, vinyl touches the platter, the tonearm mechanism clicks, faint surface noise emerges from the speakers, and shoes move softly across the wooden floor.
+
+non_diegetic_music:
+Sparse upright-bass notes at a slow tempo enter after 00:06.000 and remain low beneath the final shot.`;
+}
 
 /**
- * Pick the example prompt for a mode, optionally prefixed with MiniMax's
- * alignment line (advanced, off by default).
+ * Pick the official example prompt for a mode.
  *
  * @param {string} mode - t2v, i2v, flf2v, or r2v
  * @param {number} durationSeconds - Effective duration, used by the flf2v line
- * @param {boolean} withAlignmentLine - Prepend the optional alignment line
+ * @param {Object} references - Reported Ref2VA reference counts
  * @returns {string} The complete prompt
  */
-function defaultPromptForMode(mode, durationSeconds, withAlignmentLine = false) {
+function defaultPromptForMode(mode, durationSeconds, references = {}) {
   if (mode === 'i2v') {
-    return withAlignmentLine ? `${I2V_ALIGNMENT_LINE}\n\n${I2V_PROMPT}` : I2V_PROMPT;
+    return `${I2V_ALIGNMENT_LINE}\n\n${I2V_PROMPT}`;
   }
   if (mode === 'flf2v') {
-    return withAlignmentLine
-      ? `${flf2vAlignmentLine(durationSeconds)}\n\n${FLF2V_PROMPT}`
-      : FLF2V_PROMPT;
+    return `${flf2vAlignmentLine(durationSeconds)}\n\n${FLF2V_PROMPT}`;
   }
   if (mode === 'r2v') {
-    // r2v references are not pinned to a timecode, so MiniMax's alignment lines
-    // have nothing to say about them - the per-reference jobs in the prose do
-    // that work instead.
-    return R2V_PROMPT;
+    return r2vPromptForReferences(references);
   }
-  // t2v has no reference images, so an alignment line would have nothing to
-  // align to.
   return T2V_PROMPT;
 }
 
 // ============================================
-// Prompt review (advisory only)
+// Prompt contract review
 // ============================================
 
 /**
- * How long a video can run before an untimed prompt tends to drift into a
- * slideshow. Below this a single well-written beat is fine.
+ * How long a video can run before a single untimed shot deserves a reminder.
  */
 const TIMED_BEATS_RECOMMENDED_ABOVE_SECONDS = 8;
 
@@ -378,13 +322,10 @@ const SINGLE_CONTINUOUS_SHOT_PATTERN =
 /**
  * Advisory only: does the prompt address at least one numbered reference?
  *
- * The canonical form is the tag the text encoder emits - `<Picture 1>`,
- * `<Video 1>`, `<Audio 1>` - but this stays deliberately loose and also matches
- * prose aliases ("Image 1", "picture 2"), because a warning that fires on a
- * prompt which DOES assign its references, just informally, is worse than one
- * that misses an edge case.
+ * The official Ref2VA contract uses the exact tags `<Picture 1>`, `<Video 1>`,
+ * and `<Audio 1>`; prose aliases do not define stable reference labels.
  */
-const NUMBERED_REFERENCE_PATTERN = /\b(?:picture|image|video|audio)\s*#?\s*\d+/i;
+const NUMBERED_REFERENCE_PATTERN = /<(?:Picture|Video|Audio)\s+\d+>/;
 
 /**
  * Prompt length limit for H3, matching what fal.ai documents for the model.
@@ -395,29 +336,38 @@ const NUMBERED_REFERENCE_PATTERN = /\b(?:picture|image|video|audio)\s*#?\s*\d+/i
 const PROMPT_CHAR_LIMIT = 7000;
 
 /**
- * Collect the bracketed timecodes in a prompt: "[0-2 seconds]", "[2 - 5 s]",
- * "[7 seconds]". Returns the end (or only) second of each beat.
+ * Collect official later-shot cut times from `[Shot N] At MM:SS.mmm, ...`.
  *
  * @param {string} prompt - The prompt to scan
  * @returns {number[]} Beat end times in seconds
  */
 function findTimedBeats(prompt) {
-  const beats = [];
-  const pattern =
-    /\[\s*(\d+(?:\.\d+)?)\s*(?:[-–—]|to)?\s*(\d+(?:\.\d+)?)?\s*(?:s|sec|secs|second|seconds)\s*\]/gi;
+  const beats = [0];
+  const pattern = /\[Shot\s+\d+\]\s+At\s+(\d{2}):(\d{2}(?:\.\d{3})),/g;
   let match;
   while ((match = pattern.exec(prompt)) !== null) {
-    beats.push(parseFloat(match[2] ?? match[1]));
+    beats.push(Number(match[1]) * 60 + Number(match[2]));
   }
   return beats;
+}
+
+function fieldsAppearInOrder(prompt, fields) {
+  let previousIndex = -1;
+  for (const field of fields) {
+    const index = prompt.indexOf(`${field}:`);
+    if (index < 0 || index <= previousIndex) return false;
+    previousIndex = index;
+  }
+  return true;
 }
 
 /**
  * Review a prompt and return advisory warnings.
  *
- * H3 takes any string, and there is no required structure, so nothing here is
- * an error. These checks only flag the things that measurably cost quality or
- * silently do nothing.
+ * The worker accepts an arbitrary string, but MiniMax's official skill defines
+ * a strict Context-IR contract. These checks flag a prompt that does not follow
+ * the mode's required section order, alignment line, shot syntax, or audio
+ * separation.
  *
  * @param {string} prompt - The prompt to review
  * @param {number} durationSeconds - Effective video duration
@@ -431,20 +381,61 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
   const warnings = [];
   const beats = findTimedBeats(prompt);
 
+  const baseFields = [
+    'integrated_multimodal_description',
+    'overall_soundscape',
+    'non_diegetic_music'
+  ];
+  const refFields = [
+    'subject_definitions',
+    'summary',
+    'retention_analysis',
+    'detailed_description',
+    'overall_soundscape',
+    'non_diegetic_music'
+  ];
+  if (!fieldsAppearInOrder(prompt, mode === 'r2v' ? refFields : baseFields)) {
+    warnings.push(
+      mode === 'r2v'
+        ? `Ref2VA requires these fields in order: ${refFields.join(', ')}.`
+        : `H3 Base requires these fields in order: ${baseFields.join(', ')}.`
+    );
+  }
+  if (mode === 'i2v' && !prompt.startsWith(`${I2V_ALIGNMENT_LINE}\n\n`)) {
+    warnings.push('I2VA requires its exact image-alignment instruction as the first line.');
+  }
+  if (
+    mode === 'flf2v' &&
+    !prompt.startsWith('How the reference pictures align with the target video — ')
+  ) {
+    warnings.push(
+      'FL2VA requires its exact first/last-frame alignment instruction as the first line.'
+    );
+  }
+  if (!prompt.includes('[Shot 1]')) {
+    warnings.push('The main description must begin its timeline with [Shot 1] and no timestamp.');
+  }
+  if (
+    /\b(?:says?|asks?|replies?|shouts?|sings?)\b/i.test(prompt) &&
+    !/<d>\[[^\]]+\][\s\S]*?<\/d>/.test(prompt)
+  ) {
+    warnings.push(
+      'Spoken words require a stable (S1) speaker ID and exact `<d>[Language] ...</d>` markup.'
+    );
+  }
+
   // flf2v is single-shot by design; r2v is single-shot when the prose says so.
   const untimedIsIntentional =
     SINGLE_SHOT_MODES.has(mode) || (mode === 'r2v' && SINGLE_CONTINUOUS_SHOT_PATTERN.test(prompt));
 
   if (
-    !beats.length &&
+    beats.length === 1 &&
     !untimedIsIntentional &&
     durationSeconds > TIMED_BEATS_RECOMMENDED_ABOVE_SECONDS
   ) {
     warnings.push(
-      `No timed beats found, and this render is ${durationSeconds.toFixed(2)}s. Over about ` +
-        `${TIMED_BEATS_RECOMMENDED_ABOVE_SECONDS}s an untimed prompt tends to drift into a slideshow. ` +
-        'Add a shot list with plain timecodes: "[0-2 seconds] ...", "[2-5 seconds] ...", ' +
-        'or state outright that it is one continuous uncut take.'
+      `Only Shot 1 is present, and this render is ${durationSeconds.toFixed(2)}s. If it is not one ` +
+        'continuous shot, add later cuts as `[Shot N] At MM:SS.mmm, ...`.'
     );
   }
 
@@ -471,16 +462,11 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
     }
   }
 
-  const lastBeat = beats.length ? Math.max(...beats) : 0;
+  const lastBeat = Math.max(...beats);
   if (lastBeat > durationSeconds + 0.5) {
     warnings.push(
       `The prompt directs action out to ${lastBeat}s but the video is only ${durationSeconds.toFixed(2)}s. ` +
         'Rewrite the timecodes to fit, or raise --duration.'
-    );
-  } else if (beats.length && lastBeat > 0 && lastBeat < durationSeconds - 2) {
-    warnings.push(
-      `The last timed beat ends at ${lastBeat}s but the video runs to ${durationSeconds.toFixed(2)}s, ` +
-        'leaving the tail undirected. Extend the shot list to the end.'
     );
   }
 
@@ -488,7 +474,9 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
   // strip, so an undirected soundtrack is still one nobody chose whenever the
   // audio track is kept.
   const hasAudioDirection =
-    /(^|\n)\s*(audio|sound design|sound|sfx|soundscape|foley|music|bgm|score)\s*:/i.test(prompt) ||
+    /(^|\n)\s*(overall_soundscape|non_diegetic_music|audio|sound design|sound|sfx|soundscape|foley|music|bgm|score)\s*:/i.test(
+      prompt
+    ) ||
     /\b(ambien(?:ce|t)|soundscape|sound design|foley|sfx|room tone|voice-?over|music|silence)\b/i.test(
       prompt
     ) ||
@@ -582,7 +570,6 @@ function parseArgs() {
     output: defaultExamplesOutputDir(),
     interactive: true,
     printPrompt: false,
-    alignmentLine: false,
     generateAudio: true,
     disableSafeContentFilter: false,
     billingMode: defaultBillingMode()
@@ -645,7 +632,7 @@ function parseArgs() {
       options.printPrompt = true;
       options.interactive = false;
     } else if (arg === '--alignment-line') {
-      options.alignmentLine = true;
+      // Backwards-compatible no-op. Official I2VA/FL2VA alignment is now always included.
     } else if (arg === '--no-audio') {
       options.generateAudio = false;
     } else if (arg === '--audio') {
@@ -678,16 +665,20 @@ Usage:
   node workflow_minimax_h3_video.mjs --mode t2v --no-interactive   # Example t2v prompt
   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg
   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
+  node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-turbo
   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
+  node workflow_minimax_h3_video.mjs --mode r2v --ref-video camera-move.mp4
 
 Modes:
   t2v    Text-to-video                     (minimax-h3-fl2va-fp8_t2v)
   i2v    First-frame image-to-video        (minimax-h3-fl2va-fp8_i2v,  needs --image)
   flf2v  First-and-last-frame video        (minimax-h3-fl2va-fp8_flf2v, needs --image and --end-image)
-  r2v    Multi-reference video             (minimax-h3-ref2va-fp8_r2v, needs at least one --ref-image)
+  r2v    Multi-reference video             (minimax-h3-ref2va-fp8_r2v, needs an image or video)
 
 Fixed model parameters (not configurable):
-  fps 24, steps 20, guidance 1, sampler res_multistep, scheduler simple
+  Standard: fps 24, steps 20, guidance 1, sampler res_multistep, scheduler simple
+  Turbo:    fps 24, steps 4, guidance 1, server-selected sampler, scheduler simple
+  Turbo exists for t2v, i2v, and flf2v only; there is no Turbo r2v.
   Native 32kHz stereo audio is generated jointly and included by default;
   --no-audio returns a video without an audio track
   Frames follow 124 + n*17 in the range 124-362 (${MINIMAX_H3_MIN_DURATION}s to ${MINIMAX_H3_MAX_DURATION}s)
@@ -697,12 +688,13 @@ Fixed model parameters (not configurable):
 Options:
   --mode <t2v|i2v|flf2v|r2v>  Workflow to run (default: t2v)
   --model <key>           Model key override (minimax-h3-t2v, minimax-h3-i2v,
-                          minimax-h3-flf2v, minimax-h3-r2v)
+                          minimax-h3-flf2v, minimax-h3-r2v, or the t2v/i2v/
+                          flf2v keys ending in -turbo)
   --image <path>          First-frame reference image (i2v, flf2v)
   --end-image <path>      Last-frame reference image (flf2v)
   --ref-image <path>      Reference image (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES})
-  --ref-video <path>      Reference video (r2v, one upload slot - see below)
-  --ref-audio <path>      Reference audio (r2v, one upload slot - see below)
+  --ref-video <path>      Reference video (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_VIDEOS})
+  --ref-audio <path>      Reference audio (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_AUDIOS})
   --prompt-file <path>    Read the prompt from a file instead of using the example
   --portrait              Use the 768x1344 preset instead of 1344x768
   --width <px>            Custom width, multiple of 32
@@ -713,7 +705,7 @@ Options:
   --seed <n>              Random seed (default: random)
   --output <dir>          Output directory (default: ./output)
   --print-prompt          Print the assembled prompt and exit without submitting
-  --alignment-line        ADVANCED: prepend MiniMax's reference-alignment line (i2v/flf2v)
+  --alignment-line        Deprecated no-op; required i2v/flf2v alignment is always included
   --no-audio              Strip the generated audio track before upload
   --audio                 Include generated audio (default)
   --negative [text]       Unsupported; exits with guidance to use the positive prompt
@@ -723,21 +715,18 @@ ${billingModeHelpText()}
   --help                  Show this help message
 
 Prompt format:
-  Natural cinematic prose. No required structure, no field names, no tags.
+  T2VA, I2VA, and FL2VA use these fields in this exact order:
 
-  - For anything longer than a single beat, use a timed shot list with plain
-    bracketed timecodes: "[0-2 seconds] ...", "[2-5 seconds] ...". This is the
-    highest-leverage technique for pacing and it prevents slideshow drift.
-  - Direct the audio as deliberately as the picture. H3 generates native 32kHz
-    stereo audio jointly with the video, so describe ambience, specific SFX,
-    and music with instrumentation and timing ("bring in the low beat at 3
-    seconds"). Say so explicitly when you want no music.
-  - Write dialogue as ordinary quoted prose:
-      The pilot says: "AI needs a lot more datacenters."
-  - State what you do NOT want directly in the prompt text. There is no
-    negative-prompt field, and --negative is accepted only to warn you.
-  - Give every reference image an explicit job, and lock identity by naming
-    concrete features.
+    integrated_multimodal_description: [Shot 1] ...
+    overall_soundscape: ...
+    non_diegetic_music: ...
+
+  I2VA and FL2VA require the exact mode-specific alignment instruction on the
+  first line. Shot 1 has no timestamp. Later cuts use
+  "[Shot N] At MM:SS.mmm, ...". Speakers keep stable (S1) IDs and spoken text
+  is preserved inside <d>[Language] ...</d>. Keep dialogue and music out of
+  overall_soundscape. Use non_diegetic_music: N/A when there is no audience-only
+  score. State exclusions inside the positive prompt; H3 has no negative field.
 
 Multi-reference video (--mode r2v):
   Ref2VA conditions on labelled reference material instead of frame anchors.
@@ -748,28 +737,38 @@ Multi-reference video (--mode r2v):
   r2v runs on a Sogni worker rather than at a vendor, so every reference is
   uploaded through Sogni's asset path before the job is submitted.
 
-  Repeat --ref-image up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES} times; the SDK sends the first as
+  At least one visual reference is required: an image OR video. Audio alone is
+  invalid. Repeat --ref-image up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES} times; the SDK sends the first as
   referenceImage and the rest as contextImages, which upload to the numbered
-  slots the worker feeds into ref_images. At least one is required.
+  slots the worker feeds into ref_images.
 
   Repeat --ref-video and --ref-audio up to ${MINIMAX_H3_MAX_REFERENCE_VIDEOS} and ${MINIMAX_H3_MAX_REFERENCE_AUDIOS} times respectively. The SDK uploads each file to a distinct S3
-  object. A reference video's own soundtrack is also presented to the model,
-  numbered before any standalone reference audio. Reference videos are read as
-  24fps; a clip at another frame rate plays back time-distorted.
+  object. A reference video does not create an <Audio N> label merely because
+  the file contains sound; attach audio explicitly with --ref-audio when the
+  signal should be copied or referenced. Reference videos are read as 24fps; a
+  clip at another frame rate plays back time-distorted.
 
-  References are numbered from 1 per type, in the order images, then videos,
-  then standalone audio, and the text encoder labels each one with a literal
-  "<Picture i>: " / "<Video k>: " / "<Audio j>: " tag before your prompt text.
-  Write the prompt with the SAME tags - <Picture 1>, <Video 1>, <Audio 1>, angle
-  brackets included - rather than prose aliases. Give every one of them
-  a separate job - separate identity from style, motion from appearance, and
-  voice character from the words that are spoken - and say which reference wins
-  when two disagree:
+  Ref2VA requires these six sections in exact order:
 
-    <Picture 1> is the character's face and hairstyle. <Picture 2> is the
-    wardrobe only. <Picture 3> is environment and lighting only. Where
-    <Picture 1> and <Picture 3> disagree on exposure, <Picture 1> wins on her
-    face.
+    subject_definitions:
+    summary:
+    retention_analysis:
+    detailed_description:
+    overall_soundscape:
+    non_diegetic_music:
+
+  Use <Subject N> for reusable visible content abstracted from a reference.
+  Reserve standalone <Picture N> for concrete keyframes or composition anchors;
+  a still used only for identity, wardrobe, environment, or style should be the
+  provenance inside a <Subject N> definition. Use <Video N> for whole-video
+  structure and <Audio N> for copied or referenced audio. Keep every label's
+  meaning stable across all six sections.
+
+  summary begins with one or more official task types: [keyframe completion],
+  [reference generation], [video editing], [video continuation], [audio reuse],
+  or [audio reference]. retention_analysis uses fully_preserved,
+  partially_preserved, attribute_transfer, or weak_reference for visual labels,
+  and fully_copy, partially_copy, reference, or weak_reference for audio.
 
   Reference resolution is a real cost/quality tradeoff. The workflow ships
   ref_image_size="match", which scales references down to the generation pixel
@@ -777,13 +776,12 @@ Multi-reference video (--mode r2v):
   fidelity, but its reference tokens ride through every sampling step, making
   the render several times slower. Sogni does not expose "max".
 
-  ADVANCED, optional: MiniMax also defines a speaker-tagged dialogue markup,
+  Write detailed_description in English, normally 350-500 words for a
+  generation task. Preserve dialogue, lyrics, and visible text in their original
+  language. Use stable speaker IDs and exact dialogue markup, for example:
 
-    ${ADVANCED_DIALOGUE_MARKUP}
-
-  which can disambiguate many speakers. Sogni A/B testing found no quality
-  difference for ordinary dialogue, so it is never required - and a prompt you
-  supply with your own markup is sent through unchanged.
+    The young woman with a quiet, breathy voice (S1) says:
+    <d>[English] I get off at the next station.</d>
 
   Run with --print-prompt to see the full example prompt for each mode.
 `);
@@ -855,8 +853,8 @@ async function main() {
   }
   if (OPTIONS.mode === 'r2v' && (OPTIONS.image || OPTIONS.endImage)) {
     console.error(
-      'Error: r2v has no frame anchors. Pass its references as --ref-image (repeatable) instead of ' +
-        '--image/--end-image.'
+      'Error: r2v has no frame anchors. Pass visual references as --ref-image or --ref-video ' +
+        'instead of --image/--end-image.'
     );
     process.exit(1);
   }
@@ -867,9 +865,18 @@ async function main() {
   if (OPTIONS.mode === 'flf2v' && !OPTIONS.printPrompt) {
     OPTIONS.endImage = await pickImageFile(OPTIONS.endImage, 'last-frame image');
   }
-  if (OPTIONS.mode === 'r2v' && OPTIONS.refImages.length === 0 && !OPTIONS.printPrompt) {
+  if (
+    OPTIONS.mode === 'r2v' &&
+    OPTIONS.refImages.length === 0 &&
+    OPTIONS.refVideos.length === 0 &&
+    !OPTIONS.printPrompt
+  ) {
     if (!OPTIONS.interactive || !process.stdin.isTTY) {
-      console.error('Error: r2v requires at least one --ref-image.');
+      console.error(
+        OPTIONS.refAudios.length > 0
+          ? 'Error: r2v audio cannot be the sole input; add at least one --ref-image or --ref-video.'
+          : 'Error: r2v requires at least one visual reference: --ref-image or --ref-video.'
+      );
       process.exit(1);
     }
     OPTIONS.refImages.push(await pickImageFile(null, 'first reference image'));
@@ -959,22 +966,28 @@ async function main() {
   }
   if (!OPTIONS.prompt && OPTIONS.interactive && process.stdin.isTTY) {
     console.log(
-      '\nWrite natural cinematic prose - a timed shot list plus audio direction works best.\n' +
+      '\nUse MiniMax Context-IR with the required ordered fields, shot syntax, and audio sections.\n' +
         'Press enter to use the example prompt for this mode.\n'
     );
     OPTIONS.prompt = await askMultilinePrompt(
       'Prompt:',
-      defaultPromptForMode(OPTIONS.mode, effectiveDuration, OPTIONS.alignmentLine),
+      defaultPromptForMode(OPTIONS.mode, effectiveDuration, {
+        images: OPTIONS.refImages.length,
+        videos: OPTIONS.refVideos.length,
+        audios: OPTIONS.refAudios.length
+      }),
       { consecutiveEmptyLinesToEnd: 2 }
     );
   }
   if (!OPTIONS.prompt) {
-    OPTIONS.prompt = defaultPromptForMode(OPTIONS.mode, effectiveDuration, OPTIONS.alignmentLine);
-  } else if (OPTIONS.alignmentLine && (OPTIONS.mode === 'i2v' || OPTIONS.mode === 'flf2v')) {
-    // Prepend to a caller-supplied prompt too, but never rewrite the prompt
-    // itself - markup a caller wrote stays exactly as they wrote it. t2v has no
-    // references and r2v references are not pinned to a timecode, so neither has
-    // an alignment line to prepend.
+    OPTIONS.prompt = defaultPromptForMode(OPTIONS.mode, effectiveDuration, {
+      images: OPTIONS.refImages.length,
+      videos: OPTIONS.refVideos.length,
+      audios: OPTIONS.refAudios.length
+    });
+  } else if (OPTIONS.mode === 'i2v' || OPTIONS.mode === 'flf2v') {
+    // MiniMax requires the mode-specific alignment instruction as the first line.
+    // Preserve the caller's body byte-for-byte and prepend only when absent.
     const alignmentLine =
       OPTIONS.mode === 'i2v' ? I2V_ALIGNMENT_LINE : flf2vAlignmentLine(effectiveDuration);
     if (!OPTIONS.prompt.startsWith(alignmentLine)) {
@@ -1003,7 +1016,7 @@ async function main() {
   }
 
   if (promptWarnings.length) {
-    console.log('\n⚠️  Prompt review (advisory - H3 accepts any prompt):');
+    console.log('\n⚠️  Prompt contract review:');
     promptWarnings.forEach((warning) => console.log(`   - ${warning}`));
     console.log();
   }
@@ -1012,7 +1025,9 @@ async function main() {
   OPTIONS.fps = MINIMAX_H3_FPS;
   OPTIONS.steps = modelConfig.defaultSteps;
   OPTIONS.guidance = modelConfig.defaultGuidance;
-  OPTIONS.sampler = modelConfig.defaultComfySampler;
+  OPTIONS.sampler = modelConfig.allowedComfySamplers?.length
+    ? modelConfig.defaultComfySampler
+    : undefined;
   OPTIONS.scheduler = modelConfig.defaultComfyScheduler;
 
   if (OPTIONS.batch < 1 || OPTIONS.batch > 512) {

@@ -538,10 +538,11 @@ class ChatToolsApi {
     if (
       hasReferenceImages &&
       typeof args.videoModel === 'string' &&
-      args.videoModel.trim().toLowerCase() === 'minimax-h3-t2v'
+      ['minimax-h3-t2v', 'minimax-h3-t2v-turbo'].includes(args.videoModel.trim().toLowerCase())
     ) {
+      const selectedModel = args.videoModel.trim().toLowerCase();
       throw new Error(
-        'minimax-h3-t2v does not accept reference images; use the MiniMax H3 i2v or flf2v project workflow'
+        `${selectedModel} does not accept reference images; use the matching MiniMax H3 i2v or flf2v project workflow`
       );
     }
     const routingArgs =

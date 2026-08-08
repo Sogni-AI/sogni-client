@@ -670,6 +670,7 @@ SEEDANCE MODEL IDS:
 | seedance-2-0 | Optional image, video, and audio refs | 24fps, 4-15s, 4K |
 | seedance-2-0-mini | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
 | seedance-2-0-fast | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
+| seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 30 total) | 24fps, 4-30s, 720p cap, first+last frame |
 
 SEEDANCE TEXT-TO-VIDEO:
 

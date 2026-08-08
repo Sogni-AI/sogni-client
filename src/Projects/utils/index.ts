@@ -28,7 +28,7 @@ export function isVideoModel(modelId: string): boolean {
     modelId.startsWith('wan_') ||
     modelId.startsWith('ltx2-') ||
     modelId.startsWith('ltx23-') ||
-    modelId.startsWith('seedance-2-0') ||
+    modelId.startsWith('seedance-2-') ||
     modelId.startsWith('happyhorse-1.1') ||
     modelId.startsWith('minimax-h3')
   );
@@ -82,13 +82,28 @@ export function isLtx2Model(modelId: string): boolean {
 }
 
 /**
- * Check if a model ID is a Seedance 2.0 video model.
+ * Check if a model ID is a Seedance video model.
  *
- * Seedance models are external API-backed video models. They generate at
- * 24fps and support 4-15 second direct SDK project durations.
+ * Seedance models are external API-backed video models that all generate at
+ * 24fps. Duration and resolution differ by generation:
+ * - `seedance-2-0` / `-mini` / `-fast`: 4-15 second clips; the full model goes
+ *   up to 4K while Mini and Fast cap at 720p.
+ * - `seedance-2-5`: 4-30 second clips, 480p/720p only (no 1080p, no 4K).
  */
 export function isSeedanceModel(modelId: string): boolean {
-  return modelId.startsWith('seedance-2-0');
+  return modelId.startsWith('seedance-2-');
+}
+
+/**
+ * Check if a model ID is a Seedance 2.5 video model.
+ *
+ * Seedance 2.5 is the only Seedance generation that renders up to 30 seconds in
+ * a single call, supports first-and-last-frame conditioning, and accepts the
+ * larger 30 image / 10 video / 10 audio reference budget. It is also the only
+ * one that cannot render 1080p or 4K.
+ */
+export function isSeedance25Model(modelId: string): boolean {
+  return modelId.startsWith('seedance-2-5');
 }
 
 /**
@@ -108,16 +123,25 @@ export function isHappyhorseModel(modelId: string): boolean {
 /**
  * Check if a model ID is a MiniMax H3 video model.
  *
- * Two separate checkpoints ship under this prefix:
+ * Two separate checkpoints and one distilled FL2VA path ship under this prefix:
  * - FL2VA: `minimax-h3-fl2va-fp8_t2v`, `..._i2v`, and `..._flf2v`
  * - Ref2VA: `minimax-h3-ref2va-fp8_r2v` (the multi-reference workflow)
+ * - FL2VA Turbo: the same three FL2VA ids with a `_turbo` suffix
  *
- * Everything else about them is identical - 24fps, 20 steps, guidance 1,
- * `res_multistep`/`simple`, the `124 + n*17` frame grid, and jointly generated
- * 32kHz stereo audio - so every H3 rule in this file applies to both.
+ * All H3 paths share fixed 24fps, guidance 1, the `124 + n*17` frame grid,
+ * and jointly generated 32kHz stereo audio. Standard H3 uses 20 steps;
+ * FL2VA Turbo uses a 4-step distillation LoRA and has no Ref2VA variant.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
   return modelId.startsWith('minimax-h3');
+}
+
+/**
+ * Check if a model ID is one of the 4-step MiniMax H3 FL2VA Turbo workflows.
+ * Turbo is available for t2v, i2v, and flf2v; Ref2VA does not have a Turbo id.
+ */
+export function isMinimaxH3TurboModel(modelId: string): boolean {
+  return /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_turbo$/.test(modelId);
 }
 
 /**
@@ -270,7 +294,7 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   // Check for supported video model prefixes
   const isWan = modelId.startsWith('wan_');
   const isLtx2 = modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
-  const isSeedance = modelId.startsWith('seedance-2-0');
+  const isSeedance = modelId.startsWith('seedance-2-');
   const isHappyhorse = modelId.startsWith('happyhorse-1.1');
   const isMinimaxH3 = modelId.startsWith('minimax-h3');
 
@@ -458,9 +482,9 @@ export const MINIMAX_H3_MAX_REFERENCE_FILES = 12;
  *
  * ### referenceImage
  * `optional`, because it is just the first entry of an ordered set rather than a
- * required anchor: an r2v project may supply its images entirely through
- * `contextImages`. "At least one reference image" is a count over both image
- * fields. Note that `referenceImage` and `contextImage1` are two
+ * required anchor: an r2v project may supply its visual context entirely
+ * through reference videos, or its images entirely through `contextImages`.
+ * Note that `referenceImage` and `contextImage1` are two
  * SEPARATE reference slots, not two names for one - sending both presents two
  * pictures to the model. `getVideoContextImageSlots` keeps them apart.
  *

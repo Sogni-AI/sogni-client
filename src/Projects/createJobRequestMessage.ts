@@ -32,8 +32,10 @@ import {
   isLtx2Model,
   isWanAnimateModel,
   isSeedanceModel,
+  isSeedance25Model,
   isHappyhorseModel,
   isMinimaxH3Model,
+  isMinimaxH3TurboModel,
   isMinimaxH3ReferenceModel,
   isExternalApiVideoModel,
   usesReferenceMask,
@@ -205,7 +207,8 @@ function validateVideoReferenceArrays(params: VideoProjectParams): void {
  *
  * r2v takes up to 9 images, 3 videos, 3 audio clips, and 12 files in total.
  * Because it renders on a Sogni worker rather than at an external vendor, every
- * reference uses the S3 upload path. At least one image is required.
+ * reference uses the S3 upload path. At least one visual reference (image or
+ * video) is required; audio alone cannot condition the visual stream.
  */
 function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {
   for (const field of ['referenceImageUrls', 'referenceVideoUrls', 'referenceAudioUrls'] as const) {
@@ -240,12 +243,12 @@ function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {
       message: `MiniMax H3 r2v supports at most ${MINIMAX_H3_MAX_REFERENCE_FILES} reference files in total (got ${references.total}: ${references.images} image, ${references.videos} video, ${references.audios} audio).`
     });
   }
-  if (references.images < 1) {
+  if (references.images + references.videos < 1) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
       message:
-        'MiniMax H3 r2v needs at least one uploaded reference image. Attach it as referenceImage or contextImages. Reference videos and audios add to that image set rather than replacing it; for a prompt-only render use minimax-h3-fl2va-fp8_t2v.'
+        'MiniMax H3 r2v needs at least one uploaded visual reference. Attach an image through referenceImage/contextImages or a video through referenceVideo/referenceVideos. Audio-only requests are not supported; for a prompt-only render use minimax-h3-fl2va-fp8_t2v.'
     });
   }
 }
@@ -259,8 +262,11 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
   if (params.fps !== undefined && params.fps !== 24) {
     invalid('MiniMax H3 fps is fixed at 24. Omit fps or set it to 24.');
   }
-  if (params.steps !== undefined && params.steps !== 20) {
-    invalid('MiniMax H3 steps are fixed at 20.');
+  const expectedSteps = isMinimaxH3TurboModel(params.modelId) ? 4 : 20;
+  if (params.steps !== undefined && params.steps !== expectedSteps) {
+    invalid(
+      `MiniMax H3${expectedSteps === 4 ? ' Turbo' : ''} steps are fixed at ${expectedSteps}.`
+    );
   }
   if (params.guidance !== undefined && params.guidance !== 1) {
     invalid('MiniMax H3 guidance is fixed at 1.');
@@ -326,10 +332,48 @@ function validateReferenceUrlArray(value: unknown, propertyName: string): void {
   }
 }
 
+/**
+ * Per-model Seedance loose-reference caps. These mirror
+ * `catalogs/seedance-reference-limits.json` in `@sogni-ai/sogni-protocol`,
+ * which is the language-neutral source of truth every SDK reads.
+ *
+ * The caps are NOT uniform across the family: Seedance 2.5 accepts a much
+ * larger reference budget than the 2.0 generation, so a single shared bound
+ * would silently clamp 2.5 requests down to 2.0's limits.
+ */
+const SEEDANCE_REFERENCE_LIMITS_BY_MODEL: Record<
+  string,
+  { images: number; videos: number; audios: number; assets: number }
+> = {
+  'seedance-2-0': { images: 9, videos: 3, audios: 3, assets: 12 },
+  'seedance-2-0-mini': { images: 9, videos: 3, audios: 3, assets: 12 },
+  'seedance-2-0-fast': { images: 9, videos: 3, audios: 3, assets: 12 },
+  'seedance-2-5': { images: 30, videos: 10, audios: 10, assets: 30 }
+};
+
+function seedanceReferenceLimits(modelId: string): {
+  images: number;
+  videos: number;
+  audios: number;
+  assets: number;
+} {
+  const limits = SEEDANCE_REFERENCE_LIMITS_BY_MODEL[modelId];
+  if (!limits) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: `Unknown Seedance model "${modelId}"; no reference-asset limits are defined for it.`
+    });
+  }
+  return limits;
+}
+
 function validateSeedanceReferenceAssets(params: VideoProjectParams): void {
   validateReferenceUrlArray(params.referenceImageUrls, 'referenceImageUrls');
   validateReferenceUrlArray(params.referenceVideoUrls, 'referenceVideoUrls');
   validateReferenceUrlArray(params.referenceAudioUrls, 'referenceAudioUrls');
+
+  const limits = seedanceReferenceLimits(params.modelId);
 
   const imageCount =
     (params.referenceImage ? 1 : 0) +
@@ -342,32 +386,32 @@ function validateSeedanceReferenceAssets(params: VideoProjectParams): void {
     asReferenceUrlArray(params.referenceAudioUrls).length;
   const totalAssetCount = imageCount + videoCount + audioCount;
 
-  if (imageCount > 9) {
+  if (imageCount > limits.images) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
-      message: 'Seedance supports at most 9 image assets.'
+      message: `${params.modelId} supports at most ${limits.images} image assets.`
     });
   }
-  if (videoCount > 3) {
+  if (videoCount > limits.videos) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
-      message: 'Seedance supports at most 3 video assets.'
+      message: `${params.modelId} supports at most ${limits.videos} video assets.`
     });
   }
-  if (audioCount > 3) {
+  if (audioCount > limits.audios) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
-      message: 'Seedance supports at most 3 audio assets.'
+      message: `${params.modelId} supports at most ${limits.audios} audio assets.`
     });
   }
-  if (totalAssetCount > 12) {
+  if (totalAssetCount > limits.assets) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
-      message: 'Seedance supports at most 12 total asset files.'
+      message: `${params.modelId} supports at most ${limits.assets} total asset files.`
     });
   }
   if (audioCount > 0 && imageCount === 0 && videoCount === 0) {
@@ -458,6 +502,10 @@ function getMaxVideoDuration(modelId: string): number {
   if (isMinimaxH3Model(modelId)) {
     // 362 frames at a fixed 24fps, the top of the H3 frame grid.
     return MINIMAX_H3_MAX_DURATION;
+  }
+  if (isSeedance25Model(modelId)) {
+    // Seedance 2.5 renders up to 30s in a single call; 2.0/Mini/Fast cap at 15s.
+    return 30;
   }
   if (isExternalApiVideoModel(modelId)) {
     return 15;

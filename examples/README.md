@@ -305,6 +305,7 @@ The workflow examples showcase these powerful new models:
 | `seedance-2-0`                       | Seedance 2.0      | Video        | External API multimodal video at 24fps                                             |
 | `seedance-2-0-mini`                  | Seedance 2.0 Mini | Video        | Fastest, lower-cost 720p-capped external API multimodal video at 24fps             |
 | `seedance-2-0-fast`                  | Seedance 2.0 Fast | Video        | Legacy 720p-capped external API multimodal video at 24fps                          |
+| `seedance-2-5`                       | Seedance 2.5      | Video        | Newest Seedance: 480p/720p, 4-30s clips, first+last frame, 30/10/10 refs at 24fps  |
 | `happyhorse-1.1-t2v`                 | Happy Horse 1.1   | Video        | External API video, text-to-video (image-only references)                          |
 | `happyhorse-1.1-i2v`                 | Happy Horse 1.1   | Video        | External API video, image-to-video from one first-frame image                      |
 | `happyhorse-1.1-r2v`                 | Happy Horse 1.1   | Video        | External API video, reference-to-video from 1-9 images                             |

@@ -105,12 +105,19 @@ export const PREFERRED_MODEL_IDS = {
     seedanceFastT2v: 'seedance-2-0-fast',
     seedanceFastI2v: 'seedance-2-0-fast',
     seedanceV2v: 'seedance-2-0',
+    seedance25T2v: 'seedance-2-5',
+    seedance25I2v: 'seedance-2-5',
+    seedance25Ia2v: 'seedance-2-5',
+    seedance25V2v: 'seedance-2-5',
     happyhorseT2v: 'happyhorse-1.1-t2v',
     happyhorseI2v: 'happyhorse-1.1-i2v',
     happyhorseR2v: 'happyhorse-1.1-r2v',
     minimaxH3T2v: 'minimax-h3-fl2va-fp8_t2v',
     minimaxH3I2v: 'minimax-h3-fl2va-fp8_i2v',
     minimaxH3Flf2v: 'minimax-h3-fl2va-fp8_flf2v',
+    minimaxH3TurboT2v: 'minimax-h3-fl2va-fp8_t2v_turbo',
+    minimaxH3TurboI2v: 'minimax-h3-fl2va-fp8_i2v_turbo',
+    minimaxH3TurboFlf2v: 'minimax-h3-fl2va-fp8_flf2v_turbo',
     animateMove: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
@@ -212,8 +219,11 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   seedance2: PREFERRED_MODEL_IDS.video.seedanceT2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastT2v,
+  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25T2v,
   'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
   'minimax-h3-t2v': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
+  'minimax-h3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v,
+  'minimax-h3-t2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseT2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseT2v
 };
@@ -224,9 +234,13 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   seedance2: PREFERRED_MODEL_IDS.video.seedanceI2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastI2v,
+  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25I2v,
   'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
   'minimax-h3-i2v': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
   'minimax-h3-flf2v': PREFERRED_MODEL_IDS.video.minimaxH3Flf2v,
+  'minimax-h3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboI2v,
+  'minimax-h3-i2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboI2v,
+  'minimax-h3-flf2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboFlf2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse-1.1-i2v': PREFERRED_MODEL_IDS.video.happyhorseI2v,
@@ -236,12 +250,14 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
 const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.v2v,
   'ltx23-v2v': PREFERRED_MODEL_IDS.video.v2v,
-  seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v
+  seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v,
+  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v
 };
 
 const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'wan-s2v': PREFERRED_MODEL_IDS.video.s2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceIa2v,
+  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25Ia2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'ltx23-ia2v': PREFERRED_MODEL_IDS.video.ia2v,
   'ltx23-a2v': PREFERRED_MODEL_IDS.video.a2v
@@ -431,7 +447,16 @@ export function isEditImageModel(modelId: string): boolean {
 
 const SEEDANCE_CANONICAL_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'ia2v', 'v2v'];
 
+/**
+ * Seedance 2.5 adds first-and-last-frame conditioning and a true multimodal
+ * reference-to-video mode on top of the 2.0 workflow set.
+ */
+const SEEDANCE_2_5_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'flf2v', 'r2v', 'ia2v', 'v2v'];
+
 function getCompatibleVideoWorkflows(modelId: string): VideoWorkflow[] {
+  if (modelId === 'seedance-2-5') {
+    return SEEDANCE_2_5_WORKFLOWS;
+  }
   if (
     modelId === 'seedance-2-0' ||
     modelId === 'seedance-2-0-mini' ||
@@ -459,7 +484,7 @@ export function filterVideoModelsByWorkflow(
 export function getVideoDefaults(modelId: string): { width: number; height: number; fps: number } {
   const workflow = getVideoWorkflowType(modelId);
   const isLtx2 = modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
-  const isSeedance = modelId.startsWith('seedance-2-0');
+  const isSeedance = modelId.startsWith('seedance-2-');
   const isHappyhorse = modelId.startsWith('happyhorse-1.1');
 
   if (isMinimaxH3Model(modelId)) {
@@ -469,7 +494,12 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
   }
-  if (modelId.includes('seedance-2-0-mini') || modelId.includes('seedance-2-0-fast')) {
+  // Seedance Mini, Fast, and 2.5 all cap at 720p. Only full Seedance 2.0 goes higher.
+  if (
+    modelId.includes('seedance-2-0-mini') ||
+    modelId.includes('seedance-2-0-fast') ||
+    modelId.startsWith('seedance-2-5')
+  ) {
     return { width: 1280, height: 720, fps: 24 };
   }
   if (isSeedance || isHappyhorse) {

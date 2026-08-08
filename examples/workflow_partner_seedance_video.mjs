@@ -46,20 +46,24 @@ const SEEDANCE_MODELS = {
   t2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
-    'seedance2-fast': { id: 'seedance-2-0-fast', name: 'Seedance 2.0 Fast' }
+    'seedance2-fast': { id: 'seedance-2-0-fast', name: 'Seedance 2.0 Fast' },
+    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' }
   },
   i2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
-    'seedance2-fast': { id: 'seedance-2-0-fast', name: 'Seedance 2.0 Fast' }
+    'seedance2-fast': { id: 'seedance-2-0-fast', name: 'Seedance 2.0 Fast' },
+    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' }
   },
   ia2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
-    'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' }
+    'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
+    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' }
   },
   v2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
-    'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' }
+    'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
+    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' }
   }
 };
 
@@ -856,6 +860,7 @@ Modes:
 
 Seedance models:
   seedance-2-0            seedance-2-0-mini      seedance-2-0-fast
+  seedance-2-5            (480p/720p only, 4-30s clips, first+last frame)
 
 Options:
   --interactive           Run the guided Seedance workflow setup

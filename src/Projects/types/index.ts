@@ -179,10 +179,14 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   multi-reference video. Two checkpoints ship: FL2VA
  *   (`minimax-h3-fl2va-fp8_t2v` / `_i2v` / `_flf2v`) and Ref2VA
  *   (`minimax-h3-ref2va-fp8_r2v`).
+ * - FL2VA Turbo adds `_turbo` to the t2v, i2v, and flf2v IDs. It uses a
+ *   4-step distillation LoRA for about 3.5x faster iteration, with some loss of
+ *   fine visual detail and audio polish. There is no Turbo Ref2VA workflow.
  * - Video and 32kHz stereo audio are generated jointly. Audio is included by
  *   default; set `generateAudio: false` to return a video without an audio track.
- * - Generation is fixed at 24fps, 20 steps, guidance 1,
- *   `res_multistep`/`simple`, with no separate negative-prompt input.
+ * - Generation is fixed at 24fps and guidance 1, with no separate
+ *   negative-prompt input. Standard H3 uses 20 steps and
+ *   `res_multistep`/`simple`; Turbo uses its fixed 4-step sampling path.
  * - Frames follow `124 + n*17` from 124 through 362. Dimensions use a 32px
  *   grid, with a 1344px per-axis limit and a 1032192-pixel canvas limit.
  * - The `flf2v` model requires both `referenceImage` and `referenceImageEnd`.
@@ -192,7 +196,8 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   rather than on frame anchors. The checkpoint accepts up to 9 reference
  *   images, 3 reference videos (24fps, 2-15 seconds each), and 3 reference
  *   audio clips, with at most 12 reference files in total.
- * - All of those ceilings apply, and at least one reference image is required.
+ * - All of those ceilings apply, and at least one visual reference (image or
+ *   video) is required. Audio-only reference sets are rejected.
  * - r2v is the only reference workflow that runs on Sogni's own workers rather
  *   than at a vendor, so every reference is uploaded to S3 before the request is
  *   sent. Images use `referenceImage` plus `contextImages`; videos use
@@ -306,8 +311,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    * worker builds the ComfyUI graph locally from Sogni-hosted assets.
    *
    * The uploaded reference set is `[referenceImage, ...contextImages]`. Both
-   * fields count against the same 9-image ceiling, and at least one image is
-   * required. Prompt ordinals follow that
+   * fields count against the same 9-image ceiling. Images are optional when at
+   * least one reference video is supplied. Prompt ordinals follow that
    * order: with `referenceImage` set, `contextImages[0]` is `<Picture 2>`;
    * without it, `contextImages[0]` is `<Picture 1>`. Entries must not be empty -
    * a hole would renumber every reference after it.
@@ -826,9 +831,9 @@ export type EnhancementStrength = 'light' | 'medium' | 'heavy';
  * models.
  * `r2v` (reference-to-video) is the multi-reference workflow shared by
  * HappyHorse (1-9 reference images fetched from `referenceImageUrls`) and
- * MiniMax H3 (`minimax-h3-ref2va-fp8_r2v`, 1-9 reference images uploaded
- * through `contextImages`). Because the two families do not take the same
- * assets over the same transport, resolve requirements with
+ * MiniMax H3 (`minimax-h3-ref2va-fp8_r2v`, uploaded images and/or videos, plus
+ * optional audio). Because the two families do not take the same assets over
+ * the same transport, resolve requirements with
  * `getVideoAssetRequirements(modelId)` instead of reading
  * `VIDEO_WORKFLOW_ASSETS.r2v` directly.
  * `flf2v` (first-and-last-frame-to-video) is the MiniMax H3 workflow that

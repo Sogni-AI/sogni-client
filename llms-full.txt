@@ -240,6 +240,13 @@ Unlimited fair-use accounting and enforcement are dynamic and server-side in
 the socket service. The SDK does not expose per-period usage counters or plan
 limit tables for clients to store or display as fixed user-facing limits.
 
+Plan pricing, included features and models, usage allowances, fair-use
+thresholds, and other limits are subject to change at Sogni AI's discretion,
+subject to applicable law. Treat `getSubscriptionPlans()` and the checkout
+response as authoritative instead of hard-coding catalog pricing or limits;
+notice of material changes to active paid subscriptions is provided when
+required.
+
 Stripe checkout uses catalog plan IDs (`unlimited` or `unlimited_pro`) plus a
 term (`monthly` or `annual`). Checkout and portal sessions require user
 authentication; API-key auth is rejected for those browser redirect operations.
@@ -709,6 +716,7 @@ SEEDANCE MODEL IDS:
 | seedance-2-0 | Optional image, video, and audio refs | 24fps, 4-15s, 4K |
 | seedance-2-0-mini | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
 | seedance-2-0-fast | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
+| seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 30 total) | 24fps, 4-30s, 720p cap, first+last frame |
 
 SEEDANCE TEXT-TO-VIDEO:
 
@@ -820,19 +828,81 @@ const project = await sogni.projects.create({
 });
 ```
 
-MINIMAX H3 (Sogni workers, native video + audio):
+MINIMAX H3 AND H3 TURBO (Sogni workers, native video + audio):
 
 MiniMax H3 generates video and 32kHz stereo audio jointly in one pass on Sogni's
-own GPUs. Every sampling parameter is fixed: 24fps, 20 steps, guidance 1,
-res_multistep/simple, and no negative prompt. Frames follow `124 + n*17` from 124
-to 362, and the canvas uses a 32px grid capped at 1,032,192 pixels.
+own GPUs. Standard H3 uses fixed 20-step res_multistep/simple sampling. H3 Turbo
+applies a 4-step FL2VA distillation LoRA and selects its fixed internal sampling
+path server-side; callers do not choose a sampler. Both use fixed 24fps,
+guidance 1, no negative prompt, the `124 + n*17` frame grid
+from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 
 | Model ID | Mode | References |
 |----------|------|------------|
 | minimax-h3-fl2va-fp8_t2v | Text-to-video | none |
 | minimax-h3-fl2va-fp8_i2v | First-frame image-to-video | one first-frame image |
 | minimax-h3-fl2va-fp8_flf2v | First-and-last-frame video | both anchor images required |
-| minimax-h3-ref2va-fp8_r2v | Reference-to-video (Ref2VA) | 1-9 images, up to 3 videos, up to 3 audios, 12 files total |
+| minimax-h3-ref2va-fp8_r2v | Reference-to-video (Ref2VA) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+| minimax-h3-fl2va-fp8_t2v_turbo | Turbo text-to-video | none |
+| minimax-h3-fl2va-fp8_i2v_turbo | Turbo first-frame image-to-video | one first-frame image |
+| minimax-h3-fl2va-fp8_flf2v_turbo | Turbo first-and-last-frame video | both anchor images required |
+
+Turbo covers only the three FL2VA workflows; there is no Turbo Ref2VA model ID.
+Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
+
+All seven current workflow ids are available through the Sogni projects API and
+the Sogni Creative Agent Skill: four standard modes plus the three Turbo modes.
+
+For SDK creative-tool calls, `generate_video` accepts `minimax-h3-turbo`
+(automatic t2v or first-frame i2v) and `minimax-h3-t2v-turbo`;
+`animate_photo` accepts `minimax-h3-i2v-turbo` and
+`minimax-h3-flf2v-turbo`. Run standard Ref2VA through hosted Creative Agent
+execution or submit its exact ID with `projects.create()`.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-fl2va-fp8_t2v_turbo',
+  positivePrompt:
+    'integrated_multimodal_description: [Shot 1] Live-action, cinematic, a tracking shot moves through a rainy night market.\n\n' +
+    'overall_soundscape: Steady rain, close footsteps, and layered crowd ambience.\n\n' +
+    'non_diegetic_music: A low electronic pulse at a moderate tempo.',
+  duration: 8,
+  steps: 4,
+  guidance: 1,
+  scheduler: 'simple',
+  generateAudio: true,
+  tokenType: 'spark'
+});
+```
+
+MiniMax's official Context-IR format is part of the prompt contract. The source
+is https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills/h3-prompt-writing.
+T2V, I2V, and FLF2V use these fields in exact order:
+
+1. `integrated_multimodal_description`
+2. `overall_soundscape`
+3. `non_diegetic_music`
+
+I2V always starts with:
+
+```text
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
+```
+
+FLF2V always starts with its duration-specific alignment line:
+
+```text
+How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot N) aligns with the S.SS-second mark of the target video.
+```
+
+The alignment line is followed by one blank line. `[Shot 1]` has no timestamp;
+later cuts begin `[Shot N] At MM:SS.mmm, ...`. Speakers keep stable `(S1)` IDs.
+Preserve exact dialogue inside `<d>[Language] ...</d>`. Keep dialogue, singing,
+and music out of `overall_soundscape`; use `non_diegetic_music: N/A` when there
+is no audience-only score. Write the structural sections in English while
+preserving dialogue, lyrics, and visible text in their original language.
 
 Ref2VA (`_r2v`) is a separate checkpoint. It has no frame anchors, so
 `referenceImageEnd` is rejected; references are labelled material the prompt
@@ -840,20 +910,51 @@ assigns jobs to (`<Picture i>`, `<Video k>`, `<Audio j>`, numbered from 1 per
 type). Because it renders on a Sogni worker rather than at a vendor, every artist
 reference uses the normal S3 upload path: `referenceImage` + `contextImages` for
 images, `referenceVideo` + `referenceVideos` for videos, and `referenceAudio` +
-`referenceAudios` for audio. Direct URL arrays are rejected. At least one
-reference image is required.
+`referenceAudios` for audio. Direct URL arrays are rejected. At least one visual
+reference (image or video) is required; audio alone is rejected.
+
+Ref2VA uses six sections in exact order: `subject_definitions`, `summary`,
+`retention_analysis`, `detailed_description`, `overall_soundscape`, and
+`non_diegetic_music`. Use `<Subject N>` for reusable visible content abstracted
+from a reference. Reserve standalone `<Picture N>` for a concrete keyframe or
+composition anchor; a still used only for identity, wardrobe, environment, or
+style belongs in a `<Subject N>` definition. `<Video N>` represents whole-video
+structure and `<Audio N>` represents copied or referenced audio. Keep labels
+stable across all sections. `summary` begins with official task types such as
+`[reference generation + audio reference]`. `retention_analysis` uses
+`fully_preserved`, `partially_preserved`, `attribute_transfer`, or
+`weak_reference` for visual labels and `fully_copy`, `partially_copy`,
+`reference`, or `weak_reference` for audio labels.
 
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
   modelId: 'minimax-h3-ref2va-fp8_r2v',
-  positivePrompt:
-    '<Picture 1> is the identity reference for the woman: her face and hairstyle carry over exactly. ' +
-    '<Picture 2> is the wardrobe reference only. <Picture 3> is the location and lighting palette only. ' +
-    'Where <Picture 1> and <Picture 3> disagree on exposure, <Picture 1> wins on her face.\n\n' +
-    '[0-4 seconds] She walks toward camera along a rain-slicked street, handheld medium shot on a fast 50mm.\n\n' +
-    'Audio: steady rain on asphalt and distant traffic. No on-screen text or watermarks.',
+  positivePrompt: `subject_definitions:
+<Subject 1> is the woman in <Picture 1>, preserving her face and hairstyle.
+<Subject 2> is the brown jacket in <Picture 2>.
+<Subject 3> is the rain-slicked street environment in <Picture 3>.
+<Video 1> is a reference for camera movement and temporal rhythm only.
+
+summary:
+[reference generation] The target video follows <Subject 1>, wearing <Subject 2>, through <Subject 3> while weakly referencing the camera movement of <Video 1>.
+
+retention_analysis:
+<Subject 1> (appears in [Shot 1]): fully_preserved - her facial identity and hairstyle remain consistent.
+<Subject 2> (appears in [Shot 1]): fully_preserved - the jacket's color and cut are retained.
+<Subject 3> (appears in [Shot 1]): fully_preserved - the wet street and lighting palette are retained.
+<Video 1> (camera movement and temporal rhythm): weak_reference - its movement is followed without copying its cast or location.
+
+detailed_description:
+The target video is live-action and cinematic with shallow focus and a restrained handheld camera.
+[Shot 1] <Subject 1> (S1), wearing <Subject 2>, walks toward the camera through <Subject 3>. She says quietly: <d>[English] It was never going to be the last train.</d>
+
+overall_soundscape:
+Steady rain falls on asphalt while tires hiss through standing water and distant traffic passes.
+
+non_diegetic_music:
+A low warm synthesizer pad enters near the end and holds beneath the final frame.`,
   duration: 8,
   width: 1344,
   height: 768,
@@ -867,7 +968,9 @@ const project = await sogni.projects.create({
 });
 ```
 
-See `examples/workflow_minimax_h3_video.mjs` for all four modes.
+See `examples/workflow_minimax_h3_video.mjs` for all four standard workflows and
+the three Turbo model-key overrides. Turbo uses the same official T2V/I2V/FLF2V
+prompt contract as standard FL2VA.
 
 ================================================================================ 8. AUDIO GENERATION - ACE-STEP 1.5 MODELS
 ================================================================================

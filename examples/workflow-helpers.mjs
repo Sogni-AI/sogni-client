@@ -1551,11 +1551,13 @@ export const MODELS = {
   // MiniMax H3 Models (ComfyUI workflow)
   //
   // One FL2VA checkpoint serves t2v, i2v, and flf2v; a separate Ref2VA
-  // checkpoint serves the multi-reference r2v workflow. Every sampling parameter
-  // is fixed: 24fps, 20 steps, guidance 1 (distilled, so a negative prompt does
-  // nothing), res_multistep/simple. Video and 32kHz stereo audio are generated
-  // jointly in one pass. Audio is included by default; generateAudio=false
-  // returns the completed video without an audio track.
+  // checkpoint serves the multi-reference r2v workflow. Standard H3 uses fixed
+  // 24fps, 20 steps, guidance 1, and res_multistep/simple. The FL2VA Turbo
+  // variants use fixed 24fps, 4 steps, guidance 1, and a server-selected
+  // sampling path with the simple scheduler. Video and
+  // 32kHz stereo audio are generated jointly in one pass. Audio is included by
+  // default; generateAudio=false returns the completed video without an audio
+  // track. Ref2VA has no Turbo variant.
   //
   // Frames follow the 124 + n*17 grid (124-362 = 5.167s-15.083s) and the canvas
   // uses a 32px grid capped at 1032192 total pixels, which is why only the two
@@ -1678,6 +1680,121 @@ export const MODELS = {
       requiresReferenceImage: true,
       requiresReferenceImageEnd: true
     },
+    'minimax-h3-t2v-turbo': {
+      id: 'minimax-h3-fl2va-fp8_t2v_turbo',
+      name: 'MiniMax H3 FL2VA FP8 Turbo T2V',
+      description: 'Four-step text-to-video with jointly generated 32kHz stereo audio',
+      workflowType: 't2v',
+      defaultWidth: 1344,
+      defaultHeight: 768,
+      minWidth: 32,
+      maxWidth: 1344,
+      minHeight: 32,
+      maxHeight: 1344,
+      dimensionStep: 32,
+      maxPixels: 1032192,
+      defaultSteps: 4,
+      minSteps: 4,
+      maxSteps: 4,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      defaultComfySampler: 'dual_clock_euler',
+      allowedComfySamplers: [],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple'],
+      minFrames: MINIMAX_H3_MIN_FRAMES,
+      maxFrames: MINIMAX_H3_MAX_FRAMES,
+      defaultFrames: MINIMAX_H3_BASE_FRAMES,
+      frameStep: MINIMAX_H3_FRAME_STEP,
+      frameBase: MINIMAX_H3_BASE_FRAMES,
+      defaultFps: MINIMAX_H3_FPS,
+      allowedFps: [MINIMAX_H3_FPS],
+      minDuration: MINIMAX_H3_MIN_DURATION,
+      maxDuration: MINIMAX_H3_MAX_DURATION,
+      isLightning: true,
+      isComfyModel: true,
+      hasAudio: true,
+      supportsNegativePrompt: false
+    },
+    'minimax-h3-i2v-turbo': {
+      id: 'minimax-h3-fl2va-fp8_i2v_turbo',
+      name: 'MiniMax H3 FL2VA FP8 Turbo I2V',
+      description: 'Four-step first-frame image-to-video with jointly generated stereo audio',
+      workflowType: 'i2v',
+      defaultWidth: 1344,
+      defaultHeight: 768,
+      minWidth: 32,
+      maxWidth: 1344,
+      minHeight: 32,
+      maxHeight: 1344,
+      dimensionStep: 32,
+      maxPixels: 1032192,
+      defaultSteps: 4,
+      minSteps: 4,
+      maxSteps: 4,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      defaultComfySampler: 'dual_clock_euler',
+      allowedComfySamplers: [],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple'],
+      minFrames: MINIMAX_H3_MIN_FRAMES,
+      maxFrames: MINIMAX_H3_MAX_FRAMES,
+      defaultFrames: MINIMAX_H3_BASE_FRAMES,
+      frameStep: MINIMAX_H3_FRAME_STEP,
+      frameBase: MINIMAX_H3_BASE_FRAMES,
+      defaultFps: MINIMAX_H3_FPS,
+      allowedFps: [MINIMAX_H3_FPS],
+      minDuration: MINIMAX_H3_MIN_DURATION,
+      maxDuration: MINIMAX_H3_MAX_DURATION,
+      isLightning: true,
+      isComfyModel: true,
+      hasAudio: true,
+      supportsNegativePrompt: false,
+      requiresReferenceImage: true
+    },
+    'minimax-h3-flf2v-turbo': {
+      id: 'minimax-h3-fl2va-fp8_flf2v_turbo',
+      name: 'MiniMax H3 FL2VA FP8 Turbo FLF2V',
+      description:
+        'Four-step first-and-last-frame video with jointly generated stereo audio; both anchors required',
+      workflowType: 'flf2v',
+      defaultWidth: 1344,
+      defaultHeight: 768,
+      minWidth: 32,
+      maxWidth: 1344,
+      minHeight: 32,
+      maxHeight: 1344,
+      dimensionStep: 32,
+      maxPixels: 1032192,
+      defaultSteps: 4,
+      minSteps: 4,
+      maxSteps: 4,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      defaultComfySampler: 'dual_clock_euler',
+      allowedComfySamplers: [],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple'],
+      minFrames: MINIMAX_H3_MIN_FRAMES,
+      maxFrames: MINIMAX_H3_MAX_FRAMES,
+      defaultFrames: MINIMAX_H3_BASE_FRAMES,
+      frameStep: MINIMAX_H3_FRAME_STEP,
+      frameBase: MINIMAX_H3_BASE_FRAMES,
+      defaultFps: MINIMAX_H3_FPS,
+      allowedFps: [MINIMAX_H3_FPS],
+      minDuration: MINIMAX_H3_MIN_DURATION,
+      maxDuration: MINIMAX_H3_MAX_DURATION,
+      isLightning: true,
+      isComfyModel: true,
+      hasAudio: true,
+      supportsNegativePrompt: false,
+      requiresReferenceImage: true,
+      requiresReferenceImageEnd: true
+    },
     // Ref2VA is a separate checkpoint (minimax_h3_ref2va_pruned_fp8_scaled),
     // not another workflow on the FL2VA weights. It conditions on labelled
     // reference material - up to 9 images, 3 videos, and 3 audio clips, 12
@@ -1687,7 +1804,7 @@ export const MODELS = {
       id: 'minimax-h3-ref2va-fp8_r2v',
       name: 'MiniMax H3 Ref2VA FP8 R2V',
       description:
-        'Multi-reference video with jointly generated stereo audio; at least one reference image',
+        'Multi-reference video with jointly generated stereo audio; at least one image or video reference',
       workflowType: 'r2v',
       defaultWidth: 1344,
       defaultHeight: 768,
@@ -1720,7 +1837,7 @@ export const MODELS = {
       isComfyModel: true,
       hasAudio: true,
       supportsNegativePrompt: false,
-      requiresReferenceImage: true,
+      requiresVisualReference: true,
       maxReferenceImages: MINIMAX_H3_MAX_REFERENCE_IMAGES,
       maxReferenceVideos: MINIMAX_H3_MAX_REFERENCE_VIDEOS,
       maxReferenceAudios: MINIMAX_H3_MAX_REFERENCE_AUDIOS,

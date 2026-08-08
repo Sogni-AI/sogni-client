@@ -683,7 +683,7 @@ WAN workflows have two model variants optimized for different use cases:
 - **Speed variant** (with `_lightx2v` suffix) - Faster inference (4-step), good quality
 - **Quality variant** (without `_lightx2v`) - Slower inference, best quality
 
-LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance 2.0 models use the external API path and are available through three canonical multimodal model IDs: `seedance-2-0`, `seedance-2-0-mini`, and `seedance-2-0-fast`. All accept optional image, video, and audio references, run at fixed 24fps, and require Spark billing; the full model supports up to 4K, while Mini and Fast cap output at 720p. Happy Horse 1.1 is an external-API video model with text-to-video, image-to-video, and reference-to-video modes (`happyhorse-1.1-t2v` / `-i2v` / `-r2v`); it accepts image-only references (no video or audio reference assets), and is Spark-only.
+LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance models use the external API path and are available through four canonical multimodal model IDs: `seedance-2-0`, `seedance-2-0-mini`, `seedance-2-0-fast`, and `seedance-2-5`. All accept optional image, video, and audio references, run at fixed 24fps, and require Spark billing; the full 2.0 model supports up to 4K, while Mini and Fast cap output at 720p. `seedance-2-5` is the newest generation: 480p/720p only (no 1080p and no 4K), 4-30 second single-call clips, first-and-last-frame conditioning, and a larger reference budget of 30 images, 10 videos, and 10 audios with at most 30 reference files in total. Happy Horse 1.1 is an external-API video model with text-to-video, image-to-video, and reference-to-video modes (`happyhorse-1.1-t2v` / `-i2v` / `-r2v`); it accepts image-only references (no video or audio reference assets), and is Spark-only.
 
 Example model IDs:
 
@@ -702,6 +702,7 @@ Example model IDs:
 - `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-mini` (Seedance 2.0 Mini multimodal video, external API, 720p cap)
 - `seedance-2-0-fast` (Seedance 2.0 Fast multimodal video, external API, 720p cap)
+- `seedance-2-5` (Seedance 2.5 multimodal video, external API, 480p/720p only, 4-30s, first+last frame)
 - `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
 - `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
@@ -1144,6 +1145,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `seedance-2-0`                       | **Seedance 2.0** - 4K external API multimodal video   | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-mini`                  | **Seedance 2.0 Mini** - 720p external API video       | Fastest, lower-cost 24fps Seedance video generation                                                          |
 | `seedance-2-0-fast`                  | **Seedance 2.0 Fast** - 720p external API video       | Legacy faster 24fps video generation where fast tiers are enabled                                            |
+| `seedance-2-5`                       | **Seedance 2.5** - 480p/720p external API video       | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs  |
 | `dark_beast_z_image_turbo_v9_bf16`   | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                    |
 | `dark_beast_krea2_fp8`               | **Dark Beast KREA 2** - Community (uncensored)        | Uncensored Krea 2 fine-tune (2K output needs a 24GB+ VRAM worker)                                            |
 | `dark_beast_krea2_identity_edit_v1_2` | **Dark Beast Krea 2 Identity Edit** - Community       | Uncensored identity-preserving Krea 2 edit LoRA with 1-2 reference images                                    |

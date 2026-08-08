@@ -27,9 +27,9 @@
 //
 // SOURCE OF TRUTH: the SDK's `SogniTools.all` (dist), which is generated from
 // `@sogni-ai/sogni-protocol/manifests/openai-tools.json` by
-// scripts/generate-hosted-tools-manifest.mjs (plus one documented
-// `generate_music` enum patch). Snapshotting `SogniTools.all` guarantees the
-// fixture matches exactly what the SDK ships and what the parity test checks.
+// scripts/generate-hosted-tools-manifest.mjs (plus its documented SDK-local
+// compatibility patches). Snapshotting `SogniTools.all` guarantees the fixture
+// matches exactly what the SDK ships and what the parity test checks.
 import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -39,7 +39,12 @@ const require = createRequire(import.meta.url);
 const { SogniTools } = require('../dist/Chat/tools.js');
 const protocolVersion = require('@sogni-ai/sogni-protocol/package.json').version;
 
-const fixturePath = join(process.cwd(), 'scripts', 'fixtures', 'hosted-tool-alias-parity.generated.json');
+const fixturePath = join(
+  process.cwd(),
+  'scripts',
+  'fixtures',
+  'hosted-tool-alias-parity.generated.json'
+);
 const checkOnly = process.argv.includes('--check');
 
 // Must match scripts/check-chat-model-routing.cjs byte-for-byte so the
@@ -56,7 +61,9 @@ function stableValue(value) {
 }
 
 function sha256(value) {
-  return createHash('sha256').update(JSON.stringify(stableValue(value))).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(stableValue(value)))
+    .digest('hex');
 }
 
 function arraysEqual(a, b) {
@@ -72,7 +79,9 @@ const changes = [];
 const nextTools = fixture.tools.map((vector) => {
   const tool = sdkToolsByName.get(vector.hostedToolName);
   if (!tool) {
-    violations.push(`SDK is missing hosted tool "${vector.hostedToolName}" (present in the fixture)`);
+    violations.push(
+      `SDK is missing hosted tool "${vector.hostedToolName}" (present in the fixture)`
+    );
     return vector;
   }
 
@@ -85,7 +94,9 @@ const nextTools = fixture.tools.map((vector) => {
   // change in the protocol schema, not a snapshot to silently refresh.
   for (const target of [...vector.argumentAliasTargets, ...vector.mediaAliasTargets]) {
     if (!Object.prototype.hasOwnProperty.call(properties, target)) {
-      violations.push(`${vector.hostedToolName}: alias target "${target}" no longer exists on the hosted schema`);
+      violations.push(
+        `${vector.hostedToolName}: alias target "${target}" no longer exists on the hosted schema`
+      );
     }
   }
 
@@ -110,7 +121,9 @@ const nextTools = fixture.tools.map((vector) => {
     if (!arraysEqual(vector.hostedRequired, nextVector.hostedRequired)) {
       detail.push(`required: [${vector.hostedRequired}] -> [${nextVector.hostedRequired}]`);
     }
-    changes.push(`  ${vector.hostedToolName}: schema fingerprint changed${detail.length ? ` (${detail.join('; ')})` : ' (values/enums only)'}`);
+    changes.push(
+      `  ${vector.hostedToolName}: schema fingerprint changed${detail.length ? ` (${detail.join('; ')})` : ' (values/enums only)'}`
+    );
   }
 
   return nextVector;
@@ -125,7 +138,9 @@ if (violations.length) {
 }
 
 if (!changes.length) {
-  console.log(`Parity fixture already in sync with @sogni-ai/sogni-protocol@${protocolVersion}. No changes.`);
+  console.log(
+    `Parity fixture already in sync with @sogni-ai/sogni-protocol@${protocolVersion}. No changes.`
+  );
   process.exit(0);
 }
 

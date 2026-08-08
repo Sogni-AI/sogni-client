@@ -9,6 +9,7 @@ const {
   asFiniteNumber,
   asStringArray,
   clampVariationCount,
+  filterVideoModelsByWorkflow,
   getHostedVariationCount,
   getVideoDefaults,
   getVideoWorkflowType,
@@ -27,6 +28,7 @@ const {
   calculateVideoFrames,
   getVideoAssetRequirements,
   isMinimaxH3Model,
+  isMinimaxH3TurboModel,
   MINIMAX_H3_R2V_ASSETS,
   VIDEO_WORKFLOW_ASSETS
 } = require('../dist/Projects/utils/index.js');
@@ -224,6 +226,12 @@ assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceFastT2v), {
   height: 720,
   fps: 24
 });
+// Seedance 2.5 is 480p/720p only, so it must never default to the 1080p full-2.0 shape.
+assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedance25T2v), {
+  width: 1280,
+  height: 720,
+  fps: 24
+});
 assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.happyhorseT2v), {
   width: 1920,
   height: 1080,
@@ -253,11 +261,36 @@ const minimaxH3ModelIds = {
   // workflow suffix, exactly like the 'fl2va' segment on the other three.
   r2v: 'minimax-h3-ref2va-fp8_r2v'
 };
+const minimaxH3TurboModelIds = {
+  t2v: 'minimax-h3-fl2va-fp8_t2v_turbo',
+  i2v: 'minimax-h3-fl2va-fp8_i2v_turbo',
+  flf2v: 'minimax-h3-fl2va-fp8_flf2v_turbo'
+};
+const generateVideoModelSchema =
+  sdkHostedToolsByName.get('generate_video').function.parameters.properties.videoModel;
+const animatePhotoModelSchema =
+  sdkHostedToolsByName.get('animate_photo').function.parameters.properties.videoModel;
+for (const selector of ['minimax-h3-turbo', 'minimax-h3-t2v-turbo']) {
+  assert.ok(generateVideoModelSchema.enum.includes(selector));
+}
+for (const selector of ['minimax-h3-i2v-turbo', 'minimax-h3-flf2v-turbo']) {
+  assert.ok(animatePhotoModelSchema.enum.includes(selector));
+}
+assert.match(generateVideoModelSchema.description, /At least one visual reference is required/);
+assert.doesNotMatch(
+  generateVideoModelSchema.description,
+  /At least one reference image is required/
+);
 assert.ok(Object.values(minimaxH3ModelIds).every(isMinimaxH3Model));
+assert.ok(Object.values(minimaxH3TurboModelIds).every(isMinimaxH3TurboModel));
+assert.equal(isMinimaxH3TurboModel(minimaxH3ModelIds.t2v), false);
 assert.equal(getVideoWorkflowType(minimaxH3ModelIds.t2v), 't2v');
 assert.equal(getVideoWorkflowType(minimaxH3ModelIds.i2v), 'i2v');
 assert.equal(getVideoWorkflowType(minimaxH3ModelIds.flf2v), 'flf2v');
 assert.equal(getVideoWorkflowType(minimaxH3ModelIds.r2v), 'r2v');
+assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.t2v), 't2v');
+assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.i2v), 'i2v');
+assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.flf2v), 'flf2v');
 assert.deepEqual(getVideoDefaults(minimaxH3ModelIds.r2v), {
   width: 1344,
   height: 768,
@@ -266,6 +299,9 @@ assert.deepEqual(getVideoDefaults(minimaxH3ModelIds.r2v), {
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3T2v, minimaxH3ModelIds.t2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3I2v, minimaxH3ModelIds.i2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3Flf2v, minimaxH3ModelIds.flf2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v, minimaxH3TurboModelIds.t2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboI2v, minimaxH3TurboModelIds.i2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboFlf2v, minimaxH3TurboModelIds.flf2v);
 assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 5, 24, 125), 141);
 assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 5, 24, undefined, 125), 124);
 assert.throws(
@@ -275,6 +311,23 @@ assert.throws(
 assert.equal(
   resolveHostedToolModelSelector('generate_video', { videoModel: 'minimax-h3-t2v' }),
   minimaxH3ModelIds.t2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'minimax-h3-turbo' }),
+  minimaxH3TurboModelIds.t2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', {
+    videoModel: 'minimax-h3-turbo',
+    referenceImageIndices: [0]
+  }),
+  minimaxH3TurboModelIds.i2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('animate_photo', {
+    videoModel: 'minimax-h3-flf2v-turbo'
+  }),
+  minimaxH3TurboModelIds.flf2v
 );
 assert.deepEqual(getVideoDefaults(minimaxH3ModelIds.t2v), { width: 1344, height: 768, fps: 24 });
 assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 5, 60), 124);
@@ -348,6 +401,32 @@ assert.equal(minimaxH3Request.keyFrames[0].width, 1344);
 assert.equal(minimaxH3Request.keyFrames[0].height, 768);
 assert.equal('negativePrompt' in minimaxH3Request.keyFrames[0], false);
 assert.equal(minimaxH3Request.keyFrames[0].generateAudio, false);
+const minimaxH3TurboOptions = {
+  ...minimaxH3Options,
+  steps: { min: 4, max: 4, step: 1, default: 4 },
+  sampler: { allowed: [], default: 'dual_clock_euler' }
+};
+const minimaxH3TurboRequest = createJobRequestMessage(
+  'h3-turbo-test',
+  {
+    ...minimaxH3Params,
+    modelId: minimaxH3TurboModelIds.t2v,
+    steps: 4,
+    sampler: undefined
+  },
+  minimaxH3TurboOptions
+);
+assert.equal(minimaxH3TurboRequest.keyFrames[0].steps, 4);
+assert.equal(minimaxH3TurboRequest.keyFrames[0].comfySampler, null);
+assert.throws(
+  () =>
+    createJobRequestMessage(
+      'h3-turbo-bad-steps',
+      { ...minimaxH3Params, modelId: minimaxH3TurboModelIds.t2v, steps: 20 },
+      minimaxH3TurboOptions
+    ),
+  /MiniMax H3 Turbo steps are fixed at 4/
+);
 // The numbered context-image slots belong to r2v alone: an FL2VA request must
 // carry no hasContextImage flags at all, not even false ones.
 assert.deepEqual(
@@ -383,17 +462,23 @@ assert.throws(
 const minimaxH3R2vParams = { ...minimaxH3Params, modelId: minimaxH3ModelIds.r2v };
 assert.throws(
   () => createJobRequestMessage('h3-r2v-no-reference', minimaxH3R2vParams, minimaxH3Options),
-  /MiniMax H3 r2v needs at least one uploaded reference image/
+  /MiniMax H3 r2v needs at least one uploaded visual reference/
 );
-// Reference video and audio add to the image set rather than replacing it.
+// A video is a complete visual reference set; audio alone is not.
+const minimaxH3R2vVideoOnly = createJobRequestMessage(
+  'h3-r2v-video-only',
+  { ...minimaxH3R2vParams, referenceVideo: true },
+  minimaxH3Options
+);
+assert.equal(minimaxH3R2vVideoOnly.keyFrames[0].hasReferenceVideo1, true);
 assert.throws(
   () =>
     createJobRequestMessage(
-      'h3-r2v-media-only',
-      { ...minimaxH3R2vParams, referenceVideo: true, referenceAudio: true },
+      'h3-r2v-audio-only',
+      { ...minimaxH3R2vParams, referenceAudio: true },
       minimaxH3Options
     ),
-  /MiniMax H3 r2v needs at least one uploaded reference image/
+  /MiniMax H3 r2v needs at least one uploaded visual reference/
 );
 
 // referenceImage is reference 1 and contextImages carries 2..9, so the flags
@@ -561,6 +646,34 @@ for (const modelId of [
     /contextImages is supported only by the MiniMax H3 r2v workflow/
   );
 }
+
+// Seedance 2.5 is the first Seedance generation that is flf2v- and r2v-capable.
+// It is deliberately NOT in the `models` fixture above: adding it there would
+// make the r2v workflow ambiguous between two vendor models, and which vendor
+// model should win an unqualified r2v request is a product decision, not a
+// routing detail. Assert its workflow set directly instead.
+assert.deepEqual(
+  filterVideoModelsByWorkflow(
+    [{ id: PREFERRED_MODEL_IDS.video.seedance25T2v, media: 'video' }],
+    ['flf2v']
+  ),
+  [PREFERRED_MODEL_IDS.video.seedance25T2v]
+);
+assert.deepEqual(
+  filterVideoModelsByWorkflow(
+    [{ id: PREFERRED_MODEL_IDS.video.seedance25T2v, media: 'video' }],
+    ['r2v']
+  ),
+  [PREFERRED_MODEL_IDS.video.seedance25T2v]
+);
+// Seedance 2.0 stays flf2v/r2v-incapable.
+assert.deepEqual(
+  filterVideoModelsByWorkflow(
+    [{ id: PREFERRED_MODEL_IDS.video.seedanceT2v, media: 'video' }],
+    ['flf2v', 'r2v']
+  ),
+  []
+);
 
 // HappyHorse r2v is the only model in the fixture compatible with the r2v
 // workflow, so a workflow-only selection must resolve to it.
@@ -738,6 +851,10 @@ assert.equal(
   PREFERRED_MODEL_IDS.video.seedanceFastT2v
 );
 assert.equal(
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'seedance2-5' }),
+  PREFERRED_MODEL_IDS.video.seedance25T2v
+);
+assert.equal(
   resolveHostedToolModelSelector('generate_video', {
     videoModel: 'seedance2',
     referenceImageIndices: [-1]
@@ -757,6 +874,13 @@ assert.equal(
     referenceImageIndices: [-1]
   }),
   PREFERRED_MODEL_IDS.video.seedanceFastI2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', {
+    videoModel: 'seedance2-5',
+    referenceImageIndices: [-1]
+  }),
+  PREFERRED_MODEL_IDS.video.seedance25I2v
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', { videoModel: 'happyhorse' }),
@@ -789,6 +913,10 @@ assert.equal(
   PREFERRED_MODEL_IDS.video.seedanceV2v
 );
 assert.equal(
+  resolveHostedToolModelSelector('video_to_video', { videoModel: 'seedance2-5' }),
+  PREFERRED_MODEL_IDS.video.seedance25V2v
+);
+assert.equal(
   resolveHostedToolModelSelector('sound_to_video', { videoModel: 'wan-s2v' }),
   PREFERRED_MODEL_IDS.video.s2v
 );
@@ -799,6 +927,10 @@ assert.equal(
 assert.equal(
   resolveHostedToolModelSelector('sound_to_video', { videoModel: 'seedance2-mini' }),
   PREFERRED_MODEL_IDS.video.seedanceIa2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('sound_to_video', { videoModel: 'seedance2-5' }),
+  PREFERRED_MODEL_IDS.video.seedance25Ia2v
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_music', {
@@ -960,6 +1092,24 @@ async function checkCanonicalDirectVideoExecution() {
   });
   assert.equal(invalidH3Result.success, false);
   assert.match(invalidH3Result.error, /minimax-h3-t2v does not accept reference images/);
+
+  const invalidH3TurboCall = {
+    ...invalidH3Call,
+    id: 'call_direct_h3_turbo_reference_test',
+    function: {
+      ...invalidH3Call.function,
+      arguments: JSON.stringify({
+        prompt: 'Animate this image.',
+        videoModel: 'minimax-h3-t2v-turbo',
+        referenceImageIndices: [-1]
+      })
+    }
+  };
+  const invalidH3TurboResult = await api.execute(invalidH3TurboCall, {
+    mediaContext: { uploadedImages: [tinyPng] }
+  });
+  assert.equal(invalidH3TurboResult.success, false);
+  assert.match(invalidH3TurboResult.error, /minimax-h3-t2v-turbo does not accept reference images/);
 }
 
 checkCanonicalDirectVideoExecution()
