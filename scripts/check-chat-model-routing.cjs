@@ -404,7 +404,7 @@ assert.equal(minimaxH3Request.keyFrames[0].generateAudio, false);
 const minimaxH3TurboOptions = {
   ...minimaxH3Options,
   steps: { min: 4, max: 4, step: 1, default: 4 },
-  sampler: { allowed: [], default: 'dual_clock_euler' }
+  sampler: { allowed: [], default: 'er_sde' }
 };
 const minimaxH3TurboRequest = createJobRequestMessage(
   'h3-turbo-test',
