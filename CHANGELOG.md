@@ -1,3 +1,10 @@
+# [5.6.0](https://github.com/Sogni-AI/sogni-client/compare/v5.5.1...v5.6.0) (2026-08-08)
+
+
+### Features
+
+* **video:** complete H3 and Seedance request routing ([9e9429e](https://github.com/Sogni-AI/sogni-client/commit/9e9429eda1fefec96193c3d57344f566f26424f7))
+
 ## [5.5.1](https://github.com/Sogni-AI/sogni-client/compare/v5.5.0...v5.5.1) (2026-08-08)
 
 
