@@ -1,3 +1,10 @@
+# [5.7.0](https://github.com/Sogni-AI/sogni-client/compare/v5.6.0...v5.7.0) (2026-08-08)
+
+
+### Features
+
+* **projects:** expose queue start estimates ([e390db8](https://github.com/Sogni-AI/sogni-client/commit/e390db89ca344e5a3b2c8b12d0773cd8f005b184))
+
 # [5.6.0](https://github.com/Sogni-AI/sogni-client/compare/v5.5.1...v5.6.0) (2026-08-08)
 
 
