@@ -1,3 +1,10 @@
+# [5.8.0](https://github.com/Sogni-AI/sogni-client/compare/v5.7.1...v5.8.0) (2026-08-08)
+
+
+### Features
+
+* **projects:** surface worker ETA confidence interval on progress events ([d46076f](https://github.com/Sogni-AI/sogni-client/commit/d46076f0f3aada39c13d078b4e32134efadc83a0))
+
 ## [5.7.1](https://github.com/Sogni-AI/sogni-client/compare/v5.7.0...v5.7.1) (2026-08-08)
 
 
