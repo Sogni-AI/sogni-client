@@ -148,10 +148,10 @@ const MIME_BY_EXTENSION = new Map([
 function hasMediaInputs(options) {
   return Boolean(
     options.images.length ||
-      options.audios.length ||
-      options.videos.length ||
-      options.endImage ||
-      options.audioIdentity
+    options.audios.length ||
+    options.videos.length ||
+    options.endImage ||
+    options.audioIdentity
   );
 }
 
@@ -169,7 +169,9 @@ function parseMediaList(value) {
 }
 
 function parseBooleanOption(value, label) {
-  const normalized = String(value || '').trim().toLowerCase();
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
   if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) return true;
   if (['false', '0', 'no', 'n', 'off'].includes(normalized)) return false;
   throw new Error(`${label} must be true or false.`);
@@ -355,7 +357,9 @@ function printInteractiveIntro() {
   console.log('Seedance coverage in this example:');
   console.log('  - Text-to-video, image-to-video, image+audio-to-video, and video-to-video');
   console.log('  - Full Seedance 2.0, Seedance 2.0 Mini, and legacy Fast tiers where available');
-  console.log('  - Native audio generation, keyframe interpolation, V2V restyling, and multimodal context');
+  console.log(
+    '  - Native audio generation, keyframe interpolation, V2V restyling, and multimodal context'
+  );
   console.log('  - Hosted creative workflows with uploaded local media or HTTPS references');
 }
 
@@ -383,7 +387,8 @@ async function promptMode(options) {
       {
         label: 'Image+audio-to-video',
         value: 'ia2v',
-        description: 'Drive a reference image with speech, music, or sound as a Seedance media workflow.'
+        description:
+          'Drive a reference image with speech, music, or sound as a Seedance media workflow.'
       },
       {
         label: 'Video-to-video',
@@ -432,12 +437,11 @@ async function promptTier(options) {
   }
 
   const defaultValue = options.fast ? 'fast' : options.full ? 'full' : 'mini';
-  const defaultIndex = Math.max(0, choices.findIndex((choice) => choice.value === defaultValue));
-  const selection = await chooseFromList(
-    'Choose the Seedance tier:',
-    choices,
-    defaultIndex
+  const defaultIndex = Math.max(
+    0,
+    choices.findIndex((choice) => choice.value === defaultValue)
   );
+  const selection = await chooseFromList('Choose the Seedance tier:', choices, defaultIndex);
   options.full = selection.value === 'full';
   options.mini = selection.value === 'mini';
   options.fast = selection.value === 'fast';
@@ -458,8 +462,14 @@ async function promptModeMedia(options) {
         await promptReferenceList(options, 'images', 'Image references');
         await promptReferenceList(options, 'videos', 'Video references');
         await promptReferenceList(options, 'audios', 'Audio references');
-        if (options.audios.length > 0 && options.images.length === 0 && options.videos.length === 0) {
-          console.log('  -> Audio context requires image or video context; using the bundled image sample.');
+        if (
+          options.audios.length > 0 &&
+          options.images.length === 0 &&
+          options.videos.length === 0
+        ) {
+          console.log(
+            '  -> Audio context requires image or video context; using the bundled image sample.'
+          );
           addMediaValues(options, 'images', [DEFAULT_IMAGE]);
         }
       }
@@ -469,9 +479,7 @@ async function promptModeMedia(options) {
 
   if (options.mode === 'i2v') {
     if (options.images.length === 0) {
-      const image = await askQuestion(
-        `Primary image [${displayLocalPath(DEFAULT_IMAGE)}]: `
-      );
+      const image = await askQuestion(`Primary image [${displayLocalPath(DEFAULT_IMAGE)}]: `);
       addMediaValues(options, 'images', [image || DEFAULT_IMAGE]);
     }
 
@@ -481,20 +489,17 @@ async function promptModeMedia(options) {
         false
       );
       if (useEndImage) {
-        const endImage = await askQuestion(
-          `End image [${displayLocalPath(DEFAULT_END_IMAGE)}]: `
-        );
+        const endImage = await askQuestion(`End image [${displayLocalPath(DEFAULT_END_IMAGE)}]: `);
         options.endImage = endImage || DEFAULT_END_IMAGE;
         options.firstFrameStrength = await askNumberWithDefault(
           'First frame strength 0-1 [1]: ',
           1,
           { min: 0, max: 1 }
         );
-        options.lastFrameStrength = await askNumberWithDefault(
-          'Last frame strength 0-1 [1]: ',
-          1,
-          { min: 0, max: 1 }
-        );
+        options.lastFrameStrength = await askNumberWithDefault('Last frame strength 0-1 [1]: ', 1, {
+          min: 0,
+          max: 1
+        });
       }
     }
 
@@ -512,15 +517,11 @@ async function promptModeMedia(options) {
 
   if (options.mode === 'ia2v') {
     if (options.images.length === 0) {
-      const image = await askQuestion(
-        `Driving image [${displayLocalPath(DEFAULT_IMAGE)}]: `
-      );
+      const image = await askQuestion(`Driving image [${displayLocalPath(DEFAULT_IMAGE)}]: `);
       addMediaValues(options, 'images', [image || DEFAULT_IMAGE]);
     }
     if (options.audios.length === 0) {
-      const audio = await askQuestion(
-        `Reference audio [${displayLocalPath(DEFAULT_AUDIO)}]: `
-      );
+      const audio = await askQuestion(`Reference audio [${displayLocalPath(DEFAULT_AUDIO)}]: `);
       addMediaValues(options, 'audios', [audio || DEFAULT_AUDIO]);
     }
     options.audioStart = await askNumberWithDefault('Audio start offset in seconds [0]: ', 0, {
@@ -541,9 +542,7 @@ async function promptModeMedia(options) {
 
   if (options.mode === 'v2v') {
     if (options.videos.length === 0) {
-      const video = await askQuestion(
-        `Source video [${displayLocalPath(DEFAULT_VIDEO)}]: `
-      );
+      const video = await askQuestion(`Source video [${displayLocalPath(DEFAULT_VIDEO)}]: `);
       addMediaValues(options, 'videos', [video || DEFAULT_VIDEO]);
     }
     options.controlMode ||= 'seedance-v2v';
@@ -594,11 +593,9 @@ async function promptEndpoint(options) {
 async function promptCreativeBrief(options) {
   if (options.prompt) return;
   console.log();
-  options.prompt = await askMultilinePrompt(
-    'Creative brief:',
-    DEFAULT_PROMPT,
-    { consecutiveEmptyLinesToEnd: 2 }
-  );
+  options.prompt = await askMultilinePrompt('Creative brief:', DEFAULT_PROMPT, {
+    consecutiveEmptyLinesToEnd: 2
+  });
 }
 
 async function promptOutputOptions(options) {
@@ -1000,7 +997,9 @@ function validateMediaOptions(options) {
 
   if (options.mode === 'ia2v') {
     if (options.endImage || options.audioIdentity) {
-      throw new Error('ia2v accepts --image/--context, --audio, and optional Seedance context videos only.');
+      throw new Error(
+        'ia2v accepts --image/--context, --audio, and optional Seedance context videos only.'
+      );
     }
     return;
   }
@@ -1039,7 +1038,8 @@ function resolveModelConfig(mode, modelSelector) {
 
 function selectedModelConfig(options) {
   const selector =
-    options.model || (options.fast ? 'seedance2-fast' : options.full ? 'seedance2' : 'seedance2-mini');
+    options.model ||
+    (options.fast ? 'seedance2-fast' : options.full ? 'seedance2' : 'seedance2-mini');
   const modelConfig = resolveModelConfig(options.mode, selector);
   if (!modelConfig) {
     const supported = Object.entries(SEEDANCE_MODELS[options.mode] || {})
@@ -1244,7 +1244,8 @@ function needsLocalMediaUpload(options) {
 
   if (options.mode === 'i2v') {
     return (
-      (options.images.length === 0 && needsLocalUpload(undefined, options.endImage ? undefined : DEFAULT_IMAGE)) ||
+      (options.images.length === 0 &&
+        needsLocalUpload(undefined, options.endImage ? undefined : DEFAULT_IMAGE)) ||
       needsLocalUpload(options.endImage)
     );
   }

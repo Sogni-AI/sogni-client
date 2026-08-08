@@ -99,6 +99,7 @@ import {
 } from './workflow-helpers.mjs';
 
 const streamPipeline = promisify(pipeline);
+const execFileAsync = promisify(execFile);
 
 const MODES = ['t2v', 'i2v', 'flf2v', 'r2v'];
 
@@ -195,6 +196,12 @@ function r2vPromptForReferences(references = {}) {
   const reportedImages = Math.max(0, references.images ?? 0);
   const reportedVideos = Math.max(0, references.videos ?? 0);
   const reportedAudios = Math.max(0, references.audios ?? 0);
+  const soundtrackedVideoIndices = [...new Set(references.soundtrackedVideoIndices ?? [])]
+    .filter((index) => Number.isInteger(index) && index >= 1 && index <= reportedVideos)
+    .sort((a, b) => a - b);
+  const soundtrackOrdinalByVideo = new Map(
+    soundtrackedVideoIndices.map((videoIndex, audioIndex) => [videoIndex, audioIndex + 1])
+  );
   const imageCount = reportedImages || reportedVideos ? reportedImages : 1;
   const primarySource = imageCount > 0 ? '<Picture 1>' : '<Video 1>';
   const subjectDefinitions = [
@@ -221,13 +228,23 @@ function r2vPromptForReferences(references = {}) {
     retention.push(
       `<Video ${index}> (camera movement and temporal rhythm): weak_reference - only the handheld movement, blocking cadence, and pacing are followed.`
     );
+    const soundtrackOrdinal = soundtrackOrdinalByVideo.get(index);
+    if (soundtrackOrdinal) {
+      subjectDefinitions.push(
+        `<Audio ${soundtrackOrdinal}> is the synchronized soundtrack from <Video ${index}>; its ambience, rhythm, and sound texture guide the target audio without copying the original signal.`
+      );
+      retention.push(
+        `<Audio ${soundtrackOrdinal}>: reference - its ambience, rhythm, and sound texture guide the target audio without copying the original signal.`
+      );
+    }
   }
   for (let index = 1; index <= reportedAudios; index++) {
+    const audioOrdinal = soundtrackedVideoIndices.length + index;
     subjectDefinitions.push(
-      `<Audio ${index}> is a voice-timbre and measured-delivery reference for <Subject 1> (S1); its original signal and spoken words are not copied.`
+      `<Audio ${audioOrdinal}> is a voice-timbre and measured-delivery reference for <Subject 1> (S1); its original signal and spoken words are not copied.`
     );
     retention.push(
-      `<Audio ${index}>: reference - its voice timbre and measured delivery guide <Subject 1> (S1) without copying the original signal or words.`
+      `<Audio ${audioOrdinal}>: reference - its voice timbre and measured delivery guide <Subject 1> (S1) without copying the original signal or words.`
     );
   }
 
@@ -238,10 +255,12 @@ function r2vPromptForReferences(references = {}) {
       : '';
   const voiceDirection =
     reportedAudios > 0
-      ? ' Her close, measured delivery references <Audio 1> without copying its original signal or words.'
+      ? ` Her close, measured delivery references <Audio ${soundtrackedVideoIndices.length + 1}> without copying its original signal or words.`
       : '';
   const taskTypes =
-    reportedAudios > 0 ? 'reference generation + audio reference' : 'reference generation';
+    reportedAudios + soundtrackedVideoIndices.length > 0
+      ? 'reference generation + audio reference'
+      : 'reference generation';
 
   return `subject_definitions:
 ${subjectDefinitions.join('\n')}
@@ -284,6 +303,46 @@ function defaultPromptForMode(mode, durationSeconds, references = {}) {
     return r2vPromptForReferences(references);
   }
   return T2V_PROMPT;
+}
+
+/**
+ * Detect which uploaded reference videos will contribute an H3 `<Audio N>`
+ * item. The worker preserves each present soundtrack and presents those audio
+ * items before standalone references, so prompt ordinals must include them.
+ *
+ * If ffprobe cannot inspect a file, assume it is soundtracked. That avoids the
+ * more damaging failure mode where `<Audio 1>` accidentally binds a standalone
+ * voice role to an earlier video soundtrack.
+ */
+async function detectSoundtrackedReferenceVideos(videoPaths) {
+  const detected = [];
+  for (const [index, videoPath] of videoPaths.entries()) {
+    try {
+      const { stdout } = await execFileAsync(
+        'ffprobe',
+        [
+          '-v',
+          'error',
+          '-select_streams',
+          'a:0',
+          '-show_entries',
+          'stream=index',
+          '-of',
+          'csv=p=0',
+          videoPath
+        ],
+        { encoding: 'utf8' }
+      );
+      if (stdout.trim()) detected.push(index + 1);
+    } catch {
+      detected.push(index + 1);
+      log(
+        '⚠️',
+        `Could not inspect reference video ${index + 1} with ffprobe; assuming it has a soundtrack for safe <Audio N> numbering.`
+      );
+    }
+  }
+  return detected;
 }
 
 // ============================================
@@ -743,10 +802,11 @@ Multi-reference video (--mode r2v):
   slots the worker feeds into ref_images.
 
   Repeat --ref-video and --ref-audio up to ${MINIMAX_H3_MAX_REFERENCE_VIDEOS} and ${MINIMAX_H3_MAX_REFERENCE_AUDIOS} times respectively. The SDK uploads each file to a distinct S3
-  object. A reference video does not create an <Audio N> label merely because
-  the file contains sound; attach audio explicitly with --ref-audio when the
-  signal should be copied or referenced. Reference videos are read as 24fps; a
-  clip at another frame rate plays back time-distorted.
+  object. A reference video's own soundtrack is presented to the model and
+  takes an <Audio N> ordinal before standalone --ref-audio clips. This example
+  probes the files with ffprobe so its generated prompt uses the worker's exact
+  numbering. Reference videos are read as 24fps; a clip at another frame rate
+  plays back time-distorted.
 
   Ref2VA requires these six sections in exact order:
 
@@ -960,6 +1020,9 @@ async function main() {
   // Effective duration of the rendered video, used by the flf2v alignment line.
   const effectiveDuration = OPTIONS.frames / MINIMAX_H3_FPS;
 
+  const soundtrackedVideoIndices =
+    OPTIONS.mode === 'r2v' ? await detectSoundtrackedReferenceVideos(OPTIONS.refVideos) : [];
+
   // Prompt
   if (OPTIONS.promptFile) {
     OPTIONS.prompt = fs.readFileSync(OPTIONS.promptFile, 'utf8').trim();
@@ -974,7 +1037,8 @@ async function main() {
       defaultPromptForMode(OPTIONS.mode, effectiveDuration, {
         images: OPTIONS.refImages.length,
         videos: OPTIONS.refVideos.length,
-        audios: OPTIONS.refAudios.length
+        audios: OPTIONS.refAudios.length,
+        soundtrackedVideoIndices
       }),
       { consecutiveEmptyLinesToEnd: 2 }
     );
@@ -983,7 +1047,8 @@ async function main() {
     OPTIONS.prompt = defaultPromptForMode(OPTIONS.mode, effectiveDuration, {
       images: OPTIONS.refImages.length,
       videos: OPTIONS.refVideos.length,
-      audios: OPTIONS.refAudios.length
+      audios: OPTIONS.refAudios.length,
+      soundtrackedVideoIndices
     });
   } else if (OPTIONS.mode === 'i2v' || OPTIONS.mode === 'flf2v') {
     // MiniMax requires the mode-specific alignment instruction as the first line.
@@ -1157,7 +1222,8 @@ async function main() {
     }
     if (OPTIONS.refAudios.length) {
       const prepared = OPTIONS.refAudios.map((path, index) => {
-        log('🔊', `Reference audio ${index + 1} (<Audio ${index + 1}>): ${path}`);
+        const audioOrdinal = soundtrackedVideoIndices.length + index + 1;
+        log('🔊', `Reference audio ${index + 1} (<Audio ${audioOrdinal}>): ${path}`);
         return readFileAsBuffer(path);
       });
       [referenceAudio] = prepared;
