@@ -207,7 +207,7 @@
       "executionMode": "direct",
       "hostedToolName": "video_to_video",
       "sdkToolName": "video_to_video",
-      "hostedSchemaSha256": "48123ac4f798cc213611bcc8df3c03e09ce09d46bf0ce6fd02fd02af03df901c",
+      "hostedSchemaSha256": "4f98ce1c5d3dc3a2e46d4fdd16484ece6cad8196b441e55974509659a006f92d",
       "hostedRequired": [
         "prompt"
       ],
@@ -226,9 +226,6 @@
         "generateAudio",
         "targetResolution",
         "sourceImageIndex",
-        "outpaintPosition",
-        "outpaintAspectRatio",
-        "maskImageIndex",
         "duration",
         "numberOfVariations"
       ],
@@ -241,14 +238,11 @@
         "videoModel",
         "targetResolution",
         "generateAudio",
-        "expandPrompt",
-        "outpaintPosition",
-        "outpaintAspectRatio"
+        "expandPrompt"
       ],
       "mediaAliasTargets": [
         "videoSourceIndex",
-        "sourceImageIndex",
-        "maskImageIndex"
+        "sourceImageIndex"
       ]
     },
     {
