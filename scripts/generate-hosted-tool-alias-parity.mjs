@@ -112,7 +112,11 @@ const nextTools = fixture.tools.map((vector) => {
     mediaAliasTargets: vector.mediaAliasTargets
   };
 
-  if (nextVector.hostedSchemaSha256 !== vector.hostedSchemaSha256) {
+  if (
+    nextVector.hostedSchemaSha256 !== vector.hostedSchemaSha256 ||
+    !arraysEqual(vector.hostedPropertyNames, nextVector.hostedPropertyNames) ||
+    !arraysEqual(vector.hostedRequired, nextVector.hostedRequired)
+  ) {
     const added = propertyNames.filter((name) => !vector.hostedPropertyNames.includes(name));
     const removed = vector.hostedPropertyNames.filter((name) => !propertyNames.includes(name));
     const detail = [];

@@ -31,6 +31,7 @@ import {
   calculateVideoFrames,
   isLtx2Model,
   isWanAnimateModel,
+  isWanAnimate2Model,
   isSeedanceModel,
   isSeedance25Model,
   isHappyhorseModel,
@@ -55,6 +56,11 @@ import {
   MINIMAX_H3_MIN_FRAMES,
   MINIMAX_H3_MAX_FRAMES,
   MINIMAX_H3_FRAME_STEP,
+  WAN_ANIMATE_2_FPS,
+  WAN_ANIMATE_2_FRAME_STEP,
+  WAN_ANIMATE_2_MIN_FRAMES,
+  WAN_ANIMATE_2_MAX_FRAMES,
+  WAN_ANIMATE_2_MAX_DURATION,
   MINIMAX_H3_BASE_FRAMES
 } from './utils/index.js';
 import { ApiError } from '../ApiClient/index.js';
@@ -309,6 +315,76 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
   }
 }
 
+function validateWanAnimate2Params(params: VideoProjectParams): void {
+  const invalid = (message: string): never => {
+    throw new ApiError(400, { status: 'error', errorCode: 0, message });
+  };
+  const animate2OnlyFields: Array<keyof VideoProjectParams> = [
+    'posePrompt',
+    'poseStrength',
+    'poseStartPercent',
+    'poseEndPercent',
+    'referenceImageStrength'
+  ];
+  if (!isWanAnimate2Model(params.modelId)) {
+    const unsupportedField = animate2OnlyFields.find((field) => params[field] !== undefined);
+    if (unsupportedField) {
+      invalid(`${unsupportedField} is supported only by Wan Animate 2.`);
+    }
+    return;
+  }
+
+  const fixedSettings: Array<[keyof VideoProjectParams, unknown]> = [
+    ['width', 1280],
+    ['height', 720],
+    ['fps', WAN_ANIMATE_2_FPS],
+    ['steps', 10],
+    ['guidance', 1],
+    ['shift', 5],
+    ['sampler', 'euler'],
+    ['scheduler', 'simple']
+  ];
+  for (const [field, expected] of fixedSettings) {
+    const value = params[field];
+    if (value !== undefined && value !== expected) {
+      invalid(`Wan Animate 2 ${field} is fixed at ${String(expected)}.`);
+    }
+  }
+  if (params.frames !== undefined) {
+    const frames = Number(params.frames);
+    if (
+      !Number.isInteger(frames) ||
+      frames < WAN_ANIMATE_2_MIN_FRAMES ||
+      frames > WAN_ANIMATE_2_MAX_FRAMES ||
+      (frames - 1) % WAN_ANIMATE_2_FRAME_STEP !== 0
+    ) {
+      invalid('Wan Animate 2 frames must be 1 + n*4 in the inclusive range 17-81.');
+    }
+  }
+  const rangedFields: Array<[keyof VideoProjectParams, number, number]> = [
+    ['poseStrength', 0, 10],
+    ['poseStartPercent', 0, 1],
+    ['poseEndPercent', 0, 1],
+    ['referenceImageStrength', 0, 10]
+  ];
+  for (const [field, min, max] of rangedFields) {
+    const value = params[field];
+    if (
+      value !== undefined &&
+      (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max)
+    ) {
+      invalid(`Wan Animate 2 ${field} must be between ${min} and ${max}.`);
+    }
+  }
+  if (
+    params.poseStartPercent !== undefined &&
+    params.poseEndPercent !== undefined &&
+    params.poseStartPercent > params.poseEndPercent
+  ) {
+    invalid('Wan Animate 2 poseStartPercent must not exceed poseEndPercent.');
+  }
+}
+
 function asReferenceUrlArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
@@ -499,6 +575,9 @@ function validateHappyhorseReferenceAssets(params: VideoProjectParams): void {
 }
 
 function getMaxVideoDuration(modelId: string): number {
+  if (isWanAnimate2Model(modelId)) {
+    return WAN_ANIMATE_2_MAX_DURATION;
+  }
   if (isMinimaxH3Model(modelId)) {
     // 362 frames at a fixed 24fps, the top of the H3 frame grid.
     return MINIMAX_H3_MAX_DURATION;
@@ -717,6 +796,7 @@ function applyVideoParams(
   }
   validateVideoWorkflowAssets(params);
   validateMinimaxH3Params(params);
+  validateWanAnimate2Params(params);
   const keyFrame: Record<string, any> = { ...inputKeyframe };
   if (params.referenceImage) {
     keyFrame.hasReferenceImage = true;
@@ -772,7 +852,11 @@ function applyVideoParams(
   // Note: fps must be processed before duration to correctly calculate frames for LTX-2.3 models
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;
-  } else if (isExternalApiVideoModel(params.modelId) || isMinimaxH3Model(params.modelId)) {
+  } else if (
+    isExternalApiVideoModel(params.modelId) ||
+    isMinimaxH3Model(params.modelId) ||
+    isWanAnimate2Model(params.modelId)
+  ) {
     keyFrame.fps = 24;
   }
   if (params.frames !== undefined) {
@@ -822,7 +906,21 @@ function applyVideoParams(
   if (params.videoStart !== undefined) {
     keyFrame.videoStart = params.videoStart;
   }
-
+  if (params.posePrompt !== undefined) {
+    keyFrame.posePrompt = params.posePrompt;
+  }
+  if (params.poseStrength !== undefined) {
+    keyFrame.poseStrength = params.poseStrength;
+  }
+  if (params.poseStartPercent !== undefined) {
+    keyFrame.poseStartPercent = params.poseStartPercent;
+  }
+  if (params.poseEndPercent !== undefined) {
+    keyFrame.poseEndPercent = params.poseEndPercent;
+  }
+  if (params.referenceImageStrength !== undefined) {
+    keyFrame.referenceImageStrength = params.referenceImageStrength;
+  }
   // SAM2 subject detection coordinates for animate-replace workflows
   if (params.sam2Coordinates !== undefined) {
     keyFrame.sam2Coordinates = JSON.stringify(params.sam2Coordinates);

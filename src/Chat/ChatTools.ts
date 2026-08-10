@@ -15,6 +15,7 @@ import {
   isEditImageModel,
   isExternalApiVideoModel,
   isMinimaxH3Model,
+  isWanAnimate2Model,
   isNonEmptyString,
   normalizeTimeSignature,
   normalizeVideoControlMode,
@@ -831,7 +832,7 @@ class ChatToolsApi {
       width: (args.width as number) || defaults.width,
       height: (args.height as number) || defaults.height,
       fps: defaults.fps,
-      duration: asFiniteNumber(args.duration) ?? 5
+      duration: asFiniteNumber(args.duration) ?? (isWanAnimate2Model(modelId) ? 81 / 24 : 5)
     };
 
     if (args.negativePrompt && !isExternalApiModel) {
@@ -857,6 +858,15 @@ class ChatToolsApi {
     }
     if (args.video_start !== undefined) {
       projectParams.videoStart = args.video_start;
+    }
+    if (args.posePrompt !== undefined) projectParams.posePrompt = args.posePrompt;
+    if (args.poseStrength !== undefined) projectParams.poseStrength = args.poseStrength;
+    if (args.poseStartPercent !== undefined) {
+      projectParams.poseStartPercent = args.poseStartPercent;
+    }
+    if (args.poseEndPercent !== undefined) projectParams.poseEndPercent = args.poseEndPercent;
+    if (args.referenceImageStrength !== undefined) {
+      projectParams.referenceImageStrength = args.referenceImageStrength;
     }
     const generateAudio = asBooleanValue(args.generateAudio);
     if (generateAudio !== undefined) {

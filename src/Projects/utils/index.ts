@@ -56,6 +56,14 @@ export function isWanModel(modelId: string): boolean {
   return modelId.startsWith('wan_');
 }
 
+/** Canonical Sogni model ID for the native Wan Animate 2 motion-transfer workflow. */
+export const WAN_ANIMATE_2_MODEL_ID = 'wan_animate_2-14b-distill-int8-convrot_animate-move';
+
+/** Wan Animate 2 uses a 24fps, 1+n*4 frame grid rather than Wan 2.2 timing. */
+export function isWanAnimate2Model(modelId: string): boolean {
+  return modelId === WAN_ANIMATE_2_MODEL_ID;
+}
+
 /**
  * Check if a model ID is a WAN animate model (animate-move or animate-replace).
  * These models support up to 321 frames (20s at 16fps).
@@ -179,6 +187,12 @@ export function isExternalApiVideoModel(modelId: string): boolean {
  */
 export const LTX2_FRAME_STEP = 8;
 
+export const WAN_ANIMATE_2_FPS = 24;
+export const WAN_ANIMATE_2_FRAME_STEP = 4;
+export const WAN_ANIMATE_2_MIN_FRAMES = 17;
+export const WAN_ANIMATE_2_MAX_FRAMES = 81;
+export const WAN_ANIMATE_2_MAX_DURATION = WAN_ANIMATE_2_MAX_FRAMES / WAN_ANIMATE_2_FPS;
+
 /**
  * MiniMax H3 sampling grid. Frame counts are `MINIMAX_H3_BASE_FRAMES + n*17`,
  * generated at a fixed 24fps. Values off this grid are invalid.
@@ -237,7 +251,21 @@ export function calculateVideoFrames(
 ): number {
   let frames: number;
 
-  if (isWanModel(modelId)) {
+  if (isWanAnimate2Model(modelId)) {
+    const minimum = Math.max(WAN_ANIMATE_2_MIN_FRAMES, minFrames ?? WAN_ANIMATE_2_MIN_FRAMES);
+    const maximum = Math.min(WAN_ANIMATE_2_MAX_FRAMES, maxFrames ?? WAN_ANIMATE_2_MAX_FRAMES);
+    const minimumStep = Math.ceil((minimum - 1) / WAN_ANIMATE_2_FRAME_STEP);
+    const maximumStep = Math.floor((maximum - 1) / WAN_ANIMATE_2_FRAME_STEP);
+    if (minimumStep > maximumStep) {
+      throw new RangeError(
+        `No valid Wan Animate 2 frame count exists between ${minimum} and ${maximum}`
+      );
+    }
+    const requestedFrames = Math.round(duration * WAN_ANIMATE_2_FPS);
+    const requestedStep = Math.round((requestedFrames - 1) / WAN_ANIMATE_2_FRAME_STEP);
+    const steps = Math.min(maximumStep, Math.max(minimumStep, requestedStep));
+    return 1 + steps * WAN_ANIMATE_2_FRAME_STEP;
+  } else if (isWanModel(modelId)) {
     // WAN 2.2: Always generates at 16fps, fps param is for post-render interpolation only
     // This is legacy behavior specific to WAN models
     frames = Math.round(duration * 16) + 1;

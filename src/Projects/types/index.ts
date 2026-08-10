@@ -63,11 +63,13 @@ export interface BaseProjectParams {
   stylePrompt?: string;
   /**
    * Number of steps. For most Stable Diffusion models, optimal value is 20.
+   * Wan Animate 2 is fixed at 10.
    */
   steps?: number;
   /**
    * Guidance scale. For most Stable Diffusion models, optimal value is 7.5.
    * For video models: Regular models range 0.7-8.0, LoRA version (lightx2v) range 0.7-1.6, step 0.01.
+   * Wan Animate 2 is fixed at 1.
    * This maps to `guidanceScale` in the keyFrame for both image and video models.
    */
   guidance?: number;
@@ -147,6 +149,12 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - fps=32 doubles the frames via interpolation after generation
  * - Frame count is always calculated as: `duration * 16 + 1`
  * - Example: 5 seconds at 32fps = 81 frames generated, then interpolated to 161 output frames
+ *
+ * ### Wan Animate 2 (`wan_animate_2-14b-distill-int8-convrot_animate-move`)
+ * - Native motion transfer from a reference image plus raw driving video
+ * - Fixed 1280x720 at 24fps with source audio retained
+ * - 17-81 generated frames on a `1 + n*4` grid
+ * - Fixed 10 steps, guidance 1, shift 5, Euler sampler, and simple scheduler
  *
  * ### LTX-2.3 Models (ltx2-*, ltx23-*)
  * - Generate video at the actual specified FPS (1-60 fps range)
@@ -246,6 +254,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    *
    * The SDK automatically calculates the correct frame count based on the model:
    * - WAN 2.2: `duration * 16 + 1` (always 16fps generation)
+   * - Wan Animate 2: `duration * 24`, snapped to `1 + n*4` and clamped to 17-81
    * - LTX-2.3: `duration * fps + 1`, snapped to frame step constraint
    * - Seedance: `duration * 24 + 1`
    * - HappyHorse: `duration * 24 + 1`
@@ -267,12 +276,15 @@ export interface VideoProjectParams extends BaseProjectParams {
    * **HappyHorse Models:** Fixed 24fps external API generation.
    *
    * **MiniMax H3 Models:** Fixed 24fps. Omit this field or pass 24.
+   *
+   * **Wan Animate 2:** Fixed 24fps. Omit this field or pass 24.
    */
   fps?: number;
   /**
    * Shift parameter for video diffusion models.
    * Controls motion intensity. Range: 1.0-8.0, step 0.1.
    * Default: 8.0 for regular models, 5.0 for speed lora (lightx2v) except s2v and animate which use 8.0
+   * Wan Animate 2 is fixed at 5.
    */
   shift?: number;
   /**
@@ -432,6 +444,16 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Default: 0
    */
   videoStart?: number;
+  /** Optional pose/camera prompt for Wan Animate 2's driving-video conditioning. */
+  posePrompt?: string;
+  /** Wan Animate 2 pose-video conditioning strength. Range 0-10, default 1. */
+  poseStrength?: number;
+  /** Start of Wan Animate 2 pose conditioning as a fraction of sampling. Range 0-1. */
+  poseStartPercent?: number;
+  /** End of Wan Animate 2 pose conditioning as a fraction of sampling. Range 0-1. */
+  poseEndPercent?: number;
+  /** Wan Animate 2 identity/reference-image conditioning strength. Range 0-10, default 1. */
+  referenceImageStrength?: number;
   /**
    * Trim the last frame from the generated video.
    * Used for seamless stitching of transition videos where the last frame
@@ -441,20 +463,24 @@ export interface VideoProjectParams extends BaseProjectParams {
   trimEndFrame?: boolean;
   /**
    * Output video width. Only used if `sizePreset` is "custom"
+   * Wan Animate 2 is fixed at 1280.
    */
   width?: number;
   /**
    * Output video height. Only used if `sizePreset` is "custom"
+   * Wan Animate 2 is fixed at 720.
    */
   height?: number;
   /**
    * Sampler, available options depend on the model. Use `sogni.projects.getModelOptions(modelId)`
    * to get the list of available samplers.
+   * Wan Animate 2 is fixed to Euler (`euler`).
    */
   sampler?: string;
   /**
    * Scheduler, available options depend on the model. Use `sogni.projects.getModelOptions(modelId)`
    * to get the list of available schedulers.
+   * Wan Animate 2 is fixed to `simple`.
    */
   scheduler?: string;
   /**

@@ -93,6 +93,14 @@ for (const vector of hostedAliasParityVector.tools) {
   }
 }
 
+const videoToVideoHostedProperties =
+  sdkHostedToolsByName.get('video_to_video')?.function?.parameters?.properties || {};
+assert.equal(
+  Object.prototype.hasOwnProperty.call(videoToVideoHostedProperties, 'enableContextWindow'),
+  false,
+  'Wan Animate 2 context-window internals must not be exposed by the hosted client schema'
+);
+
 const models = [
   { id: 'z_image_turbo_bf16', media: 'image', workerCount: 12 },
   { id: 'qwen_image_edit_2511_fp8_lightning', media: 'image', workerCount: 8 },
@@ -150,6 +158,56 @@ assert.equal(
     preferredModelIds: [PREFERRED_MODEL_IDS.video.t2v]
   }).modelId,
   PREFERRED_MODEL_IDS.video.t2v
+);
+
+const wanAnimate2AvailableModel = {
+  id: PREFERRED_MODEL_IDS.video.animate2Move,
+  media: 'video',
+  workerCount: 2
+};
+assert.deepEqual(
+  selectBackboneModel([...models, wanAnimate2AvailableModel], {
+    mediaType: 'video',
+    requestedModel: PREFERRED_MODEL_IDS.video.animate2Move,
+    workflows: ['animate-move'],
+    preferredModelIds: [PREFERRED_MODEL_IDS.video.animateMove]
+  }),
+  {
+    modelId: PREFERRED_MODEL_IDS.video.animate2Move,
+    model: wanAnimate2AvailableModel,
+    selectedBy: 'requestedModel'
+  }
+);
+assert.throws(
+  () =>
+    selectBackboneModel(models, {
+      mediaType: 'video',
+      requestedModel: PREFERRED_MODEL_IDS.video.animate2Move,
+      workflows: ['animate-move'],
+      preferredModelIds: [PREFERRED_MODEL_IDS.video.animateMove]
+    }),
+  /Requested Wan Animate 2 model is not currently available on the network/
+);
+assert.throws(
+  () =>
+    selectBackboneModel(
+      [
+        ...models,
+        wanAnimate2AvailableModel,
+        {
+          id: PREFERRED_MODEL_IDS.video.animateReplace,
+          media: 'video',
+          workerCount: 20
+        }
+      ],
+      {
+        mediaType: 'video',
+        requestedModel: PREFERRED_MODEL_IDS.video.animate2Move,
+        workflows: ['animate-replace'],
+        preferredModelIds: [PREFERRED_MODEL_IDS.video.animateReplace]
+      }
+    ),
+  /Requested Wan Animate 2 model is not compatible with workflows: animate-replace/
 );
 
 assert.equal(
@@ -915,6 +973,110 @@ assert.equal(
 assert.equal(
   resolveHostedToolModelSelector('video_to_video', { videoModel: 'seedance2-5' }),
   PREFERRED_MODEL_IDS.video.seedance25V2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('video_to_video', { videoModel: 'wan-animate-2' }),
+  PREFERRED_MODEL_IDS.video.animate2Move
+);
+assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.animate2Move), {
+  width: 1280,
+  height: 720,
+  fps: 24
+});
+assert.equal(calculateVideoFrames(PREFERRED_MODEL_IDS.video.animate2Move, 17 / 24, 24), 17);
+assert.equal(calculateVideoFrames(PREFERRED_MODEL_IDS.video.animate2Move, 33 / 24, 24), 33);
+assert.equal(calculateVideoFrames(PREFERRED_MODEL_IDS.video.animate2Move, 81 / 24, 24), 81);
+const wanAnimate2Options = {
+  type: 'video',
+  steps: { min: 10, max: 10, step: 1, default: 10 },
+  guidance: { min: 1, max: 1, step: 1, default: 1 },
+  fps: { allowed: [24], default: 24 },
+  sampler: { allowed: ['euler'], default: 'euler' },
+  scheduler: { allowed: ['simple'], default: 'simple' }
+};
+const wanAnimate2Params = {
+  type: 'video',
+  modelId: PREFERRED_MODEL_IDS.video.animate2Move,
+  numberOfMedia: 1,
+  positivePrompt: 'A detailed actor on a practical film set.',
+  referenceImage: true,
+  referenceVideo: true,
+  generateAudio: true,
+  width: 1280,
+  height: 720,
+  duration: 81 / 24,
+  posePrompt: 'The actor speaks and gestures naturally.',
+  poseStrength: 1.2,
+  poseStartPercent: 0.1,
+  poseEndPercent: 0.9,
+  referenceImageStrength: 1.1,
+  fps: 24,
+  steps: 10,
+  guidance: 1,
+  shift: 5,
+  sampler: 'euler',
+  scheduler: 'simple'
+};
+const wanAnimate2Request = createJobRequestMessage(
+  'wan-animate-2-test',
+  wanAnimate2Params,
+  wanAnimate2Options
+);
+assert.equal(wanAnimate2Request.keyFrames[0].frames, 81);
+assert.equal(wanAnimate2Request.keyFrames[0].width, 1280);
+assert.equal(wanAnimate2Request.keyFrames[0].height, 720);
+assert.equal(wanAnimate2Request.keyFrames[0].fps, 24);
+assert.equal(wanAnimate2Request.keyFrames[0].hasReferenceImage, true);
+assert.equal(wanAnimate2Request.keyFrames[0].hasReferenceVideo, true);
+assert.equal(wanAnimate2Request.keyFrames[0].generateAudio, true);
+assert.equal(wanAnimate2Request.keyFrames[0].posePrompt, wanAnimate2Params.posePrompt);
+assert.equal(wanAnimate2Request.keyFrames[0].poseStrength, wanAnimate2Params.poseStrength);
+assert.equal(
+  wanAnimate2Request.keyFrames[0].referenceImageStrength,
+  wanAnimate2Params.referenceImageStrength
+);
+for (const [field, value] of [
+  ['width', 832],
+  ['height', 480],
+  ['fps', 16],
+  ['steps', 6],
+  ['guidance', 2],
+  ['shift', 8],
+  ['sampler', 'lcm'],
+  ['scheduler', 'beta']
+]) {
+  assert.throws(
+    () =>
+      createJobRequestMessage(
+        `wan-animate-2-bad-${field}`,
+        { ...wanAnimate2Params, [field]: value },
+        wanAnimate2Options
+      ),
+    new RegExp(`Wan Animate 2 ${field} is fixed`)
+  );
+}
+for (const frames of [16, 18, 82]) {
+  assert.throws(
+    () =>
+      createJobRequestMessage(
+        `wan-animate-2-bad-frames-${frames}`,
+        { ...wanAnimate2Params, frames, duration: undefined },
+        wanAnimate2Options
+      ),
+    /Wan Animate 2 frames must be 1 \+ n\*4 in the inclusive range 17-81/
+  );
+}
+assert.throws(
+  () =>
+    createJobRequestMessage(
+      'wan22-with-animate2-control',
+      {
+        ...wanAnimate2Params,
+        modelId: PREFERRED_MODEL_IDS.video.animateMove
+      },
+      wanAnimate2Options
+    ),
+  /posePrompt is supported only by Wan Animate 2/
 );
 assert.equal(
   resolveHostedToolModelSelector('sound_to_video', { videoModel: 'wan-s2v' }),

@@ -3,7 +3,8 @@ import {
   getVideoWorkflowType,
   isHappyhorseModel,
   isExternalApiVideoModel,
-  isMinimaxH3Model
+  isMinimaxH3Model,
+  isWanAnimate2Model
 } from '../Projects/utils/index.js';
 
 export {
@@ -11,7 +12,8 @@ export {
   getVideoWorkflowType,
   isHappyhorseModel,
   isExternalApiVideoModel,
-  isMinimaxH3Model
+  isMinimaxH3Model,
+  isWanAnimate2Model
 };
 
 /**
@@ -51,13 +53,7 @@ export type VideoWorkflow =
   | 'animate-replace';
 
 export type VideoControlMode =
-  | 'animate-move'
-  | 'animate-replace'
-  | 'seedance-v2v'
-  | 'canny'
-  | 'pose'
-  | 'depth'
-  | 'detailer';
+  'animate-move' | 'animate-replace' | 'seedance-v2v' | 'canny' | 'pose' | 'depth' | 'detailer';
 
 export interface BackboneAvailableModel {
   id: string;
@@ -118,6 +114,7 @@ export const PREFERRED_MODEL_IDS = {
     minimaxH3TurboT2v: 'minimax-h3-fl2va-fp8_t2v_turbo',
     minimaxH3TurboI2v: 'minimax-h3-fl2va-fp8_i2v_turbo',
     minimaxH3TurboFlf2v: 'minimax-h3-fl2va-fp8_flf2v_turbo',
+    animate2Move: 'wan_animate_2-14b-distill-int8-convrot_animate-move',
     animateMove: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
@@ -250,6 +247,7 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
 const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.v2v,
   'ltx23-v2v': PREFERRED_MODEL_IDS.video.v2v,
+  'wan-animate-2': PREFERRED_MODEL_IDS.video.animate2Move,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v
 };
@@ -491,6 +489,10 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
     return { width: 1344, height: 768, fps: 24 };
   }
 
+  if (isWanAnimate2Model(modelId)) {
+    return { width: 1280, height: 720, fps: 24 };
+  }
+
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
   }
@@ -545,6 +547,19 @@ export function selectBackboneModel(
         model: requested,
         selectedBy: 'requestedModel'
       };
+    }
+
+    if (isWanAnimate2Model(options.requestedModel)) {
+      const isAvailable = byMedia.some((model) => model.id === options.requestedModel);
+      if (!isAvailable) {
+        throw new Error('Requested Wan Animate 2 model is not currently available on the network');
+      }
+      if (options.workflows) {
+        throw new Error(
+          `Requested Wan Animate 2 model is not compatible with workflows: ${options.workflows.join(', ')}`
+        );
+      }
+      throw new Error('Requested Wan Animate 2 model is not compatible with this request');
     }
   }
 
