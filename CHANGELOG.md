@@ -1,3 +1,10 @@
+# [5.9.0](https://github.com/Sogni-AI/sogni-client/compare/v5.8.0...v5.9.0) (2026-08-13)
+
+
+### Features
+
+* **video:** add LTX 2.5 SDK support ([459695f](https://github.com/Sogni-AI/sogni-client/commit/459695fe0707538e1582d1745e6c753f87c0ee8d))
+
 # [5.8.0](https://github.com/Sogni-AI/sogni-client/compare/v5.7.1...v5.8.0) (2026-08-08)
 
 
