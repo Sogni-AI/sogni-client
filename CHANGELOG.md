@@ -1,3 +1,10 @@
+# [5.10.0](https://github.com/Sogni-AI/sogni-client/compare/v5.9.0...v5.10.0) (2026-08-13)
+
+
+### Features
+
+* **video:** support H3 last-frame-only input ([51ffc77](https://github.com/Sogni-AI/sogni-client/commit/51ffc775f76a3fbb1b8da6497c6ba4e8d84d0289))
+
 # [5.9.0](https://github.com/Sogni-AI/sogni-client/compare/v5.8.0...v5.9.0) (2026-08-13)
 
 
