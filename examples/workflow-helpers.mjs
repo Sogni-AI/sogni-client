@@ -1687,7 +1687,8 @@ export const MODELS = {
     'minimax-h3-i2v': {
       id: 'minimax-h3-fl2va-fp8_i2v',
       name: 'MiniMax H3 FL2VA FP8 I2V',
-      description: 'First-frame image-to-video with jointly generated stereo audio (5.2-15.1s)',
+      description:
+        'First-, last-, or first-and-last-frame video with jointly generated stereo audio (5.2-15.1s)',
       workflowType: 'i2v',
       defaultWidth: 1344,
       defaultHeight: 768,
@@ -1719,8 +1720,7 @@ export const MODELS = {
       isLightning: false,
       isComfyModel: true,
       hasAudio: true,
-      supportsNegativePrompt: false,
-      requiresReferenceImage: true
+      supportsNegativePrompt: false
     },
     'minimax-h3-flf2v': {
       id: 'minimax-h3-fl2va-fp8_flf2v',
@@ -1801,7 +1801,8 @@ export const MODELS = {
     'minimax-h3-i2v-turbo': {
       id: 'minimax-h3-fl2va-fp8_i2v_turbo',
       name: 'MiniMax H3 FL2VA FP8 Turbo I2V',
-      description: 'Four-step first-frame image-to-video with jointly generated stereo audio',
+      description:
+        'Four-step first-, last-, or first-and-last-frame video with jointly generated stereo audio',
       workflowType: 'i2v',
       defaultWidth: 1344,
       defaultHeight: 768,
@@ -1832,8 +1833,7 @@ export const MODELS = {
       isLightning: true,
       isComfyModel: true,
       hasAudio: true,
-      supportsNegativePrompt: false,
-      requiresReferenceImage: true
+      supportsNegativePrompt: false
     },
     'minimax-h3-flf2v-turbo': {
       id: 'minimax-h3-fl2va-fp8_flf2v_turbo',

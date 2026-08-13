@@ -177,8 +177,9 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Image-only reference context: no reference video or reference audio assets
  *
  * ### MiniMax H3 Models (minimax-h3-*)
- * - Text-to-video, first-frame image-to-video, first-and-last-frame video, and
- *   multi-reference video. Two checkpoints ship: FL2VA
+ * - Text-to-video, endpoint-conditioned image-to-video (first frame, last
+ *   frame, or both), first-and-last-frame video, and multi-reference video.
+ *   Two checkpoints ship: FL2VA
  *   (`minimax-h3-fl2va-fp8_t2v` / `_i2v` / `_flf2v`) and Ref2VA
  *   (`minimax-h3-ref2va-fp8_r2v`).
  * - FL2VA Turbo adds `_turbo` to the t2v, i2v, and flf2v IDs. It uses a
@@ -191,7 +192,8 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   `res_multistep`/`simple`; Turbo uses its fixed 4-step sampling path.
  * - Frames follow `124 + n*17` from 124 through 362. Dimensions use a 32px
  *   grid, with a 1344px per-axis limit and a 1032192-pixel canvas limit.
- * - The `flf2v` model requires both `referenceImage` and `referenceImageEnd`.
+ * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
+ *   requires at least one of them. The `flf2v` model requires both.
  *
  * #### MiniMax H3 `r2v` (Ref2VA) multi-reference video
  * - `minimax-h3-ref2va-fp8_r2v` conditions on labelled reference material
@@ -287,6 +289,9 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Reference image for video workflows.
    * Maps to: startImage (i2v), characterImage (animate), referenceImage (s2v, ia2v)
    *
+   * MiniMax H3 `i2v` accepts this first-frame anchor by itself, together with
+   * `referenceImageEnd`, or can omit it when `referenceImageEnd` is supplied.
+   *
    * On the MiniMax H3 `r2v` workflow (`minimax-h3-ref2va-fp8_r2v`) this is
    * reference image 1 (`<Picture 1>`) rather than a frame anchor, and it is
    * optional: the same slot can be filled from `contextImages` instead.
@@ -323,8 +328,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   contextImages?: InputMedia[];
   /**
-   * Optional end image for i2v interpolation workflows.
-   * When provided with referenceImage, the video will interpolate between the two images.
+   * Optional end image for i2v workflows. It can be provided alone for
+   * last-frame-only generation, or with `referenceImage` to interpolate
+   * between two images.
+   *
+   * MiniMax H3 `i2v` accepts either endpoint independently or both together,
+   * with at least one required.
    *
    * Required, together with `referenceImage`, for the MiniMax H3 `flf2v`
    * workflow (`minimax-h3-fl2va-fp8_flf2v`), which always interpolates between

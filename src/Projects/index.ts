@@ -1544,18 +1544,23 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * Validates whether the provided model ID corresponds to a video model. If it does,
    * returns the appropriate video asset configuration based on the workflow type.
    *
-   * @example Returned object for a model that implements image to video workflow:
+   * @example Returned object for a MiniMax H3 image-to-video model:
    * ```json
    * {
    *   "workflowType": "i2v",
    *   "assets": {
-   *     "referenceImage": "required",
+   *     "referenceImage": "optional",
    *     "referenceImageEnd": "optional",
    *     "referenceAudio": "forbidden",
-   *     "referenceVideo": "forbidden"
+   *     "referenceAudioIdentity": "forbidden",
+   *     "referenceVideo": "forbidden",
+   *     "referenceMask": "forbidden"
    *   }
    * }
    * ```
+   * MiniMax H3 requires at least one of `referenceImage` or
+   * `referenceImageEnd`; each field is independently optional so callers can
+   * request first-frame-only, last-frame-only, or first-and-last-frame input.
    *
    * Requirements are resolved per model, not per workflow type alone: the `r2v`
    * workflow type is shared by HappyHorse, which is image-only, and MiniMax H3

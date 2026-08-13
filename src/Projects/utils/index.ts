@@ -518,16 +518,17 @@ export const MINIMAX_H3_R2V_ASSETS: Record<VideoAssetKey, AssetRequirement> = {
 };
 
 /**
- * MiniMax H3 i2v takes ONLY a first-frame anchor. The generic i2v table marks
- * `referenceImageEnd` optional because other i2v models interpolate toward an
- * optional closing frame, but the deployed `minimax-h3-i2v` workflow template
- * declares no end-frame asset at all — an end image would be uploaded, paid
- * for, and silently ignored by the worker. Forbid it here so the mistake fails
- * fast; two-anchor interpolation is `minimax-h3-fl2va-fp8_flf2v`.
+ * MiniMax H3 `i2v` accepts either endpoint independently, or both together.
+ * The generic i2v validation enforces that at least one of `referenceImage`
+ * and `referenceImageEnd` is present. The dedicated `flf2v` workflow remains
+ * stricter and requires both anchors.
+ *
+ * Keep this H3-specific table instead of returning the generic i2v table:
+ * audio identity is an LTX feature and is not an H3 input.
  */
 export const MINIMAX_H3_I2V_ASSETS: Record<VideoAssetKey, AssetRequirement> = {
-  referenceImage: 'required',
-  referenceImageEnd: 'forbidden',
+  referenceImage: 'optional',
+  referenceImageEnd: 'optional',
   referenceAudio: 'forbidden',
   referenceAudioIdentity: 'forbidden',
   referenceVideo: 'forbidden',

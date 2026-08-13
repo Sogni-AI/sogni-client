@@ -29,6 +29,7 @@ const {
   getVideoAssetRequirements,
   isMinimaxH3Model,
   isMinimaxH3TurboModel,
+  MINIMAX_H3_I2V_ASSETS,
   MINIMAX_H3_R2V_ASSETS,
   VIDEO_WORKFLOW_ASSETS
 } = require('../dist/Projects/utils/index.js');
@@ -342,6 +343,16 @@ assert.deepEqual(VIDEO_WORKFLOW_ASSETS.flf2v, {
   referenceVideo: 'forbidden',
   referenceMask: 'forbidden'
 });
+assert.deepEqual(MINIMAX_H3_I2V_ASSETS, {
+  referenceImage: 'optional',
+  referenceImageEnd: 'optional',
+  referenceAudio: 'forbidden',
+  referenceAudioIdentity: 'forbidden',
+  referenceVideo: 'forbidden',
+  referenceMask: 'forbidden'
+});
+assert.deepEqual(getVideoAssetRequirements(minimaxH3ModelIds.i2v), MINIMAX_H3_I2V_ASSETS);
+assert.deepEqual(getVideoAssetRequirements(minimaxH3TurboModelIds.i2v), MINIMAX_H3_I2V_ASSETS);
 
 // r2v is shared by two model families with different asset rules, so the
 // requirements must be resolved per model id, not per workflow type.
@@ -418,6 +429,41 @@ const minimaxH3TurboRequest = createJobRequestMessage(
 );
 assert.equal(minimaxH3TurboRequest.keyFrames[0].steps, 4);
 assert.equal(minimaxH3TurboRequest.keyFrames[0].comfySampler, null);
+
+for (const [label, modelId, steps, options] of [
+  ['standard', minimaxH3ModelIds.i2v, 20, minimaxH3Options],
+  ['turbo', minimaxH3TurboModelIds.i2v, 4, minimaxH3TurboOptions]
+]) {
+  const baseParams = { ...minimaxH3Params, modelId, steps };
+  const firstOnly = createJobRequestMessage(
+    `h3-${label}-i2v-first`,
+    { ...baseParams, referenceImage: true },
+    options
+  );
+  assert.equal(firstOnly.keyFrames[0].hasReferenceImage, true);
+  assert.equal('hasReferenceImageEnd' in firstOnly.keyFrames[0], false);
+
+  const endOnly = createJobRequestMessage(
+    `h3-${label}-i2v-end`,
+    { ...baseParams, referenceImageEnd: true },
+    options
+  );
+  assert.equal('hasReferenceImage' in endOnly.keyFrames[0], false);
+  assert.equal(endOnly.keyFrames[0].hasReferenceImageEnd, true);
+
+  const both = createJobRequestMessage(
+    `h3-${label}-i2v-both`,
+    { ...baseParams, referenceImage: true, referenceImageEnd: true },
+    options
+  );
+  assert.equal(both.keyFrames[0].hasReferenceImage, true);
+  assert.equal(both.keyFrames[0].hasReferenceImageEnd, true);
+
+  assert.throws(
+    () => createJobRequestMessage(`h3-${label}-i2v-no-frame`, baseParams, options),
+    /i2v workflow requires at least one of referenceImage or referenceImageEnd/
+  );
+}
 assert.throws(
   () =>
     createJobRequestMessage(
@@ -458,6 +504,19 @@ assert.throws(
       minimaxH3Options
     ),
   /flf2v workflow requires referenceImageEnd/
+);
+assert.throws(
+  () =>
+    createJobRequestMessage(
+      'h3-missing-start',
+      {
+        ...minimaxH3Params,
+        modelId: minimaxH3ModelIds.flf2v,
+        referenceImageEnd: true
+      },
+      minimaxH3Options
+    ),
+  /flf2v workflow requires referenceImage/
 );
 const minimaxH3R2vParams = { ...minimaxH3Params, modelId: minimaxH3ModelIds.r2v };
 assert.throws(

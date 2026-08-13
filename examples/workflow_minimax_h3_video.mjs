@@ -19,14 +19,14 @@
  *
  * MiniMax's official prompt-writing skill calls Context-IR critical to quality.
  * Source: https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills/h3-prompt-writing
- * T2VA, I2VA, and FL2VA use these fields in this exact order:
+ * T2VA, I2VA, L2VA, and FL2VA use these fields in this exact order:
  *
  *   integrated_multimodal_description: [Shot 1] ...
  *   overall_soundscape: ...
  *   non_diegetic_music: ...
  *
- * I2VA and FL2VA also require their mode-specific alignment instruction as the
- * first line, followed by one blank line. `[Shot 1]` has no timestamp; later
+ * I2VA, L2VA, and FL2VA also require their mode-specific alignment instruction
+ * as the first line, followed by one blank line. `[Shot 1]` has no timestamp; later
  * shots begin `[Shot N] At MM:SS.mmm, ...`. Speakers keep stable `(S1)` IDs and
  * exact dialogue belongs inside `<d>[Language] ...</d>`. Soundscape contains
  * ambience, action, and non-verbal sounds but not dialogue or music.
@@ -46,6 +46,8 @@
  *   node workflow_minimax_h3_video.mjs                              # Interactive, t2v
  *   node workflow_minimax_h3_video.mjs --mode t2v --no-interactive  # Example t2v prompt
  *   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg
+ *   node workflow_minimax_h3_video.mjs --mode i2v --end-image finish.jpg
+ *   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --end-image finish.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
  *   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --print-prompt  # Print prompt, do not submit
@@ -115,7 +117,7 @@ const H3_MAX_PIXELS = 1032192;
 // Default duration lands on 192 frames (124 + 4*17), which is exactly 8.00s.
 // Picked deliberately: it divides cleanly into the timed beats of the example
 // prompts below, and it renders exactly in the two-decimal duration slot of the
-// required flf2v alignment line.
+// required duration-aware L2VA/FL2VA alignment lines.
 const DEFAULT_DURATION = 8;
 
 // ============================================
@@ -125,6 +127,19 @@ const DEFAULT_DURATION = 8;
 /** MiniMax's required I2VA alignment line, verbatim from the official guide. */
 const I2V_ALIGNMENT_LINE =
   'For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.';
+
+/**
+ * MiniMax's required L2VA alignment line for a last-frame-only request.
+ * @param {number} durationSeconds - Effective video duration
+ * @param {number} finalShotIndex - Index N of the final shot
+ * @returns {string} The alignment line
+ */
+function l2vAlignmentLine(durationSeconds, finalShotIndex = 1) {
+  return (
+    'How the reference pictures align with the target video — ' +
+    `<Picture 1> (from [Shot ${finalShotIndex}]) aligns with the ${durationSeconds.toFixed(2)}-second mark of the target video.`
+  );
+}
 
 /**
  * MiniMax's required FL2VA alignment line.
@@ -173,6 +188,16 @@ non_diegetic_music: Sparse low piano at a slow tempo, joined by a soft low-frequ
 const I2V_PROMPT = `integrated_multimodal_description: [Shot 1] Live-action, cinematic. The young woman shown in <Picture 1> remains at the record-store counter in the exact opening composition, preserving her face, dark wavy hair, brown jacket, the turntable, and the dense rows of album sleeves. The camera pushes in with small amplitude at slow speed as she lifts a vinyl record from its paper sleeve, checks its surface under the warm pendant light, and places it carefully on the turntable. The quiet young woman with a close, dry voice (S1) looks toward the customer beyond the camera and says: <d>[English] This pressing has been waiting here since Tuesday.</d> She lowers the stylus, listens for the first note, and gives a restrained smile while the framing, lighting direction, and fine shelf detail remain consistent with <Picture 1>. No new people enter and no visible text is added.
 
 overall_soundscape: Low record-store room tone and rain against the front window continue throughout. The paper sleeve rustles, the vinyl settles onto the platter, and the tonearm produces a soft mechanical click followed by faint surface noise.
+
+non_diegetic_music: N/A`;
+
+/**
+ * L2VA converges on Picture 1 as the final frame. Its duration-specific
+ * alignment instruction is added by defaultPromptForMode.
+ */
+const L2V_PROMPT = `integrated_multimodal_description: [Shot 1] Live-action, cinematic, one continuous shot inside a densely stocked independent record store. A young woman with dark wavy hair and a brown jacket stands behind the counter beneath warm pendant lights as rain moves down the front window. The camera pulls out with small amplitude at slow speed while she lifts a vinyl record from the turntable, holds it by the edges, and slides it into a paper sleeve. The woman with a close, dry voice (S1) looks toward a customer beyond the camera and says: <d>[English] This pressing has been waiting here since Tuesday.</d> She turns toward the wooden record bins, parts two album sleeves with one hand, and inserts the record. Her movement gradually settles as the camera, her face and hands, the sleeve, the turntable, the dense rows of cover art, the pendant-light reflections, and every background spacing detail converge on the exact final pose and composition established by <Picture 1>. No new person enters, no cut or dissolve occurs, and the final moment lands precisely on <Picture 1>.
+
+overall_soundscape: Low record-store room tone continues beneath steady rain against the front window. The paper sleeve rustles, shoes scuff softly on the wooden floor, and cardboard brushes against neighboring record jackets before the movement becomes still.
 
 non_diegetic_music: N/A`;
 
@@ -288,21 +313,34 @@ Sparse upright-bass notes at a slow tempo enter after 00:06.000 and remain low b
  * Pick the official example prompt for a mode.
  *
  * @param {string} mode - t2v, i2v, flf2v, or r2v
- * @param {number} durationSeconds - Effective duration, used by the flf2v line
+ * @param {number} durationSeconds - Effective duration, used by L2VA/FL2VA lines
  * @param {Object} references - Reported Ref2VA reference counts
+ * @param {string} framePromptMode - t2v, i2v, l2v, flf2v, or r2v prompt contract
  * @returns {string} The complete prompt
  */
-function defaultPromptForMode(mode, durationSeconds, references = {}) {
-  if (mode === 'i2v') {
+function defaultPromptForMode(mode, durationSeconds, references = {}, framePromptMode = mode) {
+  if (framePromptMode === 'i2v') {
     return `${I2V_ALIGNMENT_LINE}\n\n${I2V_PROMPT}`;
   }
-  if (mode === 'flf2v') {
+  if (framePromptMode === 'l2v') {
+    return `${l2vAlignmentLine(durationSeconds)}\n\n${L2V_PROMPT}`;
+  }
+  if (framePromptMode === 'flf2v') {
     return `${flf2vAlignmentLine(durationSeconds)}\n\n${FLF2V_PROMPT}`;
   }
   if (mode === 'r2v') {
     return r2vPromptForReferences(references);
   }
   return T2V_PROMPT;
+}
+
+/** Resolve the official prompt contract from the endpoint assets on an i2v id. */
+function resolveFramePromptMode(mode, hasFirstFrame, hasLastFrame) {
+  if (mode === 'flf2v') return 'flf2v';
+  if (mode !== 'i2v') return mode;
+  if (hasFirstFrame && hasLastFrame) return 'flf2v';
+  if (hasLastFrame) return 'l2v';
+  return 'i2v';
 }
 
 /**
@@ -362,7 +400,7 @@ const TIMED_BEATS_RECOMMENDED_ABOVE_SECONDS = 8;
  * the last - so a flf2v prompt with no timed beats is following their guide
  * rather than missing something. Warning about it there was simply wrong.
  */
-const SINGLE_SHOT_MODES = new Set(['flf2v']);
+const SINGLE_SHOT_MODES = new Set(['flf2v', 'l2v']);
 
 /**
  * Advisory only: does the prompt say outright that it is one continuous take?
@@ -430,7 +468,7 @@ function fieldsAppearInOrder(prompt, fields) {
  *
  * @param {string} prompt - The prompt to review
  * @param {number} durationSeconds - Effective video duration
- * @param {string} mode - t2v, i2v, flf2v, or r2v
+ * @param {string} mode - t2v, i2v, l2v, flf2v, or r2v prompt contract
  * @param {Object} [references] - Attached r2v references
  * @param {number} [references.videos] - Reference videos attached
  * @param {number} [references.audios] - Reference audio clips attached
@@ -462,6 +500,12 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
   }
   if (mode === 'i2v' && !prompt.startsWith(`${I2V_ALIGNMENT_LINE}\n\n`)) {
     warnings.push('I2VA requires its exact image-alignment instruction as the first line.');
+  }
+  if (
+    mode === 'l2v' &&
+    !prompt.startsWith('How the reference pictures align with the target video — <Picture 1> ')
+  ) {
+    warnings.push('L2VA requires its exact last-frame alignment instruction as the first line.');
   }
   if (
     mode === 'flf2v' &&
@@ -691,7 +735,7 @@ function parseArgs() {
       options.printPrompt = true;
       options.interactive = false;
     } else if (arg === '--alignment-line') {
-      // Backwards-compatible no-op. Official I2VA/FL2VA alignment is now always included.
+      // Backwards-compatible no-op. Official I2VA/L2VA/FL2VA alignment is always included.
     } else if (arg === '--no-audio') {
       options.generateAudio = false;
     } else if (arg === '--audio') {
@@ -723,6 +767,8 @@ Usage:
   node workflow_minimax_h3_video.mjs                               # Interactive mode
   node workflow_minimax_h3_video.mjs --mode t2v --no-interactive   # Example t2v prompt
   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg
+  node workflow_minimax_h3_video.mjs --mode i2v --end-image finish.jpg
+  node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --end-image finish.jpg
   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-turbo
   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
@@ -730,7 +776,7 @@ Usage:
 
 Modes:
   t2v    Text-to-video                     (minimax-h3-fl2va-fp8_t2v)
-  i2v    First-frame image-to-video        (minimax-h3-fl2va-fp8_i2v,  needs --image)
+  i2v    Endpoint-conditioned image-to-video (minimax-h3-fl2va-fp8_i2v, needs --image and/or --end-image)
   flf2v  First-and-last-frame video        (minimax-h3-fl2va-fp8_flf2v, needs --image and --end-image)
   r2v    Multi-reference video             (minimax-h3-ref2va-fp8_r2v, needs an image or video)
 
@@ -750,7 +796,7 @@ Options:
                           minimax-h3-flf2v, minimax-h3-r2v, or the t2v/i2v/
                           flf2v keys ending in -turbo)
   --image <path>          First-frame reference image (i2v, flf2v)
-  --end-image <path>      Last-frame reference image (flf2v)
+  --end-image <path>      Last-frame reference image (i2v, flf2v)
   --ref-image <path>      Reference image (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES})
   --ref-video <path>      Reference video (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_VIDEOS})
   --ref-audio <path>      Reference audio (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_AUDIOS})
@@ -764,7 +810,7 @@ Options:
   --seed <n>              Random seed (default: random)
   --output <dir>          Output directory (default: ./output)
   --print-prompt          Print the assembled prompt and exit without submitting
-  --alignment-line        Deprecated no-op; required i2v/flf2v alignment is always included
+  --alignment-line        Deprecated no-op; required I2VA/L2VA/FL2VA alignment is always included
   --no-audio              Strip the generated audio track before upload
   --audio                 Include generated audio (default)
   --negative [text]       Unsupported; exits with guidance to use the positive prompt
@@ -774,14 +820,14 @@ ${billingModeHelpText()}
   --help                  Show this help message
 
 Prompt format:
-  T2VA, I2VA, and FL2VA use these fields in this exact order:
+  T2VA, I2VA, L2VA, and FL2VA use these fields in this exact order:
 
     integrated_multimodal_description: [Shot 1] ...
     overall_soundscape: ...
     non_diegetic_music: ...
 
-  I2VA and FL2VA require the exact mode-specific alignment instruction on the
-  first line. Shot 1 has no timestamp. Later cuts use
+  I2VA, L2VA, and FL2VA require the exact mode-specific alignment instruction
+  on the first line. Shot 1 has no timestamp. Later cuts use
   "[Shot N] At MM:SS.mmm, ...". Speakers keep stable (S1) IDs and spoken text
   is preserved inside <d>[Language] ...</d>. Keep dialogue and music out of
   overall_soundscape. Use non_diegetic_music: N/A when there is no audience-only
@@ -866,7 +912,7 @@ async function main() {
   if (!OPTIONS.mode && OPTIONS.interactive && process.stdin.isTTY) {
     console.log('Choose the H3 workflow:\n');
     console.log('  1. t2v    Text-to-video (default)');
-    console.log('  2. i2v    First-frame image-to-video');
+    console.log('  2. i2v    First-, last-, or first-and-last-frame video');
     console.log('  3. flf2v  First-and-last-frame video');
     console.log('  4. r2v    Multi-reference video');
     console.log();
@@ -905,9 +951,14 @@ async function main() {
   const hasR2vReferences =
     OPTIONS.refImages.length > 0 || OPTIONS.refVideos.length > 0 || OPTIONS.refAudios.length > 0;
   if (OPTIONS.mode !== 'r2v' && hasR2vReferences) {
+    const frameFlags =
+      OPTIONS.mode === 'i2v'
+        ? '--image and/or --end-image'
+        : OPTIONS.mode === 'flf2v'
+          ? '--image and --end-image'
+          : 'no frame-reference flags';
     console.error(
-      `Error: --ref-image/--ref-video/--ref-audio belong to --mode r2v. In ${OPTIONS.mode}, use --image` +
-        `${OPTIONS.mode === 'flf2v' ? ' and --end-image' : ''}.`
+      `Error: --ref-image/--ref-video/--ref-audio belong to --mode r2v. In ${OPTIONS.mode}, use ${frameFlags}.`
     );
     process.exit(1);
   }
@@ -919,11 +970,37 @@ async function main() {
     process.exit(1);
   }
 
-  if (OPTIONS.mode !== 't2v' && OPTIONS.mode !== 'r2v' && !OPTIONS.printPrompt) {
-    OPTIONS.image = await pickImageFile(OPTIONS.image, 'first-frame image');
-  }
   if (OPTIONS.mode === 'flf2v' && !OPTIONS.printPrompt) {
+    OPTIONS.image = await pickImageFile(OPTIONS.image, 'first-frame image');
     OPTIONS.endImage = await pickImageFile(OPTIONS.endImage, 'last-frame image');
+  }
+  if (OPTIONS.mode === 'i2v' && !OPTIONS.printPrompt) {
+    if (!OPTIONS.image && !OPTIONS.endImage) {
+      if (!OPTIONS.interactive || !process.stdin.isTTY) {
+        console.error(
+          'Error: i2v requires at least one frame anchor: --image, --end-image, or both.'
+        );
+        process.exit(1);
+      }
+      const role = (await askQuestion('Frame anchors [first/last/both] (default: first): '))
+        .trim()
+        .toLowerCase();
+      if (role === 'last') {
+        OPTIONS.endImage = await pickImageFile(null, 'last-frame image');
+      } else if (role === 'both') {
+        OPTIONS.image = await pickImageFile(null, 'first-frame image');
+        OPTIONS.endImage = await pickImageFile(null, 'last-frame image');
+      } else {
+        OPTIONS.image = await pickImageFile(null, 'first-frame image');
+      }
+    } else {
+      if (OPTIONS.image) {
+        OPTIONS.image = await pickImageFile(OPTIONS.image, 'first-frame image');
+      }
+      if (OPTIONS.endImage) {
+        OPTIONS.endImage = await pickImageFile(OPTIONS.endImage, 'last-frame image');
+      }
+    }
   }
   if (
     OPTIONS.mode === 'r2v' &&
@@ -943,12 +1020,6 @@ async function main() {
   }
   if (OPTIONS.mode === 't2v' && (OPTIONS.image || OPTIONS.endImage)) {
     console.error('Error: t2v does not accept reference images. Use --mode i2v or --mode flf2v.');
-    process.exit(1);
-  }
-  if (OPTIONS.mode === 'i2v' && OPTIONS.endImage) {
-    console.error(
-      'Error: the H3 i2v workflow takes only a first frame. Use --mode flf2v for two anchors.'
-    );
     process.exit(1);
   }
   if (OPTIONS.mode === 'r2v') {
@@ -1002,7 +1073,7 @@ async function main() {
 
   // Frames and duration. The SDK snaps a duration onto the H3 grid, so the
   // request sends `duration` and the local frame count is only used for the
-  // cost estimate, the flf2v alignment line, and the output filename.
+  // cost estimate, duration-aware frame alignment, and the output filename.
   if (OPTIONS.frames !== null) {
     if (!isValidH3FrameCount(OPTIONS.frames)) {
       const snapped = snapMinimaxH3Frames(OPTIONS.frames);
@@ -1017,8 +1088,9 @@ async function main() {
     OPTIONS.frames = snapMinimaxH3Frames(Math.round(OPTIONS.duration * MINIMAX_H3_FPS));
     OPTIONS.duration = durationForFrames(OPTIONS.frames);
   }
-  // Effective duration of the rendered video, used by the flf2v alignment line.
+  // Effective duration of the rendered video, used by L2VA/FL2VA alignment lines.
   const effectiveDuration = OPTIONS.frames / MINIMAX_H3_FPS;
+  const framePromptMode = resolveFramePromptMode(OPTIONS.mode, !!OPTIONS.image, !!OPTIONS.endImage);
 
   const soundtrackedVideoIndices =
     OPTIONS.mode === 'r2v' ? await detectSoundtrackedReferenceVideos(OPTIONS.refVideos) : [];
@@ -1034,40 +1106,54 @@ async function main() {
     );
     OPTIONS.prompt = await askMultilinePrompt(
       'Prompt:',
-      defaultPromptForMode(OPTIONS.mode, effectiveDuration, {
-        images: OPTIONS.refImages.length,
-        videos: OPTIONS.refVideos.length,
-        audios: OPTIONS.refAudios.length,
-        soundtrackedVideoIndices
-      }),
+      defaultPromptForMode(
+        OPTIONS.mode,
+        effectiveDuration,
+        {
+          images: OPTIONS.refImages.length,
+          videos: OPTIONS.refVideos.length,
+          audios: OPTIONS.refAudios.length,
+          soundtrackedVideoIndices
+        },
+        framePromptMode
+      ),
       { consecutiveEmptyLinesToEnd: 2 }
     );
   }
   if (!OPTIONS.prompt) {
-    OPTIONS.prompt = defaultPromptForMode(OPTIONS.mode, effectiveDuration, {
-      images: OPTIONS.refImages.length,
-      videos: OPTIONS.refVideos.length,
-      audios: OPTIONS.refAudios.length,
-      soundtrackedVideoIndices
-    });
+    OPTIONS.prompt = defaultPromptForMode(
+      OPTIONS.mode,
+      effectiveDuration,
+      {
+        images: OPTIONS.refImages.length,
+        videos: OPTIONS.refVideos.length,
+        audios: OPTIONS.refAudios.length,
+        soundtrackedVideoIndices
+      },
+      framePromptMode
+    );
   } else if (OPTIONS.mode === 'i2v' || OPTIONS.mode === 'flf2v') {
     // MiniMax requires the mode-specific alignment instruction as the first line.
     // Preserve the caller's body byte-for-byte and prepend only when absent.
     const alignmentLine =
-      OPTIONS.mode === 'i2v' ? I2V_ALIGNMENT_LINE : flf2vAlignmentLine(effectiveDuration);
+      framePromptMode === 'i2v'
+        ? I2V_ALIGNMENT_LINE
+        : framePromptMode === 'l2v'
+          ? l2vAlignmentLine(effectiveDuration)
+          : flf2vAlignmentLine(effectiveDuration);
     if (!OPTIONS.prompt.startsWith(alignmentLine)) {
       OPTIONS.prompt = `${alignmentLine}\n\n${OPTIONS.prompt}`;
     }
   }
 
-  const promptWarnings = reviewPrompt(OPTIONS.prompt, effectiveDuration, OPTIONS.mode, {
+  const promptWarnings = reviewPrompt(OPTIONS.prompt, effectiveDuration, framePromptMode, {
     videos: OPTIONS.refVideos.length,
     audios: OPTIONS.refAudios.length
   });
 
   if (OPTIONS.printPrompt) {
     console.log(
-      `--- ${OPTIONS.mode} prompt (${OPTIONS.frames} frames, ${effectiveDuration.toFixed(2)}s, ${OPTIONS.prompt.length} chars) ---\n`
+      `--- ${framePromptMode} prompt (${OPTIONS.frames} frames, ${effectiveDuration.toFixed(2)}s, ${OPTIONS.prompt.length} chars) ---\n`
     );
     console.log(OPTIONS.prompt);
     console.log('\n--- end of prompt ---');

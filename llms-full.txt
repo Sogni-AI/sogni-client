@@ -855,11 +855,11 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 | Model ID | Mode | References |
 |----------|------|------------|
 | minimax-h3-fl2va-fp8_t2v | Text-to-video | none |
-| minimax-h3-fl2va-fp8_i2v | First-frame image-to-video | one first-frame image |
+| minimax-h3-fl2va-fp8_i2v | Endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fl2va-fp8_flf2v | First-and-last-frame video | both anchor images required |
 | minimax-h3-ref2va-fp8_r2v | Reference-to-video (Ref2VA) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | minimax-h3-fl2va-fp8_t2v_turbo | Turbo text-to-video | none |
-| minimax-h3-fl2va-fp8_i2v_turbo | Turbo first-frame image-to-video | one first-frame image |
+| minimax-h3-fl2va-fp8_i2v_turbo | Turbo endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fl2va-fp8_flf2v_turbo | Turbo first-and-last-frame video | both anchor images required |
 
 Turbo covers only the three FL2VA workflows; there is no Turbo Ref2VA model ID.
@@ -868,8 +868,11 @@ Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 All seven current workflow ids are available through the Sogni projects API and
 the Sogni Creative Agent Skill: four standard modes plus the three Turbo modes.
 
-For SDK creative-tool calls, `generate_video` accepts `minimax-h3-turbo`
-(automatic t2v or first-frame i2v) and `minimax-h3-t2v-turbo`;
+For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
+`referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids
+still require both anchors. SDK creative-tool routing is a separate hosted
+contract: `generate_video` accepts `minimax-h3-turbo` (automatic t2v or
+first-frame i2v) and `minimax-h3-t2v-turbo`;
 `animate_photo` accepts `minimax-h3-i2v-turbo` and
 `minimax-h3-flf2v-turbo`. Run standard Ref2VA through hosted Creative Agent
 execution or submit its exact ID with `projects.create()`.
@@ -894,7 +897,7 @@ const project = await sogni.projects.create({
 
 MiniMax's official Context-IR format is part of the prompt contract. The source
 is https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills/h3-prompt-writing.
-T2V, I2V, and FLF2V use these fields in exact order:
+T2V, I2V, L2V, and FLF2V use these fields in exact order:
 
 1. `integrated_multimodal_description`
 2. `overall_soundscape`
@@ -904,6 +907,12 @@ I2V always starts with:
 
 ```text
 For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
+```
+
+L2V (last-frame-only) always starts with its duration-specific alignment line:
+
+```text
+How the reference pictures align with the target video — <Picture 1> (from [Shot N]) aligns with the S.SS-second mark of the target video.
 ```
 
 FLF2V always starts with its duration-specific alignment line:
@@ -983,9 +992,10 @@ A low warm synthesizer pad enters near the end and holds beneath the final frame
 });
 ```
 
-See `examples/workflow_minimax_h3_video.mjs` for all four standard workflows and
-the three Turbo model-key overrides. Turbo uses the same official T2V/I2V/FLF2V
-prompt contract as standard FL2VA.
+See `examples/workflow_minimax_h3_video.mjs` for all four standard workflow ids,
+including first-only I2VA, last-only L2VA, and dual-anchor FL2VA through I2V,
+plus the three Turbo model-key overrides. Turbo uses the same official
+T2V/I2V/L2V/FLF2V prompt contract as standard FL2VA.
 
 ================================================================================ 8. AUDIO GENERATION - ACE-STEP 1.5 MODELS
 ================================================================================

@@ -419,18 +419,18 @@ MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. S
 | Model ID                      | Mode                       | References                                                |
 | ----------------------------- | -------------------------- | --------------------------------------------------------- |
 | `minimax-h3-fl2va-fp8_t2v`    | Text-to-video              | none                                                       |
-| `minimax-h3-fl2va-fp8_i2v`    | First-frame image-to-video | one first-frame image                                      |
+| `minimax-h3-fl2va-fp8_i2v`    | Endpoint-conditioned image-to-video | first frame, last frame, or both (at least one)       |
 | `minimax-h3-fl2va-fp8_flf2v`  | First-and-last-frame video | both anchor images required                                |
 | `minimax-h3-ref2va-fp8_r2v`   | Reference-to-video         | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | `minimax-h3-fl2va-fp8_t2v_turbo` | Turbo text-to-video | none |
-| `minimax-h3-fl2va-fp8_i2v_turbo` | Turbo first-frame image-to-video | one first-frame image |
+| `minimax-h3-fl2va-fp8_i2v_turbo` | Turbo endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | `minimax-h3-fl2va-fp8_flf2v_turbo` | Turbo first-and-last-frame video | both anchor images required |
 
 Turbo covers only the three FL2VA workflows. There is no Turbo Ref2VA model ID. Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 
 All seven current workflow IDs are available through the Sogni projects API and the Sogni Creative Agent Skill: four standard modes plus the three Turbo modes.
 
-For SDK creative-tool calls, `generate_video` accepts `minimax-h3-turbo` (automatic t2v or first-frame i2v) and `minimax-h3-t2v-turbo`; `animate_photo` accepts `minimax-h3-i2v-turbo` and `minimax-h3-flf2v-turbo`. Run standard Ref2VA through hosted Creative Agent execution or submit its exact ID with `projects.create()`.
+For direct `projects.create()` calls, both H3 I2V IDs accept `referenceImage`, `referenceImageEnd`, or both, with at least one required. The explicit FLF2V IDs still require both anchors. SDK creative-tool routing is a separate hosted contract: `generate_video` accepts `minimax-h3-turbo` (automatic t2v or first-frame i2v) and `minimax-h3-t2v-turbo`; `animate_photo` accepts `minimax-h3-i2v-turbo` and `minimax-h3-flf2v-turbo`. Run standard Ref2VA through hosted Creative Agent execution or submit its exact ID with `projects.create()`.
 
 ```javascript
 const project = await sogni.projects.create({
@@ -450,7 +450,7 @@ const project = await sogni.projects.create({
 });
 ```
 
-MiniMax's [official H3 prompt-writing skill](https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills/h3-prompt-writing) makes Context-IR part of the prompt contract. T2V, I2V, and FLF2V use `integrated_multimodal_description`, `overall_soundscape`, then `non_diegetic_music`, in that exact order. I2V and FLF2V first prepend their official image-alignment line. Use `[Shot 1]` without a timestamp, then `[Shot N] At MM:SS.mmm, ...` for later cuts. Speakers keep stable `(S1)` IDs and exact spoken words go in `<d>[Language] ...</d>`. Write the structural sections in English while preserving dialogue, lyrics, and visible text in their original language. Use `non_diegetic_music: N/A` when there is no audience-only score.
+MiniMax's [official H3 prompt-writing skill](https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills/h3-prompt-writing) makes Context-IR part of the prompt contract. T2V, I2V, L2V, and FLF2V use `integrated_multimodal_description`, `overall_soundscape`, then `non_diegetic_music`, in that exact order. Frame-conditioned modes prepend their official image-alignment line. I2V anchors `<Picture 1>` at 0.00 seconds; L2V uses `How the reference pictures align with the target video — <Picture 1> (from [Shot N]) aligns with the S.SS-second mark of the target video.`; FLF2V aligns both endpoints. Use `[Shot 1]` without a timestamp, then `[Shot N] At MM:SS.mmm, ...` for later cuts. Speakers keep stable `(S1)` IDs and exact spoken words go in `<d>[Language] ...</d>`. Write the structural sections in English while preserving dialogue, lyrics, and visible text in their original language. Use `non_diegetic_music: N/A` when there is no audience-only score.
 
 Ref2VA (`_r2v`) is a separate checkpoint with no frame anchors, so `referenceImageEnd` is rejected. It runs on a Sogni worker, so every artist reference uses the normal S3 upload path: `referenceImage` plus `contextImages`, `referenceVideo` plus `referenceVideos`, and `referenceAudio` plus `referenceAudios`. Direct URL arrays are rejected. At least one visual reference (image or video) is required; audio alone is rejected. Its prompt uses six ordered sections: `subject_definitions`, `summary`, `retention_analysis`, `detailed_description`, `overall_soundscape`, `non_diegetic_music`. Use `<Subject N>` for reusable visible content, `<Picture N>` only for concrete keyframes/composition anchors, `<Video N>` for whole-video structure, and `<Audio N>` for copied or referenced audio.
 
@@ -488,7 +488,7 @@ N/A`,
 });
 ```
 
-See `examples/workflow_minimax_h3_video.mjs` for all four standard workflows and the three Turbo model-key overrides. Turbo uses the same official T2V/I2V/FLF2V prompt contract as standard FL2VA.
+See `examples/workflow_minimax_h3_video.mjs` for all four standard workflow IDs, including first-only I2VA, last-only L2VA, and dual-anchor FL2VA through I2V, plus the three Turbo model-key overrides. Turbo uses the same official T2V/I2V/L2V/FLF2V prompt contract as standard FL2VA.
 
 ---
 
