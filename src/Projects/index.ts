@@ -1076,7 +1076,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Upload reference mask IMAGE for LTX-2.3 v2v inpaint/outpaint workflows
+   * Upload reference mask IMAGE for distilled LTX 2.5 or LTX 2.3 v2v inpaint/outpaint workflows
    * @internal
    */
   private async uploadReferenceMask(projectId: string, file: File | Buffer | Blob) {

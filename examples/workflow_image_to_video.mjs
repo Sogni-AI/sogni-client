@@ -231,6 +231,8 @@ Usage:
 Available Models:
   wan_v2.2-14b-fp8_i2v_lightx2v       (WAN 2.2, fast 4-step, 1-10s, default)
   wan_v2.2-14b-fp8_i2v                (WAN 2.2, high quality 20-step, 1-10s)
+  ltx25-22b-int8_i2v_distilled         (LTX 2.5, official fixed 8-step distilled workflow, 2-20s)
+  ltx25-22b-int8_i2v_dev               (LTX 2.5 Dev + official Speed LoRA refinement, 2-20s)
   ltx23-22b-fp8_i2v_distilled         (LTX-2.3, fast 8-step, 22B model, 4-20s, 2x upscaled output)
   ltx23-22b-fp8_i2v_dev               (LTX-2.3, high quality 30-step, 22B model, 4-20s, 2x upscaled output)
   ltx23-22b-10eros-v1.4-fp8mixed_i2v  (LTX-2.3 10Eros, fixed 9-step, 30GB+ workers, requires --disable-safe-content-filter)
@@ -353,7 +355,7 @@ async function main() {
     modelConfig = MODELS.i2v[OPTIONS.modelKey];
     if (!modelConfig) {
       console.error(
-        `Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx23-22b-fp8_i2v_distilled, ltx23-22b-fp8_i2v_dev, ltx23-22b-10eros-v1.4-fp8mixed_i2v`
+        `Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_i2v_lightx2v, wan_v2.2-14b-fp8_i2v, ltx25-22b-int8_i2v_distilled, ltx25-22b-int8_i2v_dev, ltx23-22b-fp8_i2v_distilled, ltx23-22b-fp8_i2v_dev, ltx23-22b-10eros-v1.4-fp8mixed_i2v`
       );
       process.exit(1);
     }
@@ -370,12 +372,16 @@ async function main() {
   }
 
   // Prompt for frame strength values when end image is provided (LTX keyframes only)
-  const isLtx2Model = OPTIONS.modelKey.startsWith('ltx2-') || OPTIONS.modelKey.startsWith('ltx23-');
+  const isLtx2Model =
+    OPTIONS.modelKey.startsWith('ltx2-') ||
+    OPTIONS.modelKey.startsWith('ltx23-') ||
+    OPTIONS.modelKey.startsWith('ltx25-');
+  const isLtx23TransitionModel = OPTIONS.modelKey.startsWith('ltx23-');
 
   // The transition/morph LoRA is an LTX-2.3 keyframe feature: it morphs the first image
   // into the end image, so it needs an LTX-2.3 i2v model and both keyframes.
   if (OPTIONS.transition) {
-    if (!isLtx2Model) {
+    if (!isLtx23TransitionModel) {
       console.error(
         'Error: --transition (transition LoRA) is only supported on LTX-2.3 i2v models. Use --model ltx23-22b-fp8_i2v_distilled.'
       );

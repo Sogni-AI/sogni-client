@@ -28,6 +28,7 @@ export function isVideoModel(modelId: string): boolean {
     modelId.startsWith('wan_') ||
     modelId.startsWith('ltx2-') ||
     modelId.startsWith('ltx23-') ||
+    modelId.startsWith('ltx25-') ||
     modelId.startsWith('seedance-2-') ||
     modelId.startsWith('happyhorse-1.1') ||
     modelId.startsWith('minimax-h3')
@@ -65,20 +66,22 @@ export function isWanAnimateModel(modelId: string): boolean {
 }
 
 /**
- * Check if a model ID is an LTX-2/LTX-2.3 video model.
+ * Check if a model ID is an LTX 2.x video model.
  *
- * LTX-2.3 models generate video at the actual specified FPS (1-60 fps range).
+ * LTX 2.x models generate video at the actual specified FPS (1-60 fps range).
  * There is no post-render interpolation - fps directly affects generation.
  *
  * Frame count should be calculated as: duration * fps + 1
- * Additionally, LTX-2.3 has a frame step constraint where frames must follow
+ * Additionally, LTX 2.x has a frame step constraint where frames must follow
  * the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, 41, ...)
  *
  * Note: `ltx2-` prefix is kept for backwards compatibility (server translates
  * ltx2- model IDs to ltx23- equivalents).
  */
 export function isLtx2Model(modelId: string): boolean {
-  return modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
+  return (
+    modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-') || modelId.startsWith('ltx25-')
+  );
 }
 
 /**
@@ -205,10 +208,10 @@ export const MINIMAX_H3_MAX_DURATION = MINIMAX_H3_MAX_FRAMES / MINIMAX_H3_FPS;
 /**
  * Calculate the frame count for a given duration and fps based on the video model.
  *
- * ## Standard Behavior (LTX-2.3, Seedance, and future models)
+ * ## Standard Behavior (LTX 2.x, Seedance, and future models)
  * - Generate at the actual specified FPS (no interpolation)
  * - Formula: duration * fps + 1
- * - LTX-2.3 specific: Frame count must follow the pattern: 1 + n*8
+ * - LTX 2.x specific: Frame count must follow the pattern: 1 + n*8
  *
  * ## MiniMax H3
  * - Fixed 24fps generation; the fps argument is ignored
@@ -262,11 +265,11 @@ export function calculateVideoFrames(
     frames = MINIMAX_H3_BASE_FRAMES + steps * MINIMAX_H3_FRAME_STEP;
     return frames;
   } else {
-    // LTX-2.3 and future models: Generate at actual fps
+    // LTX 2.x and future models: Generate at actual fps
     // This is the standard behavior going forward
     frames = Math.round(duration * fps) + 1;
 
-    // LTX-2.3 specific: snap to frame step constraint (1 + n*8)
+    // LTX 2.x specific: snap to frame step constraint (1 + n*8)
     if (isLtx2Model(modelId)) {
       const n = Math.round((frames - 1) / LTX2_FRAME_STEP);
       frames = n * LTX2_FRAME_STEP + 1;
@@ -293,7 +296,8 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
 
   // Check for supported video model prefixes
   const isWan = modelId.startsWith('wan_');
-  const isLtx2 = modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
+  const isLtx2 =
+    modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-') || modelId.startsWith('ltx25-');
   const isSeedance = modelId.startsWith('seedance-2-');
   const isHappyhorse = modelId.startsWith('happyhorse-1.1');
   const isMinimaxH3 = modelId.startsWith('minimax-h3');
@@ -326,11 +330,11 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
     return null;
   }
 
-  // WAN, LTX-2.3, and Seedance models share similar workflow type suffixes
+  // WAN, LTX 2.x, and Seedance models share similar workflow type suffixes
   if (modelId.includes('_i2v')) return 'i2v';
   if (modelId.includes('_t2v')) return 't2v';
 
-  // LTX-2.3 v2v ControlNet and Seedance v2v workflows
+  // LTX 2.5/2.3 control and Seedance v2v workflows
   if ((isLtx2 || isSeedance) && modelId.includes('_v2v')) return 'v2v';
 
   // LTX-2.3 and Seedance image+audio workflows
@@ -641,7 +645,7 @@ export function getVideoAssetRequirements(
 
 /**
  * Whether a `referenceMask` should be honored for the given video params.
- * Only the LTX-2.3 v2v 'inpaint' control type consumes a mask.
+ * Only LTX 2.5/2.3 v2v 'inpaint' control consumes a mask.
  */
 export function usesReferenceMask(params: VideoProjectParams): boolean {
   return params.controlNet?.name === 'inpaint';

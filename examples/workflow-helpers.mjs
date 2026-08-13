@@ -97,21 +97,26 @@ export function isWanModel(modelId) {
 /**
  * Check if a model ID is an LTX-2/LTX-2.3 video model.
  *
- * LTX-2.3 models generate video at the actual specified FPS (1-60 fps range).
+ * LTX 2.x models generate video at the actual specified FPS (1-60 fps range).
  * There is no post-render interpolation - fps directly affects generation.
  *
  * Frame count should be calculated as: duration * fps + 1
- * Additionally, LTX-2.3 has a frame step constraint where frames must follow
+ * Additionally, LTX 2.x has a frame step constraint where frames must follow
  * the pattern: 1 + n*8 (i.e., 1, 9, 17, 25, 33, 41, ...)
  *
  * Note: `ltx2-` prefix is kept for backwards compatibility (server translates
  * ltx2- model IDs to ltx23- equivalents).
  *
  * @param {string} modelId - The model ID to check
- * @returns {boolean} True if this is an LTX-2.3 model
+ * @returns {boolean} True if this is an LTX 2.x model
  */
 export function isLtx2Model(modelId) {
-  return modelId?.startsWith('ltx2-') || modelId?.startsWith('ltx23-') || false;
+  return (
+    modelId?.startsWith('ltx2-') ||
+    modelId?.startsWith('ltx23-') ||
+    modelId?.startsWith('ltx25-') ||
+    false
+  );
 }
 
 /**
@@ -321,6 +326,66 @@ export async function getVideoFps(videoPath) {
  * Model configurations for all supported workflows.
  * Each model has a display name, internal ID, and workflow-specific settings.
  */
+function makeLtx25VideoConfig(workflow, variant) {
+  const isDistilled = variant === 'distilled';
+  const usesImage = workflow === 'i2v' || workflow === 'ia2v';
+  const usesStrength = usesImage || workflow === 'v2v';
+  const workflowLabel = workflow.toUpperCase();
+  return {
+    id: `ltx25-22b-int8_${workflow}_${variant}`,
+    name: `LTX-2.5 22B INT8 ${workflowLabel} ${isDistilled ? 'Distilled' : 'Dev + Speed LoRA'}`,
+    description: isDistilled
+      ? `Official direct distilled checkpoint, fixed 8-step ${workflowLabel} with native audio`
+      : `Official Dev checkpoint with required distilled Speed LoRA stage-2 refinement, 30-step ${workflowLabel} with native audio`,
+    workflowType: workflow,
+    defaultWidth: 1920,
+    defaultHeight: 1088,
+    minWidth: 640,
+    maxWidth: 3840,
+    minHeight: 640,
+    maxHeight: 3840,
+    dimensionStep: 64,
+    defaultSteps: isDistilled ? 8 : 30,
+    minSteps: isDistilled ? 8 : 15,
+    maxSteps: isDistilled ? 8 : 50,
+    defaultGuidance: isDistilled ? 1.0 : 3.0,
+    minGuidance: isDistilled ? 1.0 : 2.0,
+    maxGuidance: isDistilled ? 2.0 : 7.0,
+    ...(usesStrength
+      ? { defaultStrength: workflow === 'v2v' ? 0.85 : 0.7, minStrength: 0.3, maxStrength: 1.0 }
+      : {}),
+    defaultComfySampler: 'euler_ancestral',
+    allowedComfySamplers: [
+      'euler',
+      'euler_ancestral',
+      'euler_ancestral_cfg_pp',
+      'dpmpp_2m',
+      'dpmpp_2m_sde',
+      'dpmpp_3m_sde',
+      'ddim',
+      'uni_pc',
+      'lcm'
+    ],
+    defaultComfyScheduler: 'manual_sigmas',
+    allowedComfySchedulers: [],
+    minFrames: 25,
+    maxFrames: 505,
+    defaultFrames: 97,
+    frameStep: 8,
+    defaultFps: 24,
+    minFps: 1,
+    maxFps: 60,
+    isLightning: isDistilled,
+    isComfyModel: true,
+    hasAudio: true,
+    ...(workflow === 'ia2v' ? { requiresReferenceImage: true } : {}),
+    ...(workflow === 'a2v' ? { requiresReferenceImage: false } : {}),
+    ...(workflow === 'v2v'
+      ? { requiresReferenceImage: false, supportsControlNet: true }
+      : {})
+  };
+}
+
 export const MODELS = {
   // Text-to-Image Models (ComfyUI worker)
   image: {
@@ -865,6 +930,8 @@ export const MODELS = {
       isLightning: false,
       isComfyModel: true
     },
+    'ltx25-22b-int8_t2v_distilled': makeLtx25VideoConfig('t2v', 'distilled'),
+    'ltx25-22b-int8_t2v_dev': makeLtx25VideoConfig('t2v', 'dev'),
     'ltx23-22b-fp8_t2v_distilled': {
       id: 'ltx23-22b-fp8_t2v_distilled',
       name: 'LTX-2.3 22B FP8 T2V Distilled',
@@ -1106,6 +1173,8 @@ export const MODELS = {
       isLightning: false,
       isComfyModel: true
     },
+    'ltx25-22b-int8_i2v_distilled': makeLtx25VideoConfig('i2v', 'distilled'),
+    'ltx25-22b-int8_i2v_dev': makeLtx25VideoConfig('i2v', 'dev'),
     'ltx23-22b-fp8_i2v_distilled': {
       id: 'ltx23-22b-fp8_i2v_distilled',
       name: 'LTX-2.3 22B FP8 I2V Distilled',
@@ -1123,7 +1192,7 @@ export const MODELS = {
       defaultGuidance: 1.0,
       minGuidance: 1.0,
       maxGuidance: 2.0,
-      defaultStrength: 0.6,
+      defaultStrength: 0.7,
       minStrength: 0.3,
       maxStrength: 1.0,
       defaultComfySampler: 'euler',
@@ -1166,7 +1235,7 @@ export const MODELS = {
       defaultGuidance: 3.0,
       minGuidance: 1.0,
       maxGuidance: 10.0,
-      defaultStrength: 0.6,
+      defaultStrength: 0.7,
       minStrength: 0.3,
       maxStrength: 1.0,
       defaultComfySampler: 'euler',
@@ -1236,6 +1305,11 @@ export const MODELS = {
       isLightning: false,
       isComfyModel: true
     },
+    // LTX-2.5 standard audio-driven workflows; LTX-2.3 remains below as rollback.
+    'ltx25-22b-int8_ia2v_distilled': makeLtx25VideoConfig('ia2v', 'distilled'),
+    'ltx25-22b-int8_ia2v_dev': makeLtx25VideoConfig('ia2v', 'dev'),
+    'ltx25-22b-int8_a2v_distilled': makeLtx25VideoConfig('a2v', 'distilled'),
+    'ltx25-22b-int8_a2v_dev': makeLtx25VideoConfig('a2v', 'dev'),
     // LTX-2.3 Image+Audio to Video (ia2v) - requires referenceImage + referenceAudio
     'ltx23-ia2v-distilled': {
       id: 'ltx23-22b-fp8_ia2v_distilled',
@@ -1255,7 +1329,7 @@ export const MODELS = {
       defaultGuidance: 1.0,
       minGuidance: 1.0,
       maxGuidance: 2.0,
-      defaultStrength: 0.6,
+      defaultStrength: 0.7,
       minStrength: 0.3,
       maxStrength: 1.0,
       defaultComfySampler: 'euler',
@@ -1301,7 +1375,7 @@ export const MODELS = {
       defaultGuidance: 3.0,
       minGuidance: 1.0,
       maxGuidance: 10.0,
-      defaultStrength: 0.6,
+      defaultStrength: 0.7,
       minStrength: 0.3,
       maxStrength: 1.0,
       defaultComfySampler: 'euler',
@@ -1417,8 +1491,16 @@ export const MODELS = {
   },
 
   // Video-to-Video Models (ComfyUI workflow)
-  // Includes WAN animate models and LTX-2.3 ControlNet models
+  // Includes WAN animate models and LTX 2.5/2.3 control models.
   animate: {
+    'ltx25-v2v-distilled': {
+      ...makeLtx25VideoConfig('v2v', 'distilled'),
+      controlNetTypes: ['canny', 'pose', 'depth', 'detailer', 'outpaint', 'inpaint']
+    },
+    'ltx25-v2v-dev': {
+      ...makeLtx25VideoConfig('v2v', 'dev'),
+      controlNetTypes: ['canny', 'pose', 'depth', 'detailer']
+    },
     // LTX-2.3 V2V ControlNet Models (video-only, no reference image needed)
     'ltx23-v2v-distilled': {
       id: 'ltx23-22b-fp8_v2v_distilled',

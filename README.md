@@ -683,7 +683,7 @@ WAN workflows have two model variants optimized for different use cases:
 - **Speed variant** (with `_lightx2v` suffix) - Faster inference (4-step), good quality
 - **Quality variant** (without `_lightx2v`) - Slower inference, best quality
 
-LTX-2.3 models use `distilled` and `dev` variants for fast/high-quality generation with native audio. Seedance models use the external API path and are available through four canonical multimodal model IDs: `seedance-2-0`, `seedance-2-0-mini`, `seedance-2-0-fast`, and `seedance-2-5`. All accept optional image, video, and audio references, run at fixed 24fps, and require Spark billing; the full 2.0 model supports up to 4K, while Mini and Fast cap output at 720p. `seedance-2-5` is the newest generation: 480p/720p only (no 1080p and no 4K), 4-30 second single-call clips, first-and-last-frame conditioning, and a larger reference budget of 30 images, 10 videos, and 10 audios with at most 30 reference files in total. Happy Horse 1.1 is an external-API video model with text-to-video, image-to-video, and reference-to-video modes (`happyhorse-1.1-t2v` / `-i2v` / `-r2v`); it accepts image-only references (no video or audio reference assets), and is Spark-only.
+LTX 2.5 is the recommended LTX family; LTX 2.3 remains available for rollback and for its ID-LoRA, transition, and 10Eros-only paths. LTX 2.5 distilled models use the official direct distilled checkpoint at a fixed 8 steps. Dev models use the official 2.5 Dev checkpoint plus the required distilled Speed LoRA refinement. Both generate native audio. Seedance models use the external API path and are available through four canonical multimodal model IDs: `seedance-2-0`, `seedance-2-0-mini`, `seedance-2-0-fast`, and `seedance-2-5`.
 
 Example model IDs:
 
@@ -695,6 +695,11 @@ Example model IDs:
 - `wan_v2.2-14b-fp8_s2v` (Sound-to-Video, quality)
 - `wan_v2.2-14b-fp8_animate-move_lightx2v` (Animate-Move, speed)
 - `wan_v2.2-14b-fp8_animate-replace_lightx2v` (Animate-Replace, speed)
+- `ltx25-22b-int8_t2v_distilled` (LTX 2.5 Text-to-Video, fixed 8-step)
+- `ltx25-22b-int8_i2v_distilled` (LTX 2.5 Image/First+Last-Frame-to-Video, fixed 8-step)
+- `ltx25-22b-int8_a2v_distilled` / `ltx25-22b-int8_ia2v_distilled` (LTX 2.5 audio-driven video)
+- `ltx25-22b-int8_v2v_distilled` (LTX 2.5 controls plus inpaint/outpaint)
+- `ltx25-22b-int8_v2v_dev` (LTX 2.5 Dev + Speed LoRA controls; no inpaint/outpaint)
 - `ltx23-22b-fp8_t2v_distilled` (LTX-2.3 Text-to-Video, fast)
 - `ltx23-22b-fp8_i2v_distilled` (LTX-2.3 Image-to-Video, fast)
 - `ltx23-22b-10eros-v1.4-fp8mixed_i2v` (LTX-2.3 10Eros v1.4 Image-to-Video, 30GB+ workers, subject to server authorization)
@@ -716,8 +721,8 @@ who choose to use it must provide their own prompt and image to
 
 When creating video projects, you can specify:
 
-- `duration` - Duration in seconds. WAN supports 1-10s, LTX-2.3 supports 4-20s, Seedance direct SDK projects currently support 4-15s.
-- `fps` - Frames per second. WAN supports 16/32 output, LTX-2.3 supports 1-60 native FPS, Seedance is fixed at 24fps.
+- `duration` - Duration in seconds. WAN supports 1-10s, LTX 2.5 supports 2-20s, LTX 2.3 supports 4-20s, Seedance direct SDK projects currently support 4-15s.
+- `fps` - Frames per second. WAN supports 16/32 output, LTX 2.x supports 1-60 native FPS, Seedance is fixed at 24fps.
 - `frames` - Number of frames. Prefer `duration`; the SDK calculates model-correct frame counts.
 - `width` - Video width in pixels
 - `height` - Video height in pixels

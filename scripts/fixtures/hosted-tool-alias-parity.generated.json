@@ -83,7 +83,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_video",
       "sdkToolName": "generate_video",
-      "hostedSchemaSha256": "473343ffecf31bae99b9289ab72f561cc11c38c6217ea17d45b06a7398ff8598",
+      "hostedSchemaSha256": "9ec2ccff50d83352f290b02163a1e4123fe5ca4bd60f78a6de38b1d21baa35b8",
       "hostedRequired": [
         "prompt"
       ],
@@ -126,7 +126,7 @@
       "executionMode": "direct",
       "hostedToolName": "animate_photo",
       "sdkToolName": "animate_photo",
-      "hostedSchemaSha256": "2e71fc025585f5a69aa4d3bafef0ce8dad81f20c878e952bc252fcc7f3406a65",
+      "hostedSchemaSha256": "2847bfd63eb8cf9047a815dc22750eb78bb73ad8a72911688e031ec909018e33",
       "hostedRequired": [
         "prompt"
       ],
@@ -171,13 +171,14 @@
       "executionMode": "direct",
       "hostedToolName": "sound_to_video",
       "sdkToolName": "sound_to_video",
-      "hostedSchemaSha256": "c655e2ff5fd6e84bccd64defef30c763ae9d091de2ab97621792a45a584d9720",
+      "hostedSchemaSha256": "3cddc07af7e176c22fdcaca576f429744de5ba28a09e1733378d3786798bfbf4",
       "hostedRequired": [
         "prompt"
       ],
       "hostedPropertyNames": [
         "prompt",
         "expandPrompt",
+        "negativePrompt",
         "audioSourceIndex",
         "sourceImageIndex",
         "audioStart",
@@ -207,7 +208,7 @@
       "executionMode": "direct",
       "hostedToolName": "video_to_video",
       "sdkToolName": "video_to_video",
-      "hostedSchemaSha256": "356c7d03e6b97b55118eb17f0b0d2d81bc28c3aeb6e629ee3ad8a1e7014c803e",
+      "hostedSchemaSha256": "40464da687bc760ed2deb9ca65d71aefb472b3a5be85cca3e81a931f74adda88",
       "hostedRequired": [
         "prompt"
       ],

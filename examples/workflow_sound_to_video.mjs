@@ -4,8 +4,8 @@
  *
  * This script generates videos from audio files using various audio-driven models:
  * - WAN 2.2 S2V: Sound-to-video with reference image (lip-sync/motion-sync)
- * - LTX-2.3 IA2V: Image+audio to video with 22B model (audio-reactive, distilled/dev)
- * - LTX-2.3 A2V: Audio to video with 22B model (audio-reactive generation, distilled/dev)
+ * - LTX 2.5/2.3 IA2V: Image+audio to video (audio-reactive, distilled/dev)
+ * - LTX 2.5/2.3 A2V: Audio to video (audio-reactive generation, distilled/dev)
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
@@ -21,7 +21,7 @@
  *   --audio       Audio file path (required, m4a/mp3/wav)
  *   --audio-start Start position in audio in seconds (default: 0)
  *   --audio-duration  Duration of audio to use in seconds (default: auto from video)
- *   --model       Model: lightx2v, quality, ltx23-ia2v-distilled, ltx23-a2v-distilled, ltx23-ia2v-dev, ltx23-a2v-dev (default: prompts)
+ *   --model       Model: lightx2v, quality, or an LTX 2.5/2.3 IA2V/A2V model key (default: prompts)
  *   --width       Video width (default: auto from image, min: 480)
  *   --height      Video height (default: auto from image, min: 480)
  *   --duration    Duration in seconds (default: 5, converts to frames)
@@ -209,6 +209,10 @@ Usage:
 Available Models:
   lightx2v             - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
   quality              - WAN 2.2 14B S2V (high quality, 20-step)
+  ltx25-22b-int8_ia2v_distilled - LTX 2.5 Image+Audio (official fixed 8-step distilled)
+  ltx25-22b-int8_ia2v_dev       - LTX 2.5 Image+Audio (Dev + official Speed LoRA)
+  ltx25-22b-int8_a2v_distilled  - LTX 2.5 Audio only (official fixed 8-step distilled)
+  ltx25-22b-int8_a2v_dev        - LTX 2.5 Audio only (Dev + official Speed LoRA)
   ltx23-ia2v-distilled - LTX-2.3 22B Image+Audio to Video (fast, 8-step, requires image)
   ltx23-ia2v-dev       - LTX-2.3 22B Image+Audio to Video (quality, 30-step, requires image)
   ltx23-a2v-distilled  - LTX-2.3 22B Audio to Video (fast, 8-step, no image needed)

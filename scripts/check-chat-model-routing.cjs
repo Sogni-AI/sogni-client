@@ -719,6 +719,8 @@ assert.equal(asBooleanValue('false'), undefined);
 assert.equal(normalizeTimeSignature('7/8'), '7/8');
 assert.equal(normalizeTimeSignature(3.8), '4');
 assert.equal(normalizeVideoControlMode('depth'), 'depth');
+assert.equal(normalizeVideoControlMode('outpaint'), 'outpaint');
+assert.equal(normalizeVideoControlMode('inpaint'), 'inpaint');
 assert.equal(normalizeVideoControlMode('seedance-v2v'), 'seedance-v2v');
 assert.equal(normalizeVideoControlMode('unknown'), 'animate-move');
 assert.equal(getHostedVariationCount({ numberOfVariations: 20 }), 16);
@@ -816,6 +818,17 @@ assert.equal(
   'future_live_model'
 );
 assert.equal(
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'ltx25' }),
+  PREFERRED_MODEL_IDS.video.ltx25T2vDistilled
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', {
+    videoModel: 'ltx25',
+    referenceImageIndices: [-1]
+  }),
+  PREFERRED_MODEL_IDS.video.ltx25I2vDistilled
+);
+assert.equal(
   resolveHostedToolModelSelector('generate_video', { videoModel: 'ltx23' }),
   PREFERRED_MODEL_IDS.video.t2v
 );
@@ -909,12 +922,28 @@ assert.equal(
   PREFERRED_MODEL_IDS.video.happyhorseI2v
 );
 assert.equal(
+  resolveHostedToolModelSelector('video_to_video', { videoModel: 'ltx25-v2v' }),
+  PREFERRED_MODEL_IDS.video.ltx25V2vDistilled
+);
+assert.equal(
+  resolveHostedToolModelSelector('video_to_video', { videoModel: 'ltx23-v2v' }),
+  PREFERRED_MODEL_IDS.video.v2v
+);
+assert.equal(
   resolveHostedToolModelSelector('video_to_video', { videoModel: 'seedance2' }),
   PREFERRED_MODEL_IDS.video.seedanceV2v
 );
 assert.equal(
   resolveHostedToolModelSelector('video_to_video', { videoModel: 'seedance2-5' }),
   PREFERRED_MODEL_IDS.video.seedance25V2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('sound_to_video', { videoModel: 'ltx25-ia2v' }),
+  PREFERRED_MODEL_IDS.video.ltx25Ia2vDistilled
+);
+assert.equal(
+  resolveHostedToolModelSelector('sound_to_video', { videoModel: 'ltx25-a2v' }),
+  PREFERRED_MODEL_IDS.video.ltx25A2vDistilled
 );
 assert.equal(
   resolveHostedToolModelSelector('sound_to_video', { videoModel: 'wan-s2v' }),

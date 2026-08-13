@@ -330,7 +330,18 @@ Example: 5 seconds at 24fps = 121 frames
 - Speed models (`_distilled` suffix): 8-step, faster
 - Quality models (`_dev` suffix or no suffix): 20-step, best quality
 
-**LTX-2.3 22B (Recommended):**
+**LTX 2.5 22B (Recommended):**
+| Workflow | Fast/HQ (official fixed 8-step distilled) | Pro (Dev + official Speed LoRA) |
+|----------|------|---------|
+| Text-to-Video | `ltx25-22b-int8_t2v_distilled` | `ltx25-22b-int8_t2v_dev` |
+| Image/First+Last-Frame-to-Video | `ltx25-22b-int8_i2v_distilled` | `ltx25-22b-int8_i2v_dev` |
+| Audio-to-Video | `ltx25-22b-int8_a2v_distilled` | `ltx25-22b-int8_a2v_dev` |
+| Image+Audio-to-Video | `ltx25-22b-int8_ia2v_distilled` | `ltx25-22b-int8_ia2v_dev` |
+| Video-to-Video | `ltx25-22b-int8_v2v_distilled` | `ltx25-22b-int8_v2v_dev` |
+
+LTX 2.5 V2V supports canny/pose/depth/detailer in both variants. Inpaint/outpaint use the distilled ID only. Persona voice ID-LoRA, transition LoRA, and 10Eros remain LTX 2.3-only.
+
+**LTX-2.3 22B (rollback):**
 | Workflow | Fast | Quality |
 |----------|------|---------|
 | Text-to-Video | `ltx23-22b-fp8_t2v_distilled` | `ltx23-22b-fp8_t2v_dev` |
@@ -688,9 +699,9 @@ Default generation models used by platform tools:
 |------|-------|-------------|
 | `generate_image` | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step |
 | `edit_image` | workflow/model-dependent | Reference-guided image editing with edit-capable Qwen/Flux models |
-| `generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
-| `sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
-| `video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
+| `generate_video` | ltx25-22b-int8_t2v_distilled / ltx25-22b-int8_i2v_distilled / LTX 2.3 rollback / Seedance selectors | Text-to-video or image-to-video |
+| `sound_to_video` | ltx25-22b-int8_a2v_distilled / ltx25-22b-int8_ia2v_distilled / LTX 2.3 rollback | Audio-driven video generation |
+| `video_to_video` | ltx25-22b-int8_v2v_distilled / ltx25-22b-int8_v2v_dev / LTX 2.3 rollback / Seedance / WAN animate | Video transformation / motion transfer |
 | `generate_music` | ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo, fast music |
 
 ---

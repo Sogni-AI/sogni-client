@@ -198,6 +198,8 @@ Usage:
 Available Models:
   wan_v2.2-14b-fp8_t2v_lightx2v  (WAN 2.2, fast 4-step, 1-10s, default)
   wan_v2.2-14b-fp8_t2v           (WAN 2.2, high quality 20-step, 1-10s)
+  ltx25-22b-int8_t2v_distilled    (LTX 2.5, official fixed 8-step distilled workflow, 2-20s)
+  ltx25-22b-int8_t2v_dev          (LTX 2.5 Dev + official Speed LoRA refinement, 2-20s)
   ltx23-22b-fp8_t2v_distilled    (LTX-2.3, fast 8-step, 22B model, 4-20s, 2x upscaled output)
   ltx23-22b-fp8_t2v_dev          (LTX-2.3, high quality 30-step, 22B model, 4-20s, 2x upscaled output)
 Model-Specific Constraints:
@@ -255,7 +257,7 @@ async function main() {
     modelConfig = MODELS.t2v[OPTIONS.modelKey];
     if (!modelConfig) {
       console.error(
-        `Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_t2v_lightx2v, wan_v2.2-14b-fp8_t2v, ltx23-22b-fp8_t2v_distilled, ltx23-22b-fp8_t2v_dev`
+        `Error: Unknown model '${OPTIONS.modelKey}'. Available: wan_v2.2-14b-fp8_t2v_lightx2v, wan_v2.2-14b-fp8_t2v, ltx25-22b-int8_t2v_distilled, ltx25-22b-int8_t2v_dev, ltx23-22b-fp8_t2v_distilled, ltx23-22b-fp8_t2v_dev`
       );
       process.exit(1);
     }

@@ -769,7 +769,7 @@ function applyVideoParams(
   }
 
   // Video generation parameters
-  // Note: fps must be processed before duration to correctly calculate frames for LTX-2.3 models
+  // Note: fps must be processed before duration to correctly calculate frames for LTX 2.x models
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;
   } else if (isExternalApiVideoModel(params.modelId) || isMinimaxH3Model(params.modelId)) {
@@ -795,7 +795,7 @@ function applyVideoParams(
     );
     // Use fps from params or default based on model type:
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
-    // - LTX-2.3: fps directly affects frame count (default 24fps if not specified)
+    // - LTX 2.x: fps directly affects frame count (default 24fps if not specified)
     // - Seedance / HappyHorse: fixed 24fps external API generation
     const fps = params.fps ?? 24;
     keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
@@ -841,12 +841,12 @@ function applyVideoParams(
     keyFrame.lastFrameStrength = params.lastFrameStrength;
   }
 
-  // ControlNet parameters for LTX-2.3 v2v workflows
+  // Control parameters for LTX 2.5/2.3 v2v workflows
   if (params.controlNet) {
     keyFrame.currentControlNetsJob = getVideoControlNet(params.controlNet);
   }
 
-  // Detailer LoRA strength for LTX-2.3 v2v IC-Control workflows
+  // Detailer LoRA strength for LTX 2.5/2.3 v2v IC-Control workflows
   if (params.detailerStrength !== undefined) {
     keyFrame.detailerStrength = params.detailerStrength;
   }
@@ -862,7 +862,7 @@ function applyVideoParams(
     }
   }
 
-  // Outpaint canvas anchor for LTX-2.3 v2v outpaint workflows
+  // Outpaint canvas anchor for distilled LTX 2.5 or LTX 2.3 v2v workflows
   if (params.outpaintPosition !== undefined) {
     keyFrame.outpaintPosition = params.outpaintPosition;
   }

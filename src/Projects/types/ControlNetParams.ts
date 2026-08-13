@@ -20,7 +20,7 @@ export type ControlNetName =
   | 'instantid';
 
 /**
- * Video ControlNet model names for LTX-2.3 v2v workflows
+ * Video control model names for LTX 2.5/2.3 v2v workflows
  * @inline
  */
 export type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer' | 'outpaint' | 'inpaint';
@@ -99,7 +99,7 @@ export interface VideoControlNetParamsRaw {
 }
 
 /**
- * Video ControlNet parameters for LTX-2.3 v2v workflows.
+ * Video control parameters for LTX 2.5/2.3 v2v workflows.
  * The control input is provided via `referenceVideo` in VideoProjectParams.
  */
 export interface VideoControlNetParams {

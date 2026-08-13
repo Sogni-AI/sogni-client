@@ -57,7 +57,9 @@ export type VideoControlMode =
   | 'canny'
   | 'pose'
   | 'depth'
-  | 'detailer';
+  | 'detailer'
+  | 'outpaint'
+  | 'inpaint';
 
 export interface BackboneAvailableModel {
   id: string;
@@ -91,6 +93,16 @@ export const PREFERRED_MODEL_IDS = {
     darkBeastKrea2IdentityEdit: 'dark_beast_krea2_identity_edit_v1_2'
   },
   video: {
+    ltx25T2vDistilled: 'ltx25-22b-int8_t2v_distilled',
+    ltx25I2vDistilled: 'ltx25-22b-int8_i2v_distilled',
+    ltx25A2vDistilled: 'ltx25-22b-int8_a2v_distilled',
+    ltx25Ia2vDistilled: 'ltx25-22b-int8_ia2v_distilled',
+    ltx25V2vDistilled: 'ltx25-22b-int8_v2v_distilled',
+    ltx25T2vDev: 'ltx25-22b-int8_t2v_dev',
+    ltx25I2vDev: 'ltx25-22b-int8_i2v_dev',
+    ltx25A2vDev: 'ltx25-22b-int8_a2v_dev',
+    ltx25Ia2vDev: 'ltx25-22b-int8_ia2v_dev',
+    ltx25V2vDev: 'ltx25-22b-int8_v2v_dev',
     t2v: 'ltx23-22b-fp8_t2v_distilled',
     i2v: 'ltx23-22b-fp8_i2v_distilled',
     a2v: 'ltx23-22b-fp8_a2v_distilled',
@@ -214,6 +226,7 @@ const EDIT_IMAGE_MODEL_SELECTORS: Record<string, string> = {
 };
 
 const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
+  ltx25: PREFERRED_MODEL_IDS.video.ltx25T2vDistilled,
   ltx23: PREFERRED_MODEL_IDS.video.t2v,
   wan22: 'wan_v2.2-14b-fp8_t2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceT2v,
@@ -229,6 +242,7 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
 };
 
 const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
+  ltx25: PREFERRED_MODEL_IDS.video.ltx25I2vDistilled,
   ltx23: PREFERRED_MODEL_IDS.video.i2v,
   wan22: 'wan_v2.2-14b-fp8_i2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceI2v,
@@ -248,6 +262,8 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
 };
 
 const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
+  ltx25: PREFERRED_MODEL_IDS.video.ltx25V2vDistilled,
+  'ltx25-v2v': PREFERRED_MODEL_IDS.video.ltx25V2vDistilled,
   ltx23: PREFERRED_MODEL_IDS.video.v2v,
   'ltx23-v2v': PREFERRED_MODEL_IDS.video.v2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v,
@@ -259,6 +275,8 @@ const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25Ia2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceIa2v,
+  'ltx25-ia2v': PREFERRED_MODEL_IDS.video.ltx25Ia2vDistilled,
+  'ltx25-a2v': PREFERRED_MODEL_IDS.video.ltx25A2vDistilled,
   'ltx23-ia2v': PREFERRED_MODEL_IDS.video.ia2v,
   'ltx23-a2v': PREFERRED_MODEL_IDS.video.a2v
 };
@@ -305,6 +323,8 @@ export function normalizeVideoControlMode(value: unknown): VideoControlMode {
     case 'pose':
     case 'depth':
     case 'detailer':
+    case 'outpaint':
+    case 'inpaint':
       return value;
     default:
       return 'animate-move';

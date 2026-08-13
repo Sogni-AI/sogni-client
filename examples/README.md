@@ -240,7 +240,7 @@ node workflow_image_to_video.mjs --image test-assets/placeholder.jpg
 
 ```bash
 node workflow_video_to_video.mjs  # Animate-Move / Animate-Replace
-node workflow_video_to_video.mjs "restyle this as watercolor" --video source.mp4 --model ltx23-v2v-distilled
+node workflow_video_to_video.mjs "restyle this as watercolor" --video source.mp4 --model ltx25-v2v-distilled
 ```
 
 **Chat with an LLM (streaming):**
@@ -522,21 +522,22 @@ node workflow_sound_to_video.mjs --model lightx2v
 
 #### `workflow_video_to_video.mjs`
 
-Transform existing videos with **Animate-Move** (motion transfer), **Animate-Replace** (character replacement), and **LTX-2.3 V2V ControlNet** capabilities.
+Transform existing videos with **Animate-Move** (motion transfer), **Animate-Replace** (character replacement), and LTX 2.5 V2V controls. LTX 2.3 remains selectable as rollback.
 
 **Usage:**
 
 ```bash
 node workflow_video_to_video.mjs                          # Interactive mode
 node workflow_video_to_video.mjs --video source.mp4
-node workflow_video_to_video.mjs "restyle as watercolor" --video source.mp4 --model ltx23-v2v-distilled
+node workflow_video_to_video.mjs "restyle as watercolor" --video source.mp4 --model ltx25-v2v-distilled
 ```
 
 **Available Modes:**
 
 - **Animate-Move** - Transfer motion and emotion from reference video to your subject image
 - **Animate-Replace** - Replace characters in video while preserving original motion
-- **LTX-2.3 V2V ControlNet** - Canny, pose, depth, and detailer control
+- **LTX 2.5 V2V** - Canny, pose, depth, and detailer in distilled/dev; inpaint/outpaint in distilled
+- **LTX 2.3 V2V rollback** - Use `--model ltx23-v2v-distilled` when rollback is required
 
 **Features:**
 
@@ -911,7 +912,7 @@ At **32 FPS**:
 - 161 frames = ~5 seconds
 - 321 frames would be ~10 seconds (but max is 161)
 
-For LTX-2.3 examples, prefer `--duration`; the scripts calculate model-correct frame counts. The partner Seedance video example also uses `--duration` and covers Seedance's fixed 24fps paths.
+For LTX 2.x examples, prefer `--duration`; the scripts calculate model-correct frame counts. The partner Seedance video example also uses `--duration` and covers Seedance's fixed 24fps paths.
 
 **Cost Note:** Longer videos (more frames) cost more tokens. A 161-frame video costs roughly 2x as much as an 81-frame video.
 

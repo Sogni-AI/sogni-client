@@ -54,7 +54,9 @@ export interface BaseProjectParams {
    */
   positivePrompt: string;
   /**
-   * Prompt for what to be avoided. If not provided, server default is used.
+   * Prompt for what to be avoided. LTX 2.5, LTX 2.3, and WAN video workflows
+   * accept this field; provider workflows such as MiniMax H3 and Seedance do not.
+   * If not provided, the server or workflow default is used.
    */
   negativePrompt?: string;
   /**
@@ -136,7 +138,7 @@ export type InputMedia = File | Buffer | Blob | boolean;
 
 /**
  * Video-specific parameters for video workflows (t2v, i2v, s2v, ia2v, a2v, animate).
- * Only applicable when using video models like wan_v2.2-14b-fp8_t2v or ltx23-22b-fp8_t2v_distilled.
+ * Only applicable when using video models like wan_v2.2-14b-fp8_t2v or ltx25-22b-int8_t2v_distilled.
  * Includes frame count, fps, shift, and reference assets (image, audio, video).
  *
  * ## Important: FPS and Frame Count Behavior Differs by Model
@@ -148,7 +150,7 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Frame count is always calculated as: `duration * 16 + 1`
  * - Example: 5 seconds at 32fps = 81 frames generated, then interpolated to 161 output frames
  *
- * ### LTX-2.3 Models (ltx2-*, ltx23-*)
+ * ### LTX 2.x Models (ltx2-*, ltx23-*, ltx25-*)
  * - Generate video at the actual specified FPS (1-60 fps range)
  * - No post-render interpolation - fps directly affects generation
  * - Frame count is calculated as: `duration * fps + 1`
@@ -240,13 +242,13 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   frames?: number;
   /**
-   * Duration of the video in seconds. Supported range 1 to 10 (WAN), 4 to 20 (LTX-2.3),
+   * Duration of the video in seconds. Supported range 1 to 10 (WAN), 2 to 20 (LTX 2.5), 4 to 20 (LTX 2.3),
    * 4 to 15 (Seedance direct SDK projects), 3 to 15 (HappyHorse direct SDK projects),
    * or 124/24 to 362/24 seconds (MiniMax H3).
    *
    * The SDK automatically calculates the correct frame count based on the model:
    * - WAN 2.2: `duration * 16 + 1` (always 16fps generation)
-   * - LTX-2.3: `duration * fps + 1`, snapped to frame step constraint
+   * - LTX 2.x: `duration * fps + 1`, snapped to frame step constraint
    * - Seedance: `duration * 24 + 1`
    * - HappyHorse: `duration * 24 + 1`
    * - MiniMax H3: `duration * 24` snapped to the `124 + n*17` grid and clamped
@@ -259,7 +261,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * **WAN 2.2 Models:** Only 16 or 32 fps allowed. The 32fps option is post-render
    * frame interpolation that doubles the output frames. Internal generation is always 16fps.
    *
-   * **LTX-2.3 Models:** Any value from 1-60 fps. This directly controls the generation
+   * **LTX 2.x Models:** Any value from 1-60 fps. This directly controls the generation
    * frame rate - there is no post-render interpolation.
    *
    * **Seedance Models:** Fixed 24fps external API generation.
@@ -404,7 +406,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceVideos?: InputMedia[];
   /**
-   * Inpaint mask IMAGE for LTX-2.3 v2v inpaint workflows.
+   * Inpaint mask IMAGE for distilled LTX 2.5 or LTX 2.3 v2v inpaint workflows.
    * White pixels mark the region to regenerate. Maps to jobKey 'referenceMask'.
    * Used by the 'inpaint' control type.
    */
@@ -416,12 +418,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceVideoUrls?: string[];
   /**
-   * ControlNet parameters for LTX-2.3 v2v workflows.
+   * Control parameters for LTX 2.5 or LTX 2.3 v2v workflows.
    * Specifies which control signal to extract from the reference video.
    */
   controlNet?: VideoControlNetParams;
   /**
-   * Detailer LoRA strength for LTX-2.3 v2v IC-Control workflows.
+   * Detailer LoRA strength for LTX 2.5 or LTX 2.3 v2v IC-Control workflows.
    * The detailer LoRA is always loaded alongside the control LoRA (canny/pose/depth).
    * Range: 0.0-1.0, default 0.6.
    */
@@ -486,7 +488,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   sam2Coordinates?: Array<{ x: number; y: number }>;
   /**
-   * Outpaint canvas anchor for LTX-2.3 v2v outpaint workflows.
+   * Outpaint canvas anchor for distilled LTX 2.5 or LTX 2.3 v2v outpaint workflows.
    * Determines where the original frame is placed within the expanded canvas.
    * Default: 'center'.
    */
@@ -827,7 +829,7 @@ export interface CostEstimation {
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
 
 /**
- * Video workflow types for WAN, LTX-2.3, Seedance, HappyHorse, and MiniMax H3
+ * Video workflow types for WAN, LTX 2.5/2.3, Seedance, HappyHorse, and MiniMax H3
  * models.
  * `r2v` (reference-to-video) is the multi-reference workflow shared by
  * HappyHorse (1-9 reference images fetched from `referenceImageUrls`) and

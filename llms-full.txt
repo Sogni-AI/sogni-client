@@ -620,7 +620,22 @@ The SDK automatically snaps to valid frame counts.
 
 Example: 5 seconds at 24fps = 121 frames (1 + 15\*8 = 121)
 
-LTX-2.3 22B MODELS (Recommended):
+LTX 2.5 22B MODELS (Recommended):
+
+- Distilled models use the official direct distilled checkpoint at a fixed 8 steps.
+- Dev models use the official Dev checkpoint plus the required distilled Speed LoRA refinement.
+
+| Workflow             | Model ID (Fast/HQ)                  | Model ID (Pro)               |
+| -------------------- | ----------------------------------- | ---------------------------- |
+| Text-to-Video        | ltx25-22b-int8_t2v_distilled        | ltx25-22b-int8_t2v_dev       |
+| Image/FLF-to-Video   | ltx25-22b-int8_i2v_distilled        | ltx25-22b-int8_i2v_dev       |
+| Audio-to-Video       | ltx25-22b-int8_a2v_distilled        | ltx25-22b-int8_a2v_dev       |
+| Image+Audio-to-Video | ltx25-22b-int8_ia2v_distilled       | ltx25-22b-int8_ia2v_dev      |
+| Video-to-Video       | ltx25-22b-int8_v2v_distilled        | ltx25-22b-int8_v2v_dev       |
+
+LTX 2.5 V2V supports canny/pose/depth/detailer in both variants; inpaint/outpaint use distilled only. Persona voice ID-LoRA, transition LoRA, and 10Eros remain LTX 2.3-only.
+
+LTX-2.3 22B MODELS (Rollback):
 
 - Speed models (with \_distilled suffix): 8-step, faster, good quality
 - Quality models (with \_dev suffix): 20-step, slower, best quality
@@ -1426,9 +1441,9 @@ DEFAULT GENERATION MODELS (used by the canonical generation tools):
 |------|----------|-------------|
 | `generate_image` | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step generation |
 | `edit_image` | workflow/model-dependent | Reference-guided image editing with edit-capable Qwen/Flux models |
-| `generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
-| `sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
-| `video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
+| `generate_video` | ltx25-22b-int8_t2v_distilled / ltx25-22b-int8_i2v_distilled / LTX 2.3 rollback / Seedance selectors | Text-to-video or image-to-video |
+| `sound_to_video` | ltx25-22b-int8_a2v_distilled / ltx25-22b-int8_ia2v_distilled / LTX 2.3 rollback | Audio-driven video generation |
+| `video_to_video` | ltx25-22b-int8_v2v_distilled / ltx25-22b-int8_v2v_dev / LTX 2.3 rollback / Seedance / WAN animate | Video transformation / motion transfer |
 | `generate_music` | ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo, fast music generation |
 
 PLATFORM TOOL WORKFLOW:

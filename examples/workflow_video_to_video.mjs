@@ -8,7 +8,7 @@
  * - animate-move: Camera movement animation (pans, zooms, etc.)
  * - animate-replace: Replace subjects in the source video with the reference image
  *
- * LTX-2.3 V2V ControlNet Models (with control type selection):
+ * LTX 2.5/2.3 V2V ControlNet Models (with control type selection):
  * - canny: Edge detection-based control (video only)
  * - pose: Skeleton/pose-based control (optional image for appearance + video for motion)
  * - depth: Depth map control (video only)
@@ -25,8 +25,8 @@
  *   node workflow_video_to_video.mjs --image person.jpg --video motion.mp4
  *   node workflow_video_to_video.mjs "Dancing character" --image char.jpg --video dance.mp4
  *
- *   # LTX-2.3 V2V ControlNet
- *   node workflow_video_to_video.mjs --video source.mp4 --model ltx23-v2v-distilled --control-type canny
+ *   # LTX 2.5/2.3 V2V ControlNet
+ *   node workflow_video_to_video.mjs --video source.mp4 --model ltx25-v2v-distilled --control-type canny
  *   node workflow_video_to_video.mjs "A dancing figure" --video dance.mp4 --control-type pose
  *   node workflow_video_to_video.mjs --video clip.mp4 --control-type outpaint --outpaint-position right
  *   node workflow_video_to_video.mjs "glowing blue eyes" --video face.mp4 --control-type inpaint --mask mask.png
@@ -35,7 +35,7 @@
  *   --image       Reference image path (required for WAN animate, optional for pose)
  *   --video       Source video path (required)
  *   --model       Model to use (see available models below)
- *   --control-type Control type for LTX-2.3 V2V: canny, pose, depth, detailer, outpaint, inpaint
+ *   --control-type Control type for LTX 2.5/2.3 V2V: canny, pose, depth, detailer, outpaint, inpaint
  *   --mask        Mask IMAGE for inpaint (white pixels = region to regenerate)
  *   --outpaint-position  Outpaint canvas anchor: center, top, bottom, left, right (required for outpaint)
  *   --sam2-coords SAM2 click coordinates for subject detection (animate-replace only)
@@ -247,19 +247,23 @@ Usage:
   node workflow_video_to_video.mjs --image person.jpg --video motion.mp4
   node workflow_video_to_video.mjs "Dancing character" --image char.jpg --video dance.mp4
 
-  # LTX-2.3 V2V ControlNet (video only)
-  node workflow_video_to_video.mjs --video source.mp4 --model ltx23-v2v-distilled --control-type canny
+  # LTX 2.5 V2V controls (video only)
+  node workflow_video_to_video.mjs --video source.mp4 --model ltx25-v2v-distilled --control-type canny
 
 Available Models:
-  LTX-2.3 V2V ControlNet (video only, with audio):
-    ltx23-v2v-distilled - LTX-2.3 V2V ControlNet Fast (8-step, recommended)
-    ltx23-v2v-dev       - LTX-2.3 V2V ControlNet Quality (30-step)
+  LTX 2.5 V2V (default, video only, with audio):
+    ltx25-v2v-distilled - Official fixed 8-step distilled; canny/pose/depth/detailer/inpaint/outpaint
+    ltx25-v2v-dev       - Dev + official Speed LoRA; canny/pose/depth/detailer
+
+  LTX 2.5/2.3 V2V ControlNet (video only, with audio):
+    ltx23-v2v-distilled - LTX 2.5/2.3 V2V ControlNet Fast (8-step rollback)
+    ltx23-v2v-dev       - LTX 2.5/2.3 V2V ControlNet Quality (30-step)
 
   WAN Animate (requires reference image + video):
     move-lightx2v      - WAN 2.2 14B Animate-Move LightX2V (camera movement)
     replace-lightx2v   - WAN 2.2 14B Animate-Replace LightX2V (subject replacement)
 
-Control Types (LTX-2.3 V2V only):
+Control Types (LTX 2.5/2.3 V2V):
     canny    - Edge detection (preserves outlines, video only)
     pose     - Skeleton control (optional image for appearance + video for motion)
     depth    - Depth map control (preserves spatial relationships, video only)
@@ -271,7 +275,7 @@ Options:
   --video         Source video path (required)
   --image         Reference image path (required for WAN animate, optional for pose)
   --model         Model key (see available models above)
-  --control-type  Control type for LTX-2.3 V2V: canny, pose, depth, detailer, outpaint, inpaint
+  --control-type  Control type for LTX V2V: canny, pose, depth, detailer, outpaint, inpaint
   --mask          Mask IMAGE for inpaint (white pixels = region to regenerate)
   --outpaint-position  Outpaint canvas anchor: center, top, bottom, left, right (required for outpaint)
   --sam2-coords   SAM2 click coordinates for animate-replace (format: "x,y", 0-1 normalized)
@@ -300,16 +304,16 @@ ${billingModeHelpText()}
   --help          Show this help message
 
 Examples:
-  # LTX-2.3 V2V with canny control (fast)
-  node workflow_video_to_video.mjs --video dance.mp4 --model ltx23-v2v-distilled --control-type canny
+  # LTX 2.5 V2V with canny control (fast)
+  node workflow_video_to_video.mjs --video dance.mp4 --model ltx25-v2v-distilled --control-type canny
 
-  # LTX-2.3 V2V with pose control (requires image for appearance)
+  # LTX 2.5/2.3 V2V with pose control (requires image for appearance)
   node workflow_video_to_video.mjs "A robot dancing" --image robot.jpg --video dance.mp4 --control-type pose
 
-  # LTX-2.3 V2V outpaint (extend canvas; positional anchor)
+  # LTX 2.5/2.3 V2V outpaint (extend canvas; positional anchor)
   node workflow_video_to_video.mjs --video clip.mp4 --control-type outpaint --outpaint-position right
 
-  # LTX-2.3 V2V inpaint (regenerate masked region; mask IMAGE white = region to regenerate)
+  # LTX 2.5/2.3 V2V inpaint (regenerate masked region; mask IMAGE white = region to regenerate)
   node workflow_video_to_video.mjs "A red car" --video street.mp4 --control-type inpaint --mask mask.png
 
   # WAN animate-move with reference image
@@ -420,11 +424,11 @@ async function main() {
   // Interactive mode: select model first to know if we need a reference image
   let modelConfig;
   if (OPTIONS.interactive && !OPTIONS.modelKey) {
-    const selection = await selectModel(MODELS.animate, 'ltx23-v2v-distilled');
+    const selection = await selectModel(MODELS.animate, 'ltx25-v2v-distilled');
     OPTIONS.modelKey = selection.key;
     modelConfig = selection.config;
   } else {
-    OPTIONS.modelKey = OPTIONS.modelKey || 'ltx23-v2v-distilled';
+    OPTIONS.modelKey = OPTIONS.modelKey || 'ltx25-v2v-distilled';
     modelConfig = MODELS.animate[OPTIONS.modelKey];
     if (!modelConfig) {
       const availableModels = Object.keys(MODELS.animate).join(', ');
@@ -436,7 +440,7 @@ async function main() {
   log('🎬', `Selected model: ${modelConfig.name}`);
   log('🎬', `Workflow type: ${modelConfig.workflowType}`);
 
-  // LTX-2.3 V2V: Select control type FIRST (before determining image requirement)
+  // LTX V2V: select control type first (before determining image requirement).
   if (modelConfig.supportsControlNet) {
     if (OPTIONS.interactive && !OPTIONS.controlNetType) {
       await promptControlNetType(OPTIONS, modelConfig);
@@ -490,11 +494,11 @@ async function main() {
 
   // Determine if this model requires a reference image
   // WAN animate models always require a reference image
-  // LTX-2.3 V2V control types (canny, depth, pose) - image is optional for pose
+  // LTX 2.5/2.3 V2V control types (canny, depth, pose) - image is optional for pose
   let requiresImage = modelConfig.requiresReferenceImage !== false;
   let imageOptional = false;
 
-  // For LTX-2.3 V2V with pose control, reference image is optional
+  // For LTX 2.5/2.3 V2V with pose control, reference image is optional
   // If provided: appearance comes from reference image
   // If not provided: generates from prompt with only pose control
   if (modelConfig.supportsControlNet && OPTIONS.controlNetType === 'pose') {
@@ -565,7 +569,7 @@ async function main() {
     }
   }
 
-  // For LTX-2.3 V2V, auto-detect source video duration, dimensions, and FPS
+  // For LTX 2.5/2.3 V2V, auto-detect source video duration, dimensions, and FPS
   let sourceVideoDuration = null;
   let sourceVideoDimensions = null;
   let sourceVideoFps = null;
@@ -622,7 +626,7 @@ async function main() {
     modelConfig.defaultHeight = imageInfo.height;
   }
 
-  // For LTX-2.3 V2V, calculate recommended dimensions from source video
+  // For LTX 2.5/2.3 V2V, calculate recommended dimensions from source video
   // Scale proportionally to maintain aspect ratio, then align to step size
   let recommendedWidth = modelConfig.defaultWidth;
   let recommendedHeight = modelConfig.defaultHeight;
@@ -684,7 +688,7 @@ async function main() {
       await promptVideoFps(OPTIONS, modelConfig);
     }
 
-    // Video duration - for LTX-2.3 V2V, auto-set from source video if detected
+    // Video duration - for LTX 2.5/2.3 V2V, auto-set from source video if detected
     if (modelConfig.supportsControlNet && sourceVideoDuration !== null) {
       // Auto-calculate frames from source video duration
       const fps = OPTIONS.fps || modelConfig.defaultFps || 25;
@@ -739,7 +743,7 @@ async function main() {
     if (advancedChoice.toLowerCase() === 'y' || advancedChoice.toLowerCase() === 'yes') {
       await promptAdvancedOptions(OPTIONS, modelConfig, { isVideo: true });
 
-      // LTX-2.3 V2V: Control injection strength (control-signal types only; outpaint/inpaint use a fixed IC-LoRA strength)
+      // LTX 2.5/2.3 V2V: Control injection strength (control-signal types only; outpaint/inpaint use a fixed IC-LoRA strength)
       if (
         modelConfig.supportsControlNet &&
         modelConfig.defaultStrength !== undefined &&
@@ -758,7 +762,7 @@ async function main() {
         }
       }
 
-      // LTX-2.3 V2V: Detailer LoRA strength (control-signal types only; not used by outpaint/inpaint)
+      // LTX 2.5/2.3 V2V: Detailer LoRA strength (control-signal types only; not used by outpaint/inpaint)
       if (
         modelConfig.supportsControlNet &&
         OPTIONS.controlNetType !== 'detailer' &&
@@ -805,7 +809,7 @@ async function main() {
     OPTIONS.guidance = modelConfig.defaultGuidance;
   }
   if (!OPTIONS.steps) OPTIONS.steps = modelConfig.defaultSteps;
-  // LTX-2.3 V2V: strength (control injection strength; outpaint/inpaint use a fixed IC-LoRA strength)
+  // LTX 2.5/2.3 V2V: strength (control injection strength; outpaint/inpaint use a fixed IC-LoRA strength)
   if (
     modelConfig.defaultStrength !== undefined &&
     OPTIONS.controlNetType !== 'outpaint' &&
@@ -848,7 +852,7 @@ async function main() {
     maxHeight: modelConfig.maxHeight || VIDEO_CONSTRAINTS.height.max || 3840
   };
 
-  // For LTX-2.3 V2V, use recommended dimensions (from source video); otherwise use image dimensions
+  // For LTX 2.5/2.3 V2V, use recommended dimensions (from source video); otherwise use image dimensions
   const fallbackWidth = modelConfig.supportsControlNet ? recommendedWidth : imageInfo.width;
   const fallbackHeight = modelConfig.supportsControlNet ? recommendedHeight : imageInfo.height;
 
@@ -887,7 +891,7 @@ async function main() {
   OPTIONS.width = width;
   OPTIONS.height = height;
 
-  // For LTX-2.3 V2V, warn if output is larger than source (upscaling will occur)
+  // For LTX 2.5/2.3 V2V, warn if output is larger than source (upscaling will occur)
   if (modelConfig.supportsControlNet && sourceVideoDimensions) {
     if (width > sourceVideoDimensions.width || height > sourceVideoDimensions.height) {
       log(
@@ -900,7 +904,7 @@ async function main() {
   // Calculate frames from duration if not explicitly set
   // Uses model-aware calculation: WAN = 16fps internal, LTX-2.3 = actual fps
   if (!OPTIONS.frames) {
-    // For LTX-2.3 V2V non-interactive, try to auto-detect from source video
+    // For LTX 2.5/2.3 V2V non-interactive, try to auto-detect from source video
     let duration = OPTIONS.duration;
     if (!duration && modelConfig.supportsControlNet && sourceVideoDuration !== null) {
       duration = sourceVideoDuration;
@@ -1042,7 +1046,7 @@ async function main() {
       Workflow: modelConfig.workflowType
     };
 
-    // LTX-2.3 V2V: show control type
+    // LTX 2.5/2.3 V2V: show control type
     if (modelConfig.supportsControlNet && OPTIONS.controlNetType) {
       configDisplay['Control Type'] = CONTROL_NET_TYPES[OPTIONS.controlNetType].name;
     }
@@ -1061,7 +1065,7 @@ async function main() {
     configDisplay['Batch'] = OPTIONS.batch;
     configDisplay['Guidance'] = OPTIONS.guidance;
 
-    // WAN models use shift, LTX-2.3 V2V uses strength
+    // WAN models use shift, LTX 2.5/2.3 V2V uses strength
     if (OPTIONS.shift !== undefined && OPTIONS.shift !== null) {
       configDisplay['Shift'] = OPTIONS.shift;
     }
@@ -1208,7 +1212,7 @@ async function main() {
     // Video models only support ComfyUI sampler/scheduler
     if (OPTIONS.sampler) projectParams.sampler = OPTIONS.sampler;
     if (OPTIONS.scheduler) projectParams.scheduler = OPTIONS.scheduler;
-    // LTX-2.3 V2V: add controlNet params
+    // LTX 2.5/2.3 V2V: add controlNet params
     if (modelConfig.supportsControlNet && OPTIONS.controlNetType) {
       projectParams.controlNet = {
         name: OPTIONS.controlNetType,
