@@ -1,3 +1,10 @@
+## [5.12.1](https://github.com/Sogni-AI/sogni-client/compare/v5.12.0...v5.12.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* **deps:** align protocol alpha.20 ([74205c8](https://github.com/Sogni-AI/sogni-client/commit/74205c8bcc9f5ed84ce72b13c5dc536a227b3cd0))
+
 # [5.12.0](https://github.com/Sogni-AI/sogni-client/compare/v5.11.0...v5.12.0) (2026-08-14)
 
 
