@@ -1069,7 +1069,7 @@ assert.deepEqual(
   {
     ok: false,
     errors: [
-      'Argument "model" must be one of "ace_step_1.5_xl_turbo", "ace_step_1.5_xl_sft", "ace_step_1.5_turbo", "ace_step_1.5_sft"'
+      'Argument "model" must be one of "ace_step_1.5_xl_turbo", "ace_step_1.5_xl_sft", "ace_step_1.5_turbo", "ace_step_1.5_sft", "minimax_music3"'
     ]
   }
 );
