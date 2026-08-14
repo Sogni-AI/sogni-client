@@ -1,3 +1,15 @@
+# [5.12.0](https://github.com/Sogni-AI/sogni-client/compare/v5.11.0...v5.12.0) (2026-08-14)
+
+
+### Bug Fixes
+
+* **chat:** align Music 3 hosted schema parity ([df41b8e](https://github.com/Sogni-AI/sogni-client/commit/df41b8e04c4a65fe9df93e49ee8f055e0a84bd30))
+
+
+### Features
+
+* **video:** support MiniMax H3 R2V Turbo ([453713f](https://github.com/Sogni-AI/sogni-client/commit/453713f860c9da4249b9de8ec62f78d9d2c105cd))
+
 # [5.11.0](https://github.com/Sogni-AI/sogni-client/compare/v5.10.0...v5.11.0) (2026-08-14)
 
 
