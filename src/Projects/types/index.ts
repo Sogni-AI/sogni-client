@@ -182,9 +182,9 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   Two checkpoints ship: FL2VA
  *   (`minimax-h3-fl2va-fp8_t2v` / `_i2v` / `_flf2v`) and Ref2VA
  *   (`minimax-h3-ref2va-fp8_r2v`).
- * - FL2VA Turbo adds `_turbo` to the t2v, i2v, and flf2v IDs. It uses a
- *   4-step distillation LoRA for about 3.5x faster iteration, with some loss of
- *   fine visual detail and audio polish. There is no Turbo Ref2VA workflow.
+ * - Turbo adds `_turbo` to the FL2VA t2v/i2v/flf2v IDs and to Ref2VA r2v.
+ *   Ref2VA Turbo is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses its dedicated
+ *   LightX2V v0.1 four-step LoRA with Euler/simple, not the FL2VA Turbo LoRA.
  * - Video and 32kHz stereo audio are generated jointly. Audio is included by
  *   default; set `generateAudio: false` to return a video without an audio track.
  * - Generation is fixed at 24fps and guidance 1, with no separate
@@ -196,7 +196,8 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   requires at least one of them. The `flf2v` model requires both.
  *
  * #### MiniMax H3 `r2v` (Ref2VA) multi-reference video
- * - `minimax-h3-ref2va-fp8_r2v` conditions on labelled reference material
+ * - `minimax-h3-ref2va-fp8_r2v` (standard) and
+ *   `minimax-h3-ref2va-fp8_r2v_turbo` (four-step Turbo) condition on labelled reference material
  *   rather than on frame anchors. The checkpoint accepts up to 9 reference
  *   images, 3 reference videos (24fps, 2-15 seconds each), and 3 reference
  *   audio clips, with at most 12 reference files in total.

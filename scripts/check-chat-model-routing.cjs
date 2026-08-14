@@ -265,13 +265,14 @@ const minimaxH3ModelIds = {
 const minimaxH3TurboModelIds = {
   t2v: 'minimax-h3-fl2va-fp8_t2v_turbo',
   i2v: 'minimax-h3-fl2va-fp8_i2v_turbo',
-  flf2v: 'minimax-h3-fl2va-fp8_flf2v_turbo'
+  flf2v: 'minimax-h3-fl2va-fp8_flf2v_turbo',
+  r2v: 'minimax-h3-ref2va-fp8_r2v_turbo'
 };
 const generateVideoModelSchema =
   sdkHostedToolsByName.get('generate_video').function.parameters.properties.videoModel;
 const animatePhotoModelSchema =
   sdkHostedToolsByName.get('animate_photo').function.parameters.properties.videoModel;
-for (const selector of ['minimax-h3-turbo', 'minimax-h3-t2v-turbo']) {
+for (const selector of ['minimax-h3-turbo', 'minimax-h3-t2v-turbo', 'minimax-h3-r2v-turbo']) {
   assert.ok(generateVideoModelSchema.enum.includes(selector));
 }
 for (const selector of ['minimax-h3-i2v-turbo', 'minimax-h3-flf2v-turbo']) {
@@ -292,6 +293,7 @@ assert.equal(getVideoWorkflowType(minimaxH3ModelIds.r2v), 'r2v');
 assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.t2v), 't2v');
 assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.i2v), 'i2v');
 assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.flf2v), 'flf2v');
+assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.r2v), 'r2v');
 assert.deepEqual(getVideoDefaults(minimaxH3ModelIds.r2v), {
   width: 1344,
   height: 768,
@@ -303,6 +305,7 @@ assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3Flf2v, minimaxH3ModelIds.flf2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v, minimaxH3TurboModelIds.t2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboI2v, minimaxH3TurboModelIds.i2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboFlf2v, minimaxH3TurboModelIds.flf2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v, minimaxH3TurboModelIds.r2v);
 assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 5, 24, 125), 141);
 assert.equal(calculateVideoFrames(minimaxH3ModelIds.t2v, 5, 24, undefined, 125), 124);
 assert.throws(
@@ -324,6 +327,15 @@ assert.equal(
   }),
   minimaxH3TurboModelIds.i2v
 );
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'minimax-h3-r2v-turbo' }),
+  minimaxH3TurboModelIds.r2v
+);
+assert.deepEqual(getVideoDefaults(minimaxH3TurboModelIds.r2v), {
+  width: 960,
+  height: 544,
+  fps: 24
+});
 assert.equal(
   resolveHostedToolModelSelector('animate_photo', {
     videoModel: 'minimax-h3-flf2v-turbo'
@@ -519,6 +531,13 @@ assert.throws(
   /flf2v workflow requires referenceImage/
 );
 const minimaxH3R2vParams = { ...minimaxH3Params, modelId: minimaxH3ModelIds.r2v };
+const minimaxH3R2vTurboParams = {
+  ...minimaxH3Params,
+  modelId: minimaxH3TurboModelIds.r2v,
+  steps: 4,
+  width: 960,
+  height: 544
+};
 assert.throws(
   () => createJobRequestMessage('h3-r2v-no-reference', minimaxH3R2vParams, minimaxH3Options),
   /MiniMax H3 r2v needs at least one uploaded visual reference/
@@ -530,6 +549,15 @@ const minimaxH3R2vVideoOnly = createJobRequestMessage(
   minimaxH3Options
 );
 assert.equal(minimaxH3R2vVideoOnly.keyFrames[0].hasReferenceVideo1, true);
+const minimaxH3R2vTurboRequest = createJobRequestMessage(
+  'h3-r2v-turbo',
+  { ...minimaxH3R2vTurboParams, referenceImage: true },
+  minimaxH3Options
+);
+assert.equal(minimaxH3R2vTurboRequest.keyFrames[0].modelID, minimaxH3TurboModelIds.r2v);
+assert.equal(minimaxH3R2vTurboRequest.keyFrames[0].steps, 4);
+assert.equal(minimaxH3R2vTurboRequest.keyFrames[0].width, 960);
+assert.equal(minimaxH3R2vTurboRequest.keyFrames[0].height, 544);
 assert.throws(
   () =>
     createJobRequestMessage(

@@ -1634,12 +1634,12 @@ export const MODELS = {
   //
   // One FL2VA checkpoint serves t2v, i2v, and flf2v; a separate Ref2VA
   // checkpoint serves the multi-reference r2v workflow. Standard H3 uses fixed
-  // 24fps, 20 steps, guidance 1, and res_multistep/simple. The FL2VA Turbo
-  // variants use fixed 24fps, 4 steps, guidance 1, and a server-selected
-  // sampling path with the simple scheduler. Video and
+  // 24fps, 20 steps, guidance 1, and res_multistep/simple. FL2VA Turbo uses
+  // four steps and its validated sampler set; Ref2VA Turbo uses its dedicated
+  // four-step LoRA with Euler/simple at the upstream 960x544 default. Video and
   // 32kHz stereo audio are generated jointly in one pass. Audio is included by
   // default; generateAudio=false returns the completed video without an audio
-  // track. Ref2VA has no Turbo variant.
+  // track.
   //
   // Frames follow the 124 + n*17 grid (124-362 = 5.167s-15.083s) and the canvas
   // uses a 32px grid capped at 1032192 total pixels, which is why only the two
@@ -1913,6 +1913,49 @@ export const MODELS = {
       minDuration: MINIMAX_H3_MIN_DURATION,
       maxDuration: MINIMAX_H3_MAX_DURATION,
       isLightning: false,
+      isComfyModel: true,
+      hasAudio: true,
+      supportsNegativePrompt: false,
+      requiresVisualReference: true,
+      maxReferenceImages: MINIMAX_H3_MAX_REFERENCE_IMAGES,
+      maxReferenceVideos: MINIMAX_H3_MAX_REFERENCE_VIDEOS,
+      maxReferenceAudios: MINIMAX_H3_MAX_REFERENCE_AUDIOS,
+      maxReferenceFiles: MINIMAX_H3_MAX_REFERENCE_FILES
+    },
+    'minimax-h3-r2v-turbo': {
+      id: 'minimax-h3-ref2va-fp8_r2v_turbo',
+      name: 'MiniMax H3 Ref2VA FP8 Turbo R2V',
+      description:
+        'Four-step multi-reference video with jointly generated stereo audio; at least one image or video reference',
+      workflowType: 'r2v',
+      defaultWidth: 960,
+      defaultHeight: 544,
+      minWidth: 32,
+      maxWidth: 1344,
+      minHeight: 32,
+      maxHeight: 1344,
+      dimensionStep: 32,
+      maxPixels: 1032192,
+      defaultSteps: 4,
+      minSteps: 4,
+      maxSteps: 4,
+      defaultGuidance: 1.0,
+      minGuidance: 1.0,
+      maxGuidance: 1.0,
+      defaultComfySampler: 'euler',
+      allowedComfySamplers: ['euler'],
+      defaultComfyScheduler: 'simple',
+      allowedComfySchedulers: ['simple'],
+      minFrames: MINIMAX_H3_MIN_FRAMES,
+      maxFrames: MINIMAX_H3_MAX_FRAMES,
+      defaultFrames: MINIMAX_H3_BASE_FRAMES,
+      frameStep: MINIMAX_H3_FRAME_STEP,
+      frameBase: MINIMAX_H3_BASE_FRAMES,
+      defaultFps: MINIMAX_H3_FPS,
+      allowedFps: [MINIMAX_H3_FPS],
+      minDuration: MINIMAX_H3_MIN_DURATION,
+      maxDuration: MINIMAX_H3_MAX_DURATION,
+      isLightning: true,
       isComfyModel: true,
       hasAudio: true,
       supportsNegativePrompt: false,

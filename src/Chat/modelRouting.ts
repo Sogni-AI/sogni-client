@@ -127,9 +127,11 @@ export const PREFERRED_MODEL_IDS = {
     minimaxH3T2v: 'minimax-h3-fl2va-fp8_t2v',
     minimaxH3I2v: 'minimax-h3-fl2va-fp8_i2v',
     minimaxH3Flf2v: 'minimax-h3-fl2va-fp8_flf2v',
+    minimaxH3R2v: 'minimax-h3-ref2va-fp8_r2v',
     minimaxH3TurboT2v: 'minimax-h3-fl2va-fp8_t2v_turbo',
     minimaxH3TurboI2v: 'minimax-h3-fl2va-fp8_i2v_turbo',
     minimaxH3TurboFlf2v: 'minimax-h3-fl2va-fp8_flf2v_turbo',
+    minimaxH3TurboR2v: 'minimax-h3-ref2va-fp8_r2v_turbo',
     animateMove: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
@@ -238,6 +240,8 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-t2v': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
   'minimax-h3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v,
   'minimax-h3-t2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v,
+  'minimax-h3-r2v': PREFERRED_MODEL_IDS.video.minimaxH3R2v,
+  'minimax-h3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseT2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseT2v
 };
@@ -256,6 +260,8 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboI2v,
   'minimax-h3-i2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboI2v,
   'minimax-h3-flf2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboFlf2v,
+  'minimax-h3-r2v': PREFERRED_MODEL_IDS.video.minimaxH3R2v,
+  'minimax-h3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse-1.1-i2v': PREFERRED_MODEL_IDS.video.happyhorseI2v,
@@ -509,6 +515,9 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   const isHappyhorse = modelId.startsWith('happyhorse-1.1');
 
   if (isMinimaxH3Model(modelId)) {
+    if (modelId === PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v) {
+      return { width: 960, height: 544, fps: 24 };
+    }
     return { width: 1344, height: 768, fps: 24 };
   }
 

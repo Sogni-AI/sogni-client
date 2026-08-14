@@ -847,8 +847,8 @@ MINIMAX H3 AND H3 TURBO (Sogni workers, native video + audio):
 
 MiniMax H3 generates video and 32kHz stereo audio jointly in one pass on Sogni's
 own GPUs. Standard H3 uses fixed 20-step res_multistep/simple sampling. H3 Turbo
-applies a 4-step FL2VA distillation LoRA and selects its fixed internal sampling
-path server-side; callers do not choose a sampler. Both use fixed 24fps,
+applies a dedicated four-step LoRA for each checkpoint family: FL2VA uses its
+validated sampler set and Ref2VA R2V uses Euler/simple. Both use fixed 24fps,
 guidance 1, no negative prompt, the `124 + n*17` frame grid
 from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 
@@ -861,12 +861,13 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 | minimax-h3-fl2va-fp8_t2v_turbo | Turbo text-to-video | none |
 | minimax-h3-fl2va-fp8_i2v_turbo | Turbo endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fl2va-fp8_flf2v_turbo | Turbo first-and-last-frame video | both anchor images required |
+| minimax-h3-ref2va-fp8_r2v_turbo | Turbo reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 
-Turbo covers only the three FL2VA workflows; there is no Turbo Ref2VA model ID.
+Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544.
 Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 
-All seven current workflow ids are available through the Sogni projects API and
-the Sogni Creative Agent Skill: four standard modes plus the three Turbo modes.
+All eight current workflow ids are available through the Sogni projects API and
+the Sogni Creative Agent Skill: four standard modes plus the four Turbo modes.
 
 For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
 `referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids

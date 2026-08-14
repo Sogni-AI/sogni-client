@@ -6,9 +6,9 @@
  * Sogni. t2v, i2v, and flf2v share the FL2VA checkpoint; r2v is a separate
  * Ref2VA checkpoint that conditions on labelled reference material rather than
  * on frame anchors. Standard H3 uses fixed 24fps, 20 steps, guidance 1, and
- * res_multistep/simple. The FL2VA Turbo models use fixed 24fps, 4 steps,
- * guidance 1, and a server-selected sampling path with the simple scheduler;
- * Ref2VA has no Turbo variant. Frames sit on the
+ * res_multistep/simple. FL2VA Turbo uses fixed 24fps, 4 steps, guidance 1, and
+ * its validated sampler set with the simple scheduler. Ref2VA Turbo uses its
+ * dedicated four-step LoRA with Euler/simple and a 960x544 default. Frames sit on the
  * 124 + n*17 grid (124-362 frames, 5.167s to 15.083s) and the canvas uses a
  * 32px grid capped at 1032192 pixels, which is why 1344x768 and 768x1344 are
  * the two shipped presets. Availability depends on current compatible
@@ -782,8 +782,8 @@ Modes:
 
 Fixed model parameters (not configurable):
   Standard: fps 24, steps 20, guidance 1, sampler res_multistep, scheduler simple
-  Turbo:    fps 24, steps 4, guidance 1, server-selected sampler, scheduler simple
-  Turbo exists for t2v, i2v, and flf2v only; there is no Turbo r2v.
+  FL2VA Turbo: fps 24, steps 4, guidance 1, server-selected sampler, scheduler simple
+  Ref2VA Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
   Native 32kHz stereo audio is generated jointly and included by default;
   --no-audio returns a video without an audio track
   Frames follow 124 + n*17 in the range 124-362 (${MINIMAX_H3_MIN_DURATION}s to ${MINIMAX_H3_MAX_DURATION}s)

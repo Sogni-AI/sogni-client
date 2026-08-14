@@ -126,30 +126,34 @@ export function isHappyhorseModel(modelId: string): boolean {
 /**
  * Check if a model ID is a MiniMax H3 video model.
  *
- * Two separate checkpoints and one distilled FL2VA path ship under this prefix:
+ * Two separate checkpoints and dedicated distilled paths ship under this prefix:
  * - FL2VA: `minimax-h3-fl2va-fp8_t2v`, `..._i2v`, and `..._flf2v`
  * - Ref2VA: `minimax-h3-ref2va-fp8_r2v` (the multi-reference workflow)
  * - FL2VA Turbo: the same three FL2VA ids with a `_turbo` suffix
+ * - Ref2VA Turbo: `minimax-h3-ref2va-fp8_r2v_turbo`
  *
  * All H3 paths share fixed 24fps, guidance 1, the `124 + n*17` frame grid,
  * and jointly generated 32kHz stereo audio. Standard H3 uses 20 steps;
- * FL2VA Turbo uses a 4-step distillation LoRA and has no Ref2VA variant.
+ * Each Turbo family uses its own 4-step distillation LoRA.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
   return modelId.startsWith('minimax-h3');
 }
 
 /**
- * Check if a model ID is one of the 4-step MiniMax H3 FL2VA Turbo workflows.
- * Turbo is available for t2v, i2v, and flf2v; Ref2VA does not have a Turbo id.
+ * Check if a model ID is one of the 4-step MiniMax H3 Turbo workflows.
+ * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its dedicated r2v Turbo LoRA.
  */
 export function isMinimaxH3TurboModel(modelId: string): boolean {
-  return /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_turbo$/.test(modelId);
+  return (
+    /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_turbo$/.test(modelId) ||
+    modelId === 'minimax-h3-ref2va-fp8_r2v_turbo'
+  );
 }
 
 /**
  * Check if a model ID is the MiniMax H3 Ref2VA multi-reference workflow
- * (`minimax-h3-ref2va-fp8_r2v`).
+ * (`minimax-h3-ref2va-fp8_r2v` or `minimax-h3-ref2va-fp8_r2v_turbo`).
  *
  * This is the only MiniMax H3 workflow that conditions on more than two input
  * files, and the only video workflow of any family that carries reference
