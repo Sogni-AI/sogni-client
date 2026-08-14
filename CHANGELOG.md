@@ -1,3 +1,15 @@
+# [5.11.0](https://github.com/Sogni-AI/sogni-client/compare/v5.10.0...v5.11.0) (2026-08-14)
+
+
+### Bug Fixes
+
+* **music:** correct Music 3 cost framing to ~20x ACE Turbo ([e3eeb8d](https://github.com/Sogni-AI/sogni-client/commit/e3eeb8df4941d44eb45414655e90f6c3742b8b35))
+
+
+### Features
+
+* **audio:** register minimax_music3 across SDK gates ([27dc68d](https://github.com/Sogni-AI/sogni-client/commit/27dc68ddbb99621ad1dbd58d3ed6aeef068db999))
+
 # [5.10.0](https://github.com/Sogni-AI/sogni-client/compare/v5.9.0...v5.10.0) (2026-08-13)
 
 
