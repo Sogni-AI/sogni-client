@@ -71,9 +71,7 @@ const MODEL_TIER_STEPS = {
   'chroma-v.46-flash_fp8':            { min: 10, max: 20, default: 10 },
   'chroma-v48-detail-svd_fp8':        { min: 20, max: 40, default: 20 },
   'chroma1-hd_fp8_scaled':            { min: 20, max: 50, default: 26 },
-  'flux1-krea-dev_fp8_scaled':        { min: 12, max: 40, default: 20 },
   'flux1-schnell-fp8':                { min: 1,  max: 5,  default: 4 },
-  'flux2_dev_fp8':                    { min: 20, max: 50, default: 20 },
   'qwen_image_2512_fp8_lightning':    { min: 4,  max: 8,  default: 4 },
   'qwen_image_2512_fp8':              { min: 20, max: 50, default: 20 },
   // Community fine-tunes (uncensored)

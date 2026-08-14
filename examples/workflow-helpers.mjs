@@ -527,30 +527,6 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
     },
-    'flux1-krea-dev': {
-      id: 'flux1-krea-dev_fp8_scaled',
-      name: 'Flux.1 Krea Dev',
-      description: 'Creative generation with detail',
-      defaultWidth: 1024,
-      defaultHeight: 1024,
-      maxWidth: 2048,
-      maxHeight: 2048,
-      minSteps: 12,
-      maxSteps: 40,
-      defaultSteps: 20,
-      supportsGuidance: true,
-      defaultGuidance: 3.5,
-      minGuidance: 1.0,
-      maxGuidance: 5.0,
-      supportsDenoise: true,
-      defaultDenoise: 0.7,
-      supportsStartingImage: true,
-      defaultNegativePrompt:
-        'malformation, bad anatomy, bad hands, missing fingers, cropped, low quality, bad quality, jpeg artifacts, watermark',
-      isComfyModel: true,
-      defaultComfySampler: 'euler',
-      defaultComfyScheduler: 'simple'
-    },
     'flux1-schnell': {
       id: 'flux1-schnell-fp8',
       name: 'Flux.1 Schnell',
@@ -569,26 +545,6 @@ export const MODELS = {
       isComfyModel: false,
       defaultSampler: 'Euler',
       defaultScheduler: 'Simple'
-    },
-    flux2: {
-      id: 'flux2_dev_fp8',
-      name: 'Flux.2 Dev',
-      description: 'Highest quality, supports context images.',
-      defaultWidth: 1248,
-      defaultHeight: 832,
-      maxWidth: 2048,
-      maxHeight: 2048,
-      minSteps: 20,
-      maxSteps: 50,
-      defaultSteps: 20,
-      supportsGuidance: true,
-      defaultGuidance: 4.0,
-      minGuidance: 3.0,
-      maxGuidance: 6.0,
-      supportsContextImages: true,
-      maxContextImages: 6,
-      isComfyModel: true,
-      defaultComfySampler: 'euler'
     },
     'qwen-2512-lightning': {
       id: 'qwen_image_2512_fp8_lightning',
@@ -786,26 +742,6 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
     },
-    flux2: {
-      id: 'flux2_dev_fp8',
-      name: 'Flux.2 Dev',
-      description: 'Highest quality, supports context images.',
-      defaultWidth: 1248,
-      defaultHeight: 832,
-      maxWidth: 2048,
-      maxHeight: 2048,
-      defaultSteps: 20,
-      minSteps: 20,
-      maxSteps: 50,
-      supportsGuidance: true,
-      defaultGuidance: 4.0,
-      minGuidance: 3.0,
-      maxGuidance: 6.0,
-      supportsContextImages: true,
-      maxContextImages: 6,
-      isComfyModel: true,
-      defaultComfySampler: 'euler'
-    }
   },
 
   // Text-to-Video Models (ComfyUI workflow)
@@ -3252,7 +3188,7 @@ export async function promptControlNetType(options, modelConfig) {
 }
 
 /**
- * Prompt for context images (Flux.2 Dev, Qwen Image Edit, Krea 2 Identity Edit)
+ * Prompt for context images (Qwen Image Edit and Krea 2 Identity Edit)
  * @param {Object} options - Current options object
  * @param {number} maxImages - Maximum number of context images supported
  * @returns {Promise<Object>} Updated options

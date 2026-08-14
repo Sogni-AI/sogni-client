@@ -558,7 +558,7 @@ export interface VideoContextImageSlot {
  *
  * MiniMax H3 r2v renders on a Sogni worker, so all references use Sogni's asset
  * upload path. Images travel as the same `referenceImage` / `contextImage<n>`
- * types Flux.2 and Qwen-Edit already use for image projects. Sogni Socket compacts
+ * types Qwen-Edit and GPT Image already use for image projects. Sogni Socket compacts
  * them - `referenceImage` first, then `contextImage1`, `contextImage2`, ... in
  * slot order - into the numbered
  * `referenceImage1..9` job fields the ComfyUI worker packs into

@@ -3,7 +3,7 @@
  * Image Generation Workflow (with Reference Images)
  *
  * This script generates images using reference/context images to guide the generation.
- * Works with Qwen Image Edit, Krea 2 Identity Edit, and Flux models that support context-based generation.
+ * Works with Qwen Image Edit and Krea 2 Identity Edit models that support context-based generation.
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
@@ -17,16 +17,13 @@
  * Options:
  *   --context     Reference image 1 (required, at least 1 needed)
  *   --context2    Reference image 2 (optional)
- *   --context3    Reference image 3 (optional, Qwen/Flux2 only)
- *   --context4    Reference image 4 (optional, Flux2 only)
- *   --context5    Reference image 5 (optional, Flux2 only)
- *   --context6    Reference image 6 (optional, Flux2 only)
+ *   --context3    Reference image 3 (optional, Qwen only)
  *   --model       Model key (default: prompts for selection)
  *   --width       Output image width (default: context image width, max: 2048)
  *   --height      Output image height (default: context image height, max: 2048)
  *   --batch       Number of images to generate (default: 1)
  *   --seed        Random seed for reproducibility (default: -1 for random)
- *   --guidance    Guidance scale for Flux2 (default: 4.0)
+ *   --guidance    Guidance scale when supported by the selected model
  *   --steps       Inference steps (default: model-specific)
  *   --sampler     Sampler name (default: euler)
  *   --scheduler   Scheduler name (default: simple)
@@ -202,15 +199,11 @@ Available Models:
   qwen           - Qwen Image Edit 2511 (higher quality, 20-step)
                    Same general-purpose strengths as qwen-lightning, slower.
                    Still NOT the identity-preserving choice - see above.
-  flux2          - Flux.2 Dev (slower, powerful, up to 6 context images)
 
 Options:
   --context     Reference image 1 (required, at least 1 needed)
   --context2    Reference image 2 (optional)
-  --context3    Reference image 3 (optional, Qwen/Flux2 only)
-  --context4    Reference image 4 (optional, Flux2 only)
-  --context5    Reference image 5 (optional, Flux2 only)
-  --context6    Reference image 6 (optional, Flux2 only)
+  --context3    Reference image 3 (optional, Qwen only)
   --model       Model key (default: prompts for selection)
   --width       Output image width (default: context image width, max: 2048)
   --height      Output image height (default: context image height, max: 2048)
@@ -218,7 +211,7 @@ Options:
   --style       Style prompt (default: none)
   --batch       Number of images to generate (default: 1)
   --seed        Random seed (default: -1 for random)
-  --guidance    Guidance scale for Flux2 (default: 4.0)
+  --guidance    Guidance scale when supported by the selected model
   --steps       Inference steps (default: model-specific)
   --sampler     Sampler name (default: euler)
   --scheduler   Scheduler name (default: simple)
@@ -229,8 +222,8 @@ ${billingModeHelpText()}
   --help        Show this help message
 
 Reference Images:
-  Qwen and Flux models use reference images to guide the generation (not img2img editing).
-  Provide 1-6 reference images (Flux2) or 1-3 (Qwen) that represent the style or content you want.
+  Qwen models use reference images to guide the generation (not img2img editing).
+  Provide 1-3 reference images that represent the style or content you want.
   Example: portrait photo → generates new portraits in that style
 `);
 }
@@ -693,7 +686,7 @@ async function main() {
       disableNSFWFilter: OPTIONS.disableSafeContentFilter
     };
 
-    // Add guidance for Flux2
+    // Add guidance when supported by the selected model.
     if (modelConfig.supportsGuidance) {
       projectParams.guidance = OPTIONS.guidance || modelConfig.defaultGuidance || 4.0;
     }

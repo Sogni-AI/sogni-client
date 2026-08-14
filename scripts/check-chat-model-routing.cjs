@@ -99,7 +99,6 @@ const models = [
   { id: 'qwen_image_edit_2511_fp8_lightning', media: 'image', workerCount: 8 },
   { id: PREFERRED_MODEL_IDS.image.krea2IdentityEdit, media: 'image', workerCount: 7 },
   { id: PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit, media: 'image', workerCount: 6 },
-  { id: 'flux2_dev_fp8', media: 'image', workerCount: 1 },
   { id: PREFERRED_MODEL_IDS.video.t2v, media: 'video', workerCount: 1 },
   { id: 'wan_v2.2-14b-fp8_t2v_lightx2v', media: 'video', workerCount: 20 },
   { id: PREFERRED_MODEL_IDS.video.i2v, media: 'video', workerCount: 4 },
@@ -817,10 +816,6 @@ assert.equal(
   3840
 );
 assert.equal(
-  validateCustomImageSize(2560, { modelId: 'flux2_dev_fp8', propertyName: 'Width' }),
-  2560
-);
-assert.equal(
   validateCustomImageSize(2048, {
     modelId: PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
     propertyName: 'Width'
@@ -847,6 +842,10 @@ assert.throws(
   /Width must be less or equal 2048/
 );
 assert.throws(
+  () => validateCustomImageSize(2560, { modelId: 'flux2_dev_fp8', propertyName: 'Width' }),
+  /Width must be less or equal 2048/
+);
+assert.throws(
   () =>
     validateCustomImageSize(511, {
       modelId: PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
@@ -858,6 +857,7 @@ assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.krea2IdentityEdit), 2
 assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), 2);
 assert.equal(isComfyModel('dark_beast_krea2_fp8'), true);
 assert.equal(isComfyModel(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), true);
+assert.equal(isComfyModel('flux2_dev_fp8'), false);
 assert.throws(
   () =>
     validateCustomImageSize(2560, {
@@ -865,10 +865,6 @@ assert.throws(
       propertyName: 'Width'
     }),
   /Width must be less or equal 2048/
-);
-assert.equal(
-  resolveHostedToolModelSelector('generate_image', { model: 'flux2' }),
-  PREFERRED_MODEL_IDS.image.flux2
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_image', { model: 'GPT-2' }),
@@ -900,6 +896,7 @@ assert.equal(
 );
 assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.krea2IdentityEdit), true);
 assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), true);
+assert.equal(isEditImageModel('flux2_dev_fp8'), false);
 assert.equal(
   resolveHostedToolModelSelector('generate_image', { model: 'future_live_model' }),
   'future_live_model'

@@ -8,8 +8,7 @@ const EXTENDED_IMAGE_SIZE_MODEL_IDS = new Set([
   'qwen_image_edit_2511_fp8',
   'qwen_image_edit_2511_fp8_lightning',
   'qwen_image_2512_fp8',
-  'qwen_image_2512_fp8_lightning',
-  'flux2_dev_fp8'
+  'qwen_image_2512_fp8_lightning'
 ]);
 
 const KREA_IDENTITY_EDIT_MODEL_IDS = new Set([
@@ -121,7 +120,6 @@ export function isComfyModel(modelId: string): boolean {
     'krea2_',
     'dark_beast_krea2_',
     'qwen_image_',
-    'flux2_',
     'wan_',
     'ace_step',
     'minimax_music3'
@@ -132,7 +130,6 @@ export function isComfyModel(modelId: string): boolean {
 /**
  * Get the maximum number of context images supported by a model.
  * - GPT Image 2: 16 images
- * - Flux.2 Dev: 6 images
  * - Qwen Image Edit: 3 images
  * - Krea 2 Identity Edit: 2 images
  * - Flux Kontext: 2 images
@@ -141,9 +138,6 @@ export function isComfyModel(modelId: string): boolean {
 export function getMaxContextImages(modelId: string): number {
   if (modelId === 'gpt-image-2') {
     return 16;
-  }
-  if (modelId.startsWith('flux2_')) {
-    return 6;
   }
   if (modelId.startsWith('qwen_image_')) {
     return 3;

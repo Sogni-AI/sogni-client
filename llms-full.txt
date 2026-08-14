@@ -448,7 +448,6 @@ RECOMMENDED MODELS:
 | krea2_turbo_fp8_scaled | Fast | 8 | 1 | Distilled few-step, strong in-image text, up to 2K |
 | krea2_identity_edit_v1_2 | Edit | 10 | 1 | Best for transforming a person/character while keeping their likeness; 1-2 context images |
 | chroma1-hd_fp8_scaled | Quality | 26 | 3.8 | Final high-res Chroma (uncensored, LoRA-capable) |
-| flux2_dev_fp8 | Quality | 20 | 4 | Pro quality + up to 6 context images (also image edit) |
 | qwen_image_edit_2511_fp8_lightning | Edit | 4 | 1 | Fast general-purpose editing; multi-image context |
 | coreml-cyberrealistic_v70_768 | SD 1.5 | 20-40 | 7.5 | Photorealistic |
 

@@ -25,7 +25,7 @@ import {
   parseBillingModeArg
 } from './workflow-helpers.mjs';
 
-const DEFAULT_IMAGE_MODEL = 'flux2';
+const DEFAULT_IMAGE_MODEL = 'gpt-image-2';
 const DEFAULT_VIDEO_MODEL = 'ltx23';
 
 function parseArgs() {

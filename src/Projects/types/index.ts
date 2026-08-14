@@ -314,8 +314,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    * (`minimax-h3-ref2va-fp8_r2v`), in the order the model is shown them.
    *
    * This is the video counterpart of `ImageProjectParams.contextImages`, and it
-   * uses the same `contextImage1`..`contextImage9` upload slots that Flux.2 and
-   * Qwen Image Edit already use. It exists because H3 is Comfy-native: the
+   * uses the same `contextImage1`..`contextImage9` upload slots used by Qwen
+   * Image Edit and GPT Image. It exists because H3 is Comfy-native: the
    * worker builds the ComfyUI graph locally from Sogni-hosted assets.
    *
    * The uploaded reference set is `[referenceImage, ...contextImages]`. Both
@@ -527,7 +527,6 @@ export interface ImageProjectParams extends BaseProjectParams {
   /**
    * Context images for multi-reference image generation.
    * GPT Image 2 supports up to 16 context images.
-   * Flux.2 Dev supports up to 6 context images.
    * Qwen Image Edit supports up to 3 context images.
    * Krea 2 Identity Edit supports up to 2 context images.
    * Flux Kontext supports up to 2 context images.

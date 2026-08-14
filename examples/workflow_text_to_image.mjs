@@ -17,7 +17,7 @@
  *   node workflow_text_to_image.mjs "Fantasy art" --model chroma-v46-flash --starting-image ./test-assets/placeholder.jpg --strength 0.7
  *
  * Options:
- *   --model     Model key: z-turbo, z-image, krea-2-turbo, chroma-v46-flash, chroma-v48-detail-svd, chroma-hd, flux1-krea-dev, flux1-schnell, flux2, dark-beast-z-image-turbo, dark-beast-krea-2, one-obsession-v22 (default: prompts for selection)
+ *   --model     Model key: z-turbo, z-image, krea-2-turbo, chroma-v46-flash, chroma-v48-detail-svd, chroma-hd, flux1-schnell, dark-beast-z-image-turbo, dark-beast-krea-2, one-obsession-v22 (default: prompts for selection)
  *   --width     Image width (default: model-specific, max: 2048)
  *   --height    Image height (default: model-specific, max: 2048)
  *   --batch     Number of images to generate (default: 1)
@@ -171,7 +171,7 @@ Text-to-Image Workflow
 Usage:
   node workflow_text_to_image.mjs                          # Interactive mode
   node workflow_text_to_image.mjs "your prompt here"       # With prompt
-  node workflow_text_to_image.mjs "Portrait" --model flux2 # With specific model
+  node workflow_text_to_image.mjs "Portrait" --model krea-2-turbo # With specific model
   node workflow_text_to_image.mjs "Fantasy art" --model chroma-v46-flash --starting-image ref.jpg --strength 0.7
 
 Available Models:
@@ -181,9 +181,7 @@ Available Models:
   chroma-v46-flash     - Chroma v.46 Flash (fast high-quality, max: 2048x2048, supports img2img)
   chroma-v48-detail-svd - Chroma v48 Detail SVD (high detail, max: 2048x2048, supports img2img)
   chroma-hd            - Chroma1-HD (final high-res Chroma, max: 2048x2048, supports img2img)
-  flux1-krea-dev       - Flux.1 Krea Dev (creative with detail, max: 2048x2048, supports img2img)
   flux1-schnell        - Flux.1 Schnell (very fast, 1-5 steps)
-  flux2                - Flux.2 Dev (highest quality, max: 2048x2048, supports up to 6 context images)
   Community fine-tunes (uncensored):
   dark-beast-z-image-turbo - Dark Beast Z-Image Turbo v9 (fast, 2K needs 24GB VRAM)
   dark-beast-krea-2    - Dark Beast KREA 2 (Krea 2 fine-tune, 2K needs 24GB VRAM)
@@ -386,12 +384,16 @@ async function main() {
     process.exit(1);
   }
 
-  // Validate guidance for Flux2
+  // Validate model guidance.
   let guidance = OPTIONS.guidance;
   if (modelConfig.supportsGuidance) {
-    guidance = guidance || modelConfig.defaultGuidance;
-    if (guidance < 1.0 || guidance > 10.0) {
-      console.error('Error: Guidance must be between 1.0 and 10.0 for Flux2');
+    const minGuidance = modelConfig.minGuidance ?? 1.0;
+    const maxGuidance = modelConfig.maxGuidance ?? 10.0;
+    guidance = guidance ?? modelConfig.defaultGuidance;
+    if (guidance < minGuidance || guidance > maxGuidance) {
+      console.error(
+        `Error: Guidance must be between ${minGuidance} and ${maxGuidance} for ${modelConfig.name}`
+      );
       process.exit(1);
     }
   }

@@ -85,7 +85,6 @@ export const PREFERRED_MODEL_IDS = {
   image: {
     gptImage2: 'gpt-image-2',
     flux1Schnell: 'flux1-schnell-fp8',
-    flux2: 'flux2_dev_fp8',
     chromaFlash: 'chroma-v.46-flash_fp8',
     zTurbo: 'z_image_turbo_bf16',
     krea2Turbo: 'krea2_turbo_fp8_scaled',
@@ -183,8 +182,6 @@ const IMAGE_MODEL_SELECTORS: Record<string, string> = {
   'chroma-detail': 'chroma-v48-detail-svd_fp8',
   'chroma-hd': 'chroma1-hd_fp8_scaled',
   'chroma1-hd': 'chroma1-hd_fp8_scaled',
-  'flux1-krea': 'flux1-krea-dev_fp8_scaled',
-  flux2: PREFERRED_MODEL_IDS.image.flux2,
   // Community fine-tunes (uncensored). Selectors mirror the sogni-homepage
   // catalog slugs; the raw model ids always pass through regardless.
   'dark-beast-z-image-turbo': 'dark_beast_z_image_turbo_v9_bf16',
@@ -216,7 +213,6 @@ const EDIT_IMAGE_MODEL_SELECTORS: Record<string, string> = {
   ),
   'qwen-lightning': 'qwen_image_edit_2511_fp8_lightning',
   qwen: 'qwen_image_edit_2511_fp8',
-  flux2: PREFERRED_MODEL_IDS.image.flux2,
   'krea-2-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
   'krea2-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
   'krea-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
@@ -467,7 +463,6 @@ export function isEditImageModel(modelId: string): boolean {
     modelId.startsWith('qwen_image_edit_') ||
     modelId === PREFERRED_MODEL_IDS.image.krea2IdentityEdit ||
     modelId === PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit ||
-    modelId.startsWith('flux2_') ||
     modelId.includes('kontext')
   );
 }

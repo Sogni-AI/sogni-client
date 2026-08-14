@@ -297,7 +297,6 @@ The workflow examples showcase these powerful new models:
 | `chroma1-hd_fp8_scaled`              | Chroma1-HD        | Image        | Final high-res Chroma (uncensored, LoRA-capable)                                   |
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning    | Image Edit   | Fast 4-step reference-based generation                                             |
 | `qwen_image_edit_2511_fp8`           | Qwen Image Edit   | Image Edit   | High-quality 20-step image editing with context                                    |
-| `flux2_dev_fp8`                      | Flux.2 Dev        | Image        | Professional quality with context image support                                    |
 | `dark_beast_z_image_turbo_v9_bf16`   | Dark Beast Z-Image Turbo v9 | Image | Community Z-Image Turbo fine-tune (uncensored, fast; 2K needs 24GB VRAM)            |
 | `dark_beast_krea2_fp8`               | Dark Beast KREA 2 | Image        | Community Krea 2 fine-tune (uncensored; 2K needs 24GB VRAM)                         |
 | `dark_beast_krea2_identity_edit_v1_2` | Dark Beast Krea 2 Identity Edit | Image Edit | Community identity edit LoRA with 1-2 reference images                   |
@@ -332,8 +331,6 @@ node workflow_image_edit.mjs "portrait" --context test-assets/placeholder.jpg --
 # Krea 2 Identity Edit - preserve an identity from one or two references
 node workflow_image_edit.mjs "cinematic editorial portrait" --context person.jpg --model krea-identity-edit
 
-# Flux.2 Dev - highest quality
-node workflow_text_to_image.mjs "Professional portrait" --model flux2
 ```
 
 ---
@@ -354,8 +351,6 @@ Generate images from text prompts with support for multiple cutting-edge models.
 | `chroma-v48-detail-svd` | Chroma v48 Detail SVD (high detail) | Fine detail rendering |
 | `chroma-hd` | Chroma1-HD (final high-res Chroma) | Highest-fidelity Chroma output |
 | `flux1-schnell` | Flux.1 Schnell (1-5 steps) | Ultra-fast generation |
-| `flux1-krea-dev` | Flux.1 Krea Dev (creative detail) | Stylized, detailed output |
-| `flux2` | Flux.2 Dev (20-step, high quality) | Professional quality output |
 | `dark-beast-z-image-turbo` | Dark Beast Z-Image Turbo v9 (community, uncensored, fast) | Uncensored fast generation |
 | `dark-beast-krea-2` | Dark Beast KREA 2 (community, uncensored) | Uncensored Krea 2 style |
 | `one-obsession-v22` | One Obsession v22 (community, Illustrious/anime) | Anime/illustration |
@@ -387,7 +382,8 @@ node workflow_text_to_image.mjs "A neon sign that reads OPEN" --model chroma-hd
 
 #### `workflow_image_edit.mjs`
 
-Generate new images using reference/context images to guide style and content. Works with the powerful **Qwen Image Edit**, **Krea 2 Identity Edit**, and **Flux.2 Dev** models.
+Generate images from reference images with Qwen Image Edit, or preserve a
+person's likeness with Krea 2 Identity Edit.
 
 **Available Models:**
 | Model | Description | Best For |
@@ -396,7 +392,6 @@ Generate new images using reference/context images to guide style and content. W
 | `qwen` | Qwen Image Edit (20-step) | High-quality image editing |
 | `krea-identity-edit` | Krea 2 Identity Edit LoRA v1.2 (10-step) | Identity-preserving edits with 1-2 references |
 | `dark-beast-krea2-identity-edit` | Dark Beast Krea 2 Identity Edit (10-step) | Community identity-preserving edits |
-| `flux2` | Flux.2 Dev (20-step) | Professional quality with context |
 
 **Usage:**
 
@@ -984,9 +979,8 @@ When you run a workflow example, you'll see output like:
   1. Z-Image Turbo       - Fast generation with good quality
   2. Z-Image             - High quality generation (20-50 steps)
   3. Flux.1 Schnell      - Very fast generation (1-5 steps)
-  4. Flux.2 Dev          - Highest quality, supports context images.
 
-Enter choice [1-4] (default: 1): 1
+Enter choice [1-3] (default: 1): 1
 🎨 Selected model: Z-Image Turbo
 
 💳 Using saved payment preference: Spark tokens
