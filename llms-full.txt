@@ -236,9 +236,14 @@ string (e.g. `'4080'`), `errorType` carries the server's tag (e.g.
 code back to the numeric `SUBSCRIPTION_ERROR_CODES` value when applicable — so
 apps can branch without string-matching.
 
-Unlimited fair-use accounting and enforcement are dynamic and server-side in
-the socket service. The SDK does not expose per-period usage counters or plan
-limit tables for clients to store or display as fixed user-facing limits.
+Unlimited fair-use accounting and enforcement are dynamic and
+server-authoritative. While a monthly Fast-network limit is active,
+`subscription.fairUse` contains ephemeral, user-facing state: `usageSpark`,
+`usageUsd`, `planPriceUsd`, `resetAt`, effective Fast queue/concurrency limits,
+Relaxed-network availability, and upgrade availability. It is absent when no
+limit is active. Never persist it as policy, infer a threshold from it, or use
+it to authorize work. Live `subscriptionLimitNotice` socket events are opt-in
+through `socketEventSubscriptions` or `setSocketEventSubscriptions()`.
 
 Plan pricing, included features and models, usage allowances, fair-use
 thresholds, and other limits are subject to change at Sogni AI's discretion,

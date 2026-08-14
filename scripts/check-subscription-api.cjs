@@ -14,10 +14,7 @@ const path = require('node:path');
 const AccountApi = require('../dist/Account/index.js').default;
 const CurrentAccount = require('../dist/Account/CurrentAccount.js').default;
 const ChatApi = require('../dist/Chat/index.js').default;
-const {
-  ChatJobError,
-  extractChatJobErrorFields
-} = require('../dist/Chat/ChatJobError.js');
+const { ChatJobError, extractChatJobErrorFields } = require('../dist/Chat/ChatJobError.js');
 const { ApiError } = require('../dist/ApiClient/index.js');
 const { SUBSCRIPTION_ERROR_CODES } = require('../dist/types/ErrorData.js');
 const ProjectsApi = require('../dist/Projects/index.js').default;
@@ -534,6 +531,7 @@ async function run() {
     const declarations = fs.readFileSync(path.join(__dirname, '../dist/index.d.ts'), 'utf8');
     for (const exportedType of [
       'SubscriptionEntitlementSnapshot',
+      'SubscriptionFairUseState',
       'SubscriptionUsage',
       'SubscriptionPlan',
       'SubscriptionPlanId',
@@ -542,7 +540,9 @@ async function run() {
       'SubscriptionPortalSession',
       'CreateSubscriptionCheckoutOptions',
       'TrialEligibility',
-      'TrialReasonCode'
+      'TrialReasonCode',
+      'SocketSubscriptionFairUseState',
+      'SocketSubscriptionLimitNoticeData'
     ]) {
       assert.ok(
         declarations.includes(exportedType),
@@ -743,6 +743,63 @@ async function run() {
       map(socketEntitlement()).capabilities,
       { unlimited: true },
       'capabilities must only be fabricated locally when the payload omits them'
+    );
+
+    const fairUseResetAt = Date.UTC(2099, 0, 1);
+    const fairUse = map(
+      socketEntitlement(
+        {},
+        {
+          fairUse: {
+            limited: true,
+            usageSpark: 40_001,
+            usageUsd: 200.01,
+            planPriceUsd: 20,
+            resetAt: fairUseResetAt,
+            fastConcurrencyLimit: 1,
+            fastQueueLimit: 1,
+            relaxedUnrestricted: true,
+            upgradeAvailable: true
+          }
+        }
+      )
+    ).fairUse;
+    assert.deepEqual(
+      fairUse,
+      {
+        limited: true,
+        usageSpark: 40_001,
+        usageUsd: 200.01,
+        planPriceUsd: 20,
+        resetAt: new Date(fairUseResetAt).toISOString(),
+        fastConcurrencyLimit: 1,
+        fastQueueLimit: 1,
+        relaxedUnrestricted: true,
+        upgradeAvailable: true
+      },
+      'active fair-use state must pass through with resetAt converted to an ISO timestamp'
+    );
+    assert.equal(
+      map(
+        socketEntitlement(
+          {},
+          {
+            fairUse: {
+              limited: true,
+              usageSpark: 40_001,
+              usageUsd: 200.01,
+              planPriceUsd: 20,
+              resetAt: 1,
+              fastConcurrencyLimit: 1,
+              fastQueueLimit: 1,
+              relaxedUnrestricted: true,
+              upgradeAvailable: true
+            }
+          }
+        )
+      ).fairUse,
+      undefined,
+      'expired fair-use state must not remain in the mapped entitlement snapshot'
     );
   }
 
@@ -1485,17 +1542,37 @@ async function run() {
     const errEvent = events.find((e) => e.type === 'error' && e.projectId === 'proj_4k');
     assert.ok(errEvent, 'a project-level error event must be emitted for an imgID-less jobError');
     assert.equal(errEvent.error.code, 4081, 'numeric error must pass through as code');
-    assert.equal(errEvent.error.subscriptionLimit, true, 'render ErrorData must carry subscriptionLimit');
+    assert.equal(
+      errEvent.error.subscriptionLimit,
+      true,
+      'render ErrorData must carry subscriptionLimit'
+    );
     assert.deepEqual(errEvent.error.requiredPlans, ['unlimited_pro']);
     assert.equal(errEvent.error.feature, 'video_4k_render');
     assert.equal(errEvent.error.limitation, '4K video render requires Unlimited Pro');
   }
 
   {
-    assert.equal(typeof isSubscriptionLimitError, 'function', 'isSubscriptionLimitError must be exported');
-    assert.equal(isSubscriptionLimitError(4081), true, 'numeric 4081 is a subscription limit error');
-    assert.equal(isSubscriptionLimitError('4081'), true, 'string 4081 is a subscription limit error');
-    assert.equal(isSubscriptionLimitError(4078), false, 'other subscription codes are not feature-limit errors');
+    assert.equal(
+      typeof isSubscriptionLimitError,
+      'function',
+      'isSubscriptionLimitError must be exported'
+    );
+    assert.equal(
+      isSubscriptionLimitError(4081),
+      true,
+      'numeric 4081 is a subscription limit error'
+    );
+    assert.equal(
+      isSubscriptionLimitError('4081'),
+      true,
+      'string 4081 is a subscription limit error'
+    );
+    assert.equal(
+      isSubscriptionLimitError(4078),
+      false,
+      'other subscription codes are not feature-limit errors'
+    );
     assert.equal(isSubscriptionLimitError(5000), false, 'unrelated codes return false');
     assert.equal(isSubscriptionLimitError(undefined), false, 'undefined returns false');
     assert.equal(isSubscriptionLimitError(null), false, 'null returns false');
@@ -1515,7 +1592,11 @@ async function run() {
       requiredPlans: ['unlimited_pro'],
       feature: 'video_4k_render'
     });
-    assert.equal(isSubscriptionLimitError(chatErr), true, 'a ChatJobError carrying 4081 is recognized');
+    assert.equal(
+      isSubscriptionLimitError(chatErr),
+      true,
+      'a ChatJobError carrying 4081 is recognized'
+    );
   }
 
   {

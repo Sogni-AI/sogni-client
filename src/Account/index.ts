@@ -219,6 +219,14 @@ class AccountApi extends ApiGroup {
         ? { scheduledChangeAt: new Date(sub.scheduledChangeAt).toISOString() }
         : {}),
       ...(sub.paymentPending ? { paymentPending: true } : {}),
+      ...(sub.fairUse?.limited && Number(sub.fairUse.resetAt) > Date.now()
+        ? {
+            fairUse: {
+              ...sub.fairUse,
+              resetAt: new Date(sub.fairUse.resetAt).toISOString()
+            }
+          }
+        : {}),
       capabilities:
         sub.capabilities ??
         (data.active && (sub.tier === 'unlimited' || sub.tier === 'unlimited_pro')
@@ -623,27 +631,25 @@ class AccountApi extends ApiGroup {
     );
 
     return {
-      entries: res.data.transactions.map(
-        (tx): TxHistoryEntry => ({
-          id: tx.id,
-          address: tx.address,
-          createTime: new Date(tx.createTime),
-          updateTime: new Date(tx.updateTime),
-          status: tx.status,
-          role: tx.role,
-          amount: tx.amount,
-          tokenType: tx.tokenType,
-          description: tx.description,
-          source: tx.source,
-          endTime: new Date(tx.endTime),
-          type: tx.type,
-          billingMode: tx.billingMode,
-          paymentModel: tx.paymentModel,
-          subscriptionTier: tx.subscriptionTier,
-          subscriptionTrialing: tx.subscriptionTrialing,
-          subscriptionThrottled: tx.subscriptionThrottled
-        })
-      ),
+      entries: res.data.transactions.map((tx): TxHistoryEntry => ({
+        id: tx.id,
+        address: tx.address,
+        createTime: new Date(tx.createTime),
+        updateTime: new Date(tx.updateTime),
+        status: tx.status,
+        role: tx.role,
+        amount: tx.amount,
+        tokenType: tx.tokenType,
+        description: tx.description,
+        source: tx.source,
+        endTime: new Date(tx.endTime),
+        type: tx.type,
+        billingMode: tx.billingMode,
+        paymentModel: tx.paymentModel,
+        subscriptionTier: tx.subscriptionTier,
+        subscriptionTrialing: tx.subscriptionTrialing,
+        subscriptionThrottled: tx.subscriptionThrottled
+      })),
       next: {
         ...params,
         offset: res.data.next
@@ -661,25 +667,23 @@ class AccountApi extends ApiGroup {
       query
     );
 
-    return r.data.rewards.map(
-      (raw: RewardRaw): Reward => ({
-        id: raw.id,
-        type: raw.type,
-        title: raw.title,
-        description: raw.description,
-        amount: raw.amount,
-        tokenType: raw.tokenType,
-        claimed: !!raw.claimed,
-        canClaim: !!raw.canClaim,
-        cantClaimReason: raw.cantClaimReason ?? null,
-        lastClaim: new Date(raw.lastClaimTimestamp * 1000),
-        provider: query.provider || 'base',
-        nextClaim:
-          raw.lastClaimTimestamp && raw.claimResetFrequencySec > -1
-            ? new Date(raw.lastClaimTimestamp * 1000 + raw.claimResetFrequencySec * 1000)
-            : null
-      })
-    );
+    return r.data.rewards.map((raw: RewardRaw): Reward => ({
+      id: raw.id,
+      type: raw.type,
+      title: raw.title,
+      description: raw.description,
+      amount: raw.amount,
+      tokenType: raw.tokenType,
+      claimed: !!raw.claimed,
+      canClaim: !!raw.canClaim,
+      cantClaimReason: raw.cantClaimReason ?? null,
+      lastClaim: new Date(raw.lastClaimTimestamp * 1000),
+      provider: query.provider || 'base',
+      nextClaim:
+        raw.lastClaimTimestamp && raw.claimResetFrequencySec > -1
+          ? new Date(raw.lastClaimTimestamp * 1000 + raw.claimResetFrequencySec * 1000)
+          : null
+    }));
   }
 
   /**

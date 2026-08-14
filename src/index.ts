@@ -8,7 +8,9 @@ import type {
   AuthenticatedData,
   SocketEventName,
   SocketEventSubscriptionsUpdatedData,
-  SocketSubscriptionEntitlementData
+  SocketSubscriptionEntitlementData,
+  SocketSubscriptionFairUseState,
+  SocketSubscriptionLimitNoticeData
 } from './ApiClient/WebSocketClient/events.js';
 import type {
   SocketEventSubscriptionInput,
@@ -49,6 +51,7 @@ import type {
   CreateSubscriptionCheckoutOptions,
   SubscriptionCheckoutResult,
   SubscriptionEntitlementSnapshot,
+  SubscriptionFairUseState,
   SubscriptionPlanId,
   SubscriptionPlanInterval,
   SubscriptionPlan,
@@ -293,6 +296,8 @@ export type {
   SocketEventSubscriptionsUpdatedData,
   SocketEventSubscriptionUpdate,
   SocketSubscriptionEntitlementData,
+  SocketSubscriptionFairUseState,
+  SocketSubscriptionLimitNoticeData,
   VideoControlNetName,
   VideoControlNetParams,
   VideoFormat,
@@ -307,6 +312,7 @@ export type {
   CreateSubscriptionCheckoutOptions,
   SubscriptionCheckoutResult,
   SubscriptionEntitlementSnapshot,
+  SubscriptionFairUseState,
   SubscriptionPlanId,
   SubscriptionPlanInterval,
   SubscriptionPlan,
@@ -385,6 +391,8 @@ export interface SogniClientConfig {
    * Omit this option to receive the default socket event stream. To reduce socket traffic for
    * proxy or headless clients that do not need live worker counts, set
    * `{ modelAvailability: false }` to opt out of `swarmModels` and `swarmLLMModels` updates.
+   * Subscription limit notices are opt-in; set `{ subscriptionLimitNotice: true }` when the
+   * client needs user-facing queue, concurrency, or fair-use updates.
    */
   socketEventSubscriptions?: SocketEventSubscriptions;
   /**

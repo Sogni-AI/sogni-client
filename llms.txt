@@ -126,7 +126,7 @@ Jobs explicitly submitted with `billingMode: 'subscription'` that the subscripti
 
 Chat job failures surface as `ChatJobError` (exported from the package root): `.message` stays the human-readable server message, `code`/`errorCode` carry the wire code string (e.g. `'4080'`), `errorType` carries the server tag (e.g. `'subscription_unavailable'`), and the `subscriptionErrorCode` getter maps back to the numeric `SUBSCRIPTION_ERROR_CODES` value — branch on these instead of string-matching messages.
 
-Unlimited fair-use accounting and enforcement are dynamic and server-side in the socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as fixed user-facing limits.
+Unlimited fair-use accounting and enforcement are dynamic and server-authoritative. While a monthly Fast-network limit is active, `subscription.fairUse` contains ephemeral, user-facing state (`usageSpark`, `usageUsd`, `planPriceUsd`, `resetAt`, effective Fast queue/concurrency limits, Relaxed availability, and upgrade availability). It is absent when no limit is active. Never persist it as policy, infer a threshold from it, or use it to authorize work. Live `subscriptionLimitNotice` socket events are opt-in through `socketEventSubscriptions` or `setSocketEventSubscriptions()`.
 
 Plan pricing, included features and models, usage allowances, fair-use thresholds, and other limits are subject to change at Sogni AI's discretion, subject to applicable law. Treat `getSubscriptionPlans()` and the checkout response as authoritative instead of hard-coding catalog pricing or limits; notice of material changes to active paid subscriptions is provided when required.
 

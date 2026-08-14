@@ -44,6 +44,24 @@ export type SubscriptionPlanId = 'unlimited' | 'unlimited_pro';
  */
 export type SubscriptionTerm = 'monthly' | 'annual';
 
+/** Actionable monthly fair-use state returned only while Fast limits are active. */
+export interface SubscriptionFairUseState {
+  limited: true;
+  /** Subscription-funded Spark used in the current monthly fair-use window. */
+  usageSpark: number;
+  /** Retail-equivalent USD value of the subscription-funded usage. */
+  usageUsd: number;
+  /** Monthly reference price for the current tier. */
+  planPriceUsd: number;
+  /** ISO timestamp for the subscriber-anchored monthly reset. */
+  resetAt: string;
+  fastConcurrencyLimit: 1;
+  fastQueueLimit: 1;
+  relaxedUnrestricted: true;
+  /** True for Unlimited, whose next tier is Unlimited Pro. */
+  upgradeAvailable: boolean;
+}
+
 /**
  * Stripe recurring interval implied by the billing term.
  */
@@ -112,6 +130,8 @@ export interface SubscriptionEntitlementSnapshot {
    * consumers should show a pending hint only while `paymentPending && !active`.
    */
   paymentPending?: boolean;
+  /** Present only while the monthly Fast-network fair-use limits are active. */
+  fairUse?: SubscriptionFairUseState;
   /**
    * Frontier vendor-model discount (basis points) this member currently
    * receives on the artist-facing price of premium third-party vendor models

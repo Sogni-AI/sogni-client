@@ -127,7 +127,7 @@ const models = await sogni.projects.waitForModels();
 
 Use `appSource` to identify the product or integration behind a client connection. The SDK forwards it during authentication and on socket-backed project/chat requests so server-side reporting can attribute usage consistently.
 
-By default, the SDK receives the full socket event stream, including live model worker counts through `swarmModels` and `swarmLLMModels`. Proxy, server-side, or headless clients that do not need ongoing worker count updates can opt out of the grouped model availability stream:
+By default, the SDK receives the standard socket event stream, including live model worker counts through `swarmModels` and `swarmLLMModels`. Proxy, server-side, or headless clients that do not need ongoing worker count updates can opt out of the grouped model availability stream:
 
 ```javascript
 const sogni = await SogniClient.createInstance({
@@ -156,6 +156,16 @@ await sogni.setSocketEventSubscriptions({
 **Group flags dominate individual flags.** Disabling a group (e.g. `modelAvailability: false`) suppresses every event in the group, and re-enabling a single event under that group later (e.g. `swarmModels: true`) does **not** override the group-level suppression — the group flag still wins. To re-enable a single event, re-enable the group it belongs to (or clear it via `setSocketEventSubscriptions({ reset: true })` before reapplying selective subscriptions). Subscriptions you do not list keep their current server-side state.
 
 Runtime subscription changes made via `setSocketEventSubscriptions` are remembered locally and re-applied on every reconnect, so a long-lived client only needs to express its preference once.
+
+User-facing subscription limit notices are opt-in. Enable the event when a client needs live queue, concurrency, or fair-use messaging:
+
+```typescript
+await sogni.setSocketEventSubscriptions({ subscriptionLimitNotice: true });
+
+sogni.apiClient.socket.on('subscriptionLimitNotice', (notice) => {
+  console.info(notice.message);
+});
+```
 
 Agent integrations can optionally declare connection and workload attribution without changing `appSource`. Defaults are immutable and per-request overrides are isolated, so concurrent operations cannot leak lineage into one another:
 
@@ -240,7 +250,7 @@ When a job is explicitly submitted with `billingMode: 'subscription'` and the su
 
 Chat job failures preserve this error contract. Streamed and non-streaming chat completions, hosted REST chat, and durable chat runs fail with a `ChatJobError` (exported from the package root): `.message` stays the human-readable server message, while `code`/`errorCode` carry the wire code string (e.g. `'4080'`), `errorType` carries the server's tag (e.g. `'subscription_unavailable'`), and the `subscriptionErrorCode` getter maps the code back to the numeric `SUBSCRIPTION_ERROR_CODES` value when applicable — so apps can branch without string-matching.
 
-Unlimited fair-use accounting and enforcement are handled dynamically by the Sogni socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as durable user-facing limits.
+Unlimited fair-use accounting and enforcement remain dynamic and server-authoritative. While a monthly Fast-network limit is active, the entitlement snapshot includes an ephemeral `fairUse` object with the subscriber's current usage, plan reference price, reset timestamp, effective Fast queue/concurrency limits, Relaxed-network availability, and upgrade availability. The field is absent when no limit is active. Clients should use it for current user-facing messaging only, never persist it as policy, infer a threshold from it, or use it to authorize work.
 
 To start Stripe checkout, use a plan's `planId` (`unlimited` or `unlimited_pro`) and `term` (`monthly` or `annual`). Checkout and portal sessions require user authentication; API-key auth is rejected for those browser redirect operations.
 
@@ -982,19 +992,19 @@ Use default `sogni_tools: true` or `sogni_tools: "creative-tools"` when you want
 
 Notable creative-tools include:
 
-| Tool                                                            | Behavior                                                                                                                              |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `restore_photo`, `apply_style`, `refine_result`, `change_angle` | Image-edit adapters backed by the shared image-edit workflow                                                                          |
-| `animate_photo`                                                 | Image-to-video, with multi-source fan-out via `sourceImageIndices` (composed into one MP4 by default; opt out with `stitched: false`) |
-| `stitch_video`                                                  | Compose selected video clips into one MP4 (with optional audio overlay)                                                               |
-| `orbit_video`                                                   | Generate orbit clips around a subject and stitch them                                                                                 |
-| `dance_montage`                                                 | Generate dance clips and stitch when multi-clip                                                                                       |
+| Tool                                                            | Behavior                                                                                                                                                |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `restore_photo`, `apply_style`, `refine_result`, `change_angle` | Image-edit adapters backed by the shared image-edit workflow                                                                                            |
+| `animate_photo`                                                 | Image-to-video, with multi-source fan-out via `sourceImageIndices` (composed into one MP4 by default; opt out with `stitched: false`)                   |
+| `stitch_video`                                                  | Compose selected video clips into one MP4 (with optional audio overlay)                                                                                 |
+| `orbit_video`                                                   | Generate orbit clips around a subject and stitch them                                                                                                   |
+| `dance_montage`                                                 | Generate dance clips and stitch when multi-clip                                                                                                         |
 | `extend_video`, `replace_video_segment`                         | Extend or replace a bounded segment of an existing video; replacements may trim source windows with `replacementStartSeconds` / `replacementEndSeconds` |
-| `overlay_video`, `add_subtitles`                                | Burn in text/logo overlays or subtitle cues onto existing videos via ffmpeg                                                           |
-| `enhance_prompt`                                                | Expand or adapt rough prompts into model-ready image, video, music, or edit prompts                                                   |
-| `compose_script`                                                | Draft scripts, storyboards, trailers, social shorts, campaign beats, or video prompts                                                 |
-| `compose_lyrics`                                                | Write vocal song lyrics and suggested musical parameters                                                                              |
-| `compose_instrumental`                                          | Write instrumental structure and suggested musical parameters                                                                         |
+| `overlay_video`, `add_subtitles`                                | Burn in text/logo overlays or subtitle cues onto existing videos via ffmpeg                                                                             |
+| `enhance_prompt`                                                | Expand or adapt rough prompts into model-ready image, video, music, or edit prompts                                                                     |
+| `compose_script`                                                | Draft scripts, storyboards, trailers, social shorts, campaign beats, or video prompts                                                                   |
+| `compose_lyrics`                                                | Write vocal song lyrics and suggested musical parameters                                                                                                |
+| `compose_instrumental`                                          | Write instrumental structure and suggested musical parameters                                                                                           |
 
 Composition and post-production tools (`stitch_video`, `orbit_video`, `dance_montage`, `animate_photo` fan-out, `extend_video`, `replace_video_segment`, `overlay_video`, and `add_subtitles`) return or update MP4 artifacts. `stitch_video` concatenates whole clips end-to-end; alternating or interleaved time slices should be represented as repeated `replace_video_segment` steps with bounded replacement source windows. See the LLM API reference for the full schema list.
 
@@ -1009,7 +1019,9 @@ const sogni = await SogniClient.createInstance({
 
 const result = await sogni.chat.hosted.create({
   model: 'qwen3.6-35b-a3b-gguf-iq4xs',
-  messages: [{ role: 'user', content: 'Create a 15s trailer-style launch video for this product concept' }],
+  messages: [
+    { role: 'user', content: 'Create a 15s trailer-style launch video for this product concept' }
+  ],
   sogni_tools: 'creative-tools',
   sogni_tool_execution: true,
   token_type: 'spark'
@@ -1079,17 +1091,19 @@ const workflow = await sogni.workflows.start({
           videoModel: 'ltx23',
           duration: 5
         },
-        dependsOn: [{
-          sourceStepId: 'keyframe',
-          sourceArtifactIndex: 0,
-          targetArgument: 'referenceImageIndices',
-          mediaType: 'image',
-          transform: 'image_index',
-          required: true
-        }]
+        dependsOn: [
+          {
+            sourceStepId: 'keyframe',
+            sourceArtifactIndex: 0,
+            targetArgument: 'referenceImageIndices',
+            mediaType: 'image',
+            transform: 'image_index',
+            required: true
+          }
+        ]
       }
     ]
-  },
+  }
 });
 
 for await (const event of sogni.workflows.streamEvents(workflow.workflowId)) {
@@ -1136,26 +1150,26 @@ The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) dire
 
 The workflow examples showcase a few powerful open-source frontier models supported by Sogni Supernet:
 
-| Model ID                             | Description                                           | Use Case                                                                                                     |
-| ------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `z_image_turbo_bf16`                 | **Z-Image Turbo** - Ultra-fast 8-step generation      | Quick text-to-image prototyping and iteration                                                                |
-| `z_image_bf16`                       | **Z-Image** - High quality 20-step generation         | Detailed, high quality image output                                                                          |
-| `krea2_turbo_fp8_scaled`             | **Krea 2 Turbo** - Fast 8-step, strong in-image text  | Text-heavy images and fast iteration, up to 2K                                                               |
-| `krea2_identity_edit_v1_2`           | **Krea 2 Identity Edit LoRA v1.2** - Identity editing | Preserve a subject across edits with 1-2 reference images                                                    |
-| `chroma1-hd_fp8_scaled`              | **Chroma1-HD** - Final high-res Chroma (uncensored)   | Highest-fidelity Chroma output, LoRA-capable                                                                 |
-| `flux2_dev_fp8`                      | **Flux.2 \[dev\]** - Pro quality, context images      | Professional images and reference-guided editing (up to 6 context images)                                    |
-| `qwen_image_edit_2511_fp8_lightning` | **Qwen Image Edit Lightning** - Fast 4-step editing   | Rapid reference-based image generation                                                                       |
-| `qwen_image_edit_2511_fp8`           | **Qwen Image Edit** - High quality 20-step editing    | Professional image editing with context awareness                                                            |
-| `wan_v2.2-14b-fp8_t2v_lightx2v`      | **Wan 2.2 T2V** - Text-to-video                       | Generate videos from text prompts                                                                            |
-| `seedance-2-0`                       | **Seedance 2.0** - 4K external API multimodal video   | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
-| `seedance-2-0-mini`                  | **Seedance 2.0 Mini** - 720p external API video       | Fastest, lower-cost 24fps Seedance video generation                                                          |
-| `seedance-2-0-fast`                  | **Seedance 2.0 Fast** - 720p external API video       | Legacy faster 24fps video generation where fast tiers are enabled                                            |
-| `seedance-2-5`                       | **Seedance 2.5** - 480p/720p external API video       | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs  |
-| `dark_beast_z_image_turbo_v9_bf16`   | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                    |
-| `dark_beast_krea2_fp8`               | **Dark Beast KREA 2** - Community (uncensored)        | Uncensored Krea 2 fine-tune (2K output needs a 24GB+ VRAM worker)                                            |
-| `dark_beast_krea2_identity_edit_v1_2` | **Dark Beast Krea 2 Identity Edit** - Community       | Uncensored identity-preserving Krea 2 edit LoRA with 1-2 reference images                                    |
-| `one_obsession_v22_fp16`             | **One Obsession v22** - Community (Illustrious/anime) | Anime/illustration checkpoint, LoRA-capable                                                                  |
-| `qwen3.6-35b-a3b-gguf-iq4xs`         | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
+| Model ID                              | Description                                              | Use Case                                                                                                     |
+| ------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `z_image_turbo_bf16`                  | **Z-Image Turbo** - Ultra-fast 8-step generation         | Quick text-to-image prototyping and iteration                                                                |
+| `z_image_bf16`                        | **Z-Image** - High quality 20-step generation            | Detailed, high quality image output                                                                          |
+| `krea2_turbo_fp8_scaled`              | **Krea 2 Turbo** - Fast 8-step, strong in-image text     | Text-heavy images and fast iteration, up to 2K                                                               |
+| `krea2_identity_edit_v1_2`            | **Krea 2 Identity Edit LoRA v1.2** - Identity editing    | Preserve a subject across edits with 1-2 reference images                                                    |
+| `chroma1-hd_fp8_scaled`               | **Chroma1-HD** - Final high-res Chroma (uncensored)      | Highest-fidelity Chroma output, LoRA-capable                                                                 |
+| `flux2_dev_fp8`                       | **Flux.2 \[dev\]** - Pro quality, context images         | Professional images and reference-guided editing (up to 6 context images)                                    |
+| `qwen_image_edit_2511_fp8_lightning`  | **Qwen Image Edit Lightning** - Fast 4-step editing      | Rapid reference-based image generation                                                                       |
+| `qwen_image_edit_2511_fp8`            | **Qwen Image Edit** - High quality 20-step editing       | Professional image editing with context awareness                                                            |
+| `wan_v2.2-14b-fp8_t2v_lightx2v`       | **Wan 2.2 T2V** - Text-to-video                          | Generate videos from text prompts                                                                            |
+| `seedance-2-0`                        | **Seedance 2.0** - 4K external API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
+| `seedance-2-0-mini`                   | **Seedance 2.0 Mini** - 720p external API video          | Fastest, lower-cost 24fps Seedance video generation                                                          |
+| `seedance-2-0-fast`                   | **Seedance 2.0 Fast** - 720p external API video          | Legacy faster 24fps video generation where fast tiers are enabled                                            |
+| `seedance-2-5`                        | **Seedance 2.5** - 480p/720p external API video          | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs |
+| `dark_beast_z_image_turbo_v9_bf16`    | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                     |
+| `dark_beast_krea2_fp8`                | **Dark Beast KREA 2** - Community (uncensored)           | Uncensored Krea 2 fine-tune (2K output needs a 24GB+ VRAM worker)                                            |
+| `dark_beast_krea2_identity_edit_v1_2` | **Dark Beast Krea 2 Identity Edit** - Community          | Uncensored identity-preserving Krea 2 edit LoRA with 1-2 reference images                                    |
+| `one_obsession_v22_fp16`              | **One Obsession v22** - Community (Illustrious/anime)    | Anime/illustration checkpoint, LoRA-capable                                                                  |
+| `qwen3.6-35b-a3b-gguf-iq4xs`          | **Qwen3.6 35B VLM** - LLM chat, tool calling & vision    | Latest model with 262,144 native context length, reasoning, tool calling, and multimodal image understanding |
 
 All workflow examples include:
 

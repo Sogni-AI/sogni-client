@@ -3,6 +3,31 @@ import { Balances } from '../../Account/types.js';
 import { LLMJobCost, LLMModelInfo, ToolCallDelta } from '../../Chat/types.js';
 import { SubscriptionPlanId } from '../../Account/subscription.types.js';
 
+export interface SocketSubscriptionFairUseState {
+  limited: true;
+  usageSpark: number;
+  usageUsd: number;
+  planPriceUsd: number;
+  /** Epoch milliseconds on the socket wire; mapped to ISO in AccountApi. */
+  resetAt: number;
+  fastConcurrencyLimit: 1;
+  fastQueueLimit: 1;
+  relaxedUnrestricted: true;
+  upgradeAvailable: boolean;
+}
+
+export interface SocketSubscriptionLimitNoticeData {
+  version: number;
+  reason: string;
+  severity: 'info' | 'warning' | 'error';
+  code: string;
+  message: string;
+  currentPlan?: string | null;
+  subscriptionTier?: string | null;
+  fairUse?: SocketSubscriptionFairUseState | null;
+  requiredPlans?: SubscriptionPlanId[];
+}
+
 export interface SocketSubscriptionEntitlementData {
   active: boolean;
   trialing: boolean;
@@ -51,6 +76,8 @@ export interface SocketSubscriptionEntitlementData {
      * here so the mapper can pass it through if a future build adds it.
      */
     paymentPending?: boolean | null;
+    /** Monthly Fast-network fair-use state, when currently active. */
+    fairUse?: SocketSubscriptionFairUseState | null;
   } | null;
 }
 
@@ -100,6 +127,8 @@ export type JobErrorData = {
   feature?: string;
   /** Standalone user-facing English describing the limitation. */
   limitation?: string;
+  /** Actionable fair-use details when `feature === 'monthly_fair_use'`. */
+  fairUse?: SocketSubscriptionFairUseState | null;
 };
 
 export type JobProgressData = {
@@ -279,6 +308,8 @@ export type SocketEventMap = {
    * @event WebSocketClient#subscriptionEntitlementUpdated - Subscription entitlement changed while connected
    */
   subscriptionEntitlementUpdated: SocketSubscriptionEntitlementData;
+  /** User-actionable subscription queue, concurrency, or fair-use notice. */
+  subscriptionLimitNotice: SocketSubscriptionLimitNoticeData;
   /**
    * @event WebSocketClient#balanceUpdate - Received balance update
    */
