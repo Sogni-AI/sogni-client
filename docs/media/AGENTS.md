@@ -30,12 +30,34 @@ Current public API anchors:
 - `checkAuth()` is only for cookie-auth browser flows. API-key auth auto-authenticates during `createInstance()`, and token auth uses `login()` or `setTokens()`.
 - `ChatCompletionResult` is SDK-shaped (`content`, `role`, `finishReason`, `tool_calls`, `usage`, `cost`). Streaming chunks expose `chunk.content` and optional `chunk.tool_calls`.
 
+## Public Release Security
+
+This repository, its history, npm tarballs, generated declarations, documentation,
+examples, tests, and release notes are public and may be inspected by adversarial
+automation. Treat every committed or published byte as externally visible.
+
+- Publish only the minimum client contract needed for interoperability. Do not
+  expose private enforcement logic, diagnostic classifications, thresholds,
+  control state, administrative behavior, or instructions for evading controls.
+- Keep authorization, billing, eligibility, abuse prevention, and content-policy
+  enforcement server-authoritative. Client-provided values are untrusted and may
+  be omitted, forged, replayed, or varied deliberately.
+- Public responses and types should use coarse, stable, user-actionable results.
+  Detailed diagnostics belong in private service logs and authenticated internal
+  administration surfaces.
+- Before changing a sensitive public surface, inspect all consumers and generated
+  artifacts, preserve required wire compatibility, and review the packed release
+  for accidental disclosure.
+- If implementation details have already been published, assume they are known.
+  Fix or rotate the server-side control instead of relying on deletion or renaming.
+
 ## Sogni Intelligence APIs
 
 The SDK wraps the public Sogni Intelligence endpoints used for text chat, hosted creative tools, durable chat turns, and deterministic multi-step workflows.
 
 - `sogni.chat.completions.create()` maps to socket-native chat completions and supports text, streaming, vision input, custom function tools, Sogni tool injection, structured outputs, and `think` / `taskProfile` controls.
 - `sogni.chat.hosted.create()` maps to `POST /v1/chat/completions`, the OpenAI-compatible REST chat endpoint. It can execute Sogni media-generation and composition tools server-side.
+- `sogni.chat.hosted.executeTool()` maps to `POST /v1/creative-agent/tools/execute` for direct execution of known synchronous composition/planning tools (`enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`) without an LLM dispatcher round.
 - `sogni.chat.runs` maps to `/v1/chat/runs`, a durable hosted-chat turn with persisted state, event replay, cancellation, and recovery across client disconnects.
 - `sogni.workflows` maps to `/v1/creative-agent/workflows`, where callers submit exact multi-step creative plans and observe durable execution through snapshots, event logs, or SSE.
 - `sogni.workflows.templates` maps to `/v1/creative-agent/workflows/templates`, the CRUD and fork API for saved, parameterized workflow recipes.
@@ -49,7 +71,9 @@ Public chat and workflow media rules:
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Flux.2, Z-Image / Z-Image Turbo, Krea 2 Turbo, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, and One Obsession v22), video generation (WAN 2.2, LTX-2.3, Seedance 2.0, HappyHorse 1.1), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, LTX-2.3, Seedance 2.0, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
+
+Choosing an image-edit model: pick by what the edit has to preserve, not by step count or quality tier. When a person or character must stay recognisable through the edit — style transfer, makeover, clothing or person swap, face swap, new pose or expression, character sheet — use Krea 2 Identity Edit (`krea2_identity_edit_v1_2`, or `dark_beast_krea2_identity_edit_v1_2` uncensored) with 1-2 context images. For general-purpose editing — photo transforms, in-image text, multi-person changes, combining up to 3 references — use a Qwen image-edit model. A higher-step general-purpose editor does not beat the identity model at a likeness task; it reinterprets the subject instead of preserving it. See `llms.txt` for parameters.
 
 Runtime and packaging:
 

@@ -126,7 +126,9 @@ Jobs explicitly submitted with `billingMode: 'subscription'` that the subscripti
 
 Chat job failures surface as `ChatJobError` (exported from the package root): `.message` stays the human-readable server message, `code`/`errorCode` carry the wire code string (e.g. `'4080'`), `errorType` carries the server tag (e.g. `'subscription_unavailable'`), and the `subscriptionErrorCode` getter maps back to the numeric `SUBSCRIPTION_ERROR_CODES` value — branch on these instead of string-matching messages.
 
-Unlimited fair-use accounting and enforcement are dynamic and server-side in the socket service. The SDK does not expose per-period usage counters or plan limit tables for clients to store or display as fixed user-facing limits.
+Unlimited fair-use accounting and enforcement are dynamic and server-authoritative. While a monthly Fast-network limit is active, `subscription.fairUse` contains ephemeral, user-facing state (`usageSpark`, `usageUsd`, `planPriceUsd`, `resetAt`, effective Fast queue/concurrency limits, Relaxed availability, and upgrade availability). It is absent when no limit is active. Never persist it as policy, infer a threshold from it, or use it to authorize work. Live `subscriptionLimitNotice` socket events are opt-in through `socketEventSubscriptions` or `setSocketEventSubscriptions()`.
+
+Plan pricing, included features and models, usage allowances, fair-use thresholds, and other limits are subject to change at Sogni AI's discretion, subject to applicable law. Treat `getSubscriptionPlans()` and the checkout response as authoritative instead of hard-coding catalog pricing or limits; notice of material changes to active paid subscriptions is provided when required.
 
 Stripe checkout uses catalog plan IDs, not monthly/annual suffixed IDs:
 
@@ -139,6 +141,10 @@ const portal = await sogni.account.createSubscriptionPortalSession();
 ```
 
 Checkout and portal sessions require user authentication; API-key auth is rejected for those redirect operations.
+
+AGENT ATTRIBUTION:
+
+Keep `appSource` as the stable product/integration ID. Agent wrappers may additionally set immutable `attribution.connection` and `attribution.workload` defaults on `createInstance()`, then override `attribution` per project, socket/hosted/durable chat request, hosted tool, or creative workflow. Exported unions cover `interactionKind`, `workloadKind`, `agentSurface` (including `native_desktop`), `executionMode`, and operation lineage. Standalone attributed calls receive a top-level operation ID from the underlying job/request; child calls should provide `operationScope: 'child'`, `rootOperationId`, and `parentOperationId`. All fields are optional and omitted for legacy callers.
 
 ### Network Types
 
@@ -205,22 +211,38 @@ The full catalog is dynamic — enumerate it at runtime with
 | `z_image_turbo_bf16` | Z-Image Turbo — ultra-fast 8-step (free-tier eligible) |
 | `z_image_bf16` | Z-Image — high quality 20-50 step |
 | `krea2_turbo_fp8_scaled` | Krea 2 Turbo — few-step, strong in-image text, up to 2K |
+| `krea2_identity_edit_v1_2` | Krea 2 Identity Edit LoRA v1.2 — best for transforming a person or character while keeping their likeness; 1-2 reference images |
 | `chroma-v.46-flash_fp8` | Chroma v.46 Flash — fast, high quality |
 | `chroma-v48-detail-svd_fp8` | Chroma v.48 Detail — high detail |
 | `chroma1-hd_fp8_scaled` | Chroma1-HD — final high-res Chroma (uncensored, LoRA-capable) |
 | `flux1-schnell-fp8` | Flux.1 [schnell] — 1-5 step |
-| `flux1-krea-dev_fp8_scaled` | Flux.1 Krea [dev] — creative detail |
-| `flux2_dev_fp8` | Flux.2 [dev] — pro quality + context images (also image edit) |
+| `dark_beast_krea2_identity_edit_v1_2` | Dark Beast Krea 2 Identity Edit — community identity edit LoRA with 1-2 reference images |
 | `qwen_image_2512_fp8` / `_lightning` | Qwen Image 2512 — text rendering |
 | `gpt-image-2` | GPT Image 2 — OpenAI partner (premium, Spark-only) |
 
 Community fine-tunes (uncensored; pass the id directly):
 `dark_beast_z_image_turbo_v9_bf16` (fast Z-Image fine-tune, 2K needs 24GB VRAM),
 `dark_beast_krea2_fp8` (Krea 2 fine-tune, 2K needs 24GB VRAM),
+`dark_beast_krea2_identity_edit_v1_2` (Krea 2 identity edit LoRA),
 `one_obsession_v22_fp16` (Illustrious/anime, LoRA-capable).
 
-Krea 2 Turbo supports the `krea2-filter-bypass-3` style LoRA via
-`loras: ['krea2-filter-bypass-3']` + `loraStrengths: [1.0]`.
+### Choosing an image-edit model
+
+Pick by what the edit has to preserve, not by step count or quality tier.
+
+- **A person or character whose likeness must survive the edit** — use
+  `krea2_identity_edit_v1_2` (or `dark_beast_krea2_identity_edit_v1_2` for
+  uncensored) with 1-2 `contextImages`, `steps: 10`, and `guidance: 1`. This is
+  the right model for style transfers, makeovers, clothing or person swaps, face
+  swaps, new poses or expressions, and character sheets.
+- **Everything else** — use `qwen_image_edit_2511_fp8_lightning` (fast) or
+  `qwen_image_edit_2511_fp8`: general-purpose photo transforms, in-image text
+  edits, multi-person changes, and combining up to 3 reference images.
+
+A higher-step general-purpose editor does not beat the identity model at a
+likeness task — it reinterprets the subject instead of preserving it. When an
+edit both preserves a likeness and needs general-purpose work, run the identity
+model first, then edit its output.
 
 ---
 
@@ -306,7 +328,18 @@ Example: 5 seconds at 24fps = 121 frames
 - Speed models (`_distilled` suffix): 8-step, faster
 - Quality models (`_dev` suffix or no suffix): 20-step, best quality
 
-**LTX-2.3 22B (Recommended):**
+**LTX 2.5 22B (Recommended):**
+| Workflow | Fast/HQ (official fixed 8-step distilled) | Pro (Dev + official Speed LoRA) |
+|----------|------|---------|
+| Text-to-Video | `ltx25-22b-int8_t2v_distilled` | `ltx25-22b-int8_t2v_dev` |
+| Image/First+Last-Frame-to-Video | `ltx25-22b-int8_i2v_distilled` | `ltx25-22b-int8_i2v_dev` |
+| Audio-to-Video | `ltx25-22b-int8_a2v_distilled` | `ltx25-22b-int8_a2v_dev` |
+| Image+Audio-to-Video | `ltx25-22b-int8_ia2v_distilled` | `ltx25-22b-int8_ia2v_dev` |
+| Video-to-Video | `ltx25-22b-int8_v2v_distilled` | `ltx25-22b-int8_v2v_dev` |
+
+LTX 2.5 V2V supports canny/pose/depth/detailer in both variants. Inpaint/outpaint use the distilled ID only. Persona voice ID-LoRA, transition LoRA, and 10Eros remain LTX 2.3-only.
+
+**LTX-2.3 22B (rollback):**
 | Workflow | Fast | Quality |
 |----------|------|---------|
 | Text-to-Video | `ltx23-22b-fp8_t2v_distilled` | `ltx23-22b-fp8_t2v_dev` |
@@ -376,6 +409,85 @@ const project = await sogni.projects.create({
   tokenType: 'spark'
 });
 ```
+
+### MiniMax H3 and H3 Turbo (Sogni workers)
+
+MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. Standard H3 uses fixed 20-step `res_multistep` / `simple` sampling. H3 Turbo applies a dedicated four-step LoRA for each checkpoint family: FL2VA uses its validated sampler set and Ref2VA R2V uses Euler/simple. Both use fixed 24fps, guidance 1, no negative prompt, the `124 + n*17` frame grid (124-362), and a 32px canvas grid capped at 1,032,192 pixels.
+
+| Model ID                      | Mode                       | References                                                |
+| ----------------------------- | -------------------------- | --------------------------------------------------------- |
+| `minimax-h3-fl2va-fp8_t2v`    | Text-to-video              | none                                                       |
+| `minimax-h3-fl2va-fp8_i2v`    | Endpoint-conditioned image-to-video | first frame, last frame, or both (at least one)       |
+| `minimax-h3-fl2va-fp8_flf2v`  | First-and-last-frame video | both anchor images required                                |
+| `minimax-h3-ref2va-fp8_r2v`   | Reference-to-video         | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+| `minimax-h3-fl2va-fp8_t2v_turbo` | Turbo text-to-video | none |
+| `minimax-h3-fl2va-fp8_i2v_turbo` | Turbo endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
+| `minimax-h3-fl2va-fp8_flf2v_turbo` | Turbo first-and-last-frame video | both anchor images required |
+| `minimax-h3-ref2va-fp8_r2v_turbo` | Turbo reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+
+Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544. Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
+
+All eight current workflow IDs are available through the Sogni projects API and the Sogni Creative Agent Skill: four standard modes plus four Turbo modes.
+
+For direct `projects.create()` calls, both H3 I2V IDs accept `referenceImage`, `referenceImageEnd`, or both, with at least one required. The explicit FLF2V IDs still require both anchors. SDK creative-tool routing is a separate hosted contract: `generate_video` accepts `minimax-h3-turbo` (automatic t2v or first-frame i2v), `minimax-h3-t2v-turbo`, `minimax-h3-r2v`, and `minimax-h3-r2v-turbo`; `animate_photo` accepts `minimax-h3-i2v-turbo` and `minimax-h3-flf2v-turbo`.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-fl2va-fp8_t2v_turbo',
+  positivePrompt:
+    'integrated_multimodal_description: [Shot 1] Live-action, cinematic, a tracking shot moves through a rainy night market.\n\n' +
+    'overall_soundscape: Steady rain, close footsteps, and layered crowd ambience.\n\n' +
+    'non_diegetic_music: A low electronic pulse at a moderate tempo.',
+  duration: 8,
+  steps: 4,
+  guidance: 1,
+  scheduler: 'simple',
+  generateAudio: true,
+  tokenType: 'spark'
+});
+```
+
+MiniMax's [official H3 prompt-writing skill](https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills/h3-prompt-writing) makes Context-IR part of the prompt contract. T2V, I2V, L2V, and FLF2V use `integrated_multimodal_description`, `overall_soundscape`, then `non_diegetic_music`, in that exact order. Frame-conditioned modes prepend their official image-alignment line. I2V anchors `<Picture 1>` at 0.00 seconds; L2V uses `How the reference pictures align with the target video — <Picture 1> (from [Shot N]) aligns with the S.SS-second mark of the target video.`; FLF2V aligns both endpoints. Use `[Shot 1]` without a timestamp, then `[Shot N] At MM:SS.mmm, ...` for later cuts. Speakers keep stable `(S1)` IDs and exact spoken words go in `<d>[Language] ...</d>`. Write the structural sections in English while preserving dialogue, lyrics, and visible text in their original language. Use `non_diegetic_music: N/A` when there is no audience-only score.
+
+Ref2VA (`_r2v`) is a separate checkpoint with no frame anchors, so `referenceImageEnd` is rejected. It runs on a Sogni worker, so every artist reference uses the normal S3 upload path: `referenceImage` plus `contextImages`, `referenceVideo` plus `referenceVideos`, and `referenceAudio` plus `referenceAudios`. Direct URL arrays are rejected. At least one visual reference (image or video) is required; audio alone is rejected. Its prompt uses six ordered sections: `subject_definitions`, `summary`, `retention_analysis`, `detailed_description`, `overall_soundscape`, `non_diegetic_music`. Use `<Subject N>` for reusable visible content, `<Picture N>` only for concrete keyframes/composition anchors, `<Video N>` for whole-video structure, and `<Audio N>` for copied or referenced audio.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-ref2va-fp8_r2v',
+  positivePrompt: `subject_definitions:
+<Subject 1> is the woman in <Picture 1>, preserving her face, hairstyle, and brown jacket.
+<Subject 2> is the record-store environment in <Picture 2>, preserving its wooden bins, warm pendant lights, and rain-covered window.
+
+summary:
+[reference generation] The target video follows <Subject 1> through <Subject 2>.
+
+retention_analysis:
+<Subject 1> (appears in [Shot 1]): fully_preserved - her identity, hair, and jacket remain consistent.
+<Subject 2> (appears in [Shot 1]): fully_preserved - the store layout, lighting, and wet window are retained.
+
+detailed_description:
+The target video is live-action and cinematic with warm practical lighting.
+[Shot 1] <Subject 1> (S1) lifts a vinyl record inside <Subject 2> and says: <d>[English] This pressing arrived Tuesday.</d>
+
+overall_soundscape:
+Low room tone, rain against the window, paper rustle, and faint vinyl surface noise.
+
+non_diegetic_music:
+N/A`,
+  duration: 8,
+  width: 1344,
+  height: 768,
+  referenceImage: fs.readFileSync('./face.jpg'),
+  contextImages: [fs.readFileSync('./street.jpg')],
+  tokenType: 'spark'
+});
+```
+
+See `examples/workflow_minimax_h3_video.mjs` for all four standard workflow IDs, including first-only I2VA, last-only L2VA, and dual-anchor FL2VA through I2V, plus the three Turbo model-key overrides. Turbo uses the same official T2V/I2V/L2V/FLF2V prompt contract as standard FL2VA.
 
 ---
 
@@ -449,7 +561,7 @@ const project = await sogni.projects.create({
 
 ## 7. LLM Text Generation
 
-The Sogni SDK supports LLM text generation via the Supernet. Socket-native chat uses `sogni.chat.completions.create()`. Hosted REST chat uses `sogni.chat.hosted.create()`. Durable server-side chat runs use `sogni.chat.runs`.
+The Sogni SDK supports LLM text generation via the Supernet. Socket-native chat uses `sogni.chat.completions.create()`. Hosted REST chat uses `sogni.chat.hosted.create()`. Direct synchronous hosted tool execution uses `sogni.chat.hosted.executeTool()`. Durable server-side chat runs use `sogni.chat.runs`.
 
 ### Chat Completion (Non-Streaming)
 
@@ -571,9 +683,13 @@ Canonical hosted creative-tool surface (`SogniTools.all`, 24 tools, executed ser
 
 The default `creative-tools` surface includes the tools above. `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools. Per-request media context lets generated images / videos / audio be addressed by stable indices across tool rounds (each tool result envelope returns `startIndex` and `indices`).
 
+When the caller already knows the exact synchronous composition/planning tool and JSON arguments, use `sogni.chat.hosted.executeTool()` instead of forcing a `/v1/chat/completions` tool-choice round. Direct execution supports `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, and `compose_workflow_template`; long-running media tools still use hosted chat/runs or `sogni.workflows`.
+
 Media-conditioned tools accept explicit inline base64 `data:` URIs such as `source_image_url`, `reference_image_url`, `reference_audio_url`, and `reference_video_url`. Tool image inputs accept PNG/JPEG, tool audio inputs accept MP3/M4A/WAV, and tool video inputs accept MP4 or MOV/QuickTime. For uploaded or Sogni-hosted HTTP(S) assets, pass media through request-level `mediaReferences` / `mediaContext` or through `sogni.workflows` dependencies.
 
-The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. `workflow_creative_agent_tools.mjs` demonstrates server-side hosted Sogni tool injection through `/v1/chat/completions`. Pass `SogniTools.all` (or individual tool defs) to the LLM and execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
+Client-side `chat.tools.execute()` / `executeAll()` resolves canonical media indices through `ToolExecutionOptions.mediaContext`: non-negative indices address generated arrays and negative indices address uploaded arrays (`-1` is the first upload). Non-streaming `autoExecuteTools` carries vision-message images and successful generated-media URLs between rounds automatically.
+
+The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/video/music composition flows. `workflow_creative_agent_tools.mjs` demonstrates server-side hosted Sogni tool injection through `/v1/chat/completions`. `workflow_direct_creative_tool.mjs` demonstrates `sogni.chat.hosted.executeTool()` for known synchronous tool calls. Pass `SogniTools.all` (or individual tool defs) to the LLM and execute calls through `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`.
 
 Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.workflows` (`start`, `list`, `get`, `events`, `streamEvents`, `resume`, `reseed`, `cancel`) backed by `/v1/creative-agent/workflows`. `start()` accepts either an inline `input` plan or a saved `workflowId` + `inputs`. Saved workflow templates are managed via `sogni.workflows.templates` (`list`, `get`, `create`, `update`, `delete`, `fork`). All endpoints use the SDK's active auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
 
@@ -582,9 +698,9 @@ Default generation models used by platform tools:
 |------|-------|-------------|
 | `generate_image` | z_image_turbo_bf16 | Z-Image Turbo, ultra-fast 8-step |
 | `edit_image` | workflow/model-dependent | Reference-guided image editing with edit-capable Qwen/Flux models |
-| `generate_video` | ltx23-22b-fp8_t2v_distilled / ltx23-22b-fp8_i2v_distilled / Seedance selectors | Text-to-video or image-to-video |
-| `sound_to_video` | ltx23-22b-fp8_a2v_distilled / ltx23-22b-fp8_ia2v_distilled | Audio-driven video generation |
-| `video_to_video` | ltx23-22b-fp8_v2v_distilled / seedance-2-0 / WAN animate models | Video transformation / motion transfer |
+| `generate_video` | ltx25-22b-int8_t2v_distilled / ltx25-22b-int8_i2v_distilled / LTX 2.3 rollback / Seedance selectors | Text-to-video or image-to-video |
+| `sound_to_video` | ltx25-22b-int8_a2v_distilled / ltx25-22b-int8_ia2v_distilled / LTX 2.3 rollback | Audio-driven video generation |
+| `video_to_video` | ltx25-22b-int8_v2v_distilled / ltx25-22b-int8_v2v_dev / LTX 2.3 rollback / Seedance / WAN animate | Video transformation / motion transfer |
 | `generate_music` | ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo, fast music |
 
 ---
