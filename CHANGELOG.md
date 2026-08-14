@@ -1,3 +1,15 @@
+# [5.13.0-alpha.1](https://github.com/Sogni-AI/sogni-client/compare/v5.12.1...v5.13.0-alpha.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* **models:** align image catalog with current protocol ([52ce945](https://github.com/Sogni-AI/sogni-client/commit/52ce9454391a8f6d010dd6475a389bbd5ba338e0))
+
+
+### Features
+
+* **account:** expose actionable subscription limit state ([00d1292](https://github.com/Sogni-AI/sogni-client/commit/00d129275cb1e7d8c3b7de3d55df96d12a09ad0b))
+
 ## [5.12.1](https://github.com/Sogni-AI/sogni-client/compare/v5.12.0...v5.12.1) (2026-08-14)
 
 
