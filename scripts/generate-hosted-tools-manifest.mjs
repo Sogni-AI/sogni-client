@@ -43,7 +43,7 @@ if (generateMusicModel) {
   generateMusicModel.enum = audioModelIds;
   generateMusicModel.description =
     'Canonical music model ID. Default: ace_step_1.5_xl_turbo. ' +
-    'Use minimax_music3 (MiniMax Music 3, premium autoregressive composer, ~4x cost, duration is a ceiling) ' +
+    'Use minimax_music3 (MiniMax Music 3, premium autoregressive composer, ~20x cost, duration is a ceiling) ' +
     'when the user asks for the best quality, realistic vocals, or full songs. ' +
     'Use ace_step_1.5_xl_sft only when the user explicitly requests XL SFT. ' +
     'Use legacy ace_step_1.5_turbo or ace_step_1.5_sft only when the user explicitly requests a legacy model.';
