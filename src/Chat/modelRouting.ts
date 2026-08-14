@@ -137,7 +137,8 @@ export const PREFERRED_MODEL_IDS = {
     aceStepXlTurbo: 'ace_step_1.5_xl_turbo',
     aceStepXlSft: 'ace_step_1.5_xl_sft',
     aceStepTurbo: 'ace_step_1.5_turbo',
-    aceStepSft: 'ace_step_1.5_sft'
+    aceStepSft: 'ace_step_1.5_sft',
+    minimaxMusic3: 'minimax_music3'
   }
 } as const;
 

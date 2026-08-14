@@ -40,7 +40,7 @@ export function isVideoModel(modelId: string): boolean {
  * Audio models produce MP3 output by default.
  */
 export function isAudioModel(modelId: string): boolean {
-  return modelId.startsWith('ace_step');
+  return modelId.startsWith('ace_step') || modelId === 'minimax_music3';
 }
 
 /**

@@ -30,7 +30,8 @@ const audioModelIds = [
   'ace_step_1.5_xl_turbo',
   'ace_step_1.5_xl_sft',
   'ace_step_1.5_turbo',
-  'ace_step_1.5_sft'
+  'ace_step_1.5_sft',
+  'minimax_music3'
 ];
 
 // @sogni-ai/sogni-protocol@1.0.0-alpha.6 still exposes legacy generate_music
@@ -41,7 +42,9 @@ const generateMusicModel = generateMusicTool?.function?.parameters?.properties?.
 if (generateMusicModel) {
   generateMusicModel.enum = audioModelIds;
   generateMusicModel.description =
-    'Canonical ACE-Step model ID. Default: ace_step_1.5_xl_turbo. ' +
+    'Canonical music model ID. Default: ace_step_1.5_xl_turbo. ' +
+    'Use minimax_music3 (MiniMax Music 3, premium autoregressive composer, ~4x cost, duration is a ceiling) ' +
+    'when the user asks for the best quality, realistic vocals, or full songs. ' +
     'Use ace_step_1.5_xl_sft only when the user explicitly requests XL SFT. ' +
     'Use legacy ace_step_1.5_turbo or ace_step_1.5_sft only when the user explicitly requests a legacy model.';
 }

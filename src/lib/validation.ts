@@ -123,7 +123,8 @@ export function isComfyModel(modelId: string): boolean {
     'qwen_image_',
     'flux2_',
     'wan_',
-    'ace_step'
+    'ace_step',
+    'minimax_music3'
   ];
   return COMFY_PREFIXES.some((prefix) => modelId.startsWith(prefix));
 }
