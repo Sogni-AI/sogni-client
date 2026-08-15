@@ -1,3 +1,10 @@
+# [5.14.0](https://github.com/Sogni-AI/sogni-client/compare/v5.13.0...v5.14.0) (2026-08-15)
+
+
+### Features
+
+* **chat:** add RTX VSR model routing ([a317a00](https://github.com/Sogni-AI/sogni-client/commit/a317a0046bf5f2689f1367e4589f0cc7807a3859))
+
 # [5.13.0](https://github.com/Sogni-AI/sogni-client/compare/v5.12.1...v5.13.0) (2026-08-14)
 
 
