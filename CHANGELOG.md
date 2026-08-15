@@ -1,3 +1,10 @@
+# [5.15.0](https://github.com/Sogni-AI/sogni-client/compare/v5.14.0...v5.15.0) (2026-08-15)
+
+
+### Features
+
+* **models:** expose video geometry constraints ([7bda4ff](https://github.com/Sogni-AI/sogni-client/commit/7bda4ff88120140c7368f0b29a5abbcfae3247f9))
+
 # [5.14.0](https://github.com/Sogni-AI/sogni-client/compare/v5.13.0...v5.14.0) (2026-08-15)
 
 
