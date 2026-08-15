@@ -1,3 +1,10 @@
+## [5.15.2](https://github.com/Sogni-AI/sogni-client/compare/v5.15.1...v5.15.2) (2026-08-15)
+
+
+### Bug Fixes
+
+* **projects:** allow sparse audio model tiers ([1410426](https://github.com/Sogni-AI/sogni-client/commit/1410426dedc6fe182020e242040bf2eac956f739))
+
 ## [5.15.1](https://github.com/Sogni-AI/sogni-client/compare/v5.15.0...v5.15.1) (2026-08-15)
 
 
