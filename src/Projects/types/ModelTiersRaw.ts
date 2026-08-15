@@ -91,7 +91,7 @@ export interface BooleanDefault {
 
 export interface AudioTier {
   benchmark: Benchmark;
-  bpm: NumericDefaults;
+  bpm?: NumericDefaults;
   comfySampler: StringDefaults;
   comfyScheduler: StringDefaults;
   composerMode?: BooleanDefault;
@@ -99,11 +99,11 @@ export interface AudioTier {
   duration: NumericDefaults;
   guidance?: NumericDefaults;
   keyscale?: StringDefaults;
-  language: StringDefaults;
+  language?: StringDefaults;
   promptStrength?: NumericDefaults;
   shift?: NumericDefaults;
   steps: NumericDefaults;
-  timesignature: StringDefaults;
+  timesignature?: StringDefaults;
   type: 'audio';
 }
 

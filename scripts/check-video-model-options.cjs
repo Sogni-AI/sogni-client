@@ -1,5 +1,5 @@
 /**
- * Regression checks for server-advertised video model geometry.
+ * Regression checks for server-advertised model options.
  * Runs against compiled `dist/` output to verify the public SDK mapping.
  */
 
@@ -14,6 +14,8 @@ const VIDEO_MODEL_ID = 'minimax-h3-fl2va-fp8_t2v';
 const VIDEO_TIER_ID = 'minimax-h3-fl2va-fp8_t2v';
 const UPSCALE_MODEL_ID = 'rtx_vsr_pro';
 const UPSCALE_TIER_ID = 'rtx_vsr_pro';
+const MUSIC_MODEL_ID = 'minimax_music3';
+const MUSIC_TIER_ID = 'minimax_music3';
 const SILENT_LOGGER = { info() {}, warn() {}, error() {}, debug() {} };
 
 class SocketStub extends EventEmitter {
@@ -21,7 +23,8 @@ class SocketStub extends EventEmitter {
     if (path === '/api/v1/models/list') {
       return [
         { id: VIDEO_MODEL_ID, name: 'MiniMax H3 T2V', SID: 1, tier: VIDEO_TIER_ID, media: 'video' },
-        { id: UPSCALE_MODEL_ID, name: 'RTX VSR Pro', SID: 2, tier: UPSCALE_TIER_ID, media: 'image' }
+        { id: UPSCALE_MODEL_ID, name: 'RTX VSR Pro', SID: 2, tier: UPSCALE_TIER_ID, media: 'image' },
+        { id: MUSIC_MODEL_ID, name: 'MiniMax Music 3', SID: 3, tier: MUSIC_TIER_ID, media: 'audio' }
       ];
     }
     if (path === '/api/v2/models/tiers') {
@@ -41,6 +44,15 @@ class SocketStub extends EventEmitter {
           defaultSize: 2048,
           steps: { min: 1, max: 1, default: 1 },
           comfyScheduler: { allowed: [], default: '' }
+        },
+        [MUSIC_TIER_ID]: {
+          type: 'audio',
+          benchmark: { sec: 1, secCN: 0, secMaxPreviews: 0 },
+          steps: { min: 10, max: 100, default: 30 },
+          guidance: { min: 1, max: 5, decimals: 1, default: 1.7 },
+          duration: { min: 10, max: 300, default: 60 },
+          comfySampler: { allowed: ['euler'], default: 'euler' },
+          comfyScheduler: { allowed: ['simple'], default: 'simple' }
         }
       };
     }
@@ -73,6 +85,16 @@ async function main() {
   assert.equal(Object.hasOwn(upscaleOptions, 'guidance'), false);
   assert.deepEqual(upscaleOptions.sampler, { allowed: [], default: null });
   assert.deepEqual(upscaleOptions.scheduler, { allowed: [], default: '' });
+
+  const musicOptions = await projects.getModelOptions(MUSIC_MODEL_ID);
+
+  assert.equal(musicOptions.type, 'audio');
+  assert.deepEqual(musicOptions.steps, { min: 10, max: 100, step: 1, default: 30 });
+  assert.deepEqual(musicOptions.guidance, { min: 1, max: 5, step: 0.1, default: 1.7 });
+  assert.deepEqual(musicOptions.duration, { min: 10, max: 300, step: 1, default: 60 });
+  assert.equal(Object.hasOwn(musicOptions, 'bpm'), false);
+  assert.equal(Object.hasOwn(musicOptions, 'timesignature'), false);
+  assert.equal(Object.hasOwn(musicOptions, 'language'), false);
 
   console.log('Model option checks passed');
 }

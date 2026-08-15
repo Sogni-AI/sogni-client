@@ -56,9 +56,9 @@ export interface AudioModelOptions {
   sampler: Options<string>;
   scheduler: Options<string>;
   duration: NumRange;
-  bpm: NumRange;
-  timesignature: Options<string>;
-  language: Options<string>;
+  bpm?: NumRange;
+  timesignature?: Options<string>;
+  language?: Options<string>;
   keyscale?: Options<string>;
   composerMode?: { default: boolean };
   promptStrength?: NumRange;
@@ -143,13 +143,19 @@ export function mapAudioTier(tier: AudioTier): AudioModelOptions {
     steps: mapRange(tier.steps),
     sampler: mapOptions(tier.comfySampler, samplerValueToAlias),
     scheduler: mapOptions(tier.comfyScheduler, schedulerValueToAlias),
-    duration: mapRange(tier.duration),
-    bpm: mapRange(tier.bpm),
-    timesignature: mapOptions(tier.timesignature),
-    language: mapOptions(tier.language)
+    duration: mapRange(tier.duration)
   };
   if (tier.guidance) {
     options.guidance = mapRange(tier.guidance);
+  }
+  if (tier.bpm) {
+    options.bpm = mapRange(tier.bpm);
+  }
+  if (tier.timesignature) {
+    options.timesignature = mapOptions(tier.timesignature);
+  }
+  if (tier.language) {
+    options.language = mapOptions(tier.language);
   }
   if (tier.keyscale) {
     options.keyscale = mapOptions(tier.keyscale);
