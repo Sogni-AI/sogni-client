@@ -91,13 +91,21 @@ function mapOptions<T>(data: Options<T> | undefined, mapper = (value: T) => valu
 }
 
 export function mapImageTier(tier: ImageTier): ImageModelOptions {
-  return {
+  const options: ImageModelOptions = {
     type: 'image',
     steps: mapRange(tier.steps),
-    guidance: mapRange(tier.guidance),
     scheduler: mapOptions(tier.scheduler, schedulerValueToAlias),
     sampler: mapOptions(tier.sampler, samplerValueToAlias)
   };
+  // Mirrors mapComfyImageTier: guidance is absent on promptless tiers, and
+  // mapRange would throw reading `.min` off undefined. `isImageTier` claims
+  // every tier with no `type`, so anything sparse the Supernet serves lands
+  // here and would otherwise crash getModelOptions - which projects.create()
+  // calls on every project.
+  if (tier.guidance) {
+    options.guidance = mapRange(tier.guidance);
+  }
+  return options;
 }
 
 export function mapComfyImageTier(tier: ComfyImageTier): ImageModelOptions {

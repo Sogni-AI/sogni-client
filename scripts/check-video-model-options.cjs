@@ -16,6 +16,10 @@ const UPSCALE_MODEL_ID = 'rtx_vsr_pro';
 const UPSCALE_TIER_ID = 'rtx_vsr_pro';
 const MUSIC_MODEL_ID = 'minimax_music3';
 const MUSIC_TIER_ID = 'minimax_music3';
+// A legacy Mac/MPS-style tier: no `type`, so `isImageTier` claims it. Promptless
+// variants advertise no guidance range and must not crash the mapper.
+const LEGACY_MODEL_ID = 'legacy-sparse-image';
+const LEGACY_TIER_ID = 'legacy-sparse-image';
 const SILENT_LOGGER = { info() {}, warn() {}, error() {}, debug() {} };
 
 class SocketStub extends EventEmitter {
@@ -24,7 +28,8 @@ class SocketStub extends EventEmitter {
       return [
         { id: VIDEO_MODEL_ID, name: 'MiniMax H3 T2V', SID: 1, tier: VIDEO_TIER_ID, media: 'video' },
         { id: UPSCALE_MODEL_ID, name: 'RTX VSR Pro', SID: 2, tier: UPSCALE_TIER_ID, media: 'image' },
-        { id: MUSIC_MODEL_ID, name: 'MiniMax Music 3', SID: 3, tier: MUSIC_TIER_ID, media: 'audio' }
+        { id: MUSIC_MODEL_ID, name: 'MiniMax Music 3', SID: 3, tier: MUSIC_TIER_ID, media: 'audio' },
+        { id: LEGACY_MODEL_ID, name: 'Legacy Sparse', SID: 4, tier: LEGACY_TIER_ID, media: 'image' }
       ];
     }
     if (path === '/api/v2/models/tiers') {
@@ -53,6 +58,12 @@ class SocketStub extends EventEmitter {
           duration: { min: 10, max: 300, default: 60 },
           comfySampler: { allowed: ['euler'], default: 'euler' },
           comfyScheduler: { allowed: ['simple'], default: 'simple' }
+        },
+        [LEGACY_TIER_ID]: {
+          benchmark: { sec: 1, secCN: 0, secMaxPreviews: 0 },
+          steps: { min: 1, max: 20, default: 10 },
+          sampler: { allowed: ['euler'], default: 'euler' },
+          scheduler: { allowed: ['simple'], default: 'simple' }
         }
       };
     }
@@ -95,6 +106,16 @@ async function main() {
   assert.equal(Object.hasOwn(musicOptions, 'bpm'), false);
   assert.equal(Object.hasOwn(musicOptions, 'timesignature'), false);
   assert.equal(Object.hasOwn(musicOptions, 'language'), false);
+
+  // Regression: a typeless tier with no guidance used to throw
+  // "Cannot read properties of undefined (reading 'min')" out of mapRange.
+  const legacyOptions = await projects.getModelOptions(LEGACY_MODEL_ID);
+
+  assert.equal(legacyOptions.type, 'image');
+  assert.equal(Object.hasOwn(legacyOptions, 'guidance'), false);
+  assert.deepEqual(legacyOptions.steps, { min: 1, max: 20, step: 1, default: 10 });
+  assert.deepEqual(legacyOptions.sampler, { allowed: ['euler'], default: 'euler' });
+  assert.deepEqual(legacyOptions.scheduler, { allowed: ['simple'], default: 'simple' });
 
   console.log('Model option checks passed');
 }

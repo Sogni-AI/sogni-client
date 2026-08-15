@@ -32,7 +32,12 @@ export interface NumericDefaults {
 
 export interface ImageTier {
   benchmark: Benchmark;
-  guidance: NumericDefaults;
+  /**
+   * Optional: promptless tiers advertise no guidance range. Matches
+   * ComfyImageTier, and keeps `mapImageTier` from reading `.min` off
+   * `undefined` when the Supernet serves a sparse tier.
+   */
+  guidance?: NumericDefaults;
   modelFeeUSD?: number;
   nickname?: string;
   scheduler: StringDefaults;
