@@ -10,18 +10,23 @@ const { EventEmitter } = require('node:events');
 
 const ProjectsApi = require('../dist/Projects/index.js').default;
 
-const MODEL_ID = 'minimax-h3-fl2va-fp8_t2v';
-const TIER_ID = 'minimax-h3-fl2va-fp8_t2v';
+const VIDEO_MODEL_ID = 'minimax-h3-fl2va-fp8_t2v';
+const VIDEO_TIER_ID = 'minimax-h3-fl2va-fp8_t2v';
+const UPSCALE_MODEL_ID = 'rtx_vsr_pro';
+const UPSCALE_TIER_ID = 'rtx_vsr_pro';
 const SILENT_LOGGER = { info() {}, warn() {}, error() {}, debug() {} };
 
 class SocketStub extends EventEmitter {
   async get(path) {
     if (path === '/api/v1/models/list') {
-      return [{ id: MODEL_ID, name: 'MiniMax H3 T2V', SID: 1, tier: TIER_ID, media: 'video' }];
+      return [
+        { id: VIDEO_MODEL_ID, name: 'MiniMax H3 T2V', SID: 1, tier: VIDEO_TIER_ID, media: 'video' },
+        { id: UPSCALE_MODEL_ID, name: 'RTX VSR Pro', SID: 2, tier: UPSCALE_TIER_ID, media: 'image' }
+      ];
     }
     if (path === '/api/v2/models/tiers') {
       return {
-        [TIER_ID]: {
+        [VIDEO_TIER_ID]: {
           type: 'video',
           benchmark: { sec: 1, secCN: 0, secMaxPreviews: 0 },
           width: { min: 544, max: 1344, step: 32, default: 1344 },
@@ -29,6 +34,13 @@ class SocketStub extends EventEmitter {
           maxPixels: 1_032_192,
           comfySampler: { allowed: ['euler'], default: 'euler' },
           comfyScheduler: { allowed: ['simple'], default: 'simple' }
+        },
+        [UPSCALE_TIER_ID]: {
+          type: 'image',
+          benchmark: { sec: 1, secCN: 0, secMaxPreviews: 0 },
+          defaultSize: 2048,
+          steps: { min: 1, max: 1, default: 1 },
+          comfyScheduler: { allowed: [], default: '' }
         }
       };
     }
@@ -46,7 +58,7 @@ class ClientStub extends EventEmitter {
 
 async function main() {
   const projects = new ProjectsApi({ client: new ClientStub(), eip712: {} });
-  const options = await projects.getModelOptions(MODEL_ID);
+  const options = await projects.getModelOptions(VIDEO_MODEL_ID);
 
   assert.equal(options.type, 'video');
   assert.deepEqual(options.width, { min: 544, max: 1344, step: 32, default: 1344 });
@@ -55,7 +67,14 @@ async function main() {
   assert.deepEqual(options.sampler, { allowed: ['euler'], default: 'euler' });
   assert.deepEqual(options.scheduler, { allowed: ['simple'], default: 'simple' });
 
-  console.log('Video model option checks passed');
+  const upscaleOptions = await projects.getModelOptions(UPSCALE_MODEL_ID);
+
+  assert.equal(upscaleOptions.type, 'image');
+  assert.equal(Object.hasOwn(upscaleOptions, 'guidance'), false);
+  assert.deepEqual(upscaleOptions.sampler, { allowed: [], default: null });
+  assert.deepEqual(upscaleOptions.scheduler, { allowed: [], default: '' });
+
+  console.log('Model option checks passed');
 }
 
 main().catch((error) => {

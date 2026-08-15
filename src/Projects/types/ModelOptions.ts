@@ -28,7 +28,7 @@ interface NumOptions {
 export interface ImageModelOptions {
   type: 'image';
   steps: NumRange;
-  guidance: NumRange;
+  guidance?: NumRange;
   scheduler: Options<string>;
   sampler: Options<string>;
   vae?: Options<string>;
@@ -101,14 +101,17 @@ export function mapImageTier(tier: ImageTier): ImageModelOptions {
 }
 
 export function mapComfyImageTier(tier: ComfyImageTier): ImageModelOptions {
-  return {
+  const options: ImageModelOptions = {
     type: 'image',
     steps: mapRange(tier.steps),
-    guidance: mapRange(tier.guidance),
     scheduler: mapOptions(tier.comfyScheduler, schedulerValueToAlias),
     sampler: mapOptions(tier.comfySampler, samplerValueToAlias),
     vae: tier.vae ? mapOptions(tier.vae) : undefined
   };
+  if (tier.guidance) {
+    options.guidance = mapRange(tier.guidance);
+  }
+  return options;
 }
 
 export function mapVideoTier(tier: VideoTier): VideoModelOptions {
