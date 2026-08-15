@@ -7,7 +7,7 @@ export interface ComfyImageTier {
   comfySampler: StringDefaults;
   comfyScheduler?: StringDefaults;
   defaultSize: number;
-  guidance: NumericDefaults;
+  guidance?: NumericDefaults;
   steps: NumericDefaults;
   type: 'image';
   vae?: StringDefaults;
