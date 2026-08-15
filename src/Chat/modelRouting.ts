@@ -89,7 +89,8 @@ export const PREFERRED_MODEL_IDS = {
     zTurbo: 'z_image_turbo_bf16',
     krea2Turbo: 'krea2_turbo_fp8_scaled',
     krea2IdentityEdit: 'krea2_identity_edit_v1_2',
-    darkBeastKrea2IdentityEdit: 'dark_beast_krea2_identity_edit_v1_2'
+    darkBeastKrea2IdentityEdit: 'dark_beast_krea2_identity_edit_v1_2',
+    rtxVsr: 'rtx_vsr_pro'
   },
   video: {
     ltx25T2vDistilled: 'ltx25-22b-int8_t2v_distilled',

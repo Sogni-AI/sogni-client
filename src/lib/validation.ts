@@ -22,6 +22,9 @@ interface ImageSizeValidationOptions {
 }
 
 function getCustomImageSizeBounds(modelId?: string): { min: number; max: number } {
+  if (modelId === 'rtx_vsr_pro') {
+    return { min: 512, max: 8192 };
+  }
   if (modelId && KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId)) {
     return { min: 512, max: 2048 };
   }
@@ -120,6 +123,7 @@ export function isComfyModel(modelId: string): boolean {
     'krea2_',
     'dark_beast_krea2_',
     'qwen_image_',
+    'rtx_vsr_',
     'wan_',
     'ace_step',
     'minimax_music3'

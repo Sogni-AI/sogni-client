@@ -829,6 +829,29 @@ assert.equal(
   }),
   512
 );
+assert.equal(
+  validateCustomImageSize(8192, {
+    modelId: PREFERRED_MODEL_IDS.image.rtxVsr,
+    propertyName: 'Width'
+  }),
+  8192
+);
+assert.throws(
+  () =>
+    validateCustomImageSize(8193, {
+      modelId: PREFERRED_MODEL_IDS.image.rtxVsr,
+      propertyName: 'Width'
+    }),
+  /Width must be less or equal 8192/
+);
+assert.throws(
+  () =>
+    validateCustomImageSize(511, {
+      modelId: PREFERRED_MODEL_IDS.image.rtxVsr,
+      propertyName: 'Width'
+    }),
+  /Width must greater or equal 512/
+);
 assert.throws(
   () => validateCustomImageSize(3841, { modelId: 'gpt-image-2', propertyName: 'Width' }),
   /Width must be less or equal 3840/
@@ -857,6 +880,7 @@ assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.krea2IdentityEdit), 2
 assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), 2);
 assert.equal(isComfyModel('dark_beast_krea2_fp8'), true);
 assert.equal(isComfyModel(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), true);
+assert.equal(isComfyModel(PREFERRED_MODEL_IDS.image.rtxVsr), true);
 assert.equal(isComfyModel('flux2_dev_fp8'), false);
 assert.throws(
   () =>
