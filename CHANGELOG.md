@@ -1,3 +1,10 @@
+## [5.15.1](https://github.com/Sogni-AI/sogni-client/compare/v5.15.0...v5.15.1) (2026-08-15)
+
+
+### Bug Fixes
+
+* **projects:** allow Comfy image tiers without guidance ([0b1374e](https://github.com/Sogni-AI/sogni-client/commit/0b1374ecc515ed14dc7f546d7e7ea48cd7a543e7))
+
 # [5.15.0](https://github.com/Sogni-AI/sogni-client/compare/v5.14.0...v5.15.0) (2026-08-15)
 
 
