@@ -810,12 +810,17 @@ const models = sogni.projects.availableModels;
 const presets = await sogni.projects.getSizePresets('fast', 'flux1-schnell-fp8');
 ```
 
-### Get Sampler/Scheduler Options
+### Get Model Options
 
 ```javascript
 const options = await sogni.projects.getModelOptions('flux1-schnell-fp8');
 console.log(options.sampler.allowed);
 console.log(options.scheduler.allowed);
+
+const videoOptions = await sogni.projects.getModelOptions('minimax-h3-fl2va-fp8_t2v');
+console.log(videoOptions.width); // { min, max, step, default }
+console.log(videoOptions.height); // { min, max, step, default }
+console.log(videoOptions.maxPixels); // optional total-pixel budget
 ```
 
 ---

@@ -35,6 +35,8 @@ jobs:
         run: npm audit signatures
       - name: Run subscription API checks (builds dist first)
         run: npm run test:subscription-api
+      - name: Run model option checks
+        run: npm run test:model-options
       - name: Run attribution transport checks
         run: npm run test:attribution
       - name: Release

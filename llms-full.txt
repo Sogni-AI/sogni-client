@@ -1872,7 +1872,7 @@ Returns: [
 */
 ```
 
-GET SAMPLER/SCHEDULER OPTIONS:
+GET MODEL OPTIONS:
 
 ```javascript
 const options = await sogni.projects.getModelOptions('flux1-schnell-fp8');
@@ -1886,6 +1886,16 @@ Returns: {
     allowed: ['simple', 'karras', 'linear', ...],
     default: 'simple'
   }
+}
+*/
+
+const videoOptions = await sogni.projects.getModelOptions('minimax-h3-fl2va-fp8_t2v');
+/*
+Video options also include server-advertised geometry:
+{
+  width: { min: 544, max: 1344, step: 32, default: 1344 },
+  height: { min: 544, max: 1344, step: 32, default: 768 },
+  maxPixels: 1032192
 }
 */
 ```

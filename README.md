@@ -562,6 +562,16 @@ console.log(modelOptions.sampler);
 
 See [Samplers and Schedulers](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers) docs for more info.
 
+For video models, the same call returns the server-advertised dimension ranges,
+size grid, and optional total-pixel budget:
+
+```javascript
+const options = await sogni.projects.getModelOptions('minimax-h3-fl2va-fp8_t2v');
+console.log(options.width); // { min: 544, max: 1344, step: 32, default: 1344 }
+console.log(options.height); // { min: 544, max: 1344, step: 32, default: 768 }
+console.log(options.maxPixels); // 1032192
+```
+
 ### Schedulers
 
 Control how steps are distributed. For more info see [Schedulers and Samplers](https://docs.sogni.ai/sogni-studio/advanced/samplers-and-schedulers#schedulers) docs.

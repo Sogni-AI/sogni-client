@@ -1603,6 +1603,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
   }
 
+  /**
+   * Returns the server-advertised controls for a model. Video options include
+   * width and height ranges and the optional total-pixel budget so clients can
+   * build selectors from the same constraints enforced by the Supernet.
+   */
   async getModelOptions(modelId: string): Promise<ModelOptions> {
     const models = await this.getSupportedModels();
     const tiers = await this._getModelTiers();

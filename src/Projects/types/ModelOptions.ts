@@ -36,6 +36,12 @@ export interface ImageModelOptions {
 
 export interface VideoModelOptions {
   type: 'video';
+  /** Server-advertised horizontal pixel range and grid. */
+  width: NumRange;
+  /** Server-advertised vertical pixel range and grid. */
+  height: NumRange;
+  /** Maximum total output pixels, when the model defines an area budget. */
+  maxPixels?: number;
   steps?: NumRange;
   guidance?: NumRange;
   fps?: Options<number>;
@@ -108,9 +114,14 @@ export function mapComfyImageTier(tier: ComfyImageTier): ImageModelOptions {
 export function mapVideoTier(tier: VideoTier): VideoModelOptions {
   const options: VideoModelOptions = {
     type: 'video',
+    width: mapRange(tier.width),
+    height: mapRange(tier.height),
     scheduler: mapOptions(tier.comfyScheduler, schedulerValueToAlias),
     sampler: mapOptions(tier.comfySampler, samplerValueToAlias)
   };
+  if (tier.maxPixels !== undefined) {
+    options.maxPixels = tier.maxPixels;
+  }
   if (tier.steps) {
     options.steps = mapRange(tier.steps);
   }

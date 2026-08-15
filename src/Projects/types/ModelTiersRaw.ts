@@ -63,6 +63,7 @@ export interface VideoTier {
   frames?: NumericDefaults;
   guidance?: NumericDefaults;
   height: NumericDefaults;
+  maxPixels?: number;
   shift?: NumericDefaults;
   steps?: NumericDefaults;
   type: 'video';
