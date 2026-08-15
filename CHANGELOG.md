@@ -1,3 +1,10 @@
+## [5.15.3](https://github.com/Sogni-AI/sogni-client/compare/v5.15.2...v5.15.3) (2026-08-15)
+
+
+### Bug Fixes
+
+* **models:** tolerate legacy image tiers without guidance ([bccf85f](https://github.com/Sogni-AI/sogni-client/commit/bccf85f22c9b39e6186960a5b06e7bc0cb7c5727))
+
 ## [5.15.2](https://github.com/Sogni-AI/sogni-client/compare/v5.15.1...v5.15.2) (2026-08-15)
 
 
