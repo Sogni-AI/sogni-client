@@ -9,6 +9,7 @@ const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 
 const ProjectsApi = require('../dist/Projects/index.js').default;
+const { validateCustomImageSize } = require('../dist/lib/validation.js');
 
 const VIDEO_MODEL_ID = 'minimax-h3-fl2va-fp8_t2v';
 const VIDEO_TIER_ID = 'minimax-h3-fl2va-fp8_t2v';
@@ -96,6 +97,25 @@ async function main() {
   assert.equal(Object.hasOwn(upscaleOptions, 'guidance'), false);
   assert.deepEqual(upscaleOptions.sampler, { allowed: [], default: null });
   assert.deepEqual(upscaleOptions.scheduler, { allowed: [], default: '' });
+
+  // RTX VSR's production tier accepts a 15,360px long edge. A stale SDK
+  // ceiling of 8,192px previously rejected valid portrait upscales locally.
+  assert.equal(
+    validateCustomImageSize(10504, { modelId: UPSCALE_MODEL_ID, propertyName: 'Width' }),
+    10504
+  );
+  assert.equal(
+    validateCustomImageSize(15360, { modelId: UPSCALE_MODEL_ID, propertyName: 'Height' }),
+    15360
+  );
+  assert.throws(
+    () =>
+      validateCustomImageSize(15368, {
+        modelId: UPSCALE_MODEL_ID,
+        propertyName: 'Height'
+      }),
+    /Height must be less or equal 15360/
+  );
 
   const musicOptions = await projects.getModelOptions(MUSIC_MODEL_ID);
 
