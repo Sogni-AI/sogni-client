@@ -1,3 +1,10 @@
+## [5.15.4](https://github.com/Sogni-AI/sogni-client/compare/v5.15.3...v5.15.4) (2026-08-16)
+
+
+### Bug Fixes
+
+* **projects:** allow RTX VSR 16K dimensions ([45208c3](https://github.com/Sogni-AI/sogni-client/commit/45208c3742b3fd6be2293ab2669fedbff1f37aee))
+
 ## [5.15.3](https://github.com/Sogni-AI/sogni-client/compare/v5.15.2...v5.15.3) (2026-08-15)
 
 
