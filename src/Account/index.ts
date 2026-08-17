@@ -1004,9 +1004,9 @@ class AccountApi extends ApiGroup {
    * After a successful checkout Stripe will redirect back to your configured
    * return URL and the subscription entitlement will become active.
    *
-   * Pass `options.startTrial` to control free-trial behavior: `true` starts a
-   * trial when the account is eligible, while `false` is sent verbatim to
-   * subscribe immediately with no trial even if the account is eligible.
+   * Trial granting is server-authoritative. `options.startTrial` is a deprecated
+   * compatibility field and cannot override the server's eligibility decision.
+   * Prefer omitting it.
    * Host applications may pass `options.deviceId` when their integration
    * requires the corresponding server-side context.
    *

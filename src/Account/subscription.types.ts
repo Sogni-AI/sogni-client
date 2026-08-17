@@ -247,10 +247,9 @@ export interface CreateSubscriptionCheckoutOptions {
    */
   appSource?: string;
   /**
-   * Whether to start a free trial when the account is eligible. Defaults to the
-   * server's behavior when omitted. Pass `false` to explicitly subscribe now
-   * with no trial even if the account is otherwise eligible — the value is sent
-   * verbatim so the backend honors the "no trial" intent.
+   * Deprecated compatibility field. The server decides whether a checkout
+   * receives a free trial, and this field cannot override that eligibility
+   * decision. Prefer omitting it.
    */
   startTrial?: boolean;
   /**

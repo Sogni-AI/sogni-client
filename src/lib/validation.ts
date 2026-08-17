@@ -16,6 +16,8 @@ const KREA_IDENTITY_EDIT_MODEL_IDS = new Set([
   'dark_beast_krea2_identity_edit_v1_2'
 ]);
 
+const RTX_VSR_MAX_EDGE = 15360;
+
 interface ImageSizeValidationOptions {
   modelId?: string;
   propertyName?: string;
@@ -23,7 +25,7 @@ interface ImageSizeValidationOptions {
 
 function getCustomImageSizeBounds(modelId?: string): { min: number; max: number } {
   if (modelId === 'rtx_vsr_pro') {
-    return { min: 512, max: 8192 };
+    return { min: 512, max: RTX_VSR_MAX_EDGE };
   }
   if (modelId && KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId)) {
     return { min: 512, max: 2048 };

@@ -1,3 +1,25 @@
+## [5.15.5](https://github.com/Sogni-AI/sogni-client/compare/v5.15.4...v5.15.5) (2026-08-17)
+
+
+### Bug Fixes
+
+* **account:** clarify server-managed trial checkout ([53f1a3a](https://github.com/Sogni-AI/sogni-client/commit/53f1a3ad675a0196582f7c486a10d51d1d355d24))
+* **deps:** bump sogni protocol to 1.0.0-alpha.22 ([f708a14](https://github.com/Sogni-AI/sogni-client/commit/f708a147ae619f95858b847c8c7651cc6a5e2a8d))
+
+## [5.15.4](https://github.com/Sogni-AI/sogni-client/compare/v5.15.3...v5.15.4) (2026-08-16)
+
+
+### Bug Fixes
+
+* **projects:** allow RTX VSR 16K dimensions ([45208c3](https://github.com/Sogni-AI/sogni-client/commit/45208c3742b3fd6be2293ab2669fedbff1f37aee))
+
+## [5.15.3](https://github.com/Sogni-AI/sogni-client/compare/v5.15.2...v5.15.3) (2026-08-15)
+
+
+### Bug Fixes
+
+* **models:** tolerate legacy image tiers without guidance ([bccf85f](https://github.com/Sogni-AI/sogni-client/commit/bccf85f22c9b39e6186960a5b06e7bc0cb7c5727))
+
 ## [5.15.2](https://github.com/Sogni-AI/sogni-client/compare/v5.15.1...v5.15.2) (2026-08-15)
 
 
