@@ -224,7 +224,7 @@ node workflow_text_to_image.mjs "A serene mountain landscape"
 node workflow_image_edit.mjs "portrait in this style" --context test-assets/placeholder.jpg
 ```
 
-**Upscale an image up to 8K (RTX VSR):**
+**Upscale an image up to 16K (RTX VSR):**
 
 ```bash
 node workflow_upscale_image.mjs --image test-assets/placeholder.jpg
@@ -428,7 +428,7 @@ Provide 1-3 reference images that represent the style or content you want. The m
 
 #### `workflow_upscale_image.mjs`
 
-Enlarge an existing image up to an 8192px longest edge with NVIDIA RTX Video
+Enlarge an existing image up to a 15360px longest edge with NVIDIA RTX Video
 Super Resolution (`rtx_vsr_pro`). This is deterministic reconstruction, not a
 generative edit: no prompt, no repainting — content, identity, composition,
 and colors are preserved while resolution increases.
@@ -437,7 +437,7 @@ and colors are preserved while resolution increases.
 
 ```bash
 node workflow_upscale_image.mjs                              # Interactive mode
-node workflow_upscale_image.mjs --image ./photo.png          # Upscale to the 8K maximum
+node workflow_upscale_image.mjs --image ./photo.png          # Upscale to the 16K maximum
 node workflow_upscale_image.mjs --image ./photo.png --scale 2
 node workflow_upscale_image.mjs --image ./photo.png --target 3840   # 4K UHD longest edge
 ```
@@ -446,13 +446,18 @@ node workflow_upscale_image.mjs --image ./photo.png --target 3840   # 4K UHD lon
 
 - `--image` - Source image to upscale (prompts for selection when omitted)
 - `--scale` - Relative enlargement: 2, 3, or 4 (ignored when `--target` is given)
-- `--target` - Longest-edge target in pixels, 512-8192 (default: 8192 when `--scale` is not given)
+- `--target` - Longest-edge target in pixels, 512-15360 (default: 15360 when `--scale` is not given)
 - `--output` - Output directory (default: ./output)
 
-**Output bounds:** the longest output edge is capped at 8192px, every output
+**Output bounds:** the longest output edge is capped at 15360px, every output
 edge must be at least 512px, dimensions are aligned down to multiples of 8,
-and aspect ratio is always preserved. Sources already at 8192px on their
+and aspect ratio is always preserved. Sources already at 15360px on their
 longest edge cannot be upscaled further.
+
+Note: with neither `--scale` nor `--target`, the script targets the 15360px
+maximum, which is a large and correspondingly expensive job. Pass `--target`
+or `--scale` to cap it; interactive runs show a cost estimate and confirm
+before spending.
 
 ---
 

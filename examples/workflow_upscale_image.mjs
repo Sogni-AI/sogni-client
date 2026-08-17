@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * Image Upscaling Workflow (RTX VSR, up to 8K)
+ * Image Upscaling Workflow (RTX VSR, up to 16K)
  *
  * This script enlarges an existing image with the NVIDIA RTX Video Super
  * Resolution model (rtx_vsr_pro). RTX VSR is deterministic reconstruction,
  * not a generative edit: it takes no prompt and preserves the source image's
  * content, identity, composition, and colors while increasing resolution.
  *
- * Output bounds: the longest output edge can be up to 8192px, every output
+ * Output bounds: the longest output edge can be up to 15360px, every output
  * edge must be at least 512px, and dimensions are aligned down to multiples
  * of 8. Aspect ratio is always preserved.
  *
@@ -17,14 +17,14 @@
  *
  * Usage:
  *   node workflow_upscale_image.mjs                              # Interactive mode
- *   node workflow_upscale_image.mjs --image ./photo.png          # Upscale to the 8K maximum
+ *   node workflow_upscale_image.mjs --image ./photo.png          # Upscale to the 16K maximum
  *   node workflow_upscale_image.mjs --image ./photo.png --scale 2
  *   node workflow_upscale_image.mjs --image ./photo.png --target 3840   # 4K UHD longest edge
  *
  * Options:
  *   --image     Source image to upscale (default: prompts for selection)
  *   --scale     Relative enlargement: 2, 3, or 4 (ignored when --target is given)
- *   --target    Longest-edge target in pixels, 512-8192 (default: 8192 when --scale is not given)
+ *   --target    Longest-edge target in pixels, 512-15360 (default: 15360 when --scale is not given)
  *   --output    Output directory (default: ./output)
  *   --billing-mode  auto | subscription | tokens (default: auto)
  *   --no-interactive  Skip interactive prompts
@@ -58,7 +58,9 @@ const streamPipeline = promisify(pipeline);
 
 const RTX_VSR_MODEL_ID = 'rtx_vsr_pro';
 const RTX_VSR_MIN_EDGE = 512;
-const RTX_VSR_MAX_EDGE = 8192;
+// Keep in sync with the SDK's own ceiling in src/lib/validation.ts
+// (getCustomImageSizeBounds, RTX_VSR_MAX_EDGE); the server enforces it too.
+const RTX_VSR_MAX_EDGE = 15360;
 const RTX_VSR_DIMENSION_STEP = 8;
 const ALLOWED_SCALES = [2, 3, 4];
 
@@ -107,7 +109,7 @@ function parseArgs() {
 
 function showHelp() {
   console.log(`
-Image Upscaling Workflow (RTX VSR, up to 8K)
+Image Upscaling Workflow (RTX VSR, up to 16K)
 
 Deterministically enlarges an image with NVIDIA RTX Video Super Resolution.
 No prompt, no repainting: content, identity, composition, and colors are
@@ -115,7 +117,7 @@ preserved. Longest output edge up to ${RTX_VSR_MAX_EDGE}px.
 
 Usage:
   node workflow_upscale_image.mjs                              # Interactive mode
-  node workflow_upscale_image.mjs --image ./photo.png          # Upscale to the 8K maximum
+  node workflow_upscale_image.mjs --image ./photo.png          # Upscale to the 16K maximum
   node workflow_upscale_image.mjs --image ./photo.png --scale 2
   node workflow_upscale_image.mjs --image ./photo.png --target 3840
 
@@ -134,8 +136,9 @@ ${billingModeHelpText()}
 // RTX VSR Output Dimensions
 // ============================================
 
-// Mirrors the server-side RTX VSR validator: cap the longest edge at 8192,
-// keep every edge >= 512, align each edge down to a multiple of 8.
+// Mirrors the server-side RTX VSR validator: cap the longest edge at
+// RTX_VSR_MAX_EDGE, keep every edge >= 512, align each edge down to a
+// multiple of 8.
 function resolveUpscaleDimensions(source, scale) {
   const longest = Math.max(source.width, source.height);
   if (!Number.isFinite(longest) || source.width <= 0 || source.height <= 0) {
@@ -168,7 +171,7 @@ function resolveUpscaleDimensions(source, scale) {
 async function main() {
   const OPTIONS = parseArgs();
 
-  console.log('🖼️  Sogni Image Upscaling Workflow (RTX VSR, up to 8K)\n');
+  console.log('🖼️  Sogni Image Upscaling Workflow (RTX VSR, up to 16K)\n');
 
   // Load credentials
   const credentials = await loadCredentials();
