@@ -48,6 +48,17 @@ export interface AccountData {
    * include `'freeSparkLocked'`.
    */
   freeSparkLocked?: boolean;
+  /**
+   * Which unlock to offer while {@link AccountData.freeSparkLocked} is `true`.
+   *
+   * - `'trial'` — the account can still start the free Unlimited trial.
+   * - `'purchase'` — the account has already used its trial, so a trial
+   *   checkout would charge it. Offer a Premium Spark purchase instead.
+   * - `undefined` — not locked, or an older server that does not send it.
+   *
+   * Never present a free-trial call to action when this is `'purchase'`.
+   */
+  freeSparkUnlockPath?: 'trial' | 'purchase';
 }
 
 function getDefaults(): AccountData {
@@ -72,7 +83,8 @@ function getDefaults(): AccountData {
     walletAddress: undefined,
     username: undefined,
     subscription: undefined,
-    freeSparkLocked: undefined
+    freeSparkLocked: undefined,
+    freeSparkUnlockPath: undefined
   };
 }
 
@@ -133,6 +145,14 @@ class CurrentAccount extends DataEntity<AccountData> {
    */
   get freeSparkLocked(): boolean | undefined {
     return this.data.freeSparkLocked;
+  }
+
+  /**
+   * Which unlock to offer a locked account. See
+   * {@link AccountData.freeSparkUnlockPath}.
+   */
+  get freeSparkUnlockPath(): 'trial' | 'purchase' | undefined {
+    return this.data.freeSparkUnlockPath;
   }
 
   /**

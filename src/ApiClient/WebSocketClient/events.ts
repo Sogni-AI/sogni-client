@@ -85,6 +85,8 @@ export interface SocketSubscriptionEntitlementData {
    * trial unlocks the client live. Carried by newer socket builds only.
    */
   freeSparkLocked?: boolean;
+  /** Which unlock to offer while locked: `'trial'` or `'purchase'`. */
+  freeSparkUnlockPath?: 'trial' | 'purchase';
 }
 
 export interface AuthenticatedData {
@@ -121,6 +123,8 @@ export interface AuthenticatedData {
    * from an older build, which callers should read as "not locked".
    */
   freeSparkLocked?: boolean;
+  /** Which unlock to offer while locked: `'trial'` or `'purchase'`. */
+  freeSparkUnlockPath?: 'trial' | 'purchase';
   hasUnclaimedAirdrop: boolean;
   firstLoginAfterMigration: boolean;
 }

@@ -294,7 +294,7 @@ class AccountApi extends ApiGroup {
   }
 
   private handleSubscriptionEntitlementUpdated(data: SocketSubscriptionEntitlementData) {
-    this.applyFreeSparkLocked(data.freeSparkLocked);
+    this.applyFreeSparkLocked(data.freeSparkLocked, data.freeSparkUnlockPath);
     const subscription = this.mapSocketSubscriptionEntitlement(data);
     if (subscription) {
       this.applySubscriptionSnapshot(subscription, 'socket', {
@@ -308,15 +308,23 @@ class AccountApi extends ApiGroup {
    * absent value so an older socket build (which never sends the field) leaves
    * the current state alone rather than clearing it.
    */
-  private applyFreeSparkLocked(freeSparkLocked?: boolean) {
+  private applyFreeSparkLocked(
+    freeSparkLocked?: boolean,
+    freeSparkUnlockPath?: 'trial' | 'purchase'
+  ) {
     if (typeof freeSparkLocked !== 'boolean') return;
-    if (this.currentAccount.freeSparkLocked === freeSparkLocked) return;
-    this.currentAccount._update({ freeSparkLocked });
+    if (
+      this.currentAccount.freeSparkLocked === freeSparkLocked
+      && this.currentAccount.freeSparkUnlockPath === freeSparkUnlockPath
+    ) {
+      return;
+    }
+    this.currentAccount._update({ freeSparkLocked, freeSparkUnlockPath });
   }
 
   private handleSocketAuthenticated(data: AuthenticatedData) {
     // Populate account early from socket authenticated event (me() will overwrite with full data)
-    this.applyFreeSparkLocked(data.freeSparkLocked);
+    this.applyFreeSparkLocked(data.freeSparkLocked, data.freeSparkUnlockPath);
     const subscription = this.mapSocketSubscriptionEntitlement(data.subscriptionEntitlement);
     if (this.client.auth instanceof ApiKeyAuthManager) {
       this.currentAccount._update({
