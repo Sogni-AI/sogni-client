@@ -1,3 +1,10 @@
+# [5.16.0](https://github.com/Sogni-AI/sogni-client/compare/v5.15.5...v5.16.0) (2026-08-17)
+
+
+### Features
+
+* **account:** expose free Spark availability and reward claim reason ([2094ea3](https://github.com/Sogni-AI/sogni-client/commit/2094ea30eb4a837fc274ef1d221b0c9768a353b3))
+
 ## [5.15.5](https://github.com/Sogni-AI/sogni-client/compare/v5.15.4...v5.15.5) (2026-08-17)
 
 
