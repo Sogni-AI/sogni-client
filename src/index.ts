@@ -46,7 +46,7 @@ import {
 } from './Projects/types/index.js';
 import type { ProjectEvent, JobEvent, JobPreparation } from './Projects/types/events.js';
 import type { RawProject } from './Projects/types/RawProject.js';
-import type { Balances, Reward, TxHistoryEntry } from './Account/types.js';
+import type { Balances, Reward, RewardCantClaimReason, TxHistoryEntry } from './Account/types.js';
 import type {
   CreateSubscriptionCheckoutOptions,
   SubscriptionCheckoutResult,
@@ -308,6 +308,7 @@ export type {
   // package root rather than reaching into `./dist/*`.
   Balances,
   Reward,
+  RewardCantClaimReason,
   TxHistoryEntry,
   CreateSubscriptionCheckoutOptions,
   SubscriptionCheckoutResult,

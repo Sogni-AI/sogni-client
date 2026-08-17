@@ -79,6 +79,14 @@ export interface SocketSubscriptionEntitlementData {
     /** Monthly Fast-network fair-use state, when currently active. */
     fairUse?: SocketSubscriptionFairUseState | null;
   } | null;
+  /**
+   * `true` while free Spark cannot be spent on this account. Rides on the
+   * entitlement push so the client reflects the current state live. Carried by
+   * newer socket builds only.
+   */
+  freeSparkLocked?: boolean;
+  /** Which call to action to present while locked: `'trial'` or `'purchase'`. */
+  freeSparkUnlockPath?: 'trial' | 'purchase';
 }
 
 export interface AuthenticatedData {
@@ -109,6 +117,14 @@ export interface AuthenticatedData {
   unclaimedCompletedProjects: [];
   isMainnet: boolean;
   accountWasMigrated: boolean;
+  /**
+   * `true` while free Spark cannot be spent on this account. Carried by newer
+   * socket builds only. This field drives presentation; the server applies the
+   * rule regardless of what the client received.
+   */
+  freeSparkLocked?: boolean;
+  /** Which call to action to present while locked: `'trial'` or `'purchase'`. */
+  freeSparkUnlockPath?: 'trial' | 'purchase';
   hasUnclaimedAirdrop: boolean;
   firstLoginAfterMigration: boolean;
 }

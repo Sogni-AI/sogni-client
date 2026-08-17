@@ -32,6 +32,31 @@ export interface AccountData {
    * this field is refreshed.
    */
   subscription?: SubscriptionEntitlementSnapshot;
+  /**
+   * `true` while this account cannot spend free Spark. Paid balances are
+   * unaffected — Premium Spark, SOGNI, and any live subscription keep working
+   * while this is `true`.
+   *
+   * Server-authoritative and pushed on the socket, so it updates live.
+   * `undefined` until the socket authenticates. Read
+   * {@link AccountData.freeSparkUnlockPath} for the call to action to present.
+   *
+   * Subscribe to the `'updated'` event to react to changes; `changedKeys` will
+   * include `'freeSparkLocked'`.
+   */
+  freeSparkLocked?: boolean;
+  /**
+   * Which call to action to present while {@link AccountData.freeSparkLocked}
+   * is `true`.
+   *
+   * - `'trial'` — offer the free Unlimited trial.
+   * - `'purchase'` — offer a Premium Spark purchase.
+   * - `undefined` — not locked, or the server sent no path.
+   *
+   * The server chooses the path. Present the one it sends rather than
+   * substituting another.
+   */
+  freeSparkUnlockPath?: 'trial' | 'purchase';
 }
 
 function getDefaults(): AccountData {
@@ -55,7 +80,9 @@ function getDefaults(): AccountData {
     },
     walletAddress: undefined,
     username: undefined,
-    subscription: undefined
+    subscription: undefined,
+    freeSparkLocked: undefined,
+    freeSparkUnlockPath: undefined
   };
 }
 
@@ -108,6 +135,22 @@ class CurrentAccount extends DataEntity<AccountData> {
    */
   get subscription(): SubscriptionEntitlementSnapshot | undefined {
     return this.data.subscription;
+  }
+
+  /**
+   * `true` while this account cannot spend free Spark. See
+   * {@link AccountData.freeSparkLocked}.
+   */
+  get freeSparkLocked(): boolean | undefined {
+    return this.data.freeSparkLocked;
+  }
+
+  /**
+   * Which call to action to present to a locked account. See
+   * {@link AccountData.freeSparkUnlockPath}.
+   */
+  get freeSparkUnlockPath(): 'trial' | 'purchase' | undefined {
+    return this.data.freeSparkUnlockPath;
   }
 
   /**
