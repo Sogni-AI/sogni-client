@@ -79,6 +79,12 @@ export interface SocketSubscriptionEntitlementData {
     /** Monthly Fast-network fair-use state, when currently active. */
     fairUse?: SocketSubscriptionFairUseState | null;
   } | null;
+  /**
+   * `true` while free Spark cannot be SPENT because the account has not
+   * verified a payment method. Rides on the entitlement push so starting a
+   * trial unlocks the client live. Carried by newer socket builds only.
+   */
+  freeSparkLocked?: boolean;
 }
 
 export interface AuthenticatedData {
@@ -109,6 +115,12 @@ export interface AuthenticatedData {
   unclaimedCompletedProjects: [];
   isMainnet: boolean;
   accountWasMigrated: boolean;
+  /**
+   * `true` while free Spark cannot be SPENT because the account has not
+   * verified a payment method. Carried by newer socket builds only; `undefined`
+   * from an older build, which callers should read as "not locked".
+   */
+  freeSparkLocked?: boolean;
   hasUnclaimedAirdrop: boolean;
   firstLoginAfterMigration: boolean;
 }

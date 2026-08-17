@@ -140,6 +140,24 @@ export interface TxHistoryEntry {
 
 export type RewardType = 'instant' | 'conditioned';
 
+/**
+ * Why a reward cannot be claimed right now.
+ *
+ * - `already_claimed` — claimed for the current period; try again next period.
+ * - `requires_verification` — the account has not verified a payment method
+ *   yet. Verifying one (a free Unlimited trial, or any Premium Spark purchase)
+ *   unlocks it.
+ * - `over_free_cap` — too much unspent free Spark on the account already.
+ *
+ * Treat any non-null value as "not claimable" and render `reward.description`
+ * or your own copy for the specific value you recognise: new values may be
+ * added, and an unrecognised one must not present as claimable.
+ */
+export type RewardCantClaimReason =
+  | 'already_claimed'
+  | 'requires_verification'
+  | 'over_free_cap';
+
 export interface RewardRaw {
   id: string;
   type: RewardType;
@@ -149,7 +167,7 @@ export interface RewardRaw {
   tokenType: TokenType;
   claimed: number;
   canClaim: number;
-  cantClaimReason?: 'already_claimed' | 'over_free_cap' | null;
+  cantClaimReason?: RewardCantClaimReason | null;
   lastClaimTimestamp: number;
   claimResetFrequencySec: number;
 }
@@ -167,7 +185,7 @@ export interface Reward {
   tokenType: TokenType;
   claimed: boolean;
   canClaim: boolean;
-  cantClaimReason?: 'already_claimed' | 'over_free_cap' | null;
+  cantClaimReason?: RewardCantClaimReason | null;
   lastClaim: Date;
   nextClaim: Date | null;
   provider?: string;

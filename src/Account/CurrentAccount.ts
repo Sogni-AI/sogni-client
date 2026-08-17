@@ -32,6 +32,22 @@ export interface AccountData {
    * this field is refreshed.
    */
   subscription?: SubscriptionEntitlementSnapshot;
+  /**
+   * `true` while this account may not SPEND free Spark because it has not
+   * verified a payment method yet. Verifying one — a free Unlimited trial, or
+   * any Premium Spark purchase — unlocks it, and the free Spark already on the
+   * account is kept, not forfeited.
+   *
+   * Paid balances are unaffected: Premium Spark, SOGNI, and any live
+   * subscription keep working while this is `true`.
+   *
+   * Server-authoritative and pushed on the socket, so it updates live the
+   * moment the account unlocks. `undefined` until the socket authenticates.
+   *
+   * Subscribe to the `'updated'` event to react to changes; `changedKeys` will
+   * include `'freeSparkLocked'`.
+   */
+  freeSparkLocked?: boolean;
 }
 
 function getDefaults(): AccountData {
@@ -55,7 +71,8 @@ function getDefaults(): AccountData {
     },
     walletAddress: undefined,
     username: undefined,
-    subscription: undefined
+    subscription: undefined,
+    freeSparkLocked: undefined
   };
 }
 
@@ -108,6 +125,14 @@ class CurrentAccount extends DataEntity<AccountData> {
    */
   get subscription(): SubscriptionEntitlementSnapshot | undefined {
     return this.data.subscription;
+  }
+
+  /**
+   * `true` while free Spark cannot be spent because the account has not
+   * verified a payment method. See {@link AccountData.freeSparkLocked}.
+   */
+  get freeSparkLocked(): boolean | undefined {
+    return this.data.freeSparkLocked;
   }
 
   /**
