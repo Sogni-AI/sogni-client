@@ -1,3 +1,10 @@
+# [5.17.0](https://github.com/Sogni-AI/sogni-client/compare/v5.16.0...v5.17.0) (2026-08-19)
+
+
+### Features
+
+* **projects:** add the LoRA catalog to the Projects API ([56d0616](https://github.com/Sogni-AI/sogni-client/commit/56d0616121edad23d35ad75c07c2606a3635cb36))
+
 # [5.16.0](https://github.com/Sogni-AI/sogni-client/compare/v5.15.5...v5.16.0) (2026-08-17)
 
 
