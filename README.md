@@ -598,6 +598,70 @@ console.log(modelOptions.scheduler);
  */
 ```
 
+### LoRAs
+
+Some models accept LoRAs — small adapters that steer style, lighting, detail, or
+character traits. The Krea 2 family carries the largest set. Discover which
+LoRAs a model accepts, and the strength contract of each, with
+`projects.availableLoras`. The catalog is public, so this works without
+credentials, and results are cached for five minutes.
+
+```typescript
+const { loras, models, constraints } = await sogni.projects.availableLoras({
+  modelId: 'krea2_turbo_fp8_scaled'
+});
+
+for (const lora of loras) {
+  console.log(lora.loraId, lora.name, lora.ui.min, lora.ui.max, lora.ui.default);
+}
+
+// `models` lists every LoRA-capable model and `constraints` the shared limits,
+// both unaffected by the `modelId` filter. Use them instead of hard-coding a
+// model list or a stacking cap that goes stale.
+console.log(models); // ['dark_beast_krea2_fp8', 'krea2_turbo_fp8_scaled', ...]
+console.log(constraints.maxPerRequest); // 8
+
+// Or look up a single LoRA
+const warmLight = await sogni.projects.getLora('krea2-warm-light');
+console.log(warmLight?.ui.rangeLabels);
+// { min: 'Cooler & Darker', max: 'Warmer & Golden' }
+
+// Decide whether to offer a LoRA control at all
+if (await sogni.projects.supportsLoras(modelId)) {
+  const { maxPerRequest } = await sogni.projects.loraConstraints();
+  console.log(`Attach up to ${maxPerRequest} LoRAs`);
+}
+```
+
+Apply them with the positionally-matched `loras` and `loraStrengths` project
+parameters:
+
+```typescript
+const project = await sogni.projects.create({
+  modelId: 'krea2_turbo_fp8_scaled',
+  positivePrompt: 'candid editorial street portrait at dusk',
+  steps: 8,
+  guidance: 1,
+  loras: ['krea2-detail-enhancer', 'krea2-amateur'],
+  loraStrengths: [3, -2]
+});
+```
+
+- Up to `constraints.maxPerRequest` LoRAs per render (8 today). Order is
+  significant — the adapters are applied in sequence and do not commute, so the
+  same set in a different order produces a different image. The render pipeline
+  rejects a request over the cap at submit.
+- `loraStrengths[i]` applies to `loras[i]`. Omit the array to use 1.0 for every
+  LoRA, which is **not** the same as each LoRA's own `ui.default`.
+- **Do not clamp strengths to 0-1.** Most Krea 2 LoRAs are bipolar sliders:
+  `ui.min` is negative, a negative strength applies the inverse effect, and 0
+  disables it. Bound your input with each entry's `ui.min`/`ui.max`, and prefer
+  `ui.recommendedMin`/`ui.recommendedMax` for the band its author calls usable.
+- `ui.nsfw` and `ui.sexual` mark LoRAs that require the artist to have the
+  Sensitive Content Filter off.
+- Workers download a LoRA on first use, so the first render with an uncached one
+  takes longer to start.
+
 ### ControlNets
 
 **EXPERIMENTAL FEATURE:** This feature is still in development and may not work as expected. Use at your own risk.

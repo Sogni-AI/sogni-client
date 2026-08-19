@@ -64,6 +64,7 @@
     "test:attribution": "npm run build && node scripts/check-attribution-transport.cjs",
     "test:subscription-api": "npm run build && node scripts/check-subscription-api.cjs",
     "test:model-options": "npm run build && node scripts/check-video-model-options.cjs",
+    "test:lora-catalog": "npm run build && node scripts/check-lora-catalog.cjs",
     "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
     "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
     "test:queue-wait-eta": "npm run build && node scripts/check-queue-wait-eta.cjs",

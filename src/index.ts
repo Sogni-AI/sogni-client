@@ -44,6 +44,13 @@ import {
   CostEstimation,
   InputMedia
 } from './Projects/types/index.js';
+import type {
+  AvailableLorasParams,
+  LoraCatalog,
+  LoraCatalogEntry,
+  LoraConstraints,
+  LoraUi
+} from './Projects/types/LoraCatalog.js';
 import type { ProjectEvent, JobEvent, JobPreparation } from './Projects/types/events.js';
 import type { RawProject } from './Projects/types/RawProject.js';
 import type { Balances, Reward, RewardCantClaimReason, TxHistoryEntry } from './Account/types.js';
@@ -234,6 +241,11 @@ export type {
   LLMModelInfo,
   LLMParamConstraint,
   LLMSamplingDefaults,
+  AvailableLorasParams,
+  LoraCatalog,
+  LoraCatalogEntry,
+  LoraConstraints,
+  LoraUi,
   ControlNetMode,
   ControlNetName,
   ControlNetParams,

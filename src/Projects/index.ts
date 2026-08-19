@@ -26,6 +26,12 @@ import Project from './Project.js';
 import createJobRequestMessage from './createJobRequestMessage.js';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import { EstimationResponse } from './types/EstimationResponse.js';
+import {
+  AvailableLorasParams,
+  LoraCatalog,
+  LoraCatalogEntry,
+  LoraConstraints
+} from './types/LoraCatalog.js';
 import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events.js';
 import getUUID from '../lib/getUUID.js';
 import { RawProject } from './types/RawProject.js';
@@ -70,8 +76,32 @@ import {
 type ContextImageIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
+// The LoRA catalog changes whenever a LoRA is published or a strength range is
+// retuned, and the server serves it `no-cache` for exactly that reason. Five
+// minutes keeps a picker from refetching on every keystroke without letting a
+// retuned range go stale for long.
+const loraCatalogCache = new Cache<LoraCatalog>(5 * 60 * 1000);
+/**
+ * Used only when talking to an API that predates the advertised constraints.
+ * These are the loader's own hard bounds and the render pipeline's stacking
+ * cap; a current server sends its own values and those win.
+ */
+const DEFAULT_LORA_CONSTRAINTS: LoraConstraints = {
+  maxPerRequest: 8,
+  minStrength: -100,
+  maxStrength: 100
+};
 const GARBAGE_COLLECT_TIMEOUT = 30000;
 const MODELS_REFRESH_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
+
+/** Fallback for an API that does not advertise its LoRA-capable model set. */
+function deriveLoraCapableModelIds(loras: LoraCatalogEntry[]): string[] {
+  const modelIds = new Set<string>();
+  for (const lora of loras) {
+    for (const modelId of lora.modelIds ?? []) modelIds.add(modelId);
+  }
+  return Array.from(modelIds).sort();
+}
 
 /**
  * Detect content type from a file object.
@@ -1632,6 +1662,110 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       return mapAudioTier(tier);
     }
     throw new Error(`Unsupported model tier "${model.tier}"`);
+  }
+
+  /**
+   * List the LoRAs available for a model, with the strength contract of each.
+   *
+   * Pass the result's `loraId` values to {@link ProjectParams.loras}, and use
+   * each entry's `ui.min`/`ui.max` and `ui.recommendedMin`/`ui.recommendedMax`
+   * to bound the matching {@link ProjectParams.loraStrengths}. Do not assume a
+   * 0-1 range: most Krea 2 LoRAs are bipolar sliders where a negative strength
+   * applies the inverse effect.
+   *
+   * The catalog is public, so this works on an unauthenticated client. Results
+   * are cached for 5 minutes per filter.
+   *
+   * @example
+   * ```ts
+   * const { loras } = await sogni.projects.availableLoras({
+   *   modelId: 'krea2_turbo_fp8_scaled'
+   * });
+   * for (const lora of loras) {
+   *   console.log(lora.loraId, lora.ui.min, lora.ui.max, lora.ui.default);
+   * }
+   * ```
+   *
+   * @param params.modelId - restrict to the LoRAs this model accepts. An
+   *   unrecognized id, or a model with no LoRAs, yields an empty `loras` array.
+   * @param params.forceRefresh - bypass the cache
+   */
+  async availableLoras(params: AvailableLorasParams = {}): Promise<LoraCatalog> {
+    const { modelId, forceRefresh } = params;
+    const cacheKey = modelId ?? '';
+    const cached = loraCatalogCache.read(cacheKey);
+    if (cached && !forceRefresh) {
+      return cached;
+    }
+    const res = await this.client.rest.get<ApiResponse<LoraCatalog>>(
+      '/v1/loras/comfy',
+      modelId ? { modelId } : {}
+    );
+    const loras = res.data.loras ?? [];
+    // The server applies `modelId`, but every row also carries the authoritative
+    // `modelIds` it was joined from. Re-applying the predicate here keeps the
+    // result correct against an API deployment that predates the query
+    // parameter and would otherwise silently return the whole catalog.
+    const scoped = modelId ? loras.filter((lora) => lora.modelIds?.includes(modelId)) : loras;
+    const catalog: LoraCatalog = {
+      lastUpdated: res.data.lastUpdated,
+      loras: scoped,
+      // Both are catalog-level facts the server advertises so clients need not
+      // hard-code them. An API predating them leaves the derived model set
+      // (from the rows we did get) and the loader's own documented limits.
+      models: res.data.models ?? deriveLoraCapableModelIds(loras),
+      constraints: res.data.constraints ?? DEFAULT_LORA_CONSTRAINTS
+    };
+    loraCatalogCache.write(cacheKey, catalog);
+    return catalog;
+  }
+
+  /**
+   * Look up one LoRA's catalog entry by id, or `undefined` if the catalog does
+   * not carry it. Shares the {@link availableLoras} cache.
+   *
+   * @example
+   * ```ts
+   * const lora = await sogni.projects.getLora('krea2-warm-light');
+   * console.log(lora?.ui.rangeLabels); // { min: 'Cooler & Darker', max: 'Warmer & Golden' }
+   * ```
+   */
+  async getLora(loraId: string): Promise<LoraCatalogEntry | undefined> {
+    const { loras } = await this.availableLoras();
+    return loras.find((lora) => lora.loraId === loraId);
+  }
+
+  /**
+   * Whether a model accepts LoRAs at all — use it to decide whether to offer a
+   * LoRA control, instead of hard-coding a model list that goes stale the next
+   * time a LoRA ships for a new model. Shares the {@link availableLoras} cache.
+   *
+   * @example
+   * ```ts
+   * if (await sogni.projects.supportsLoras(modelId)) {
+   *   // render the LoRA picker
+   * }
+   * ```
+   */
+  async supportsLoras(modelId: string): Promise<boolean> {
+    const { models } = await this.availableLoras();
+    return models.includes(modelId);
+  }
+
+  /**
+   * The limits that apply to every LoRA request: how many stack on one render,
+   * and the loader's hard strength bounds. Shares the {@link availableLoras}
+   * cache.
+   *
+   * @example
+   * ```ts
+   * const { maxPerRequest } = await sogni.projects.loraConstraints();
+   * console.log(`Attach up to ${maxPerRequest} LoRAs`);
+   * ```
+   */
+  async loraConstraints(): Promise<LoraConstraints> {
+    const { constraints } = await this.availableLoras();
+    return constraints;
   }
 }
 
