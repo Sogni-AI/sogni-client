@@ -66,4 +66,7 @@ for (const imageUrl of imageUrls) {
   await downloadImage(imageUrl);
 }
 
-await sogni.account.logout();
+// API-key sessions have no logout endpoint, so that call may reject.
+await sogni.account.logout().catch(() => {});
+// Releases the WebSocket. Without this the process never exits.
+sogni.dispose();

@@ -1117,7 +1117,10 @@ async function main() {
     try {
       await sogni.account.logout();
     } catch {
-      // Ignore logout errors
+      // API-key sessions have no logout endpoint; nothing to revoke.
+    } finally {
+      // Releases the WebSocket. Without this the process never exits.
+      sogni.dispose();
     }
   }
 }

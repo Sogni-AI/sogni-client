@@ -179,7 +179,10 @@ async function main() {
       console.log('the order the LoRAs were applied in, and that is enough to change the image.');
     }
   } finally {
+    // API-key sessions have no logout endpoint, so that call may reject.
     await sogni.account.logout().catch(() => {});
+    // Releases the WebSocket. Without this the process never exits.
+    sogni.dispose();
   }
 }
 
