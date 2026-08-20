@@ -121,9 +121,17 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     }
     const socket = this.socket;
     this.socket = null;
-    socket.onerror = null;
     socket.onmessage = null;
     socket.onopen = null;
+    // Keep an error handler attached across close(). Closing a socket that is
+    // still CONNECTING makes `ws` emit 'error' ("WebSocket was closed before the
+    // connection was established"), and an 'error' event with no listener is
+    // rethrown by EventEmitter, which takes the whole host process down. That is
+    // reachable from any dispose() that lands before the handshake completes.
+    // Log at debug, not error: tearing down a pending connection is expected.
+    socket.onerror = (e: ErrorEvent) => {
+      this._logger.debug('WebSocket error while closing:', e?.message ?? e);
+    };
     this.stopPing();
     socket.close(1000, 'Client disconnected');
   }
