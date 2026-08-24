@@ -830,19 +830,19 @@ assert.equal(
   512
 );
 assert.equal(
-  validateCustomImageSize(8192, {
+  validateCustomImageSize(15360, {
     modelId: PREFERRED_MODEL_IDS.image.rtxVsr,
     propertyName: 'Width'
   }),
-  8192
+  15360
 );
 assert.throws(
   () =>
-    validateCustomImageSize(8193, {
+    validateCustomImageSize(15361, {
       modelId: PREFERRED_MODEL_IDS.image.rtxVsr,
       propertyName: 'Width'
     }),
-  /Width must be less or equal 8192/
+  /Width must be less or equal 15360/
 );
 assert.throws(
   () =>
