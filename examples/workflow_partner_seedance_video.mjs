@@ -827,11 +827,11 @@ function parseArgs() {
   }
 
   options.prompt = positional.join(' ').trim();
-  if (!modeWasProvided && options.model) {
-    options.mode = inferModeFromModelSelector(options.model) || options.mode;
-  }
-  if (!modeWasProvided && !options.mode) {
-    options.mode = inferModeFromMedia(options) || (options.interactive ? undefined : 't2v');
+  if (!modeWasProvided) {
+    options.mode =
+      inferModeFromMedia(options) ||
+      (options.model ? inferModeFromModelSelector(options.model) : options.mode) ||
+      (options.interactive ? undefined : 't2v');
   }
   if (!options.interactive) {
     options.mode ||= 't2v';
@@ -1561,20 +1561,144 @@ async function postChatCompletion(credentials, options, toolName, toolArguments)
   });
 }
 
+function selectedHostedModelSelector(options) {
+  const selectedId = selectedModelId(options);
+  const entry = Object.entries(SEEDANCE_MODELS[options.mode] || {}).find(
+    ([, model]) => model.id === selectedId
+  );
+  if (!entry) {
+    throw new Error(`No hosted workflow selector is registered for ${selectedId}.`);
+  }
+  return entry[0];
+}
+
+function stringArrayArgument(args, key) {
+  return Array.isArray(args[key])
+    ? args[key].filter((value) => typeof value === 'string' && value.length > 0)
+    : [];
+}
+
+function negativeMediaIndices(urls) {
+  return urls.map((_, index) => -index - 1);
+}
+
+function canonicalWorkflowStep(options, toolName, toolArguments) {
+  if (Number.isInteger(toolArguments.seed)) {
+    throw new Error('The durable hosted video tools do not expose a seed argument.');
+  }
+  if (toolArguments.reference_audio_identity_url) {
+    throw new Error(
+      'The durable hosted video tools accept registered persona voices, not direct audio-identity URLs.'
+    );
+  }
+
+  const primaryImage = toolArguments.reference_image_url;
+  const endImage = toolArguments.reference_image_end_url;
+  const primaryVideo = toolArguments.reference_video_url;
+  const primaryAudio = toolArguments.reference_audio_url;
+  const imageUrls = [
+    ...(typeof primaryImage === 'string' ? [primaryImage] : []),
+    ...(typeof endImage === 'string' ? [endImage] : []),
+    ...stringArrayArgument(toolArguments, 'reference_image_urls')
+  ];
+  const videoUrls = [
+    ...(typeof primaryVideo === 'string' ? [primaryVideo] : []),
+    ...stringArrayArgument(toolArguments, 'reference_video_urls')
+  ];
+  const audioUrls = [
+    ...(typeof primaryAudio === 'string' ? [primaryAudio] : []),
+    ...stringArrayArgument(toolArguments, 'reference_audio_urls')
+  ];
+  const common = {
+    prompt: toolArguments.prompt,
+    expandPrompt: toolArguments.expand_prompt,
+    videoModel: selectedHostedModelSelector(options),
+    duration: toolArguments.duration,
+    numberOfVariations: toolArguments.number_of_variations,
+    ...(toolArguments.generate_audio !== undefined
+      ? { generateAudio: toolArguments.generate_audio }
+      : {})
+  };
+
+  let workflowArguments;
+  if (toolName === 'generate_video') {
+    let prompt = common.prompt;
+    if (options.mode === 'i2v' && imageUrls.length > 0 && !/@Image1\b/.test(prompt)) {
+      const anchor = endImage
+        ? 'Use @Image1 as the opening shot reference and @Image2 as the final shot reference.'
+        : 'Use @Image1 as the opening shot reference.';
+      prompt = `${anchor} ${prompt}`;
+    }
+    workflowArguments = {
+      ...common,
+      prompt,
+      width: toolArguments.width,
+      height: toolArguments.height,
+      ...(imageUrls.length ? { referenceImageIndices: negativeMediaIndices(imageUrls) } : {}),
+      ...(videoUrls.length ? { referenceVideoIndices: negativeMediaIndices(videoUrls) } : {}),
+      ...(audioUrls.length ? { referenceAudioIndices: negativeMediaIndices(audioUrls) } : {})
+    };
+  } else if (toolName === 'sound_to_video') {
+    if (imageUrls.length > 1 || audioUrls.length > 1 || videoUrls.length > 0) {
+      throw new Error(
+        'The durable sound_to_video contract accepts one source image and one source audio clip.'
+      );
+    }
+    workflowArguments = {
+      ...common,
+      ...(imageUrls.length ? { sourceImageIndex: -1 } : {}),
+      ...(audioUrls.length ? { audioSourceIndex: -1 } : {}),
+      ...(toolArguments.audio_start !== undefined ? { audioStart: toolArguments.audio_start } : {}),
+      ...(options.width && options.height
+        ? { aspectRatio: `${options.width}x${options.height}` }
+        : {})
+    };
+  } else if (toolName === 'video_to_video') {
+    if (videoUrls.length > 1 || imageUrls.length > 1 || audioUrls.length > 0) {
+      throw new Error(
+        'The durable video_to_video contract accepts one source video and at most one source image.'
+      );
+    }
+    if (options.width || options.height) {
+      throw new Error('The durable video_to_video contract preserves source dimensions.');
+    }
+    workflowArguments = {
+      ...common,
+      ...(videoUrls.length ? { videoSourceIndex: -1 } : {}),
+      ...(imageUrls.length ? { sourceImageIndex: -1 } : {}),
+      controlMode: toolArguments.control_mode || 'seedance-v2v'
+    };
+  } else {
+    throw new Error(`Unsupported durable workflow tool: ${toolName}`);
+  }
+
+  const mediaReferences = [
+    ...imageUrls.map((url) => ({ kind: 'image', url })),
+    ...videoUrls.map((url) => ({ kind: 'video', url })),
+    ...audioUrls.map((url) => ({ kind: 'audio', url }))
+  ];
+  return { arguments: workflowArguments, mediaReferences };
+}
+
 function workflowRequest(options, toolName, toolArguments) {
   // Chat-side tools use the `sogni_*` prefix; durable workflow step names are unprefixed
   // (see `CreativeWorkflowHostedToolName` in `src/CreativeWorkflows/types.ts`).
   const workflowToolName = toolName.replace(/^sogni_/, '');
+  const { arguments: workflowArguments, mediaReferences } = canonicalWorkflowStep(
+    options,
+    workflowToolName,
+    toolArguments
+  );
   return {
     token_type: options.tokenType,
-    billing_mode: options.billingMode,
+    ...(mediaReferences.length ? { media_references: mediaReferences } : {}),
     input: {
       title: `Seedance ${options.mode.toUpperCase()} example`,
       steps: [
         {
           id: `seedance_${options.mode}`,
           toolName: workflowToolName,
-          arguments: toolArguments
+          arguments: workflowArguments
         }
       ]
     }
