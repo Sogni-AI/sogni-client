@@ -734,7 +734,6 @@ SEEDANCE MODEL IDS:
 |----------|----------------|-------|
 | seedance-2-0 | Optional image, video, and audio refs | 24fps, 4-15s, 4K |
 | seedance-2-0-mini | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
-| seedance-2-0-fast | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
 | seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 30 total) | 24fps, 4-30s, 720p cap, first+last frame |
 
 SEEDANCE TEXT-TO-VIDEO:
@@ -809,10 +808,9 @@ const project = await sogni.projects.create({
 });
 ```
 
-Chat/tool aliases: `seedance2`, `seedance2-mini`, and `seedance2-fast`. V2V uses
-`seedance2` or `seedance2-mini` as the model selector and `seedance-v2v` as the
-control mode. Mini is the preferred lower-cost 720p tier; Fast remains the
-legacy 720p tier.
+Chat/tool aliases: `seedance2` and `seedance2-mini`. V2V uses `seedance2` or
+`seedance2-mini` as the model selector and `seedance-v2v` as the control mode.
+Mini is the preferred lower-cost 720p tier.
 
 For focused endpoint coverage with server-side Seedance prompt expansion, see
 `examples/workflow_partner_seedance_video.mjs`. It covers Seedance T2V, I2V,

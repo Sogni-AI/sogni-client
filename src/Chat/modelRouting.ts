@@ -114,8 +114,6 @@ export const PREFERRED_MODEL_IDS = {
     seedanceIa2v: 'seedance-2-0',
     seedanceMiniT2v: 'seedance-2-0-mini',
     seedanceMiniI2v: 'seedance-2-0-mini',
-    seedanceFastT2v: 'seedance-2-0-fast',
-    seedanceFastI2v: 'seedance-2-0-fast',
     seedanceV2v: 'seedance-2-0',
     seedance25T2v: 'seedance-2-5',
     seedance25I2v: 'seedance-2-5',
@@ -231,7 +229,8 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   wan22: 'wan_v2.2-14b-fp8_t2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceT2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
-  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastT2v,
+  // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
+  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25T2v,
   'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
   'minimax-h3-t2v': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
@@ -249,7 +248,8 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   wan22: 'wan_v2.2-14b-fp8_i2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceI2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
-  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceFastI2v,
+  // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
+  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25I2v,
   'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
   'minimax-h3-i2v': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
@@ -277,6 +277,8 @@ const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
 const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'wan-s2v': PREFERRED_MODEL_IDS.video.s2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceIa2v,
+  // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
+  'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25Ia2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'ltx25-ia2v': PREFERRED_MODEL_IDS.video.ltx25Ia2vDistilled,
@@ -480,6 +482,7 @@ function getCompatibleVideoWorkflows(modelId: string): VideoWorkflow[] {
   if (modelId === 'seedance-2-5') {
     return SEEDANCE_2_5_WORKFLOWS;
   }
+  // models/list still reports the retired seedance-2-0-fast id for analytics; classify it like Mini.
   if (
     modelId === 'seedance-2-0' ||
     modelId === 'seedance-2-0-mini' ||
@@ -520,7 +523,7 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
   }
-  // Seedance Mini, Fast, and 2.5 all cap at 720p. Only full Seedance 2.0 goes higher.
+  // Seedance Mini and 2.5 cap at 720p; the retired Fast id keeps the same cap. Only full Seedance 2.0 goes higher.
   if (
     modelId.includes('seedance-2-0-mini') ||
     modelId.includes('seedance-2-0-fast') ||

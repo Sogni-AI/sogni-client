@@ -309,7 +309,6 @@ The workflow examples showcase these powerful new models:
 | `one_obsession_v22_fp16`             | One Obsession v22 | Image        | Community Illustrious/anime checkpoint (LoRA-capable)                              |
 | `seedance-2-0`                       | Seedance 2.0      | Video        | External API multimodal video at 24fps                                             |
 | `seedance-2-0-mini`                  | Seedance 2.0 Mini | Video        | Fastest, lower-cost 720p-capped external API multimodal video at 24fps             |
-| `seedance-2-0-fast`                  | Seedance 2.0 Fast | Video        | Legacy 720p-capped external API multimodal video at 24fps                          |
 | `seedance-2-5`                       | Seedance 2.5      | Video        | Newest Seedance: 480p/720p, 4-30s clips, first+last frame, 30/10/10 refs at 24fps  |
 | `happyhorse-1.1-t2v`                 | Happy Horse 1.1   | Video        | External API video, text-to-video (image-only references)                          |
 | `happyhorse-1.1-i2v`                 | Happy Horse 1.1   | Video        | External API video, image-to-video from one first-frame image                      |
@@ -754,7 +753,7 @@ node workflow_creative_agent_cli.mjs --context ./artist-style.md --context ./sho
 
 This is the right example for customers who want their Unlimited subscription to include local CLI access to Sogni Creative Agent. The separate `sogni-creative-agent-skill` package remains the BYO-agent path for Claude Code, Codex, Hermes, Manus, and other skill loaders.
 
-Run the focused partner Seedance video example. Running it with no arguments starts a guided workflow picker covering T2V, I2V, IA2V, V2V, the full and fast Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:
+Run the focused partner Seedance video example. Running it with no arguments starts a guided workflow picker covering T2V, I2V, IA2V, V2V, the full and Mini Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:
 
 ```bash
 node workflow_partner_seedance_video.mjs

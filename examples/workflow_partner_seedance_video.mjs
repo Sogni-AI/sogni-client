@@ -46,13 +46,11 @@ const SEEDANCE_MODELS = {
   t2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
-    'seedance2-fast': { id: 'seedance-2-0-fast', name: 'Seedance 2.0 Fast' },
     'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' }
   },
   i2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
-    'seedance2-fast': { id: 'seedance-2-0-fast', name: 'Seedance 2.0 Fast' },
     'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' }
   },
   ia2v: {
@@ -258,10 +256,6 @@ async function askOptionalSeed(defaultValue) {
   return parsed;
 }
 
-function supportsFastTier(mode) {
-  return Boolean(SEEDANCE_MODELS[mode]?.['seedance2-fast']);
-}
-
 function supportsMiniTier(mode) {
   return Boolean(SEEDANCE_MODELS[mode]?.['seedance2-mini']);
 }
@@ -269,18 +263,17 @@ function supportsMiniTier(mode) {
 function selectedTierLabel(options) {
   const modelId = selectedModelId(options);
   if (modelId.includes('mini')) return 'Seedance 2.0 Mini';
-  if (modelId.includes('fast')) return 'Seedance 2.0 Fast';
   return 'Seedance 2.0';
 }
 
 function dimensionPresets(options) {
   const modelId = selectedModelId(options);
-  const lowerResolution = modelId.includes('mini') || modelId.includes('fast');
+  const lowerResolution = modelId.includes('mini');
   if (lowerResolution) {
     return [
       {
         label: 'Landscape 16:9 - 1280x720',
-        description: 'Mini/Fast tier default, 720p-capped.',
+        description: 'Mini tier default, 720p-capped.',
         width: 1280,
         height: 720
       },
@@ -356,7 +349,7 @@ function printInteractiveIntro() {
   console.log();
   console.log('Seedance coverage in this example:');
   console.log('  - Text-to-video, image-to-video, image+audio-to-video, and video-to-video');
-  console.log('  - Full Seedance 2.0, Seedance 2.0 Mini, and legacy Fast tiers where available');
+  console.log('  - Full Seedance 2.0 and Seedance 2.0 Mini tiers where available');
   console.log(
     '  - Native audio generation, keyframe interpolation, V2V restyling, and multimodal context'
   );
@@ -404,10 +397,9 @@ async function promptMode(options) {
 async function promptTier(options) {
   if (options.model) return;
 
-  if (!supportsMiniTier(options.mode) && !supportsFastTier(options.mode)) {
+  if (!supportsMiniTier(options.mode)) {
     options.full = true;
     options.mini = false;
-    options.fast = false;
     console.log(
       `\nLower-resolution Seedance tiers are not exposed for ${options.mode.toUpperCase()}; using the full Seedance 2.0 tier.`
     );
@@ -428,15 +420,8 @@ async function promptTier(options) {
       description: 'Fastest, lower-cost 720p-capped Seedance tier.'
     });
   }
-  if (supportsFastTier(options.mode)) {
-    choices.push({
-      label: 'Seedance 2.0 Fast',
-      value: 'fast',
-      description: 'Legacy lower-latency tier with a 720p output cap.'
-    });
-  }
 
-  const defaultValue = options.fast ? 'fast' : options.full ? 'full' : 'mini';
+  const defaultValue = options.full ? 'full' : 'mini';
   const defaultIndex = Math.max(
     0,
     choices.findIndex((choice) => choice.value === defaultValue)
@@ -444,7 +429,6 @@ async function promptTier(options) {
   const selection = await chooseFromList('Choose the Seedance tier:', choices, defaultIndex);
   options.full = selection.value === 'full';
   options.mini = selection.value === 'mini';
-  options.fast = selection.value === 'fast';
 }
 
 async function promptModeMedia(options) {
@@ -671,7 +655,6 @@ function parseArgs() {
   const options = {
     prompt: '',
     mode: undefined,
-    fast: false,
     model: undefined,
     llmModel: DEFAULT_LLM_MODEL,
     endpoint: process.env.SOGNI_REST_ENDPOINT || DEFAULT_REST_ENDPOINT,
@@ -728,15 +711,10 @@ function parseArgs() {
     } else if (arg === '--full') {
       options.full = true;
       options.mini = false;
-      options.fast = false;
-    } else if (arg === '--mini') {
+    } else if (arg === '--mini' || arg === '--fast') {
+      // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
       options.full = false;
       options.mini = true;
-      options.fast = false;
-    } else if (arg === '--fast') {
-      options.full = false;
-      options.mini = false;
-      options.fast = true;
     } else if (arg === '--model' && args[i + 1]) {
       options.model = args[++i];
     } else if (arg === '--llm-model' && args[i + 1]) {
@@ -856,7 +834,7 @@ Modes:
   v2v   Video-to-video through hosted workflow; inferred from --video
 
 Seedance models:
-  seedance-2-0            seedance-2-0-mini      seedance-2-0-fast
+  seedance-2-0            seedance-2-0-mini
   seedance-2-5            (480p/720p only, 4-30s clips, first+last frame)
 
 Options:
@@ -866,12 +844,11 @@ Options:
   --workflow             Use /v1/creative-agent/workflows with explicit steps
   --full                 Use full Seedance 2.0 (4K-capable)
   --mini                 Use Seedance 2.0 Mini (default, 720p cap)
-  --fast                 Use legacy Seedance 2.0 Fast for t2v/i2v (720p cap)
   --model <selector>     Override model selector or model id
   --duration <seconds>   4-15 seconds for Seedance (default: 4)
   --fps <n>              Seedance endpoint FPS; must be 24 (default: 24)
-  --width <px>           Output width (default: 1280 for mini/fast, 1920 otherwise)
-  --height <px>          Output height (default: 720 for mini/fast, 1080 otherwise)
+  --width <px>           Output width (default: 1280 for mini, 1920 otherwise)
+  --height <px>          Output height (default: 720 for mini, 1080 otherwise)
   --image <path|https>   Reference image for i2v, ia2v, or v2v context; repeatable
   --context <path|https> Alias for --image; repeatable
   --end-image <path|https> Optional final frame image for i2v interpolation
@@ -1039,7 +1016,7 @@ function resolveModelConfig(mode, modelSelector) {
 function selectedModelConfig(options) {
   const selector =
     options.model ||
-    (options.fast ? 'seedance2-fast' : options.full ? 'seedance2' : 'seedance2-mini');
+    (options.full ? 'seedance2' : 'seedance2-mini');
   const modelConfig = resolveModelConfig(options.mode, selector);
   if (!modelConfig) {
     const supported = Object.entries(SEEDANCE_MODELS[options.mode] || {})
@@ -1058,7 +1035,7 @@ function selectedModelId(options) {
 
 function defaultDimensions(options) {
   const modelId = selectedModelId(options);
-  const lowerResolution = modelId.includes('mini') || modelId.includes('fast');
+  const lowerResolution = modelId.includes('mini');
   return {
     width: options.width || (lowerResolution ? 1280 : 1920),
     height: options.height || (lowerResolution ? 720 : 1080)

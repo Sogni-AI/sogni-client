@@ -767,7 +767,7 @@ WAN workflows have two model variants optimized for different use cases:
 - **Speed variant** (with `_lightx2v` suffix) - Faster inference (4-step), good quality
 - **Quality variant** (without `_lightx2v`) - Slower inference, best quality
 
-LTX 2.5 is the recommended LTX family; LTX 2.3 remains available for rollback and for its ID-LoRA, transition, and 10Eros-only paths. LTX 2.5 distilled models use the official direct distilled checkpoint at a fixed 8 steps. Dev models use the official 2.5 Dev checkpoint plus the required distilled Speed LoRA refinement. Both generate native audio. Seedance models use the external API path and are available through four canonical multimodal model IDs: `seedance-2-0`, `seedance-2-0-mini`, `seedance-2-0-fast`, and `seedance-2-5`.
+LTX 2.5 is the recommended LTX family; LTX 2.3 remains available for rollback and for its ID-LoRA, transition, and 10Eros-only paths. LTX 2.5 distilled models use the official direct distilled checkpoint at a fixed 8 steps. Dev models use the official 2.5 Dev checkpoint plus the required distilled Speed LoRA refinement. Both generate native audio. Seedance models use the external API path and are available through three canonical multimodal model IDs: `seedance-2-0`, `seedance-2-0-mini`, and `seedance-2-5`.
 
 Example model IDs:
 
@@ -790,7 +790,6 @@ Example model IDs:
 - `ltx23-22b-fp8_v2v_distilled` (LTX-2.3 Video-to-Video ControlNet, fast)
 - `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-mini` (Seedance 2.0 Mini multimodal video, external API, 720p cap)
-- `seedance-2-0-fast` (Seedance 2.0 Fast multimodal video, external API, 720p cap)
 - `seedance-2-5` (Seedance 2.5 multimodal video, external API, 480p/720p only, 4-30s, first+last frame)
 - `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
@@ -1106,7 +1105,7 @@ See `examples/workflow_creative_agent_tools.mjs` for a runnable REST API-key exa
 
 See `examples/workflow_direct_creative_tool.mjs` when you already know the hosted synchronous tool to run and want to call it without asking the LLM to select a tool first.
 
-For focused partner Seedance video tests, `examples/workflow_partner_seedance_video.mjs` starts with a guided workflow picker when run with no arguments. The guided path covers T2V, I2V, IA2V, V2V, the full and fast Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:
+For focused partner Seedance video tests, `examples/workflow_partner_seedance_video.mjs` starts with a guided workflow picker when run with no arguments. The guided path covers T2V, I2V, IA2V, V2V, the full and Mini Seedance tiers where available, hosted workflow execution, native audio, keyframe interpolation, multimodal context, and cost estimation. The command-line path still supports direct scripted calls:
 
 ```bash
 node examples/workflow_partner_seedance_video.mjs
@@ -1236,7 +1235,6 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `wan_v2.2-14b-fp8_t2v_lightx2v`       | **Wan 2.2 T2V** - Text-to-video                          | Generate videos from text prompts                                                                            |
 | `seedance-2-0`                        | **Seedance 2.0** - 4K external API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-mini`                   | **Seedance 2.0 Mini** - 720p external API video          | Fastest, lower-cost 24fps Seedance video generation                                                          |
-| `seedance-2-0-fast`                   | **Seedance 2.0 Fast** - 720p external API video          | Legacy faster 24fps video generation where fast tiers are enabled                                            |
 | `seedance-2-5`                        | **Seedance 2.5** - 480p/720p external API video          | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs |
 | `dark_beast_z_image_turbo_v9_bf16`    | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                     |
 | `dark_beast_krea2_fp8`                | **Dark Beast KREA 2** - Community (uncensored)           | Uncensored Krea 2 fine-tune (2K output needs a 24GB+ VRAM worker)                                            |

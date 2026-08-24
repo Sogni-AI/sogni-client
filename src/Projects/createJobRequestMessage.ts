@@ -347,6 +347,7 @@ const SEEDANCE_REFERENCE_LIMITS_BY_MODEL: Record<
 > = {
   'seedance-2-0': { images: 9, videos: 3, audios: 3, assets: 12 },
   'seedance-2-0-mini': { images: 9, videos: 3, audios: 3, assets: 12 },
+  // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance-2-0-fast': { images: 9, videos: 3, audios: 3, assets: 12 },
   'seedance-2-5': { images: 30, videos: 10, audios: 10, assets: 30 }
 };
@@ -504,7 +505,7 @@ function getMaxVideoDuration(modelId: string): number {
     return MINIMAX_H3_MAX_DURATION;
   }
   if (isSeedance25Model(modelId)) {
-    // Seedance 2.5 renders up to 30s in a single call; 2.0/Mini/Fast cap at 15s.
+    // Seedance 2.5 renders up to 30s in a single call; 2.0/Mini cap at 15s.
     return 30;
   }
   if (isExternalApiVideoModel(modelId)) {

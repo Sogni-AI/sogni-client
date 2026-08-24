@@ -111,8 +111,6 @@ const models = [
   { id: PREFERRED_MODEL_IDS.video.seedanceIa2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceMiniT2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceMiniI2v, media: 'video', workerCount: 999 },
-  { id: PREFERRED_MODEL_IDS.video.seedanceFastT2v, media: 'video', workerCount: 999 },
-  { id: PREFERRED_MODEL_IDS.video.seedanceFastI2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.seedanceV2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.happyhorseT2v, media: 'video', workerCount: 999 },
   { id: PREFERRED_MODEL_IDS.video.happyhorseI2v, media: 'video', workerCount: 999 },
@@ -150,16 +148,6 @@ assert.equal(
     preferredModelIds: [PREFERRED_MODEL_IDS.video.t2v]
   }).modelId,
   PREFERRED_MODEL_IDS.video.t2v
-);
-
-assert.equal(
-  selectBackboneModel(models, {
-    mediaType: 'video',
-    requestedModel: PREFERRED_MODEL_IDS.video.seedanceFastT2v,
-    workflows: ['t2v'],
-    preferredModelIds: [PREFERRED_MODEL_IDS.video.t2v]
-  }).modelId,
-  PREFERRED_MODEL_IDS.video.seedanceFastT2v
 );
 
 assert.equal(
@@ -221,7 +209,8 @@ assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceMiniT2v), {
   height: 720,
   fps: 24
 });
-assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedanceFastT2v), {
+// The retired seedance-2-0-fast id can still arrive from models/list; it keeps the 720p cap.
+assert.deepEqual(getVideoDefaults('seedance-2-0-fast'), {
   width: 1280,
   height: 720,
   fps: 24
@@ -967,9 +956,14 @@ assert.equal(
   resolveHostedToolModelSelector('generate_video', { videoModel: 'seedance2-mini' }),
   PREFERRED_MODEL_IDS.video.seedanceMiniT2v
 );
+// legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
 assert.equal(
   resolveHostedToolModelSelector('generate_video', { videoModel: 'seedance2-fast' }),
-  PREFERRED_MODEL_IDS.video.seedanceFastT2v
+  PREFERRED_MODEL_IDS.video.seedanceMiniT2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('sound_to_video', { videoModel: 'seedance2-fast' }),
+  resolveHostedToolModelSelector('sound_to_video', { videoModel: 'seedance2-mini' })
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', { videoModel: 'seedance2-5' }),
@@ -994,7 +988,7 @@ assert.equal(
     videoModel: 'seedance2-fast',
     referenceImageIndices: [-1]
   }),
-  PREFERRED_MODEL_IDS.video.seedanceFastI2v
+  PREFERRED_MODEL_IDS.video.seedanceMiniI2v
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', {

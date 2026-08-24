@@ -89,8 +89,8 @@ export function isLtx2Model(modelId: string): boolean {
  *
  * Seedance models are external API-backed video models that all generate at
  * 24fps. Duration and resolution differ by generation:
- * - `seedance-2-0` / `-mini` / `-fast`: 4-15 second clips; the full model goes
- *   up to 4K while Mini and Fast cap at 720p.
+ * - `seedance-2-0` / `-mini`: 4-15 second clips; the full model goes up to 4K
+ *   while Mini caps at 720p.
  * - `seedance-2-5`: 4-30 second clips, 480p/720p only (no 1080p, no 4K).
  */
 export function isSeedanceModel(modelId: string): boolean {
