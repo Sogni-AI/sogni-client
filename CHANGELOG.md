@@ -1,3 +1,11 @@
+## [5.18.1](https://github.com/Sogni-AI/sogni-client/compare/v5.18.0...v5.18.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* **projects:** forward video reference image counts ([b85fee7](https://github.com/Sogni-AI/sogni-client/commit/b85fee752a29eae358ce7c542ef2fe05f88c4ed5))
+* **projects:** size the job runtime limit by network and media type ([abcb3eb](https://github.com/Sogni-AI/sogni-client/commit/abcb3eb3f77fe779a30433d975b94e9508ab7861))
+
 # [5.18.0](https://github.com/Sogni-AI/sogni-client/compare/v5.17.0...v5.18.0) (2026-08-24)
 
 
