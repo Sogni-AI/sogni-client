@@ -207,6 +207,7 @@ function getAudioContentType(project: Project): string {
 
 class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
+  private _currentNetworkType: SupernetType | null = null;
   private projects: Project[] = [];
   private _supportedModels: { data: SupportedModel[] | null; updatedAt: Date } = {
     data: null,
@@ -283,9 +284,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return this.projects.slice(0);
   }
 
-  private handleChangeNetwork() {
+  private handleChangeNetwork(data: SocketEventMap['changeNetwork']) {
+    if (data?.network === 'fast' || data?.network === 'relaxed') {
+      this._currentNetworkType = data.network;
+    }
     this._availableModels = [];
     this.emit('availableModels', this._availableModels);
+  }
+
+  /**
+   * Network the server last announced for this connection, or null before any
+   * announcement.
+   *
+   * @internal Used to size a job's hard runtime budget when the project did not
+   * pin a network explicitly. Relaxed workers run undistilled graphs on older
+   * cards and legitimately take hours per video job, so the budget must know
+   * which network it is waiting on.
+   */
+  _currentNetwork(): SupernetType | null {
+    return this._currentNetworkType;
   }
 
   private async handleSwarmModels(data: SocketEventMap['swarmModels']) {
@@ -1030,7 +1047,22 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   ) {
     const imageId = getUUID();
     const imageIndex = (index + 1) as
-      1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+      | 1
+      | 2
+      | 3
+      | 4
+      | 5
+      | 6
+      | 7
+      | 8
+      | 9
+      | 10
+      | 11
+      | 12
+      | 13
+      | 14
+      | 15
+      | 16;
     const contentType = getFileContentType(file);
     const presignedUrl = await this.uploadUrl({
       imageId,

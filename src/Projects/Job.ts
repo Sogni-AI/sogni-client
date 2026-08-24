@@ -11,10 +11,45 @@ import { getEnhacementStrength } from './utils/index.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
 
-// A worker job must never occupy a worker indefinitely. This starts only when
-// the socket reports jobStarted (or progress proves the job has started) and is
-// intentionally not refreshed by progress events.
-const JOB_RUNTIME_TIMEOUT = 30 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+
+type RuntimeLimitMedia = 'image' | 'video' | 'audio';
+
+/**
+ * Floor of the hard per-job runtime budget, by network and media type.
+ *
+ * A worker job must never occupy a worker indefinitely, but the budget has to
+ * sit ABOVE the real render-time distribution or it destroys healthy work. The
+ * previous flat 30 minutes sat inside it: on the fast network a 15 s MiniMax H3
+ * reference-video render legitimately reaches ~60 min and Wan 2.2 i2v ~70 min,
+ * and roughly 11% of runnable reference-video jobs were being cancelled at
+ * exactly 30 minutes (measured over 15 days of production timings, 2026-08).
+ * The relaxed network runs the same graphs undistilled on older cards, where a
+ * single video job can take upwards of six hours.
+ *
+ * These are deliberately generous because this timer is the last-resort
+ * backstop, not the primary guard. A stuck render is killed by the worker's own
+ * watchdog (max(40 min, 6x ETA)), and a silent project is resolved within two
+ * minutes by Project's staleness check, which asks the socket whether the job
+ * is still alive. Waiting too long costs latency; cancelling too early costs
+ * the artist the entire render and the fleet every GPU-hour already spent, so
+ * ambiguity resolves toward waiting.
+ */
+const RUNTIME_LIMIT_FLOOR_MS: Record<SupernetType, Record<RuntimeLimitMedia, number>> = {
+  fast: { image: 30 * MINUTE_MS, audio: 30 * MINUTE_MS, video: 90 * MINUTE_MS },
+  relaxed: { image: 2 * HOUR_MS, audio: 2 * HOUR_MS, video: 8 * HOUR_MS }
+};
+
+/**
+ * Scale the budget with the worker's own estimate, mirroring the worker-side
+ * overrun rule (`max(floor, 6 x initial ETA)`) so the client never gives up on a
+ * render the worker still considers healthy.
+ */
+const RUNTIME_LIMIT_ETA_MULTIPLIER = 6;
+
+/** Absolute ceiling, so "never occupy a worker indefinitely" still holds. */
+const RUNTIME_LIMIT_MAX_MS = 12 * HOUR_MS;
 
 export const enhancementDefaults = {
   network: 'fast' as SupernetType,
@@ -479,15 +514,46 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
   }
 
+  /**
+   * Network this job is budgeted against.
+   *
+   * An explicit per-project pin wins; otherwise the last network the server
+   * announced. An unknown network resolves to `relaxed` on purpose: the relaxed
+   * budget is the generous one, and over-waiting is recoverable while a
+   * wrongly cancelled render is not.
+   */
+  private _runtimeLimitNetwork(): SupernetType {
+    const pinned = this._project?.params?.network;
+    if (pinned === 'fast' || pinned === 'relaxed') return pinned;
+    return this._api._currentNetwork?.() === 'fast' ? 'fast' : 'relaxed';
+  }
+
+  private _runtimeLimitMedia(): RuntimeLimitMedia {
+    const type = this._project?.params?.type;
+    return type === 'video' || type === 'audio' ? type : 'image';
+  }
+
+  /** Hard runtime budget for this job, in milliseconds. */
+  private _runtimeLimitMs(): number {
+    const floor = RUNTIME_LIMIT_FLOOR_MS[this._runtimeLimitNetwork()][this._runtimeLimitMedia()];
+    const etaSeconds = this.data.etaSeconds;
+    const etaBudget =
+      typeof etaSeconds === 'number' && etaSeconds > 0
+        ? etaSeconds * 1000 * RUNTIME_LIMIT_ETA_MULTIPLIER
+        : 0;
+    return Math.min(RUNTIME_LIMIT_MAX_MS, Math.max(floor, etaBudget));
+  }
+
   private _startRuntimeTimeout() {
     // Never reset the deadline on progress. The first processing transition is
     // the hard start time for this actual worker job.
     if (this._runtimeTimeout || this.finished) return;
+    const limitMs = this._runtimeLimitMs();
     this._runtimeTimeout = setTimeout(() => {
       this._runtimeTimeout = null;
       if (this.status !== 'processing' || this._project.finished) return;
-      this._project._handleJobRuntimeTimeout(this);
-    }, JOB_RUNTIME_TIMEOUT);
+      this._project._handleJobRuntimeTimeout(this, limitMs);
+    }, limitMs);
   }
 
   private handleUpdated(keys: string[]) {

@@ -12,6 +12,16 @@ import { Logger } from '../lib/DefaultLogger.js';
 const PROJECT_TIMEOUT = 2 * 60 * 1000;
 const MAX_FAILED_SYNC_ATTEMPTS = 3;
 
+/** Render a runtime budget for an error message ("90 minutes", "8 hours"). */
+function formatRuntimeLimit(limitMs: number): string {
+  const minutes = Math.round(limitMs / 60000);
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+}
+
 export type ProjectStatus =
   | 'pending'
   | 'queued'
@@ -301,12 +311,13 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    * only after jobStarted changes that job to processing.
    * @internal
    */
-  _handleJobRuntimeTimeout(job: Job) {
+  _handleJobRuntimeTimeout(job: Job, limitMs: number) {
     if (this.finished || job.finished || !this._jobs.includes(job)) return;
 
+    const limit = formatRuntimeLimit(limitMs);
     const jobError: ErrorData = {
       code: 0,
-      message: 'Job exceeded the maximum runtime of 30 minutes'
+      message: `Job exceeded the maximum runtime of ${limit}`
     };
     this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
       this._logger.error(`Failed to cancel project ${this.id} after job ${job.id} timed out`);
@@ -321,7 +332,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       status: 'failed',
       error: {
         code: 0,
-        message: `Job ${job.id} exceeded the maximum runtime of 30 minutes; project canceled`
+        message: `Job ${job.id} exceeded the maximum runtime of ${limit}; project canceled`
       }
     });
   }
