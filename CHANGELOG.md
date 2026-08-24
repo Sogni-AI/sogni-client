@@ -1,3 +1,15 @@
+# [5.18.0](https://github.com/Sogni-AI/sogni-client/compare/v5.17.0...v5.18.0) (2026-08-24)
+
+
+### Bug Fixes
+
+* **socket:** keep an error handler attached while closing the socket ([2aa35bb](https://github.com/Sogni-AI/sogni-client/commit/2aa35bb861089fdcc83922d53ebe7a03e1db8fd9))
+
+
+### Features
+
+* **chat:** retire the seedance2-fast selector in favor of Seedance 2.0 Mini ([9ea3c13](https://github.com/Sogni-AI/sogni-client/commit/9ea3c1301573b725978e0e1cfe3352fcc2403af5))
+
 # [5.17.0](https://github.com/Sogni-AI/sogni-client/compare/v5.16.0...v5.17.0) (2026-08-19)
 
 
