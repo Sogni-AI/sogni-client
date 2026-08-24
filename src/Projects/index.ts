@@ -1345,6 +1345,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - fps: The frames per second for the video.
    *   - steps: Number of steps.
    *   - hasVideoInput: Whether to price a Seedance estimate with video input.
+   *   - referenceImageCount: Number of image references submitted by the estimated job.
    * @return {Promise<Object>} Returns an object containing the estimated costs for the video in different units:
    *   - token: Cost in tokens.
    *   - usd: Cost in USD.
@@ -1379,6 +1380,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       (Array.isArray(params.referenceVideoUrls) && params.referenceVideoUrls.length > 0);
     if (hasVideoInput) {
       query.set('hasVideoInput', '1');
+    }
+    if (
+      Number.isFinite(params.referenceImageCount) &&
+      (params.referenceImageCount as number) >= 0
+    ) {
+      query.set('referenceImageCount', String(Math.floor(params.referenceImageCount as number)));
     }
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(

@@ -804,6 +804,13 @@ export interface VideoEstimateRequest {
    */
   hasVideoInput?: boolean;
   /**
+   * Number of image references that the estimated job will submit.
+   *
+   * This is estimate-only metadata. Models whose pricing does not depend on
+   * reference image count ignore it.
+   */
+  referenceImageCount?: number;
+  /**
    * Optional estimate-only signal: presence implies Seedance video-input pricing.
    */
   referenceVideo?: unknown;

@@ -1934,6 +1934,10 @@ const cost = await sogni.projects.estimateVideoCost({
 });
 ```
 
+When estimating a reference-to-video job, pass `referenceImageCount` with the
+number of image references the job will actually submit. It is optional and is
+ignored by models whose estimate does not depend on reference image count.
+
 CHECK BALANCE:
 
 ```javascript

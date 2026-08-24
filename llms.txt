@@ -839,6 +839,8 @@ console.log(cost.sogni, cost.usd);
 ```
 
 Use `estimateVideoCost()` for video jobs and `estimateAudioCost()` for audio jobs.
+For reference-to-video estimates, `referenceImageCount` may be supplied as the
+number of image references the job will actually submit; unrelated models ignore it.
 
 ---
 
