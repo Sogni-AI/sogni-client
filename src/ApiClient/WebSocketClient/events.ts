@@ -256,7 +256,7 @@ export type ToastMessage = {
 
 export type ArtistCancelConfirmation = {
   didCancel: boolean;
-  error_message: string;
+  error_message?: string;
   jobID: string;
 };
 

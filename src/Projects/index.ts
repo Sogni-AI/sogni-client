@@ -15,7 +15,7 @@ import {
   AudioEstimateRequest
 } from './types/index.js';
 import {
-  ArtistCancelConfirmation,
+  type ArtistCancelConfirmation,
   JobErrorData,
   JobETAData,
   JobProgressData,
@@ -93,7 +93,10 @@ const DEFAULT_LORA_CONSTRAINTS: LoraConstraints = {
   maxStrength: 100
 };
 const GARBAGE_COLLECT_TIMEOUT = 30000;
-const CANCELLATION_CONFIRMATION_TIMEOUT = 80000;
+// Socket owns a 105s provider-confirmation deadline. Keep transport/UI slack
+// above it so the client cannot report failure while Socket is still able to
+// confirm and refund the same cancellation.
+const CANCELLATION_CONFIRMATION_TIMEOUT = 120000;
 const MODELS_REFRESH_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
 
 /** Fallback for an API that does not advertise its LoRA-capable model set. */
@@ -211,6 +214,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
   private _currentNetworkType: SupernetType | null = null;
   private projects: Project[] = [];
+  private cancellationRequests = new Map<string, Promise<void>>();
   private _supportedModels: { data: SupportedModel[] | null; updatedAt: Date } = {
     data: null,
     updatedAt: new Date(0)
@@ -952,6 +956,24 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param projectId
    **/
   async cancel(projectId: string) {
+    const existing = this.cancellationRequests.get(projectId);
+    if (existing) {
+      await existing;
+      return;
+    }
+
+    const cancellation = this.cancelOnce(projectId);
+    this.cancellationRequests.set(projectId, cancellation);
+    try {
+      await cancellation;
+    } finally {
+      if (this.cancellationRequests.get(projectId) === cancellation) {
+        this.cancellationRequests.delete(projectId);
+      }
+    }
+  }
+
+  private async cancelOnce(projectId: string) {
     const project = this.projects.find((p) => p.id === projectId);
     if (project?.finished) {
       return;

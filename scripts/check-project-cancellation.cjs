@@ -112,6 +112,27 @@ async function main() {
     assert.equal(socket.listenerCount('artistCancelConfirmation'), 0);
   }
 
+  {
+    const { api, socket } = makeProjectsApi();
+    const first = api.cancel('duplicate-project');
+    const second = api.cancel('duplicate-project');
+    await Promise.resolve();
+
+    assert.equal(socket.sent.length, 1, 'concurrent callers must share one cancellation frame');
+    assert.equal(
+      socket.listenerCount('artistCancelConfirmation'),
+      1,
+      'concurrent callers must share one confirmation listener'
+    );
+
+    socket.emit('artistCancelConfirmation', {
+      didCancel: true,
+      jobID: 'duplicate-project'
+    });
+    await Promise.all([first, second]);
+    assert.equal(socket.listenerCount('artistCancelConfirmation'), 0);
+  }
+
   console.log('check-project-cancellation: ALL TESTS PASSED');
 }
 
