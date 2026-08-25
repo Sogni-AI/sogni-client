@@ -39,6 +39,7 @@ const HAPPYHORSE_VIDEO_MODEL_IDS = new Set([
   'happyhorse-1.1-i2v',
   'happyhorse-1.1-r2v',
 ]);
+const WAN3_VIDEO_MODEL_IDS = new Set(['wan3.0-video']);
 const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fl2va-fp8_t2v',
   'minimax-h3-fl2va-fp8_i2v',
@@ -71,6 +72,7 @@ export function isVideoModel(modelId: string): boolean {
     || isLtx2Model(modelId)
     || isSeedanceModel(modelId)
     || isHappyhorseModel(modelId)
+    || isWan3Model(modelId)
     || isMinimaxH3Model(modelId);
 }
 
@@ -163,6 +165,18 @@ export function isHappyhorseModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model ID is Alibaba's unified Wan 3 video model.
+ *
+ * Unlike workflow-specific local WAN 2.2 checkpoints, `wan3.0-video` uses one
+ * canonical vendor/model ID for text, first-frame, first-and-last-frame,
+ * multimodal reference, edit, and extend requests. The supplied media shape
+ * selects the operation; the model ID deliberately carries no workflow suffix.
+ */
+export function isWan3Model(modelId: string): boolean {
+  return WAN3_VIDEO_MODEL_IDS.has(modelId);
+}
+
+/**
  * Check if a model ID is a MiniMax H3 video model.
  *
  * Two separate checkpoints and dedicated distilled paths ship under this prefix:
@@ -205,18 +219,17 @@ export function isMinimaxH3ReferenceModel(modelId: string): boolean {
 }
 
 /**
- * Check if a model ID is an external API-backed video model (Seedance 2.0 or
- * HappyHorse 1.1).
+ * Check if a model ID is an external API-backed video model.
  *
- * These vendor families share the external API routing path: fixed 24fps
- * generation, Spark-only billing, no negative prompt, and HTTPS/local
+ * These vendor families share the external API routing path: Spark-only
+ * billing, no negative prompt, and HTTPS/local
  * reference context handling. Use this where the same gate applies to both
  * families; use the model-specific checks (`isSeedanceModel` /
  * `isHappyhorseModel`) for behavior that differs, such as reference asset
  * validation and minimum duration.
  */
 export function isExternalApiVideoModel(modelId: string): boolean {
-  return isSeedanceModel(modelId) || isHappyhorseModel(modelId);
+  return isSeedanceModel(modelId) || isHappyhorseModel(modelId) || isWan3Model(modelId);
 }
 
 /**

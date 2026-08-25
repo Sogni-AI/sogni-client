@@ -7,7 +7,7 @@
   "engines": {
     "node": ">=22"
   },
-  "description": "Sogni SDK - AI image, video & audio generation plus LLM chat with vision via the Sogni Supernet (Stable Diffusion, Flux, WAN 2.2, LTX-2, Seedance, HappyHorse, Qwen VLM)",
+  "description": "Sogni SDK - AI image, video & audio generation plus LLM chat with vision via the Sogni Supernet (Stable Diffusion, Flux, WAN, LTX-2, Seedance, HappyHorse, Qwen VLM)",
   "keywords": [
     "ai",
     "image-generation",
@@ -66,6 +66,7 @@
     "test:model-options": "npm run build && node scripts/check-video-model-options.cjs",
     "test:video-estimates": "npm run build && node scripts/check-video-estimates.cjs",
     "test:seedance-task-type": "npm run build && node scripts/check-seedance-task-type.cjs && node scripts/check-seedance-r2v-example.cjs",
+    "test:wan3-video": "npm run build && node scripts/check-wan3-video.cjs",
     "test:lora-catalog": "npm run build && node scripts/check-lora-catalog.cjs",
     "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
     "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",

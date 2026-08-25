@@ -241,6 +241,11 @@ assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.happyhorseR2v), {
   height: 1080,
   fps: 24
 });
+assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.wan3), {
+  width: 1920,
+  height: 1080,
+  fps: 30
+});
 
 for (const [unknown, predicate] of [
   ['ltx26-22b-int8_t2v_distilled', isLtx2Model],
@@ -1039,6 +1044,25 @@ assert.equal(
 assert.equal(
   resolveHostedToolModelSelector('generate_video', { videoModel: 'HappyHorse' }),
   PREFERRED_MODEL_IDS.video.happyhorseT2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'wan3' }),
+  PREFERRED_MODEL_IDS.video.wan3
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', {
+    videoModel: 'wan3.0',
+    referenceImageIndices: [-1]
+  }),
+  PREFERRED_MODEL_IDS.video.wan3
+);
+assert.equal(
+  resolveHostedToolModelSelector('video_to_video', { videoModel: 'wan3-video' }),
+  PREFERRED_MODEL_IDS.video.wan3
+);
+assert.equal(
+  resolveHostedToolModelSelector('sound_to_video', { videoModel: 'wan3' }),
+  PREFERRED_MODEL_IDS.video.wan3
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', {

@@ -5,7 +5,8 @@ import {
   isExternalApiVideoModel,
   isLtx2Model,
   isMinimaxH3Model,
-  isSeedanceModel
+  isSeedanceModel,
+  isWan3Model
 } from '../Projects/utils/index.js';
 import { isKreaIdentityEditModel, isQwenImageEditModel } from '../lib/validation.js';
 
@@ -14,7 +15,8 @@ export {
   getVideoWorkflowType,
   isHappyhorseModel,
   isExternalApiVideoModel,
-  isMinimaxH3Model
+  isMinimaxH3Model,
+  isWan3Model
 };
 
 /**
@@ -125,6 +127,7 @@ export const PREFERRED_MODEL_IDS = {
     happyhorseT2v: 'happyhorse-1.1-t2v',
     happyhorseI2v: 'happyhorse-1.1-i2v',
     happyhorseR2v: 'happyhorse-1.1-r2v',
+    wan3: 'wan3.0-video',
     minimaxH3T2v: 'minimax-h3-fl2va-fp8_t2v',
     minimaxH3I2v: 'minimax-h3-fl2va-fp8_i2v',
     minimaxH3Flf2v: 'minimax-h3-fl2va-fp8_flf2v',
@@ -242,7 +245,10 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-r2v': PREFERRED_MODEL_IDS.video.minimaxH3R2v,
   'minimax-h3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseT2v,
-  'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseT2v
+  'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseT2v,
+  wan3: PREFERRED_MODEL_IDS.video.wan3,
+  'wan3.0': PREFERRED_MODEL_IDS.video.wan3,
+  'wan3-video': PREFERRED_MODEL_IDS.video.wan3
 };
 
 const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
@@ -265,7 +271,10 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse-1.1-i2v': PREFERRED_MODEL_IDS.video.happyhorseI2v,
-  'happyhorse-1.1-r2v': PREFERRED_MODEL_IDS.video.happyhorseR2v
+  'happyhorse-1.1-r2v': PREFERRED_MODEL_IDS.video.happyhorseR2v,
+  wan3: PREFERRED_MODEL_IDS.video.wan3,
+  'wan3.0': PREFERRED_MODEL_IDS.video.wan3,
+  'wan3-video': PREFERRED_MODEL_IDS.video.wan3
 };
 
 const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
@@ -274,7 +283,10 @@ const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.v2v,
   'ltx23-v2v': PREFERRED_MODEL_IDS.video.v2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v,
-  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v
+  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v,
+  wan3: PREFERRED_MODEL_IDS.video.wan3,
+  'wan3.0': PREFERRED_MODEL_IDS.video.wan3,
+  'wan3-video': PREFERRED_MODEL_IDS.video.wan3
 };
 
 const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
@@ -287,7 +299,10 @@ const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'ltx25-ia2v': PREFERRED_MODEL_IDS.video.ltx25Ia2vDistilled,
   'ltx25-a2v': PREFERRED_MODEL_IDS.video.ltx25A2vDistilled,
   'ltx23-ia2v': PREFERRED_MODEL_IDS.video.ia2v,
-  'ltx23-a2v': PREFERRED_MODEL_IDS.video.a2v
+  'ltx23-a2v': PREFERRED_MODEL_IDS.video.a2v,
+  wan3: PREFERRED_MODEL_IDS.video.wan3,
+  'wan3.0': PREFERRED_MODEL_IDS.video.wan3,
+  'wan3-video': PREFERRED_MODEL_IDS.video.wan3
 };
 
 export function clampVariationCount(value: unknown, fallback = 1): number {
@@ -478,8 +493,12 @@ const SEEDANCE_CANONICAL_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'ia2v', 'v2
  * reference-to-video mode on top of the 2.0 workflow set.
  */
 const SEEDANCE_2_5_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'flf2v', 'r2v', 'ia2v', 'v2v'];
+const WAN3_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'flf2v', 'r2v', 'a2v', 'ia2v', 'v2v'];
 
 function getCompatibleVideoWorkflows(modelId: string): VideoWorkflow[] {
+  if (isWan3Model(modelId)) {
+    return WAN3_WORKFLOWS;
+  }
   if (modelId === 'seedance-2-5') {
     return SEEDANCE_2_5_WORKFLOWS;
   }
@@ -513,6 +532,10 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   const isLtx2 = isLtx2Model(modelId);
   const isSeedance = isSeedanceModel(modelId);
   const isHappyhorse = isHappyhorseModel(modelId);
+
+  if (isWan3Model(modelId)) {
+    return { width: 1920, height: 1080, fps: 30 };
+  }
 
   if (isMinimaxH3Model(modelId)) {
     if (modelId === PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v) {

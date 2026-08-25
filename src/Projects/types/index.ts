@@ -257,6 +257,7 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * Duration of the video in seconds. Supported range 1 to 10 (WAN), 2 to 20 (LTX 2.5), 4 to 20 (LTX 2.3),
    * 4 to 15 (Seedance 2.0), 4 to 30 (Seedance 2.5), 3 to 15 (HappyHorse),
+   * 2 to 30 (Wan 3),
    * or 124/24 to 362/24 seconds (MiniMax H3).
    *
    * The SDK automatically calculates the correct frame count based on the model:
@@ -264,6 +265,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * - LTX 2.x: `duration * fps + 1`, snapped to frame step constraint
    * - Seedance: `duration * 24 + 1`
    * - HappyHorse: `duration * 24 + 1`
+   * - Wan 3: `duration * 30 + 1`
    * - MiniMax H3: `duration * 24` snapped to the `124 + n*17` grid and clamped
    *   to 124-362 frames (always 24fps generation, and no `+1` term)
    */
@@ -280,6 +282,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    * **Seedance Models:** Fixed 24fps external API generation.
    *
    * **HappyHorse Models:** Fixed 24fps external API generation.
+   *
+   * **Wan 3:** Fixed 30fps external API output.
    *
    * **MiniMax H3 Models:** Fixed 24fps. Omit this field or pass 24.
    */
@@ -319,7 +323,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceImage?: InputMedia;
   /**
-   * Loose image context references for Seedance and HappyHorse. These must be
+   * Loose image context references for Seedance, HappyHorse, and Wan 3. These must be
    * publicly accessible HTTPS URLs and are handed to the external vendor. Use
    * referenceImage / referenceImageEnd when the
    * image should lock the first or last frame. HappyHorse r2v accepts 1-9

@@ -34,6 +34,7 @@ import {
   isSeedanceModel,
   isSeedance25Model,
   isHappyhorseModel,
+  isWan3Model,
   isMinimaxH3Model,
   isMinimaxH3TurboModel,
   isMinimaxH3ReferenceModel,
@@ -76,6 +77,10 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
 
   if (isHappyhorseModel(params.modelId)) {
     validateHappyhorseReferenceAssets(params);
+    return;
+  }
+  if (isWan3Model(params.modelId)) {
+    validateWan3ReferenceAssets(params);
     return;
   }
   if (isSeedanceModel(params.modelId)) {
@@ -565,6 +570,80 @@ function validateHappyhorseReferenceAssets(params: VideoProjectParams): void {
   }
 }
 
+/**
+ * Wan 3 uses one model ID for every supported video operation. Frame anchors
+ * (`referenceImage` / `referenceImageEnd`) and loose multimodal references are
+ * two mutually-exclusive request shapes in the upstream API.
+ */
+function validateWan3ReferenceAssets(params: VideoProjectParams): void {
+  validateReferenceUrlArray(params.referenceImageUrls, 'referenceImageUrls');
+  validateReferenceUrlArray(params.referenceVideoUrls, 'referenceVideoUrls');
+  validateReferenceUrlArray(params.referenceAudioUrls, 'referenceAudioUrls');
+
+  if (params.referenceAudioIdentity || params.referenceMask) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 does not support audio-identity or mask inputs.'
+    });
+  }
+  if (params.seed !== undefined) {
+    const seed = Number(params.seed);
+    if (!Number.isInteger(seed) || seed < 0 || seed > 2_147_483_647) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: 'Wan 3 seed must be an integer from 0 through 2147483647.'
+      });
+    }
+  }
+
+  const looseImageCount = asReferenceUrlArray(params.referenceImageUrls).length;
+  const videoCount =
+    (params.referenceVideo ? 1 : 0) + asReferenceUrlArray(params.referenceVideoUrls).length;
+  const audioCount =
+    (params.referenceAudio ? 1 : 0) + asReferenceUrlArray(params.referenceAudioUrls).length;
+  const hasFrameAnchors = Boolean(params.referenceImage || params.referenceImageEnd);
+  const hasLooseReferences = looseImageCount > 0 || videoCount > 0 || audioCount > 0;
+
+  if (params.referenceImageEnd && !params.referenceImage) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 last-frame generation requires a first-frame referenceImage.'
+    });
+  }
+  if (hasFrameAnchors && hasLooseReferences) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message:
+        'Wan 3 first/last-frame anchors cannot be combined with loose image, video, or audio references.'
+    });
+  }
+  if (looseImageCount > 10) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 supports at most 10 reference images.'
+    });
+  }
+  if (videoCount > 5) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 supports at most 5 reference videos.'
+    });
+  }
+  if (audioCount > 5) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 supports at most 5 reference audio clips.'
+    });
+  }
+}
+
 function getMaxVideoDuration(modelId: string): number {
   if (isMinimaxH3Model(modelId)) {
     // 362 frames at a fixed 24fps, the top of the H3 frame grid.
@@ -572,6 +651,9 @@ function getMaxVideoDuration(modelId: string): number {
   }
   if (isSeedance25Model(modelId)) {
     // Seedance 2.5 renders up to 30s in a single call; 2.0/Mini cap at 15s.
+    return 30;
+  }
+  if (isWan3Model(modelId)) {
     return 30;
   }
   if (isExternalApiVideoModel(modelId)) {
@@ -842,6 +924,8 @@ function applyVideoParams(
   // Note: fps must be processed before duration to correctly calculate frames for LTX 2.x models
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;
+  } else if (isWan3Model(params.modelId)) {
+    keyFrame.fps = 30;
   } else if (isExternalApiVideoModel(params.modelId) || isMinimaxH3Model(params.modelId)) {
     keyFrame.fps = 24;
   }
@@ -853,6 +937,8 @@ function applyVideoParams(
     // the bottom of its frame grid), HappyHorse 3s, Seedance 4s, others 1s.
     const minDuration = isMinimaxH3Model(params.modelId)
       ? MINIMAX_H3_MIN_DURATION
+      : isWan3Model(params.modelId)
+        ? 2
       : isHappyhorseModel(params.modelId)
         ? 3
         : isSeedanceModel(params.modelId)
@@ -867,7 +953,7 @@ function applyVideoParams(
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
     // - LTX 2.x: fps directly affects frame count (default 24fps if not specified)
     // - Seedance / HappyHorse: fixed 24fps external API generation
-    const fps = params.fps ?? 24;
+    const fps = params.fps ?? (isWan3Model(params.modelId) ? 30 : 24);
     keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
   }
   if (params.shift !== undefined) {
