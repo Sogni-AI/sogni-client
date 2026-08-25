@@ -1,3 +1,10 @@
+## [5.19.4](https://github.com/Sogni-AI/sogni-client/compare/v5.19.3...v5.19.4) (2026-08-25)
+
+
+### Bug Fixes
+
+* **projects:** harden confirmed cancellation ([b508820](https://github.com/Sogni-AI/sogni-client/commit/b508820b4f9c8476dcf0db96963668a0ff133d97))
+
 ## [5.19.3](https://github.com/Sogni-AI/sogni-client/compare/v5.19.2...v5.19.3) (2026-08-25)
 
 
