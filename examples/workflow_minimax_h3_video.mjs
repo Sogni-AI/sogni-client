@@ -18,7 +18,7 @@
  * ## How to prompt H3: use MiniMax's official Context-IR format
  *
  * MiniMax's official prompt-writing skill calls Context-IR critical to quality.
- * Source: https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills/h3-prompt-writing
+ * Source: https://github.com/MiniMax-AI/MiniMax-H3/tree/d21241f0a4b3acbb34c97dae47fa417b7065e438/skills/h3-prompt-writing
  * T2VA, I2VA, L2VA, and FL2VA use these fields in this exact order:
  *
  *   integrated_multimodal_description: [Shot 1] ...
@@ -28,7 +28,9 @@
  * I2VA, L2VA, and FL2VA also require their mode-specific alignment instruction
  * as the first line, followed by one blank line. `[Shot 1]` has no timestamp; later
  * shots begin `[Shot N] At MM:SS.mmm, ...`. Speakers keep stable `(S1)` IDs and
- * exact dialogue belongs inside `<d>[Language] ...</d>`. Soundscape contains
+ * user-supplied dialogue stays exact inside `<d>[Language] ...</d>`; author a
+ * concise line only when the request explicitly asks for speech without words.
+ * Soundscape contains
  * ambience, action, and non-verbal sounds but not dialogue or music.
  * `non_diegetic_music` describes audience-only score, or `N/A` when absent.
  *
@@ -269,7 +271,7 @@ function r2vPromptForReferences(references = {}) {
       `<Audio ${audioOrdinal}> is a voice-timbre and measured-delivery reference for <Subject 1> (S1); its original signal and spoken words are not copied.`
     );
     retention.push(
-      `<Audio ${audioOrdinal}>: reference - its voice timbre and measured delivery guide <Subject 1> (S1) without copying the original signal or words.`
+      `<Audio ${audioOrdinal}>: reference - its voice timbre and measured delivery guide the performance without copying the original signal or words.`
     );
   }
 
@@ -458,6 +460,20 @@ function fieldsAppearInOrder(prompt, fields) {
   return true;
 }
 
+function fieldValue(prompt, name) {
+  return new RegExp(`^${name}:[ \\t]*([\\s\\S]*?)(?=^[a-z][a-z0-9_]*:|$)`, 'm')
+    .exec(prompt)?.[1]?.trim() ?? '';
+}
+
+const REF2VA_TASK_TYPES = new Set([
+  'keyframe completion',
+  'reference generation',
+  'video editing',
+  'video continuation',
+  'audio reuse',
+  'audio reference'
+]);
+
 /**
  * Review a prompt and return advisory warnings.
  *
@@ -470,6 +486,7 @@ function fieldsAppearInOrder(prompt, fields) {
  * @param {number} durationSeconds - Effective video duration
  * @param {string} mode - t2v, i2v, l2v, flf2v, or r2v prompt contract
  * @param {Object} [references] - Attached r2v references
+ * @param {number} [references.images] - Reference images attached
  * @param {number} [references.videos] - Reference videos attached
  * @param {number} [references.audios] - Reference audio clips attached
  * @returns {string[]} Warnings, empty when nothing looks off
@@ -518,6 +535,30 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
   if (!prompt.includes('[Shot 1]')) {
     warnings.push('The main description must begin its timeline with [Shot 1] and no timestamp.');
   }
+  if (/\[Shot 1\]\s+At\s+/.test(prompt)) {
+    warnings.push('[Shot 1] must not have a timestamp.');
+  }
+  if (/<\|[^>]+\|>/.test(prompt)) {
+    warnings.push('Do not author tokenizer-internal <|...|> controls; use <d>, </d>, <scenetrans>, and <cutoff>.');
+  }
+  const shotMatches = [...prompt.matchAll(/\[Shot\s+(\d+)\](?:\s+At\s+(\d{2}):(\d{2})\.(\d{3}),)?/g)];
+  shotMatches.forEach((match, index) => {
+    if (Number(match[1]) !== index + 1) {
+      warnings.push('Shot numbers must be contiguous and start at [Shot 1].');
+    }
+    if (index > 0 && match[2] === undefined) {
+      warnings.push(`[Shot ${match[1]}] must use "At MM:SS.mmm," syntax.`);
+    }
+  });
+  const shotTimes = shotMatches.slice(1).flatMap((match) =>
+    match[2] === undefined
+      ? []
+      : [Number(match[2]) * 60 + Number(match[3]) + Number(match[4]) / 1000]
+  );
+  // Shot 1 is implicitly at zero even though its timestamp is omitted.
+  if (shotTimes.some((time, index) => time <= (index === 0 ? 0 : shotTimes[index - 1]))) {
+    warnings.push('Later-shot timestamps must be strictly increasing.');
+  }
   if (
     /\b(?:says?|asks?|replies?|shouts?|sings?)\b/i.test(prompt) &&
     !/<d>\[[^\]]+\][\s\S]*?<\/d>/.test(prompt)
@@ -543,6 +584,25 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
   }
 
   if (mode === 'r2v') {
+    const summary = fieldValue(prompt, 'summary');
+    const taskPrefix = /^\[([^\]\n]+)\]\s+(\S[\s\S]*)$/.exec(summary);
+    if (!taskPrefix) {
+      warnings.push('Ref2VA summary must begin with a square-bracketed official task prefix.');
+    } else {
+      const tasks = taskPrefix[1].split(' + ');
+      if (tasks.join(' + ') !== taskPrefix[1] || tasks.some((task) => !REF2VA_TASK_TYPES.has(task))) {
+        warnings.push('Ref2VA summary tasks must use the official names joined exactly with " + ".');
+      }
+      if (new Set(tasks).size !== tasks.length) {
+        warnings.push('Ref2VA summary task types must not be repeated.');
+      }
+      if (tasks.includes('video editing') && !taskPrefix[2].startsWith('The target video is an edited version of <Video 1>.')) {
+        warnings.push('A video-editing summary must begin "The target video is an edited version of <Video 1>."');
+      }
+      if (tasks.some((task) => task === 'video editing' || task === 'video continuation')) {
+        warnings.push('This example attaches loose video references, so it cannot promise video editing or continuation without a typed transformation relationship.');
+      }
+    }
     if (!NUMBERED_REFERENCE_PATTERN.test(prompt)) {
       warnings.push(
         'No numbered reference found. r2v conditions on labelled material, and an unassigned ' +
@@ -562,6 +622,17 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
         'A reference audio clip is attached but the prompt never mentions <Audio 1>. Say whether ' +
           'it supplies the voice character, the music, or the ambience.'
       );
+    }
+    for (const [label, count] of [
+      ['Picture', references.images ?? 0],
+      ['Video', references.videos ?? 0],
+      ['Audio', references.audios ?? 0]
+    ]) {
+      for (let index = 1; index <= count; index++) {
+        if (!prompt.includes(`<${label} ${index}>`)) {
+          warnings.push(`Attached <${label} ${index}> is missing an explicit prompt job.`);
+        }
+      }
     }
   }
 
@@ -828,16 +899,19 @@ Prompt format:
 
   I2VA, L2VA, and FL2VA require the exact mode-specific alignment instruction
   on the first line. Shot 1 has no timestamp. Later cuts use
-  "[Shot N] At MM:SS.mmm, ...". Speakers keep stable (S1) IDs and spoken text
-  is preserved inside <d>[Language] ...</d>. Keep dialogue and music out of
+  "[Shot N] At MM:SS.mmm, ...". Speakers keep stable (S1) IDs and user-supplied
+  text is preserved exactly inside <d>[Language] ...</d>. Author a concise line
+  only when the request explicitly asks for speech without supplying words.
+  Keep dialogue and music out of
   overall_soundscape. Use non_diegetic_music: N/A when there is no audience-only
   score. State exclusions inside the positive prompt; H3 has no negative field.
 
 Multi-reference video (--mode r2v):
   Ref2VA conditions on labelled reference material instead of frame anchors.
   The checkpoint accepts up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES} reference images, ${MINIMAX_H3_MAX_REFERENCE_VIDEOS} reference videos (24fps,
-  2-15s each), and ${MINIMAX_H3_MAX_REFERENCE_AUDIOS} reference audio clips, at most ${MINIMAX_H3_MAX_REFERENCE_FILES} reference files
-  in total.
+  2-15s each), and ${MINIMAX_H3_MAX_REFERENCE_AUDIOS} reference audio clips (2-15s each), at most ${MINIMAX_H3_MAX_REFERENCE_FILES}
+  reference files in total. Video references may total at most 15s, and audio
+  references may separately total at most 15s.
 
   r2v runs on a Sogni worker rather than at a vendor, so every reference is
   uploaded through Sogni's asset path before the job is submitted.
@@ -870,11 +944,20 @@ Multi-reference video (--mode r2v):
   structure and <Audio N> for copied or referenced audio. Keep every label's
   meaning stable across all six sections.
 
-  summary begins with one or more official task types: [keyframe completion],
-  [reference generation], [video editing], [video continuation], [audio reuse],
-  or [audio reference]. retention_analysis uses fully_preserved,
+  summary begins with one or more official task types: keyframe completion,
+  reference generation, video editing, video continuation, audio reuse, or
+  audio reference. Join multiple types exactly with " + " inside one bracketed
+  prefix and never repeat a type. Choose a task from the assigned job, not file
+  presence. A video-editing body begins exactly "The target video is an edited
+  version of <Video 1>." This workflow supplies loose references and cannot
+  promise editing or continuation without a typed transformation relationship.
+  retention_analysis uses fully_preserved,
   partially_preserved, attribute_transfer, or weak_reference for visual labels,
   and fully_copy, partially_copy, reference, or weak_reference for audio.
+  Bind a voice reference to its subject's (Sx) in subject_definitions, not
+  retention_analysis. Timbre/rhythm/delivery references do not import source
+  words; preserve explicitly reused speech and write [unclear] rather than
+  guessing unintelligible spans.
 
   Reference resolution is a real cost/quality tradeoff. The workflow ships
   ref_image_size="match", which scales references down to the generation pixel
@@ -1147,8 +1230,9 @@ async function main() {
   }
 
   const promptWarnings = reviewPrompt(OPTIONS.prompt, effectiveDuration, framePromptMode, {
+    images: OPTIONS.refImages.length,
     videos: OPTIONS.refVideos.length,
-    audios: OPTIONS.refAudios.length
+    audios: OPTIONS.refAudios.length + soundtrackedVideoIndices.length
   });
 
   if (OPTIONS.printPrompt) {
