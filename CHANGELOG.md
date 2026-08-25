@@ -1,3 +1,10 @@
+## [5.19.1](https://github.com/Sogni-AI/sogni-client/compare/v5.19.0...v5.19.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **deps:** update sogni-protocol to 1.0.0-alpha.26 ([ee2b5cd](https://github.com/Sogni-AI/sogni-client/commit/ee2b5cdb4f81018c1edc9be28e7a80d6eb44e515))
+
 # [5.19.0](https://github.com/Sogni-AI/sogni-client/compare/v5.18.3...v5.19.0) (2026-08-25)
 
 
