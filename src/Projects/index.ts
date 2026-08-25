@@ -15,6 +15,7 @@ import {
   AudioEstimateRequest
 } from './types/index.js';
 import {
+  ArtistCancelConfirmation,
   JobErrorData,
   JobETAData,
   JobProgressData,
@@ -92,6 +93,7 @@ const DEFAULT_LORA_CONSTRAINTS: LoraConstraints = {
   maxStrength: 100
 };
 const GARBAGE_COLLECT_TIMEOUT = 30000;
+const CANCELLATION_CONFIRMATION_TIMEOUT = 80000;
 const MODELS_REFRESH_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
 
 /** Fallback for an API that does not advertise its LoRA-capable model set. */
@@ -943,19 +945,62 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Cancel project by id. This will cancel all jobs in the project and mark project as canceled.
-   * Client may still receive job events for the canceled jobs as it takes some time, but they will
-   * be ignored
+   * Cancel a project by id after the server confirms that cancellation succeeded.
+   *
+   * Paid external providers may reject cancellation after work starts. In that case this method
+   * rejects and keeps the tracked project active so callers do not hide work that is still running.
    * @param projectId
    **/
   async cancel(projectId: string) {
-    await this.client.socket.send('jobError', {
-      jobID: projectId,
-      error: 'artistCanceled',
-      error_message: 'artistCanceled',
-      isFromWorker: false
-    });
     const project = this.projects.find((p) => p.id === projectId);
+    if (project?.finished) {
+      return;
+    }
+
+    let removeConfirmationListener = () => {};
+    let confirmationTimeout: ReturnType<typeof setTimeout> | undefined;
+    const confirmation = new Promise<void>((resolve, reject) => {
+      removeConfirmationListener = this.client.socket.on(
+        'artistCancelConfirmation',
+        (data: ArtistCancelConfirmation) => {
+          if (data.jobID !== projectId) return;
+          if (data.didCancel) {
+            resolve();
+            return;
+          }
+          reject(
+            new Error(
+              data.error_message ||
+                'Cancellation could not be confirmed. The job is still running; please try again.'
+            )
+          );
+        }
+      );
+      confirmationTimeout = setTimeout(() => {
+        reject(
+          new Error(
+            'Cancellation could not be confirmed. The job is still running; please try again.'
+          )
+        );
+      }, CANCELLATION_CONFIRMATION_TIMEOUT);
+      confirmationTimeout.unref?.();
+    });
+
+    try {
+      await Promise.all([
+        this.client.socket.send('jobError', {
+          jobID: projectId,
+          error: 'artistCanceled',
+          error_message: 'artistCanceled',
+          isFromWorker: false
+        }),
+        confirmation
+      ]);
+    } finally {
+      removeConfirmationListener();
+      if (confirmationTimeout) clearTimeout(confirmationTimeout);
+    }
+
     if (!project) {
       return;
     }

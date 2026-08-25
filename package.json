@@ -68,6 +68,7 @@
     "test:seedance-task-type": "npm run build && node scripts/check-seedance-task-type.cjs && node scripts/check-seedance-r2v-example.cjs",
     "test:lora-catalog": "npm run build && node scripts/check-lora-catalog.cjs",
     "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
+    "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",
     "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
     "test:queue-wait-eta": "npm run build && node scripts/check-queue-wait-eta.cjs",
     "test:workflow-template-envelope": "npm run build && node scripts/check-workflow-template-envelope.cjs",
