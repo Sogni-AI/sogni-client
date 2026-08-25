@@ -268,18 +268,18 @@ function selectedTierLabel(options) {
 
 function dimensionPresets(options) {
   const modelId = selectedModelId(options);
-  const lowerResolution = modelId.includes('mini');
+  const lowerResolution = modelId.includes('mini') || modelId === 'seedance-2-5';
   if (lowerResolution) {
     return [
       {
         label: 'Landscape 16:9 - 1280x720',
-        description: 'Mini tier default, 720p-capped.',
+        description: 'Default for Seedance 2.5 and Mini, both 720p-capped.',
         width: 1280,
         height: 720
       },
       {
         label: 'Vertical 9:16 - 720x1280',
-        description: 'Short-form social format on the 720p-capped tier.',
+        description: 'Short-form social format on a 720p-capped tier.',
         width: 720,
         height: 1280
       },
@@ -584,6 +584,7 @@ async function promptCreativeBrief(options) {
 
 async function promptOutputOptions(options) {
   const presets = dimensionPresets(options);
+  const maxDuration = selectedModelId(options) === 'seedance-2-5' ? 30 : 15;
   if (!options.width || !options.height) {
     const selected = await chooseFromList('Choose output format:', presets, 0);
     if (selected.custom) {
@@ -604,9 +605,9 @@ async function promptOutputOptions(options) {
   }
 
   options.duration = await askNumberWithDefault(
-    `Duration in seconds, 4-15 [${options.duration}]: `,
+    `Duration in seconds, 4-${maxDuration} [${options.duration}]: `,
     options.duration,
-    { min: 4, max: 15 }
+    { min: 4, max: maxDuration }
   );
   options.number = await askNumberWithDefault(
     `Number of variations, 1-16 [${options.number}]: `,
@@ -845,10 +846,10 @@ Options:
   --full                 Use full Seedance 2.0 (4K-capable)
   --mini                 Use Seedance 2.0 Mini (default, 720p cap)
   --model <selector>     Override model selector or model id
-  --duration <seconds>   4-15 seconds for Seedance (default: 4)
+  --duration <seconds>   4-30 for Seedance 2.5; 4-15 for 2.0 (default: 4)
   --fps <n>              Seedance endpoint FPS; must be 24 (default: 24)
-  --width <px>           Output width (default: 1280 for mini, 1920 otherwise)
-  --height <px>          Output height (default: 720 for mini, 1080 otherwise)
+  --width <px>           Output width (default: 1280 for 2.5/Mini, 1920 for full 2.0)
+  --height <px>          Output height (default: 720 for 2.5/Mini, 1080 for full 2.0)
   --image <path|https>   Reference image for i2v, ia2v, or v2v context; repeatable
   --context <path|https> Alias for --image; repeatable
   --end-image <path|https> Optional final frame image for i2v interpolation
@@ -879,7 +880,7 @@ Options:
 ${billingModeHelpText()}
   --json                 Print raw response
 
-Execution requires SOGNI_API_KEY in examples/.env or the environment. Local media inputs are uploaded with the existing Sogni media upload endpoints before workflow execution. Workflow dry-runs also upload local media so the printed request contains real HTTPS media URLs. Seedance accepts at most 9 image assets, 3 video assets, 3 audio assets, and 12 assets total. In prompts, use @Image1/@Video1/@Audio1 role tags counted independently by modality in attachment order, and use positive preservation language. Exact readable text/logos, lip-sync, voice cloning, and real-human-reference behavior need review.
+Execution requires SOGNI_API_KEY in examples/.env or the environment. Local media inputs are uploaded with the existing Sogni media upload endpoints before workflow execution. Workflow dry-runs also upload local media so the printed request contains real HTTPS media URLs. Seedance 2.5 accepts at most 30 image assets, 10 video assets, 10 audio assets, and 50 assets total; the 2.0 family retains 9/3/3/12. In prompts, use @Image1/@Video1/@Audio1 role tags counted independently by modality in attachment order, and use positive preservation language. Exact readable text/logos, lip-sync, voice cloning, and real-human-reference behavior need review.
 `);
 }
 
@@ -896,8 +897,10 @@ function validateOptions(options) {
   if (options.target === 'chat' && options.audioIdentity) {
     throw new Error('T2V with --audio-identity is media-bearing and must use --workflow.');
   }
-  if (options.duration < 4 || options.duration > 15) {
-    throw new Error('Seedance duration must be between 4 and 15 seconds.');
+  const modelId = selectedModelId(options);
+  const maxDuration = modelId === 'seedance-2-5' ? 30 : 15;
+  if (options.duration < 4 || options.duration > maxDuration) {
+    throw new Error(`Seedance duration must be between 4 and ${maxDuration} seconds.`);
   }
   if (options.fps !== SEEDANCE_FPS) {
     throw new Error('Seedance endpoint generation is fixed at 24fps; use --fps 24 or omit --fps.');
@@ -916,8 +919,10 @@ function validateOptions(options) {
   validateRangeOption(options.audioIdentityStrength, '--audio-identity-strength', 0, 10);
   validateNonNegativeOption(options.audioStart, '--audio-start');
   validateNonNegativeOption(options.videoStart, '--video-start');
-  validateMediaOptions(options);
-  selectedModelConfig(options);
+  if (modelId === 'seedance-2-5' && Math.max(options.width ?? 0, options.height ?? 0) > 1280) {
+    throw new Error('Seedance 2.5 output is capped at the 720p tier (maximum dimension 1280).');
+  }
+  validateMediaOptions(options, modelId);
 }
 
 function validateRangeOption(value, label, min, max) {
@@ -934,7 +939,7 @@ function validateNonNegativeOption(value, label) {
   }
 }
 
-function validateMediaOptions(options) {
+function validateMediaOptions(options, modelId) {
   if (options.controlMode !== undefined && options.controlMode !== 'seedance-v2v') {
     throw new Error('This Seedance partner example only supports --control-mode seedance-v2v.');
   }
@@ -943,19 +948,28 @@ function validateMediaOptions(options) {
   const videoAssetCount = options.videos.length;
   const audioAssetCount = options.audios.length + (options.audioIdentity ? 1 : 0);
   const totalAssetCount = imageAssetCount + videoAssetCount + audioAssetCount;
-  if (imageAssetCount > 9) {
-    throw new Error('Seedance supports at most 9 image assets.');
+  const limits =
+    modelId === 'seedance-2-5'
+      ? { images: 30, videos: 10, audios: 10, total: 50 }
+      : { images: 9, videos: 3, audios: 3, total: 12 };
+  if (imageAssetCount > limits.images) {
+    throw new Error(`Seedance supports at most ${limits.images} image assets.`);
   }
-  if (videoAssetCount > 3) {
-    throw new Error('Seedance supports at most 3 video assets.');
+  if (videoAssetCount > limits.videos) {
+    throw new Error(`Seedance supports at most ${limits.videos} video assets.`);
   }
-  if (audioAssetCount > 3) {
-    throw new Error('Seedance supports at most 3 audio assets.');
+  if (audioAssetCount > limits.audios) {
+    throw new Error(`Seedance supports at most ${limits.audios} audio assets.`);
   }
-  if (totalAssetCount > 12) {
-    throw new Error('Seedance supports at most 12 total asset files.');
+  if (totalAssetCount > limits.total) {
+    throw new Error(`Seedance supports at most ${limits.total} total asset files.`);
   }
-  if (audioAssetCount > 0 && imageAssetCount === 0 && videoAssetCount === 0) {
+  if (
+    modelId !== 'seedance-2-5' &&
+    audioAssetCount > 0 &&
+    imageAssetCount === 0 &&
+    videoAssetCount === 0
+  ) {
     throw new Error('Seedance audio references require at least one image or video reference.');
   }
 
@@ -1014,9 +1028,7 @@ function resolveModelConfig(mode, modelSelector) {
 }
 
 function selectedModelConfig(options) {
-  const selector =
-    options.model ||
-    (options.full ? 'seedance2' : 'seedance2-mini');
+  const selector = options.model || (options.full ? 'seedance2' : 'seedance2-mini');
   const modelConfig = resolveModelConfig(options.mode, selector);
   if (!modelConfig) {
     const supported = Object.entries(SEEDANCE_MODELS[options.mode] || {})
@@ -1035,7 +1047,7 @@ function selectedModelId(options) {
 
 function defaultDimensions(options) {
   const modelId = selectedModelId(options);
-  const lowerResolution = modelId.includes('mini');
+  const lowerResolution = modelId.includes('mini') || modelId === 'seedance-2-5';
   return {
     width: options.width || (lowerResolution ? 1280 : 1920),
     height: options.height || (lowerResolution ? 720 : 1080)
@@ -1440,7 +1452,7 @@ function chatToolDefinition(toolName) {
     },
     duration: {
       type: 'number',
-      description: 'Output video duration in seconds. Seedance supports 4-15 seconds.'
+      description: 'Output duration: 4-15 seconds for Seedance 2.0 or 4-30 for 2.5.'
     },
     width: {
       type: 'integer',
