@@ -1,3 +1,10 @@
+## [5.19.5](https://github.com/Sogni-AI/sogni-client/compare/v5.19.4...v5.19.5) (2026-08-25)
+
+
+### Bug Fixes
+
+* **release:** commit lockfile version updates ([3cb78c4](https://github.com/Sogni-AI/sogni-client/commit/3cb78c4b30f24cbc8da3884cab11bc812804d8b0))
+
 ## [5.19.4](https://github.com/Sogni-AI/sogni-client/compare/v5.19.3...v5.19.4) (2026-08-25)
 
 
