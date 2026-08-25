@@ -1,3 +1,17 @@
+# [5.20.0](https://github.com/Sogni-AI/sogni-client/compare/v5.19.5...v5.20.0) (2026-08-25)
+
+
+### Bug Fixes
+
+* **deps:** consume Wan3 protocol ([33ad38b](https://github.com/Sogni-AI/sogni-client/commit/33ad38b428bf34d144c2686e4ecac18533a62b49))
+* **video:** harden Wan3 transport ([c38606b](https://github.com/Sogni-AI/sogni-client/commit/c38606bc0df3d4febd09e8f5b6f9d0141a132ef6))
+
+
+### Features
+
+* **video:** integrate Alibaba Wan 3 ([30dc496](https://github.com/Sogni-AI/sogni-client/commit/30dc496a2fdcb9529b8694b60161bd4e62b27232))
+* **video:** merge Wan3 integration ([1545413](https://github.com/Sogni-AI/sogni-client/commit/154541329bb6ec773f4f0fcc191a24fd26cbd2cc))
+
 ## [5.19.5](https://github.com/Sogni-AI/sogni-client/compare/v5.19.4...v5.19.5) (2026-08-25)
 
 
