@@ -27,8 +27,13 @@ const createJobRequestMessage = require('../dist/Projects/createJobRequestMessag
 const {
   calculateVideoFrames,
   getVideoAssetRequirements,
+  isHappyhorseModel,
+  isLtx2Model,
   isMinimaxH3Model,
   isMinimaxH3TurboModel,
+  isSeedanceModel,
+  isVideoModel,
+  isWanModel,
   MINIMAX_H3_I2V_ASSETS,
   MINIMAX_H3_R2V_ASSETS,
   VIDEO_WORKFLOW_ASSETS
@@ -235,6 +240,23 @@ assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.happyhorseR2v), {
   width: 1920,
   height: 1080,
   fps: 24
+});
+
+for (const [unknown, predicate] of [
+  ['ltx26-22b-int8_t2v_distilled', isLtx2Model],
+  ['wan_v3.0-14b-fp8_t2v_lightx2v', isWanModel],
+  ['seedance-3-0', isSeedanceModel],
+  ['happyhorse-2.0-t2v', isHappyhorseModel],
+  ['minimax-h3-v4-t2v', isMinimaxH3Model]
+]) {
+  assert.equal(predicate(unknown), false, `${unknown} must not inherit a current family contract`);
+  assert.equal(isVideoModel(unknown), false, `${unknown} must not be classified as a registered video model`);
+  assert.equal(getVideoWorkflowType(unknown), null, `${unknown} must not inherit a workflow`);
+}
+assert.deepEqual(getVideoDefaults('minimax-h3-v4-t2v'), {
+  width: 848,
+  height: 480,
+  fps: 16
 });
 
 // HappyHorse encodes the workflow in the model id (hyphenated suffixes).
@@ -909,6 +931,15 @@ assert.equal(
 );
 assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.krea2IdentityEdit), true);
 assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), true);
+assert.equal(isEditImageModel('qwen_image_edit_2511_fp8'), true);
+assert.equal(isEditImageModel('qwen_image_edit_2511_fp8_lightning'), true);
+assert.equal(getMaxContextImages('qwen_image_2512_fp8'), 3);
+assert.equal(getMaxContextImages('qwen_image_edit_2511_fp8'), 3);
+assert.equal(getMaxContextImages('flux1-dev-kontext_fp8_scaled'), 2);
+assert.equal(isEditImageModel('flux1-dev-kontext_fp8_scaled'), false);
+assert.equal(isEditImageModel('flux2_dev_fp8'), false);
+assert.equal(isEditImageModel('qwen_image_edit_2512_fp8'), false);
+assert.equal(isEditImageModel('flux2-dev-kontext_fp8_scaled'), false);
 assert.equal(isEditImageModel('flux2_dev_fp8'), false);
 assert.equal(
   resolveHostedToolModelSelector('generate_image', { model: 'future_live_model' }),

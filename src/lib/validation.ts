@@ -16,6 +16,26 @@ const KREA_IDENTITY_EDIT_MODEL_IDS = new Set([
   'dark_beast_krea2_identity_edit_v1_2'
 ]);
 
+const QWEN_IMAGE_MODEL_IDS = new Set([
+  'qwen_image_2512_fp8',
+  'qwen_image_2512_fp8_lightning',
+  'qwen_image_edit_2511_fp8',
+  'qwen_image_edit_2511_fp8_lightning'
+]);
+
+const QWEN_IMAGE_EDIT_MODEL_IDS = new Set([
+  'qwen_image_edit_2511_fp8',
+  'qwen_image_edit_2511_fp8_lightning'
+]);
+
+export function isQwenImageEditModel(modelId: string): boolean {
+  return QWEN_IMAGE_EDIT_MODEL_IDS.has(modelId);
+}
+
+export function isKreaIdentityEditModel(modelId: string): boolean {
+  return KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId);
+}
+
 const RTX_VSR_MAX_EDGE = 15360;
 
 interface ImageSizeValidationOptions {
@@ -138,17 +158,17 @@ export function isComfyModel(modelId: string): boolean {
  * - GPT Image 2: 16 images
  * - Qwen Image Edit: 3 images
  * - Krea 2 Identity Edit: 2 images
- * - Flux Kontext: 2 images
+ * - Legacy Flux Kontext matching: 2 images
  * - Default: 3 images
  */
 export function getMaxContextImages(modelId: string): number {
   if (modelId === 'gpt-image-2') {
     return 16;
   }
-  if (modelId.startsWith('qwen_image_')) {
+  if (QWEN_IMAGE_MODEL_IDS.has(modelId)) {
     return 3;
   }
-  if (KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId)) {
+  if (isKreaIdentityEditModel(modelId)) {
     return 2;
   }
   if (modelId.includes('kontext')) {

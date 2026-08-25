@@ -7,6 +7,49 @@ import {
   VideoWorkflowType
 } from '../types/index.js';
 
+const LTX_WORKFLOWS = ['t2v', 'i2v', 'a2v', 'ia2v', 'v2v'] as const;
+const LTX_VIDEO_MODEL_IDS = new Set([
+  ...LTX_WORKFLOWS.flatMap(workflow => [
+    `ltx2-19b-fp8_${workflow}`,
+    `ltx2-19b-fp8_${workflow}_distilled`,
+    `ltx23-22b-fp8_${workflow}_distilled`,
+    `ltx23-22b-fp8_${workflow}_dev`,
+    `ltx25-22b-int8_${workflow}_distilled`,
+    `ltx25-22b-int8_${workflow}_dev`,
+  ]),
+  'ltx23-22b-10eros-v1.4-fp8mixed_i2v',
+]);
+const WAN_VIDEO_MODEL_IDS = new Set([
+  'wan_v2.2-14b-fp8_t2v',
+  'wan_v2.2-14b-fp8_i2v',
+  'wan_v2.2-14b-fp8_t2v_lightx2v',
+  'wan_v2.2-14b-fp8_i2v_lightx2v',
+  'wan_v2.2-14b-fp8_s2v_lightx2v',
+  'wan_v2.2-14b-fp8_animate-move_lightx2v',
+  'wan_v2.2-14b-fp8_animate-replace_lightx2v',
+]);
+const SEEDANCE_VIDEO_MODEL_IDS = new Set([
+  'seedance-2-0',
+  'seedance-2-0-mini',
+  'seedance-2-0-fast',
+  'seedance-2-5',
+]);
+const HAPPYHORSE_VIDEO_MODEL_IDS = new Set([
+  'happyhorse-1.1-t2v',
+  'happyhorse-1.1-i2v',
+  'happyhorse-1.1-r2v',
+]);
+const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
+  'minimax-h3-fl2va-fp8_t2v',
+  'minimax-h3-fl2va-fp8_i2v',
+  'minimax-h3-fl2va-fp8_flf2v',
+  'minimax-h3-ref2va-fp8_r2v',
+  'minimax-h3-fl2va-fp8_t2v_turbo',
+  'minimax-h3-fl2va-fp8_i2v_turbo',
+  'minimax-h3-fl2va-fp8_flf2v_turbo',
+  'minimax-h3-ref2va-fp8_r2v_turbo',
+]);
+
 export function getEnhacementStrength(strength: EnhancementStrength): number {
   switch (strength) {
     case 'light':
@@ -24,15 +67,11 @@ export function getEnhacementStrength(strength: EnhancementStrength): number {
  * Video models produce MP4 output; image models produce PNG/JPG output.
  */
 export function isVideoModel(modelId: string): boolean {
-  return (
-    modelId.startsWith('wan_') ||
-    modelId.startsWith('ltx2-') ||
-    modelId.startsWith('ltx23-') ||
-    modelId.startsWith('ltx25-') ||
-    modelId.startsWith('seedance-2-') ||
-    modelId.startsWith('happyhorse-1.1') ||
-    modelId.startsWith('minimax-h3')
-  );
+  return isWanModel(modelId)
+    || isLtx2Model(modelId)
+    || isSeedanceModel(modelId)
+    || isHappyhorseModel(modelId)
+    || isMinimaxH3Model(modelId);
 }
 
 /**
@@ -54,7 +93,7 @@ export function isAudioModel(modelId: string): boolean {
  * Therefore, frame count should always be calculated as: duration * 16 + 1
  */
 export function isWanModel(modelId: string): boolean {
-  return modelId.startsWith('wan_');
+  return WAN_VIDEO_MODEL_IDS.has(modelId);
 }
 
 /**
@@ -62,7 +101,9 @@ export function isWanModel(modelId: string): boolean {
  * These models support up to 321 frames (20s at 16fps).
  */
 export function isWanAnimateModel(modelId: string): boolean {
-  return modelId.includes('_animate-move') || modelId.includes('_animate-replace');
+  return isWanModel(modelId)
+    && (modelId === 'wan_v2.2-14b-fp8_animate-move_lightx2v'
+      || modelId === 'wan_v2.2-14b-fp8_animate-replace_lightx2v');
 }
 
 /**
@@ -79,9 +120,7 @@ export function isWanAnimateModel(modelId: string): boolean {
  * ltx2- model IDs to ltx23- equivalents).
  */
 export function isLtx2Model(modelId: string): boolean {
-  return (
-    modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-') || modelId.startsWith('ltx25-')
-  );
+  return LTX_VIDEO_MODEL_IDS.has(modelId);
 }
 
 /**
@@ -94,7 +133,7 @@ export function isLtx2Model(modelId: string): boolean {
  * - `seedance-2-5`: 4-30 second clips, 480p/720p only (no 1080p, no 4K).
  */
 export function isSeedanceModel(modelId: string): boolean {
-  return modelId.startsWith('seedance-2-');
+  return SEEDANCE_VIDEO_MODEL_IDS.has(modelId);
 }
 
 /**
@@ -106,7 +145,7 @@ export function isSeedanceModel(modelId: string): boolean {
  * one that cannot render 1080p or 4K.
  */
 export function isSeedance25Model(modelId: string): boolean {
-  return modelId.startsWith('seedance-2-5');
+  return modelId === 'seedance-2-5';
 }
 
 /**
@@ -120,7 +159,7 @@ export function isSeedance25Model(modelId: string): boolean {
  * audio assets.
  */
 export function isHappyhorseModel(modelId: string): boolean {
-  return modelId.startsWith('happyhorse-1.1');
+  return HAPPYHORSE_VIDEO_MODEL_IDS.has(modelId);
 }
 
 /**
@@ -137,7 +176,7 @@ export function isHappyhorseModel(modelId: string): boolean {
  * Each Turbo family uses its own 4-step distillation LoRA.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
-  return modelId.startsWith('minimax-h3');
+  return MINIMAX_H3_VIDEO_MODEL_IDS.has(modelId);
 }
 
 /**
@@ -298,13 +337,11 @@ export function calculateVideoFrames(
 export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   if (!modelId) return null;
 
-  // Check for supported video model prefixes
-  const isWan = modelId.startsWith('wan_');
-  const isLtx2 =
-    modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-') || modelId.startsWith('ltx25-');
-  const isSeedance = modelId.startsWith('seedance-2-');
-  const isHappyhorse = modelId.startsWith('happyhorse-1.1');
-  const isMinimaxH3 = modelId.startsWith('minimax-h3');
+  const isWan = isWanModel(modelId);
+  const isLtx2 = isLtx2Model(modelId);
+  const isSeedance = isSeedanceModel(modelId);
+  const isHappyhorse = isHappyhorseModel(modelId);
+  const isMinimaxH3 = isMinimaxH3Model(modelId);
 
   if (!isWan && !isLtx2 && !isSeedance && !isHappyhorse && !isMinimaxH3) return null;
 

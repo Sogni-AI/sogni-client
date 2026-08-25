@@ -3,8 +3,11 @@ import {
   getVideoWorkflowType,
   isHappyhorseModel,
   isExternalApiVideoModel,
-  isMinimaxH3Model
+  isLtx2Model,
+  isMinimaxH3Model,
+  isSeedanceModel
 } from '../Projects/utils/index.js';
+import { isKreaIdentityEditModel, isQwenImageEditModel } from '../lib/validation.js';
 
 export {
   calculateVideoFrames,
@@ -463,10 +466,8 @@ export function serializeUnknownError(error: unknown, fallback = 'Unknown error'
 export function isEditImageModel(modelId: string): boolean {
   return (
     modelId === PREFERRED_MODEL_IDS.image.gptImage2 ||
-    modelId.startsWith('qwen_image_edit_') ||
-    modelId === PREFERRED_MODEL_IDS.image.krea2IdentityEdit ||
-    modelId === PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit ||
-    modelId.includes('kontext')
+    isQwenImageEditModel(modelId) ||
+    isKreaIdentityEditModel(modelId)
   );
 }
 
@@ -509,9 +510,9 @@ export function filterVideoModelsByWorkflow(
 
 export function getVideoDefaults(modelId: string): { width: number; height: number; fps: number } {
   const workflow = getVideoWorkflowType(modelId);
-  const isLtx2 = modelId.startsWith('ltx2-') || modelId.startsWith('ltx23-');
-  const isSeedance = modelId.startsWith('seedance-2-');
-  const isHappyhorse = modelId.startsWith('happyhorse-1.1');
+  const isLtx2 = isLtx2Model(modelId);
+  const isSeedance = isSeedanceModel(modelId);
+  const isHappyhorse = isHappyhorseModel(modelId);
 
   if (isMinimaxH3Model(modelId)) {
     if (modelId === PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v) {
@@ -525,9 +526,9 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   }
   // Seedance Mini and 2.5 cap at 720p; the retired Fast id keeps the same cap. Only full Seedance 2.0 goes higher.
   if (
-    modelId.includes('seedance-2-0-mini') ||
-    modelId.includes('seedance-2-0-fast') ||
-    modelId.startsWith('seedance-2-5')
+    modelId === 'seedance-2-0-mini' ||
+    modelId === 'seedance-2-0-fast' ||
+    modelId === 'seedance-2-5'
   ) {
     return { width: 1280, height: 720, fps: 24 };
   }

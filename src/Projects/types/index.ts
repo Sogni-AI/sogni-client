@@ -379,10 +379,10 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceAudios?: InputMedia[];
   /**
-   * Audio context references for Seedance. These must be
-   * publicly accessible HTTPS URLs. Seedance does not support text+audio-only
-   * requests; include at least one image or video reference when using audio
-   * URL references. MiniMax H3 r2v uses uploaded `referenceAudios` instead.
+   * Audio context references for Seedance. These must be publicly accessible
+   * HTTPS URLs. Seedance 2.0 requires at least one image or video alongside
+   * audio; Seedance 2.5 also supports audio-only loose-reference requests.
+   * MiniMax H3 r2v uses uploaded `referenceAudios` instead.
    */
   referenceAudioUrls?: string[];
   /**
@@ -549,7 +549,7 @@ export interface ImageProjectParams extends BaseProjectParams {
    * GPT Image 2 supports up to 16 context images.
    * Qwen Image Edit supports up to 3 context images.
    * Krea 2 Identity Edit supports up to 2 context images.
-   * Flux Kontext supports up to 2 context images.
+   * Legacy Flux Kontext matching supports up to 2 context images.
    */
   contextImages?: InputMedia[];
   /**
