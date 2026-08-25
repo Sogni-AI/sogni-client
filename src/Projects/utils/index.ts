@@ -354,9 +354,15 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   const isLtx2 = isLtx2Model(modelId);
   const isSeedance = isSeedanceModel(modelId);
   const isHappyhorse = isHappyhorseModel(modelId);
+  const isWan3 = isWan3Model(modelId);
   const isMinimaxH3 = isMinimaxH3Model(modelId);
 
-  if (!isWan && !isLtx2 && !isSeedance && !isHappyhorse && !isMinimaxH3) return null;
+  if (!isWan && !isLtx2 && !isSeedance && !isHappyhorse && !isWan3 && !isMinimaxH3) return null;
+
+  // Wan 3 is one unified endpoint whose concrete workflow is selected from
+  // its inputs. Return the text-to-video baseline so callers recognize it as
+  // a valid video model; input-specific validation is handled separately.
+  if (isWan3) return 't2v';
 
   // HappyHorse encodes the workflow directly in the model id using hyphenated
   // suffixes: happyhorse-1.1-t2v, happyhorse-1.1-i2v, happyhorse-1.1-r2v.

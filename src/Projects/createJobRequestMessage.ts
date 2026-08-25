@@ -90,12 +90,18 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
   }
   if (isMinimaxH3ReferenceModel(params.modelId)) {
     validateMinimaxH3ReferenceAssets(params);
-  } else if (params.referenceImageUrls || params.referenceVideoUrls || params.referenceAudioUrls) {
+  } else if (
+    params.referenceImageUrls ||
+    params.referenceVideoUrls ||
+    params.referenceAudioUrls ||
+    params.referenceFileUrl ||
+    params.referenceLinkUrl
+  ) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
       message:
-        'referenceImageUrls, referenceVideoUrls, and referenceAudioUrls are supported only by Seedance and HappyHorse models.'
+        'External reference URLs are supported only by Seedance, HappyHorse, and Wan 3 models.'
     });
   }
 
@@ -580,6 +586,89 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
   validateReferenceUrlArray(params.referenceVideoUrls, 'referenceVideoUrls');
   validateReferenceUrlArray(params.referenceAudioUrls, 'referenceAudioUrls');
 
+  for (const [field, value] of [
+    ['referenceFileUrl', params.referenceFileUrl],
+    ['referenceLinkUrl', params.referenceLinkUrl]
+  ] as const) {
+    if (value === undefined) continue;
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `${field} must be a non-empty public HTTPS URL.`
+      });
+    }
+    try {
+      const url = new URL(value);
+      if (url.protocol !== 'https:') throw new Error('not HTTPS');
+    } catch {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `${field} must be a valid public HTTPS URL.`
+      });
+    }
+  }
+
+  if (params.referenceFileUrl && params.referenceLinkUrl) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 accepts either one reference file or one reference link, not both.'
+    });
+  }
+  if (params.promptExtend !== undefined && typeof params.promptExtend !== 'boolean') {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 promptExtend must be a boolean.'
+    });
+  }
+  if (params.watermark !== undefined && typeof params.watermark !== 'boolean') {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 watermark must be a boolean.'
+    });
+  }
+  if (params.smartDuration !== undefined && typeof params.smartDuration !== 'boolean') {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 smartDuration must be a boolean.'
+    });
+  }
+  if (params.smartDuration && params.duration !== undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 smartDuration and duration are mutually exclusive.'
+    });
+  }
+  if (params.fps !== undefined && params.fps !== 30) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 output is fixed at 30 fps.'
+    });
+  }
+  const allowedRatios = new Set(['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16']);
+  if (params.ratio !== undefined && !allowedRatios.has(params.ratio)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 ratio must be adaptive, 16:9, 4:3, 1:1, 3:4, or 9:16.'
+    });
+  }
+  const allowedTasks = new Set(['create', 'edit', 'extend']);
+  if (params.wan3TaskType !== undefined && !allowedTasks.has(params.wan3TaskType)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 wan3TaskType must be create, edit, or extend.'
+    });
+  }
+
   if (params.referenceAudioIdentity || params.referenceMask) {
     throw new ApiError(400, {
       status: 'error',
@@ -604,7 +693,9 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
   const audioCount =
     (params.referenceAudio ? 1 : 0) + asReferenceUrlArray(params.referenceAudioUrls).length;
   const hasFrameAnchors = Boolean(params.referenceImage || params.referenceImageEnd);
-  const hasLooseReferences = looseImageCount > 0 || videoCount > 0 || audioCount > 0;
+  const hasDocumentContext = Boolean(params.referenceFileUrl || params.referenceLinkUrl);
+  const hasLooseReferences =
+    looseImageCount > 0 || videoCount > 0 || audioCount > 0 || hasDocumentContext;
 
   if (params.referenceImageEnd && !params.referenceImage) {
     throw new ApiError(400, {
@@ -618,7 +709,7 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       status: 'error',
       errorCode: 0,
       message:
-        'Wan 3 first/last-frame anchors cannot be combined with loose image, video, or audio references.'
+        'Wan 3 first/last-frame anchors cannot be combined with loose media, file, or link references.'
     });
   }
   if (looseImageCount > 10) {
@@ -640,6 +731,31 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       status: 'error',
       errorCode: 0,
       message: 'Wan 3 supports at most 5 reference audio clips.'
+    });
+  }
+  if ((params.wan3TaskType === 'edit' || params.wan3TaskType === 'extend') && videoCount === 0) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: `Wan 3 ${params.wan3TaskType} requires at least one reference video.`
+    });
+  }
+  if (params.wan3TaskType === 'extend' && params.ratio !== 'adaptive') {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: "Wan 3 extension requires ratio: 'adaptive'."
+    });
+  }
+  if (
+    !String(params.positivePrompt || '').trim() &&
+    !hasFrameAnchors &&
+    !hasLooseReferences
+  ) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 requires a prompt or at least one media, file, or link input.'
     });
   }
 }
@@ -912,6 +1028,29 @@ function applyVideoParams(
   }
   if (params.generateAudio !== undefined) {
     keyFrame.generateAudio = params.generateAudio;
+  }
+  if (params.referenceFileUrl !== undefined) {
+    keyFrame.referenceFileURL = params.referenceFileUrl;
+  }
+  if (params.referenceLinkUrl !== undefined) {
+    keyFrame.referenceLinkURL = params.referenceLinkUrl;
+  }
+  if (params.promptExtend !== undefined) {
+    keyFrame.promptExtend = params.promptExtend;
+  }
+  if (params.watermark !== undefined) {
+    keyFrame.watermark = params.watermark;
+  }
+  if (params.ratio !== undefined) {
+    keyFrame.ratio = params.ratio;
+  }
+  if (params.wan3TaskType !== undefined) {
+    keyFrame.wan3TaskType = params.wan3TaskType;
+  }
+  if (params.smartDuration) {
+    keyFrame.smartDuration = true;
+    // Admission pricing reserves the maximum possible smart-duration output.
+    keyFrame.frames = calculateVideoFrames(params.modelId, 30, 30);
   }
   if (params.seedanceTaskType !== undefined) {
     keyFrame.seedanceTaskType = params.seedanceTaskType;

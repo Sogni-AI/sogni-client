@@ -246,6 +246,12 @@ export type InputMedia = File | Buffer | Blob | boolean;
  */
 export type SeedanceTaskType = 'reference' | 'edit' | 'extend';
 
+/** Wan 3 operation selected for loose-reference requests. */
+export type Wan3TaskType = 'create' | 'edit' | 'extend';
+
+/** Aspect ratios accepted by Alibaba's unified Wan 3 endpoint. */
+export type Wan3Ratio = 'adaptive' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
+
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
   /**
@@ -257,7 +263,7 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * Duration of the video in seconds. Supported range 1 to 10 (WAN), 2 to 20 (LTX 2.5), 4 to 20 (LTX 2.3),
    * 4 to 15 (Seedance 2.0), 4 to 30 (Seedance 2.5), 3 to 15 (HappyHorse),
-   * 2 to 30 (Wan 3),
+   * 2 to 30 (Wan 3; use `smartDuration` to let the model choose),
    * or 124/24 to 362/24 seconds (MiniMax H3).
    *
    * The SDK automatically calculates the correct frame count based on the model:
@@ -270,6 +276,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    *   to 124-362 frames (always 24fps generation, and no `+1` term)
    */
   duration?: number;
+  /**
+   * Let Wan 3 choose an output duration from 2 to 30 seconds. Sogni reserves
+   * the 30-second maximum when the job is admitted and settles down to the
+   * duration Alibaba reports after completion. Wan 3 only.
+   */
+  smartDuration?: boolean;
   /**
    * Frames per second for output video.
    *
@@ -298,6 +310,16 @@ export interface VideoProjectParams extends BaseProjectParams {
    * first/last-frame generation.
    */
   seedanceTaskType?: SeedanceTaskType;
+  /**
+   * Wan 3 loose-reference operation. `edit` and `extend` require a reference
+   * video; extension also requires `ratio: 'adaptive'`.
+   */
+  wan3TaskType?: Wan3TaskType;
+  /**
+   * Wan 3 output ratio. `adaptive` lets Alibaba derive the canvas from the
+   * input media and is mandatory for extension.
+   */
+  ratio?: Wan3Ratio;
   /**
    * Shift parameter for video diffusion models.
    * Controls motion intensity. Range: 1.0-8.0, step 0.1.
@@ -389,6 +411,26 @@ export interface VideoProjectParams extends BaseProjectParams {
    * MiniMax H3 r2v uses uploaded `referenceAudios` instead.
    */
   referenceAudioUrls?: string[];
+  /**
+   * One public Wan 3 document URL (DOCX, DOC, XLSX, XLS, PPTX, PPT, PDF, TXT,
+   * KEY, PAGES, NUMBERS, or Markdown; up to 100 MB). PDF, DOCX, DOC, PPTX,
+   * PPT, KEY, and PAGES inputs are limited to 50 pages. Mutually exclusive
+   * with `referenceLinkUrl` and with first/last-frame anchors.
+   */
+  referenceFileUrl?: string;
+  /**
+   * One public webpage URL for Wan 3 context. Mutually exclusive with
+   * `referenceFileUrl` and with first/last-frame anchors.
+   */
+  referenceLinkUrl?: string;
+  /**
+   * Use Alibaba's native Wan 3 prompt expansion. Defaults to true at the
+   * vendor. Set false for literal prompts or after Sogni has already expanded
+   * the prompt, avoiding a second rewrite.
+   */
+  promptExtend?: boolean;
+  /** Add Alibaba's visible Wan 3 watermark. Defaults to false. */
+  watermark?: boolean;
   /**
    * Include the model's generated/native audio track when supported. Audio is
    * enabled by default; set to false to return a video without an audio track.

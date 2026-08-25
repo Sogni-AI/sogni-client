@@ -62,6 +62,21 @@ const text = request();
 assert.equal(text.keyFrames[0].fps, 30);
 assert.equal(text.keyFrames[0].frames, 151);
 
+const completeOptions = request({
+  duration: undefined,
+  smartDuration: true,
+  ratio: 'adaptive',
+  promptExtend: false,
+  watermark: true,
+  referenceFileUrl: 'https://cdn.example.com/brief.pdf'
+});
+assert.equal(completeOptions.keyFrames[0].smartDuration, true);
+assert.equal(completeOptions.keyFrames[0].frames, 901);
+assert.equal(completeOptions.keyFrames[0].ratio, 'adaptive');
+assert.equal(completeOptions.keyFrames[0].promptExtend, false);
+assert.equal(completeOptions.keyFrames[0].watermark, true);
+assert.equal(completeOptions.keyFrames[0].referenceFileURL, 'https://cdn.example.com/brief.pdf');
+
 const firstAndLast = request({
   referenceImage: new Blob(['first'], { type: 'image/png' }),
   referenceImageEnd: new Blob(['last'], { type: 'image/png' })
@@ -96,6 +111,16 @@ assert.throws(
 );
 assert.throws(() => request({ duration: 31 }), /less or equal 30/);
 assert.throws(() => request({ duration: 1 }), /greater or equal 2/);
+assert.throws(() => request({ fps: 24 }), /fixed at 30 fps/);
 assert.throws(() => request({ seed: 2_147_483_648 }), /0 through 2147483647/);
+assert.throws(
+  () => request({ referenceFileUrl: 'https://cdn.example.com/a.pdf', referenceLinkUrl: 'https://example.com' }),
+  /either one reference file or one reference link/
+);
+assert.throws(
+  () => request({ wan3TaskType: 'extend', referenceVideoUrls: ['https://cdn.example.com/v.mp4'], ratio: '16:9' }),
+  /extension requires ratio/
+);
+assert.throws(() => request({ smartDuration: true }), /mutually exclusive/);
 
 console.log('Wan 3 video transport checks passed');
