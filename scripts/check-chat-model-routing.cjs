@@ -293,7 +293,10 @@ for (const selector of ['minimax-h3-turbo', 'minimax-h3-t2v-turbo', 'minimax-h3-
 for (const selector of ['minimax-h3-i2v-turbo', 'minimax-h3-flf2v-turbo']) {
   assert.ok(animatePhotoModelSchema.enum.includes(selector));
 }
-assert.match(generateVideoModelSchema.description, /At least one visual reference is required/);
+assert.match(
+  generateVideoModelSchema.description,
+  /At least one visual reference(?: \(image or video\))? is required/
+);
 assert.doesNotMatch(
   generateVideoModelSchema.description,
   /At least one reference image is required/
@@ -729,7 +732,7 @@ assert.throws(
       { ...minimaxH3Params, referenceImageUrls: ['https://example.com/a.jpg'] },
       minimaxH3Options
     ),
-  /supported only by Seedance and HappyHorse models/
+  /supported only by Seedance, HappyHorse, and Wan 3 models/
 );
 
 // contextImages is the r2v transport and nothing else's.
