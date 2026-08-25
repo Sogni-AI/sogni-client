@@ -1,3 +1,10 @@
+## [5.19.3](https://github.com/Sogni-AI/sogni-client/compare/v5.19.2...v5.19.3) (2026-08-25)
+
+
+### Bug Fixes
+
+* **projects:** require confirmed cancellation ([9368155](https://github.com/Sogni-AI/sogni-client/commit/9368155676d4a1ed0bddba1893be9bcede463e1b))
+
 ## [5.19.2](https://github.com/Sogni-AI/sogni-client/compare/v5.19.1...v5.19.2) (2026-08-25)
 
 
