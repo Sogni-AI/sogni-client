@@ -746,7 +746,7 @@ export interface ControlNetParams {
 }
 ```
 
-## Video Generation (WAN 2.2, LTX-2.3, Seedance 2.0 & Happy Horse 1.1)
+## Video Generation (WAN 2.2, Wan 3, LTX-2.3, Seedance & Happy Horse)
 
 The Sogni SDK supports advanced video generation workflows powered by **Wan 2.2 14B FP8** models. These models are available on the `fast` network and support various video generation workflows.
 
@@ -794,6 +794,7 @@ Example model IDs:
 - `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
 - `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
+- `wan3.0-video` (Wan 3 unified multimodal video, external API, 2-30s, 480P/720P/1080P, fixed 30fps)
 
 The repository does not bundle sample prompts or input media for the 10Eros model. Creators
 who choose to use it must provide their own prompt and image to
@@ -804,8 +805,8 @@ who choose to use it must provide their own prompt and image to
 
 When creating video projects, you can specify:
 
-- `duration` - Duration in seconds. WAN supports 1-10s, LTX 2.5 supports 2-20s, LTX 2.3 supports 4-20s, Seedance 2.0 supports 4-15s, and Seedance 2.5 supports 4-30s.
-- `fps` - Frames per second. WAN supports 16/32 output, LTX 2.x supports 1-60 native FPS, Seedance is fixed at 24fps.
+- `duration` - Duration in seconds. WAN 2.2 supports 1-10s, Wan 3 supports 2-30s, LTX 2.5 supports 2-20s, LTX 2.3 supports 4-20s, Seedance 2.0 supports 4-15s, and Seedance 2.5 supports 4-30s.
+- `fps` - Frames per second. WAN 2.2 supports 16/32 output, Wan 3 is fixed at 30fps, LTX 2.x supports 1-60 native FPS, and Seedance is fixed at 24fps.
 - `frames` - Number of frames. Prefer `duration`; the SDK calculates model-correct frame counts.
 - `width` - Video width in pixels
 - `height` - Video height in pixels
@@ -814,9 +815,9 @@ When creating video projects, you can specify:
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
 - `referenceVideo` - Reference video for animate and v2v workflows
 - `referenceAudio` - Reference audio for sound-to-video workflow
-- `referenceImageUrls` - Loose image context URLs for Seedance and Happy Horse (Happy Horse r2v takes 1-9 reference images here); Seedance 2.0 accepts 9 image assets and Seedance 2.5 accepts 30
-- `referenceVideoUrls` - Seedance-only video context URLs; Seedance 2.0 accepts 3 video assets and Seedance 2.5 accepts 10
-- `referenceAudioUrls` - Seedance-only audio context URLs; Seedance 2.0 accepts 3 audio assets and Seedance 2.5 accepts 10
+- `referenceImageUrls` - Loose image context URLs for Seedance, Happy Horse, and Wan 3; Wan 3 accepts up to 10
+- `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
+- `referenceAudioUrls` - Loose audio context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `seedanceTaskType` - Seedance 2.5 loose-reference operation: `reference`, `edit`, or `extend`. Edit and extend require a reference video.
 - `hasVideoInput` - Estimate-only flag for `estimateVideoCost`; set this when estimating a canonical Seedance video-input job without passing `referenceVideo`/`referenceVideoUrls`
 - `referenceImageCount` - Optional estimate-only count of image references the video job will submit; models whose pricing does not use it ignore it
@@ -824,6 +825,8 @@ When creating video projects, you can specify:
 Seedance 2.0 can combine image, video, and audio reference assets in one external API request. Reference limits are up to 9 image assets, 3 video assets, 3 audio assets, and 12 asset files total. Text+audio without at least one image or video reference is not supported by Seedance. URL-array references must be HTTPS URLs that the vendor can fetch; local multi-reference files should be uploaded first, as shown in `examples/workflow_partner_seedance_video.mjs`. In prompts and creative briefs, refer to attachments by Seedance-style tags: `@Image1`, `@Video1`, and `@Audio1`, counted independently by modality in attachment order. Assign each useful reference a role, such as product identity, motion timing, camera path, edit rhythm, background music, or speech reference. Prefer positive preservation language like "maintain the same product silhouette and logo placement from @Image1"; exact readable text, logos, lip-sync, voice cloning, and real-human-reference behavior still need review. Seedance dispatch omits negative prompts; Wan 2.2 and LTX 2.3 video models can still use `negativePrompt`. Seedance jobs are Spark-only and should not use SOGNI token fallback.
 
 Seedance 2.5 raises the reference limits to 30 images, 10 videos, 10 audios, and 50 total files, and it permits audio-only loose-reference generation. Its frame-conditioned, edit, and extend operations inherit source aspect ratio. Send `seedanceTaskType: 'edit'` for source-video edits and `seedanceTaskType: 'extend'` for continuation; the Sogni vendor adapter applies Seedance 2.5's required adaptive ratio and provider-selected edit duration. Use `reference` when media supplies creative guidance for a newly generated video. Loose-reference requests require an explicit task type.
+
+Wan 3 uses the single exact model ID `wan3.0-video` for text, first-frame, first+last-frame, loose-reference, audio-driven, and video-edit/extend workflows. It accepts fixed or smart 2-30 second output at 480P/720P/1080P and fixed 30fps, with `adaptive`, `16:9`, `4:3`, `1:1`, `3:4`, or `9:16` ratio. Native audio defaults on; provider prompt expansion and watermarking are independently controllable. It accepts up to 10 loose images, 5 videos, and 5 audios, plus either one public document or one webpage. Native first/last frames cannot be mixed with loose media or document/web context. In English prompts, identify loose assets as `Image 1`, `Video 1`, and `Audio 1`, numbered independently by type. Extension requires `ratio: 'adaptive'` and an explicit continuation prompt. Wan 3 has no `negativePrompt` request field and is Premium Spark-only.
 
 ### Text-to-Video Example
 
