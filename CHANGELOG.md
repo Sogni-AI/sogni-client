@@ -1,3 +1,10 @@
+## [5.18.3](https://github.com/Sogni-AI/sogni-client/compare/v5.18.2...v5.18.3) (2026-08-25)
+
+
+### Bug Fixes
+
+* **deps:** adopt protocol alpha.25 video contracts ([c998413](https://github.com/Sogni-AI/sogni-client/commit/c99841339d6448b36e1306c018980331d3799702))
+
 ## [5.18.2](https://github.com/Sogni-AI/sogni-client/compare/v5.18.1...v5.18.2) (2026-08-24)
 
 
