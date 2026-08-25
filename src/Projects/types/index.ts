@@ -236,6 +236,16 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - See the repository's authoring examples:
  *   https://github.com/Sogni-AI/sogni-client/blob/alpha/examples/workflow_minimax_h3_video.mjs
  */
+/**
+ * Seedance 2.5 multimodal-reference operation.
+ *
+ * Omit this for text-to-video and first/last-frame generation. `reference`
+ * creates a new video from loose media references, `edit` transforms a source
+ * video, and `extend` continues a source video. Loose-reference requests must
+ * use one of these explicit operation values.
+ */
+export type SeedanceTaskType = 'reference' | 'edit' | 'extend';
+
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
   /**
@@ -246,7 +256,7 @@ export interface VideoProjectParams extends BaseProjectParams {
   frames?: number;
   /**
    * Duration of the video in seconds. Supported range 1 to 10 (WAN), 2 to 20 (LTX 2.5), 4 to 20 (LTX 2.3),
-   * 4 to 15 (Seedance direct SDK projects), 3 to 15 (HappyHorse direct SDK projects),
+   * 4 to 15 (Seedance 2.0), 4 to 30 (Seedance 2.5), 3 to 15 (HappyHorse),
    * or 124/24 to 362/24 seconds (MiniMax H3).
    *
    * The SDK automatically calculates the correct frame count based on the model:
@@ -274,6 +284,16 @@ export interface VideoProjectParams extends BaseProjectParams {
    * **MiniMax H3 Models:** Fixed 24fps. Omit this field or pass 24.
    */
   fps?: number;
+  /**
+   * Explicit Seedance 2.5 multimodal-reference operation.
+   *
+   * This is serialized as routing metadata and validated again by the service
+   * that dispatches the vendor request; it is not sent to GPU workers. `edit`
+   * and `extend` require at least one reference video. `reference` requires at
+   * least one loose image, video, or audio reference. Do not set this for
+   * first/last-frame generation.
+   */
+  seedanceTaskType?: SeedanceTaskType;
   /**
    * Shift parameter for video diffusion models.
    * Controls motion intensity. Range: 1.0-8.0, step 0.1.

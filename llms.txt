@@ -67,7 +67,7 @@ console.log(urls[0]); // Video URL (valid 24 hours)
 2. **Image Generation** - Text-to-image, img2img, ControlNets
 3. **Video Generation (WAN 2.2)** - t2v, i2v, s2v, animate-move, animate-replace
 4. **Video Generation (LTX-2.3)** - Recommended video models with different fps behavior
-5. **Video Generation (Seedance 2.0)** - External API T2V/I2V/V2V at 24fps
+5. **Video Generation (Seedance 2.x)** - External API T2V/I2V/V2V at 24fps
 6. **Audio Generation (ACE-Step 1.5)** - Text-to-music with optional lyrics
 7. **LLM Text Generation** - Chat completions, streaming, multi-turn conversations
 8. **LLM Tool Calling** - Function calling with custom tools and Sogni platform tools
@@ -356,9 +356,9 @@ IMPORTANT: ControlNet (canny/pose/depth/detailer) requires a `_v2v` model, NOT `
 
 ---
 
-## 5. Video Generation (Seedance 2.0)
+## 5. Video Generation (Seedance 2.x)
 
-Seedance models are external API-backed Spark-only video models. They generate at fixed 24fps and currently support 4-15 second direct SDK outputs. Seedance can combine image, video, and audio reference assets in one request: up to 9 images, 3 videos, 3 audios, and 12 total assets. Text+audio-only is unsupported; include at least one image or video reference when using audio references. In prompts, use `@Image1`, `@Video1`, and `@Audio1` tags counted independently by modality in attachment order. Assign each useful reference a role, prefer positive preservation language, and review exact text/logos, lip-sync, voice cloning, and real-human-reference behavior.
+Seedance models are external API-backed Spark-only video models at fixed 24fps. Seedance 2.0 supports 4-15 seconds and 9 image / 3 video / 3 audio / 12 total references; audio needs an image or video. Seedance 2.5 supports 4-30 seconds and 30 image / 10 video / 10 audio / 50 total references, including audio-only loose reference. In prompts, use `@Image1`, `@Video1`, and `@Audio1` tags counted independently by modality in attachment order. Assign each useful reference a role, prefer positive preservation language, and review exact text/logos, lip-sync, voice cloning, and real-human-reference behavior.
 
 | Model ID              | Context Assets                         | Notes                |
 | --------------------- | -------------------------------------- | -------------------- |
@@ -381,6 +381,8 @@ const project = await sogni.projects.create({
 ```
 
 Use `referenceImageUrls`, `referenceVideoUrls`, and `referenceAudioUrls` for Seedance HTTPS context URLs. Use `referenceImage`/`referenceImageEnd`, `referenceVideo`, and `referenceAudio` for single local file references. Example prompt: `Use @Image1 for product identity, @Video1 for camera movement, and @Audio1 for music rhythm. Keep the product silhouette and logo placement consistent.`
+
+For Seedance 2.5 loose-reference video operations, set `seedanceTaskType` to `reference`, `edit`, or `extend`. Edit/extend require a reference video. The server applies adaptive source aspect ratio to first/last-frame, edit, and extend requests and provider-selected duration to edit requests. Loose-reference requests require an explicit task type.
 
 Aliases used by chat tools and examples: `seedance2` and `seedance2-mini`. V2V uses `seedance2` or `seedance2-mini` as the model selector and `seedance-v2v` as the control mode. Seedance Mini is the preferred lower-cost 720p tier. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
 

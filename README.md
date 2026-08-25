@@ -804,7 +804,7 @@ who choose to use it must provide their own prompt and image to
 
 When creating video projects, you can specify:
 
-- `duration` - Duration in seconds. WAN supports 1-10s, LTX 2.5 supports 2-20s, LTX 2.3 supports 4-20s, Seedance direct SDK projects currently support 4-15s.
+- `duration` - Duration in seconds. WAN supports 1-10s, LTX 2.5 supports 2-20s, LTX 2.3 supports 4-20s, Seedance 2.0 supports 4-15s, and Seedance 2.5 supports 4-30s.
 - `fps` - Frames per second. WAN supports 16/32 output, LTX 2.x supports 1-60 native FPS, Seedance is fixed at 24fps.
 - `frames` - Number of frames. Prefer `duration`; the SDK calculates model-correct frame counts.
 - `width` - Video width in pixels
@@ -814,13 +814,16 @@ When creating video projects, you can specify:
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
 - `referenceVideo` - Reference video for animate and v2v workflows
 - `referenceAudio` - Reference audio for sound-to-video workflow
-- `referenceImageUrls` - Loose image context URLs for Seedance and Happy Horse (Happy Horse r2v takes 1-9 reference images here); combined with `referenceImage`/`referenceImageEnd`, max 9 image assets
-- `referenceVideoUrls` - Seedance-only video context URLs; combined with `referenceVideo`, max 3 video assets
-- `referenceAudioUrls` - Seedance-only audio context URLs; combined with `referenceAudio`/`referenceAudioIdentity`, max 3 audio assets
+- `referenceImageUrls` - Loose image context URLs for Seedance and Happy Horse (Happy Horse r2v takes 1-9 reference images here); Seedance 2.0 accepts 9 image assets and Seedance 2.5 accepts 30
+- `referenceVideoUrls` - Seedance-only video context URLs; Seedance 2.0 accepts 3 video assets and Seedance 2.5 accepts 10
+- `referenceAudioUrls` - Seedance-only audio context URLs; Seedance 2.0 accepts 3 audio assets and Seedance 2.5 accepts 10
+- `seedanceTaskType` - Seedance 2.5 loose-reference operation: `reference`, `edit`, or `extend`. Edit and extend require a reference video.
 - `hasVideoInput` - Estimate-only flag for `estimateVideoCost`; set this when estimating a canonical Seedance video-input job without passing `referenceVideo`/`referenceVideoUrls`
 - `referenceImageCount` - Optional estimate-only count of image references the video job will submit; models whose pricing does not use it ignore it
 
 Seedance 2.0 can combine image, video, and audio reference assets in one external API request. Reference limits are up to 9 image assets, 3 video assets, 3 audio assets, and 12 asset files total. Text+audio without at least one image or video reference is not supported by Seedance. URL-array references must be HTTPS URLs that the vendor can fetch; local multi-reference files should be uploaded first, as shown in `examples/workflow_partner_seedance_video.mjs`. In prompts and creative briefs, refer to attachments by Seedance-style tags: `@Image1`, `@Video1`, and `@Audio1`, counted independently by modality in attachment order. Assign each useful reference a role, such as product identity, motion timing, camera path, edit rhythm, background music, or speech reference. Prefer positive preservation language like "maintain the same product silhouette and logo placement from @Image1"; exact readable text, logos, lip-sync, voice cloning, and real-human-reference behavior still need review. Seedance dispatch omits negative prompts; Wan 2.2 and LTX 2.3 video models can still use `negativePrompt`. Seedance jobs are Spark-only and should not use SOGNI token fallback.
+
+Seedance 2.5 raises the reference limits to 30 images, 10 videos, 10 audios, and 50 total files, and it permits audio-only loose-reference generation. Its frame-conditioned, edit, and extend operations inherit source aspect ratio. Send `seedanceTaskType: 'edit'` for source-video edits and `seedanceTaskType: 'extend'` for continuation; the Sogni vendor adapter applies Seedance 2.5's required adaptive ratio and provider-selected edit duration. Use `reference` when media supplies creative guidance for a newly generated video. Loose-reference requests require an explicit task type.
 
 ### Text-to-Video Example
 

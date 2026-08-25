@@ -79,6 +79,7 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
     return;
   }
   if (isSeedanceModel(params.modelId)) {
+    validateSeedanceTaskType(params);
     validateSeedanceReferenceAssets(params);
     return;
   }
@@ -140,6 +141,66 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
         message: `${workflowType} workflow does not support ${assetKey}. Please remove this asset.`
       });
     }
+  }
+}
+
+function validateSeedanceTaskType(params: VideoProjectParams): void {
+  const taskType = params.seedanceTaskType;
+  const isSeedance25 = isSeedance25Model(params.modelId);
+  if (taskType !== undefined && !new Set(['reference', 'edit', 'extend']).has(taskType as string)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'seedanceTaskType must be reference, edit, or extend.'
+    });
+  }
+  if (taskType !== undefined && !isSeedance25) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'seedanceTaskType is supported only by Seedance 2.5.'
+    });
+  }
+  if (!isSeedance25) return;
+
+  const hasFrameInput = Boolean(params.referenceImage || params.referenceImageEnd);
+  const hasReferenceVideo =
+    Boolean(params.referenceVideo) || asReferenceUrlArray(params.referenceVideoUrls).length > 0;
+  const hasLooseReference =
+    asReferenceUrlArray(params.referenceImageUrls).length > 0 ||
+    hasReferenceVideo ||
+    Boolean(params.referenceAudio) ||
+    asReferenceUrlArray(params.referenceAudioUrls).length > 0;
+
+  if (taskType === undefined && hasLooseReference) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Seedance 2.5 loose-reference requests require seedanceTaskType.'
+    });
+  }
+
+  if (taskType !== undefined && hasFrameInput) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message:
+        'seedanceTaskType is for Seedance 2.5 loose-reference, edit, or extend requests; omit it for first/last-frame generation.'
+    });
+  }
+  if ((taskType === 'edit' || taskType === 'extend') && !hasReferenceVideo) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: `Seedance 2.5 ${taskType} requires at least one reference video.`
+    });
+  }
+  if (taskType === 'reference' && !hasLooseReference) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: `Seedance 2.5 ${taskType} requires at least one loose image, video, or audio reference.`
+    });
   }
 }
 
@@ -349,7 +410,7 @@ const SEEDANCE_REFERENCE_LIMITS_BY_MODEL: Record<
   'seedance-2-0-mini': { images: 9, videos: 3, audios: 3, assets: 12 },
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance-2-0-fast': { images: 9, videos: 3, audios: 3, assets: 12 },
-  'seedance-2-5': { images: 30, videos: 10, audios: 10, assets: 30 }
+  'seedance-2-5': { images: 30, videos: 10, audios: 10, assets: 50 }
 };
 
 function seedanceReferenceLimits(modelId: string): {
@@ -415,7 +476,12 @@ function validateSeedanceReferenceAssets(params: VideoProjectParams): void {
       message: `${params.modelId} supports at most ${limits.assets} total asset files.`
     });
   }
-  if (audioCount > 0 && imageCount === 0 && videoCount === 0) {
+  if (
+    !isSeedance25Model(params.modelId) &&
+    audioCount > 0 &&
+    imageCount === 0 &&
+    videoCount === 0
+  ) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
@@ -764,6 +830,9 @@ function applyVideoParams(
   }
   if (params.generateAudio !== undefined) {
     keyFrame.generateAudio = params.generateAudio;
+  }
+  if (params.seedanceTaskType !== undefined) {
+    keyFrame.seedanceTaskType = params.seedanceTaskType;
   }
   if (params.audioIdentityStrength !== undefined) {
     keyFrame.identityGuidanceScale = params.audioIdentityStrength;

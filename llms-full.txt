@@ -15,7 +15,7 @@ TABLE OF CONTENTS
 4. Image Generation
 5. Video Generation - WAN 2.2 Models
 6. Video Generation - LTX-2.3 Models
-7. Video Generation - Seedance 2.0 Models
+7. Video Generation - Seedance 2.x Models
 8. Audio Generation - ACE-Step 1.5 Models
 9. LLM Text Generation
 10. LLM Tool Calling & Sogni Platform Tools
@@ -715,13 +715,14 @@ LTX VIDEO PARAMETERS:
 | firstFrameStrength | number | 0.0-1.0 | 0.6 | Keyframe matching |
 | lastFrameStrength | number | 0.0-1.0 | 0.6 | Keyframe matching |
 
-================================================================================ 7. VIDEO GENERATION - SEEDANCE 2.0 MODELS
+================================================================================ 7. VIDEO GENERATION - SEEDANCE 2.x MODELS
 ================================================================================
 
-Seedance 2.0 models use the external API path. They generate at fixed 24fps and
-currently support 4-15 second direct SDK outputs. Seedance models are premium/external API models and are Spark-only.
+Seedance 2.x models use the external API path. They generate at fixed 24fps.
+Seedance 2.0 supports 4-15 second outputs; Seedance 2.5 supports 4-30 seconds.
+Seedance models are premium/external API models and are Spark-only.
 Seedance 2.0 full supports up to 4K output. Seedance 2.0 Mini and Seedance 2.0 Fast accept the same optional image, video, and audio references and cap output at 720p.
-Seedance can combine reference media in one request: up to 9 image assets, 3 video
+Seedance 2.0 can combine reference media in one request: up to 9 image assets, 3 video
 assets, 3 audio assets, and 12 total assets. Text+audio-only is unsupported; use at
 least one image or video reference with audio references. Prompt-visible reference
 tags use `@Image1`, `@Video1`, and `@Audio1`, counted independently by modality
@@ -734,7 +735,7 @@ SEEDANCE MODEL IDS:
 |----------|----------------|-------|
 | seedance-2-0 | Optional image, video, and audio refs | 24fps, 4-15s, 4K |
 | seedance-2-0-mini | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
-| seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 30 total) | 24fps, 4-30s, 720p cap, first+last frame |
+| seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 50 total; audio-only allowed) | 24fps, 4-30s, 720p cap, first+last frame |
 
 SEEDANCE TEXT-TO-VIDEO:
 
@@ -760,6 +761,12 @@ frames. URLs must be HTTPS and reachable by the vendor. Use role-tagged prompts
 such as `Use @Image1 for product identity, @Video1 for camera movement, and
 @Audio1 for music rhythm. Keep the product silhouette and logo placement
 consistent.`
+
+For Seedance 2.5 loose-reference operations, set `seedanceTaskType` to
+`reference`, `edit`, or `extend`. Edit and extend require a
+reference video. The server applies adaptive source ratio to first/last-frame,
+edit, and extend requests and provider-selected duration to edit requests.
+Loose-reference requests require an explicit task type.
 
 ```javascript
 const project = await sogni.projects.create({
@@ -1691,6 +1698,7 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceImageUrls?: string[];  // Seedance and HappyHorse only
   referenceVideoUrls?: string[];  // Seedance only
   referenceAudioUrls?: string[];  // Seedance only
+  seedanceTaskType?: 'reference' | 'edit' | 'extend';  // Seedance 2.5 loose-reference operation
   audioStart?: number;       // Seconds into audio
   audioDuration?: number;    // Seconds of audio
   videoStart?: number;       // Seconds into video
