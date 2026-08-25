@@ -1,3 +1,10 @@
+# [5.19.0](https://github.com/Sogni-AI/sogni-client/compare/v5.18.3...v5.19.0) (2026-08-25)
+
+
+### Features
+
+* **projects:** support explicit Seedance 2.5 task routing ([bee2cae](https://github.com/Sogni-AI/sogni-client/commit/bee2cae6e13d92280700929272dc32a2da98be11))
+
 ## [5.18.3](https://github.com/Sogni-AI/sogni-client/compare/v5.18.2...v5.18.3) (2026-08-25)
 
 
