@@ -1,3 +1,10 @@
+## [5.19.2](https://github.com/Sogni-AI/sogni-client/compare/v5.19.1...v5.19.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* **models:** require exact media capability identities ([7861b80](https://github.com/Sogni-AI/sogni-client/commit/7861b80e480ed25082a6cf2a85c02de5e026efb0))
+
 ## [5.19.1](https://github.com/Sogni-AI/sogni-client/compare/v5.19.0...v5.19.1) (2026-08-25)
 
 
