@@ -1413,6 +1413,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - steps: Number of steps.
    *   - hasVideoInput: Whether to price a Seedance estimate with video input.
    *   - referenceImageCount: Number of image references submitted by the estimated job.
+   *   - referenceVideoCount: Number of video references submitted by a MiniMax H3 r2v job.
+   *   - referenceVideoDurationSeconds: Combined duration of MiniMax H3 r2v video input.
    * @return {Promise<Object>} Returns an object containing the estimated costs for the video in different units:
    *   - token: Cost in tokens.
    *   - usd: Cost in USD.
@@ -1453,6 +1455,21 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       (params.referenceImageCount as number) >= 0
     ) {
       query.set('referenceImageCount', String(Math.floor(params.referenceImageCount as number)));
+    }
+    if (
+      Number.isFinite(params.referenceVideoCount) &&
+      (params.referenceVideoCount as number) >= 0
+    ) {
+      query.set('referenceVideoCount', String(Math.floor(params.referenceVideoCount as number)));
+    }
+    if (
+      Number.isFinite(params.referenceVideoDurationSeconds) &&
+      (params.referenceVideoDurationSeconds as number) >= 0
+    ) {
+      query.set(
+        'referenceVideoDurationSeconds',
+        String(params.referenceVideoDurationSeconds as number)
+      );
     }
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(

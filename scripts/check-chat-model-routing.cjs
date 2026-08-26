@@ -563,10 +563,11 @@ assert.throws(
 // A video is a complete visual reference set; audio alone is not.
 const minimaxH3R2vVideoOnly = createJobRequestMessage(
   'h3-r2v-video-only',
-  { ...minimaxH3R2vParams, referenceVideo: true },
+  { ...minimaxH3R2vParams, referenceVideo: true, referenceVideoDurations: [3] },
   minimaxH3Options
 );
 assert.equal(minimaxH3R2vVideoOnly.keyFrames[0].hasReferenceVideo1, true);
+assert.equal(minimaxH3R2vVideoOnly.keyFrames[0].referenceVideo1DurationSeconds, 3);
 const minimaxH3R2vTurboRequest = createJobRequestMessage(
   'h3-r2v-turbo',
   { ...minimaxH3R2vTurboParams, referenceImage: true },
@@ -648,6 +649,7 @@ const minimaxH3R2vUploaded = createJobRequestMessage(
     contextImages: [true],
     referenceVideo: true,
     referenceVideos: [true],
+    referenceVideoDurations: [3, 4],
     referenceAudio: true,
     referenceAudios: [true]
   },
@@ -656,6 +658,8 @@ const minimaxH3R2vUploaded = createJobRequestMessage(
 assert.equal(minimaxH3R2vUploaded.keyFrames[0].hasContextImage2, true);
 assert.equal(minimaxH3R2vUploaded.keyFrames[0].hasReferenceVideo1, true);
 assert.equal(minimaxH3R2vUploaded.keyFrames[0].hasReferenceVideo2, true);
+assert.equal(minimaxH3R2vUploaded.keyFrames[0].referenceVideo1DurationSeconds, 3);
+assert.equal(minimaxH3R2vUploaded.keyFrames[0].referenceVideo2DurationSeconds, 4);
 assert.equal(minimaxH3R2vUploaded.keyFrames[0].hasReferenceVideo, undefined);
 assert.equal(minimaxH3R2vUploaded.keyFrames[0].hasReferenceAudio1, true);
 assert.equal(minimaxH3R2vUploaded.keyFrames[0].hasReferenceAudio2, true);
@@ -673,6 +677,7 @@ assert.throws(
         contextImages: Array(7).fill(true),
         referenceVideo: true,
         referenceVideos: [true, true],
+        referenceVideoDurations: [3, 3, 3],
         referenceAudio: true,
         referenceAudios: [true, true]
       },
@@ -688,11 +693,35 @@ assert.throws(
         ...minimaxH3R2vParams,
         referenceImage: true,
         referenceVideo: true,
-        referenceVideos: [true, true, true]
+        referenceVideos: [true, true, true],
+        referenceVideoDurations: [3, 3, 3, 3]
       },
       minimaxH3Options
     ),
   /at most 3 uploaded reference videos \(got 4\)/
+);
+assert.throws(
+  () =>
+    createJobRequestMessage(
+      'h3-r2v-missing-duration',
+      { ...minimaxH3R2vParams, referenceVideo: true },
+      minimaxH3Options
+    ),
+  /referenceVideoDurations must contain one entry for each uploaded reference video \(expected 1\)/
+);
+assert.throws(
+  () =>
+    createJobRequestMessage(
+      'h3-r2v-video-duration-total',
+      {
+        ...minimaxH3R2vParams,
+        referenceVideo: true,
+        referenceVideos: [true],
+        referenceVideoDurations: [8, 8]
+      },
+      minimaxH3Options
+    ),
+  /reference videos may total at most 15 seconds/
 );
 
 for (const field of ['referenceImageUrls', 'referenceVideoUrls', 'referenceAudioUrls']) {

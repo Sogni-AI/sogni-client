@@ -969,8 +969,11 @@ assigns jobs to (`<Picture i>`, `<Video k>`, `<Audio j>`, numbered from 1 per
 type). Because it renders on a Sogni worker rather than at a vendor, every artist
 reference uses the normal S3 upload path: `referenceImage` + `contextImages` for
 images, `referenceVideo` + `referenceVideos` for videos, and `referenceAudio` +
-`referenceAudios` for audio. Direct URL arrays are rejected. At least one visual
-reference (image or video) is required; audio alone is rejected.
+`referenceAudios` for audio. Direct URL arrays are rejected. Optional
+`referenceVideoDurations` is required when videos are present and uses matching
+order; each duration must be 2-15 seconds and all videos may total at most 15
+seconds. The values drive both the preflight quote and submitted job pricing. At least one
+visual reference (image or video) is required; audio alone is rejected.
 
 Ref2VA uses six sections in exact order: `subject_definitions`, `summary`,
 `retention_analysis`, `detailed_description`, `overall_soundscape`, and
@@ -1023,6 +1026,7 @@ A low warm synthesizer pad enters near the end and holds beneath the final frame
     fs.readFileSync('./street.jpg')
   ],
   referenceVideo: fs.readFileSync('./camera-move.mp4'),  // <Video 1>
+  referenceVideoDurations: [6.25],
   tokenType: 'spark'
 });
 ```
@@ -1719,6 +1723,7 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceAudios?: (File | Buffer | Blob)[];  // MiniMax H3 r2v audio references 2-3
   referenceVideo?: File | Buffer | Blob;
   referenceVideos?: (File | Buffer | Blob)[];  // MiniMax H3 r2v video references 2-3
+  referenceVideoDurations?: number[];  // Required with H3 r2v videos for quote and job pricing
   contextImages?: (File | Buffer | Blob)[];  // MiniMax H3 r2v reference images 2-9
   referenceImageUrls?: string[];  // Seedance and HappyHorse only
   referenceVideoUrls?: string[];  // Seedance only
@@ -1967,9 +1972,11 @@ const cost = await sogni.projects.estimateVideoCost({
 });
 ```
 
-When estimating a reference-to-video job, pass `referenceImageCount` with the
-number of image references the job will actually submit. It is optional and is
-ignored by models whose estimate does not depend on reference image count.
+When estimating a reference-to-video job, pass `referenceImageCount`,
+`referenceVideoCount`, and `referenceVideoDurationSeconds` for the assets the job
+will actually submit. MiniMax H3 bills reference-video duration at the full
+resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with
+Turbo output. These fields are ignored by unrelated models.
 
 CHECK BALANCE:
 

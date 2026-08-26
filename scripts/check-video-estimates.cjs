@@ -73,6 +73,14 @@ async function main() {
   );
 
   await estimate(projects, {
+    referenceVideoCount: 2,
+    referenceVideoDurationSeconds: 13.5
+  });
+  const h3VideoInput = new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
+  assert.equal(h3VideoInput.get('referenceVideoCount'), '2');
+  assert.equal(h3VideoInput.get('referenceVideoDurationSeconds'), '13.5');
+
+  await estimate(projects, {
     model: 'seedance-2-0',
     hasVideoInput: true,
     referenceImageCount: 5.9
