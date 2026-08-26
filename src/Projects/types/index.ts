@@ -428,6 +428,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    * `referenceFileUrl` and with first/last-frame anchors.
    */
   referenceLinkUrl?: string;
+  /**
+   * Use Alibaba's native Wan 3 prompt expansion. Defaults to true at the
+   * vendor. Set false for literal prompts or after Sogni has already expanded
+   * the prompt, avoiding a second rewrite.
+   */
+  promptExtend?: boolean;
   /** Add Alibaba's visible Wan 3 watermark. Defaults to false. */
   watermark?: boolean;
   /**

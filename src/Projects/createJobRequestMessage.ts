@@ -668,6 +668,13 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: 'Wan 3 accepts either one reference file or one reference link, not both.'
     });
   }
+  if (params.promptExtend !== undefined && typeof params.promptExtend !== 'boolean') {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 promptExtend must be a boolean.'
+    });
+  }
   if (params.watermark !== undefined && typeof params.watermark !== 'boolean') {
     throw new ApiError(400, {
       status: 'error',
@@ -768,11 +775,7 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: 'Wan 3 supports at most 5 reference audio clips.'
     });
   }
-  if (
-    !String(params.positivePrompt || '').trim() &&
-    !hasFrameAnchors &&
-    !hasLooseReferences
-  ) {
+  if (!String(params.positivePrompt || '').trim() && !hasFrameAnchors && !hasLooseReferences) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
@@ -1059,6 +1062,9 @@ function applyVideoParams(
   }
   if (params.referenceLinkUrl !== undefined) {
     keyFrame.referenceLinkURL = params.referenceLinkUrl;
+  }
+  if (params.promptExtend !== undefined) {
+    keyFrame.promptExtend = params.promptExtend;
   }
   if (params.watermark !== undefined) {
     keyFrame.watermark = params.watermark;

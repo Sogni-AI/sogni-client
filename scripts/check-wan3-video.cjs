@@ -71,12 +71,14 @@ const completeOptions = request({
   duration: undefined,
   smartDuration: true,
   ratio: 'adaptive',
+  promptExtend: false,
   watermark: true,
   referenceFileUrl: 'https://cdn.example.com/brief.pdf'
 });
 assert.equal(completeOptions.keyFrames[0].smartDuration, true);
 assert.equal(completeOptions.keyFrames[0].frames, 901);
 assert.equal(completeOptions.keyFrames[0].ratio, 'adaptive');
+assert.equal(completeOptions.keyFrames[0].promptExtend, false);
 assert.equal(completeOptions.keyFrames[0].watermark, true);
 assert.equal(completeOptions.keyFrames[0].referenceFileURL, 'https://cdn.example.com/brief.pdf');
 
@@ -117,7 +119,11 @@ assert.throws(() => request({ duration: 1 }), /greater or equal 2/);
 assert.throws(() => request({ fps: 24 }), /fixed at 30 fps/);
 assert.throws(() => request({ seed: 2_147_483_648 }), /0 through 2147483647/);
 assert.throws(
-  () => request({ referenceFileUrl: 'https://cdn.example.com/a.pdf', referenceLinkUrl: 'https://example.com' }),
+  () =>
+    request({
+      referenceFileUrl: 'https://cdn.example.com/a.pdf',
+      referenceLinkUrl: 'https://example.com'
+    }),
   /either one reference file or one reference link/
 );
 const legacyTaskField = request({
