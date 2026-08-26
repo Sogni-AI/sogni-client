@@ -1,3 +1,12 @@
+## [5.21.1](https://github.com/Sogni-AI/sogni-client/compare/v5.21.0...v5.21.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **deps:** consume corrected Wan 3 protocol ([ea1b8d8](https://github.com/Sogni-AI/sogni-client/commit/ea1b8d8fed1766f8a29f7fb0b0bd696d974056b5))
+* **video:** allow Wan 3 fixed-ratio extensions ([157fc90](https://github.com/Sogni-AI/sogni-client/commit/157fc908d2bb892b4bc41ac7e0e283c1438802ce))
+* **video:** keep Wan 3 prompt shaping client-side ([4ed1e51](https://github.com/Sogni-AI/sogni-client/commit/4ed1e51bd4556f7210ce18bc2d3d10305256193c))
+
 # [5.21.0](https://github.com/Sogni-AI/sogni-client/compare/v5.20.0...v5.21.0) (2026-08-26)
 
 
