@@ -257,6 +257,7 @@ export interface ChatApiEvents {
  */
 class ChatApi extends ApiGroup<ChatApiEvents> {
   private activeStreams = new Map<string, ChatStream>();
+  private abortListeners = new Map<string, { signal: AbortSignal; listener: () => void }>();
   private availableLLMModels: Record<string, LLMModelInfo> = {};
 
   /**
@@ -842,8 +843,14 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private async createSingleCompletion(
     params: ChatCompletionParams
   ): Promise<ChatStream | ChatCompletionResult> {
+    if (params.signal?.aborted) {
+      throw this.createAbortError();
+    }
     const jobID = getUUID();
     const normalizedMessages = await normalizeVisionMessages(params.messages);
+    if (params.signal?.aborted) {
+      throw this.createAbortError();
+    }
 
     // Build chat_template_kwargs from think parameter
     const chatTemplateKwargs = this.buildChatTemplateKwargs(params.think);
@@ -886,20 +893,29 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     await this.client.socket.send('llmJobRequest', request as any);
 
     if (params.stream) {
+      this.registerAbortListener(jobID, params.signal, () => {
+        const error = this.createAbortError();
+        stream._fail(error);
+        this.activeStreams.delete(jobID);
+        this.cancelLLMJob(jobID);
+      });
       return stream;
     }
 
     // Non-streaming: wait for completion and return the full result
     return new Promise<ChatCompletionResult>((resolve, reject) => {
+      let errorOff = () => {};
       const cleanup = () => {
         clearInterval(interval);
         clearTimeout(timeout);
         errorOff();
+        this.removeAbortListener(jobID);
         this.activeStreams.delete(jobID);
       };
 
       const timeout = setTimeout(() => {
         cleanup();
+        this.cancelLLMJob(jobID);
         reject(new Error(`Chat completion timed out after 300s (jobID: ${jobID})`));
       }, 300000);
 
@@ -912,7 +928,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       }, 50);
 
       // Also listen for the error case
-      const errorOff = this.on('error', (err) => {
+      errorOff = this.on('error', (err) => {
         if (err.jobID === jobID) {
           cleanup();
           // Same composed message as before; typed fields added so callers
@@ -926,6 +942,52 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
           );
         }
       });
+
+      this.registerAbortListener(jobID, params.signal, () => {
+        const error = this.createAbortError();
+        stream._fail(error);
+        cleanup();
+        this.cancelLLMJob(jobID);
+        reject(error);
+      });
+    });
+  }
+
+  private createAbortError(): Error {
+    const error = new Error('The operation was aborted');
+    error.name = 'AbortError';
+    return error;
+  }
+
+  private registerAbortListener(
+    jobID: string,
+    signal: AbortSignal | undefined,
+    listener: () => void
+  ): void {
+    if (!signal) return;
+    this.removeAbortListener(jobID);
+    if (signal.aborted) {
+      listener();
+      return;
+    }
+    const wrapped = () => {
+      this.removeAbortListener(jobID);
+      listener();
+    };
+    this.abortListeners.set(jobID, { signal, listener: wrapped });
+    signal.addEventListener('abort', wrapped, { once: true });
+  }
+
+  private removeAbortListener(jobID: string): void {
+    const entry = this.abortListeners.get(jobID);
+    if (!entry) return;
+    entry.signal.removeEventListener('abort', entry.listener);
+    this.abortListeners.delete(jobID);
+  }
+
+  private cancelLLMJob(jobID: string): void {
+    void this.client.socket.send('llmJobCancel', { jobID }).catch((error) => {
+      this.client.logger.warn(`Failed to cancel LLM job ${jobID}: ${error.message || error}`);
     });
   }
 
@@ -1057,6 +1119,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     }
 
     // Clean up from activeStreams — finalResult is computed from stream state, not the map entry
+    this.removeAbortListener(data.jobID);
     this.activeStreams.delete(data.jobID);
   }
 
@@ -1115,6 +1178,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         limitation: data.limitation
       })
     );
+    this.removeAbortListener(data.jobID);
     this.activeStreams.delete(data.jobID);
 
     this.emit('error', {

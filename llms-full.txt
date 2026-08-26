@@ -1146,6 +1146,7 @@ PRIMARY CHAT SURFACES:
 
 - `sogni.chat.completions.create(params)` - socket-native chat. Returns
   `ChatCompletionResult` for `stream: false` and `ChatStream` for `stream: true`.
+  Pass an `AbortSignal` as `signal` to cancel queued or active worker work.
 - `sogni.chat.hosted.create(params)` - hosted REST chat completion at
   `/v1/chat/completions`; can execute hosted Sogni tools server-side.
 - `sogni.chat.hosted.executeTool(params)` - direct synchronous hosted

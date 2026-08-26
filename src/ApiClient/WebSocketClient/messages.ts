@@ -10,11 +10,16 @@ export interface JobErrorMessage {
   isFromWorker: false;
 }
 
+export interface LLMJobCancelMessage {
+  jobID: string;
+}
+
 export interface SocketMessageMap {
   jobRequest: JobRequestRaw;
   jobError: JobErrorMessage;
   changeNetwork: SupernetType;
   llmJobRequest: ChatRequestMessage;
+  llmJobCancel: LLMJobCancelMessage;
   setSocketEventSubscriptions: SocketEventSubscriptionUpdate;
 }
 

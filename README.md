@@ -994,6 +994,10 @@ const result = await sogni.chat.completions.create({
 console.log(result.content);
 ```
 
+Pass an `AbortSignal` as `signal` to cancel queued or active socket-native LLM
+work. Cancellation terminates the local completion with an `AbortError` and
+notifies the Supernet to release the request.
+
 Qwen3.6-specific preset selection can be hinted with `think` plus `taskProfile`:
 
 - `taskProfile: 'general'` + `think: true` for thoughtful general tasks

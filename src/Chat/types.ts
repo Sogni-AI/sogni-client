@@ -95,6 +95,11 @@ export interface ChatMessage {
 export interface ChatCompletionParams {
   model: string;
   messages: ChatMessage[];
+  /**
+   * Cancels the socket-native LLM request and rejects/terminates the local
+   * completion with an `AbortError`.
+   */
+  signal?: AbortSignal;
   /** Optional source label for this request. Defaults to the client appSource when configured. */
   appSource?: string;
   /** Optional workload attribution overriding this client's defaults. */

@@ -623,6 +623,7 @@ for await (const chunk of stream) {
 | frequency_penalty | number  | 0                          | Repetition penalty (-2 to 2)                     |
 | presence_penalty  | number  | 0                          | Topic penalty (-2 to 2)                          |
 | stream            | boolean | false                      | Enable token-by-token streaming                  |
+| signal            | AbortSignal | -                       | Cancel queued or active socket-native LLM work   |
 | think             | boolean | server default             | Sends `chat_template_kwargs.enable_thinking`     |
 | taskProfile       | string  | -                          | `general`, `coding`, or `reasoning` preset hint  |
 | response_format   | object  | -                          | OpenAI-compatible JSON object/schema constraint  |
