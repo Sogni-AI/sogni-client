@@ -1,3 +1,10 @@
+## [5.21.2](https://github.com/Sogni-AI/sogni-client/compare/v5.21.1...v5.21.2) (2026-08-26)
+
+
+### Bug Fixes
+
+* **video:** keep Wan 3 references generative ([380e75f](https://github.com/Sogni-AI/sogni-client/commit/380e75f9b777ca3159904e92ce7c146103971c3e))
+
 ## [5.21.1](https://github.com/Sogni-AI/sogni-client/compare/v5.21.0...v5.21.1) (2026-08-26)
 
 
