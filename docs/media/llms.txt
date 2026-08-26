@@ -410,6 +410,23 @@ const project = await sogni.projects.create({
 });
 ```
 
+### Wan 3 (external API)
+
+Wan 3 uses one exact model ID, `wan3.0-video`, across T2V, first-frame I2V, first+last-frame, loose image/video/audio reference, audio-driven, and V2V edit/extend workflows. It renders 2-30s at fixed 30fps with optional native audio, supports 480P/720P/1080P and `16:9`/`4:3`/`1:1`/`3:4`/`9:16`, and accepts up to 10 loose images, 5 videos, and 5 audios. Native frame mode and loose-reference mode are mutually exclusive. Use `Image 1`, `Video 1`, and `Audio 1` in English prompts, numbered independently by type. No `negativePrompt` or provider-side `prompt_extend`; Premium Spark-only.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan3.0-video',
+  positivePrompt: 'A continuous cinematic tracking shot of a crimson sports car on a coastal highway at sunset',
+  duration: 5,
+  width: 1920,
+  height: 1080,
+  tokenType: 'spark'
+});
+```
+
 ### MiniMax H3 and H3 Turbo (Sogni workers)
 
 MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. Standard H3 uses fixed 20-step `res_multistep` / `simple` sampling. H3 Turbo applies a dedicated four-step LoRA for each checkpoint family: FL2VA uses its validated sampler set and Ref2VA R2V uses Euler/simple. Both use fixed 24fps, guidance 1, no negative prompt, the `124 + n*17` frame grid (124-362), and a 32px canvas grid capped at 1,032,192 pixels.

@@ -838,18 +838,6 @@ references (no video or audio reference assets). One canonical model ID per mode
 Chat/tool aliases: `happyhorse`, `happyhorse1.1` (resolve to t2v, or i2v when a
 reference image is present).
 
-WAN 3 (external API):
-
-Wan 3 is a unified Alibaba external-API model, Premium Spark-only, under the
-single exact model ID `wan3.0-video`. Media shape selects T2V, first-frame I2V,
-first+last-frame, loose multimodal reference, audio-driven, or V2V edit/extend.
-It renders 2-30 seconds at fixed 30fps with optional native audio; output tiers
-are 480P, 720P, and 1080P, and ratios are 16:9, 4:3, 1:1, 3:4, and 9:16.
-Loose limits are 10 images, 5 videos, and 5 audios. Native first/last-frame mode
-cannot be combined with loose references. In English prompts use plain `Image 1`,
-`Video 1`, and `Audio 1` labels, numbered independently by type. Wan 3 has no
-negativePrompt request field.
-
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
@@ -860,6 +848,31 @@ const project = await sogni.projects.create({
   width: 1920,
   height: 1080,
   referenceImageUrls: [ /* 1-9 HTTPS image URLs, or upload local files first */ ],
+  tokenType: 'spark'
+});
+```
+
+WAN 3 (external API):
+
+Wan 3 is a unified Alibaba external-API model, Premium Spark-only, under the
+single exact model ID `wan3.0-video`. Media shape selects T2V, first-frame I2V,
+first+last-frame, loose multimodal reference, audio-driven, or V2V edit/extend.
+It renders 2-30 seconds at fixed 30fps with optional native audio; output tiers
+are 480P, 720P, and 1080P, and ratios are 16:9, 4:3, 1:1, 3:4, and 9:16.
+Loose limits are 10 images, 5 videos, and 5 audios. Native first/last-frame mode
+cannot be combined with loose references. In English prompts use plain `Image 1`,
+`Video 1`, and `Audio 1` labels, numbered independently by type. Wan 3 has no
+negativePrompt or provider-side `prompt_extend` request field.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan3.0-video',
+  positivePrompt: 'A continuous cinematic tracking shot of a crimson sports car on a coastal highway at sunset',
+  duration: 5,
+  width: 1920,
+  height: 1080,
   tokenType: 'spark'
 });
 ```

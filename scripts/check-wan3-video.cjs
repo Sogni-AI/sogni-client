@@ -66,14 +66,12 @@ const completeOptions = request({
   duration: undefined,
   smartDuration: true,
   ratio: 'adaptive',
-  promptExtend: false,
   watermark: true,
   referenceFileUrl: 'https://cdn.example.com/brief.pdf'
 });
 assert.equal(completeOptions.keyFrames[0].smartDuration, true);
 assert.equal(completeOptions.keyFrames[0].frames, 901);
 assert.equal(completeOptions.keyFrames[0].ratio, 'adaptive');
-assert.equal(completeOptions.keyFrames[0].promptExtend, false);
 assert.equal(completeOptions.keyFrames[0].watermark, true);
 assert.equal(completeOptions.keyFrames[0].referenceFileURL, 'https://cdn.example.com/brief.pdf');
 
@@ -117,10 +115,12 @@ assert.throws(
   () => request({ referenceFileUrl: 'https://cdn.example.com/a.pdf', referenceLinkUrl: 'https://example.com' }),
   /either one reference file or one reference link/
 );
-assert.throws(
-  () => request({ wan3TaskType: 'extend', referenceVideoUrls: ['https://cdn.example.com/v.mp4'], ratio: '16:9' }),
-  /extension requires ratio/
-);
+const fixedRatioExtension = request({
+  wan3TaskType: 'extend',
+  referenceVideoUrls: ['https://cdn.example.com/v.mp4'],
+  ratio: '16:9'
+});
+assert.equal(fixedRatioExtension.keyFrames[0].ratio, '16:9');
 assert.throws(() => request({ smartDuration: true }), /mutually exclusive/);
 
 console.log('Wan 3 video transport checks passed');
