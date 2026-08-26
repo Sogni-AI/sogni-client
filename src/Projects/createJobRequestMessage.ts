@@ -784,13 +784,6 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: `Wan 3 ${params.wan3TaskType} requires at least one reference video.`
     });
   }
-  if (params.wan3TaskType === 'extend' && params.ratio !== 'adaptive') {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: "Wan 3 extension requires ratio: 'adaptive'."
-    });
-  }
   if (
     !String(params.positivePrompt || '').trim() &&
     !hasFrameAnchors &&
