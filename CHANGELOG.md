@@ -1,3 +1,10 @@
+## [5.21.3](https://github.com/Sogni-AI/sogni-client/compare/v5.21.2...v5.21.3) (2026-08-26)
+
+
+### Bug Fixes
+
+* **video:** restore Wan 3 prompt expansion ([36a839f](https://github.com/Sogni-AI/sogni-client/commit/36a839f41cf8562fa3ee9bc2d07eb4cfd88dcde4))
+
 ## [5.21.2](https://github.com/Sogni-AI/sogni-client/compare/v5.21.1...v5.21.2) (2026-08-26)
 
 
