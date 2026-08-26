@@ -482,6 +482,16 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceVideos?: InputMedia[];
   /**
+   * Exact durations, in seconds, for the uploaded MiniMax H3 r2v videos in
+   * `[referenceVideo, ...referenceVideos]` order.
+   *
+   * Required when the uploaded video list is non-empty. The array must have the
+   * same length as that list; each clip must be 2-15 seconds and all clips
+   * together may total at most 15 seconds. The same ordered values are used for
+   * the preflight quote and submitted job pricing.
+   */
+  referenceVideoDurations?: number[];
+  /**
    * Inpaint mask IMAGE for distilled LTX 2.5 or LTX 2.3 v2v inpaint workflows.
    * White pixels mark the region to regenerate. Maps to jobKey 'referenceMask'.
    * Used by the 'inpaint' control type.
@@ -876,6 +886,13 @@ export interface VideoEstimateRequest {
    * reference image count ignore it.
    */
   referenceImageCount?: number;
+  /** Number of reference videos included in a MiniMax H3 r2v estimate. */
+  referenceVideoCount?: number;
+  /**
+   * Combined duration of MiniMax H3 r2v reference-video input, in seconds.
+   * The estimate bills it at the selected output resolution/tier rate.
+   */
+  referenceVideoDurationSeconds?: number;
   /**
    * Optional estimate-only signal: presence implies Seedance video-input pricing.
    */

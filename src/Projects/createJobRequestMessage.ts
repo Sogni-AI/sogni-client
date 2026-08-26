@@ -272,6 +272,14 @@ function validateVideoReferenceArrays(params: VideoProjectParams): void {
       });
     }
   }
+  if (params.referenceVideoDurations !== undefined && !isMinimaxH3ReferenceModel(params.modelId)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message:
+        'referenceVideoDurations is supported only by the MiniMax H3 r2v workflow (minimax-h3-ref2va-fp8_r2v).'
+    });
+  }
 }
 
 /**
@@ -294,6 +302,49 @@ function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {
   }
 
   const references = countMinimaxH3References(params);
+  const referenceVideoDurations = params.referenceVideoDurations;
+  if (references.videos > 0 && referenceVideoDurations === undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: `MiniMax H3 r2v referenceVideoDurations must contain one entry for each uploaded reference video (expected ${references.videos}).`
+    });
+  }
+  if (referenceVideoDurations !== undefined) {
+    if (
+      !Array.isArray(referenceVideoDurations) ||
+      referenceVideoDurations.length !== references.videos
+    ) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `MiniMax H3 r2v referenceVideoDurations must contain one entry for each uploaded reference video (expected ${references.videos}).`
+      });
+    }
+    const durationEpsilon = 0.05;
+    let totalDurationSeconds = 0;
+    referenceVideoDurations.forEach((duration, index) => {
+      if (
+        !Number.isFinite(duration) ||
+        duration < 2 - durationEpsilon ||
+        duration > 15 + durationEpsilon
+      ) {
+        throw new ApiError(400, {
+          status: 'error',
+          errorCode: 0,
+          message: `MiniMax H3 r2v referenceVideoDurations[${index}] must be between 2 and 15 seconds.`
+        });
+      }
+      totalDurationSeconds += duration;
+    });
+    if (totalDurationSeconds > 15 + durationEpsilon) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `MiniMax H3 r2v reference videos may total at most 15 seconds (got ${totalDurationSeconds}).`
+      });
+    }
+  }
   const ceilings: [number, number, string][] = [
     [references.images, MINIMAX_H3_MAX_REFERENCE_IMAGES, 'reference images'],
     [references.videos, MINIMAX_H3_MAX_REFERENCE_VIDEOS, 'reference videos'],
@@ -747,11 +798,7 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: "Wan 3 extension requires ratio: 'adaptive'."
     });
   }
-  if (
-    !String(params.positivePrompt || '').trim() &&
-    !hasFrameAnchors &&
-    !hasLooseReferences
-  ) {
+  if (!String(params.positivePrompt || '').trim() && !hasFrameAnchors && !hasLooseReferences) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
@@ -1012,6 +1059,10 @@ function applyVideoParams(
   if (isMinimaxH3ReferenceModel(params.modelId)) {
     for (const { slot } of getMinimaxH3ReferenceVideoSlots(params)) {
       keyFrame[`hasReferenceVideo${slot}`] = true;
+      const durationSeconds = params.referenceVideoDurations?.[slot - 1];
+      if (durationSeconds !== undefined) {
+        keyFrame[`referenceVideo${slot}DurationSeconds`] = durationSeconds;
+      }
     }
   } else if (params.referenceVideo) {
     keyFrame.hasReferenceVideo = true;
@@ -1078,11 +1129,11 @@ function applyVideoParams(
       ? MINIMAX_H3_MIN_DURATION
       : isWan3Model(params.modelId)
         ? 2
-      : isHappyhorseModel(params.modelId)
-        ? 3
-        : isSeedanceModel(params.modelId)
-          ? 4
-          : 1;
+        : isHappyhorseModel(params.modelId)
+          ? 3
+          : isSeedanceModel(params.modelId)
+            ? 4
+            : 1;
     const duration = validateVideoDuration(
       params.duration,
       minDuration,

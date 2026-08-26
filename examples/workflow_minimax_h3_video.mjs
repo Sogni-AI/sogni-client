@@ -86,6 +86,7 @@ import {
   pickImageFile,
   processImageForVideo,
   readFileAsBuffer,
+  getVideoDuration,
   log,
   formatDuration,
   displayConfig,
@@ -1351,6 +1352,7 @@ async function main() {
     let contextImages;
     let referenceVideo;
     let referenceVideos;
+    let referenceVideoDurations;
     let referenceAudio;
     let referenceAudios;
 
@@ -1383,6 +1385,30 @@ async function main() {
       }
     }
     if (OPTIONS.refVideos.length) {
+      referenceVideoDurations = [];
+      for (const [index, path] of OPTIONS.refVideos.entries()) {
+        const durationSeconds = await getVideoDuration(path);
+        if (!Number.isFinite(durationSeconds)) {
+          throw new Error(
+            `Could not measure reference video ${index + 1}; install ffmpeg/ffprobe to include its exact duration in the preflight estimate.`
+          );
+        }
+        if (durationSeconds < 1.95 || durationSeconds > 15.05) {
+          throw new Error(
+            `Reference video ${index + 1} is ${durationSeconds.toFixed(3)}s; MiniMax H3 requires each reference video to be 2-15 seconds.`
+          );
+        }
+        referenceVideoDurations.push(durationSeconds);
+      }
+      const totalReferenceVideoDuration = referenceVideoDurations.reduce(
+        (total, duration) => total + duration,
+        0
+      );
+      if (totalReferenceVideoDuration > 15.05) {
+        throw new Error(
+          `Reference videos total ${totalReferenceVideoDuration.toFixed(3)}s; MiniMax H3 allows at most 15 seconds combined.`
+        );
+      }
       const prepared = OPTIONS.refVideos.map((path, index) => {
         log('🎞️', `Reference video ${index + 1} (<Video ${index + 1}>): ${path}`);
         return readFileAsBuffer(path);
@@ -1404,6 +1430,13 @@ async function main() {
       OPTIONS.mode === 'r2v'
         ? {
             References: `${OPTIONS.refImages.length} image(s), ${OPTIONS.refVideos.length} video(s), ${OPTIONS.refAudios.length} audio clip(s)`,
+            ...(referenceVideoDurations?.length
+              ? {
+                  'Reference video input': `${referenceVideoDurations
+                    .reduce((total, duration) => total + duration, 0)
+                    .toFixed(3)}s (billed at the selected H3 output tier rate)`
+                }
+              : {}),
             'Reference sizing': 'ref_image_size=match (references scaled to the generation area)'
           }
         : {};
@@ -1442,7 +1475,10 @@ async function main() {
       OPTIONS.frames,
       OPTIONS.fps,
       OPTIONS.steps,
-      OPTIONS.batch
+      OPTIONS.batch,
+      OPTIONS.refImages.length,
+      OPTIONS.refVideos.length,
+      referenceVideoDurations?.reduce((total, duration) => total + duration, 0) || 0
     );
 
     console.log();
@@ -1519,6 +1555,9 @@ async function main() {
     if (contextImages) projectParams.contextImages = contextImages;
     if (referenceVideo) projectParams.referenceVideo = referenceVideo;
     if (referenceVideos?.length) projectParams.referenceVideos = referenceVideos;
+    if (referenceVideoDurations?.length) {
+      projectParams.referenceVideoDurations = referenceVideoDurations;
+    }
     if (referenceAudio) projectParams.referenceAudio = referenceAudio;
     if (referenceAudios?.length) projectParams.referenceAudios = referenceAudios;
 
@@ -1800,7 +1839,10 @@ async function getVideoJobEstimate(
   frames,
   fps,
   steps,
-  videoCount = 1
+  videoCount = 1,
+  referenceImageCount = 0,
+  referenceVideoCount = 0,
+  referenceVideoDurationSeconds = 0
 ) {
   let baseUrl = process.env.SOGNI_SOCKET_ENDPOINT || 'https://socket.sogni.ai';
   if (baseUrl.startsWith('wss://')) {
@@ -1808,7 +1850,11 @@ async function getVideoJobEstimate(
   } else if (baseUrl.startsWith('ws://')) {
     baseUrl = baseUrl.replace('ws://', 'https://');
   }
-  const url = `${baseUrl}/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}/${steps}/${videoCount}`;
+  const query = new URLSearchParams();
+  query.set('referenceImageCount', String(referenceImageCount));
+  query.set('referenceVideoCount', String(referenceVideoCount));
+  query.set('referenceVideoDurationSeconds', String(referenceVideoDurationSeconds));
+  const url = `${baseUrl}/api/v1/job-video/estimate/${tokenType}/${encodeURIComponent(modelId)}/${width}/${height}/${frames}/${fps}/${steps}/${videoCount}?${query}`;
   console.log(`🔗 Video cost estimate URL: ${url}`);
   const response = await fetch(url);
   if (!response.ok) {
