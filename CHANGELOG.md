@@ -1,3 +1,10 @@
+# [5.21.0](https://github.com/Sogni-AI/sogni-client/compare/v5.20.0...v5.21.0) (2026-08-26)
+
+
+### Features
+
+* **video:** quote H3 reference input ([e720d54](https://github.com/Sogni-AI/sogni-client/commit/e720d540d693b21e97d07960f4a258ffa3872ca7))
+
 # [5.20.0](https://github.com/Sogni-AI/sogni-client/compare/v5.19.5...v5.20.0) (2026-08-25)
 
 
