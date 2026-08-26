@@ -283,10 +283,7 @@ const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.v2v,
   'ltx23-v2v': PREFERRED_MODEL_IDS.video.v2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v,
-  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v,
-  wan3: PREFERRED_MODEL_IDS.video.wan3,
-  'wan3.0': PREFERRED_MODEL_IDS.video.wan3,
-  'wan3-video': PREFERRED_MODEL_IDS.video.wan3
+  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v
 };
 
 const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
@@ -383,7 +380,6 @@ export function resolveHostedToolModelSelector(
   if (!requestedModel) {
     return undefined;
   }
-
   let selectors: Record<string, string> | null = null;
   switch (toolName) {
     case 'generate_image':
@@ -411,9 +407,16 @@ export function resolveHostedToolModelSelector(
       return requestedModel;
   }
 
-  return (
+  const resolvedModel = (
     selectors[requestedModel] ?? selectors[normalizeSelectorKey(requestedModel)] ?? requestedModel
   );
+  if (
+    toolName === 'video_to_video' &&
+    !getCompatibleVideoWorkflows(resolvedModel).includes('v2v')
+  ) {
+    return undefined;
+  }
+  return resolvedModel;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -493,7 +496,7 @@ const SEEDANCE_CANONICAL_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'ia2v', 'v2
  * reference-to-video mode on top of the 2.0 workflow set.
  */
 const SEEDANCE_2_5_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'flf2v', 'r2v', 'ia2v', 'v2v'];
-const WAN3_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'flf2v', 'r2v', 'a2v', 'ia2v', 'v2v'];
+const WAN3_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'flf2v', 'r2v', 'a2v', 'ia2v'];
 
 function getCompatibleVideoWorkflows(modelId: string): VideoWorkflow[] {
   if (isWan3Model(modelId)) {

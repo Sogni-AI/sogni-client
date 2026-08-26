@@ -295,7 +295,7 @@ for (const selector of ['minimax-h3-i2v-turbo', 'minimax-h3-flf2v-turbo']) {
 }
 assert.match(
   generateVideoModelSchema.description,
-  /At least one visual reference(?: \(image or video\))? is required/
+  /at least one visual reference(?: \(image or video\))? is required/i
 );
 assert.doesNotMatch(
   generateVideoModelSchema.description,
@@ -808,6 +808,20 @@ assert.deepEqual(
   ),
   []
 );
+assert.deepEqual(
+  filterVideoModelsByWorkflow(
+    [{ id: PREFERRED_MODEL_IDS.video.wan3, media: 'video' }],
+    ['v2v']
+  ),
+  []
+);
+assert.deepEqual(
+  filterVideoModelsByWorkflow(
+    [{ id: PREFERRED_MODEL_IDS.video.wan3, media: 'video' }],
+    ['r2v']
+  ),
+  [PREFERRED_MODEL_IDS.video.wan3]
+);
 
 // HappyHorse r2v is the only model in the fixture compatible with the r2v
 // workflow, so a workflow-only selection must resolve to it.
@@ -1090,7 +1104,7 @@ assert.equal(
 );
 assert.equal(
   resolveHostedToolModelSelector('video_to_video', { videoModel: 'wan3-video' }),
-  PREFERRED_MODEL_IDS.video.wan3
+  undefined
 );
 assert.equal(
   resolveHostedToolModelSelector('sound_to_video', { videoModel: 'wan3' }),

@@ -246,7 +246,11 @@ export type InputMedia = File | Buffer | Blob | boolean;
  */
 export type SeedanceTaskType = 'reference' | 'edit' | 'extend';
 
-/** Wan 3 operation selected for loose-reference requests. */
+/**
+ * @deprecated Wan 3 has no provider-backed edit/extend task selector. This
+ * compatibility type is retained so older callers still compile; the SDK
+ * ignores `wan3TaskType` and sends video inputs as loose references.
+ */
 export type Wan3TaskType = 'create' | 'edit' | 'extend';
 
 /** Aspect ratios accepted by Alibaba's unified Wan 3 endpoint. */
@@ -311,13 +315,14 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   seedanceTaskType?: SeedanceTaskType;
   /**
-   * Wan 3 loose-reference operation. `edit` and `extend` require a reference
-   * video; extension also requires `ratio: 'adaptive'`.
+   * @deprecated Ignored. Alibaba's Wan 3 API does not expose edit or extend
+   * task modes. Pass `referenceVideo`/`referenceVideoUrls` for loose reference
+   * conditioning; this does not guarantee source-video editing or extension.
    */
   wan3TaskType?: Wan3TaskType;
   /**
    * Wan 3 output ratio. `adaptive` lets Alibaba derive the canvas from the
-   * input media and is mandatory for extension.
+   * input media.
    */
   ratio?: Wan3Ratio;
   /**

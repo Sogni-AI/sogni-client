@@ -704,15 +704,6 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: 'Wan 3 ratio must be adaptive, 16:9, 4:3, 1:1, 3:4, or 9:16.'
     });
   }
-  const allowedTasks = new Set(['create', 'edit', 'extend']);
-  if (params.wan3TaskType !== undefined && !allowedTasks.has(params.wan3TaskType)) {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: 'Wan 3 wan3TaskType must be create, edit, or extend.'
-    });
-  }
-
   if (params.referenceAudioIdentity || params.referenceMask) {
     throw new ApiError(400, {
       status: 'error',
@@ -775,13 +766,6 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       status: 'error',
       errorCode: 0,
       message: 'Wan 3 supports at most 5 reference audio clips.'
-    });
-  }
-  if ((params.wan3TaskType === 'edit' || params.wan3TaskType === 'extend') && videoCount === 0) {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: `Wan 3 ${params.wan3TaskType} requires at least one reference video.`
     });
   }
   if (
@@ -1081,9 +1065,6 @@ function applyVideoParams(
   }
   if (params.ratio !== undefined) {
     keyFrame.ratio = params.ratio;
-  }
-  if (params.wan3TaskType !== undefined) {
-    keyFrame.wan3TaskType = params.wan3TaskType;
   }
   if (params.smartDuration) {
     keyFrame.smartDuration = true;

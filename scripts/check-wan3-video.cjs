@@ -51,12 +51,17 @@ assert.equal(isWan3Model(MODEL_ID), true);
 assert.equal(isVideoModel(MODEL_ID), true);
 assert.equal(isExternalApiVideoModel(MODEL_ID), true);
 
-for (const tool of [generateVideoTool, animatePhotoTool, soundToVideoTool, videoToVideoTool]) {
+for (const tool of [generateVideoTool, animatePhotoTool, soundToVideoTool]) {
   assert.ok(
     tool.function.parameters.properties.videoModel.enum.includes(MODEL_ID),
     `${tool.function.name} does not expose ${MODEL_ID}`
   );
 }
+assert.equal(
+  videoToVideoTool.function.parameters.properties.videoModel.enum.includes(MODEL_ID),
+  false,
+  'Wan 3 must not be exposed as a source-video editing model'
+);
 
 const text = request();
 assert.equal(text.keyFrames[0].fps, 30);
@@ -115,12 +120,13 @@ assert.throws(
   () => request({ referenceFileUrl: 'https://cdn.example.com/a.pdf', referenceLinkUrl: 'https://example.com' }),
   /either one reference file or one reference link/
 );
-const fixedRatioExtension = request({
+const legacyTaskField = request({
   wan3TaskType: 'extend',
   referenceVideoUrls: ['https://cdn.example.com/v.mp4'],
   ratio: '16:9'
 });
-assert.equal(fixedRatioExtension.keyFrames[0].ratio, '16:9');
+assert.equal(legacyTaskField.keyFrames[0].ratio, '16:9');
+assert.equal(legacyTaskField.keyFrames[0].wan3TaskType, undefined);
 assert.throws(() => request({ smartDuration: true }), /mutually exclusive/);
 
 console.log('Wan 3 video transport checks passed');

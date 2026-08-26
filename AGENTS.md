@@ -231,7 +231,7 @@ The SDK supports two families of video models with **fundamentally different FPS
 - **Premium Spark-only** billing and provider-owned fixed frame rates: Seedance/Happy Horse use 24fps, while Wan 3 uses 30fps. All can produce native audio; Wan 3 also supports silent output.
 - No local diffusion steps — progress is provider/ETA-derived (still a finite 0-100). Results can arrive as direct hosted URLs, preserved on `job.resultUrl` / `job.getResultUrl()`.
 - **Seedance** accepts image + video + audio references (up to 9 / 3 / 3, 12 total) via `referenceImage*` / `referenceImageUrls` / `referenceVideoUrls` / `referenceAudioUrls`. **Happy Horse** accepts **image-only** references (r2v takes 1-9 images via `referenceImage` / `referenceImageUrls`).
-- **Wan 3** is one fixed-30fps model for 2-30s T2V/I2V/FLF/R2V/A2V/V2V. It accepts up to 10 loose images, 5 videos, and 5 audios, but native frame mode cannot mix with loose references.
+- **Wan 3** is one fixed-30fps model for 2-30s T2V/I2V/FLF/R2V/A2V/IA2V generation. It accepts up to 10 loose images, 5 videos, and 5 audios, but native frame mode cannot mix with loose references. Video inputs are loose conditioning, not provider-backed edit/extend tasks.
 - Family predicates: `isSeedanceModel()`, `isHappyhorseModel()`, `isExternalApiVideoModel()` in `src/Projects/utils/index.ts`.
 
 ### Key Files

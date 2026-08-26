@@ -64,11 +64,10 @@ if (generateVideoModel) {
   ];
 }
 
-// Wan 3 ships as one exact selector across all supported video workflows.
-// Keep the SDK tool surface usable before and after the matching protocol
-// package release; Set de-duplication makes the overlay disappear harmlessly
-// once the canonical manifest contains the same value.
-for (const toolName of ['animate_photo', 'sound_to_video', 'video_to_video']) {
+// Wan 3 ships as one exact selector across its supported generation workflows.
+// Video references are loose conditioning through generate_video; the provider
+// has no video-to-video edit/extend task mode.
+for (const toolName of ['animate_photo', 'sound_to_video']) {
   const tool = manifest.tools?.find((candidate) => candidate?.function?.name === toolName);
   const model = tool?.function?.parameters?.properties?.videoModel;
   if (!model) continue;
