@@ -700,15 +700,13 @@ assert.throws(
     ),
   /at most 3 uploaded reference videos \(got 4\)/
 );
-assert.throws(
-  () =>
-    createJobRequestMessage(
-      'h3-r2v-missing-duration',
-      { ...minimaxH3R2vParams, referenceVideo: true },
-      minimaxH3Options
-    ),
-  /referenceVideoDurations must contain one entry for each uploaded reference video \(expected 1\)/
+const minimaxH3R2vWithoutDurationHint = createJobRequestMessage(
+  'h3-r2v-missing-duration',
+  { ...minimaxH3R2vParams, referenceVideo: true },
+  minimaxH3Options
 );
+assert.equal(minimaxH3R2vWithoutDurationHint.keyFrames[0].hasReferenceVideo1, true);
+assert.equal(minimaxH3R2vWithoutDurationHint.keyFrames[0].referenceVideo1DurationSeconds, undefined);
 assert.throws(
   () =>
     createJobRequestMessage(

@@ -814,7 +814,7 @@ When creating video projects, you can specify:
 - `seed` - Random seed for reproducibility
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
 - `referenceVideo` - Reference video for animate and v2v workflows
-- `referenceVideoDurations` - Required MiniMax H3 r2v durations in `[referenceVideo, ...referenceVideos]` order for the preflight quote and submitted job pricing
+- `referenceVideoDurations` - Optional MiniMax H3 r2v duration hints in `[referenceVideo, ...referenceVideos]` order for early client-side validation; Socket probes the uploaded files and uses measured durations for pricing and admission
 - `referenceAudio` - Reference audio for sound-to-video workflow
 - `referenceImageUrls` - Loose image context URLs for Seedance, Happy Horse, and Wan 3; Wan 3 accepts up to 10
 - `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5

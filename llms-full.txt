@@ -970,9 +970,11 @@ type). Because it renders on a Sogni worker rather than at a vendor, every artis
 reference uses the normal S3 upload path: `referenceImage` + `contextImages` for
 images, `referenceVideo` + `referenceVideos` for videos, and `referenceAudio` +
 `referenceAudios` for audio. Direct URL arrays are rejected. Optional
-`referenceVideoDurations` is required when videos are present and uses matching
-order; each duration must be 2-15 seconds and all videos may total at most 15
-seconds. The values drive both the preflight quote and submitted job pricing. At least one
+`referenceVideoDurations` is optional early-validation metadata in matching
+video order. When supplied, each hint must be 2-15 seconds and all hints may
+total at most 15 seconds; omission never blocks submission. Socket probes every
+uploaded video, overwrites caller claims, and uses measured durations for
+pricing and admission. At least one
 visual reference (image or video) is required; audio alone is rejected.
 
 Ref2VA uses six sections in exact order: `subject_definitions`, `summary`,
@@ -1723,7 +1725,7 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceAudios?: (File | Buffer | Blob)[];  // MiniMax H3 r2v audio references 2-3
   referenceVideo?: File | Buffer | Blob;
   referenceVideos?: (File | Buffer | Blob)[];  // MiniMax H3 r2v video references 2-3
-  referenceVideoDurations?: number[];  // Required with H3 r2v videos for quote and job pricing
+  referenceVideoDurations?: number[];  // Optional H3 r2v preflight hints; Socket measures uploaded videos authoritatively
   contextImages?: (File | Buffer | Blob)[];  // MiniMax H3 r2v reference images 2-9
   referenceImageUrls?: string[];  // Seedance and HappyHorse only
   referenceVideoUrls?: string[];  // Seedance only

@@ -303,13 +303,9 @@ function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {
 
   const references = countMinimaxH3References(params);
   const referenceVideoDurations = params.referenceVideoDurations;
-  if (references.videos > 0 && referenceVideoDurations === undefined) {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: `MiniMax H3 r2v referenceVideoDurations must contain one entry for each uploaded reference video (expected ${references.videos}).`
-    });
-  }
+  // Duration hints are optional client-side preflight metadata. When present,
+  // validate them early; when omitted, Socket probes the uploaded media and
+  // overwrites any claimed values before pricing and admission.
   if (referenceVideoDurations !== undefined) {
     if (
       !Array.isArray(referenceVideoDurations) ||

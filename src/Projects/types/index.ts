@@ -487,13 +487,14 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceVideos?: InputMedia[];
   /**
-   * Exact durations, in seconds, for the uploaded MiniMax H3 r2v videos in
+   * Optional duration hints, in seconds, for uploaded MiniMax H3 r2v videos in
    * `[referenceVideo, ...referenceVideos]` order.
    *
-   * Required when the uploaded video list is non-empty. The array must have the
-   * same length as that list; each clip must be 2-15 seconds and all clips
-   * together may total at most 15 seconds. The same ordered values are used for
-   * the preflight quote and submitted job pricing.
+   * When supplied, the array must have the same length as that list; each clip
+   * must be 2-15 seconds and all clips together may total at most 15 seconds.
+   * These values enable early client-side validation only. Socket probes the
+   * uploaded files, overwrites caller claims, and uses measured durations for
+   * pricing and job admission. Omit this field when duration is unavailable.
    */
   referenceVideoDurations?: number[];
   /**
