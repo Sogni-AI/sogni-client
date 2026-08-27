@@ -1,3 +1,10 @@
+## [5.21.4](https://github.com/Sogni-AI/sogni-client/compare/v5.21.3...v5.21.4) (2026-08-27)
+
+
+### Bug Fixes
+
+* **video:** make H3 duration hints optional ([e2d1870](https://github.com/Sogni-AI/sogni-client/commit/e2d1870a4c663069a935d4b0204d15ef69f9d179))
+
 ## [5.21.3](https://github.com/Sogni-AI/sogni-client/compare/v5.21.2...v5.21.3) (2026-08-26)
 
 
