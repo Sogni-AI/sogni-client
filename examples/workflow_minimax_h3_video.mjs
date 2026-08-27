@@ -107,6 +107,7 @@ const streamPipeline = promisify(pipeline);
 const execFileAsync = promisify(execFile);
 
 const MODES = ['t2v', 'i2v', 'flf2v', 'r2v'];
+const SOURCE_AUDIO_POLICIES = new Set(['reuse', 'reference', 'replace']);
 
 // Shipped canvas presets. Both are 1032192 pixels exactly, which is the cap.
 const RESOLUTION_PRESETS = {
@@ -227,6 +228,7 @@ function r2vPromptForReferences(references = {}) {
   const soundtrackedVideoIndices = [...new Set(references.soundtrackedVideoIndices ?? [])]
     .filter((index) => Number.isInteger(index) && index >= 1 && index <= reportedVideos)
     .sort((a, b) => a - b);
+  const sourceAudioPolicy = references.sourceAudioPolicy ?? 'reference';
   const soundtrackOrdinalByVideo = new Map(
     soundtrackedVideoIndices.map((videoIndex, audioIndex) => [videoIndex, audioIndex + 1])
   );
@@ -258,22 +260,40 @@ function r2vPromptForReferences(references = {}) {
     );
     const soundtrackOrdinal = soundtrackOrdinalByVideo.get(index);
     if (soundtrackOrdinal) {
-      subjectDefinitions.push(
-        `<Audio ${soundtrackOrdinal}> is the synchronized soundtrack from <Video ${index}>; its ambience, rhythm, and sound texture guide the target audio without copying the original signal.`
-      );
-      retention.push(
-        `<Audio ${soundtrackOrdinal}>: reference - its ambience, rhythm, and sound texture guide the target audio without copying the original signal.`
-      );
+      if (sourceAudioPolicy === 'reuse') {
+        subjectDefinitions.push(
+          `<Audio ${soundtrackOrdinal}> is the immutable synchronized soundtrack from <Video ${index}> and is reused directly as the complete target soundtrack.`
+        );
+        retention.push(
+          `<Audio ${soundtrackOrdinal}>: fully_copy - reuse the complete synchronized signal unchanged; do not generate, substitute, remix, or retime it.`
+        );
+      } else {
+        subjectDefinitions.push(
+          `<Audio ${soundtrackOrdinal}> is the synchronized soundtrack from <Video ${index}>; its ambience, rhythm, and sound texture guide the target audio without copying the original signal.`
+        );
+        retention.push(
+          `<Audio ${soundtrackOrdinal}>: ${sourceAudioPolicy === 'replace' ? 'weak_reference' : 'reference'} - ${sourceAudioPolicy === 'replace' ? 'the source signal is deliberately not reused because the caller explicitly selected replacement audio' : 'its ambience, rhythm, and sound texture guide the target audio without copying the original signal'}.`
+        );
+      }
     }
   }
   for (let index = 1; index <= reportedAudios; index++) {
     const audioOrdinal = soundtrackedVideoIndices.length + index;
-    subjectDefinitions.push(
-      `<Audio ${audioOrdinal}> is a voice-timbre and measured-delivery reference for <Subject 1> (S1); its original signal and spoken words are not copied.`
-    );
-    retention.push(
-      `<Audio ${audioOrdinal}>: reference - its voice timbre and measured delivery guide the performance without copying the original signal or words.`
-    );
+    if (sourceAudioPolicy === 'reuse') {
+      subjectDefinitions.push(
+        `<Audio ${audioOrdinal}> is immutable source audio and is reused directly as part of the complete target soundtrack.`
+      );
+      retention.push(
+        `<Audio ${audioOrdinal}>: fully_copy - reuse the complete signal unchanged; do not generate, substitute, remix, or retime it.`
+      );
+    } else {
+      subjectDefinitions.push(
+        `<Audio ${audioOrdinal}> is a voice-timbre and measured-delivery reference for <Subject 1> (S1); its original signal and spoken words are not copied.`
+      );
+      retention.push(
+        `<Audio ${audioOrdinal}>: ${sourceAudioPolicy === 'replace' ? 'weak_reference' : 'reference'} - ${sourceAudioPolicy === 'replace' ? 'the source signal is deliberately not reused because the caller explicitly selected replacement audio' : 'its voice timbre and measured delivery guide the performance without copying the original signal or words'}.`
+      );
+    }
   }
 
   const environmentSubject = imageCount >= 2 ? ' The setting follows <Subject 2>.' : '';
@@ -285,10 +305,21 @@ function r2vPromptForReferences(references = {}) {
     reportedAudios > 0
       ? ` Her close, measured delivery references <Audio ${soundtrackedVideoIndices.length + 1}> without copying its original signal or words.`
       : '';
-  const taskTypes =
-    reportedAudios + soundtrackedVideoIndices.length > 0
-      ? 'reference generation + audio reference'
-      : 'reference generation';
+  const hasSourceAudio = reportedAudios + soundtrackedVideoIndices.length > 0;
+  const sourceAudioLabels = Array.from(
+    { length: reportedAudios + soundtrackedVideoIndices.length },
+    (_, index) => `<Audio ${index + 1}>`
+  ).join(', ');
+  const taskTypes = hasSourceAudio
+    ? sourceAudioPolicy === 'reuse'
+      ? 'reference generation + audio reuse'
+      : sourceAudioPolicy === 'reference'
+        ? 'reference generation + audio reference'
+        : 'reference generation'
+    : 'reference generation';
+  const musicDirection = hasSourceAudio && sourceAudioPolicy === 'reuse'
+    ? `Directly reuse ${sourceAudioLabels} as the complete target soundtrack, unchanged and in its original timing. Generate no replacement music.`
+    : 'Sparse upright-bass notes at a slow tempo enter after 00:06.000 and remain low beneath the final shot.';
 
   return `subject_definitions:
 ${subjectDefinitions.join('\n')}
@@ -309,7 +340,7 @@ overall_soundscape:
 Low record-store room tone continues beneath steady rain against the front window. Paper sleeves rustle, vinyl touches the platter, the tonearm mechanism clicks, faint surface noise emerges from the speakers, and shoes move softly across the wooden floor.
 
 non_diegetic_music:
-Sparse upright-bass notes at a slow tempo enter after 00:06.000 and remain low beneath the final shot.`;
+${musicDirection}`;
 }
 
 /**
@@ -384,6 +415,27 @@ async function detectSoundtrackedReferenceVideos(videoPaths) {
     }
   }
   return detected;
+}
+
+/** Return the first video stream's measured average frame rate. */
+async function getVideoFrameRate(videoPath) {
+  const { stdout } = await execFileAsync(
+    'ffprobe',
+    [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=avg_frame_rate',
+      '-of',
+      'default=noprint_wrappers=1:nokey=1',
+      videoPath
+    ],
+    { encoding: 'utf8' }
+  );
+  const [numerator, denominator = '1'] = stdout.trim().split('/').map(Number);
+  return denominator ? numerator / denominator : Number.NaN;
 }
 
 // ============================================
@@ -462,7 +514,7 @@ function fieldsAppearInOrder(prompt, fields) {
 }
 
 function fieldValue(prompt, name) {
-  return new RegExp(`^${name}:[ \\t]*([\\s\\S]*?)(?=^[a-z][a-z0-9_]*:|$)`, 'm')
+  return new RegExp(`^${name}:[ \\t]*([\\s\\S]*?)(?=^[a-z][a-z0-9_]*:|(?![\\s\\S]))`, 'm')
     .exec(prompt)?.[1]?.trim() ?? '';
 }
 
@@ -474,6 +526,51 @@ const REF2VA_TASK_TYPES = new Set([
   'audio reuse',
   'audio reference'
 ]);
+
+/**
+ * Enforce the caller's typed source-audio decision. Natural-language prompt
+ * review is not authoritative enough for this choice: a soundtracked reference
+ * must be deliberately reused, treated as a loose reference, or replaced.
+ *
+ * @param {string} prompt - Complete Ref2VA prompt
+ * @param {string|null} policy - reuse, reference, or replace
+ * @param {number} audioCount - Number of presented <Audio N> sources
+ * @returns {string[]} Blocking contract errors
+ */
+function validateSourceAudioPolicy(prompt, policy, audioCount) {
+  if (!policy || audioCount < 1) return [];
+  const errors = [];
+  const summary = fieldValue(prompt, 'summary');
+  const retention = fieldValue(prompt, 'retention_analysis');
+  const music = fieldValue(prompt, 'non_diegetic_music');
+  const taskPrefix = /^\[([^\]\n]+)\]/.exec(summary);
+  const tasks = taskPrefix ? taskPrefix[1].split(' + ') : [];
+
+  if (policy === 'reuse') {
+    if (!tasks.includes('audio reuse')) {
+      errors.push('Source-audio policy reuse requires the official "audio reuse" summary task.');
+    }
+    for (let index = 1; index <= audioCount; index++) {
+      if (!new RegExp(`<Audio ${index}>\\s*:\\s*fully_copy\\b`).test(retention)) {
+        errors.push(`Source-audio policy reuse requires <Audio ${index}>: fully_copy in retention_analysis.`);
+      }
+      if (!music.includes(`<Audio ${index}>`)) {
+        errors.push(`Source-audio policy reuse requires non_diegetic_music to name <Audio ${index}> directly.`);
+      }
+    }
+  } else if (policy === 'reference') {
+    if (!tasks.includes('audio reference')) {
+      errors.push('Source-audio policy reference requires the official "audio reference" summary task.');
+    }
+    for (let index = 1; index <= audioCount; index++) {
+      if (!new RegExp(`<Audio ${index}>\\s*:\\s*(?:reference|weak_reference)\\b`).test(retention)) {
+        errors.push(`Source-audio policy reference requires <Audio ${index}> to use reference or weak_reference in retention_analysis.`);
+      }
+    }
+  }
+
+  return errors;
+}
 
 /**
  * Review a prompt and return advisory warnings.
@@ -746,6 +843,7 @@ function parseArgs() {
     interactive: true,
     printPrompt: false,
     generateAudio: true,
+    sourceAudioPolicy: null,
     disableSafeContentFilter: false,
     billingMode: defaultBillingMode()
   };
@@ -783,6 +881,13 @@ function parseArgs() {
       options.refVideos.push(args[++i]);
     } else if (arg === '--ref-audio' && args[i + 1]) {
       options.refAudios.push(args[++i]);
+    } else if (arg === '--source-audio-policy' && args[i + 1]) {
+      const policy = args[++i].trim().toLowerCase();
+      if (!SOURCE_AUDIO_POLICIES.has(policy)) {
+        console.error('Error: --source-audio-policy must be reuse, reference, or replace.');
+        process.exit(1);
+      }
+      options.sourceAudioPolicy = policy;
     } else if (arg === '--prompt-file' && args[i + 1]) {
       options.promptFile = args[++i];
     } else if (arg === '--width' && args[i + 1]) {
@@ -872,6 +977,11 @@ Options:
   --ref-image <path>      Reference image (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES})
   --ref-video <path>      Reference video (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_VIDEOS})
   --ref-audio <path>      Reference audio (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_AUDIOS})
+  --source-audio-policy <reuse|reference|replace>
+                          Required when r2v receives source audio. "reuse" copies
+                          the source signal and remuxes it into the final file;
+                          "reference" guides newly generated audio; "replace"
+                          explicitly authorizes a new soundtrack.
   --prompt-file <path>    Read the prompt from a file instead of using the example
   --portrait              Use the 768x1344 preset instead of 1344x768
   --width <px>            Custom width, multiple of 32
@@ -927,7 +1037,16 @@ Multi-reference video (--mode r2v):
   takes an <Audio N> ordinal before standalone --ref-audio clips. This example
   probes the files with ffprobe so its generated prompt uses the worker's exact
   numbering. Reference videos are read as 24fps; a clip at another frame rate
-  plays back time-distorted.
+  plays back time-distorted. This runner rejects non-24fps references before
+  estimating cost; normalize the clip to 24fps while preserving its timeline.
+
+  Source audio is never assigned an implicit creative role. When any reference
+  video has a soundtrack or --ref-audio is present, choose
+  --source-audio-policy. Use reuse for a specific/original/trending song or any
+  soundtrack the user says must remain unchanged. It requires audio reuse plus
+  fully_copy in the Context-IR and stream-copies the selected source audio into
+  the downloaded result. Use reference only when the user explicitly wants a
+  new signal guided by the source; replace is the explicit opt-in for new audio.
 
   Ref2VA requires these six sections in exact order:
 
@@ -1178,6 +1297,40 @@ async function main() {
 
   const soundtrackedVideoIndices =
     OPTIONS.mode === 'r2v' ? await detectSoundtrackedReferenceVideos(OPTIONS.refVideos) : [];
+  const sourceAudioCount = soundtrackedVideoIndices.length + OPTIONS.refAudios.length;
+  if (OPTIONS.sourceAudioPolicy && sourceAudioCount === 0) {
+    console.error(
+      'Error: --source-audio-policy was set, but no soundtracked --ref-video or --ref-audio source is attached.'
+    );
+    process.exit(1);
+  }
+  if (sourceAudioCount > 0 && !OPTIONS.sourceAudioPolicy) {
+    if (!OPTIONS.interactive || !process.stdin.isTTY) {
+      console.error(
+        'Error: source audio is attached. Set --source-audio-policy to reuse, reference, or replace. ' +
+          'Use reuse for a specific/original/trending song or any soundtrack that must remain unchanged.'
+      );
+      process.exit(1);
+    }
+    console.log('\nSource audio requires an explicit policy:');
+    console.log('  1. reuse      Keep the exact source soundtrack (specific/original song)');
+    console.log('  2. reference  Generate new audio guided by the source');
+    console.log('  3. replace    Generate a deliberately different soundtrack');
+    const policyChoice = (await askQuestion('Choose source-audio policy [1/2/3]: ')).trim();
+    OPTIONS.sourceAudioPolicy =
+      policyChoice === '1' ? 'reuse' : policyChoice === '2' ? 'reference' : policyChoice === '3' ? 'replace' : null;
+    if (!OPTIONS.sourceAudioPolicy) {
+      console.error('Error: choose 1, 2, or 3; source audio cannot be assigned an implicit role.');
+      process.exit(1);
+    }
+  }
+  if (OPTIONS.sourceAudioPolicy === 'reuse' && sourceAudioCount !== 1) {
+    console.error(
+      `Error: --source-audio-policy reuse requires exactly one source soundtrack; found ${sourceAudioCount}. ` +
+        'Use one immutable soundtrack so the final exact-audio remux cannot select the wrong source.'
+    );
+    process.exit(1);
+  }
 
   // Prompt
   if (OPTIONS.promptFile) {
@@ -1197,7 +1350,8 @@ async function main() {
           images: OPTIONS.refImages.length,
           videos: OPTIONS.refVideos.length,
           audios: OPTIONS.refAudios.length,
-          soundtrackedVideoIndices
+          soundtrackedVideoIndices,
+          sourceAudioPolicy: OPTIONS.sourceAudioPolicy
         },
         framePromptMode
       ),
@@ -1212,7 +1366,8 @@ async function main() {
         images: OPTIONS.refImages.length,
         videos: OPTIONS.refVideos.length,
         audios: OPTIONS.refAudios.length,
-        soundtrackedVideoIndices
+        soundtrackedVideoIndices,
+        sourceAudioPolicy: OPTIONS.sourceAudioPolicy
       },
       framePromptMode
     );
@@ -1235,6 +1390,11 @@ async function main() {
     videos: OPTIONS.refVideos.length,
     audios: OPTIONS.refAudios.length + soundtrackedVideoIndices.length
   });
+  const sourceAudioErrors = validateSourceAudioPolicy(
+    OPTIONS.prompt,
+    OPTIONS.sourceAudioPolicy,
+    sourceAudioCount
+  );
 
   if (OPTIONS.printPrompt) {
     console.log(
@@ -1248,7 +1408,19 @@ async function main() {
     } else {
       console.log('\n✓ Prompt review found nothing to flag.');
     }
+    if (sourceAudioErrors.length) {
+      console.error('\n❌ Source-audio contract:');
+      sourceAudioErrors.forEach((error) => console.error(`   - ${error}`));
+      process.exit(1);
+    }
     process.exit(0);
+  }
+
+  if (sourceAudioErrors.length) {
+    console.error('\n❌ Source-audio contract:');
+    sourceAudioErrors.forEach((error) => console.error(`   - ${error}`));
+    console.error('Generation stopped before estimating cost or submitting a paid job.\n');
+    process.exit(1);
   }
 
   if (promptWarnings.length) {
@@ -1398,6 +1570,16 @@ async function main() {
             `Reference video ${index + 1} is ${durationSeconds.toFixed(3)}s; MiniMax H3 requires each reference video to be 2-15 seconds.`
           );
         }
+        const frameRate = await getVideoFrameRate(path);
+        if (!Number.isFinite(frameRate)) {
+          throw new Error(`Could not measure reference video ${index + 1} frame rate with ffprobe.`);
+        }
+        if (Math.abs(frameRate - MINIMAX_H3_FPS) > 0.001) {
+          throw new Error(
+            `Reference video ${index + 1} is ${frameRate.toFixed(3)}fps; MiniMax H3 Ref2VA requires exactly ${MINIMAX_H3_FPS}fps. ` +
+              'Normalize the reference to 24fps without changing its duration before submitting; otherwise choreography and soundtrack timing drift.'
+          );
+        }
         referenceVideoDurations.push(durationSeconds);
       }
       const totalReferenceVideoDuration = referenceVideoDurations.reduce(
@@ -1454,7 +1636,10 @@ async function main() {
       'Comfy Sampler': OPTIONS.sampler,
       'Comfy Scheduler': OPTIONS.scheduler,
       Audio: OPTIONS.generateAudio ? 'included' : 'not included in the returned video',
-      'Audio source': 'native 32kHz stereo, generated jointly',
+      'Source-audio policy': OPTIONS.sourceAudioPolicy || 'no source audio',
+      'Audio source': OPTIONS.sourceAudioPolicy === 'reuse'
+        ? 'source signal requested in Context-IR; exact source stream remuxed after render'
+        : 'native 32kHz stereo, generated jointly',
       Batch: OPTIONS.batch,
       Seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
       Billing: billingModeLabel(OPTIONS.billingMode),
@@ -1746,13 +1931,27 @@ async function main() {
           );
 
           downloadVideo(event.resultUrl, outputPath)
-            .then(() => {
+            .then(async () => {
+              let generatedAudioBackup = null;
+              if (OPTIONS.sourceAudioPolicy === 'reuse') {
+                const sourceAudioPath = soundtrackedVideoIndices.length > 0
+                  ? OPTIONS.refVideos[soundtrackedVideoIndices[0] - 1]
+                  : OPTIONS.refAudios[0];
+                generatedAudioBackup = await replaceWithExactSourceAudio(
+                  outputPath,
+                  sourceAudioPath
+                );
+              }
               completedVideos++;
               log(
                 '✓',
                 `${label}Video completed (${jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?'}s)`
               );
               log('💾', `Saved: ${outputPath}`);
+              if (generatedAudioBackup) {
+                log('🔒', 'Exact source soundtrack stream-copied into the final video');
+                log('💾', `Model-generated-audio backup: ${generatedAudioBackup}`);
+              }
               openVideo(outputPath);
               jobStates.delete(jobId);
               checkWorkflowCompletion();
@@ -1873,6 +2072,63 @@ async function downloadVideo(url, outputPath) {
   }
   const fileStream = fs.createWriteStream(outputPath);
   await streamPipeline(response.body, fileStream);
+}
+
+/**
+ * Replace H3's generated audio with the immutable source stream. Context-IR
+ * `audio reuse` asks the model to copy the signal, but the final deliverable
+ * must not depend on a generative model reproducing a specific song exactly.
+ * The original generated-audio file is retained beside the final output.
+ */
+async function replaceWithExactSourceAudio(outputPath, sourceAudioPath) {
+  if (!sourceAudioPath) {
+    throw new Error('Source-audio policy reuse could not resolve an input audio stream.');
+  }
+  const extensionMatch = /(\.[^./]+)$/.exec(outputPath);
+  const extension = extensionMatch?.[1] ?? '.mp4';
+  const stem = extensionMatch ? outputPath.slice(0, -extension.length) : outputPath;
+  const remuxedPath = `${stem}.source-audio-${process.pid}${extension}`;
+  const backupPath = getUniqueFilename(`${stem}-generated-audio${extension}`);
+  const videoDuration = await getVideoDuration(outputPath);
+  if (!Number.isFinite(videoDuration) || videoDuration <= 0) {
+    throw new Error('Could not measure the generated video duration before source-audio remux.');
+  }
+
+  try {
+    await execFileAsync('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      outputPath,
+      '-i',
+      sourceAudioPath,
+      '-map',
+      '0:v:0',
+      '-map',
+      '1:a:0',
+      '-c:v',
+      'copy',
+      '-c:a',
+      'copy',
+      '-t',
+      String(videoDuration),
+      '-movflags',
+      '+faststart',
+      remuxedPath
+    ]);
+    fs.renameSync(outputPath, backupPath);
+    try {
+      fs.renameSync(remuxedPath, outputPath);
+    } catch (error) {
+      fs.renameSync(backupPath, outputPath);
+      throw error;
+    }
+    return backupPath;
+  } finally {
+    if (fs.existsSync(remuxedPath)) fs.unlinkSync(remuxedPath);
+  }
 }
 
 /**

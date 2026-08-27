@@ -67,6 +67,7 @@
     "test:video-estimates": "npm run build && node scripts/check-video-estimates.cjs",
     "test:seedance-task-type": "npm run build && node scripts/check-seedance-task-type.cjs && node scripts/check-seedance-r2v-example.cjs",
     "test:wan3-video": "npm run build && node scripts/check-wan3-video.cjs",
+    "test:minimax-h3-audio-policy": "node scripts/check-minimax-h3-source-audio-policy.cjs",
     "test:lora-catalog": "npm run build && node scripts/check-lora-catalog.cjs",
     "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
     "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",
