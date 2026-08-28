@@ -1378,7 +1378,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       token: r.quote.project.costInToken,
       usd: r.quote.project.costInUSD,
       spark: r.quote.project.costInSpark,
-      sogni: r.quote.project.costInSogni
+      sogni: r.quote.project.costInSogni,
+      estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
+      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec
     };
   }
 
@@ -1479,7 +1481,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       token: r.quote.project.costInToken,
       usd: r.quote.project.costInUSD,
       spark: r.quote.project.costInSpark,
-      sogni: r.quote.project.costInSogni
+      sogni: r.quote.project.costInSogni,
+      estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
+      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec
     };
   }
 
@@ -1510,7 +1514,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       token: r.quote.project.costInToken,
       usd: r.quote.project.costInUSD,
       spark: r.quote.project.costInSpark,
-      sogni: r.quote.project.costInSogni
+      sogni: r.quote.project.costInSogni,
+      estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
+      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec
     };
   }
 

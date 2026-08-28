@@ -934,6 +934,20 @@ export interface CostEstimation {
   spark: string;
   /** Cost in Sogni tokens */
   sogni: string;
+  /**
+   * Live-benchmarked render time in seconds for a single unit of work (one
+   * image, one video, or one audio track), from the server's rolling sample
+   * window for this exact model/settings combination. Undefined when the
+   * server has no benchmark data yet — omit rather than guess.
+   */
+  estimatedRenderSeconds?: number;
+  /**
+   * `estimatedRenderSeconds` plus the current average queue wait for this
+   * model/network, when a wait benchmark exists. The more complete "time
+   * until this is ready" figure; falls back to render-only time when no
+   * wait benchmark is available.
+   */
+  estimatedTotalSeconds?: number;
 }
 
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';

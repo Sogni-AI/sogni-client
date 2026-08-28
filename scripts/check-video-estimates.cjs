@@ -19,11 +19,19 @@ class SocketStub extends EventEmitter {
     this.paths.push(path);
     return {
       quote: {
+        job: {
+          costInToken: '1',
+          costInUSD: '0.01',
+          costInSpark: '2',
+          costInSogni: '3',
+          costInRenderSec: '8'
+        },
         project: {
           costInToken: '1',
           costInUSD: '0.01',
           costInSpark: '2',
-          costInSogni: '3'
+          costInSogni: '3',
+          costInRenderSec: '8'
         }
       }
     };
