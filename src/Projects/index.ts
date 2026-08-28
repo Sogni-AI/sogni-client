@@ -16,14 +16,24 @@ import {
 } from './types/index.js';
 import {
   type ArtistCancelConfirmation,
+  type AuthenticatedData,
   JobErrorData,
   JobETAData,
   JobProgressData,
   JobResultData,
   JobStateData,
+  type ProjectRecoverySnapshot,
+  type RecoveredProject,
+  type RecoveredWorkerJob,
   SocketEventMap
 } from '../ApiClient/WebSocketClient/events.js';
 import Project from './Project.js';
+import {
+  PROJECT_LOST_ERROR,
+  isLLMRecoveredProject,
+  isRecoveredJobFinished,
+  projectParamsFromRecoveredProject
+} from './recovery.js';
 import createJobRequestMessage from './createJobRequestMessage.js';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import { EstimationResponse } from './types/EstimationResponse.js';
@@ -33,7 +43,14 @@ import {
   LoraCatalogEntry,
   LoraConstraints
 } from './types/LoraCatalog.js';
-import { JobEvent, ProjectApiEvents, ProjectEvent } from './types/events.js';
+import {
+  type CompletedRecoveredProject,
+  JobEvent,
+  ProjectApiEvents,
+  ProjectEvent,
+  type ProjectSyncReason,
+  type ProjectSyncResult
+} from './types/events.js';
 import getUUID from '../lib/getUUID.js';
 import { RawProject } from './types/RawProject.js';
 import ErrorData from '../types/ErrorData.js';
@@ -210,11 +227,61 @@ function getAudioContentType(project: Project): string {
   }
 }
 
+/**
+ * How long after `connected` to wait for the server's `authenticated` frame
+ * before pulling the recovery snapshot over HTTP instead. The primary socket
+ * gets the frame within milliseconds; a tab sharing that socket only ever sees
+ * a replayed `connected`.
+ */
+const AUTHENTICATED_GRACE_MS = 1500;
+/**
+ * A project this client created moments before a sync cannot be expected in
+ * the snapshot yet (the request may still be in flight), so it is not treated
+ * as missing.
+ */
+const RECENTLY_CREATED_GRACE_MS = 5000;
+/** Retries for the REST lookup of a project the socket no longer lists. */
+const MISSING_PROJECT_ATTEMPTS = 4;
+const MISSING_PROJECT_RETRY_MS = 2500;
+
+/**
+ * Outcome of looking up a project the last snapshot did not list.
+ *
+ * - `finished`: the REST API has the completed record.
+ * - `active`: the socket lists it after all (it was registered after the
+ *   snapshot was taken); wait for live events.
+ * - `lost`: neither the socket nor the REST API know it.
+ * - `unknown`: a transport error prevented a verdict; nothing was changed.
+ */
+export type ProjectResolution =
+  | { state: 'finished'; project: RawProject }
+  | { state: 'active' }
+  | { state: 'lost' }
+  | { state: 'unknown'; error: unknown };
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
   private _currentNetworkType: SupernetType | null = null;
   private projects: Project[] = [];
   private cancellationRequests = new Map<string, Promise<void>>();
+  private transportDisconnected = false;
+  private _connectedAt = 0;
+  private _authenticatedTimer: ReturnType<typeof setTimeout> | null = null;
+  private _syncChain: Promise<unknown> = Promise.resolve();
+  private _recoveredCompletedIds = new Set<string>();
+  /**
+   * Recovery timings. Overridable so regression scripts can run the flow in
+   * milliseconds instead of seconds.
+   * @internal
+   */
+  _recoveryTuning = {
+    authenticatedGraceMs: AUTHENTICATED_GRACE_MS,
+    recentlyCreatedGraceMs: RECENTLY_CREATED_GRACE_MS,
+    missingProjectAttempts: MISSING_PROJECT_ATTEMPTS,
+    missingProjectRetryMs: MISSING_PROJECT_RETRY_MS
+  };
   private _supportedModels: { data: SupportedModel[] | null; updatedAt: Date } = {
     data: null,
     updatedAt: new Date(0)
@@ -274,9 +341,22 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     // Listen to the server disconnect event
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
+    this.client.on('connected', this.handleServerConnected.bind(this));
+    this.client.socket.on('authenticated', (data: AuthenticatedData) => {
+      this.handleSocketAuthenticated(data);
+    });
     // Listen to project and job events and update project and job instances
     this.on('project', this.handleProjectEvent.bind(this));
     this.on('job', this.handleJobEvent.bind(this));
+  }
+
+  /**
+   * Internal timeout guard for `Project` instances. A transport gap is not a
+   * generation failure: the server keeps rendering while the socket is down.
+   * @internal
+   */
+  _shouldDeferProjectTimeouts() {
+    return this.transportDisconnected;
   }
 
   /**
@@ -718,11 +798,360 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private handleServerDisconnected() {
+    this.transportDisconnected = true;
+    this._clearAuthenticatedTimer();
     this._availableModels = [];
     this.emit('availableModels', this._availableModels);
+    // A transport gap is not a project failure. The server keeps rendering and
+    // hands the project back on reconnect (same app-id), so keep the tracked
+    // projects alive and quiet until then.
     this.projects.forEach((p) => {
-      p._update({ status: 'failed', error: { code: 0, message: 'Server disconnected' } });
+      if (!p.finished) p._keepAlive();
     });
+  }
+
+  private handleServerConnected() {
+    this.transportDisconnected = false;
+    this._connectedAt = Date.now();
+    this.projects.forEach((p) => {
+      if (!p.finished) p._keepAlive();
+    });
+    // The socket that authenticated receives `authenticated` right away; a tab
+    // sharing that socket only sees the replayed `connected`. If no frame
+    // arrives shortly, pull the snapshot instead.
+    this._clearAuthenticatedTimer();
+    this._authenticatedTimer = setTimeout(() => {
+      this._authenticatedTimer = null;
+      this.sync('connected').catch((error) => {
+        this.client.logger.warn('Project sync after connect failed', error);
+      });
+    }, this._recoveryTuning.authenticatedGraceMs);
+  }
+
+  private _clearAuthenticatedTimer() {
+    if (this._authenticatedTimer) {
+      clearTimeout(this._authenticatedTimer);
+      this._authenticatedTimer = null;
+    }
+  }
+
+  private handleSocketAuthenticated(data: AuthenticatedData) {
+    this._clearAuthenticatedTimer();
+    if (data?.clientType && data.clientType !== 'artist') return;
+    const snapshot: ProjectRecoverySnapshot = {
+      activeProjects: Array.isArray(data?.activeProjects) ? data.activeProjects : [],
+      unclaimedCompletedProjects: Array.isArray(data?.unclaimedCompletedProjects)
+        ? data.unclaimedCompletedProjects
+        : []
+    };
+    this._queueSync(snapshot, 'authenticated', this._connectedAt || Date.now()).catch((error) => {
+      this.client.logger.error('Project recovery after authentication failed', error);
+    });
+  }
+
+  /**
+   * Reconcile this client's projects with the server.
+   *
+   * Pulls the recovery snapshot (`GET /api/v1/artist/projects/sync` on the
+   * socket host, scoped to this app-id) and replays whatever this client
+   * missed: in-flight projects get their current job states, projects that
+   * finished while away get their results, projects the server no longer knows
+   * are looked up on the REST API and failed if nothing was recorded.
+   * Projects the server knows but this client does not are rebuilt and
+   * tracked (see {@link Project.recovered}).
+   *
+   * The SDK calls this on its own after every reconnect (using the
+   * `authenticated` frame when it has one). Call it manually after a
+   * foreground/online transition or when a consumer restores its own state.
+   * Results are also broadcast as the `projectsSynced` event.
+   */
+  async sync(reason: ProjectSyncReason = 'manual'): Promise<ProjectSyncResult> {
+    const requestedAt = Date.now();
+    const body = await this.client.socket.get<ProjectRecoverySnapshot>(
+      '/api/v1/artist/projects/sync',
+      { appId: this.client.appId }
+    );
+    const snapshot: ProjectRecoverySnapshot = {
+      activeProjects: Array.isArray(body?.activeProjects) ? body.activeProjects : [],
+      unclaimedCompletedProjects: Array.isArray(body?.unclaimedCompletedProjects)
+        ? body.unclaimedCompletedProjects
+        : [],
+      ...(typeof body?.serverTime === 'number' ? { serverTime: body.serverTime } : {})
+    };
+    return this._queueSync(snapshot, reason, requestedAt);
+  }
+
+  /**
+   * Look up projects the last snapshot did not list. The REST API stores a
+   * project only once it finishes and the socket posts it asynchronously, so a
+   * 404 is retried a few times; before anything is declared lost the socket's
+   * live list is consulted once more, which covers a request that was only
+   * registered after the snapshot was taken.
+   *
+   * Consumers that keep their own project store (instead of relying on tracked
+   * `Project` instances) use this for ids absent from a `projectsSynced`
+   * snapshot.
+   */
+  async resolveMissing(
+    projectIds: string[],
+    options: { attempts?: number; delayMs?: number } = {}
+  ): Promise<Record<string, ProjectResolution>> {
+    const attempts = Math.max(1, options.attempts ?? this._recoveryTuning.missingProjectAttempts);
+    const delayMs = options.delayMs ?? this._recoveryTuning.missingProjectRetryMs;
+    const result: Record<string, ProjectResolution> = {};
+    let pending = Array.from(new Set(projectIds));
+    for (let attempt = 0; attempt < attempts && pending.length; attempt++) {
+      if (attempt > 0) await sleep(delayMs);
+      const stillMissing: string[] = [];
+      for (const id of pending) {
+        try {
+          const project = await this.get(id);
+          result[id] = { state: 'finished', project };
+        } catch (error: any) {
+          if (error?.status === 404) {
+            stillMissing.push(id);
+          } else {
+            result[id] = { state: 'unknown', error };
+          }
+        }
+      }
+      pending = stillMissing;
+    }
+    if (pending.length) {
+      // Last word goes to the socket: a project that reached the server after
+      // the snapshot was taken is in flight, not lost. `null` means the list
+      // could not be fetched, in which case the REST verdict stands.
+      const live = await this._listActiveProjectIds();
+      for (const id of pending) {
+        result[id] = live?.includes(id) ? { state: 'active' } : { state: 'lost' };
+      }
+    }
+    return result;
+  }
+
+  /** Serialize syncs so two snapshots never interleave their replays. */
+  private _queueSync(
+    snapshot: ProjectRecoverySnapshot,
+    reason: ProjectSyncReason,
+    requestedAt: number
+  ): Promise<ProjectSyncResult> {
+    const run = () => this._reconcile(snapshot, reason, requestedAt);
+    const next = this._syncChain.then(run, run);
+    this._syncChain = next.catch(() => undefined);
+    return next;
+  }
+
+  private async _reconcile(
+    snapshot: ProjectRecoverySnapshot,
+    reason: ProjectSyncReason,
+    requestedAt: number
+  ): Promise<ProjectSyncResult> {
+    const result: ProjectSyncResult = {
+      reason,
+      snapshot,
+      active: [],
+      completed: [],
+      lost: [],
+      unverified: [],
+      recoveredActive: [],
+      recoveredCompleted: []
+    };
+    const seen = new Set<string>();
+
+    for (const recovered of snapshot.activeProjects) {
+      if (!recovered?.id || isLLMRecoveredProject(recovered) || seen.has(recovered.id)) continue;
+      seen.add(recovered.id);
+      const tracked = this.projects.find((p) => p.id === recovered.id);
+      if (tracked) {
+        if (tracked.finished) continue;
+        await this._replayRecoveredProject(tracked, recovered);
+        result.active.push(recovered.id);
+      } else {
+        const project = this._rehydrateProject(recovered);
+        this.projects.push(project);
+        await this._replayRecoveredProject(project, recovered);
+        result.recoveredActive.push(recovered);
+      }
+    }
+
+    for (const recovered of snapshot.unclaimedCompletedProjects) {
+      if (!recovered?.id || isLLMRecoveredProject(recovered) || seen.has(recovered.id)) continue;
+      seen.add(recovered.id);
+      const tracked = this.projects.find((p) => p.id === recovered.id);
+      if (tracked) {
+        if (tracked.finished) continue;
+        await this._replayRecoveredProject(tracked, recovered);
+        result.completed.push(recovered.id);
+      } else if (!this._recoveredCompletedIds.has(recovered.id)) {
+        // The sync route is read-only, so the same finished project can show up
+        // again on the next sync; announce it once per client lifetime.
+        this._recoveredCompletedIds.add(recovered.id);
+        const project = this._rehydrateProject(recovered);
+        this.projects.push(project);
+        await this._replayRecoveredProject(project, recovered);
+        result.recoveredCompleted.push({ ...recovered, resultUrls: project.resultUrls });
+      }
+    }
+
+    // Tracked, unfinished projects the server did not mention: either they
+    // finished (and the socket has already posted them to the REST API) or they
+    // are gone. Projects created moments ago may simply not be registered yet.
+    const missing = this.projects.filter(
+      (p) =>
+        !p.finished &&
+        !seen.has(p.id) &&
+        p.startedAt.getTime() <= requestedAt - this._recoveryTuning.recentlyCreatedGraceMs
+    );
+    if (missing.length) {
+      const resolved = await this.resolveMissing(missing.map((p) => p.id));
+      for (const project of missing) {
+        if (project.finished) continue; // a live event beat the lookup
+        const resolution = resolved[project.id];
+        if (resolution?.state === 'finished') {
+          await this._replayRawProject(project, resolution.project, false);
+          result.completed.push(project.id);
+        } else if (resolution?.state === 'active') {
+          project._keepAlive();
+          result.active.push(project.id);
+        } else if (resolution?.state === 'lost') {
+          this.emit('project', { type: 'error', projectId: project.id, error: PROJECT_LOST_ERROR });
+          result.lost.push(project.id);
+        } else {
+          result.unverified.push(project.id);
+        }
+      }
+    }
+
+    if (result.recoveredActive.length) {
+      this.emit('activeProjectsRecovered', result.recoveredActive);
+    }
+    if (result.recoveredCompleted.length) {
+      this.emit('completedProjectsRecovered', result.recoveredCompleted);
+    }
+    this.emit('projectsSynced', result);
+    return result;
+  }
+
+  private _rehydrateProject(recovered: RecoveredProject): Project {
+    return new Project(projectParamsFromRecoveredProject(recovered), {
+      api: this,
+      logger: this.client.logger,
+      id: recovered.id,
+      recovered: true
+    });
+  }
+
+  private _replayRecoveredProject(project: Project, recovered: RecoveredProject) {
+    return this._replayRawProject(project, recovered as unknown as RawProject, true);
+  }
+
+  /**
+   * Bring a tracked project up to date by replaying the socket frames it
+   * missed, synthesized from a server-side view of the project. Going through
+   * the regular handlers means every consumer — tracked `Project` instances and
+   * API-level `project` / `job` listeners alike — sees exactly what a live
+   * connection would have delivered. Nothing is ever downgraded: a job or
+   * project already finished locally ignores an older in-flight state.
+   */
+  private async _replayRawProject(project: Project, raw: RawProject, includeInFlightJobs: boolean) {
+    const projectId = project.id;
+    const stepCount = typeof raw.stepCount === 'number' ? raw.stepCount : project.params.steps;
+    const jobs: Array<RawProject['completedWorkerJobs'][number] | RecoveredWorkerJob> = [
+      ...(includeInFlightJobs ? raw.workerJobs || [] : []),
+      ...(raw.completedWorkerJobs || [])
+    ];
+    const replayedJobIds = new Set<string>();
+
+    for (const job of jobs) {
+      const imgID = (job as RecoveredWorkerJob).imgID || job.id;
+      if (!imgID || replayedJobIds.has(imgID)) continue;
+      replayedJobIds.add(imgID);
+      const local = project.job(imgID);
+      const status = job.status as string;
+      const worker = job.worker as { username?: string; name?: string } | undefined;
+      const workerName = worker?.username || worker?.name || '';
+
+      if (status === 'jobCompleted') {
+        if (local?.finished) continue;
+        await this.handleJobResult({
+          jobID: projectId,
+          imgID,
+          ...(typeof job.performedSteps === 'number'
+            ? { performedStepCount: job.performedSteps }
+            : {}),
+          ...(typeof job.seedUsed === 'number' ? { lastSeed: String(job.seedUsed) } : {}),
+          triggeredNSFWFilter: Boolean(job.triggeredNSFWFilter),
+          userCanceled: job.reason === 'artistCanceled',
+          ...(typeof job.resultUrl === 'string' && job.resultUrl
+            ? { resultUrl: job.resultUrl }
+            : {})
+        });
+        continue;
+      }
+      if (status === 'jobError') {
+        if (local?.finished) continue;
+        const reason = typeof job.reason === 'string' && job.reason ? job.reason : 'genfailure';
+        this.handleJobError({
+          jobID: projectId,
+          imgID,
+          isFromWorker: true,
+          error: reason,
+          error_message: reason === 'sensitiveContent' ? 'Sensitive content detected.' : reason
+        });
+        continue;
+      }
+      if (!includeInFlightJobs || isRecoveredJobFinished(status) || local?.finished) continue;
+      if (status === 'assigned' || status === 'initiatingModel') {
+        this.handleJobState({ type: 'initiatingModel', jobID: projectId, imgID, workerName });
+      } else if (status === 'jobStarted' || status === 'jobProgress') {
+        this.handleJobState({ type: 'jobStarted', jobID: projectId, imgID, workerName });
+        const performedSteps = typeof job.performedSteps === 'number' ? job.performedSteps : 0;
+        if (performedSteps > 0 || typeof stepCount === 'number') {
+          await this.handleJobProgress({
+            jobID: projectId,
+            imgID,
+            step: performedSteps,
+            ...(typeof stepCount === 'number' ? { stepCount } : {})
+          });
+        }
+      }
+    }
+
+    if (project.finished) return;
+    switch (raw.status) {
+      case 'completed':
+        this.handleJobState({ type: 'jobCompleted', jobID: projectId });
+        break;
+      case 'errored': {
+        const reason = typeof raw.reason === 'string' && raw.reason ? raw.reason : 'genfailure';
+        this.handleJobError({
+          jobID: projectId,
+          isFromWorker: true,
+          error: reason,
+          error_message: reason
+        });
+        break;
+      }
+      case 'cancelled':
+        // Route through the regular error path so API-level listeners learn
+        // about the cancellation too, then settle the instance on `canceled`.
+        this.handleJobError({
+          jobID: projectId,
+          isFromWorker: false,
+          error: 'artistCanceled',
+          error_message: 'artistCanceled'
+        });
+        project._update({ status: 'canceled', error: undefined });
+        break;
+      case 'queued':
+      case 'active':
+        // Position and start estimate arrive with the server's next queue
+        // broadcast (every 500 ms); only the status is known here.
+        if (project.status === 'pending') project._update({ status: 'queued' });
+        break;
+      default:
+        break;
+    }
   }
 
   /**

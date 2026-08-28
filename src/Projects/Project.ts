@@ -32,7 +32,9 @@ export type ProjectStatus =
 
 const PROJECT_STATUS_MAP: Record<RawProject['status'], ProjectStatus> = {
   pending: 'pending',
+  authorized: 'pending',
   active: 'queued',
+  queued: 'queued',
   assigned: 'processing',
   progress: 'processing',
   completed: 'completed',
@@ -83,6 +85,18 @@ export interface ProjectEventMap extends EntityEvents {
 export interface ProjectOptions {
   api: ProjectsApi;
   logger: Logger;
+  /**
+   * Reuse a server-known project id instead of minting a new one. Used when a
+   * project is rebuilt from a recovery snapshot.
+   * @internal
+   */
+  id?: string;
+  /**
+   * Mark the project as rebuilt from a server snapshot rather than created by
+   * this client.
+   * @internal
+   */
+  recovered?: boolean;
 }
 
 class Project extends DataEntity<ProjectData, ProjectEventMap> {
@@ -90,12 +104,13 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   private _lastEmitedProgress = -1;
   private readonly _api: ProjectsApi;
   private readonly _logger: Logger;
+  private readonly _recovered: boolean;
   private _timeout: NodeJS.Timeout | null = null;
   private _failedSyncAttempts = 0;
 
   constructor(data: ProjectParams, options: ProjectOptions) {
     super({
-      id: getUUID(),
+      id: options.id || getUUID(),
       startedAt: new Date(),
       params: data,
       queuePosition: -1,
@@ -104,6 +119,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
 
     this._api = options.api;
     this._logger = options.logger;
+    this._recovered = Boolean(options.recovered);
 
     this._timeout = setInterval(this._checkForTimeout.bind(this), PROJECT_TIMEOUT);
 
@@ -112,6 +128,21 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
 
   get id() {
     return this.data.id;
+  }
+
+  /** When this client started (or, for a recovered project, first learned about) the project. */
+  get startedAt() {
+    return this.data.startedAt;
+  }
+
+  /**
+   * `true` when this project was rebuilt from a server snapshot — after a page
+   * refresh, a reconnect, or in a second tab — instead of being created by this
+   * client. Its {@link params} are reconstructed from the original request and
+   * omit asset inputs (starting images, reference media).
+   */
+  get recovered() {
+    return this._recovered;
   }
 
   get params() {
@@ -338,6 +369,12 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   }
 
   private _checkForTimeout() {
+    if (this._api._shouldDeferProjectTimeouts?.()) {
+      // The socket is down. Silence is expected, not staleness: the server
+      // keeps rendering and hands the project back on reconnect.
+      this._keepAlive();
+      return;
+    }
     if (this.lastUpdated.getTime() + PROJECT_TIMEOUT < Date.now()) {
       void this._runStalenessCheck();
     }
@@ -425,7 +462,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       // This should never happen, but just in case we log a warning
       if (!restJob) {
         this._logger.warn(`Job with id ${job.id} not found in the REST project data`);
-        return;
+        continue;
       }
       try {
         await job._syncWithRestData(restJob);

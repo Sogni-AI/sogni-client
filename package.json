@@ -73,6 +73,7 @@
     "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
     "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",
     "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
+    "test:project-recovery": "npm run build && node scripts/check-project-recovery.cjs",
     "test:queue-wait-eta": "npm run build && node scripts/check-queue-wait-eta.cjs",
     "test:workflow-template-envelope": "npm run build && node scripts/check-workflow-template-envelope.cjs",
     "watch": "npm run clean && npm run codegen && tsc --watch --project tsconfig.json",

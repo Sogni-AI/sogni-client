@@ -833,6 +833,9 @@ function parseArgs() {
     refImages: [],
     refVideos: [],
     refAudios: [],
+    loras: [],
+    loraStrengths: [],
+    worker: null,
     width: null,
     height: null,
     portrait: false,
@@ -882,6 +885,12 @@ function parseArgs() {
       options.refVideos.push(args[++i]);
     } else if (arg === '--ref-audio' && args[i + 1]) {
       options.refAudios.push(args[++i]);
+    } else if (arg === '--lora' && args[i + 1]) {
+      options.loras.push(args[++i]);
+    } else if (arg === '--lora-strength' && args[i + 1]) {
+      options.loraStrengths.push(parseCliNumber(args[++i], '--lora-strength'));
+    } else if (arg === '--worker' && args[i + 1]) {
+      options.worker = args[++i];
     } else if (arg === '--source-audio-policy' && args[i + 1]) {
       const policy = args[++i].trim().toLowerCase();
       if (!SOURCE_AUDIO_POLICIES.has(policy)) {
@@ -934,6 +943,11 @@ function parseArgs() {
     }
   }
 
+  if (options.loras.length !== options.loraStrengths.length) {
+    console.error('Error: provide exactly one --lora-strength for each --lora.');
+    process.exit(1);
+  }
+
   return options;
 }
 
@@ -981,6 +995,9 @@ Options:
   --ref-image <path>      Reference image (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES})
   --ref-video <path>      Reference video (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_VIDEOS})
   --ref-audio <path>      Reference audio (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_AUDIOS})
+  --lora <id>             User LoRA catalog id (repeatable; order is significant)
+  --lora-strength <n>     User LoRA strength (repeatable; one per --lora)
+  --worker <name|tag>     Pin to a premium-Spark worker name or selector tag
   --source-audio-policy <reuse|reference|replace>
                           Required when r2v receives source audio. "reuse" copies
                           the source signal and remuxes it into the final file;
@@ -1455,7 +1472,7 @@ async function main() {
   const credentials = await loadCredentials();
 
   const clientConfig = {
-    appId: `sogni-workflow-h3-${OPTIONS.mode}-${Date.now()}`,
+    appId: `sogni-workflow-h3-${OPTIONS.mode}-${Date.now()}-${process.pid}`,
     network: 'fast'
   };
 
@@ -1645,6 +1662,10 @@ async function main() {
         ? 'source signal requested in Context-IR; exact source stream remuxed after render'
         : 'native 32kHz stereo, generated jointly',
       Batch: OPTIONS.batch,
+      LoRAs: OPTIONS.loras.length
+        ? OPTIONS.loras.map((lora, index) => `${lora}@${OPTIONS.loraStrengths[index]}`).join(', ')
+        : 'none',
+      Worker: OPTIONS.worker || 'production routing',
       Seed: OPTIONS.seed !== null ? OPTIONS.seed : -1,
       Billing: billingModeLabel(OPTIONS.billingMode),
       Safety: OPTIONS.disableSafeContentFilter ? '⚠️  DISABLED' : 'enabled'
@@ -1720,7 +1741,7 @@ async function main() {
     const projectParams = {
       type: 'video',
       modelId: modelConfig.id,
-      positivePrompt: OPTIONS.prompt,
+      positivePrompt: OPTIONS.worker ? `${OPTIONS.prompt} --workers=${OPTIONS.worker}` : OPTIONS.prompt,
       numberOfMedia: OPTIONS.batch,
       width: OPTIONS.width,
       height: OPTIONS.height,
@@ -1740,6 +1761,10 @@ async function main() {
       // No negativePrompt: H3 is distilled and runs at guidance 1.
     };
     if (referenceImage) projectParams.referenceImage = referenceImage;
+    if (OPTIONS.loras.length) {
+      projectParams.loras = OPTIONS.loras;
+      projectParams.loraStrengths = OPTIONS.loraStrengths;
+    }
     if (referenceImageEnd) projectParams.referenceImageEnd = referenceImageEnd;
     if (contextImages) projectParams.contextImages = contextImages;
     if (referenceVideo) projectParams.referenceVideo = referenceVideo;
@@ -1828,10 +1853,15 @@ async function main() {
 
         case 'initiating': {
           if (!jobStates.has(jobId)) {
-            jobStates.set(jobId, { jobIndex: event.jobIndex, interval: null });
+            jobStates.set(jobId, {
+              jobIndex: event.jobIndex,
+              interval: null,
+              workerName: event.workerName || null
+            });
           } else if (event.jobIndex !== undefined) {
             jobStates.get(jobId).jobIndex = event.jobIndex;
           }
+          if (event.workerName) jobStates.get(jobId).workerName = event.workerName;
           log(
             '⚙️',
             `${getJobLabel(event, jobId)}Model initiating on worker: ${event.workerName || 'Unknown'}`
@@ -1847,6 +1877,7 @@ async function main() {
           }
           state.startTime = Date.now();
           state.lastETAUpdate = Date.now();
+          if (event.workerName) state.workerName = event.workerName;
           if (event.jobIndex !== undefined) state.jobIndex = event.jobIndex;
 
           state.interval = setInterval(() => {
@@ -1952,6 +1983,55 @@ async function main() {
                 `${label}Video completed (${jobElapsedSeconds ? jobElapsedSeconds.toFixed(2) : '?'}s)`
               );
               log('💾', `Saved: ${outputPath}`);
+              const metadataPath = `${outputPath}.json`;
+              fs.writeFileSync(
+                metadataPath,
+                `${JSON.stringify(
+                  {
+                    schemaVersion: 1,
+                    completedAt: new Date().toISOString(),
+                    outputPath,
+                    modelId: modelConfig.id,
+                    modelName: modelConfig.name,
+                    mode: OPTIONS.mode,
+                    width: OPTIONS.width,
+                    height: OPTIONS.height,
+                    frames: OPTIONS.frames,
+                    durationSeconds: effectiveDuration,
+                    fps: OPTIONS.fps,
+                    steps: OPTIONS.steps,
+                    guidance: OPTIONS.guidance,
+                    sampler: OPTIONS.sampler,
+                    scheduler: OPTIONS.scheduler,
+                    seed: jobSeed,
+                    loras: OPTIONS.loras.map((lora, index) => ({
+                      id: lora,
+                      strength: OPTIONS.loraStrengths[index]
+                    })),
+                    workerSelector: OPTIONS.worker || null,
+                    workerName: state?.workerName || null,
+                    renderSeconds: jobElapsedSeconds,
+                    billing: {
+                      mode: OPTIONS.billingMode,
+                      token: unit,
+                      estimatedProjectCost: totalCost,
+                      estimatedJobCost: totalCost / OPTIONS.batch,
+                      estimatedJobUsd: (totalCost / OPTIONS.batch) * (isSpark ? 0.005 : 0.05)
+                    },
+                    prompt: OPTIONS.prompt,
+                    references: {
+                      startImage: OPTIONS.image || null,
+                      endImage: OPTIONS.endImage || null,
+                      images: OPTIONS.refImages,
+                      videos: OPTIONS.refVideos,
+                      audios: OPTIONS.refAudios
+                    }
+                  },
+                  null,
+                  2
+                )}\n`
+              );
+              log('🧾', `Metadata: ${metadataPath}`);
               if (generatedAudioBackup) {
                 log('🔒', 'Exact source soundtrack stream-copied into the final video');
                 log('💾', `Model-generated-audio backup: ${generatedAudioBackup}`);
