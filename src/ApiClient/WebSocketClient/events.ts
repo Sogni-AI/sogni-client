@@ -113,8 +113,17 @@ export interface AuthenticatedData {
     };
   };
   subscriptionEntitlement?: SocketSubscriptionEntitlementData;
-  activeProjects: [];
-  unclaimedCompletedProjects: [];
+  /**
+   * This app-id's projects that are still in flight (pending, queued, or
+   * rendering). The server reclaims them for the new socket, so live events
+   * follow. See {@link RecoveredProject}.
+   */
+  activeProjects: RecoveredProject[];
+  /**
+   * This app-id's projects that reached a terminal state while it had no
+   * socket. Held server-side for one hour; delivered here once.
+   */
+  unclaimedCompletedProjects: RecoveredProject[];
   isMainnet: boolean;
   accountWasMigrated: boolean;
   /**
@@ -398,3 +407,141 @@ export type SocketEventMap = {
 };
 
 export type SocketEventName = keyof SocketEventMap;
+
+/**
+ * Server status of a project as sogni-socket reports it in recovery payloads.
+ * `authorized` and `queued` are the socket's own names; the REST API reports
+ * `active` for the queued window.
+ */
+export type RecoveredProjectStatus =
+  | 'pending'
+  | 'authorized'
+  | 'active'
+  | 'queued'
+  | 'assigned'
+  | 'progress'
+  | 'completed'
+  | 'errored'
+  | 'cancelled';
+
+export type RecoveredWorkerJobStatus =
+  | 'created'
+  | 'queued'
+  | 'assigned'
+  | 'initiatingModel'
+  | 'jobStarted'
+  | 'jobProgress'
+  | 'jobCompleted'
+  | 'jobError';
+
+/**
+ * A worker job inside a {@link RecoveredProject}, as serialized by
+ * sogni-socket (`serializeWorkerJob`).
+ *
+ * `imgID` is the stable per-job identity. `id` is rewritten to the project id
+ * for legacy native clients and must not be used to distinguish jobs.
+ */
+export interface RecoveredWorkerJob {
+  id: string;
+  SID?: number | string;
+  imgID: string;
+  worker?: {
+    id?: string;
+    clientSID?: number;
+    address?: string;
+    addressSID?: number;
+    SID?: number;
+    username?: string;
+    image?: string;
+    nftTokenId?: string;
+  };
+  createTime?: number;
+  startTime?: number | null;
+  updateTime?: number;
+  actualStartTime?: number | null;
+  endTime?: number | null;
+  status: RecoveredWorkerJobStatus;
+  reason?: string;
+  performedSteps?: number;
+  triggeredNSFWFilter?: boolean;
+  seedUsed?: number;
+  costActual?: Record<string, unknown>;
+  network?: string;
+  txId?: string | null;
+  jobType?: string;
+  tokenType?: string;
+  isTest?: boolean;
+  /** Present for vendor (external API) jobs only; GPU jobs mint a signed URL from `(projectId, imgID)`. */
+  resultUrl?: string;
+  resultKey?: string;
+  provider?: string;
+  modelType?: 'video' | 'audio';
+  videoFrames?: number;
+  videoFps?: number;
+  width?: number;
+  height?: number;
+  audioDuration?: number;
+  [key: string]: unknown;
+}
+
+/**
+ * A project the server can hand back to its owner after a refresh or
+ * reconnect: carried by `authenticated.activeProjects` /
+ * `authenticated.unclaimedCompletedProjects` and by
+ * `GET /api/v1/artist/projects/sync` on the socket host.
+ *
+ * `clientRequestData` is the original `jobRequest`, base64-encoded JSON, so a
+ * client that lost its local state can rebuild the prompt and parameters.
+ */
+export interface RecoveredProject {
+  id: string;
+  SID?: number;
+  /** App instance (`appId`) that created the project. Newer socket builds only. */
+  appId?: string;
+  appSource?: string;
+  jobType?: string;
+  model: {
+    id: string;
+    SID?: number;
+    name?: string;
+    type?: string;
+  };
+  imageCount: number;
+  stepCount: number;
+  previewCount?: number;
+  hasGuideImage?: boolean;
+  denoiseStrength?: string;
+  controlNetId?: string | null;
+  costEstimate?: Record<string, unknown>;
+  costActual?: Record<string, unknown>;
+  createTime: number;
+  updateTime: number;
+  endTime?: number | null;
+  status: RecoveredProjectStatus;
+  reason?: string | null;
+  network?: string;
+  txId?: string | null;
+  sizePreset?: string;
+  width?: number;
+  height?: number;
+  jobCountCompletedByState?: Record<string, number>;
+  isTest?: boolean;
+  tokenType?: string;
+  billingMode?: string;
+  clientRequestData?: string;
+  workerJobs?: RecoveredWorkerJob[];
+  completedWorkerJobs?: RecoveredWorkerJob[];
+  premium?: Record<string, unknown>;
+  modelType?: 'video' | 'audio';
+  videoFrames?: number;
+  videoFps?: number;
+  provider?: string;
+  [key: string]: unknown;
+}
+
+/** Body of `GET /api/v1/artist/projects/sync`; the same two arrays the `authenticated` frame carries. */
+export interface ProjectRecoverySnapshot {
+  activeProjects: RecoveredProject[];
+  unclaimedCompletedProjects: RecoveredProject[];
+  serverTime?: number;
+}

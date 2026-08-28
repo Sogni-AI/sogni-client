@@ -28,7 +28,14 @@ import type {
   WorkloadAttributionInput
 } from '../types/attribution.js';
 
-const WS_RECONNECT_ATTEMPTS = 5;
+/**
+ * Reconnect backoff for recoverable socket drops. Attempts continue for as
+ * long as the session stays authenticated: an in-flight generation survives a
+ * network blip, a sleeping laptop, or a socket deploy, and the server hands it
+ * back on reconnect.
+ */
+const WS_RECONNECT_BASE_DELAY_MS = 1000;
+const WS_RECONNECT_MAX_DELAY_MS = 15000;
 
 export interface ApiResponse<D = JSONValue> {
   status: 'success';
@@ -77,7 +84,9 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   private _rest: RestClient;
   private _socket: IWebSocketClient;
   private _auth: AuthManager;
-  private _reconnectAttempts = WS_RECONNECT_ATTEMPTS;
+  private _reconnectAttempt = 0;
+  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private _onlineListener: (() => void) | null = null;
   private _disableSocket: boolean = false;
 
   constructor({
@@ -186,13 +195,15 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }
 
   handleSocketConnect({ network }: ServerConnectData) {
-    this._reconnectAttempts = WS_RECONNECT_ATTEMPTS;
+    this._reconnectAttempt = 0;
+    this._clearReconnect();
     this.emit('connected', { network });
   }
 
   handleSocketDisconnect(data: ServerDisconnectData) {
     // If user is not authenticated, we don't need to reconnect
     if (!this.auth.isAuthenticated || data.code === 1000) {
+      this._clearReconnect();
       this.emit('disconnected', data);
       return;
     }
@@ -232,18 +243,56 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
       this.logger.error('Not recoverable socket error', data);
       return;
     }
-    if (this._reconnectAttempts <= 0) {
-      this.emit('disconnected', data);
-      this._reconnectAttempts = WS_RECONNECT_ATTEMPTS;
+    // Recoverable drop: keep trying with capped exponential backoff while the
+    // session is authenticated. Consumers see `connecting` before each attempt;
+    // `disconnected` is reserved for terminal outcomes.
+    this._scheduleReconnect();
+  }
+
+  private _scheduleReconnect() {
+    this._clearReconnect();
+    const attempt = this._reconnectAttempt++;
+    const base = Math.min(WS_RECONNECT_BASE_DELAY_MS * 2 ** attempt, WS_RECONNECT_MAX_DELAY_MS);
+    const delay = Math.round(base * (0.8 + Math.random() * 0.4));
+    this.handleSocketConnecting();
+    const connect = () => {
+      this._reconnectTimer = null;
+      if (!this.auth.isAuthenticated || this._disableSocket) return;
+      this.socket.connect().catch((error) => {
+        this.logger.warn('WebSocket reconnect attempt failed', error);
+        this._scheduleReconnect();
+      });
+    };
+    if (
+      typeof window !== 'undefined' &&
+      typeof navigator !== 'undefined' &&
+      navigator.onLine === false
+    ) {
+      // Offline: a timer would only burn attempts. Wake up when the browser is back online.
+      this._onlineListener = () => {
+        this._onlineListener = null;
+        connect();
+      };
+      window.addEventListener('online', this._onlineListener, { once: true });
       return;
     }
-    this._reconnectAttempts--;
-    this.handleSocketConnecting();
-    setTimeout(() => void this.socket.connect(), 1000);
+    this._reconnectTimer = setTimeout(connect, delay);
+  }
+
+  private _clearReconnect() {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
+    if (this._onlineListener && typeof window !== 'undefined') {
+      window.removeEventListener('online', this._onlineListener);
+      this._onlineListener = null;
+    }
   }
 
   handleAuthUpdated(isAuthenticated: boolean) {
     if (!isAuthenticated) {
+      this._clearReconnect();
       if (this.socket.isConnected) {
         this.socket.disconnect();
       }
@@ -258,6 +307,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
    * After calling this method, the client should not be used.
    */
   dispose() {
+    this._clearReconnect();
     this._socket.disconnect();
     this._socket.removeAllListeners();
     this._auth.removeAllListeners();

@@ -386,6 +386,55 @@ project.on('failed', async (errorData) => {
 
 External API-backed jobs may not report diffusion steps. For those jobs, SDK progress uses provider progress or ETA-derived progress and remains a finite 0-100 number. GPT Image 2 and Seedance results can arrive as direct hosted URLs; the SDK preserves those URLs on `job.resultUrl` and `job.getResultUrl()` returns the cached URL without requesting a Sogni signed download URL.
 
+### Resuming projects after a refresh or reconnect
+
+Generation keeps running on the Supernet while your socket is down. The SDK treats a dropped
+connection as a transport gap, not a failure: tracked projects stay alive, the client reconnects
+with capped exponential backoff for as long as the session is authenticated, and on every
+`authenticated` handshake it reconciles with the server. Whatever the client missed is replayed
+through the normal `project` / `job` events, so listeners attached before the gap simply keep
+receiving updates, and `waitForCompletion()` still resolves.
+
+Projects the server knows about but this client does not (a page refresh, a second tab sharing the
+socket, cleared local state) are rebuilt as tracked `Project` instances with `project.recovered ===
+true`. Their `params` are reconstructed from the original request; asset inputs are not recoverable.
+
+```typescript
+// Every reconciliation — after reconnect, after a shared-socket tab connects, or after a manual
+// sync() — reports what changed. `snapshot` is the raw server view, for apps that keep their own
+// project store.
+sogni.projects.on('projectsSynced', ({ reason, active, completed, lost, recoveredActive, recoveredCompleted }) => {
+  console.log(reason, { active, completed, lost });
+});
+
+// In-flight projects this client was not tracking; they are tracked now, so `project` / `job`
+// events follow as usual.
+sogni.projects.on('activeProjectsRecovered', (projects) => {
+  for (const recovered of projects) {
+    const project = sogni.projects.trackedProjects.find((p) => p.id === recovered.id);
+    project?.on('completed', (urls) => console.log('Finished after resume:', urls));
+  }
+});
+
+// Projects that finished while this client was away, with result URLs already resolved.
+sogni.projects.on('completedProjectsRecovered', (projects) => {
+  for (const project of projects) console.log(project.id, project.resultUrls);
+});
+
+// Ask for a fresh reconciliation yourself, e.g. when the page returns to the foreground.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void sogni.projects.sync();
+});
+```
+
+A project that the server no longer lists is looked up on the REST API (which only stores finished
+projects) a few times before it is declared lost; it then fails with an error where
+`isProjectLostError(error)` is `true`. Apps that persist project ids themselves can run the same
+lookup with `sogni.projects.resolveMissing(ids)`.
+
+Recovery is per app instance: the server hands projects back to the `appId` that created them, so
+persist your `appId` (browsers: `localStorage`) and reuse it across reloads.
+
 ### Project parameters
 
 Here is a full list of project parameters that you can use:
