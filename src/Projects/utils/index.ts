@@ -9,15 +9,15 @@ import {
 
 const LTX_WORKFLOWS = ['t2v', 'i2v', 'a2v', 'ia2v', 'v2v'] as const;
 const LTX_VIDEO_MODEL_IDS = new Set([
-  ...LTX_WORKFLOWS.flatMap(workflow => [
+  ...LTX_WORKFLOWS.flatMap((workflow) => [
     `ltx2-19b-fp8_${workflow}`,
     `ltx2-19b-fp8_${workflow}_distilled`,
     `ltx23-22b-fp8_${workflow}_distilled`,
     `ltx23-22b-fp8_${workflow}_dev`,
     `ltx25-22b-int8_${workflow}_distilled`,
-    `ltx25-22b-int8_${workflow}_dev`,
+    `ltx25-22b-int8_${workflow}_dev`
   ]),
-  'ltx23-22b-10eros-v1.4-fp8mixed_i2v',
+  'ltx23-22b-10eros-v1.4-fp8mixed_i2v'
 ]);
 const WAN_VIDEO_MODEL_IDS = new Set([
   'wan_v2.2-14b-fp8_t2v',
@@ -26,18 +26,18 @@ const WAN_VIDEO_MODEL_IDS = new Set([
   'wan_v2.2-14b-fp8_i2v_lightx2v',
   'wan_v2.2-14b-fp8_s2v_lightx2v',
   'wan_v2.2-14b-fp8_animate-move_lightx2v',
-  'wan_v2.2-14b-fp8_animate-replace_lightx2v',
+  'wan_v2.2-14b-fp8_animate-replace_lightx2v'
 ]);
 const SEEDANCE_VIDEO_MODEL_IDS = new Set([
   'seedance-2-0',
   'seedance-2-0-mini',
   'seedance-2-0-fast',
-  'seedance-2-5',
+  'seedance-2-5'
 ]);
 const HAPPYHORSE_VIDEO_MODEL_IDS = new Set([
   'happyhorse-1.1-t2v',
   'happyhorse-1.1-i2v',
-  'happyhorse-1.1-r2v',
+  'happyhorse-1.1-r2v'
 ]);
 const WAN3_VIDEO_MODEL_IDS = new Set(['wan3.0-video']);
 const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
@@ -52,7 +52,7 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fl2va-fp8_t2v_balanced',
   'minimax-h3-fl2va-fp8_i2v_balanced',
   'minimax-h3-fl2va-fp8_flf2v_balanced',
-  'minimax-h3-ref2va-fp8_r2v_balanced',
+  'minimax-h3-ref2va-fp8_r2v_balanced'
 ]);
 
 export function getEnhacementStrength(strength: EnhancementStrength): number {
@@ -72,12 +72,14 @@ export function getEnhacementStrength(strength: EnhancementStrength): number {
  * Video models produce MP4 output; image models produce PNG/JPG output.
  */
 export function isVideoModel(modelId: string): boolean {
-  return isWanModel(modelId)
-    || isLtx2Model(modelId)
-    || isSeedanceModel(modelId)
-    || isHappyhorseModel(modelId)
-    || isWan3Model(modelId)
-    || isMinimaxH3Model(modelId);
+  return (
+    isWanModel(modelId) ||
+    isLtx2Model(modelId) ||
+    isSeedanceModel(modelId) ||
+    isHappyhorseModel(modelId) ||
+    isWan3Model(modelId) ||
+    isMinimaxH3Model(modelId)
+  );
 }
 
 /**
@@ -107,9 +109,11 @@ export function isWanModel(modelId: string): boolean {
  * These models support up to 321 frames (20s at 16fps).
  */
 export function isWanAnimateModel(modelId: string): boolean {
-  return isWanModel(modelId)
-    && (modelId === 'wan_v2.2-14b-fp8_animate-move_lightx2v'
-      || modelId === 'wan_v2.2-14b-fp8_animate-replace_lightx2v');
+  return (
+    isWanModel(modelId) &&
+    (modelId === 'wan_v2.2-14b-fp8_animate-move_lightx2v' ||
+      modelId === 'wan_v2.2-14b-fp8_animate-replace_lightx2v')
+  );
 }
 
 /**

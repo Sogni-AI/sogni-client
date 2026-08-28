@@ -418,9 +418,8 @@ export function resolveHostedToolModelSelector(
       return requestedModel;
   }
 
-  const resolvedModel = (
-    selectors[requestedModel] ?? selectors[normalizeSelectorKey(requestedModel)] ?? requestedModel
-  );
+  const resolvedModel =
+    selectors[requestedModel] ?? selectors[normalizeSelectorKey(requestedModel)] ?? requestedModel;
   if (
     toolName === 'video_to_video' &&
     !getCompatibleVideoWorkflows(resolvedModel).includes('v2v')
