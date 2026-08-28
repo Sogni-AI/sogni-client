@@ -76,6 +76,7 @@ import {
   MINIMAX_H3_MAX_FRAMES,
   MINIMAX_H3_MIN_DURATION,
   MINIMAX_H3_MAX_DURATION,
+  MINIMAX_H3_PDD_SOURCE_URL,
   MINIMAX_H3_MAX_REFERENCE_IMAGES,
   MINIMAX_H3_MAX_REFERENCE_VIDEOS,
   MINIMAX_H3_MAX_REFERENCE_AUDIOS,
@@ -947,6 +948,7 @@ Usage:
   node workflow_minimax_h3_video.mjs --mode i2v --end-image finish.jpg
   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --end-image finish.jpg
   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
+  node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-balanced
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-turbo
   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
   node workflow_minimax_h3_video.mjs --mode r2v --ref-video camera-move.mp4
@@ -959,6 +961,7 @@ Modes:
 
 Fixed model parameters (not configurable):
   Standard: fps 24, steps 20, guidance 1, sampler res_multistep, scheduler simple
+  Balanced: fps 24, steps 8, guidance 1, sampler Euler, scheduler simple (PDD)
   FL2VA Turbo: fps 24, steps 4, guidance 1, server-selected sampler, scheduler simple
   Ref2VA Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
   Native 32kHz stereo audio is generated jointly and included by default;
@@ -966,12 +969,13 @@ Fixed model parameters (not configurable):
   Frames follow 124 + n*17 in the range 124-362 (${MINIMAX_H3_MIN_DURATION}s to ${MINIMAX_H3_MAX_DURATION}s)
   Canvas uses a 32px grid, at most ${H3_MAX_PIXELS} pixels (1344x768 or 768x1344)
   Availability depends on current compatible capacity
+  PDD source: ${MINIMAX_H3_PDD_SOURCE_URL}
 
 Options:
   --mode <t2v|i2v|flf2v|r2v>  Workflow to run (default: t2v)
-  --model <key>           Model key override (minimax-h3-t2v, minimax-h3-i2v,
-                          minimax-h3-flf2v, minimax-h3-r2v, or the t2v/i2v/
-                          flf2v keys ending in -turbo)
+  --model <key>           Model key override (default: matching -balanced key;
+                          standard keys omit the suffix, and accelerated keys
+                          end in -balanced or -turbo)
   --image <path>          First-frame reference image (i2v, flf2v)
   --end-image <path>      Last-frame reference image (i2v, flf2v)
   --ref-image <path>      Reference image (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES})
@@ -1129,7 +1133,7 @@ async function main() {
     process.exit(1);
   }
 
-  const modelKey = OPTIONS.modelKey || `minimax-h3-${OPTIONS.mode}`;
+  const modelKey = OPTIONS.modelKey || `minimax-h3-${OPTIONS.mode}-balanced`;
   const modelConfig = MODELS.h3[modelKey];
   if (!modelConfig) {
     console.error(

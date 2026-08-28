@@ -185,11 +185,15 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Turbo adds `_turbo` to the FL2VA t2v/i2v/flf2v IDs and to Ref2VA r2v.
  *   Ref2VA Turbo is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses its dedicated
  *   LightX2V v0.1 four-step LoRA with Euler/simple, not the FL2VA Turbo LoRA.
+ * - Balanced adds `_balanced` to the same four workflow IDs and uses Alibaba
+ *   PAI's matching FL2VA or Ref2VA 8-step Parallel Decoding Distillation (PDD)
+ *   adapter with Euler/simple.
  * - Video and 32kHz stereo audio are generated jointly. Audio is included by
  *   default; set `generateAudio: false` to return a video without an audio track.
  * - Generation is fixed at 24fps and guidance 1, with no separate
  *   negative-prompt input. Standard H3 uses 20 steps and
- *   `res_multistep`/`simple`; Turbo uses its fixed 4-step sampling path.
+ *   `res_multistep`/`simple`; Balanced uses fixed 8-step Euler/simple; Turbo
+ *   uses its fixed 4-step sampling path.
  * - Frames follow `124 + n*17` from 124 through 362. Dimensions use a 32px
  *   grid, with a 1344px per-axis limit and a 1032192-pixel canvas limit.
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
@@ -197,7 +201,8 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *
  * #### MiniMax H3 `r2v` (Ref2VA) multi-reference video
  * - `minimax-h3-ref2va-fp8_r2v` (standard) and
- *   `minimax-h3-ref2va-fp8_r2v_turbo` (four-step Turbo) condition on labelled reference material
+ *   `minimax-h3-ref2va-fp8_r2v_turbo` (four-step Turbo), and
+ *   `minimax-h3-ref2va-fp8_r2v_balanced` (eight-step PDD Balanced) condition on labelled reference material
  *   rather than on frame anchors. The checkpoint accepts up to 9 reference
  *   images, 3 reference videos (24fps, 2-15 seconds each), and 3 reference
  *   audio clips, with at most 12 reference files in total.

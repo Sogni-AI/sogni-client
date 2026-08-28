@@ -49,9 +49,13 @@ if (generateMusicModel) {
     'Use legacy ace_step_1.5_turbo or ace_step_1.5_sft only when the user explicitly requests a legacy model.';
 }
 
-// The protocol owns the exact MiniMax H3 Turbo selectors. Keep only the SDK's
-// convenience alias here: routing resolves it to t2v or i2v based on whether a
-// first-frame image is present.
+const MINIMAX_H3_PDD_SOURCE_URL = 'https://huggingface.co/alibaba-pai/MiniMax-H3-Acc-LoRAs';
+const appendDescriptionOnce = (description, addition) =>
+  description?.includes(addition) ? description : `${description || ''} ${addition}`.trim();
+
+// The protocol owns the original MiniMax H3 selectors. Keep SDK additions here
+// until the protocol manifest catches up. Generic aliases resolve to t2v or i2v
+// based on whether a first-frame image is present.
 const generateVideoTool = manifest.tools?.find((tool) => tool?.function?.name === 'generate_video');
 const generateVideoModel = generateVideoTool?.function?.parameters?.properties?.videoModel;
 if (generateVideoModel) {
@@ -59,9 +63,67 @@ if (generateVideoModel) {
     ...new Set([
       ...(Array.isArray(generateVideoModel.enum) ? generateVideoModel.enum : []),
       'minimax-h3-turbo',
+      'minimax-h3-balanced',
+      'minimax-h3-t2v-balanced',
+      'minimax-h3-r2v-balanced',
       'wan3.0-video'
     ])
   ];
+  generateVideoModel.description = appendDescriptionOnce(
+    generateVideoModel.description,
+    `MiniMax H3 Balanced uses Alibaba PAI Parallel Decoding Distillation (PDD) for fixed 8-step generation between 4-step Turbo and 20-step Standard; use "minimax-h3-balanced" or "minimax-h3-t2v-balanced" for FL2VA text-to-video and "minimax-h3-r2v-balanced" for Ref2VA reference-to-video. PDD source: ${MINIMAX_H3_PDD_SOURCE_URL}.`
+  );
+}
+
+const animatePhotoTool = manifest.tools?.find((tool) => tool?.function?.name === 'animate_photo');
+const animatePhotoModel = animatePhotoTool?.function?.parameters?.properties?.videoModel;
+if (animatePhotoModel) {
+  animatePhotoModel.enum = [
+    ...new Set([
+      ...(Array.isArray(animatePhotoModel.enum) ? animatePhotoModel.enum : []),
+      'minimax-h3-i2v-balanced',
+      'minimax-h3-flf2v-balanced'
+    ])
+  ];
+  animatePhotoModel.description = appendDescriptionOnce(
+    animatePhotoModel.description,
+    `MiniMax H3 Balanced uses Alibaba PAI Parallel Decoding Distillation (PDD) for fixed 8-step generation; use "minimax-h3-i2v-balanced" for one endpoint image and "minimax-h3-flf2v-balanced" for required first-and-last frames. PDD source: ${MINIMAX_H3_PDD_SOURCE_URL}.`
+  );
+}
+
+const h3LoraSelectorsByTool = {
+  generate_video: [
+    'minimax-h3-t2v',
+    'minimax-h3-t2v-turbo',
+    'minimax-h3-t2v-balanced',
+    'minimax-h3-r2v',
+    'minimax-h3-r2v-turbo',
+    'minimax-h3-r2v-balanced',
+    'minimax-h3-turbo',
+    'minimax-h3-balanced'
+  ],
+  animate_photo: [
+    'minimax-h3-i2v',
+    'minimax-h3-i2v-turbo',
+    'minimax-h3-i2v-balanced',
+    'minimax-h3-flf2v',
+    'minimax-h3-flf2v-turbo',
+    'minimax-h3-flf2v-balanced'
+  ]
+};
+for (const [toolName, selectors] of Object.entries(h3LoraSelectorsByTool)) {
+  const tool = manifest.tools?.find((candidate) => candidate?.function?.name === toolName);
+  const loras = tool?.function?.parameters?.properties?.loras;
+  if (!loras?.description) continue;
+  const paragraphs = loras.description.split('\n\n');
+  const acceptedIndex = paragraphs.findIndex((paragraph) =>
+    paragraph.startsWith('Accepted only when videoModel is one of')
+  );
+  if (acceptedIndex === -1) continue;
+  paragraphs[acceptedIndex] =
+    `Accepted only when videoModel is one of ${selectors.map((selector) => `"${selector}"`).join(', ')}. ` +
+    'Every other video model on this tool loads no LoRAs and silently ignores these arrays, so set videoModel to an H3 mode in the same call when the user asks for one.';
+  loras.description = paragraphs.join('\n\n');
 }
 
 // Wan 3 ships as one exact selector across its supported generation workflows.

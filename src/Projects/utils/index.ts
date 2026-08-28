@@ -49,6 +49,10 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fl2va-fp8_i2v_turbo',
   'minimax-h3-fl2va-fp8_flf2v_turbo',
   'minimax-h3-ref2va-fp8_r2v_turbo',
+  'minimax-h3-fl2va-fp8_t2v_balanced',
+  'minimax-h3-fl2va-fp8_i2v_balanced',
+  'minimax-h3-fl2va-fp8_flf2v_balanced',
+  'minimax-h3-ref2va-fp8_r2v_balanced',
 ]);
 
 export function getEnhacementStrength(strength: EnhancementStrength): number {
@@ -184,10 +188,13 @@ export function isWan3Model(modelId: string): boolean {
  * - Ref2VA: `minimax-h3-ref2va-fp8_r2v` (the multi-reference workflow)
  * - FL2VA Turbo: the same three FL2VA ids with a `_turbo` suffix
  * - Ref2VA Turbo: `minimax-h3-ref2va-fp8_r2v_turbo`
+ * - FL2VA Balanced: the same three FL2VA ids with a `_balanced` suffix
+ * - Ref2VA Balanced: `minimax-h3-ref2va-fp8_r2v_balanced`
  *
  * All H3 paths share fixed 24fps, guidance 1, the `124 + n*17` frame grid,
  * and jointly generated 32kHz stereo audio. Standard H3 uses 20 steps;
- * Each Turbo family uses its own 4-step distillation LoRA.
+ * Balanced uses Alibaba PAI's 8-step Parallel Decoding Distillation (PDD)
+ * adapters; each Turbo family uses its own 4-step distillation LoRA.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
   return MINIMAX_H3_VIDEO_MODEL_IDS.has(modelId);
@@ -205,8 +212,19 @@ export function isMinimaxH3TurboModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model ID is one of the 8-step MiniMax H3 Balanced workflows.
+ * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching PDD adapter for r2v.
+ */
+export function isMinimaxH3BalancedModel(modelId: string): boolean {
+  return (
+    /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_balanced$/.test(modelId) ||
+    modelId === 'minimax-h3-ref2va-fp8_r2v_balanced'
+  );
+}
+
+/**
  * Check if a model ID is the MiniMax H3 Ref2VA multi-reference workflow
- * (`minimax-h3-ref2va-fp8_r2v` or `minimax-h3-ref2va-fp8_r2v_turbo`).
+ * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, or `..._r2v_balanced`).
  *
  * This is the only MiniMax H3 workflow that conditions on more than two input
  * files, and the only video workflow of any family that carries reference

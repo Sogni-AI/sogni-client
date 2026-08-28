@@ -1702,8 +1702,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *
    * Requirements are resolved per model, not per workflow type alone: the `r2v`
    * workflow type is shared by HappyHorse, which is image-only, and MiniMax H3
-   * (`minimax-h3-ref2va-fp8_r2v` and `minimax-h3-ref2va-fp8_r2v_turbo`), which also takes reference video and
-   * reference audio.
+   * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, and `..._r2v_balanced`),
+   * which also takes reference video and reference audio.
    *
    * This table describes the first upload slot only. MiniMax H3 r2v also uses
    * `contextImages`, `referenceVideos`, and `referenceAudios`; callers should

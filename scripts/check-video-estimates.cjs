@@ -63,6 +63,16 @@ async function main() {
     'omitting the additive field must preserve the legacy request exactly'
   );
 
+  await estimate(projects, {
+    model: 'minimax-h3-ref2va-fp8_r2v_balanced',
+    steps: 8
+  });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-ref2va-fp8_r2v_balanced/1344/768/141/24/8/1',
+    'Balanced pricing must be requested from the server with its exact model id and fixed step count'
+  );
+
   await estimate(projects, { referenceImageCount: 6 });
   assert.equal(
     new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams.get(

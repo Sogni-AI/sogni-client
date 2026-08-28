@@ -37,6 +37,7 @@ import {
   isWan3Model,
   isMinimaxH3Model,
   isMinimaxH3TurboModel,
+  isMinimaxH3BalancedModel,
   isMinimaxH3ReferenceModel,
   isExternalApiVideoModel,
   usesReferenceMask,
@@ -381,10 +382,12 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
   if (params.fps !== undefined && params.fps !== 24) {
     invalid('MiniMax H3 fps is fixed at 24. Omit fps or set it to 24.');
   }
-  const expectedSteps = isMinimaxH3TurboModel(params.modelId) ? 4 : 20;
+  const isTurbo = isMinimaxH3TurboModel(params.modelId);
+  const isBalanced = isMinimaxH3BalancedModel(params.modelId);
+  const expectedSteps = isTurbo ? 4 : isBalanced ? 8 : 20;
   if (params.steps !== undefined && params.steps !== expectedSteps) {
     invalid(
-      `MiniMax H3${expectedSteps === 4 ? ' Turbo' : ''} steps are fixed at ${expectedSteps}.`
+      `MiniMax H3${isTurbo ? ' Turbo' : isBalanced ? ' Balanced' : ''} steps are fixed at ${expectedSteps}.`
     );
   }
   if (params.guidance !== undefined && params.guidance !== 1) {
