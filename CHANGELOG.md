@@ -1,3 +1,10 @@
+# [5.22.0](https://github.com/Sogni-AI/sogni-client/compare/v5.21.4...v5.22.0) (2026-08-28)
+
+
+### Features
+
+* **video:** add MiniMax H3 Balanced tier ([14a77d3](https://github.com/Sogni-AI/sogni-client/commit/14a77d32aba4d7da005a8cb6ed5430b03a7a5e35))
+
 ## [5.21.4](https://github.com/Sogni-AI/sogni-client/compare/v5.21.3...v5.21.4) (2026-08-27)
 
 
