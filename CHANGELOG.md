@@ -1,3 +1,10 @@
+# [5.23.0](https://github.com/Sogni-AI/sogni-client/compare/v5.22.0...v5.23.0) (2026-08-28)
+
+
+### Features
+
+* **estimate:** add live-benchmarked time estimate to cost quotes ([3b4dad4](https://github.com/Sogni-AI/sogni-client/commit/3b4dad42d62227bbbd176c94963d45412006ba72))
+
 # [5.22.0](https://github.com/Sogni-AI/sogni-client/compare/v5.21.4...v5.22.0) (2026-08-28)
 
 
