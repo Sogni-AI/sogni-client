@@ -1,3 +1,18 @@
+# [5.25.0](https://github.com/Sogni-AI/sogni-client/compare/v5.24.1...v5.25.0) (2026-08-29)
+
+
+### Bug Fixes
+
+* **examples:** align H3 accelerator checks ([40d44df](https://github.com/Sogni-AI/sogni-client/commit/40d44df11390f0ce1379782eca913227521e46ff))
+* **video:** align enhanced Wan3 controls ([a31bf0e](https://github.com/Sogni-AI/sogni-client/commit/a31bf0e0e3fbf3a521a984ff827a05fe7263128c))
+
+
+### Features
+
+* **projects:** resume in-flight projects across reconnects and refreshes ([c33acee](https://github.com/Sogni-AI/sogni-client/commit/c33acee778ff39e96d6bdad4409511e2ae173907))
+* **video:** add Wan 3 Enhanced routing ([9b8b822](https://github.com/Sogni-AI/sogni-client/commit/9b8b82296d85577eec0eac92c7aef8edb9e33bae))
+* **video:** support Wan 3 Enhanced ([6f3da32](https://github.com/Sogni-AI/sogni-client/commit/6f3da32efbc0d784c7e88c64f874c830f921d747))
+
 ## [5.24.1](https://github.com/Sogni-AI/sogni-client/compare/v5.24.0...v5.24.1) (2026-08-29)
 
 
