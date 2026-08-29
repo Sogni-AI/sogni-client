@@ -12,6 +12,17 @@ export type CreativeWorkflowStatus =
   | 'cancelled'
   | string;
 
+export type CreativeWorkflowWaitingReason =
+  | 'ask_clarifying_question'
+  | 'select_media_required'
+  | 'cost_approval_required'
+  | 'cost_reauthorization_required'
+  | 'safety_review_required'
+  | 'workflow_user_input_required'
+  | 'insufficient_credit'
+  | 'permission_required'
+  | 'other';
+
 export type CreativeWorkflowHostedToolName =
   | 'generate_image'
   | 'generate_video'
@@ -69,6 +80,10 @@ export interface CreativeWorkflowRecord {
   workflowId: string;
   title?: string;
   status?: CreativeWorkflowStatus;
+  /** Why a `waiting_for_user` workflow is paused. */
+  waitingReason?: CreativeWorkflowWaitingReason;
+  /** True only when the workflow's confirm-cost endpoint is the valid resolution. */
+  awaitingCostApproval?: boolean;
   input?: Record<string, unknown>;
   plan?: Record<string, unknown>;
   steps?: unknown[];
