@@ -1,3 +1,10 @@
+# [5.26.0](https://github.com/Sogni-AI/sogni-client/compare/v5.25.0...v5.26.0) (2026-08-29)
+
+
+### Features
+
+* **projects:** list in-flight projects on other app instances ([4358b8c](https://github.com/Sogni-AI/sogni-client/commit/4358b8c92869b24d51a53cbd60aa0f3e2ee5329e))
+
 # [5.25.0](https://github.com/Sogni-AI/sogni-client/compare/v5.24.1...v5.25.0) (2026-08-29)
 
 
