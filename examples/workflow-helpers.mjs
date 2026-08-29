@@ -149,8 +149,10 @@ export const MINIMAX_H3_MIN_FRAMES = 124;
 export const MINIMAX_H3_MAX_FRAMES = 362;
 export const MINIMAX_H3_MIN_DURATION = MINIMAX_H3_MIN_FRAMES / MINIMAX_H3_FPS;
 export const MINIMAX_H3_MAX_DURATION = MINIMAX_H3_MAX_FRAMES / MINIMAX_H3_FPS;
-export const MINIMAX_H3_PDD_SOURCE_URL =
-  'https://huggingface.co/alibaba-pai/MiniMax-H3-Acc-LoRAs';
+export const MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL =
+  'https://huggingface.co/lightx2v/Minimax-h3-Turbo/tree/f3d9da6dac47dcb985684ca150f02893f619a171';
+export const MINIMAX_H3_LARRY_BALANCED_SOURCE_URL =
+  'https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora/tree/7b7ac96b0616100db75ea285090210c3ddf37c04';
 
 /**
  * MiniMax H3 Ref2VA (r2v) reference ceilings: up to 9 reference images, 3
@@ -395,12 +397,12 @@ function createMinimaxH3BalancedModel(workflow) {
     ? 'minimax-h3-ref2va-fp8_r2v_balanced'
     : `minimax-h3-fl2va-fp8_${workflow}_balanced`;
   const description = isReference
-    ? 'Eight-step PDD multi-reference video with jointly generated stereo audio; at least one image or video reference'
+    ? 'Eight-step Larry v4 step-600 EMA multi-reference video with jointly generated stereo audio; at least one image or video reference'
     : workflow === 't2v'
-      ? 'Eight-step PDD text-to-video with jointly generated 32kHz stereo audio'
+      ? 'Eight-step LightX2V text-to-video with jointly generated 32kHz stereo audio'
       : workflow === 'i2v'
-        ? 'Eight-step PDD first-, last-, or first-and-last-frame video with jointly generated stereo audio'
-        : 'Eight-step PDD first-and-last-frame video with jointly generated stereo audio; both anchors required';
+        ? 'Eight-step LightX2V first-, last-, or first-and-last-frame video with jointly generated stereo audio'
+        : 'Eight-step LightX2V first-and-last-frame video with jointly generated stereo audio; both anchors required';
   return {
     id,
     name: `MiniMax H3 ${isReference ? 'Ref2VA' : 'FL2VA'} FP8 Balanced ${workflowLabel}`,
@@ -437,8 +439,10 @@ function createMinimaxH3BalancedModel(workflow) {
     isComfyModel: true,
     hasAudio: true,
     supportsNegativePrompt: false,
-    acceleration: 'pdd',
-    accelerationSourceUrl: MINIMAX_H3_PDD_SOURCE_URL,
+    acceleration: isReference ? 'larry-v4-step600-ema' : 'lightx2v-v1.0-8step-768p',
+    accelerationSourceUrl: isReference
+      ? MINIMAX_H3_LARRY_BALANCED_SOURCE_URL
+      : MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL,
     ...(workflow === 'flf2v'
       ? { requiresReferenceImage: true, requiresReferenceImageEnd: true }
       : {}),
@@ -1640,8 +1644,8 @@ export const MODELS = {
   // One FL2VA checkpoint serves t2v, i2v, and flf2v; a separate Ref2VA
   // checkpoint serves the multi-reference r2v workflow. Standard H3 uses fixed
   // 24fps, 20 steps, guidance 1, and res_multistep/simple. Balanced uses the
-  // official Alibaba PAI 8-step Parallel Decoding Distillation (PDD) adapters
-  // with Euler/simple. FL2VA Turbo uses
+  // official LightX2V 8-step 768p FL2VA adapter or Larry v4 step-600 EMA for
+  // Ref2VA, both with Euler/simple. FL2VA Turbo uses
   // four steps and its validated sampler set; Ref2VA Turbo uses its dedicated
   // four-step LoRA with Euler/simple at the upstream 960x544 default. Video and
   // 32kHz stereo audio are generated jointly in one pass. Audio is included by
@@ -1946,7 +1950,7 @@ export const MODELS = {
       minHeight: 32,
       maxHeight: 1344,
       dimensionStep: 32,
-      maxPixels: 1032192,
+      maxPixels: 522240,
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 4,

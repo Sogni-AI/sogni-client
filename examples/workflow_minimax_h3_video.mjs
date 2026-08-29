@@ -76,7 +76,8 @@ import {
   MINIMAX_H3_MAX_FRAMES,
   MINIMAX_H3_MIN_DURATION,
   MINIMAX_H3_MAX_DURATION,
-  MINIMAX_H3_PDD_SOURCE_URL,
+  MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL,
+  MINIMAX_H3_LARRY_BALANCED_SOURCE_URL,
   MINIMAX_H3_MAX_REFERENCE_IMAGES,
   MINIMAX_H3_MAX_REFERENCE_VIDEOS,
   MINIMAX_H3_MAX_REFERENCE_AUDIOS,
@@ -110,14 +111,7 @@ const execFileAsync = promisify(execFile);
 const MODES = ['t2v', 'i2v', 'flf2v', 'r2v'];
 const SOURCE_AUDIO_POLICIES = new Set(['reuse', 'reference', 'replace']);
 
-// Shipped canvas presets. Both are 1032192 pixels exactly, which is the cap.
-const RESOLUTION_PRESETS = {
-  landscape: { width: 1344, height: 768 },
-  portrait: { width: 768, height: 1344 }
-};
-
 const H3_DIMENSION_STEP = 32;
-const H3_MAX_PIXELS = 1032192;
 
 // Default duration lands on 192 frames (124 + 4*17), which is exactly 8.00s.
 // Picked deliberately: it divides cleanly into the timed beats of the example
@@ -975,15 +969,18 @@ Modes:
 
 Fixed model parameters (not configurable):
   Standard: fps 24, steps 20, guidance 1, sampler res_multistep, scheduler simple
-  Balanced: fps 24, steps 8, guidance 1, sampler Euler, scheduler simple (PDD)
+  Balanced: fps 24, steps 8, guidance 1, sampler Euler, scheduler simple
+            (LightX2V 8-step 768p for FL2VA; Larry v4 step-600 EMA for Ref2VA)
   FL2VA Turbo: fps 24, steps 4, guidance 1, server-selected sampler, scheduler simple
   Ref2VA Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
   Native 32kHz stereo audio is generated jointly and included by default;
   --no-audio returns a video without an audio track
   Frames follow 124 + n*17 in the range 124-362 (${MINIMAX_H3_MIN_DURATION}s to ${MINIMAX_H3_MAX_DURATION}s)
-  Canvas uses a 32px grid, at most ${H3_MAX_PIXELS} pixels (1344x768 or 768x1344)
+  Canvas uses a 32px grid and each model's published pixel cap;
+  Ref2VA Turbo defaults to 960x544 and is capped at 522240 pixels
   Availability depends on current compatible capacity
-  PDD source: ${MINIMAX_H3_PDD_SOURCE_URL}
+  LightX2V Balanced source: ${MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL}
+  Larry Ref2VA Balanced source: ${MINIMAX_H3_LARRY_BALANCED_SOURCE_URL}
 
 Options:
   --mode <t2v|i2v|flf2v|r2v>  Workflow to run (default: t2v)
@@ -1272,7 +1269,13 @@ async function main() {
   }
 
   // Resolution
-  const preset = OPTIONS.portrait ? RESOLUTION_PRESETS.portrait : RESOLUTION_PRESETS.landscape;
+  const landscapePreset = {
+    width: modelConfig.defaultWidth,
+    height: modelConfig.defaultHeight
+  };
+  const preset = OPTIONS.portrait
+    ? { width: landscapePreset.height, height: landscapePreset.width }
+    : landscapePreset;
   if (!OPTIONS.width) OPTIONS.width = preset.width;
   if (!OPTIONS.height) OPTIONS.height = preset.height;
 
@@ -1288,9 +1291,10 @@ async function main() {
     );
     process.exit(1);
   }
-  if (OPTIONS.width * OPTIONS.height > H3_MAX_PIXELS) {
+  const maxPixels = modelConfig.maxPixels || 1032192;
+  if (OPTIONS.width * OPTIONS.height > maxPixels) {
     console.error(
-      `Error: ${OPTIONS.width}x${OPTIONS.height} is ${OPTIONS.width * OPTIONS.height} pixels, over the ${H3_MAX_PIXELS} cap. Use 1344x768 or 768x1344.`
+      `Error: ${OPTIONS.width}x${OPTIONS.height} is ${OPTIONS.width * OPTIONS.height} pixels, over the ${maxPixels} cap for ${modelConfig.name}. Use ${landscapePreset.width}x${landscapePreset.height} or ${landscapePreset.height}x${landscapePreset.width}.`
     );
     process.exit(1);
   }
