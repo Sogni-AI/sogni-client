@@ -184,7 +184,7 @@ export function isWan3Model(modelId: string): boolean {
   return WAN3_VIDEO_MODEL_IDS.has(modelId);
 }
 
-/** Check for the MuleRouter-powered Wan 3.0 Enhanced model specifically. */
+/** Check for the Wan 3.0 Enhanced model specifically. */
 export function isWan3EnhancedModel(modelId: string): boolean {
   return modelId === 'wan3.0-spicy-video';
 }
