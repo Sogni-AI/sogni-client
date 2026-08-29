@@ -1,3 +1,10 @@
+# [5.24.0](https://github.com/Sogni-AI/sogni-client/compare/v5.23.0...v5.24.0) (2026-08-29)
+
+
+### Features
+
+* **projects:** resume in-flight projects across reconnects and refreshes ([58666ef](https://github.com/Sogni-AI/sogni-client/commit/58666ef2336c9edc269358b59acfcfb1e015aaae))
+
 # [5.23.0](https://github.com/Sogni-AI/sogni-client/compare/v5.22.0...v5.23.0) (2026-08-28)
 
 
