@@ -35,6 +35,7 @@ import {
   isSeedance25Model,
   isHappyhorseModel,
   isWan3Model,
+  isWan3EnhancedModel,
   isMinimaxH3Model,
   isMinimaxH3TurboModel,
   isMinimaxH3BalancedModel,
@@ -632,6 +633,7 @@ function validateHappyhorseReferenceAssets(params: VideoProjectParams): void {
  * two mutually-exclusive request shapes in the upstream API.
  */
 function validateWan3ReferenceAssets(params: VideoProjectParams): void {
+  const isEnhanced = isWan3EnhancedModel(params.modelId);
   validateReferenceUrlArray(params.referenceImageUrls, 'referenceImageUrls');
   validateReferenceUrlArray(params.referenceVideoUrls, 'referenceVideoUrls');
   validateReferenceUrlArray(params.referenceAudioUrls, 'referenceAudioUrls');
@@ -667,6 +669,20 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: 'Wan 3 accepts either one reference file or one reference link, not both.'
     });
   }
+  if (isEnhanced && (params.referenceFileUrl || params.referenceLinkUrl)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3.0 Enhanced does not accept document or webpage references.'
+    });
+  }
+  if (isEnhanced && params.promptExtend !== undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3.0 Enhanced does not expose provider prompt expansion.'
+    });
+  }
   if (params.promptExtend !== undefined && typeof params.promptExtend !== 'boolean') {
     throw new ApiError(400, {
       status: 'error',
@@ -681,11 +697,25 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: 'Wan 3 watermark must be a boolean.'
     });
   }
+  if (isEnhanced && params.watermark !== undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3.0 Enhanced does not expose a watermark option.'
+    });
+  }
   if (params.smartDuration !== undefined && typeof params.smartDuration !== 'boolean') {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
       message: 'Wan 3 smartDuration must be a boolean.'
+    });
+  }
+  if (isEnhanced && params.smartDuration !== undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3.0 Enhanced requires an explicit duration from 2 through 30 seconds.'
     });
   }
   if (params.smartDuration && params.duration !== undefined) {
@@ -702,12 +732,16 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: 'Wan 3 output is fixed at 30 fps.'
     });
   }
-  const allowedRatios = new Set(['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16']);
+  const allowedRatios = new Set(isEnhanced
+    ? ['16:9', '4:3', '1:1', '3:4', '9:16']
+    : ['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16']);
   if (params.ratio !== undefined && !allowedRatios.has(params.ratio)) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
-      message: 'Wan 3 ratio must be adaptive, 16:9, 4:3, 1:1, 3:4, or 9:16.'
+      message: isEnhanced
+        ? 'Wan 3.0 Enhanced ratio must be 16:9, 4:3, 1:1, 3:4, or 9:16.'
+        : 'Wan 3 ratio must be adaptive, 16:9, 4:3, 1:1, 3:4, or 9:16.'
     });
   }
   if (params.referenceAudioIdentity || params.referenceMask) {
@@ -719,11 +753,13 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
   }
   if (params.seed !== undefined) {
     const seed = Number(params.seed);
-    if (!Number.isInteger(seed) || seed < 0 || seed > 2_147_483_647) {
+    if (!Number.isInteger(seed) || seed < (isEnhanced ? -1 : 0) || seed > 2_147_483_647) {
       throw new ApiError(400, {
         status: 'error',
         errorCode: 0,
-        message: 'Wan 3 seed must be an integer from 0 through 2147483647.'
+        message: isEnhanced
+          ? 'Wan 3.0 Enhanced seed must be -1 or an integer through 2147483647.'
+          : 'Wan 3 seed must be an integer from 0 through 2147483647.'
       });
     }
   }
@@ -745,7 +781,7 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: 'Wan 3 last-frame generation requires a first-frame referenceImage.'
     });
   }
-  if (hasFrameAnchors && hasLooseReferences) {
+  if (!isEnhanced && hasFrameAnchors && hasLooseReferences) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
