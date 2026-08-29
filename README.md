@@ -432,6 +432,12 @@ projects) a few times before it is declared lost; it then fails with an error wh
 `isProjectLostError(error)` is `true`. Apps that persist project ids themselves can run the same
 lookup with `sogni.projects.resolveMissing(ids)`.
 
+The same snapshot also answers "is anything rendering elsewhere on this account?" — another tab in
+a different Sogni app, another device, a headless client. `sogni.projects.listProjectsElsewhere()`
+returns those in-flight projects read-only (`appSource`, `status`, `model`, per-job step counts) so an
+app can point at them without tracking them; their results reach the account's project history
+when they finish.
+
 Recovery is per app instance: the server hands projects back to the `appId` that created them, so
 persist your `appId` (browsers: `localStorage`) and reuse it across reloads.
 

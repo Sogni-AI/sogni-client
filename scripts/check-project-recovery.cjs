@@ -536,6 +536,39 @@ async function main() {
     stopTimers(api);
   }
 
+  // 11. listProjectsElsewhere: other app instances only — never this instance,
+  //     never LLM entries, never projects an older socket left untagged — and
+  //     read-only (nothing becomes tracked).
+  {
+    const { api, socket } = makeHarness({
+      syncSnapshot: {
+        activeProjects: [
+          recoveredProject('MINE', { appId: 'app-under-test' }),
+          recoveredProject('PHONE', { appId: 'app-phone', appSource: 'sogni-ios' }),
+          recoveredProject('CHAT-LLM', {
+            appId: 'app-chat',
+            jobType: 'llm',
+            model: { id: 'qwen', type: 'llm' }
+          }),
+          recoveredProject('LEGACY', { appId: undefined })
+        ],
+        unclaimedCompletedProjects: [
+          recoveredProject('DONE', { appId: 'app-phone', status: 'completed' })
+        ]
+      }
+    });
+    const elsewhere = await api.listProjectsElsewhere();
+    assert.deepEqual(
+      elsewhere.map((p) => p.id),
+      ['PHONE'],
+      'only in-flight projects from other app instances'
+    );
+    assert.equal(elsewhere[0].appSource, 'sogni-ios');
+    assert.equal(socket.getCalls.at(-1).query?.appId, undefined, 'queried across all app-ids');
+    assert.equal(api.trackedProjects.length, 0, 'read-only: nothing becomes tracked');
+    stopTimers(api);
+  }
+
   console.log('check-project-recovery: ALL TESTS PASSED');
   process.exit(0);
 }

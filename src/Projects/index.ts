@@ -882,6 +882,33 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
+   * In-flight projects this account owns on OTHER app instances: another tab
+   * running a different Sogni app, another device, a headless client.
+   *
+   * Read-only. They are not tracked, receive no events here and are never
+   * reconciled; results land in the account's project history when they
+   * finish. Each entry carries `appSource`, `appId`, `status`, `createTime`,
+   * `model` and per-job `performedSteps` / `stepCount` (in `workerJobs`), which
+   * is enough for an "in progress elsewhere" affordance. The socket rate-limits
+   * this to 20 calls per 10 s per account, so poll on the order of tens of
+   * seconds. Requires a socket build that tags recovered projects with
+   * `appId`; older builds yield an empty list.
+   */
+  async listProjectsElsewhere(): Promise<RecoveredProject[]> {
+    const body = await this.client.socket.get<ProjectRecoverySnapshot>(
+      '/api/v1/artist/projects/sync'
+    );
+    const own = this.client.appId;
+    return (Array.isArray(body?.activeProjects) ? body.activeProjects : []).filter(
+      (project) =>
+        !!project?.id &&
+        typeof project.appId === 'string' &&
+        project.appId !== own &&
+        !isLLMRecoveredProject(project)
+    );
+  }
+
+  /**
    * Look up projects the last snapshot did not list. The REST API stores a
    * project only once it finishes and the socket posts it asynchronously, so a
    * 404 is retried a few times; before anything is declared lost the socket's
