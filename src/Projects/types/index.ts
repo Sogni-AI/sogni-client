@@ -258,7 +258,7 @@ export type SeedanceTaskType = 'reference' | 'edit' | 'extend';
  */
 export type Wan3TaskType = 'create' | 'edit' | 'extend';
 
-/** Aspect ratios accepted by Alibaba's unified Wan 3 endpoint. */
+/** Aspect ratios accepted by the unified Wan 3 provider endpoints. */
 export type Wan3Ratio = 'adaptive' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
 
 export interface VideoProjectParams extends BaseProjectParams {
@@ -288,7 +288,7 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * Let Wan 3 choose an output duration from 2 to 30 seconds. Sogni reserves
    * the 30-second maximum when the job is admitted and settles down to the
-   * duration Alibaba reports after completion. Wan 3 only.
+   * duration the provider reports after completion. Wan 3 only.
    */
   smartDuration?: boolean;
   /**
@@ -326,7 +326,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   wan3TaskType?: Wan3TaskType;
   /**
-   * Wan 3 output ratio. `adaptive` lets Alibaba derive the canvas from the
+   * Wan 3 output ratio. `adaptive` lets the provider derive the canvas from the
    * input media.
    */
   ratio?: Wan3Ratio;
@@ -434,7 +434,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceLinkUrl?: string;
   /**
-   * Use Alibaba's native Wan 3 prompt expansion. Defaults to true at the
+   * Use the provider's native Wan 3 prompt expansion. Defaults to true at the
    * vendor. Set false for literal prompts or after Sogni has already expanded
    * the prompt, avoiding a second rewrite.
    */

@@ -83,7 +83,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_video",
       "sdkToolName": "generate_video",
-      "hostedSchemaSha256": "034f961e77830f873e70cc7336b22279cc8e06b0637e67ddd21847667ff547a8",
+      "hostedSchemaSha256": "4ed0347dba31e7d4abf3b1cfdcf5f9d48e1444dd18f2d079e591dcf1555577d4",
       "hostedRequired": [
         "prompt"
       ],
@@ -133,7 +133,7 @@
       "executionMode": "direct",
       "hostedToolName": "animate_photo",
       "sdkToolName": "animate_photo",
-      "hostedSchemaSha256": "907521efa2dcbec901fc4c7442079f50c1077fbb16d472e83160ff2fd9aee200",
+      "hostedSchemaSha256": "7f68ef7a5fb5c9eea35c545a064b1cebf692848285bdf20d1cfd2a6a71d7ba63",
       "hostedRequired": [
         "prompt"
       ],
@@ -183,7 +183,7 @@
       "executionMode": "direct",
       "hostedToolName": "sound_to_video",
       "sdkToolName": "sound_to_video",
-      "hostedSchemaSha256": "ed15b5b997ddec08707930afccf0f766ce878a918dddd6c753c53d4a5935cb8e",
+      "hostedSchemaSha256": "84ba24691e008514d044489eff88e9eb38f026b59271c1b4665d8ca0a237701e",
       "hostedRequired": [
         "prompt"
       ],

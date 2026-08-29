@@ -39,7 +39,7 @@ const HAPPYHORSE_VIDEO_MODEL_IDS = new Set([
   'happyhorse-1.1-i2v',
   'happyhorse-1.1-r2v'
 ]);
-const WAN3_VIDEO_MODEL_IDS = new Set(['wan3.0-video']);
+const WAN3_VIDEO_MODEL_IDS = new Set(['wan3.0-video', 'wan3.0-spicy-video']);
 const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fl2va-fp8_t2v',
   'minimax-h3-fl2va-fp8_i2v',
@@ -182,6 +182,11 @@ export function isHappyhorseModel(modelId: string): boolean {
  */
 export function isWan3Model(modelId: string): boolean {
   return WAN3_VIDEO_MODEL_IDS.has(modelId);
+}
+
+/** Check for the MuleRouter-powered Wan 3.0 Enhanced model specifically. */
+export function isWan3EnhancedModel(modelId: string): boolean {
+  return modelId === 'wan3.0-spicy-video';
 }
 
 /**

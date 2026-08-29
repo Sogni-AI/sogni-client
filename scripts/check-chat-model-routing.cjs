@@ -314,10 +314,15 @@ for (const selector of [
 for (const selector of ['minimax-h3-i2v-balanced', 'minimax-h3-flf2v-balanced']) {
   assert.ok(animatePhotoModelSchema.enum.includes(selector));
 }
-assert.match(generateVideoModelSchema.description, /Parallel Decoding Distillation \(PDD\)/);
+assert.match(generateVideoModelSchema.description, /LightX2V 8-step 768p accelerator/);
 assert.match(
   generateVideoModelSchema.description,
-  /https:\/\/huggingface\.co\/alibaba-pai\/MiniMax-H3-Acc-LoRAs/
+  /https:\/\/huggingface\.co\/lightx2v\/Minimax-h3-Turbo\/tree\//
+);
+assert.match(generateVideoModelSchema.description, /Larry v4 step-600 EMA/);
+assert.match(
+  generateVideoModelSchema.description,
+  /https:\/\/huggingface\.co\/larryvrh\/MiniMax-H3-Turbo-Lora\/tree\//
 );
 assert.match(generateVideoLoraSchema.description, /"minimax-h3-r2v-balanced"/);
 assert.match(animatePhotoLoraSchema.description, /"minimax-h3-flf2v-balanced"/);

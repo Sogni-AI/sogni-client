@@ -128,6 +128,7 @@ export const PREFERRED_MODEL_IDS = {
     happyhorseI2v: 'happyhorse-1.1-i2v',
     happyhorseR2v: 'happyhorse-1.1-r2v',
     wan3: 'wan3.0-video',
+    wan3Enhanced: 'wan3.0-spicy-video',
     minimaxH3T2v: 'minimax-h3-fl2va-fp8_t2v',
     minimaxH3I2v: 'minimax-h3-fl2va-fp8_i2v',
     minimaxH3Flf2v: 'minimax-h3-fl2va-fp8_flf2v',

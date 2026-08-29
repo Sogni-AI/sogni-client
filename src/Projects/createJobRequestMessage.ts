@@ -35,6 +35,7 @@ import {
   isSeedance25Model,
   isHappyhorseModel,
   isWan3Model,
+  isWan3EnhancedModel,
   isMinimaxH3Model,
   isMinimaxH3TurboModel,
   isMinimaxH3BalancedModel,
@@ -632,6 +633,7 @@ function validateHappyhorseReferenceAssets(params: VideoProjectParams): void {
  * two mutually-exclusive request shapes in the upstream API.
  */
 function validateWan3ReferenceAssets(params: VideoProjectParams): void {
+  const isEnhanced = isWan3EnhancedModel(params.modelId);
   validateReferenceUrlArray(params.referenceImageUrls, 'referenceImageUrls');
   validateReferenceUrlArray(params.referenceVideoUrls, 'referenceVideoUrls');
   validateReferenceUrlArray(params.referenceAudioUrls, 'referenceAudioUrls');
@@ -667,6 +669,13 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: 'Wan 3 accepts either one reference file or one reference link, not both.'
     });
   }
+  if (isEnhanced && (params.referenceFileUrl || params.referenceLinkUrl)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3.0 Enhanced does not accept document or webpage references.'
+    });
+  }
   if (params.promptExtend !== undefined && typeof params.promptExtend !== 'boolean') {
     throw new ApiError(400, {
       status: 'error',
@@ -679,6 +688,13 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       status: 'error',
       errorCode: 0,
       message: 'Wan 3 watermark must be a boolean.'
+    });
+  }
+  if (isEnhanced && params.watermark !== undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3.0 Enhanced does not expose a watermark option.'
     });
   }
   if (params.smartDuration !== undefined && typeof params.smartDuration !== 'boolean') {
@@ -738,7 +754,7 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
   const hasLooseReferences =
     looseImageCount > 0 || videoCount > 0 || audioCount > 0 || hasDocumentContext;
 
-  if (params.referenceImageEnd && !params.referenceImage) {
+  if (!isEnhanced && params.referenceImageEnd && !params.referenceImage) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
