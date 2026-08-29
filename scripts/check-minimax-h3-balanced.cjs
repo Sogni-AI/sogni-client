@@ -26,8 +26,17 @@ const repoRoot = path.resolve(__dirname, '..');
     assert.equal(config.defaultComfySampler, 'euler');
     assert.deepEqual(config.allowedComfySamplers, ['euler']);
     assert.equal(config.defaultComfyScheduler, 'simple');
-    assert.equal(config.acceleration, 'pdd');
-    assert.equal(config.accelerationSourceUrl, helpers.MINIMAX_H3_PDD_SOURCE_URL);
+    const isReference = key === 'minimax-h3-r2v-balanced';
+    assert.equal(
+      config.acceleration,
+      isReference ? 'larry-v4-step600-ema' : 'lightx2v-v1.0-8step-768p'
+    );
+    assert.equal(
+      config.accelerationSourceUrl,
+      isReference
+        ? helpers.MINIMAX_H3_LARRY_BALANCED_SOURCE_URL
+        : helpers.MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL
+    );
   }
 
   const help = spawnSync(
@@ -38,7 +47,8 @@ const repoRoot = path.resolve(__dirname, '..');
   assert.equal(help.status, 0, help.stderr || help.stdout);
   assert.match(help.stdout, /Balanced: fps 24, steps 8, guidance 1, sampler Euler/);
   assert.match(help.stdout, /default: matching -balanced key/);
-  assert.match(help.stdout, /https:\/\/huggingface\.co\/alibaba-pai\/MiniMax-H3-Acc-LoRAs/);
+  assert.match(help.stdout, /https:\/\/huggingface\.co\/lightx2v\/Minimax-h3-Turbo\/tree\//);
+  assert.match(help.stdout, /https:\/\/huggingface\.co\/larryvrh\/MiniMax-H3-Turbo-Lora\/tree\//);
 
   console.log('MiniMax H3 Balanced SDK guard passed.');
 })().catch((error) => {

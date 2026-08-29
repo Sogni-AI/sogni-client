@@ -49,7 +49,10 @@ if (generateMusicModel) {
     'Use legacy ace_step_1.5_turbo or ace_step_1.5_sft only when the user explicitly requests a legacy model.';
 }
 
-const MINIMAX_H3_PDD_SOURCE_URL = 'https://huggingface.co/alibaba-pai/MiniMax-H3-Acc-LoRAs';
+const MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL =
+  'https://huggingface.co/lightx2v/Minimax-h3-Turbo/tree/f3d9da6dac47dcb985684ca150f02893f619a171';
+const MINIMAX_H3_LARRY_BALANCED_SOURCE_URL =
+  'https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora/tree/7b7ac96b0616100db75ea285090210c3ddf37c04';
 const appendDescriptionOnce = (description, addition) =>
   description?.includes(addition) ? description : `${description || ''} ${addition}`.trim();
 
@@ -71,7 +74,7 @@ if (generateVideoModel) {
   ];
   generateVideoModel.description = appendDescriptionOnce(
     generateVideoModel.description,
-    `MiniMax H3 Balanced uses Alibaba PAI Parallel Decoding Distillation (PDD) for fixed 8-step generation between 4-step Turbo and 20-step Standard; use "minimax-h3-balanced" or "minimax-h3-t2v-balanced" for FL2VA text-to-video and "minimax-h3-r2v-balanced" for Ref2VA reference-to-video. PDD source: ${MINIMAX_H3_PDD_SOURCE_URL}.`
+    `MiniMax H3 Balanced uses the LightX2V 8-step 768p accelerator for FL2VA and Larry v4 step-600 EMA for Ref2VA, between 4-step Turbo and 20-step Standard; use "minimax-h3-balanced" or "minimax-h3-t2v-balanced" for FL2VA text-to-video and "minimax-h3-r2v-balanced" for Ref2VA reference-to-video. Sources: ${MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL} and ${MINIMAX_H3_LARRY_BALANCED_SOURCE_URL}.`
   );
 }
 
@@ -87,7 +90,7 @@ if (animatePhotoModel) {
   ];
   animatePhotoModel.description = appendDescriptionOnce(
     animatePhotoModel.description,
-    `MiniMax H3 Balanced uses Alibaba PAI Parallel Decoding Distillation (PDD) for fixed 8-step generation; use "minimax-h3-i2v-balanced" for one endpoint image and "minimax-h3-flf2v-balanced" for required first-and-last frames. PDD source: ${MINIMAX_H3_PDD_SOURCE_URL}.`
+    `MiniMax H3 Balanced uses the LightX2V 8-step 768p accelerator for fixed 8-step generation; use "minimax-h3-i2v-balanced" for one endpoint image and "minimax-h3-flf2v-balanced" for required first-and-last frames. Source: ${MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL}.`
   );
 }
 
