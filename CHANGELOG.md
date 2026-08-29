@@ -1,3 +1,10 @@
+## [5.24.1](https://github.com/Sogni-AI/sogni-client/compare/v5.24.0...v5.24.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **workflows:** expose explicit workflow waiting-state fields ([ef43028](https://github.com/Sogni-AI/sogni-client/commit/ef430287b95dcda04662c7d6fe5e8fb85c6a2905))
+
 # [5.24.0](https://github.com/Sogni-AI/sogni-client/compare/v5.23.0...v5.24.0) (2026-08-29)
 
 
