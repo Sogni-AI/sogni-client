@@ -10,8 +10,13 @@ export interface SocketSubscriptionFairUseState {
   planPriceUsd: number;
   /** Epoch milliseconds on the socket wire; mapped to ISO in AccountApi. */
   resetAt: number;
-  fastConcurrencyLimit: 1;
-  fastQueueLimit: 1;
+  /**
+   * Fast plan rendering is paused until `resetAt`. Until 2026-08-30 this state
+   * clamped Fast to one active and one queued job and published that as
+   * `fastConcurrencyLimit` / `fastQueueLimit`; both retired with the clamp,
+   * because a refused render has no reduced ceiling to report.
+   */
+  fastRenderingPaused: true;
   relaxedUnrestricted: true;
   upgradeAvailable: boolean;
 }
