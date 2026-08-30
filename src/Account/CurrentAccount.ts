@@ -1,5 +1,5 @@
 import DataEntity from '../lib/DataEntity.js';
-import { Balances } from './types.js';
+import { AuthMethod, Balances } from './types.js';
 import { SubscriptionEntitlementSnapshot } from './subscription.types.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 /**
@@ -57,6 +57,20 @@ export interface AccountData {
    * substituting another.
    */
   freeSparkUnlockPath?: 'trial' | 'purchase';
+  /**
+   * How THIS session authenticated (`password` | `sso-google` | `sso-apple`).
+   * Capability gates key off the session: when it starts with `sso-`, hide
+   * withdrawals, approvals, email editing, and any operation requiring a user
+   * wallet signature. `undefined` until `/v1/account/me` has been fetched;
+   * treat as `password` on older API servers.
+   */
+  auth?: AuthMethod;
+  /**
+   * All sign-in methods the account owns (e.g. `['password', 'sso-google']`
+   * for a password account that enabled Google sign-in). `undefined` until
+   * `/v1/account/me` has been fetched.
+   */
+  authMethods?: AuthMethod[];
 }
 
 function getDefaults(): AccountData {
@@ -82,7 +96,9 @@ function getDefaults(): AccountData {
     username: undefined,
     subscription: undefined,
     freeSparkLocked: undefined,
-    freeSparkUnlockPath: undefined
+    freeSparkUnlockPath: undefined,
+    auth: undefined,
+    authMethods: undefined
   };
 }
 
@@ -125,6 +141,26 @@ class CurrentAccount extends DataEntity<AccountData> {
 
   get email() {
     return this.data.email;
+  }
+
+  /** How this session authenticated. See {@link AccountData.auth}. */
+  get auth() {
+    return this.data.auth;
+  }
+
+  /** All sign-in methods the account owns. See {@link AccountData.authMethods}. */
+  get authMethods() {
+    return this.data.authMethods;
+  }
+
+  /**
+   * `true` when this session authenticated through Google/Apple sign-in and is
+   * therefore capability-restricted (no withdrawals, approvals, email changes,
+   * or other operations requiring a user wallet signature). The step-up path
+   * is logout followed by password login.
+   */
+  get isSsoSession(): boolean {
+    return !!this.data.auth && this.data.auth.startsWith('sso-');
   }
 
   /**

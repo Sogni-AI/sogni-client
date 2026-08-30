@@ -10,6 +10,10 @@ import {
   Reward,
   RewardRaw,
   RewardsQuery,
+  SsoLinkData,
+  SsoProvider,
+  SsoSignupData,
+  SsoSignupParams,
   TxHistoryData,
   TxHistoryEntry,
   TxHistoryParams
@@ -479,6 +483,113 @@ class AccountApi extends ApiGroup {
   }
 
   /**
+   * Login with a Google/Apple identity-provider ID token (Sign in with
+   * Google / Sign in with Apple). The session is activated exactly like a
+   * password login.
+   *
+   * Error handling (see `SSO_ERROR_CODES`): a 404 with errorCode 105 means no
+   * account exists for this identity — offer signup and reuse the SAME
+   * `idToken` with {@link ssoSignup}. A 409 with errorCode 186 means the
+   * email belongs to an existing password account — the user should sign in
+   * with their password and enable SSO from settings ({@link ssoLink}).
+   *
+   * Note: SSO sessions are capability-restricted (no withdrawals, approvals,
+   * email changes, or other operations requiring a user wallet signature).
+   *
+   * @example Login with a Google credential
+   * ```typescript
+   * await sogni.account.ssoLogin('google', credential);
+   * ```
+   *
+   * @param provider - `'google'` or `'apple'`
+   * @param idToken - the identity provider's ID token (Google `credential` /
+   * Apple `id_token`)
+   * @param rememberMe - Whether to establish a long-lived session. Default is
+   * false. Only applicable for cookie-based authentication.
+   * @param appSource - Optional client app/source label for login attribution.
+   * Defaults to the SogniClient connection appSource when configured.
+   */
+  async ssoLogin(
+    provider: SsoProvider,
+    idToken: string,
+    rememberMe = false,
+    appSource?: string
+  ): Promise<LoginData> {
+    const resolvedAppSource = appSource?.trim() || this.client.appSource;
+    const res = await this.client.rest.post<ApiResponse<LoginData>>('/v1/account/sso/login', {
+      provider,
+      idToken,
+      ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
+      rememberMe
+    });
+    const auth = this.client.auth;
+    if (auth instanceof TokenAuthManager) {
+      await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
+    } else if (auth instanceof CookieAuthManager) {
+      await auth.authenticate();
+    }
+    return res.data;
+  }
+
+  /**
+   * Create a new account from a Google/Apple identity-provider ID token. The
+   * account's email comes from the verified token (no email parameter, no
+   * Turnstile); a username must still be chosen — validate it first with
+   * {@link validateUsername}. Reuse the SAME `idToken` the preceding
+   * {@link ssoLogin} attempt failed with (errorCode 105) — the token is only
+   * consumed by a successful login/signup.
+   *
+   * @example Signup after a 105 login miss
+   * ```typescript
+   * await sogni.account.ssoSignup({ provider: 'google', idToken: credential, username: 'newuser' });
+   * ```
+   */
+  async ssoSignup(params: SsoSignupParams, rememberMe = false): Promise<SsoSignupData> {
+    const { provider, idToken, username, subscribe, referralCode, appSource } = params;
+    const resolvedAppSource = appSource?.trim() || this.client.appSource;
+    const res = await this.client.rest.post<ApiResponse<SsoSignupData>>('/v1/account/sso/signup', {
+      appid: this.client.appId,
+      provider,
+      idToken,
+      username,
+      subscribe: subscribe ? 1 : 0,
+      ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
+      referralCode,
+      rememberMe
+    });
+    const auth = this.client.auth;
+    if (auth instanceof TokenAuthManager) {
+      await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
+    } else if (auth instanceof CookieAuthManager) {
+      await auth.authenticate();
+    }
+    return res.data;
+  }
+
+  /**
+   * One-time enable of Google/Apple sign-in on the CURRENT password account.
+   * Requires an authenticated password session (an SSO session gets a 403 with
+   * errorCode 184). The identity provider's verified email must match the
+   * account email — otherwise a 400 with errorCode 188 (this includes Apple
+   * "Hide My Email" relay addresses, which can never match). One provider per
+   * account, permanent — no unlink. The current session is unchanged; the new
+   * sign-in method applies from the next login.
+   *
+   * @example Enable Google sign-in from settings
+   * ```typescript
+   * const { authMethods } = await sogni.account.ssoLink('google', credential);
+   * ```
+   */
+  async ssoLink(provider: SsoProvider, idToken: string): Promise<SsoLinkData> {
+    const res = await this.client.rest.post<ApiResponse<SsoLinkData>>('/v1/account/sso/link', {
+      provider,
+      idToken
+    });
+    this.currentAccount._update({ authMethods: res.data.authMethods });
+    return res.data;
+  }
+
+  /**
    * Logout the user and close the WebSocket connection.
    *
    * @example Logout the user
@@ -565,7 +676,12 @@ class AccountApi extends ApiGroup {
     this.currentAccount._update({
       username: res.data.username,
       email: res.data.currentEmail,
-      walletAddress: res.data.walletAddress
+      walletAddress: res.data.walletAddress,
+      // Session auth grade + available sign-in methods. Older API servers omit
+      // them — default the grade to 'password' (matches server-side semantics
+      // for legacy tokens) rather than leaving the FE gating blind.
+      auth: res.data.auth ?? 'password',
+      authMethods: res.data.authMethods
     });
     return res.data;
   }
@@ -652,25 +768,27 @@ class AccountApi extends ApiGroup {
     );
 
     return {
-      entries: res.data.transactions.map((tx): TxHistoryEntry => ({
-        id: tx.id,
-        address: tx.address,
-        createTime: new Date(tx.createTime),
-        updateTime: new Date(tx.updateTime),
-        status: tx.status,
-        role: tx.role,
-        amount: tx.amount,
-        tokenType: tx.tokenType,
-        description: tx.description,
-        source: tx.source,
-        endTime: new Date(tx.endTime),
-        type: tx.type,
-        billingMode: tx.billingMode,
-        paymentModel: tx.paymentModel,
-        subscriptionTier: tx.subscriptionTier,
-        subscriptionTrialing: tx.subscriptionTrialing,
-        subscriptionThrottled: tx.subscriptionThrottled
-      })),
+      entries: res.data.transactions.map(
+        (tx): TxHistoryEntry => ({
+          id: tx.id,
+          address: tx.address,
+          createTime: new Date(tx.createTime),
+          updateTime: new Date(tx.updateTime),
+          status: tx.status,
+          role: tx.role,
+          amount: tx.amount,
+          tokenType: tx.tokenType,
+          description: tx.description,
+          source: tx.source,
+          endTime: new Date(tx.endTime),
+          type: tx.type,
+          billingMode: tx.billingMode,
+          paymentModel: tx.paymentModel,
+          subscriptionTier: tx.subscriptionTier,
+          subscriptionTrialing: tx.subscriptionTrialing,
+          subscriptionThrottled: tx.subscriptionThrottled
+        })
+      ),
       next: {
         ...params,
         offset: res.data.next
@@ -688,23 +806,25 @@ class AccountApi extends ApiGroup {
       query
     );
 
-    return r.data.rewards.map((raw: RewardRaw): Reward => ({
-      id: raw.id,
-      type: raw.type,
-      title: raw.title,
-      description: raw.description,
-      amount: raw.amount,
-      tokenType: raw.tokenType,
-      claimed: !!raw.claimed,
-      canClaim: !!raw.canClaim,
-      cantClaimReason: raw.cantClaimReason ?? null,
-      lastClaim: new Date(raw.lastClaimTimestamp * 1000),
-      provider: query.provider || 'base',
-      nextClaim:
-        raw.lastClaimTimestamp && raw.claimResetFrequencySec > -1
-          ? new Date(raw.lastClaimTimestamp * 1000 + raw.claimResetFrequencySec * 1000)
-          : null
-    }));
+    return r.data.rewards.map(
+      (raw: RewardRaw): Reward => ({
+        id: raw.id,
+        type: raw.type,
+        title: raw.title,
+        description: raw.description,
+        amount: raw.amount,
+        tokenType: raw.tokenType,
+        claimed: !!raw.claimed,
+        canClaim: !!raw.canClaim,
+        cantClaimReason: raw.cantClaimReason ?? null,
+        lastClaim: new Date(raw.lastClaimTimestamp * 1000),
+        provider: query.provider || 'base',
+        nextClaim:
+          raw.lastClaimTimestamp && raw.claimResetFrequencySec > -1
+            ? new Date(raw.lastClaimTimestamp * 1000 + raw.claimResetFrequencySec * 1000)
+            : null
+      })
+    );
   }
 
   /**

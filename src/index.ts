@@ -53,7 +53,19 @@ import type {
 } from './Projects/types/LoraCatalog.js';
 import type { ProjectEvent, JobEvent, JobPreparation } from './Projects/types/events.js';
 import type { RawProject } from './Projects/types/RawProject.js';
-import type { Balances, Reward, RewardCantClaimReason, TxHistoryEntry } from './Account/types.js';
+import type {
+  AuthMethod,
+  Balances,
+  Reward,
+  RewardCantClaimReason,
+  SsoErrorCode,
+  SsoLinkData,
+  SsoProvider,
+  SsoSignupData,
+  SsoSignupParams,
+  TxHistoryEntry
+} from './Account/types.js';
+import { SSO_ERROR_CODES } from './Account/types.js';
 import type {
   CreateSubscriptionCheckoutOptions,
   SubscriptionCheckoutResult,
@@ -318,9 +330,15 @@ export type {
   VideoWorkflowType,
   // Primitives promoted from deep paths so consumers can import from the
   // package root rather than reaching into `./dist/*`.
+  AuthMethod,
   Balances,
   Reward,
   RewardCantClaimReason,
+  SsoErrorCode,
+  SsoLinkData,
+  SsoProvider,
+  SsoSignupData,
+  SsoSignupParams,
   TxHistoryEntry,
   CreateSubscriptionCheckoutOptions,
   SubscriptionCheckoutResult,
@@ -374,6 +392,7 @@ export {
   Job,
   Project,
   SogniTools,
+  SSO_ERROR_CODES,
   SUBSCRIPTION_ERROR_CODES,
   isSubscriptionLimitError,
   isSogniToolCall,
@@ -548,7 +567,10 @@ export class SogniClient {
       this.currentAccount._update({
         username: res.data.username,
         email: res.data.currentEmail,
-        walletAddress: res.data.walletAddress
+        walletAddress: res.data.walletAddress,
+        // Session auth grade + available sign-in methods (see AccountApi.me).
+        auth: res.data.auth ?? 'password',
+        authMethods: res.data.authMethods
       });
       return true;
     } catch (e) {

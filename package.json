@@ -63,6 +63,7 @@
     "test:chat-routing": "npm run build && node scripts/check-chat-model-routing.cjs",
     "test:attribution": "npm run build && node scripts/check-attribution-transport.cjs",
     "test:subscription-api": "npm run build && node scripts/check-subscription-api.cjs",
+    "test:sso-api": "npm run build && node scripts/check-sso-api.cjs",
     "test:model-options": "npm run build && node scripts/check-video-model-options.cjs",
     "test:video-estimates": "npm run build && node scripts/check-video-estimates.cjs",
     "test:seedance-task-type": "npm run build && node scripts/check-seedance-task-type.cjs && node scripts/check-seedance-r2v-example.cjs",
