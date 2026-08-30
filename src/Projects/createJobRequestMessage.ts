@@ -697,18 +697,18 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: 'Wan 3.0 Enhanced does not expose a watermark option.'
     });
   }
-  if (params.smartDuration !== undefined && typeof params.smartDuration !== 'boolean') {
+  // smartDuration is retired. It let Wan 3 choose 2-30s AFTER admission, so the
+  // quote had to reserve the 30-second maximum for a render that usually came
+  // back far shorter — and the Wan 3 Enhanced launch credit settled against that
+  // reserved ceiling rather than the delivered video. Send an explicit duration,
+  // which covers the identical range and is charged exactly as quoted.
+  // The server rejects it too; this only fails faster and closer to the caller.
+  if (params.smartDuration !== undefined) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
-      message: 'Wan 3 smartDuration must be a boolean.'
-    });
-  }
-  if (params.smartDuration && params.duration !== undefined) {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: 'Wan 3 smartDuration and duration are mutually exclusive.'
+      message:
+        'Wan 3 smartDuration has been retired. Send an explicit duration between 2 and 30 seconds instead.'
     });
   }
   if (params.fps !== undefined && params.fps !== 30) {
@@ -1086,11 +1086,6 @@ function applyVideoParams(
   }
   if (params.ratio !== undefined) {
     keyFrame.ratio = params.ratio;
-  }
-  if (params.smartDuration) {
-    keyFrame.smartDuration = true;
-    // Admission pricing reserves the maximum possible smart-duration output.
-    keyFrame.frames = calculateVideoFrames(params.modelId, 30, 30);
   }
   if (params.seedanceTaskType !== undefined) {
     keyFrame.seedanceTaskType = params.seedanceTaskType;

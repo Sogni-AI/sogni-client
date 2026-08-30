@@ -272,7 +272,7 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * Duration of the video in seconds. Supported range 1 to 10 (WAN), 2 to 20 (LTX 2.5), 4 to 20 (LTX 2.3),
    * 4 to 15 (Seedance 2.0), 4 to 30 (Seedance 2.5), 3 to 15 (HappyHorse),
-   * 2 to 30 (Wan 3; use `smartDuration` to let the model choose),
+   * 2 to 30 (Wan 3),
    * or 124/24 to 362/24 seconds (MiniMax H3).
    *
    * The SDK automatically calculates the correct frame count based on the model:
@@ -286,9 +286,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   duration?: number;
   /**
-   * Let Wan 3 choose an output duration from 2 to 30 seconds. Sogni reserves
-   * the 30-second maximum when the job is admitted and settles down to the
-   * duration the provider reports after completion. Wan 3 only.
+   * @deprecated Retired — sending this throws. Use `duration` instead, which
+   * covers the same 2-30 second range for Wan 3.
+   *
+   * This let Wan 3 pick the output length after the job was admitted, so the
+   * quote had to reserve the 30-second maximum and the artist was held at a
+   * price the render rarely reached.
    */
   smartDuration?: boolean;
   /**
