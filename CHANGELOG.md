@@ -1,3 +1,10 @@
+## [5.26.1](https://github.com/Sogni-AI/sogni-client/compare/v5.26.0...v5.26.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **video:** reject the retired Wan 3 smartDuration parameter ([c8259d6](https://github.com/Sogni-AI/sogni-client/commit/c8259d6730b893f9e8f478229249db0a380bd9dc))
+
 # [5.26.0](https://github.com/Sogni-AI/sogni-client/compare/v5.25.0...v5.26.0) (2026-08-29)
 
 
