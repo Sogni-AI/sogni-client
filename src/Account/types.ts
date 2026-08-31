@@ -85,7 +85,11 @@ export const SSO_ERROR_CODES = {
   /** SSO sign-in disabled because the account email changed — use the password. */
   SSO_EMAIL_CHANGED: 187,
   /** Link rejected: provider email does not match the account email (includes Apple "Hide My Email"). */
-  SSO_LINK_EMAIL_MISMATCH: 188
+  SSO_LINK_EMAIL_MISMATCH: 188,
+  /** Password login named a username owned by an SSO-native account — use `details.provider` sign-in. */
+  SSO_LOGIN_REQUIRED: 189,
+  /** Password signup used an email owned by an SSO account (`details.provider`). */
+  EMAIL_REGISTERED_VIA_SSO: 190
 } as const;
 
 export type SsoErrorCode = (typeof SSO_ERROR_CODES)[keyof typeof SSO_ERROR_CODES];

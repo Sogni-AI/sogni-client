@@ -470,6 +470,11 @@ class AccountApi extends ApiGroup {
     const res = await this.client.rest.post<ApiResponse<LoginData>>('/v1/account/login', {
       walletAddress: wallet.address,
       signature,
+      // Lets the server tell "this username is an SSO-native account" (189, with
+      // details.provider) apart from plain bad credentials. Requires a server
+      // whose LoginDto accepts `username` — older servers reject unknown body
+      // fields, so deploy sogni-api before shipping this client version.
+      username,
       ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
       rememberMe
     });

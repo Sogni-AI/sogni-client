@@ -40,6 +40,8 @@ export interface ApiErrorResponse {
   status: 'error';
   message: string;
   errorCode: number;
+  /** Optional structured context for the error (e.g. `{ provider: 'google' }` on 189/190). */
+  details?: Record<string, unknown>;
 }
 
 export class ApiError extends Error {
