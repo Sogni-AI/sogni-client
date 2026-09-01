@@ -1,3 +1,10 @@
+## [5.26.2](https://github.com/Sogni-AI/sogni-client/compare/v5.26.1...v5.26.2) (2026-09-01)
+
+
+### Bug Fixes
+
+* **minimax-h3:** classify FastH3 as video ([9363db8](https://github.com/Sogni-AI/sogni-client/commit/9363db80de674a8a84701165b061bc7cc436e158))
+
 ## [5.26.1](https://github.com/Sogni-AI/sogni-client/compare/v5.26.0...v5.26.1) (2026-08-30)
 
 
