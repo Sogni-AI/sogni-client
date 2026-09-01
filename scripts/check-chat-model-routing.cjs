@@ -284,6 +284,11 @@ const minimaxH3TurboModelIds = {
   flf2v: 'minimax-h3-fl2va-fp8_flf2v_turbo',
   r2v: 'minimax-h3-ref2va-fp8_r2v_turbo'
 };
+const minimaxH3FastVideoModelIds = {
+  t2v: 'minimax-h3-fastvideo-int8_t2v_turbo',
+  i2v: 'minimax-h3-fastvideo-int8_i2v_turbo',
+  flf2v: 'minimax-h3-fastvideo-int8_flf2v_turbo'
+};
 const minimaxH3BalancedModelIds = {
   t2v: 'minimax-h3-fl2va-fp8_t2v_balanced',
   i2v: 'minimax-h3-fl2va-fp8_i2v_balanced',
@@ -343,6 +348,8 @@ assert.doesNotMatch(
 );
 assert.ok(Object.values(minimaxH3ModelIds).every(isMinimaxH3Model));
 assert.ok(Object.values(minimaxH3TurboModelIds).every(isMinimaxH3TurboModel));
+assert.ok(Object.values(minimaxH3FastVideoModelIds).every(isMinimaxH3Model));
+assert.ok(Object.values(minimaxH3FastVideoModelIds).every(isMinimaxH3TurboModel));
 assert.ok(Object.values(minimaxH3BalancedModelIds).every(isMinimaxH3Model));
 assert.ok(Object.values(minimaxH3BalancedModelIds).every(isMinimaxH3BalancedModel));
 assert.equal(isMinimaxH3TurboModel(minimaxH3ModelIds.t2v), false);
@@ -356,6 +363,9 @@ assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.t2v), 't2v');
 assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.i2v), 'i2v');
 assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.flf2v), 'flf2v');
 assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.r2v), 'r2v');
+assert.equal(getVideoWorkflowType(minimaxH3FastVideoModelIds.t2v), 't2v');
+assert.equal(getVideoWorkflowType(minimaxH3FastVideoModelIds.i2v), 'i2v');
+assert.equal(getVideoWorkflowType(minimaxH3FastVideoModelIds.flf2v), 'flf2v');
 assert.equal(getVideoWorkflowType(minimaxH3BalancedModelIds.t2v), 't2v');
 assert.equal(getVideoWorkflowType(minimaxH3BalancedModelIds.i2v), 'i2v');
 assert.equal(getVideoWorkflowType(minimaxH3BalancedModelIds.flf2v), 'flf2v');
@@ -538,6 +548,18 @@ const minimaxH3TurboRequest = createJobRequestMessage(
 );
 assert.equal(minimaxH3TurboRequest.keyFrames[0].steps, 4);
 assert.equal(minimaxH3TurboRequest.keyFrames[0].comfySampler, null);
+const minimaxH3FastVideoRequest = createJobRequestMessage(
+  'h3-fastvideo-test',
+  {
+    ...minimaxH3Params,
+    modelId: minimaxH3FastVideoModelIds.t2v,
+    steps: 4,
+    sampler: undefined
+  },
+  minimaxH3TurboOptions
+);
+assert.equal(minimaxH3FastVideoRequest.keyFrames[0].steps, 4);
+assert.equal(minimaxH3FastVideoRequest.keyFrames[0].comfySampler, null);
 const minimaxH3BalancedOptions = {
   ...minimaxH3Options,
   steps: { min: 8, max: 8, step: 1, default: 8 },
