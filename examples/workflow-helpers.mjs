@@ -149,6 +149,10 @@ export const MINIMAX_H3_MIN_FRAMES = 124;
 export const MINIMAX_H3_MAX_FRAMES = 362;
 export const MINIMAX_H3_MIN_DURATION = MINIMAX_H3_MIN_FRAMES / MINIMAX_H3_FPS;
 export const MINIMAX_H3_MAX_DURATION = MINIMAX_H3_MAX_FRAMES / MINIMAX_H3_FPS;
+export const MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL =
+  'https://huggingface.co/lightx2v/Minimax-h3-Turbo/tree/f3d9da6dac47dcb985684ca150f02893f619a171';
+export const MINIMAX_H3_LARRY_BALANCED_SOURCE_URL =
+  'https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora/tree/7b7ac96b0616100db75ea285090210c3ddf37c04';
 
 /**
  * MiniMax H3 Ref2VA (r2v) reference ceilings: up to 9 reference images, 3
@@ -382,6 +386,75 @@ function makeLtx25VideoConfig(workflow, variant) {
     ...(workflow === 'a2v' ? { requiresReferenceImage: false } : {}),
     ...(workflow === 'v2v'
       ? { requiresReferenceImage: false, supportsControlNet: true }
+      : {})
+  };
+}
+
+function createMinimaxH3BalancedModel(workflow) {
+  const isReference = workflow === 'r2v';
+  const workflowLabel = workflow.toUpperCase();
+  const id = isReference
+    ? 'minimax-h3-ref2va-fp8_r2v_balanced'
+    : `minimax-h3-fl2va-fp8_${workflow}_balanced`;
+  const description = isReference
+    ? 'Eight-step Larry v4 step-600 EMA multi-reference video with jointly generated stereo audio; at least one image or video reference'
+    : workflow === 't2v'
+      ? 'Eight-step LightX2V text-to-video with jointly generated 32kHz stereo audio'
+      : workflow === 'i2v'
+        ? 'Eight-step LightX2V first-, last-, or first-and-last-frame video with jointly generated stereo audio'
+        : 'Eight-step LightX2V first-and-last-frame video with jointly generated stereo audio; both anchors required';
+  return {
+    id,
+    name: `MiniMax H3 ${isReference ? 'Ref2VA' : 'FL2VA'} FP8 Balanced ${workflowLabel}`,
+    description,
+    workflowType: workflow,
+    defaultWidth: 1344,
+    defaultHeight: 768,
+    minWidth: 32,
+    maxWidth: 1344,
+    minHeight: 32,
+    maxHeight: 1344,
+    dimensionStep: 32,
+    maxPixels: 1032192,
+    defaultSteps: 8,
+    minSteps: 8,
+    maxSteps: 8,
+    defaultGuidance: 1.0,
+    minGuidance: 1.0,
+    maxGuidance: 1.0,
+    defaultComfySampler: 'euler',
+    allowedComfySamplers: ['euler'],
+    defaultComfyScheduler: 'simple',
+    allowedComfySchedulers: ['simple'],
+    minFrames: MINIMAX_H3_MIN_FRAMES,
+    maxFrames: MINIMAX_H3_MAX_FRAMES,
+    defaultFrames: MINIMAX_H3_BASE_FRAMES,
+    frameStep: MINIMAX_H3_FRAME_STEP,
+    frameBase: MINIMAX_H3_BASE_FRAMES,
+    defaultFps: MINIMAX_H3_FPS,
+    allowedFps: [MINIMAX_H3_FPS],
+    minDuration: MINIMAX_H3_MIN_DURATION,
+    maxDuration: MINIMAX_H3_MAX_DURATION,
+    isLightning: true,
+    isComfyModel: true,
+    hasAudio: true,
+    supportsNegativePrompt: false,
+    acceleration: isReference ? 'larry-v4-step600-ema' : 'lightx2v-v1.0-8step-768p',
+    accelerationSourceUrl: isReference
+      ? MINIMAX_H3_LARRY_BALANCED_SOURCE_URL
+      : MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL,
+    ...(workflow === 'flf2v'
+      ? { requiresReferenceImage: true, requiresReferenceImageEnd: true }
+      : {}),
+    ...(workflow === 'i2v' ? { requiresReferenceImage: false } : {}),
+    ...(isReference
+      ? {
+          requiresVisualReference: true,
+          maxReferenceImages: MINIMAX_H3_MAX_REFERENCE_IMAGES,
+          maxReferenceVideos: MINIMAX_H3_MAX_REFERENCE_VIDEOS,
+          maxReferenceAudios: MINIMAX_H3_MAX_REFERENCE_AUDIOS,
+          maxReferenceFiles: MINIMAX_H3_MAX_REFERENCE_FILES
+        }
       : {})
   };
 }
@@ -1570,7 +1643,9 @@ export const MODELS = {
   //
   // One FL2VA checkpoint serves t2v, i2v, and flf2v; a separate Ref2VA
   // checkpoint serves the multi-reference r2v workflow. Standard H3 uses fixed
-  // 24fps, 20 steps, guidance 1, and res_multistep/simple. FL2VA Turbo uses
+  // 24fps, 20 steps, guidance 1, and res_multistep/simple. Balanced uses the
+  // official LightX2V 8-step 768p FL2VA adapter or Larry v4 step-600 EMA for
+  // Ref2VA, both with Euler/simple. FL2VA Turbo uses
   // four steps and its validated sampler set; Ref2VA Turbo uses its dedicated
   // four-step LoRA with Euler/simple at the upstream 960x544 default. Video and
   // 32kHz stereo audio are generated jointly in one pass. Audio is included by
@@ -1698,6 +1773,9 @@ export const MODELS = {
       requiresReferenceImage: true,
       requiresReferenceImageEnd: true
     },
+    'minimax-h3-t2v-balanced': createMinimaxH3BalancedModel('t2v'),
+    'minimax-h3-i2v-balanced': createMinimaxH3BalancedModel('i2v'),
+    'minimax-h3-flf2v-balanced': createMinimaxH3BalancedModel('flf2v'),
     'minimax-h3-t2v-turbo': {
       id: 'minimax-h3-fl2va-fp8_t2v_turbo',
       name: 'MiniMax H3 FL2VA FP8 Turbo T2V',
@@ -1858,6 +1936,7 @@ export const MODELS = {
       maxReferenceAudios: MINIMAX_H3_MAX_REFERENCE_AUDIOS,
       maxReferenceFiles: MINIMAX_H3_MAX_REFERENCE_FILES
     },
+    'minimax-h3-r2v-balanced': createMinimaxH3BalancedModel('r2v'),
     'minimax-h3-r2v-turbo': {
       id: 'minimax-h3-ref2va-fp8_r2v_turbo',
       name: 'MiniMax H3 Ref2VA FP8 Turbo R2V',
@@ -1871,7 +1950,7 @@ export const MODELS = {
       minHeight: 32,
       maxHeight: 1344,
       dimensionStep: 32,
-      maxPixels: 1032192,
+      maxPixels: 522240,
       defaultSteps: 4,
       minSteps: 4,
       maxSteps: 4,

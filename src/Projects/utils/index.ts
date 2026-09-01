@@ -9,15 +9,15 @@ import {
 
 const LTX_WORKFLOWS = ['t2v', 'i2v', 'a2v', 'ia2v', 'v2v'] as const;
 const LTX_VIDEO_MODEL_IDS = new Set([
-  ...LTX_WORKFLOWS.flatMap(workflow => [
+  ...LTX_WORKFLOWS.flatMap((workflow) => [
     `ltx2-19b-fp8_${workflow}`,
     `ltx2-19b-fp8_${workflow}_distilled`,
     `ltx23-22b-fp8_${workflow}_distilled`,
     `ltx23-22b-fp8_${workflow}_dev`,
     `ltx25-22b-int8_${workflow}_distilled`,
-    `ltx25-22b-int8_${workflow}_dev`,
+    `ltx25-22b-int8_${workflow}_dev`
   ]),
-  'ltx23-22b-10eros-v1.4-fp8mixed_i2v',
+  'ltx23-22b-10eros-v1.4-fp8mixed_i2v'
 ]);
 const WAN_VIDEO_MODEL_IDS = new Set([
   'wan_v2.2-14b-fp8_t2v',
@@ -26,19 +26,20 @@ const WAN_VIDEO_MODEL_IDS = new Set([
   'wan_v2.2-14b-fp8_i2v_lightx2v',
   'wan_v2.2-14b-fp8_s2v_lightx2v',
   'wan_v2.2-14b-fp8_animate-move_lightx2v',
-  'wan_v2.2-14b-fp8_animate-replace_lightx2v',
+  'wan_v2.2-14b-fp8_animate-replace_lightx2v'
 ]);
 const SEEDANCE_VIDEO_MODEL_IDS = new Set([
   'seedance-2-0',
   'seedance-2-0-mini',
   'seedance-2-0-fast',
-  'seedance-2-5',
+  'seedance-2-5'
 ]);
 const HAPPYHORSE_VIDEO_MODEL_IDS = new Set([
   'happyhorse-1.1-t2v',
   'happyhorse-1.1-i2v',
-  'happyhorse-1.1-r2v',
+  'happyhorse-1.1-r2v'
 ]);
+const WAN3_VIDEO_MODEL_IDS = new Set(['wan3.0-video', 'wan3.0-spicy-video']);
 const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fl2va-fp8_t2v',
   'minimax-h3-fl2va-fp8_i2v',
@@ -48,6 +49,10 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fl2va-fp8_i2v_turbo',
   'minimax-h3-fl2va-fp8_flf2v_turbo',
   'minimax-h3-ref2va-fp8_r2v_turbo',
+  'minimax-h3-fl2va-fp8_t2v_balanced',
+  'minimax-h3-fl2va-fp8_i2v_balanced',
+  'minimax-h3-fl2va-fp8_flf2v_balanced',
+  'minimax-h3-ref2va-fp8_r2v_balanced'
 ]);
 
 export function getEnhacementStrength(strength: EnhancementStrength): number {
@@ -67,11 +72,14 @@ export function getEnhacementStrength(strength: EnhancementStrength): number {
  * Video models produce MP4 output; image models produce PNG/JPG output.
  */
 export function isVideoModel(modelId: string): boolean {
-  return isWanModel(modelId)
-    || isLtx2Model(modelId)
-    || isSeedanceModel(modelId)
-    || isHappyhorseModel(modelId)
-    || isMinimaxH3Model(modelId);
+  return (
+    isWanModel(modelId) ||
+    isLtx2Model(modelId) ||
+    isSeedanceModel(modelId) ||
+    isHappyhorseModel(modelId) ||
+    isWan3Model(modelId) ||
+    isMinimaxH3Model(modelId)
+  );
 }
 
 /**
@@ -101,9 +109,11 @@ export function isWanModel(modelId: string): boolean {
  * These models support up to 321 frames (20s at 16fps).
  */
 export function isWanAnimateModel(modelId: string): boolean {
-  return isWanModel(modelId)
-    && (modelId === 'wan_v2.2-14b-fp8_animate-move_lightx2v'
-      || modelId === 'wan_v2.2-14b-fp8_animate-replace_lightx2v');
+  return (
+    isWanModel(modelId) &&
+    (modelId === 'wan_v2.2-14b-fp8_animate-move_lightx2v' ||
+      modelId === 'wan_v2.2-14b-fp8_animate-replace_lightx2v')
+  );
 }
 
 /**
@@ -163,6 +173,23 @@ export function isHappyhorseModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model ID is Alibaba's unified Wan 3 video model.
+ *
+ * Unlike workflow-specific local WAN 2.2 checkpoints, `wan3.0-video` uses one
+ * canonical vendor/model ID for text, first-frame, first-and-last-frame,
+ * multimodal reference, edit, and extend requests. The supplied media shape
+ * selects the operation; the model ID deliberately carries no workflow suffix.
+ */
+export function isWan3Model(modelId: string): boolean {
+  return WAN3_VIDEO_MODEL_IDS.has(modelId);
+}
+
+/** Check for the MuleRouter-powered Wan 3.0 Enhanced model specifically. */
+export function isWan3EnhancedModel(modelId: string): boolean {
+  return modelId === 'wan3.0-spicy-video';
+}
+
+/**
  * Check if a model ID is a MiniMax H3 video model.
  *
  * Two separate checkpoints and dedicated distilled paths ship under this prefix:
@@ -170,10 +197,13 @@ export function isHappyhorseModel(modelId: string): boolean {
  * - Ref2VA: `minimax-h3-ref2va-fp8_r2v` (the multi-reference workflow)
  * - FL2VA Turbo: the same three FL2VA ids with a `_turbo` suffix
  * - Ref2VA Turbo: `minimax-h3-ref2va-fp8_r2v_turbo`
+ * - FL2VA Balanced: the same three FL2VA ids with a `_balanced` suffix
+ * - Ref2VA Balanced: `minimax-h3-ref2va-fp8_r2v_balanced`
  *
  * All H3 paths share fixed 24fps, guidance 1, the `124 + n*17` frame grid,
  * and jointly generated 32kHz stereo audio. Standard H3 uses 20 steps;
- * Each Turbo family uses its own 4-step distillation LoRA.
+ * Balanced uses Alibaba PAI's 8-step Parallel Decoding Distillation (PDD)
+ * adapters; each Turbo family uses its own 4-step distillation LoRA.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
   return MINIMAX_H3_VIDEO_MODEL_IDS.has(modelId);
@@ -191,8 +221,19 @@ export function isMinimaxH3TurboModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model ID is one of the 8-step MiniMax H3 Balanced workflows.
+ * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching PDD adapter for r2v.
+ */
+export function isMinimaxH3BalancedModel(modelId: string): boolean {
+  return (
+    /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_balanced$/.test(modelId) ||
+    modelId === 'minimax-h3-ref2va-fp8_r2v_balanced'
+  );
+}
+
+/**
  * Check if a model ID is the MiniMax H3 Ref2VA multi-reference workflow
- * (`minimax-h3-ref2va-fp8_r2v` or `minimax-h3-ref2va-fp8_r2v_turbo`).
+ * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, or `..._r2v_balanced`).
  *
  * This is the only MiniMax H3 workflow that conditions on more than two input
  * files, and the only video workflow of any family that carries reference
@@ -205,18 +246,17 @@ export function isMinimaxH3ReferenceModel(modelId: string): boolean {
 }
 
 /**
- * Check if a model ID is an external API-backed video model (Seedance 2.0 or
- * HappyHorse 1.1).
+ * Check if a model ID is an external API-backed video model.
  *
- * These vendor families share the external API routing path: fixed 24fps
- * generation, Spark-only billing, no negative prompt, and HTTPS/local
+ * These vendor families share the external API routing path: Spark-only
+ * billing, no negative prompt, and HTTPS/local
  * reference context handling. Use this where the same gate applies to both
  * families; use the model-specific checks (`isSeedanceModel` /
  * `isHappyhorseModel`) for behavior that differs, such as reference asset
  * validation and minimum duration.
  */
 export function isExternalApiVideoModel(modelId: string): boolean {
-  return isSeedanceModel(modelId) || isHappyhorseModel(modelId);
+  return isSeedanceModel(modelId) || isHappyhorseModel(modelId) || isWan3Model(modelId);
 }
 
 /**
@@ -341,9 +381,15 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   const isLtx2 = isLtx2Model(modelId);
   const isSeedance = isSeedanceModel(modelId);
   const isHappyhorse = isHappyhorseModel(modelId);
+  const isWan3 = isWan3Model(modelId);
   const isMinimaxH3 = isMinimaxH3Model(modelId);
 
-  if (!isWan && !isLtx2 && !isSeedance && !isHappyhorse && !isMinimaxH3) return null;
+  if (!isWan && !isLtx2 && !isSeedance && !isHappyhorse && !isWan3 && !isMinimaxH3) return null;
+
+  // Wan 3 is one unified endpoint whose concrete workflow is selected from
+  // its inputs. Return the text-to-video baseline so callers recognize it as
+  // a valid video model; input-specific validation is handled separately.
+  if (isWan3) return 't2v';
 
   // HappyHorse encodes the workflow directly in the model id using hyphenated
   // suffixes: happyhorse-1.1-t2v, happyhorse-1.1-i2v, happyhorse-1.1-r2v.

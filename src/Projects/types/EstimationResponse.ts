@@ -2,6 +2,19 @@ export interface EstimationResponse {
   request: Request;
   rate: Rate;
   quote: Quote;
+  /** Present only when the server has enough live samples for this exact model/settings combination. */
+  benchmark?: Benchmark;
+}
+
+export interface Benchmark {
+  estimatedRenderTimeSec: number;
+  medianRenderTimeSec: number;
+  sampleCount: number;
+  confidence: number;
+  /** Average current queue wait, when a wait benchmark exists for this model/network. */
+  estimatedWaitTimeSec?: number;
+  /** estimatedRenderTimeSec + estimatedWaitTimeSec, when both exist. */
+  estimatedTotalTimeSec?: number;
 }
 
 export interface Quote {

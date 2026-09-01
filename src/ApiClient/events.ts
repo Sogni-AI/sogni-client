@@ -15,9 +15,11 @@ export type ApiClientEvents = {
     network: SupernetType;
   };
   /**
-   * @event ApiClient#disconnected - The client has been disconnected by the server,
-   * either authentication is lost or the server is unreachable.This event is not triggered
-   * when the client manually disconnects.
+   * @event ApiClient#disconnected - The connection ended and the client will not retry on its
+   * own: authentication was lost or rejected, the server closed with a non-recoverable code,
+   * or the client disconnected deliberately. Recoverable drops (network blips, server
+   * restarts) do not emit this; the client keeps reconnecting with backoff and emits
+   * `connecting` before each attempt, then `connected`.
    */
   disconnected: {
     code: ErrorCode;

@@ -852,6 +852,31 @@ const project = await sogni.projects.create({
 });
 ```
 
+WAN 3 (external API):
+
+Wan 3 is a unified Alibaba external-API model, Premium Spark-only, under the
+single exact model ID `wan3.0-video`. Media shape selects T2V, first-frame I2V,
+first+last-frame, loose multimodal reference, audio-driven, or V2V edit/extend.
+It renders 2-30 seconds at fixed 30fps with optional native audio; output tiers
+are 480P, 720P, and 1080P, and ratios are 16:9, 4:3, 1:1, 3:4, and 9:16.
+Loose limits are 10 images, 5 videos, and 5 audios. Native first/last-frame mode
+cannot be combined with loose references. In English prompts use plain `Image 1`,
+`Video 1`, and `Audio 1` labels, numbered independently by type. Wan 3 has no
+negativePrompt or provider-side `prompt_extend` request field.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan3.0-video',
+  positivePrompt: 'A continuous cinematic tracking shot of a crimson sports car on a coastal highway at sunset',
+  duration: 5,
+  width: 1920,
+  height: 1080,
+  tokenType: 'spark'
+});
+```
+
 MINIMAX H3 AND H3 TURBO (Sogni workers, native video + audio):
 
 MiniMax H3 generates video and 32kHz stereo audio jointly in one pass on Sogni's
@@ -944,8 +969,13 @@ assigns jobs to (`<Picture i>`, `<Video k>`, `<Audio j>`, numbered from 1 per
 type). Because it renders on a Sogni worker rather than at a vendor, every artist
 reference uses the normal S3 upload path: `referenceImage` + `contextImages` for
 images, `referenceVideo` + `referenceVideos` for videos, and `referenceAudio` +
-`referenceAudios` for audio. Direct URL arrays are rejected. At least one visual
-reference (image or video) is required; audio alone is rejected.
+`referenceAudios` for audio. Direct URL arrays are rejected. Optional
+`referenceVideoDurations` is optional early-validation metadata in matching
+video order. When supplied, each hint must be 2-15 seconds and all hints may
+total at most 15 seconds; omission never blocks submission. Socket probes every
+uploaded video, overwrites caller claims, and uses measured durations for
+pricing and admission. At least one
+visual reference (image or video) is required; audio alone is rejected.
 
 Ref2VA uses six sections in exact order: `subject_definitions`, `summary`,
 `retention_analysis`, `detailed_description`, `overall_soundscape`, and
@@ -998,6 +1028,7 @@ A low warm synthesizer pad enters near the end and holds beneath the final frame
     fs.readFileSync('./street.jpg')
   ],
   referenceVideo: fs.readFileSync('./camera-move.mp4'),  // <Video 1>
+  referenceVideoDurations: [6.25],
   tokenType: 'spark'
 });
 ```
@@ -1694,6 +1725,7 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceAudios?: (File | Buffer | Blob)[];  // MiniMax H3 r2v audio references 2-3
   referenceVideo?: File | Buffer | Blob;
   referenceVideos?: (File | Buffer | Blob)[];  // MiniMax H3 r2v video references 2-3
+  referenceVideoDurations?: number[];  // Optional H3 r2v preflight hints; Socket measures uploaded videos authoritatively
   contextImages?: (File | Buffer | Blob)[];  // MiniMax H3 r2v reference images 2-9
   referenceImageUrls?: string[];  // Seedance and HappyHorse only
   referenceVideoUrls?: string[];  // Seedance only
@@ -1942,9 +1974,11 @@ const cost = await sogni.projects.estimateVideoCost({
 });
 ```
 
-When estimating a reference-to-video job, pass `referenceImageCount` with the
-number of image references the job will actually submit. It is optional and is
-ignored by models whose estimate does not depend on reference image count.
+When estimating a reference-to-video job, pass `referenceImageCount`,
+`referenceVideoCount`, and `referenceVideoDurationSeconds` for the assets the job
+will actually submit. MiniMax H3 bills reference-video duration at the full
+resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with
+Turbo output. These fields are ignored by unrelated models.
 
 CHECK BALANCE:
 

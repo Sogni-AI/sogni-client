@@ -34,8 +34,11 @@ import {
   isSeedanceModel,
   isSeedance25Model,
   isHappyhorseModel,
+  isWan3Model,
+  isWan3EnhancedModel,
   isMinimaxH3Model,
   isMinimaxH3TurboModel,
+  isMinimaxH3BalancedModel,
   isMinimaxH3ReferenceModel,
   isExternalApiVideoModel,
   usesReferenceMask,
@@ -78,6 +81,10 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
     validateHappyhorseReferenceAssets(params);
     return;
   }
+  if (isWan3Model(params.modelId)) {
+    validateWan3ReferenceAssets(params);
+    return;
+  }
   if (isSeedanceModel(params.modelId)) {
     validateSeedanceTaskType(params);
     validateSeedanceReferenceAssets(params);
@@ -85,12 +92,18 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
   }
   if (isMinimaxH3ReferenceModel(params.modelId)) {
     validateMinimaxH3ReferenceAssets(params);
-  } else if (params.referenceImageUrls || params.referenceVideoUrls || params.referenceAudioUrls) {
+  } else if (
+    params.referenceImageUrls ||
+    params.referenceVideoUrls ||
+    params.referenceAudioUrls ||
+    params.referenceFileUrl ||
+    params.referenceLinkUrl
+  ) {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
       message:
-        'referenceImageUrls, referenceVideoUrls, and referenceAudioUrls are supported only by Seedance and HappyHorse models.'
+        'External reference URLs are supported only by Seedance, HappyHorse, and Wan 3 models.'
     });
   }
 
@@ -261,6 +274,14 @@ function validateVideoReferenceArrays(params: VideoProjectParams): void {
       });
     }
   }
+  if (params.referenceVideoDurations !== undefined && !isMinimaxH3ReferenceModel(params.modelId)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message:
+        'referenceVideoDurations is supported only by the MiniMax H3 r2v workflow (minimax-h3-ref2va-fp8_r2v).'
+    });
+  }
 }
 
 /**
@@ -283,6 +304,45 @@ function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {
   }
 
   const references = countMinimaxH3References(params);
+  const referenceVideoDurations = params.referenceVideoDurations;
+  // Duration hints are optional client-side preflight metadata. When present,
+  // validate them early; when omitted, Socket probes the uploaded media and
+  // overwrites any claimed values before pricing and admission.
+  if (referenceVideoDurations !== undefined) {
+    if (
+      !Array.isArray(referenceVideoDurations) ||
+      referenceVideoDurations.length !== references.videos
+    ) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `MiniMax H3 r2v referenceVideoDurations must contain one entry for each uploaded reference video (expected ${references.videos}).`
+      });
+    }
+    const durationEpsilon = 0.05;
+    let totalDurationSeconds = 0;
+    referenceVideoDurations.forEach((duration, index) => {
+      if (
+        !Number.isFinite(duration) ||
+        duration < 2 - durationEpsilon ||
+        duration > 15 + durationEpsilon
+      ) {
+        throw new ApiError(400, {
+          status: 'error',
+          errorCode: 0,
+          message: `MiniMax H3 r2v referenceVideoDurations[${index}] must be between 2 and 15 seconds.`
+        });
+      }
+      totalDurationSeconds += duration;
+    });
+    if (totalDurationSeconds > 15 + durationEpsilon) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `MiniMax H3 r2v reference videos may total at most 15 seconds (got ${totalDurationSeconds}).`
+      });
+    }
+  }
   const ceilings: [number, number, string][] = [
     [references.images, MINIMAX_H3_MAX_REFERENCE_IMAGES, 'reference images'],
     [references.videos, MINIMAX_H3_MAX_REFERENCE_VIDEOS, 'reference videos'],
@@ -323,10 +383,12 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
   if (params.fps !== undefined && params.fps !== 24) {
     invalid('MiniMax H3 fps is fixed at 24. Omit fps or set it to 24.');
   }
-  const expectedSteps = isMinimaxH3TurboModel(params.modelId) ? 4 : 20;
+  const isTurbo = isMinimaxH3TurboModel(params.modelId);
+  const isBalanced = isMinimaxH3BalancedModel(params.modelId);
+  const expectedSteps = isTurbo ? 4 : isBalanced ? 8 : 20;
   if (params.steps !== undefined && params.steps !== expectedSteps) {
     invalid(
-      `MiniMax H3${expectedSteps === 4 ? ' Turbo' : ''} steps are fixed at ${expectedSteps}.`
+      `MiniMax H3${isTurbo ? ' Turbo' : isBalanced ? ' Balanced' : ''} steps are fixed at ${expectedSteps}.`
     );
   }
   if (params.guidance !== undefined && params.guidance !== 1) {
@@ -565,6 +627,178 @@ function validateHappyhorseReferenceAssets(params: VideoProjectParams): void {
   }
 }
 
+/**
+ * Wan 3 uses one model ID for every supported video operation. Frame anchors
+ * (`referenceImage` / `referenceImageEnd`) and loose multimodal references are
+ * two mutually-exclusive request shapes in the upstream API.
+ */
+function validateWan3ReferenceAssets(params: VideoProjectParams): void {
+  const isEnhanced = isWan3EnhancedModel(params.modelId);
+  validateReferenceUrlArray(params.referenceImageUrls, 'referenceImageUrls');
+  validateReferenceUrlArray(params.referenceVideoUrls, 'referenceVideoUrls');
+  validateReferenceUrlArray(params.referenceAudioUrls, 'referenceAudioUrls');
+
+  for (const [field, value] of [
+    ['referenceFileUrl', params.referenceFileUrl],
+    ['referenceLinkUrl', params.referenceLinkUrl]
+  ] as const) {
+    if (value === undefined) continue;
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `${field} must be a non-empty public HTTPS URL.`
+      });
+    }
+    try {
+      const url = new URL(value);
+      if (url.protocol !== 'https:') throw new Error('not HTTPS');
+    } catch {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `${field} must be a valid public HTTPS URL.`
+      });
+    }
+  }
+
+  if (params.referenceFileUrl && params.referenceLinkUrl) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 accepts either one reference file or one reference link, not both.'
+    });
+  }
+  if (isEnhanced && (params.referenceFileUrl || params.referenceLinkUrl)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3.0 Enhanced does not accept document or webpage references.'
+    });
+  }
+  if (params.promptExtend !== undefined && typeof params.promptExtend !== 'boolean') {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 promptExtend must be a boolean.'
+    });
+  }
+  if (params.watermark !== undefined && typeof params.watermark !== 'boolean') {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 watermark must be a boolean.'
+    });
+  }
+  if (isEnhanced && params.watermark !== undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3.0 Enhanced does not expose a watermark option.'
+    });
+  }
+  if (params.smartDuration !== undefined && typeof params.smartDuration !== 'boolean') {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 smartDuration must be a boolean.'
+    });
+  }
+  if (params.smartDuration && params.duration !== undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 smartDuration and duration are mutually exclusive.'
+    });
+  }
+  if (params.fps !== undefined && params.fps !== 30) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 output is fixed at 30 fps.'
+    });
+  }
+  const allowedRatios = new Set(['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16']);
+  if (params.ratio !== undefined && !allowedRatios.has(params.ratio)) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 ratio must be adaptive, 16:9, 4:3, 1:1, 3:4, or 9:16.'
+    });
+  }
+  if (params.referenceAudioIdentity || params.referenceMask) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 does not support audio-identity or mask inputs.'
+    });
+  }
+  if (params.seed !== undefined) {
+    const seed = Number(params.seed);
+    if (!Number.isInteger(seed) || seed < 0 || seed > 2_147_483_647) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: 'Wan 3 seed must be an integer from 0 through 2147483647.'
+      });
+    }
+  }
+
+  const looseImageCount = asReferenceUrlArray(params.referenceImageUrls).length;
+  const videoCount =
+    (params.referenceVideo ? 1 : 0) + asReferenceUrlArray(params.referenceVideoUrls).length;
+  const audioCount =
+    (params.referenceAudio ? 1 : 0) + asReferenceUrlArray(params.referenceAudioUrls).length;
+  const hasFrameAnchors = Boolean(params.referenceImage || params.referenceImageEnd);
+  const hasDocumentContext = Boolean(params.referenceFileUrl || params.referenceLinkUrl);
+  const hasLooseReferences =
+    looseImageCount > 0 || videoCount > 0 || audioCount > 0 || hasDocumentContext;
+
+  if (!isEnhanced && params.referenceImageEnd && !params.referenceImage) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 last-frame generation requires a first-frame referenceImage.'
+    });
+  }
+  if (hasFrameAnchors && hasLooseReferences) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message:
+        'Wan 3 first/last-frame anchors cannot be combined with loose media, file, or link references.'
+    });
+  }
+  if (looseImageCount > 10) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 supports at most 10 reference images.'
+    });
+  }
+  if (videoCount > 5) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 supports at most 5 reference videos.'
+    });
+  }
+  if (audioCount > 5) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 supports at most 5 reference audio clips.'
+    });
+  }
+  if (!String(params.positivePrompt || '').trim() && !hasFrameAnchors && !hasLooseReferences) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'Wan 3 requires a prompt or at least one media, file, or link input.'
+    });
+  }
+}
+
 function getMaxVideoDuration(modelId: string): number {
   if (isMinimaxH3Model(modelId)) {
     // 362 frames at a fixed 24fps, the top of the H3 frame grid.
@@ -572,6 +806,9 @@ function getMaxVideoDuration(modelId: string): number {
   }
   if (isSeedance25Model(modelId)) {
     // Seedance 2.5 renders up to 30s in a single call; 2.0/Mini cap at 15s.
+    return 30;
+  }
+  if (isWan3Model(modelId)) {
     return 30;
   }
   if (isExternalApiVideoModel(modelId)) {
@@ -814,6 +1051,10 @@ function applyVideoParams(
   if (isMinimaxH3ReferenceModel(params.modelId)) {
     for (const { slot } of getMinimaxH3ReferenceVideoSlots(params)) {
       keyFrame[`hasReferenceVideo${slot}`] = true;
+      const durationSeconds = params.referenceVideoDurations?.[slot - 1];
+      if (durationSeconds !== undefined) {
+        keyFrame[`referenceVideo${slot}DurationSeconds`] = durationSeconds;
+      }
     }
   } else if (params.referenceVideo) {
     keyFrame.hasReferenceVideo = true;
@@ -831,6 +1072,26 @@ function applyVideoParams(
   if (params.generateAudio !== undefined) {
     keyFrame.generateAudio = params.generateAudio;
   }
+  if (params.referenceFileUrl !== undefined) {
+    keyFrame.referenceFileURL = params.referenceFileUrl;
+  }
+  if (params.referenceLinkUrl !== undefined) {
+    keyFrame.referenceLinkURL = params.referenceLinkUrl;
+  }
+  if (params.promptExtend !== undefined) {
+    keyFrame.promptExtend = params.promptExtend;
+  }
+  if (params.watermark !== undefined) {
+    keyFrame.watermark = params.watermark;
+  }
+  if (params.ratio !== undefined) {
+    keyFrame.ratio = params.ratio;
+  }
+  if (params.smartDuration) {
+    keyFrame.smartDuration = true;
+    // Admission pricing reserves the maximum possible smart-duration output.
+    keyFrame.frames = calculateVideoFrames(params.modelId, 30, 30);
+  }
   if (params.seedanceTaskType !== undefined) {
     keyFrame.seedanceTaskType = params.seedanceTaskType;
   }
@@ -842,6 +1103,8 @@ function applyVideoParams(
   // Note: fps must be processed before duration to correctly calculate frames for LTX 2.x models
   if (params.fps !== undefined) {
     keyFrame.fps = params.fps;
+  } else if (isWan3Model(params.modelId)) {
+    keyFrame.fps = 30;
   } else if (isExternalApiVideoModel(params.modelId) || isMinimaxH3Model(params.modelId)) {
     keyFrame.fps = 24;
   }
@@ -853,11 +1116,13 @@ function applyVideoParams(
     // the bottom of its frame grid), HappyHorse 3s, Seedance 4s, others 1s.
     const minDuration = isMinimaxH3Model(params.modelId)
       ? MINIMAX_H3_MIN_DURATION
-      : isHappyhorseModel(params.modelId)
-        ? 3
-        : isSeedanceModel(params.modelId)
-          ? 4
-          : 1;
+      : isWan3Model(params.modelId)
+        ? 2
+        : isHappyhorseModel(params.modelId)
+          ? 3
+          : isSeedanceModel(params.modelId)
+            ? 4
+            : 1;
     const duration = validateVideoDuration(
       params.duration,
       minDuration,
@@ -867,7 +1132,7 @@ function applyVideoParams(
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
     // - LTX 2.x: fps directly affects frame count (default 24fps if not specified)
     // - Seedance / HappyHorse: fixed 24fps external API generation
-    const fps = params.fps ?? 24;
+    const fps = params.fps ?? (isWan3Model(params.modelId) ? 30 : 24);
     keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
   }
   if (params.shift !== undefined) {

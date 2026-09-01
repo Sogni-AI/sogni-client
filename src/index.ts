@@ -51,8 +51,26 @@ import type {
   LoraConstraints,
   LoraUi
 } from './Projects/types/LoraCatalog.js';
-import type { ProjectEvent, JobEvent, JobPreparation } from './Projects/types/events.js';
+import type {
+  ProjectEvent,
+  JobEvent,
+  JobPreparation,
+  CompletedRecoveredProject,
+  ProjectSyncReason,
+  ProjectSyncResult
+} from './Projects/types/events.js';
 import type { RawProject } from './Projects/types/RawProject.js';
+import type {
+  ProjectRecoverySnapshot,
+  RecoveredProject,
+  RecoveredWorkerJob
+} from './ApiClient/WebSocketClient/events.js';
+import type { ProjectResolution } from './Projects/index.js';
+import {
+  PROJECT_LOST_ORIGINAL_CODE,
+  isProjectLostError,
+  projectParamsFromRecoveredProject
+} from './Projects/recovery.js';
 import type {
   AuthMethod,
   Balances,
@@ -147,6 +165,7 @@ import {
   CreativeWorkflowRecord,
   CreativeWorkflowSseEvent,
   CreativeWorkflowStatus,
+  CreativeWorkflowWaitingReason,
   CreativeWorkflowHostedToolName,
   ListCreativeWorkflowOptions,
   ReseedCreativeWorkflowOptions,
@@ -246,6 +265,7 @@ export type {
   CreativeWorkflowRecord,
   CreativeWorkflowSseEvent,
   CreativeWorkflowStatus,
+  CreativeWorkflowWaitingReason,
   ImageUrlContentPart,
   ListCreativeWorkflowOptions,
   LLMCostEstimation,
@@ -379,6 +399,16 @@ export type {
   WorkloadKind
 };
 
+export type {
+  CompletedRecoveredProject,
+  ProjectRecoverySnapshot,
+  ProjectResolution,
+  ProjectSyncReason,
+  ProjectSyncResult,
+  RecoveredProject,
+  RecoveredWorkerJob
+};
+
 export {
   ApiError,
   ApiKeyAuthManager,
@@ -391,13 +421,16 @@ export {
   CurrentAccount,
   Job,
   Project,
+  PROJECT_LOST_ORIGINAL_CODE,
   SogniTools,
   SSO_ERROR_CODES,
   SUBSCRIPTION_ERROR_CODES,
+  isProjectLostError,
   isSubscriptionLimitError,
   isSogniToolCall,
   parseCreativeWorkflowSseChunk,
-  parseToolCallArguments
+  parseToolCallArguments,
+  projectParamsFromRecoveredProject
 };
 
 export interface SogniClientConfig {

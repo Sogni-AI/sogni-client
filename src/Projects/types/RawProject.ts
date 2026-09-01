@@ -25,7 +25,9 @@ export interface RawProject {
 
 type RawProjectStatus =
   | 'pending'
+  | 'authorized'
   | 'active'
+  | 'queued'
   | 'assigned'
   | 'progress'
   | 'errored'

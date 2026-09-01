@@ -185,11 +185,15 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Turbo adds `_turbo` to the FL2VA t2v/i2v/flf2v IDs and to Ref2VA r2v.
  *   Ref2VA Turbo is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses its dedicated
  *   LightX2V v0.1 four-step LoRA with Euler/simple, not the FL2VA Turbo LoRA.
+ * - Balanced adds `_balanced` to the same four workflow IDs and uses Alibaba
+ *   PAI's matching FL2VA or Ref2VA 8-step Parallel Decoding Distillation (PDD)
+ *   adapter with Euler/simple.
  * - Video and 32kHz stereo audio are generated jointly. Audio is included by
  *   default; set `generateAudio: false` to return a video without an audio track.
  * - Generation is fixed at 24fps and guidance 1, with no separate
  *   negative-prompt input. Standard H3 uses 20 steps and
- *   `res_multistep`/`simple`; Turbo uses its fixed 4-step sampling path.
+ *   `res_multistep`/`simple`; Balanced uses fixed 8-step Euler/simple; Turbo
+ *   uses its fixed 4-step sampling path.
  * - Frames follow `124 + n*17` from 124 through 362. Dimensions use a 32px
  *   grid, with a 1344px per-axis limit and a 1032192-pixel canvas limit.
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
@@ -197,7 +201,8 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *
  * #### MiniMax H3 `r2v` (Ref2VA) multi-reference video
  * - `minimax-h3-ref2va-fp8_r2v` (standard) and
- *   `minimax-h3-ref2va-fp8_r2v_turbo` (four-step Turbo) condition on labelled reference material
+ *   `minimax-h3-ref2va-fp8_r2v_turbo` (four-step Turbo), and
+ *   `minimax-h3-ref2va-fp8_r2v_balanced` (eight-step PDD Balanced) condition on labelled reference material
  *   rather than on frame anchors. The checkpoint accepts up to 9 reference
  *   images, 3 reference videos (24fps, 2-15 seconds each), and 3 reference
  *   audio clips, with at most 12 reference files in total.
@@ -246,6 +251,16 @@ export type InputMedia = File | Buffer | Blob | boolean;
  */
 export type SeedanceTaskType = 'reference' | 'edit' | 'extend';
 
+/**
+ * @deprecated Wan 3 has no provider-backed edit/extend task selector. This
+ * compatibility type is retained so older callers still compile; the SDK
+ * ignores `wan3TaskType` and sends video inputs as loose references.
+ */
+export type Wan3TaskType = 'create' | 'edit' | 'extend';
+
+/** Aspect ratios accepted by the unified Wan 3 provider endpoints. */
+export type Wan3Ratio = 'adaptive' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
+
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
   /**
@@ -257,6 +272,7 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * Duration of the video in seconds. Supported range 1 to 10 (WAN), 2 to 20 (LTX 2.5), 4 to 20 (LTX 2.3),
    * 4 to 15 (Seedance 2.0), 4 to 30 (Seedance 2.5), 3 to 15 (HappyHorse),
+   * 2 to 30 (Wan 3; use `smartDuration` to let the model choose),
    * or 124/24 to 362/24 seconds (MiniMax H3).
    *
    * The SDK automatically calculates the correct frame count based on the model:
@@ -264,10 +280,17 @@ export interface VideoProjectParams extends BaseProjectParams {
    * - LTX 2.x: `duration * fps + 1`, snapped to frame step constraint
    * - Seedance: `duration * 24 + 1`
    * - HappyHorse: `duration * 24 + 1`
+   * - Wan 3: `duration * 30 + 1`
    * - MiniMax H3: `duration * 24` snapped to the `124 + n*17` grid and clamped
    *   to 124-362 frames (always 24fps generation, and no `+1` term)
    */
   duration?: number;
+  /**
+   * Let Wan 3 choose an output duration from 2 to 30 seconds. Sogni reserves
+   * the 30-second maximum when the job is admitted and settles down to the
+   * duration the provider reports after completion. Wan 3 only.
+   */
+  smartDuration?: boolean;
   /**
    * Frames per second for output video.
    *
@@ -280,6 +303,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    * **Seedance Models:** Fixed 24fps external API generation.
    *
    * **HappyHorse Models:** Fixed 24fps external API generation.
+   *
+   * **Wan 3:** Fixed 30fps external API output.
    *
    * **MiniMax H3 Models:** Fixed 24fps. Omit this field or pass 24.
    */
@@ -294,6 +319,17 @@ export interface VideoProjectParams extends BaseProjectParams {
    * first/last-frame generation.
    */
   seedanceTaskType?: SeedanceTaskType;
+  /**
+   * @deprecated Ignored. Alibaba's Wan 3 API does not expose edit or extend
+   * task modes. Pass `referenceVideo`/`referenceVideoUrls` for loose reference
+   * conditioning; this does not guarantee source-video editing or extension.
+   */
+  wan3TaskType?: Wan3TaskType;
+  /**
+   * Wan 3 output ratio. `adaptive` lets the provider derive the canvas from the
+   * input media.
+   */
+  ratio?: Wan3Ratio;
   /**
    * Shift parameter for video diffusion models.
    * Controls motion intensity. Range: 1.0-8.0, step 0.1.
@@ -319,7 +355,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceImage?: InputMedia;
   /**
-   * Loose image context references for Seedance and HappyHorse. These must be
+   * Loose image context references for Seedance, HappyHorse, and Wan 3. These must be
    * publicly accessible HTTPS URLs and are handed to the external vendor. Use
    * referenceImage / referenceImageEnd when the
    * image should lock the first or last frame. HappyHorse r2v accepts 1-9
@@ -386,6 +422,26 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   referenceAudioUrls?: string[];
   /**
+   * One public Wan 3 document URL (DOCX, DOC, XLSX, XLS, PPTX, PPT, PDF, TXT,
+   * KEY, PAGES, NUMBERS, or Markdown; up to 100 MB). PDF, DOCX, DOC, PPTX,
+   * PPT, KEY, and PAGES inputs are limited to 50 pages. Mutually exclusive
+   * with `referenceLinkUrl` and with first/last-frame anchors.
+   */
+  referenceFileUrl?: string;
+  /**
+   * One public webpage URL for Wan 3 context. Mutually exclusive with
+   * `referenceFileUrl` and with first/last-frame anchors.
+   */
+  referenceLinkUrl?: string;
+  /**
+   * Use the provider's native Wan 3 prompt expansion. Defaults to true at the
+   * vendor. Set false for literal prompts or after Sogni has already expanded
+   * the prompt, avoiding a second rewrite.
+   */
+  promptExtend?: boolean;
+  /** Add Alibaba's visible Wan 3 watermark. Defaults to false. */
+  watermark?: boolean;
+  /**
    * Include the model's generated/native audio track when supported. Audio is
    * enabled by default; set to false to return a video without an audio track.
    */
@@ -435,6 +491,17 @@ export interface VideoProjectParams extends BaseProjectParams {
    * distinct S3 objects and retain array order.
    */
   referenceVideos?: InputMedia[];
+  /**
+   * Optional duration hints, in seconds, for uploaded MiniMax H3 r2v videos in
+   * `[referenceVideo, ...referenceVideos]` order.
+   *
+   * When supplied, the array must have the same length as that list; each clip
+   * must be 2-15 seconds and all clips together may total at most 15 seconds.
+   * These values enable early client-side validation only. Socket probes the
+   * uploaded files, overwrites caller claims, and uses measured durations for
+   * pricing and job admission. Omit this field when duration is unavailable.
+   */
+  referenceVideoDurations?: number[];
   /**
    * Inpaint mask IMAGE for distilled LTX 2.5 or LTX 2.3 v2v inpaint workflows.
    * White pixels mark the region to regenerate. Maps to jobKey 'referenceMask'.
@@ -830,6 +897,13 @@ export interface VideoEstimateRequest {
    * reference image count ignore it.
    */
   referenceImageCount?: number;
+  /** Number of reference videos included in a MiniMax H3 r2v estimate. */
+  referenceVideoCount?: number;
+  /**
+   * Combined duration of MiniMax H3 r2v reference-video input, in seconds.
+   * The estimate bills it at the selected output resolution/tier rate.
+   */
+  referenceVideoDurationSeconds?: number;
   /**
    * Optional estimate-only signal: presence implies Seedance video-input pricing.
    */
@@ -860,6 +934,20 @@ export interface CostEstimation {
   spark: string;
   /** Cost in Sogni tokens */
   sogni: string;
+  /**
+   * Live-benchmarked render time in seconds for a single unit of work (one
+   * image, one video, or one audio track), from the server's rolling sample
+   * window for this exact model/settings combination. Undefined when the
+   * server has no benchmark data yet — omit rather than guess.
+   */
+  estimatedRenderSeconds?: number;
+  /**
+   * `estimatedRenderSeconds` plus the current average queue wait for this
+   * model/network, when a wait benchmark exists. The more complete "time
+   * until this is ready" figure; falls back to render-only time when no
+   * wait benchmark is available.
+   */
+  estimatedTotalSeconds?: number;
 }
 
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';

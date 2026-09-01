@@ -1,3 +1,125 @@
+# [5.26.0](https://github.com/Sogni-AI/sogni-client/compare/v5.25.0...v5.26.0) (2026-08-29)
+
+
+### Features
+
+* **projects:** list in-flight projects on other app instances ([4358b8c](https://github.com/Sogni-AI/sogni-client/commit/4358b8c92869b24d51a53cbd60aa0f3e2ee5329e))
+
+# [5.25.0](https://github.com/Sogni-AI/sogni-client/compare/v5.24.1...v5.25.0) (2026-08-29)
+
+
+### Bug Fixes
+
+* **examples:** align H3 accelerator checks ([40d44df](https://github.com/Sogni-AI/sogni-client/commit/40d44df11390f0ce1379782eca913227521e46ff))
+* **video:** align enhanced Wan3 controls ([a31bf0e](https://github.com/Sogni-AI/sogni-client/commit/a31bf0e0e3fbf3a521a984ff827a05fe7263128c))
+
+
+### Features
+
+* **projects:** resume in-flight projects across reconnects and refreshes ([c33acee](https://github.com/Sogni-AI/sogni-client/commit/c33acee778ff39e96d6bdad4409511e2ae173907))
+* **video:** add Wan 3 Enhanced routing ([9b8b822](https://github.com/Sogni-AI/sogni-client/commit/9b8b82296d85577eec0eac92c7aef8edb9e33bae))
+* **video:** support Wan 3 Enhanced ([6f3da32](https://github.com/Sogni-AI/sogni-client/commit/6f3da32efbc0d784c7e88c64f874c830f921d747))
+
+## [5.24.1](https://github.com/Sogni-AI/sogni-client/compare/v5.24.0...v5.24.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **workflows:** expose explicit workflow waiting-state fields ([ef43028](https://github.com/Sogni-AI/sogni-client/commit/ef430287b95dcda04662c7d6fe5e8fb85c6a2905))
+
+# [5.24.0](https://github.com/Sogni-AI/sogni-client/compare/v5.23.0...v5.24.0) (2026-08-29)
+
+
+### Features
+
+* **projects:** resume in-flight projects across reconnects and refreshes ([58666ef](https://github.com/Sogni-AI/sogni-client/commit/58666ef2336c9edc269358b59acfcfb1e015aaae))
+
+# [5.23.0](https://github.com/Sogni-AI/sogni-client/compare/v5.22.0...v5.23.0) (2026-08-28)
+
+
+### Features
+
+* **estimate:** add live-benchmarked time estimate to cost quotes ([3b4dad4](https://github.com/Sogni-AI/sogni-client/commit/3b4dad42d62227bbbd176c94963d45412006ba72))
+
+# [5.22.0](https://github.com/Sogni-AI/sogni-client/compare/v5.21.4...v5.22.0) (2026-08-28)
+
+
+### Features
+
+* **video:** add MiniMax H3 Balanced tier ([14a77d3](https://github.com/Sogni-AI/sogni-client/commit/14a77d32aba4d7da005a8cb6ed5430b03a7a5e35))
+
+## [5.21.4](https://github.com/Sogni-AI/sogni-client/compare/v5.21.3...v5.21.4) (2026-08-27)
+
+
+### Bug Fixes
+
+* **video:** make H3 duration hints optional ([e2d1870](https://github.com/Sogni-AI/sogni-client/commit/e2d1870a4c663069a935d4b0204d15ef69f9d179))
+
+## [5.21.3](https://github.com/Sogni-AI/sogni-client/compare/v5.21.2...v5.21.3) (2026-08-26)
+
+
+### Bug Fixes
+
+* **video:** restore Wan 3 prompt expansion ([36a839f](https://github.com/Sogni-AI/sogni-client/commit/36a839f41cf8562fa3ee9bc2d07eb4cfd88dcde4))
+
+## [5.21.2](https://github.com/Sogni-AI/sogni-client/compare/v5.21.1...v5.21.2) (2026-08-26)
+
+
+### Bug Fixes
+
+* **video:** keep Wan 3 references generative ([380e75f](https://github.com/Sogni-AI/sogni-client/commit/380e75f9b777ca3159904e92ce7c146103971c3e))
+
+## [5.21.1](https://github.com/Sogni-AI/sogni-client/compare/v5.21.0...v5.21.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **deps:** consume corrected Wan 3 protocol ([ea1b8d8](https://github.com/Sogni-AI/sogni-client/commit/ea1b8d8fed1766f8a29f7fb0b0bd696d974056b5))
+* **video:** allow Wan 3 fixed-ratio extensions ([157fc90](https://github.com/Sogni-AI/sogni-client/commit/157fc908d2bb892b4bc41ac7e0e283c1438802ce))
+* **video:** keep Wan 3 prompt shaping client-side ([4ed1e51](https://github.com/Sogni-AI/sogni-client/commit/4ed1e51bd4556f7210ce18bc2d3d10305256193c))
+
+# [5.21.0](https://github.com/Sogni-AI/sogni-client/compare/v5.20.0...v5.21.0) (2026-08-26)
+
+
+### Features
+
+* **video:** quote H3 reference input ([e720d54](https://github.com/Sogni-AI/sogni-client/commit/e720d540d693b21e97d07960f4a258ffa3872ca7))
+
+# [5.20.0](https://github.com/Sogni-AI/sogni-client/compare/v5.19.5...v5.20.0) (2026-08-25)
+
+
+### Bug Fixes
+
+* **deps:** consume Wan3 protocol ([33ad38b](https://github.com/Sogni-AI/sogni-client/commit/33ad38b428bf34d144c2686e4ecac18533a62b49))
+* **video:** harden Wan3 transport ([c38606b](https://github.com/Sogni-AI/sogni-client/commit/c38606bc0df3d4febd09e8f5b6f9d0141a132ef6))
+
+
+### Features
+
+* **video:** integrate Alibaba Wan 3 ([30dc496](https://github.com/Sogni-AI/sogni-client/commit/30dc496a2fdcb9529b8694b60161bd4e62b27232))
+* **video:** merge Wan3 integration ([1545413](https://github.com/Sogni-AI/sogni-client/commit/154541329bb6ec773f4f0fcc191a24fd26cbd2cc))
+
+## [5.19.5](https://github.com/Sogni-AI/sogni-client/compare/v5.19.4...v5.19.5) (2026-08-25)
+
+
+### Bug Fixes
+
+* **release:** commit lockfile version updates ([3cb78c4](https://github.com/Sogni-AI/sogni-client/commit/3cb78c4b30f24cbc8da3884cab11bc812804d8b0))
+
+## [5.19.4](https://github.com/Sogni-AI/sogni-client/compare/v5.19.3...v5.19.4) (2026-08-25)
+
+
+### Bug Fixes
+
+* **projects:** harden confirmed cancellation ([b508820](https://github.com/Sogni-AI/sogni-client/commit/b508820b4f9c8476dcf0db96963668a0ff133d97))
+
+## [5.19.3](https://github.com/Sogni-AI/sogni-client/compare/v5.19.2...v5.19.3) (2026-08-25)
+
+
+### Bug Fixes
+
+* **projects:** require confirmed cancellation ([9368155](https://github.com/Sogni-AI/sogni-client/commit/9368155676d4a1ed0bddba1893be9bcede463e1b))
+
 ## [5.19.2](https://github.com/Sogni-AI/sogni-client/compare/v5.19.1...v5.19.2) (2026-08-25)
 
 

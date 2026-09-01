@@ -411,6 +411,23 @@ const project = await sogni.projects.create({
 });
 ```
 
+### Wan 3 (external API)
+
+Wan 3 uses one exact model ID, `wan3.0-video`, across T2V, first-frame I2V, first+last-frame, loose image/video/audio reference, and audio-driven generation. It renders 2-30s at fixed 30fps with optional native audio, supports 480P/720P/1080P and `16:9`/`4:3`/`1:1`/`3:4`/`9:16`, and accepts up to 10 loose images, 5 videos, and 5 audios. Native frame mode and loose-reference mode are mutually exclusive. Use `Image 1`, `Video 1`, and `Audio 1` in English prompts, numbered independently by type. Video references condition a new result; they are not provider-backed edit or extend modes. No `negativePrompt`; Sogni coordinates its own expansion with Alibaba `prompt_extend` to avoid a double rewrite. Premium Spark-only.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'wan3.0-video',
+  positivePrompt: 'A continuous cinematic tracking shot of a crimson sports car on a coastal highway at sunset',
+  duration: 5,
+  width: 1920,
+  height: 1080,
+  tokenType: 'spark'
+});
+```
+
 ### MiniMax H3 and H3 Turbo (Sogni workers)
 
 MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. Standard H3 uses fixed 20-step `res_multistep` / `simple` sampling. H3 Turbo applies a dedicated four-step LoRA for each checkpoint family: FL2VA uses its validated sampler set and Ref2VA R2V uses Euler/simple. Both use fixed 24fps, guidance 1, no negative prompt, the `124 + n*17` frame grid (124-362), and a 32px canvas grid capped at 1,032,192 pixels.
@@ -452,7 +469,7 @@ const project = await sogni.projects.create({
 
 MiniMax's [official H3 prompt-writing skill](https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills/h3-prompt-writing) makes Context-IR part of the prompt contract. T2V, I2V, L2V, and FLF2V use `integrated_multimodal_description`, `overall_soundscape`, then `non_diegetic_music`, in that exact order. Frame-conditioned modes prepend their official image-alignment line. I2V anchors `<Picture 1>` at 0.00 seconds; L2V uses `How the reference pictures align with the target video — <Picture 1> (from [Shot N]) aligns with the S.SS-second mark of the target video.`; FLF2V aligns both endpoints. Use `[Shot 1]` without a timestamp, then `[Shot N] At MM:SS.mmm, ...` for later cuts. Speakers keep stable `(S1)` IDs and exact spoken words go in `<d>[Language] ...</d>`. Write the structural sections in English while preserving dialogue, lyrics, and visible text in their original language. Use `non_diegetic_music: N/A` when there is no audience-only score.
 
-Ref2VA (`_r2v`) is a separate checkpoint with no frame anchors, so `referenceImageEnd` is rejected. It runs on a Sogni worker, so every artist reference uses the normal S3 upload path: `referenceImage` plus `contextImages`, `referenceVideo` plus `referenceVideos`, and `referenceAudio` plus `referenceAudios`. Direct URL arrays are rejected. At least one visual reference (image or video) is required; audio alone is rejected. Its prompt uses six ordered sections: `subject_definitions`, `summary`, `retention_analysis`, `detailed_description`, `overall_soundscape`, `non_diegetic_music`. Use `<Subject N>` for reusable visible content, `<Picture N>` only for concrete keyframes/composition anchors, `<Video N>` for whole-video structure, and `<Audio N>` for copied or referenced audio.
+Ref2VA (`_r2v`) is a separate checkpoint with no frame anchors, so `referenceImageEnd` is rejected. It runs on a Sogni worker, so every artist reference uses the normal S3 upload path: `referenceImage` plus `contextImages`, `referenceVideo` plus `referenceVideos`, and `referenceAudio` plus `referenceAudios`. Direct URL arrays are rejected. `referenceVideoDurations` is optional early-validation metadata in matching video order. If supplied, each hint must be 2-15 seconds and all hints may total at most 15 seconds; if omitted, project submission still proceeds. Socket always probes the uploaded files, overwrites caller claims, and uses measured durations for pricing and admission. At least one visual reference (image or video) is required; audio alone is rejected. Its prompt uses six ordered sections: `subject_definitions`, `summary`, `retention_analysis`, `detailed_description`, `overall_soundscape`, `non_diegetic_music`. Use `<Subject N>` for reusable visible content, `<Picture N>` only for concrete keyframes/composition anchors, `<Video N>` for whole-video structure, and `<Audio N>` for copied or referenced audio.
 
 ```javascript
 const project = await sogni.projects.create({
@@ -841,8 +858,10 @@ console.log(cost.sogni, cost.usd);
 ```
 
 Use `estimateVideoCost()` for video jobs and `estimateAudioCost()` for audio jobs.
-For reference-to-video estimates, `referenceImageCount` may be supplied as the
-number of image references the job will actually submit; unrelated models ignore it.
+For reference-to-video estimates, supply `referenceImageCount`, `referenceVideoCount`,
+and `referenceVideoDurationSeconds` for the assets the job will actually submit.
+MiniMax H3 bills reference-video duration at the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output;
+unrelated models ignore these fields.
 
 ---
 
