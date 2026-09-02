@@ -206,8 +206,8 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  *
  * All H3 paths share fixed 24fps, guidance 1, the `124 + n*17` frame grid,
  * and jointly generated 32kHz stereo audio. Standard H3 uses 20 steps;
- * Balanced uses Alibaba PAI's 8-step Parallel Decoding Distillation (PDD)
- * adapters; each Turbo family uses its own 4-step distillation LoRA.
+ * Balanced uses qualified fixed 8-step acceleration: LightX2V for FL2VA and
+ * Larry v4 for Ref2VA; each Turbo family uses its own 4-step distillation LoRA.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
   return MINIMAX_H3_VIDEO_MODEL_IDS.has(modelId);
@@ -226,7 +226,7 @@ export function isMinimaxH3TurboModel(modelId: string): boolean {
 
 /**
  * Check if a model ID is one of the 8-step MiniMax H3 Balanced workflows.
- * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching PDD adapter for r2v.
+ * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching Larry v4 adapter for r2v.
  */
 export function isMinimaxH3BalancedModel(modelId: string): boolean {
   return (
