@@ -1,3 +1,10 @@
+# [5.27.0](https://github.com/Sogni-AI/sogni-client/compare/v5.26.4...v5.27.0) (2026-09-02)
+
+
+### Features
+
+* **projects:** deliver labelled sensitive media instead of withholding it ([d4dc156](https://github.com/Sogni-AI/sogni-client/commit/d4dc156248938e606118a50b4095d504642ca5e9))
+
 ## [5.26.4](https://github.com/Sogni-AI/sogni-client/compare/v5.26.3...v5.26.4) (2026-09-02)
 
 
