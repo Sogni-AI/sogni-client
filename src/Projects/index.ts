@@ -565,10 +565,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           step: performedStepCount,
           seed,
           resultUrl: downloadUrl,
-          // Stays true for both outcomes so an app that only knows this flag
-          // keeps hiding flagged media as it always has. `nsfwDetected` is what
-          // tells an updated app the media is there to blur or reveal.
-          isNSFW: Boolean(data.triggeredNSFWFilter) || data.nsfwDetected === true,
+          // Unchanged meaning: the server withheld the media. The label for
+          // media that WAS delivered is `nsfwDetected`, deliberately kept out of
+          // this flag so upgrading the SDK changes no existing app's behaviour.
+          // Several apps disable the filter for their own utility renders
+          // (transitions, thumbnails, restorations) and drop anything flagged;
+          // folding the label in here would silently delete that output.
+          isNSFW: Boolean(data.triggeredNSFWFilter),
           nsfwDetected: data.nsfwDetected === true,
           nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
           userCanceled: Boolean(data.userCanceled)
@@ -584,7 +587,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       ...(typeof performedStepCount === 'number' ? { steps: performedStepCount } : {}),
       ...(typeof seed === 'number' && Number.isFinite(seed) ? { seed } : {}),
       resultUrl: downloadUrl,
-      isNSFW: Boolean(data.triggeredNSFWFilter) || data.nsfwDetected === true,
+      isNSFW: Boolean(data.triggeredNSFWFilter),
       nsfwDetected: data.nsfwDetected === true,
       nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
       userCanceled: Boolean(data.userCanceled)

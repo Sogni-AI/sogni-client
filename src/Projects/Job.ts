@@ -196,7 +196,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
         stepCount: rawProject.stepCount,
         workerName: rawJob.worker.name,
         seed: rawJob.seedUsed,
-        isNSFW: rawJob.triggeredNSFWFilter || rawJob.nsfwDetected === true,
+        isNSFW: rawJob.triggeredNSFWFilter,
         nsfwDetected: rawJob.nsfwDetected === true,
         nsfwSources: rawJob.nsfwSources ? [...rawJob.nsfwSources] : undefined,
         resultUrl: directResultUrlFromRawJob(rawJob)
@@ -413,14 +413,14 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
-   * Whether a safety signal fired for this job. Only makes sense once the job
-   * is completed.
+   * Whether the server withheld this job's media for sensitive content: the
+   * render ran with the Sensitive Content Filter ON, a signal fired, and there
+   * is no media to download. Only makes sense once the job is completed.
    *
-   * True in two different situations, which {@link nsfwDetected} tells apart:
-   * the filter was ON and the media was withheld (no download), or the artist
-   * turned the filter OFF and the media was delivered and merely labelled. Show
-   * or blur delivered media from the viewer's own current filter setting rather
-   * than from this flag alone.
+   * Unchanged from every earlier release. A render the artist made with the
+   * filter OFF is delivered and merely labelled, and reports FALSE here; read
+   * {@link nsfwDetected} for that and decide from the viewer's own current
+   * filter setting whether to blur it.
    */
   get isNSFW() {
     return !!this.data.isNSFW;
@@ -491,7 +491,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       step: data.performedSteps,
       workerName: data.worker?.name,
       seed: data.seedUsed,
-      isNSFW: data.triggeredNSFWFilter || data.nsfwDetected === true,
+      isNSFW: data.triggeredNSFWFilter,
       nsfwDetected: data.nsfwDetected === true,
       ...(data.nsfwSources ? { nsfwSources: [...data.nsfwSources] } : {})
     };
