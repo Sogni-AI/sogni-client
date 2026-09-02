@@ -205,7 +205,19 @@ export type JobResultData = {
   performedStepCount?: number;
   lastSeed?: string;
   userCanceled?: boolean;
+  /**
+   * Delivery was withheld for sensitive content: the job ran with the
+   * Sensitive Content Filter on, a signal fired, and no media exists.
+   */
   triggeredNSFWFilter?: boolean;
+  /**
+   * A safety signal fired on media that WAS delivered, because the artist
+   * turned the filter off. Advisory only: the media is downloadable and the
+   * app decides whether to blur it from the viewer's current setting.
+   */
+  nsfwDetected?: boolean;
+  /** Which signals fired: 'prompt' (text vocabulary), 'image' (classifier). */
+  nsfwSources?: string[];
   resultUrl?: string;
   resultKey?: string;
   /**

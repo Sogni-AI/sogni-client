@@ -133,6 +133,14 @@ export interface JobData {
   workerName?: string;
   seed?: number;
   isNSFW?: boolean;
+  /**
+   * A safety signal fired on media that was still delivered, because the artist
+   * turned the Sensitive Content Filter off. Advisory: the media is
+   * downloadable and the app decides whether to blur it.
+   */
+  nsfwDetected?: boolean;
+  /** Which signals fired: 'prompt' (text vocabulary), 'image' (classifier). */
+  nsfwSources?: string[];
   userCanceled?: boolean;
   previewUrl?: string;
   resultUrl?: string | null;
@@ -188,7 +196,9 @@ class Job extends DataEntity<JobData, JobEventMap> {
         stepCount: rawProject.stepCount,
         workerName: rawJob.worker.name,
         seed: rawJob.seedUsed,
-        isNSFW: rawJob.triggeredNSFWFilter,
+        isNSFW: rawJob.triggeredNSFWFilter || rawJob.nsfwDetected === true,
+        nsfwDetected: rawJob.nsfwDetected === true,
+        nsfwSources: rawJob.nsfwSources ? [...rawJob.nsfwSources] : undefined,
         resultUrl: directResultUrlFromRawJob(rawJob)
       },
       options
@@ -294,10 +304,23 @@ class Job extends DataEntity<JobData, JobEventMap> {
 
   /**
    * Whether this job has a result media file available for download.
-   * Returns true if completed and not NSFW filtered.
+   *
+   * Media existence, not a content judgement. A render the artist made with the
+   * Sensitive Content Filter off is delivered even when a safety signal fired
+   * on it (see {@link nsfwDetected}), so it has media like any other result.
+   * Only a job the server actually withheld has none.
    */
   get hasResultMedia() {
-    return this.status === 'completed' && !this.isNSFW;
+    return this.status === 'completed' && !this.isWithheld;
+  }
+
+  /**
+   * Whether the server withheld this job's media for sensitive content. True
+   * only for a job that ran with the Sensitive Content Filter ON, and it means
+   * no media exists to download.
+   */
+  get isWithheld() {
+    return this.isNSFW && !this.nsfwDetected;
   }
 
   /**
@@ -390,12 +413,34 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
-   * Whether the image is NSFW or not. Only makes sense if job is completed.
-   * If NSFW filter is disabled, this property will always be false.
-   * If NSFW filter is enabled and the image is NSFW, image will not be available for download.
+   * Whether a safety signal fired for this job. Only makes sense once the job
+   * is completed.
+   *
+   * True in two different situations, which {@link nsfwDetected} tells apart:
+   * the filter was ON and the media was withheld (no download), or the artist
+   * turned the filter OFF and the media was delivered and merely labelled. Show
+   * or blur delivered media from the viewer's own current filter setting rather
+   * than from this flag alone.
    */
   get isNSFW() {
     return !!this.data.isNSFW;
+  }
+
+  /**
+   * Whether the safety signal is a label on delivered media rather than a
+   * withhold. True only when the artist rendered with the filter off, in which
+   * case {@link resultUrl} is available like any other completed job.
+   */
+  get nsfwDetected() {
+    return !!this.data.nsfwDetected;
+  }
+
+  /**
+   * Which safety signals fired: `prompt` (shared text vocabulary) and/or
+   * `image` (output classifier). Empty when none fired or none were reported.
+   */
+  get nsfwSources(): string[] {
+    return this.data.nsfwSources ? [...this.data.nsfwSources] : [];
   }
 
   /**
@@ -446,7 +491,9 @@ class Job extends DataEntity<JobData, JobEventMap> {
       step: data.performedSteps,
       workerName: data.worker?.name,
       seed: data.seedUsed,
-      isNSFW: data.triggeredNSFWFilter
+      isNSFW: data.triggeredNSFWFilter || data.nsfwDetected === true,
+      nsfwDetected: data.nsfwDetected === true,
+      ...(data.nsfwSources ? { nsfwSources: [...data.nsfwSources] } : {})
     };
     if (JOB_STATUS_MAP[data.status]) {
       delta.status = JOB_STATUS_MAP[data.status];
@@ -458,7 +505,9 @@ class Job extends DataEntity<JobData, JobEventMap> {
       !this.data.resultUrl &&
       !delta.resultUrl &&
       delta.status === 'completed' &&
-      !data.triggeredNSFWFilter
+      // Withheld media has nothing to mint. Labelled-but-delivered media does.
+      // A record claiming both resolves to withheld, the safe reading.
+      !(data.triggeredNSFWFilter === true && data.nsfwDetected !== true)
     ) {
       try {
         if (this.type === 'video' || this.type === 'audio') {
@@ -606,7 +655,9 @@ class Job extends DataEntity<JobData, JobEventMap> {
     if (this.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
-    if (this.isNSFW) {
+    // Only withheld media is unusable here. Media the artist rendered with the
+    // filter off exists and can be enhanced like any other result.
+    if (this.isWithheld) {
       throw new Error('Job did not pass NSFW filter');
     }
     if (this._enhancementProject) {

@@ -506,7 +506,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async handleJobResult(data: JobResultData) {
     const project = this.projects.find((p) => p.id === data.jobID);
-    const passNSFWCheck = !data.triggeredNSFWFilter || !project || project.params.disableNSFWFilter;
+    // `triggeredNSFWFilter` means the server withheld the media, so there is
+    // nothing to mint a URL for. `nsfwDetected` is the opposite case: a signal
+    // fired on a render the artist asked for with the filter off, the media
+    // exists, and the app blurs or shows it from the viewer's own setting.
+    // Trusting the server's own reading also covers a recovered project whose
+    // params could not be rebuilt, where `disableNSFWFilter` is unknown here.
+    // A frame claiming both is contradictory; resolve it to withheld so a
+    // client never chases media that may not exist.
+    const withheld = data.triggeredNSFWFilter === true && data.nsfwDetected !== true;
+    const passNSFWCheck = !withheld || !project || project.params.disableNSFWFilter;
     let downloadUrl = data.resultUrl || data.videoUrl || data.videoFile || null; // Use result URL from event if provided
 
     // If no resultUrl provided and NSFW check passes, generate download URL
@@ -556,7 +565,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           step: performedStepCount,
           seed,
           resultUrl: downloadUrl,
-          isNSFW: Boolean(data.triggeredNSFWFilter),
+          // Stays true for both outcomes so an app that only knows this flag
+          // keeps hiding flagged media as it always has. `nsfwDetected` is what
+          // tells an updated app the media is there to blur or reveal.
+          isNSFW: Boolean(data.triggeredNSFWFilter) || data.nsfwDetected === true,
+          nsfwDetected: data.nsfwDetected === true,
+          nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
           userCanceled: Boolean(data.userCanceled)
         });
       }
@@ -570,7 +584,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       ...(typeof performedStepCount === 'number' ? { steps: performedStepCount } : {}),
       ...(typeof seed === 'number' && Number.isFinite(seed) ? { seed } : {}),
       resultUrl: downloadUrl,
-      isNSFW: Boolean(data.triggeredNSFWFilter),
+      isNSFW: Boolean(data.triggeredNSFWFilter) || data.nsfwDetected === true,
+      nsfwDetected: data.nsfwDetected === true,
+      nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
       userCanceled: Boolean(data.userCanceled)
     });
   }
@@ -758,6 +774,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           status: 'completed' | 'canceled';
           resultUrl: string | null;
           isNSFW: boolean;
+          nsfwDetected: boolean;
+          nsfwSources: string[];
           userCanceled: boolean;
           step?: number;
           seed?: number;
@@ -765,6 +783,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           status: event.userCanceled ? 'canceled' : 'completed',
           resultUrl: event.resultUrl,
           isNSFW: event.isNSFW,
+          nsfwDetected: Boolean(event.nsfwDetected),
+          nsfwSources: Array.isArray(event.nsfwSources) ? [...event.nsfwSources] : [],
           userCanceled: event.userCanceled
         };
         if (typeof event.steps === 'number') {
