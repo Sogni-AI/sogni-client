@@ -1,3 +1,10 @@
+## [5.27.1](https://github.com/Sogni-AI/sogni-client/compare/v5.27.0...v5.27.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **projects:** keep isNSFW meaning withheld so upgrading changes nothing ([0e4416f](https://github.com/Sogni-AI/sogni-client/commit/0e4416f6fa0eb290454f6401a51b8cb3cd291626))
+
 # [5.27.0](https://github.com/Sogni-AI/sogni-client/compare/v5.26.4...v5.27.0) (2026-09-02)
 
 
