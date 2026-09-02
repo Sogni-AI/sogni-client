@@ -306,9 +306,21 @@ const animatePhotoLoraSchema =
 for (const selector of ['minimax-h3-turbo', 'minimax-h3-t2v-turbo', 'minimax-h3-r2v-turbo']) {
   assert.ok(generateVideoModelSchema.enum.includes(selector));
 }
+for (const selector of ['minimax-h3-fasth3-turbo', 'minimax-h3-fasth3-t2v-turbo']) {
+  assert.ok(generateVideoModelSchema.enum.includes(selector));
+}
 for (const selector of ['minimax-h3-i2v-turbo', 'minimax-h3-flf2v-turbo']) {
   assert.ok(animatePhotoModelSchema.enum.includes(selector));
 }
+for (const selector of [
+  'minimax-h3-fasth3-i2v-turbo',
+  'minimax-h3-fasth3-flf2v-turbo'
+]) {
+  assert.ok(animatePhotoModelSchema.enum.includes(selector));
+}
+assert.ok(!generateVideoModelSchema.enum.includes('minimax-h3-fasth3-r2v-turbo'));
+assert.match(generateVideoModelSchema.description, /FastVideo VSA four-step FastH3/);
+assert.match(generateVideoModelSchema.description, /Existing "minimax-h3-turbo" selectors remain LightX2V Turbo/);
 for (const selector of [
   'minimax-h3-balanced',
   'minimax-h3-t2v-balanced',
@@ -382,6 +394,9 @@ assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v, minimaxH3TurboModelIds
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboI2v, minimaxH3TurboModelIds.i2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboFlf2v, minimaxH3TurboModelIds.flf2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v, minimaxH3TurboModelIds.r2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboT2v, minimaxH3FastVideoModelIds.t2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboI2v, minimaxH3FastVideoModelIds.i2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboFlf2v, minimaxH3FastVideoModelIds.flf2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3BalancedT2v, minimaxH3BalancedModelIds.t2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3BalancedI2v, minimaxH3BalancedModelIds.i2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3BalancedFlf2v, minimaxH3BalancedModelIds.flf2v);
@@ -399,6 +414,17 @@ assert.equal(
 assert.equal(
   resolveHostedToolModelSelector('generate_video', { videoModel: 'minimax-h3-turbo' }),
   minimaxH3TurboModelIds.t2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', { videoModel: 'minimax-h3-fasth3-turbo' }),
+  minimaxH3FastVideoModelIds.t2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', {
+    videoModel: 'minimax-h3-fasth3-turbo',
+    referenceImageIndices: [0]
+  }),
+  minimaxH3FastVideoModelIds.i2v
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', {
@@ -441,6 +467,12 @@ assert.equal(
     videoModel: 'minimax-h3-flf2v-turbo'
   }),
   minimaxH3TurboModelIds.flf2v
+);
+assert.equal(
+  resolveHostedToolModelSelector('animate_photo', {
+    videoModel: 'minimax-h3-fasth3-flf2v-turbo'
+  }),
+  minimaxH3FastVideoModelIds.flf2v
 );
 assert.equal(
   resolveHostedToolModelSelector('animate_photo', {
