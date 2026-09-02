@@ -1,3 +1,10 @@
+## [5.26.3](https://github.com/Sogni-AI/sogni-client/compare/v5.26.2...v5.26.3) (2026-09-02)
+
+
+### Bug Fixes
+
+* **minimax-h3:** expose FastH3 hosted selectors ([67d3870](https://github.com/Sogni-AI/sogni-client/commit/67d38708b485045f906b6b43dfa2c5e37835e94e))
+
 ## [5.26.2](https://github.com/Sogni-AI/sogni-client/compare/v5.26.1...v5.26.2) (2026-09-01)
 
 
