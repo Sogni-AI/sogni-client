@@ -1,3 +1,10 @@
+## [5.26.4](https://github.com/Sogni-AI/sogni-client/compare/v5.26.3...v5.26.4) (2026-09-02)
+
+
+### Bug Fixes
+
+* **deps:** bump @sogni-ai/sogni-protocol to 1.0.0-alpha.32 ([a9b6353](https://github.com/Sogni-AI/sogni-client/commit/a9b635393cd9cbf879ec947e24a56f44940f2dfd))
+
 ## [5.26.3](https://github.com/Sogni-AI/sogni-client/compare/v5.26.2...v5.26.3) (2026-09-02)
 
 
