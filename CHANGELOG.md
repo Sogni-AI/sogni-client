@@ -1,3 +1,10 @@
+# [5.28.0](https://github.com/Sogni-AI/sogni-client/compare/v5.27.1...v5.28.0) (2026-09-04)
+
+
+### Features
+
+* **announcements:** add the appAlert event and announcements API ([abcc1f4](https://github.com/Sogni-AI/sogni-client/commit/abcc1f4de5a384bbfffe6de0ec7b922ed59df43d))
+
 ## [5.27.1](https://github.com/Sogni-AI/sogni-client/compare/v5.27.0...v5.27.1) (2026-09-02)
 
 
