@@ -88,7 +88,7 @@ import type {
   TrialEligibility,
   TrialReasonCode
 } from './Account/subscription.types.js';
-import type { ToastMessage } from './ApiClient/WebSocketClient/events.js';
+import type { AppAlert, AppAlertAction, ToastMessage } from './ApiClient/WebSocketClient/events.js';
 import type DataEntity from './lib/DataEntity.js';
 import {
   ControlNetName,
@@ -184,6 +184,7 @@ import {
 import StatsApi from './Stats/index.js';
 // Replay records
 import ReplayApi from './Replay/index.js';
+import AnnouncementsApi from './Announcements/index.js';
 import {
   GetReplayRecordResult,
   ListReplayRecordsOptions,
@@ -365,6 +366,8 @@ export type {
   JobPreparation,
   RawProject,
   ToastMessage,
+  AppAlert,
+  AppAlertAction,
   DataEntity,
   InputMedia,
   AgentAttributionMetadata,
@@ -533,6 +536,14 @@ export class SogniClient {
    * identity.
    */
   replay: ReplayApi;
+  /**
+   * Admin-authored in-app announcements (`/v1/announcements`). Live delivery is
+   * the `appAlert` socket event — opt in with
+   * `socketEventSubscriptions: { appAlert: true }`. This group covers the two
+   * moments the socket cannot: reading what is live at launch, and dismissing an
+   * announcement per account so it stays dismissed on every device.
+   */
+  announcements: AnnouncementsApi;
 
   apiClient: ApiClient;
 
@@ -543,6 +554,7 @@ export class SogniClient {
     this.chat = new ChatApi(config, this.projects);
     this.workflows = new CreativeWorkflowsApi(config);
     this.replay = new ReplayApi(config);
+    this.announcements = new AnnouncementsApi(config);
 
     this.apiClient = config.client;
   }

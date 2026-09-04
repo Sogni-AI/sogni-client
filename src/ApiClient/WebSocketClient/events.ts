@@ -280,6 +280,62 @@ export type ToastMessage = {
   stickyID: string;
 };
 
+/** A call to action rendered inside an announcement. Always an absolute http(s) URL. */
+export type AppAlertAction = {
+  label: string;
+  href: string;
+  /** Open in a new tab / the system browser rather than routing in-app. */
+  external?: boolean;
+};
+
+/**
+ * An admin-authored in-app announcement, composed in the Sogni Admin Portal.
+ *
+ * OPT-IN: the server sends this only to clients that asked for it with
+ * `socketEventSubscriptions: { appAlert: true }`. A client that does not opt in
+ * keeps receiving the same announcement as a plain {@link ToastMessage}, so this
+ * event can be adopted at any time without coordination. A client never
+ * receives both renderings of one announcement.
+ *
+ * NOT at-most-once: a live pinned announcement is re-sent on every reconnect
+ * while its window is open, so a user who was offline when it published still
+ * sees it. Deduplicate on `id`.
+ *
+ * Full contract: `docs/app-alert-contract.md` in sogni-socket.
+ */
+export type AppAlert = {
+  /** Stable across redeliveries; also the key for `announcements.dismiss(id)`. */
+  id: string;
+  /** `toast` is a one-shot; `banner` persists until dismissed or `endsAt`. */
+  kind: 'toast' | 'banner';
+  severity: 'info' | 'success' | 'warn' | 'danger';
+  /**
+   * Icon token, never a URL — map it to your own icon set. One of `info`,
+   * `success`, `warning`, `error`, `megaphone`, `wrench`, `sparkles`, `gift`,
+   * `rocket`, `clock`. Absent means "use the icon for `severity`".
+   */
+  icon?: string;
+  /** Optional `#RRGGBB` tint. Ignoring it must still render a legible alert. */
+  accent?: string;
+  title: string;
+  /**
+   * Restricted markdown: paragraphs, bold, italic, inline code, strikethrough,
+   * links, and line breaks. No images, no raw HTML, no headings or lists.
+   */
+  bodyMarkdown: string;
+  /** Do not auto-dismiss. Banners are pinned; toasts normally are not. */
+  pinned: boolean;
+  /** When false, hide the close affordance — it still clears at `endsAt`. */
+  dismissible: boolean;
+  /** Toasts only. Milliseconds. */
+  autoCloseMs?: number;
+  actions?: AppAlertAction[];
+  /** Epoch ms. */
+  startsAt: number;
+  /** Epoch ms. Always present for a banner. */
+  endsAt?: number;
+};
+
 export type ArtistCancelConfirmation = {
   didCancel: boolean;
   error_message?: string;
@@ -419,6 +475,14 @@ export type SocketEventMap = {
    * @event WebSocketClient#toastMessage - Toast message received
    */
   toastMessage: ToastMessage;
+  /**
+   * @event WebSocketClient#appAlert - Admin announcement received (banner or toast)
+   *
+   * Opt in with `socketEventSubscriptions: { appAlert: true }`; without it the
+   * server sends the same announcement as `toastMessage` instead. Redelivered on
+   * reconnect while a pinned announcement is live — deduplicate on `id`.
+   */
+  appAlert: AppAlert;
 
   artistCancelConfirmation: ArtistCancelConfirmation;
 };
