@@ -5,6 +5,7 @@
 const assert = require('node:assert/strict');
 
 const ProjectsApi = require('../dist/Projects/index.js').default;
+const Project = require('../dist/Projects/Project.js').default;
 
 class EventTargetStub {
   constructor() {
@@ -55,6 +56,53 @@ function makeProjectsApi() {
 }
 
 async function main() {
+  for (const status of ['cancelled', 'errored']) {
+    const reason = status === 'cancelled' ? 'artistCanceled' : 'Generation failed';
+    const project = new Project(
+      { type: 'image', numberOfMedia: 1, steps: 4 },
+      {
+        id: 'rest-terminal',
+        logger: { warn() {}, error() {} },
+        api: {
+          get: async () => ({
+            status,
+            reason,
+            imageCount: 1,
+            stepCount: 4,
+            completedWorkerJobs: []
+          })
+        }
+      }
+    );
+    const waiting = project.waitForCompletion();
+    const rejected = assert.rejects(waiting, (error) => error.message === reason);
+    await project._syncToServer();
+    await rejected;
+    assert.equal(project.finished, true);
+    assert.equal(project._timeout, null);
+    await assert.rejects(project.waitForCompletion(), (error) => error.message === reason);
+    assert.equal(project.listeners.completed.length, 0);
+    assert.equal(project.listeners.failed.length, 0);
+    assert.equal(project.listeners.updated.length, 1, 'only the project runtime listener remains');
+  }
+
+  {
+    const project = new Project(
+      { type: 'image', numberOfMedia: 1, steps: 4 },
+      {
+        id: 'live-cancellation',
+        api: {},
+        logger: { error() {} }
+      }
+    );
+    const waiting = assert.rejects(
+      project.waitForCompletion(),
+      (error) => error.message === 'Project canceled'
+    );
+    project._update({ status: 'canceled' });
+    await waiting;
+  }
+
   {
     const { api, socket } = makeProjectsApi();
     let settled = false;

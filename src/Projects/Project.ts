@@ -246,18 +246,39 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     if (this.status === 'completed') {
       return Promise.resolve(this.resultUrls);
     }
-    if (this.status === 'failed') {
-      return Promise.reject(this.error);
+    if (this.status === 'failed' || this.status === 'canceled') {
+      return Promise.reject(this.terminalError());
     }
 
     return new Promise((resolve, reject) => {
-      this.once('completed', (images) => {
+      const onCompleted = (images: string[]) => {
+        this.off('completed', onCompleted);
+        this.off('failed', onFailed);
+        this.off('updated', onUpdated);
         resolve(images);
-      });
-      this.once('failed', (error) => {
+      };
+      const onFailed = (error: ErrorData) => {
+        this.off('completed', onCompleted);
+        this.off('failed', onFailed);
+        this.off('updated', onUpdated);
         reject(error);
-      });
+      };
+      const onUpdated = () => {
+        if (this.status === 'canceled') onFailed(this.terminalError());
+      };
+      this.on('completed', onCompleted);
+      this.on('failed', onFailed);
+      this.on('updated', onUpdated);
     });
+  }
+
+  private terminalError(): ErrorData {
+    return (
+      this.error || {
+        code: 0,
+        message: this.status === 'canceled' ? 'Project canceled' : 'Project failed'
+      }
+    );
   }
 
   /**
@@ -296,7 +317,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
         return this.emit('completed', this.resultUrls);
       }
       if (this.data.status === 'failed') {
-        this.emit('failed', this.data.error!);
+        this.emit('failed', this.terminalError());
       }
     }
   }
@@ -497,6 +518,17 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     }
     if (PROJECT_STATUS_MAP[data.status]) {
       delta.status = PROJECT_STATUS_MAP[data.status];
+    }
+    if (delta.status === 'failed' || delta.status === 'canceled') {
+      const reason = typeof data.reason === 'string' ? data.reason.trim() : '';
+      const reasonCode = /^\d+$/.test(reason) ? Number(reason) : 0;
+      delta.error = this.error || {
+        code: Number.isSafeInteger(reasonCode) ? reasonCode : 0,
+        message: reason || (delta.status === 'canceled' ? 'Project canceled' : 'Project failed')
+      };
+      for (const job of this._jobs) {
+        if (!job.finished) job._update({ status: delta.status, error: delta.error });
+      }
     }
     this._update(delta);
   }
