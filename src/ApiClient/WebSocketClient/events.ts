@@ -188,7 +188,11 @@ export type JobETAData = {
   etaSeconds: number;
 };
 
-export type JobPreparation = {
+/**
+ * A LoRA the job needs is being fetched by the worker before the graph is
+ * queued. Arrives on `initiatingModel` and updates as the download progresses.
+ */
+export type JobAssetPreparation = {
   phase: 'downloadingAssets';
   assetType: 'lora';
   requested: number;
@@ -198,6 +202,27 @@ export type JobPreparation = {
   current: number;
   currentProgress?: number;
 };
+
+/**
+ * The worker is switching models: ComfyUI is moving the previous model out of
+ * VRAM (`unloadingModel`) or the next one in (`loadingModel`). Each phase
+ * arrives twice on `initiatingModel`, at `start` and at `end`; the `end` step
+ * carries how long it took. A switch can run past a minute on a card that was
+ * full, so show it rather than a render that appears stuck at 0%.
+ */
+export type JobModelPhasePreparation = {
+  phase: 'unloadingModel' | 'loadingModel';
+  /** The model class ComfyUI names, e.g. "Flux" or "WAN21"; not a display name. */
+  model: string;
+  step: 'start' | 'end';
+  elapsedSec?: number;
+};
+
+/**
+ * What the worker is doing while a job is `initiating`. Narrow on `phase`
+ * before reading the other fields.
+ */
+export type JobPreparation = JobAssetPreparation | JobModelPhasePreparation;
 
 export type JobResultData = {
   jobID: string;
