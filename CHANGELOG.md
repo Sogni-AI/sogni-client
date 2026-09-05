@@ -1,3 +1,10 @@
+# [5.29.0](https://github.com/Sogni-AI/sogni-client/compare/v5.28.0...v5.29.0) (2026-09-05)
+
+
+### Features
+
+* **projects:** type the model unload and load phases a worker reports while initiating ([3e8d04d](https://github.com/Sogni-AI/sogni-client/commit/3e8d04d25bf50809f36ab9b81229d54e691cd102))
+
 # [5.28.0](https://github.com/Sogni-AI/sogni-client/compare/v5.27.1...v5.28.0) (2026-09-04)
 
 
