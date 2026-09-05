@@ -1,3 +1,10 @@
+## [5.29.2](https://github.com/Sogni-AI/sogni-client/compare/v5.29.1...v5.29.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* **client:** support REST-only startup without app ID ([90dc94d](https://github.com/Sogni-AI/sogni-client/commit/90dc94d8ca2fa5ca7a3e05aa58efc2543979794d))
+
 ## [5.29.1](https://github.com/Sogni-AI/sogni-client/compare/v5.29.0...v5.29.1) (2026-09-05)
 
 
