@@ -1,3 +1,10 @@
+## [5.29.1](https://github.com/Sogni-AI/sogni-client/compare/v5.29.0...v5.29.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **projects:** settle canceled and recovered terminal projects ([4f687eb](https://github.com/Sogni-AI/sogni-client/commit/4f687eb1d7da00f935adb17793d773318e53d080))
+
 # [5.29.0](https://github.com/Sogni-AI/sogni-client/compare/v5.28.0...v5.29.0) (2026-09-05)
 
 
