@@ -40,6 +40,8 @@ jobs:
         run: npm run test:model-options
       - name: Run attribution transport checks
         run: npm run test:attribution
+      - name: Run REST-only client checks
+        run: npm run test:rest-only
       - name: Run project cancellation checks
         run: npm run test:project-cancellation
       - name: Run project recovery checks

@@ -77,12 +77,16 @@ import { SogniClient } from '@sogni-ai/sogni-client';
 
 // Option 1: API key auth (recommended) — no login() needed
 const sogni = await SogniClient.createInstance({
-  appId: 'my-unique-app-id',
+  appId: 'my-app-installation',
+  appSource: 'my-app',
   apiKey: 'your-api-key'
 });
 
 // Option 2: Username/password auth
-// const sogni = await SogniClient.createInstance({ appId: 'my-unique-app-id' });
+// const sogni = await SogniClient.createInstance({
+//   appId: 'my-app-installation',
+//   appSource: 'my-app'
+// });
 // await sogni.account.login('username', 'password');
 
 await sogni.projects.waitForModels();
@@ -126,7 +130,8 @@ CREATING THE CLIENT:
 import { SogniClient } from '@sogni-ai/sogni-client';
 
 const sogni = await SogniClient.createInstance({
-  appId: 'your-unique-app-id', // Required - UUID recommended
+  appId: 'my-app-installation', // Generate once and persist; never regenerate on each start
+  appSource: 'my-app',
   network: 'fast' // 'fast' or 'relaxed'
 });
 ```
@@ -138,7 +143,8 @@ dropdown in the top-right corner to provision your key.
 ```javascript
 // API key auth — auto-authenticates via WebSocket, no login() needed
 const sogni = await SogniClient.createInstance({
-  appId: 'your-unique-app-id',
+  appId: 'my-app-installation',
+  appSource: 'my-app',
   network: 'fast',
   apiKey: 'your-api-key'
 });
@@ -150,11 +156,19 @@ AUTHENTICATION - USERNAME/PASSWORD:
 ```javascript
 // Username/password login
 const sogni = await SogniClient.createInstance({
-  appId: 'your-unique-app-id',
+  appId: 'my-app-installation',
+  appSource: 'my-app',
   network: 'fast'
 });
 await sogni.account.login('username', 'password');
 ```
+
+APP ID LIFECYCLE:
+
+Generate an `appId` once per application installation and persist it across process restarts or page
+reloads. Calling `randomUUID()` every time the process starts creates a new application identity on
+every run. For REST-only usage, pass `disableSocket: true`; `appId` is optional and the client opens
+no artist WebSocket.
 
 API KEY VS USERNAME/PASSWORD:
 

@@ -419,7 +419,9 @@ export {
 
 export interface SogniClientConfig {
   /**
-   * The application ID string. Must be unique, multiple connections with the same ID will be rejected.
+   * Stable ID for this application installation. Reuse it across process restarts and page reloads.
+   * It only needs to be unique among simultaneous connections for the same account; a second live
+   * connection with the same ID replaces the first one.
    */
   appId: string;
   /**
@@ -455,10 +457,9 @@ export interface SogniClientConfig {
    */
   socketEndpoint?: string;
   /**
-   * Disable WebSocket connection. Useful for testing or when WebSocket is not needed.
-   * Note that many APIs may not work without WebSocket connection.
-   * @experimental
-   * @internal
+   * Disable the WebSocket connection for REST-only clients. Socket-backed project generation and
+   * chat completions are unavailable in this mode. An `appId` is optional when this is `true`.
+   * @default false
    */
   disableSocket?: boolean;
   /**
@@ -507,6 +508,12 @@ export interface SogniClientConfig {
    */
   multiInstance?: boolean;
 }
+
+/** Configuration for a client that uses only REST APIs and never opens an artist WebSocket. */
+export type RestOnlySogniClientConfig = Omit<SogniClientConfig, 'appId' | 'disableSocket'> & {
+  disableSocket: true;
+  appId?: string;
+};
 
 export class SogniClient {
   account: AccountApi;
@@ -624,18 +631,24 @@ export class SogniClient {
    * Create client instance, with default configuration
    * @param config
    */
-  static async createInstance(config: SogniClientConfig): Promise<SogniClient> {
+  static async createInstance(
+    config: SogniClientConfig | RestOnlySogniClientConfig
+  ): Promise<SogniClient> {
     const restEndpoint = config.restEndpoint || 'https://api.sogni.ai';
     const socketEndpoint = config.socketEndpoint || 'wss://socket.sogni.ai';
     const network = config.network || 'fast';
     const logger = config.logger || new DefaultLogger(config.logLevel || 'warn');
     const isTestnet = config.testnet !== undefined ? config.testnet : false;
     const authType = config.apiKey ? 'apiKey' : config.authType || 'token';
+    const appId = config.appId?.trim();
+    if (!appId && !config.disableSocket) {
+      throw new Error('appId is required when WebSocket connections are enabled');
+    }
 
     const client = new ApiClient({
       baseUrl: restEndpoint,
       socketUrl: socketEndpoint,
-      appId: config.appId,
+      appId: appId || 'rest-only',
       appSource: config.appSource,
       attribution: config.attribution,
       socketEventSubscriptions: config.socketEventSubscriptions,

@@ -21,10 +21,17 @@ The SDK publishes CommonJS (`dist/index.js`), ESM (`dist-esm/index.js`), and Typ
 import { SogniClient } from '@sogni-ai/sogni-client';
 
 // Option 1: API key auth (recommended) — no login() needed
-const sogni = await SogniClient.createInstance({ appId: 'my-app-uuid', apiKey: 'your-api-key' });
+const sogni = await SogniClient.createInstance({
+  appId: 'my-app-installation',
+  appSource: 'my-app',
+  apiKey: 'your-api-key'
+});
 
 // Option 2: Username/password auth
-// const sogni = await SogniClient.createInstance({ appId: 'my-app-uuid' });
+// const sogni = await SogniClient.createInstance({
+//   appId: 'my-app-installation',
+//   appSource: 'my-app'
+// });
 // await sogni.account.login('username', 'password');
 
 await sogni.projects.waitForModels();
@@ -89,7 +96,8 @@ Each email-verified account is allowed 400 free Spark render credits per month. 
 
 ```javascript
 const sogni = await SogniClient.createInstance({
-  appId: 'unique-uuid', // Required - identifies your app
+  appId: 'my-app-installation', // Generate once and persist; never regenerate on each start
+  appSource: 'my-app',
   network: 'fast', // 'fast' (GPU) or 'relaxed' (Mac)
   apiKey: 'your-api-key' // Auto-authenticates, no login() needed
 });
@@ -99,7 +107,8 @@ const sogni = await SogniClient.createInstance({
 
 ```javascript
 const sogni = await SogniClient.createInstance({
-  appId: 'unique-uuid',
+  appId: 'my-app-installation',
+  appSource: 'my-app',
   network: 'fast'
 });
 await sogni.account.login(username, password);
@@ -109,6 +118,11 @@ await sogni.account.login(username, password);
 
 - **API key**: Pass `apiKey` to `createInstance()`. Auto-authenticates via WebSocket. No `login()` call needed. Most REST API calls (balance, profile, etc.) available. Sensitive operations (withdrawals, staking, 2FA) not available.
 - **Username/password**: Call `sogni.account.login()` after creating instance. Full REST API access.
+- **REST-only**: Pass `disableSocket: true`; `appId` is then optional and no artist WebSocket is opened. Use this for hosted chat, durable workflows, replay, announcements, and account REST APIs.
+
+Generate an `appId` once per application installation and persist it across restarts or page
+reloads. Calling `randomUUID()` each time the process starts creates a different application
+identity on every run.
 
 ### Subscription Entitlements
 

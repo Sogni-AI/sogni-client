@@ -62,6 +62,7 @@
     "build": "npm run clean && npm run codegen && tsc --project tsconfig.json && tsc --project tsconfig.esm.json && node scripts/write-dist-esm-package-json.mjs",
     "test:chat-routing": "npm run build && node scripts/check-chat-model-routing.cjs",
     "test:attribution": "npm run build && node scripts/check-attribution-transport.cjs",
+    "test:rest-only": "npm run build && node scripts/check-rest-only-config.cjs",
     "test:subscription-api": "npm run build && node scripts/check-subscription-api.cjs",
     "test:model-options": "npm run build && node scripts/check-video-model-options.cjs",
     "test:video-estimates": "npm run build && node scripts/check-video-estimates.cjs",
