@@ -1,3 +1,10 @@
+# [5.30.0](https://github.com/Sogni-AI/sogni-client/compare/v5.29.2...v5.30.0) (2026-09-06)
+
+
+### Features
+
+* **projects:** support attested world generation ([99ab932](https://github.com/Sogni-AI/sogni-client/commit/99ab932e26d320de6f5423e657f0ea034c19bfbe))
+
 ## [5.29.2](https://github.com/Sogni-AI/sogni-client/compare/v5.29.1...v5.29.2) (2026-09-05)
 
 
