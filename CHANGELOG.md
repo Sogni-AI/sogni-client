@@ -1,3 +1,10 @@
+# [5.31.0](https://github.com/Sogni-AI/sogni-client/compare/v5.30.0...v5.31.0) (2026-09-06)
+
+
+### Features
+
+* **projects:** use canonical SAM3 model id ([3fbeab3](https://github.com/Sogni-AI/sogni-client/commit/3fbeab378021fcaefaea93981889bd34c4327fe9))
+
 # [5.30.0](https://github.com/Sogni-AI/sogni-client/compare/v5.29.2...v5.30.0) (2026-09-06)
 
 
