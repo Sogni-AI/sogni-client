@@ -71,6 +71,7 @@ import {
   usesReferenceMask
 } from './utils/index.js';
 import { TokenType } from '../types/token.js';
+import type { JobProvenance } from './types/JobProvenance.js';
 import { getMaxContextImages, validateSampler } from '../lib/validation.js';
 import ModelTiersRaw, {
   isAudioTier,
@@ -110,6 +111,39 @@ const DEFAULT_LORA_CONSTRAINTS: LoraConstraints = {
   maxStrength: 100
 };
 const GARBAGE_COLLECT_TIMEOUT = 30000;
+
+const JOB_PROVENANCE_HASH_FIELDS = [
+  'sha256',
+  'sourceImageSha256',
+  'samPromptSha256',
+  'maskRleSha256',
+  'selectionHash',
+  'firstFrameSha256',
+  'lastFrameSha256'
+] as const;
+
+function jobProvenanceFromResult(data: Partial<JobResultData>): JobProvenance | undefined {
+  const result: JobProvenance = {};
+  for (const field of JOB_PROVENANCE_HASH_FIELDS) {
+    const value = data[field];
+    if (typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value)) {
+      result[field] = value.toLowerCase();
+    }
+  }
+  if (Number.isSafeInteger(data.maskWidth) && Number(data.maskWidth) > 0) {
+    result.maskWidth = Number(data.maskWidth);
+  }
+  if (Number.isSafeInteger(data.maskHeight) && Number(data.maskHeight) > 0) {
+    result.maskHeight = Number(data.maskHeight);
+  }
+  if (
+    typeof data.samVersion === 'string' &&
+    /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,79}$/.test(data.samVersion)
+  ) {
+    result.samVersion = data.samVersion;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
 // Socket owns a 105s provider-confirmation deadline. Keep transport/UI slack
 // above it so the client cannot report failure while Socket is still able to
 // confirm and refund the same cancellation.
@@ -550,6 +584,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // Update the job directly with the result URL to prevent duplicate API calls
     let performedStepCount = data.performedStepCount;
     let seed = data.lastSeed !== undefined ? Number(data.lastSeed) : undefined;
+    const provenance = jobProvenanceFromResult(data);
     if (project) {
       const job = project.job(data.imgID);
       if (job) {
@@ -574,7 +609,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           isNSFW: Boolean(data.triggeredNSFWFilter),
           nsfwDetected: data.nsfwDetected === true,
           nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
-          userCanceled: Boolean(data.userCanceled)
+          userCanceled: Boolean(data.userCanceled),
+          ...(provenance ? { provenance } : {})
         });
       }
     }
@@ -590,7 +626,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       isNSFW: Boolean(data.triggeredNSFWFilter),
       nsfwDetected: data.nsfwDetected === true,
       nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
-      userCanceled: Boolean(data.userCanceled)
+      userCanceled: Boolean(data.userCanceled),
+      ...(provenance ? { provenance } : {})
     });
   }
 
@@ -780,6 +817,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           nsfwDetected: boolean;
           nsfwSources: string[];
           userCanceled: boolean;
+          provenance?: JobProvenance;
           step?: number;
           seed?: number;
         } = {
@@ -788,7 +826,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           isNSFW: event.isNSFW,
           nsfwDetected: Boolean(event.nsfwDetected),
           nsfwSources: Array.isArray(event.nsfwSources) ? [...event.nsfwSources] : [],
-          userCanceled: event.userCanceled
+          userCanceled: event.userCanceled,
+          ...(event.provenance ? { provenance: event.provenance } : {})
         };
         if (typeof event.steps === 'number') {
           delta.step = event.steps;
@@ -1134,6 +1173,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           userCanceled: job.reason === 'artistCanceled',
           ...(typeof job.resultUrl === 'string' && job.resultUrl
             ? { resultUrl: job.resultUrl }
+            : {}),
+          ...(job.result && typeof job.result === 'object'
+            ? jobProvenanceFromResult(job.result as Partial<JobResultData>)
             : {})
         });
         continue;
@@ -1244,22 +1286,34 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param data
    */
   async create(data: ProjectParams): Promise<Project> {
-    const project = new Project({ ...data }, { api: this, logger: this.client.logger });
-    const modelOptions = await this.getModelOptions(data.modelId);
+    // SAM3 is a one-source/one-mask utility workflow. Normalize before Project
+    // construction so lifecycle completion and result MIME use the same values
+    // as the serialized request.
+    const normalizedData =
+      data.type === 'image' && data.modelId === 'sam3p1_image_segment_bf16'
+        ? ({
+            ...data,
+            numberOfMedia: 1,
+            numberOfPreviews: 0,
+            outputFormat: 'png'
+          } as ProjectParams)
+        : data;
+    const project = new Project({ ...normalizedData }, { api: this, logger: this.client.logger });
+    const modelOptions = await this.getModelOptions(normalizedData.modelId);
     const requestParams = {
-      ...data,
-      appSource: data.appSource || this.client.appSource,
-      attribution: this.resolveWorkloadAttribution(data.attribution, project.id)
+      ...normalizedData,
+      appSource: normalizedData.appSource || this.client.appSource,
+      attribution: this.resolveWorkloadAttribution(normalizedData.attribution, project.id)
     } as ProjectParams;
     const request = createJobRequestMessage(project.id, requestParams, modelOptions);
 
-    switch (data.type) {
+    switch (normalizedData.type) {
       case 'image':
-        await this._processImageAssets(project, data);
+        await this._processImageAssets(project, normalizedData);
         break;
       case 'video':
-        await this._processVideoAssets(project, data);
-        this._annotateVideoAssetContentTypes(request, data);
+        await this._processVideoAssets(project, normalizedData);
+        this._annotateVideoAssetContentTypes(request, normalizedData);
         break;
       case 'audio':
         // No assets to upload for audio

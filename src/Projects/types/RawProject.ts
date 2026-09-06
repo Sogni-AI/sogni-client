@@ -1,4 +1,5 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types.js';
+import type { JobProvenance } from './JobProvenance.js';
 
 export interface RawProject {
   id: string;
@@ -69,6 +70,7 @@ export interface RawJob {
   txId?: string;
   resultUrl?: string | null;
   resultKey?: string | null;
+  result?: JobProvenance & Record<string, unknown>;
 }
 
 export interface CostActual {

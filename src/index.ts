@@ -33,6 +33,9 @@ import {
   BillingMode,
   ImageProjectParams,
   ImageOutputFormat,
+  Sam3ImagePrompt,
+  Sam3PromptBox,
+  Sam3PromptPoint,
   ProjectParams,
   VideoProjectParams,
   AudioFormat,
@@ -42,8 +45,10 @@ import {
   SizePreset,
   EstimateRequest,
   CostEstimation,
-  InputMedia
+  InputMedia,
+  WorldGenerationReceiptRequest
 } from './Projects/types/index.js';
+import type { JobProvenance } from './Projects/types/JobProvenance.js';
 import type {
   AvailableLorasParams,
   LoraCatalog,
@@ -274,6 +279,9 @@ export type {
   ErrorData,
   ImageProjectParams,
   ImageOutputFormat,
+  Sam3ImagePrompt,
+  Sam3PromptBox,
+  Sam3PromptPoint,
   JobStatus,
   Logger,
   LogLevel,
@@ -381,7 +389,9 @@ export type {
   WorkloadAttribution,
   WorkloadAttributionDefaults,
   WorkloadAttributionInput,
-  WorkloadKind
+  WorkloadKind,
+  JobProvenance,
+  WorldGenerationReceiptRequest
 };
 
 export type {

@@ -10,6 +10,7 @@ import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 import { getEnhacementStrength } from './utils/index.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
+import type { JobProvenance } from './types/JobProvenance.js';
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -144,6 +145,7 @@ export interface JobData {
   userCanceled?: boolean;
   previewUrl?: string;
   resultUrl?: string | null;
+  provenance?: JobProvenance;
   error?: ErrorData;
   positivePrompt?: string;
   negativePrompt?: string;
@@ -199,7 +201,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
         isNSFW: rawJob.triggeredNSFWFilter,
         nsfwDetected: rawJob.nsfwDetected === true,
         nsfwSources: rawJob.nsfwSources ? [...rawJob.nsfwSources] : undefined,
-        resultUrl: directResultUrlFromRawJob(rawJob)
+        resultUrl: directResultUrlFromRawJob(rawJob),
+        provenance: rawJob.result
       },
       options
     );
@@ -292,6 +295,11 @@ class Job extends DataEntity<JobData, JobEventMap> {
    */
   get resultUrl() {
     return this.data.resultUrl;
+  }
+
+  /** Worker-attested input/output hashes for this result, when available. */
+  get provenance() {
+    return this.data.provenance;
   }
 
   get imageUrl() {
@@ -493,7 +501,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
       seed: data.seedUsed,
       isNSFW: data.triggeredNSFWFilter,
       nsfwDetected: data.nsfwDetected === true,
-      ...(data.nsfwSources ? { nsfwSources: [...data.nsfwSources] } : {})
+      ...(data.nsfwSources ? { nsfwSources: [...data.nsfwSources] } : {}),
+      ...(data.result ? { provenance: data.result } : {})
     };
     if (JOB_STATUS_MAP[data.status]) {
       delta.status = JOB_STATUS_MAP[data.status];
