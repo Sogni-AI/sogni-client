@@ -628,7 +628,7 @@ export interface Sam3PromptBox {
   y1: number;
 }
 
-/** A bounded prompt for the launch-gated SAM3 image-segmentation workflow. */
+/** A bounded prompt for the SAM3 image-segmentation workflow. */
 export interface Sam3ImagePrompt {
   points?: Sam3PromptPoint[];
   boxes?: Sam3PromptBox[];
@@ -653,7 +653,7 @@ export interface ImageProjectParams extends BaseProjectParams {
    */
   startingImage?: InputMedia;
   /**
-   * Interactive selection prompt for the launch-gated SAM3 image segmentation
+   * Interactive selection prompt for the SAM3 image segmentation
    * workflow. Coordinates are normalized from 0 to 1 and refer to the original
    * `startingImage`; one source image produces one lossless binary PNG mask.
    */

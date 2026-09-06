@@ -1290,7 +1290,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // construction so lifecycle completion and result MIME use the same values
     // as the serialized request.
     const normalizedData =
-      data.type === 'image' && data.modelId === 'sam3p1_image_segment_bf16'
+      data.type === 'image' && data.modelId === 'sam3_image_segment_bf16'
         ? ({
             ...data,
             numberOfMedia: 1,

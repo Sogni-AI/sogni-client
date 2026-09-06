@@ -70,7 +70,7 @@ import {
 } from './types/ModelOptions.js';
 import { workloadAttributionToWireFields } from '../lib/attribution.js';
 
-const SAM3_IMAGE_SEGMENT_WORKFLOW_ID = 'sam3p1_image_segment_bf16';
+const SAM3_IMAGE_SEGMENT_WORKFLOW_ID = 'sam3_image_segment_bf16';
 const WORLD_TARGET_STILL_MODEL_ID = 'krea2_identity_edit_sogni_v0_3_alpha';
 const WORLD_TRANSITION_MODEL_ID = 'minimax-h3-fastvideo-int8_flf2v_turbo';
 const MAX_SAM3_POINTS = 32;

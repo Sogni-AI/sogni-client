@@ -5,7 +5,7 @@ const { EventEmitter } = require('node:events');
 const createJobRequestMessage = require('../dist/Projects/createJobRequestMessage.js').default;
 const ProjectsApi = require('../dist/Projects/index.js').default;
 
-const MODEL_ID = 'sam3p1_image_segment_bf16';
+const MODEL_ID = 'sam3_image_segment_bf16';
 const MODEL_OPTIONS = {
   type: 'image',
   steps: { min: 1, max: 1, step: 1, default: 1 },
@@ -73,7 +73,7 @@ async function main() {
   );
   assert.throws(
     () => createJobRequestMessage('wrong-model', params({ modelId: 'krea2_turbo_fp8_scaled' }), MODEL_OPTIONS),
-    /only supported by sam3p1_image_segment_bf16/
+    /only supported by sam3_image_segment_bf16/
   );
 
   const client = new ClientStub();
@@ -107,7 +107,7 @@ async function main() {
     maskRleSha256: 'b'.repeat(64),
     maskWidth: 1024,
     maskHeight: 576,
-    samVersion: 'sam3p1-bf16-test'
+    samVersion: 'sam3-test'
   });
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(project.job('mask-result-1').provenance, {
@@ -117,7 +117,7 @@ async function main() {
     maskRleSha256: 'b'.repeat(64),
     maskWidth: 1024,
     maskHeight: 576,
-    samVersion: 'sam3p1-bf16-test'
+    samVersion: 'sam3-test'
   });
   project._update({ status: 'failed', error: { code: 0, message: 'test cleanup' } });
 
