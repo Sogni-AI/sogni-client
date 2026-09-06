@@ -1,6 +1,7 @@
 import {
   AudioProjectParams,
   ImageProjectParams,
+  Sam3ImagePrompt,
   isAudioParams,
   isImageParams,
   isVideoParams,
@@ -68,6 +69,68 @@ import {
   VideoModelOptions
 } from './types/ModelOptions.js';
 import { workloadAttributionToWireFields } from '../lib/attribution.js';
+
+const SAM3_IMAGE_SEGMENT_WORKFLOW_ID = 'sam3p1_image_segment_bf16';
+const WORLD_TARGET_STILL_MODEL_ID = 'krea2_identity_edit_sogni_v0_3_alpha';
+const WORLD_TRANSITION_MODEL_ID = 'minimax-h3-fastvideo-int8_flf2v_turbo';
+const MAX_SAM3_POINTS = 32;
+const MAX_SAM3_BOXES = 16;
+const MAX_SAM3_TEXT_LENGTH = 240;
+
+function normalizeWorldGenerationReceipt(params: ProjectParams) {
+  const receipt = params.worldGenerationReceipt;
+  if (!receipt) return undefined;
+  if (params.appSource !== 'sogni-world') {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'worldGenerationReceipt requires appSource "sogni-world".'
+    });
+  }
+  const hash = (value: unknown, field: string) => {
+    if (typeof value !== 'string' || !/^[a-f0-9]{64}$/i.test(value)) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `worldGenerationReceipt.${field} must be a SHA-256 hex digest.`
+      });
+    }
+    return value.toLowerCase();
+  };
+  if (receipt.stage === 'target_still') {
+    if (params.modelId !== WORLD_TARGET_STILL_MODEL_ID) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `The target_still receipt requires ${WORLD_TARGET_STILL_MODEL_ID}.`
+      });
+    }
+    return {
+      stage: receipt.stage,
+      sourceImageSha256: hash(receipt.sourceImageSha256, 'sourceImageSha256'),
+      selectionHash: hash(receipt.selectionHash, 'selectionHash')
+    };
+  }
+  if (receipt.stage === 'transition') {
+    if (params.modelId !== WORLD_TRANSITION_MODEL_ID) {
+      throw new ApiError(400, {
+        status: 'error',
+        errorCode: 0,
+        message: `The transition receipt requires ${WORLD_TRANSITION_MODEL_ID}.`
+      });
+    }
+    return {
+      stage: receipt.stage,
+      firstFrameSha256: hash(receipt.firstFrameSha256, 'firstFrameSha256'),
+      lastFrameSha256: hash(receipt.lastFrameSha256, 'lastFrameSha256')
+    };
+  }
+  throw new ApiError(400, {
+    status: 'error',
+    errorCode: 0,
+    message: 'worldGenerationReceipt.stage must be target_still or transition.'
+  });
+}
 
 /**
  * Validate that the provided assets match the workflow requirements.
@@ -945,6 +1008,109 @@ function getVideoControlNet(params: VideoControlNetParams): VideoControlNetParam
   return [cn];
 }
 
+function normalizeSam3Prompt(
+  prompt: Sam3ImagePrompt
+): Required<Pick<Sam3ImagePrompt, 'points' | 'boxes' | 'threshold' | 'multimask'>> &
+  Pick<Sam3ImagePrompt, 'text'> {
+  if (!prompt || typeof prompt !== 'object' || Array.isArray(prompt)) {
+    throw new Error('sam3Prompt must be an object');
+  }
+  const allowedRootKeys = new Set(['points', 'boxes', 'text', 'threshold', 'multimask']);
+  const unknownRootKeys = Object.keys(prompt).filter((key) => !allowedRootKeys.has(key));
+  if (unknownRootKeys.length > 0) {
+    throw new Error(`sam3Prompt contains unsupported fields: ${unknownRootKeys.join(', ')}`);
+  }
+  const coordinate = (value: unknown, field: string) => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+      throw new Error(`${field} must be a finite normalized coordinate from 0 to 1`);
+    }
+    return value;
+  };
+
+  const points = prompt.points || [];
+  if (!Array.isArray(points) || points.length > MAX_SAM3_POINTS) {
+    throw new Error(`sam3Prompt.points must contain at most ${MAX_SAM3_POINTS} entries`);
+  }
+  const normalizedPoints = points.map((point, index) => {
+    if (!point || typeof point !== 'object' || Array.isArray(point)) {
+      throw new Error(`sam3Prompt.points[${index}] must be an object`);
+    }
+    const unknown = Object.keys(point).filter((key) => !['x', 'y', 'label'].includes(key));
+    if (unknown.length > 0) {
+      throw new Error(`sam3Prompt.points[${index}] contains unsupported fields`);
+    }
+    if (point.label !== 'positive' && point.label !== 'negative') {
+      throw new Error(`sam3Prompt.points[${index}].label must be "positive" or "negative"`);
+    }
+    return {
+      x: coordinate(point.x, `sam3Prompt.points[${index}].x`),
+      y: coordinate(point.y, `sam3Prompt.points[${index}].y`),
+      label: point.label
+    };
+  });
+
+  const boxes = prompt.boxes || [];
+  if (!Array.isArray(boxes) || boxes.length > MAX_SAM3_BOXES) {
+    throw new Error(`sam3Prompt.boxes must contain at most ${MAX_SAM3_BOXES} entries`);
+  }
+  const normalizedBoxes = boxes.map((box, index) => {
+    if (!box || typeof box !== 'object' || Array.isArray(box)) {
+      throw new Error(`sam3Prompt.boxes[${index}] must be an object`);
+    }
+    const unknown = Object.keys(box).filter((key) => !['x0', 'y0', 'x1', 'y1'].includes(key));
+    if (unknown.length > 0) {
+      throw new Error(`sam3Prompt.boxes[${index}] contains unsupported fields`);
+    }
+    const normalized = {
+      x0: coordinate(box.x0, `sam3Prompt.boxes[${index}].x0`),
+      y0: coordinate(box.y0, `sam3Prompt.boxes[${index}].y0`),
+      x1: coordinate(box.x1, `sam3Prompt.boxes[${index}].x1`),
+      y1: coordinate(box.y1, `sam3Prompt.boxes[${index}].y1`)
+    };
+    if (normalized.x0 >= normalized.x1 || normalized.y0 >= normalized.y1) {
+      throw new Error(`sam3Prompt.boxes[${index}] must have x0 < x1 and y0 < y1`);
+    }
+    return normalized;
+  });
+
+  let text: string | undefined;
+  if (prompt.text !== undefined) {
+    if (typeof prompt.text !== 'string') throw new Error('sam3Prompt.text must be a string');
+    text = prompt.text.trim();
+    if (!text || text.length > MAX_SAM3_TEXT_LENGTH) {
+      throw new Error(`sam3Prompt.text must contain 1 to ${MAX_SAM3_TEXT_LENGTH} characters`);
+    }
+  }
+  if (normalizedPoints.length === 0 && normalizedBoxes.length === 0 && !text) {
+    throw new Error('sam3Prompt requires at least one point, box, or text prompt');
+  }
+  if (text && normalizedPoints.length > 0) {
+    throw new Error('sam3Prompt cannot combine text and point prompts');
+  }
+  if (normalizedPoints.length > 0 && normalizedBoxes.length > 1) {
+    throw new Error('sam3Prompt supports at most one box when point prompts are present');
+  }
+  if (
+    prompt.threshold !== undefined &&
+    (typeof prompt.threshold !== 'number' ||
+      !Number.isFinite(prompt.threshold) ||
+      prompt.threshold < 0 ||
+      prompt.threshold > 1)
+  ) {
+    throw new Error('sam3Prompt.threshold must be a finite number from 0 to 1');
+  }
+  if (prompt.multimask !== undefined && typeof prompt.multimask !== 'boolean') {
+    throw new Error('sam3Prompt.multimask must be a boolean');
+  }
+  return {
+    points: normalizedPoints,
+    boxes: normalizedBoxes,
+    ...(text ? { text } : {}),
+    threshold: prompt.threshold === undefined ? 0.5 : prompt.threshold,
+    multimask: prompt.multimask === undefined ? true : prompt.multimask
+  };
+}
+
 function applyImageParams(
   inputKeyframe: Record<string, any>,
   params: ImageProjectParams,
@@ -975,6 +1141,18 @@ function applyImageParams(
     keyFrame.hasStartingImage = true;
     keyFrame.strengthIsEnabled = true;
     keyFrame.strength = 1 - (Number(params.startingImageStrength) || 0.5);
+  }
+
+  if (params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID) {
+    if (!params.startingImage) {
+      throw new Error('SAM3 image segmentation requires startingImage');
+    }
+    if (!params.sam3Prompt) {
+      throw new Error('SAM3 image segmentation requires sam3Prompt');
+    }
+    keyFrame.sam3Prompt = normalizeSam3Prompt(params.sam3Prompt);
+  } else if (params.sam3Prompt !== undefined) {
+    throw new Error(`sam3Prompt is only supported by ${SAM3_IMAGE_SEGMENT_WORKFLOW_ID}`);
   }
 
   if (params.controlNet) {
@@ -1249,6 +1427,7 @@ function applyAudioParams(
 
 function createJobRequestMessage(id: string, params: ProjectParams, options: ModelOptions) {
   const template = getTemplate();
+  const worldGenerationReceipt = normalizeWorldGenerationReceipt(params);
   const negativePrompt =
     isImageParams(params) ||
     (isVideoParams(params) &&
@@ -1271,7 +1450,10 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     // LoRA IDs for LoRA loading (resolved to filenames by worker via config API)
     ...(params.loras && params.loras.length > 0 && { loras: params.loras }),
     ...(params.loraStrengths &&
-      params.loraStrengths.length > 0 && { loraStrengths: params.loraStrengths })
+      params.loraStrengths.length > 0 && { loraStrengths: params.loraStrengths }),
+    ...(worldGenerationReceipt && {
+      worldGenerationReceipt
+    })
   };
   if (
     isAudioParams(params) ||
@@ -1326,15 +1508,23 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
   const jobRequest: Record<string, any> = {
     ...template,
     keyFrames: [keyFrame],
-    previews: isImageParams(params) ? params.numberOfPreviews || 0 : 0,
-    numberOfImages: params.numberOfMedia || 1,
+    previews:
+      params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID
+        ? 0
+        : isImageParams(params)
+          ? params.numberOfPreviews || 0
+          : 0,
+    numberOfImages:
+      params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID ? 1 : params.numberOfMedia || 1,
     jobID: id,
     disableSafety: !!params.disableNSFWFilter,
     tokenType: params.tokenType,
     billingMode: params.billingMode,
     outputFormat:
-      params.outputFormat ||
-      (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),
+      params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID
+        ? 'png'
+        : params.outputFormat ||
+          (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),
     ...workloadAttributionToWireFields(params.attribution)
   };
 

@@ -5,6 +5,7 @@ import type {
   ProjectRecoverySnapshot,
   RecoveredProject
 } from '../../ApiClient/WebSocketClient/events.js';
+import type { JobProvenance } from './JobProvenance.js';
 
 export type { JobPreparation } from '../../ApiClient/WebSocketClient/events.js';
 
@@ -111,6 +112,8 @@ export interface JobCompleted extends JobEventBase {
   /** Which signals fired: 'prompt' and/or 'image'. */
   nsfwSources: string[];
   userCanceled: boolean;
+  /** Worker-attested input/output hashes, when the workflow emits them. */
+  provenance?: JobProvenance;
 }
 
 export interface JobError extends JobEventBase {

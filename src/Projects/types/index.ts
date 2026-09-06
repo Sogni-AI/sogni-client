@@ -3,6 +3,18 @@ import { ControlNetParams, VideoControlNetParams } from './ControlNetParams.js';
 import { TokenType } from '../../types/token.js';
 import type { WorkloadAttributionInput } from '../../types/attribution.js';
 
+export type WorldGenerationReceiptRequest =
+  | {
+      stage: 'target_still';
+      sourceImageSha256: string;
+      selectionHash: string;
+    }
+  | {
+      stage: 'transition';
+      firstFrameSha256: string;
+      lastFrameSha256: string;
+    };
+
 export interface SupportedModel {
   id: string;
   name: string;
@@ -99,6 +111,12 @@ export interface BaseProjectParams {
    * Optional client app/source label to attach to the project request for server-side attribution.
    */
   appSource?: string;
+  /**
+   * Hash receipt requested by the Sogni World pipeline. The worker verifies
+   * these hashes against the original uploaded frame bytes before echoing an
+   * attestation. This is accepted only for `appSource: "sogni-world"`.
+   */
+  worldGenerationReceipt?: WorldGenerationReceiptRequest;
   /**
    * Optional workload attribution for this project. Fields override the
    * immutable defaults configured on SogniClient.
@@ -594,6 +612,31 @@ export interface VideoProjectParams extends BaseProjectParams {
   outpaintPosition?: 'center' | 'top' | 'bottom' | 'left' | 'right';
 }
 
+export interface Sam3PromptPoint {
+  /** Horizontal coordinate normalized to the original source image width. */
+  x: number;
+  /** Vertical coordinate normalized to the original source image height. */
+  y: number;
+  label: 'positive' | 'negative';
+}
+
+export interface Sam3PromptBox {
+  /** Normalized top-left and bottom-right coordinates. */
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** A bounded prompt for the launch-gated SAM3 image-segmentation workflow. */
+export interface Sam3ImagePrompt {
+  points?: Sam3PromptPoint[];
+  boxes?: Sam3PromptBox[];
+  text?: string;
+  threshold?: number;
+  multimask?: boolean;
+}
+
 export interface ImageProjectParams extends BaseProjectParams {
   type: 'image';
   /**
@@ -609,6 +652,12 @@ export interface ImageProjectParams extends BaseProjectParams {
    * `true` - indicates that the image is already uploaded to the server
    */
   startingImage?: InputMedia;
+  /**
+   * Interactive selection prompt for the launch-gated SAM3 image segmentation
+   * workflow. Coordinates are normalized from 0 to 1 and refer to the original
+   * `startingImage`; one source image produces one lossless binary PNG mask.
+   */
+  sam3Prompt?: Sam3ImagePrompt;
   /**
    * How strong effect of starting image should be. From 0 to 1, default 0.5
    */

@@ -245,6 +245,8 @@ export type JobResultData = {
   nsfwSources?: string[];
   resultUrl?: string;
   resultKey?: string;
+  /** Allowlisted worker result receipt persisted by the socket. */
+  result?: Record<string, unknown>;
   /**
    * @deprecated Use `resultUrl`. Kept for older video worker/socket payload compatibility.
    */
@@ -253,6 +255,17 @@ export type JobResultData = {
    * @deprecated Use `resultUrl`. Kept for older video worker/socket payload compatibility.
    */
   videoFile?: string;
+  /** Worker-attested completed artifact hash. */
+  sha256?: string;
+  sourceImageSha256?: string;
+  samPromptSha256?: string;
+  maskRleSha256?: string;
+  maskWidth?: number;
+  maskHeight?: number;
+  samVersion?: string;
+  selectionHash?: string;
+  firstFrameSha256?: string;
+  lastFrameSha256?: string;
 };
 
 export type JobStateData =
