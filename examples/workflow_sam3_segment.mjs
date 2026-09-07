@@ -5,26 +5,33 @@ import { pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 
 export function parseOptions(args) {
-  const options = { points: [], source: '', text: '', output: resolve('output', `sam3-${Date.now()}`), run: false };
+  const options = { points: [], boxes: [], source: '', text: '', output: resolve('output', `sam3-${Date.now()}`), run: false };
   for (let i = 0; i < args.length; i++) {
     const flag = args[i];
     if (flag === '--help') return { help: true };
     if (flag === '--run') { options.run = true; continue; }
-    if (!['--source', '--point', '--exclude', '--text', '--output'].includes(flag)) throw new Error(`Unknown option: ${flag}`);
+    if (!['--source', '--point', '--exclude', '--box', '--text', '--output'].includes(flag)) throw new Error(`Unknown option: ${flag}`);
     const value = args[++i];
     if (!value || value.startsWith('--')) throw new Error(`${flag} requires a value`);
     if (flag === '--source') options.source = resolve(value);
     if (flag === '--output') options.output = resolve(value);
     if (flag === '--text') options.text = value.trim();
+    if (flag === '--box') {
+      const parts = value.split(','); const [x0, y0, x1, y1] = parts.map(Number);
+      if (parts.length !== 4 || parts.some(part => !part.trim()) || [x0, y0, x1, y1].some(n => !Number.isFinite(n) || n < 0 || n > 1) || x0 >= x1 || y0 >= y1) throw new Error('Boxes must be normalized x0,y0,x1,y1 coordinates with x0 < x1 and y0 < y1');
+      options.boxes.push({ x0, y0, x1, y1 });
+    }
     if (flag === '--point' || flag === '--exclude') {
       const parts = value.split(','); const [x, y] = parts.map(Number);
       if (parts.length !== 2 || parts.some(part => !part.trim()) || [x, y].some(n => !Number.isFinite(n) || n < 0 || n > 1)) throw new Error('Points must be normalized x,y coordinates between 0 and 1');
       options.points.push({ x, y, label: flag === '--point' ? 'positive' : 'negative' });
     }
   }
-  if (!options.source || (!options.text && !options.points.some(point => point.label === 'positive')) || options.points.length > 32 || options.text.length > 256) {
-    throw new Error('Supply --source and an include point or short --text description (at most 32 points, 256 text characters)');
+  if (!options.source || (!options.text && !options.boxes.length && !options.points.some(point => point.label === 'positive')) || options.points.length > 32 || options.boxes.length > 16 || options.text.length > 240) {
+    throw new Error('Supply --source and a positive point, box or text description (at most 32 points, 16 boxes, 240 text characters)');
   }
+  if (options.text && options.points.length) throw new Error('Use text with optional boxes, or points with at most one box; text and points cannot be combined');
+  if (options.points.length && options.boxes.length > 1) throw new Error('Point prompts support at most one box');
   return options;
 }
 
@@ -35,7 +42,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (options.help) {
-    console.log('SAM 3 object selection: one original-size binary PNG mask.\nModel: sam3_image_segment_bf16\n\nnode workflow_sam3_segment.mjs --source original.png --point 0.5,0.5 [--exclude 0.1,0.1] [--text "red backpack"] [--output directory] [--run]\n\nWithout --run, prints a live Spark estimate only. --run submits one paid project.\nCoordinates refer to the original image, from 0 to 1. Credentials auto-load from examples/.env.');
+    console.log('SAM 3 object selection: one original-size binary PNG mask.\nModel: sam3_image_segment_bf16\n\nnode workflow_sam3_segment.mjs --source original.png --point 0.5,0.5 [--exclude 0.1,0.1] [--box 0.2,0.2,0.8,0.8] [--output directory] [--run]\n\nWithout --run, prints a live Spark estimate only. --run submits one paid project.\nFor whole-object selection, use --text "red backpack" with an optional --box x0,y0,x1,y1 instead of points. Text and points cannot be combined. Coordinates refer to the original image, from 0 to 1. A point can select only a subpart; inspect the native mask before using it. Credentials auto-load from examples/.env.');
     return;
   }
   if ((await stat(options.source)).size > 24 * 1024 * 1024) throw new Error('Choose an original still under 24 MB');
@@ -58,8 +65,9 @@ async function main() {
     if (!options.run) return;
     await mkdir(options.output, { recursive: true });
     const prompt = 'Select the indicated object.';
-    const sam3Prompt = { points: options.points, ...(options.text ? { text: options.text } : {}), threshold: 0.5, multimask: true };
+    const sam3Prompt = { ...(options.points.length ? { points: options.points } : {}), ...(options.boxes.length ? { boxes: options.boxes } : {}), ...(options.text ? { text: options.text } : {}), threshold: 0.5, multimask: options.points.length > 0 };
     const startedAt = Date.now();
+    await writeFile(resolve(options.output, 'project.json'), JSON.stringify({ status: 'prepared', sourceSha256: hash(source), modelId, sam3Prompt, startedAt }, null, 2), { flag: 'wx', mode: 0o600 });
     const project = await client.projects.create({ type: 'image', modelId, positivePrompt: prompt, startingImage: source, sam3Prompt,
       sizePreset: 'custom', width: metadata.width, height: metadata.height, steps: 1, guidance: 1, numberOfMedia: 1, numberOfPreviews: 0,
       outputFormat: 'png', tokenType: 'spark', billingMode: 'tokens', disableNSFWFilter: false, network: 'fast' });
@@ -70,7 +78,7 @@ async function main() {
       try { result = await client.projects.get(projectId); }
       catch (error) { if (error.status && ![404, 429].includes(error.status) && error.status < 500) throw error; }
       if (result?.status === 'completed') break;
-      if (['errored', 'cancelled'].includes(result?.status)) throw new Error('The project did not complete');
+      if (['errored', 'cancelled'].includes(result?.status) || ['failed', 'canceled'].includes(project.status)) throw new Error('The project did not complete');
       await sleep(3000);
     }
     if (result?.status !== 'completed') throw new Error('Timed out waiting; inspect the saved project ID before submitting a replacement');
@@ -107,4 +115,4 @@ async function main() {
   } finally { client.dispose(); }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().catch(error => { console.error(error.message); process.exitCode = 1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().then(() => process.exit(0), error => { console.error(error.message); process.exit(1); });

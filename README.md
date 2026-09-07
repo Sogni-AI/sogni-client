@@ -1411,7 +1411,15 @@ page with measured elapsed time and a receipt. Add `--run` to submit one paid jo
 ```bash
 node examples/workflow_sam3_segment.mjs --source original.png --point 0.45,0.6
 node examples/workflow_sam3_segment.mjs --source original.png --point 0.45,0.6 --run
+node examples/workflow_sam3_segment.mjs --source original.png --text "lantern" --box 0.2,0.6,0.3,0.8 --run
 ```
+
+A single point may select a small part, such as a lamp's flame or a vehicle's
+window. Inspect the native binary mask against the original. For the complete
+object, refine with a short `text` label and normalized `boxes`; SAM computes the
+actual boundary inside the supplied image. Text and point prompts cannot be
+combined. Limits are 240 text characters, 32 points or 16 boxes; point prompts
+accept at most one box. Do not turn the prompt box into a substitute object mask.
 
 The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) directory contains working examples for all workflows:
 
