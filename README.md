@@ -1374,6 +1374,45 @@ See `examples/workflow_creative_agent_workflows.mjs` for start/list/get/events/s
 
 ## Code Examples
 
+### SAM 3 object selection
+
+SAM 3 (`sam3_image_segment_bf16`, SDK 5.31.0+) selects objects in an existing
+image using normalized include/exclude points, boxes, or a short text description.
+It returns one lossless black-and-white PNG mask at the original dimensions:
+white selects the object. It does not generate a replacement scene.
+
+```typescript
+const project = await sogni.projects.create({
+  type: 'image', modelId: 'sam3_image_segment_bf16',
+  positivePrompt: 'Select the indicated object.',
+  startingImage: originalImage, // File/Blob in browsers, Buffer in Node.js
+  sam3Prompt: {
+    points: [{ x: 0.45, y: 0.6, label: 'positive' },
+             { x: 0.1, y: 0.1, label: 'negative' }],
+    threshold: 0.5, multimask: true,
+  },
+  sizePreset: 'custom', width: originalWidth, height: originalHeight,
+  numberOfMedia: 1, numberOfPreviews: 0, steps: 1, guidance: 1,
+  outputFormat: 'png', network: 'fast', tokenType: 'spark',
+  disableNSFWFilter: false,
+});
+```
+
+Keep the source bytes and dimensions unchanged when mapping coordinates. Inspect
+the mask at full size before using it in an edit. Masks are selection guides;
+the original image and saved character reference images carry visual identity.
+Job provenance exposes source and output hashes for applications that need to
+verify a selection before accepting it.
+
+The runnable [SAM example](examples/workflow_sam3_segment.mjs) loads the usual
+example credentials, shows a live estimate, and writes an original-size review
+page with measured elapsed time and a receipt. Add `--run` to submit one paid job:
+
+```bash
+node examples/workflow_sam3_segment.mjs --source original.png --point 0.45,0.6
+node examples/workflow_sam3_segment.mjs --source original.png --point 0.45,0.6 --run
+```
+
 The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) directory contains working examples for all workflows:
 
 ### Image Workflow Examples
