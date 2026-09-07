@@ -1,3 +1,15 @@
+# [5.32.0](https://github.com/Sogni-AI/sogni-client/compare/v5.31.0...v5.32.0) (2026-09-07)
+
+
+### Bug Fixes
+
+* **projects:** update the Wan 3 checks to the smartDuration retirement ([9c22d49](https://github.com/Sogni-AI/sogni-client/commit/9c22d49324bd9bb601a810a6897856009755ca2b))
+
+
+### Features
+
+* **projects:** deliver Pixal3D 3D model artifacts ([8240830](https://github.com/Sogni-AI/sogni-client/commit/82408308520481336289b054718daa28f3073be5))
+
 # [5.31.0](https://github.com/Sogni-AI/sogni-client/compare/v5.30.0...v5.31.0) (2026-09-06)
 
 
