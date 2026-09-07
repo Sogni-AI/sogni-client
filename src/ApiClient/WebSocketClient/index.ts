@@ -156,8 +156,8 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     // rethrown by EventEmitter, which takes the whole host process down. That is
     // reachable from any dispose() that lands before the handshake completes.
     // Log at debug, not error: tearing down a pending connection is expected.
-    socket.onerror = (e: ErrorEvent) => {
-      this._logger.debug('WebSocket error while closing:', e?.message ?? e);
+    socket.onerror = () => {
+      this._logger.debug('WebSocket error while closing a pending connection');
     };
     this.stopPing();
     socket.close(1000, 'Client disconnected');
@@ -263,7 +263,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     socket.onmessage = null;
     socket.onopen = null;
     if (socket === this.socket || !this.socket) {
-      this._logger.info('WebSocket disconnected, cleanup', e);
+      this._logger.info('WebSocket disconnected, cleanup', { code: e.code, wasClean: e.wasClean });
       if (socket === this.socket) {
         this.stopPing();
         this.socket = null;
@@ -279,7 +279,14 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   private handleError(e: ErrorEvent) {
-    this._logger.error('WebSocket error:', e);
+    // Node's ws ErrorEvent retains the ClientRequest, including authentication
+    // headers. Never send the event, target, request, stack or raw message to a
+    // logger. Preserve only the bounded HTTP upgrade status when available.
+    const match =
+      typeof e.message === 'string'
+        ? /^Unexpected server response: (\d{3})$/.exec(e.message)
+        : null;
+    this._logger.error('WebSocket connection error', match ? { status: Number(match[1]) } : {});
   }
 
   private handleMessage(e: MessageEvent) {

@@ -1,0 +1,22 @@
+const assert = require('node:assert/strict');
+require('../dist'); // Initialize the SDK's public entry point and its module graph.
+const WebSocketClient = require('../dist/ApiClient/WebSocketClient').default;
+const entries = [];
+const logger = Object.fromEntries(['debug', 'info', 'error', 'warn'].map(level => [level, (...args) => entries.push({ level, args })]));
+const client = Object.create(WebSocketClient.prototype);
+client._logger = logger;
+client.emit = () => {};
+client.stopPing = () => {};
+client._auth = { isAuthenticated: false };
+const socket = { _req: { _header: 'api-key: test-credential-never-log' } };
+client.socket = socket;
+client.handleError({ message: 'Unexpected server response: 502', target: socket });
+assert.deepEqual(entries.at(-1), { level: 'error', args: ['WebSocket connection error', { status: 502 }] });
+client.handleError({ message: 'Failed request https://example.test/?token=test-credential-never-log', target: socket });
+client.handleError({ target: socket });
+client.handleClose({ target: socket, code: 1006, reason: 'test-credential-never-log', wasClean: false });
+assert.equal(JSON.stringify(entries).includes('test-credential-never-log'), false);
+assert.equal(JSON.stringify(entries).includes('_req'), false);
+assert.equal(JSON.stringify(entries).includes('target'), false);
+assert.deepEqual(entries.at(-1).args[1], { code: 1006, wasClean: false });
+console.log('WebSocket diagnostics retain status without authentication headers, targets, or raw messages.');
