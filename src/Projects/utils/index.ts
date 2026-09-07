@@ -93,6 +93,11 @@ export function isAudioModel(modelId: string): boolean {
   return modelId.startsWith('ace_step') || modelId === 'minimax_music3';
 }
 
+/** Check if a model returns a downloadable 3D model artifact. */
+export function isModelArtifactModel(modelId: string): boolean {
+  return modelId.startsWith('pixal3d_');
+}
+
 /**
  * Check if a model ID is a WAN 2.2 video model.
  *

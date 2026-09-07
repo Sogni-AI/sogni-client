@@ -334,9 +334,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
   /**
    * Media type produced by this job's model
    */
-  get type(): 'image' | 'video' | 'audio' {
+  get type(): 'image' | 'video' | 'audio' | 'model' {
     if (this._api.isVideoModelId(this._project.params.modelId)) return 'video';
     if (this._api.isAudioModelId(this._project.params.modelId)) return 'audio';
+    if (this._api.isModelArtifactModelId(this._project.params.modelId)) return 'model';
     return 'image';
   }
 
@@ -401,12 +402,13 @@ class Job extends DataEntity<JobData, JobEventMap> {
       throw new Error('Job is not completed yet');
     }
     let url: string;
-    if (this.type === 'video' || this.type === 'audio') {
+    if (this.type === 'video' || this.type === 'audio' || this.type === 'model') {
       url = await this._api.mediaDownloadUrl({
         jobId: this.projectId,
         id: this.id,
         type: 'complete',
-        ...(this.type === 'audio' ? { contentType: this._audioContentType } : {})
+        ...(this.type === 'audio' ? { contentType: this._audioContentType } : {}),
+        ...(this.type === 'model' ? { contentType: 'model/gltf-binary' } : {})
       });
     } else {
       url = await this._api.downloadUrl({
@@ -519,12 +521,13 @@ class Job extends DataEntity<JobData, JobEventMap> {
       !(data.triggeredNSFWFilter === true && data.nsfwDetected !== true)
     ) {
       try {
-        if (this.type === 'video' || this.type === 'audio') {
+        if (this.type === 'video' || this.type === 'audio' || this.type === 'model') {
           delta.resultUrl = await this._api.mediaDownloadUrl({
             jobId: this.projectId,
             id: this.id,
             type: 'complete',
-            ...(this.type === 'audio' ? { contentType: this._audioContentType } : {})
+            ...(this.type === 'audio' ? { contentType: this._audioContentType } : {}),
+            ...(this.type === 'model' ? { contentType: 'model/gltf-binary' } : {})
           });
         } else {
           delta.resultUrl = await this._api.downloadUrl({
@@ -658,7 +661,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
     overrides: { positivePrompt?: string; stylePrompt?: string; tokenType?: TokenType } = {}
   ) {
     const parentProjectParams = this._project.params;
-    if (parentProjectParams.type !== 'image') {
+    if (parentProjectParams.type !== 'image' || this.type !== 'image') {
       throw new Error('Enhancement is only available for images');
     }
     if (this.status !== 'completed') {

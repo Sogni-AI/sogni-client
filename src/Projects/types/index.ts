@@ -21,9 +21,9 @@ export interface SupportedModel {
   SID: number;
   tier: string;
   /**
-   * Media type produced by this model: 'image', 'video', or 'audio'
+   * Media type produced by this model: image, video, audio, or a 3D model artifact.
    */
-  media: 'image' | 'video' | 'audio';
+  media: 'image' | 'video' | 'audio' | 'model';
 }
 
 export interface AvailableModel {
@@ -31,9 +31,9 @@ export interface AvailableModel {
   name: string;
   workerCount: number;
   /**
-   * Media type produced by this model: 'image', 'video', or 'audio'
+   * Media type produced by this model: image, video, audio, or a 3D model artifact.
    */
-  media: 'image' | 'video' | 'audio';
+  media: 'image' | 'video' | 'audio' | 'model';
 }
 
 export interface SizePreset {

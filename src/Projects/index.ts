@@ -66,6 +66,7 @@ import {
   getMinimaxH3ReferenceVideoSlots,
   getVideoWorkflowType,
   isAudioModel,
+  isModelArtifactModel,
   isMinimaxH3ReferenceModel,
   isVideoModel,
   usesReferenceMask
@@ -359,6 +360,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return isAudioModel(modelId);
   }
 
+  /** Check whether a model returns a 3D artifact through the media endpoint. */
+  isModelArtifactModelId(modelId: string): boolean {
+    const model = this._supportedModels.data?.find((m) => m.id === modelId);
+    if (model) {
+      return model.media === 'model';
+    }
+    return isModelArtifactModel(modelId);
+  }
+
   constructor(config: ApiConfig) {
     super(config);
     // Listen to server events and emit them as project and job events
@@ -557,14 +567,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       // Use media endpoint for video/audio models, image endpoint for image models
       const isVideo = project && this.isVideoModelId(project.params.modelId);
       const isAudio = project && this.isAudioModelId(project.params.modelId);
-      const isMedia = isVideo || isAudio;
+      const isModelArtifact = project && this.isModelArtifactModelId(project.params.modelId);
+      const isMedia = isVideo || isAudio || isModelArtifact;
       try {
         if (isMedia) {
           downloadUrl = await this.mediaDownloadUrl({
             jobId: data.jobID,
             id: data.imgID,
             type: 'complete',
-            ...(isAudio && project ? { contentType: getAudioContentType(project) } : {})
+            ...(isAudio && project ? { contentType: getAudioContentType(project) } : {}),
+            ...(isModelArtifact ? { contentType: 'model/gltf-binary' } : {})
           });
         } else {
           const imageContentType = project ? getImageContentType(project) : undefined;

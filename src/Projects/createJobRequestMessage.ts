@@ -71,6 +71,7 @@ import {
 import { workloadAttributionToWireFields } from '../lib/attribution.js';
 
 const SAM3_IMAGE_SEGMENT_WORKFLOW_ID = 'sam3_image_segment_bf16';
+const PIXAL3D_WORKFLOW_ID = 'pixal3d_int8_i23d';
 const WORLD_TARGET_STILL_MODEL_ID = 'krea2_identity_edit_sogni_v0_3_alpha';
 const WORLD_TRANSITION_MODEL_ID = 'minimax-h3-fastvideo-int8_flf2v_turbo';
 const MAX_SAM3_POINTS = 32;
@@ -1154,6 +1155,9 @@ function applyImageParams(
   } else if (params.sam3Prompt !== undefined) {
     throw new Error(`sam3Prompt is only supported by ${SAM3_IMAGE_SEGMENT_WORKFLOW_ID}`);
   }
+  if (params.modelId === PIXAL3D_WORKFLOW_ID && !params.startingImage) {
+    throw new Error('Pixal3D reconstruction requires startingImage');
+  }
 
   if (params.controlNet) {
     keyFrame.currentControlNetsJob = getControlNet(params.controlNet);
@@ -1521,7 +1525,9 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     tokenType: params.tokenType,
     billingMode: params.billingMode,
     outputFormat:
-      params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID
+      params.modelId === PIXAL3D_WORKFLOW_ID
+        ? 'glb'
+        : params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID
         ? 'png'
         : params.outputFormat ||
           (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),
