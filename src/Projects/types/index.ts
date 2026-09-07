@@ -3,6 +3,7 @@ import { ControlNetParams, VideoControlNetParams } from './ControlNetParams.js';
 import { TokenType } from '../../types/token.js';
 import type { WorkloadAttributionInput } from '../../types/attribution.js';
 
+/** Existing receipt wire contract. Recipe selection belongs to the calling application. */
 export type WorldGenerationReceiptRequest =
   | {
       stage: 'target_still';
@@ -121,9 +122,9 @@ export interface BaseProjectParams {
    */
   appSource?: string;
   /**
-   * Hash receipt requested by the Sogni World pipeline. The worker verifies
-   * these hashes against the original uploaded frame bytes before echoing an
-   * attestation. This is accepted only for `appSource: "sogni-world"`.
+   * Optional input-hash receipt for compatible services. The SDK validates
+   * and serializes its shape; model eligibility and application authorization
+   * are decided by the service. Retains its existing wire name for compatibility.
    */
   worldGenerationReceipt?: WorldGenerationReceiptRequest;
   /**

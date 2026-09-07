@@ -85,8 +85,6 @@ const PIXAL3D_DEFAULT_TEMPLATE_VARIANT = 'i23d-birefnet';
 const PIXAL3D_TEMPLATE_VARIANTS: Pixal3dTemplateVariant[] = [
   PIXAL3D_DEFAULT_TEMPLATE_VARIANT
 ];
-const WORLD_TARGET_STILL_MODEL_ID = 'krea2_identity_edit_sogni_v0_3_alpha';
-const WORLD_TRANSITION_MODEL_ID = 'minimax-h3-fastvideo-int8_flf2v_turbo';
 const MAX_SAM3_POINTS = 32;
 const MAX_SAM3_BOXES = 16;
 const MAX_SAM3_TEXT_LENGTH = 240;
@@ -102,16 +100,10 @@ const PIXAL3D_REDUCE_ONLY_LIMITS: Record<string, { min: number; max: number }> =
   shapeResolution: { min: 1024, max: 1536 }
 };
 
-function normalizeWorldGenerationReceipt(params: ProjectParams) {
-  const receipt = params.worldGenerationReceipt;
+// Keep the existing receipt wire shape. Applications select their generation
+// recipe; the service decides which requests are eligible for a receipt.
+function normalizeWorldGenerationReceipt(receipt: ProjectParams['worldGenerationReceipt']) {
   if (!receipt) return undefined;
-  if (params.appSource !== 'sogni-world') {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: 'worldGenerationReceipt requires appSource "sogni-world".'
-    });
-  }
   const hash = (value: unknown, field: string) => {
     if (typeof value !== 'string' || !/^[a-f0-9]{64}$/i.test(value)) {
       throw new ApiError(400, {
@@ -123,13 +115,6 @@ function normalizeWorldGenerationReceipt(params: ProjectParams) {
     return value.toLowerCase();
   };
   if (receipt.stage === 'target_still') {
-    if (params.modelId !== WORLD_TARGET_STILL_MODEL_ID) {
-      throw new ApiError(400, {
-        status: 'error',
-        errorCode: 0,
-        message: `The target_still receipt requires ${WORLD_TARGET_STILL_MODEL_ID}.`
-      });
-    }
     return {
       stage: receipt.stage,
       sourceImageSha256: hash(receipt.sourceImageSha256, 'sourceImageSha256'),
@@ -137,13 +122,6 @@ function normalizeWorldGenerationReceipt(params: ProjectParams) {
     };
   }
   if (receipt.stage === 'transition') {
-    if (params.modelId !== WORLD_TRANSITION_MODEL_ID) {
-      throw new ApiError(400, {
-        status: 'error',
-        errorCode: 0,
-        message: `The transition receipt requires ${WORLD_TRANSITION_MODEL_ID}.`
-      });
-    }
     return {
       stage: receipt.stage,
       firstFrameSha256: hash(receipt.firstFrameSha256, 'firstFrameSha256'),
@@ -1649,7 +1627,7 @@ function applyAudioParams(
 
 function createJobRequestMessage(id: string, params: ProjectParams, options: ModelOptions) {
   const template = getTemplate();
-  const worldGenerationReceipt = normalizeWorldGenerationReceipt(params);
+  const worldGenerationReceipt = normalizeWorldGenerationReceipt(params.worldGenerationReceipt);
   const negativePrompt =
     isImageParams(params) ||
     (isVideoParams(params) &&

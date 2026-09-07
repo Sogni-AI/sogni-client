@@ -73,6 +73,7 @@
     "test:birefnet-background-removal": "npm run build && node scripts/check-birefnet-background-removal.cjs",
     "test:flashvsr-video": "npm run build && node scripts/check-flashvsr-video.cjs",
     "test:capability-exports": "npm run build && node scripts/check-capability-exports.cjs",
+    "test:generation-receipt-transport": "npm run build && node scripts/check-generation-receipt-transport.cjs",
     "test:minimax-h3-audio-policy": "node scripts/check-minimax-h3-source-audio-policy.cjs",
     "test:minimax-h3-balanced": "npm run build && node scripts/check-minimax-h3-balanced.cjs",
     "test:lora-catalog": "npm run build && node scripts/check-lora-catalog.cjs",
