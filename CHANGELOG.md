@@ -1,3 +1,10 @@
+# [5.33.0](https://github.com/Sogni-AI/sogni-client/compare/v5.32.0...v5.33.0) (2026-09-08)
+
+
+### Features
+
+* **sam3,pixal3d:** expose the new segmentation and 3D options ([1e099a3](https://github.com/Sogni-AI/sogni-client/commit/1e099a31b94d7657a8e9904ea2203b69a89447c6))
+
 # [5.32.0](https://github.com/Sogni-AI/sogni-client/compare/v5.31.0...v5.32.0) (2026-09-07)
 
 
