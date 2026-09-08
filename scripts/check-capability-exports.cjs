@@ -8,6 +8,7 @@ const sdk = require('../dist/index.js');
 for (const name of [
   'PIXAL3D_IMAGE_TO_3D_MODEL_ID',
   'SAM3_IMAGE_SEGMENT_MODEL_ID',
+  'BIREFNET_BACKGROUND_REMOVAL_MODEL_ID',
   'isModelArtifactModel',
   'isSegmentationModel',
   'requiresStartingImage',
@@ -19,19 +20,31 @@ for (const name of [
 
 assert.equal(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID, 'pixal3d_int8_i23d');
 assert.equal(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID, 'sam3_image_segment_bf16');
+assert.equal(
+  sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  'birefnet_image_background_removal_fp16'
+);
 
 assert.equal(sdk.isModelArtifactModel(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID), true);
 assert.equal(sdk.isModelArtifactModel(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), false);
+assert.equal(sdk.isModelArtifactModel(sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID), false);
 assert.equal(sdk.isSegmentationModel(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), true);
 assert.equal(sdk.isSegmentationModel(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID), false);
+// BiRefNet reaches the same artifact with no prompt. A consumer that hides a
+// mask from a gallery, refuses to enhance one, or requires a source image has
+// to see it here, or it treats a matte as an ordinary render.
+assert.equal(sdk.isSegmentationModel(sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID), true);
 
-// Both transform a source image, so neither can run from a prompt alone.
+// All three transform a source image, so none can run from a prompt alone.
 assert.equal(sdk.requiresStartingImage(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID), true);
 assert.equal(sdk.requiresStartingImage(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), true);
+assert.equal(sdk.requiresStartingImage(sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID), true);
 assert.equal(sdk.requiresStartingImage('z_image_turbo_bf16'), false);
 
 // Segmentation is not a generated image and must not be classified as one.
 assert.equal(sdk.isVideoModel(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), false);
 assert.equal(sdk.isAudioModel(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), false);
+assert.equal(sdk.isVideoModel(sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID), false);
+assert.equal(sdk.isAudioModel(sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID), false);
 
 console.log('SDK capability export checks passed');

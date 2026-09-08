@@ -70,6 +70,7 @@
     "test:wan3-video": "npm run build && node scripts/check-wan3-video.cjs",
     "test:sam3-image-segment": "npm run build && node scripts/check-sam3-image-segment.cjs",
     "test:pixal3d-artifact": "npm run build && node scripts/check-pixal3d-artifact.cjs",
+    "test:birefnet-background-removal": "npm run build && node scripts/check-birefnet-background-removal.cjs",
     "test:capability-exports": "npm run build && node scripts/check-capability-exports.cjs",
     "test:minimax-h3-audio-policy": "node scripts/check-minimax-h3-source-audio-policy.cjs",
     "test:minimax-h3-balanced": "npm run build && node scripts/check-minimax-h3-balanced.cjs",

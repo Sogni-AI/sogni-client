@@ -59,7 +59,8 @@ import {
   MINIMAX_H3_MIN_FRAMES,
   MINIMAX_H3_MAX_FRAMES,
   MINIMAX_H3_FRAME_STEP,
-  MINIMAX_H3_BASE_FRAMES
+  MINIMAX_H3_BASE_FRAMES,
+  isSegmentationModel
 } from './utils/index.js';
 import { ApiError } from '../ApiClient/index.js';
 import {
@@ -71,6 +72,7 @@ import {
 import { workloadAttributionToWireFields } from '../lib/attribution.js';
 
 const SAM3_IMAGE_SEGMENT_WORKFLOW_ID = 'sam3_image_segment_bf16';
+const BIREFNET_BACKGROUND_REMOVAL_WORKFLOW_ID = 'birefnet_image_background_removal_fp16';
 const PIXAL3D_WORKFLOW_ID = 'pixal3d_int8_i23d';
 const WORLD_TARGET_STILL_MODEL_ID = 'krea2_identity_edit_sogni_v0_3_alpha';
 const WORLD_TRANSITION_MODEL_ID = 'minimax-h3-fastvideo-int8_flf2v_turbo';
@@ -1208,6 +1210,21 @@ function applyImageParams(
   } else if (params.sam3Prompt !== undefined) {
     throw new Error(`sam3Prompt is only supported by ${SAM3_IMAGE_SEGMENT_WORKFLOW_ID}`);
   }
+  // BiRefNet background removal. One source image, no prompt, and one option:
+  // the bare foreground matte, or that matte carried as the source image's
+  // alpha channel. SAM 3's applyMask is a different field on a different model,
+  // nested inside sam3Prompt, and the two are never read from the same place.
+  if (params.modelId === BIREFNET_BACKGROUND_REMOVAL_WORKFLOW_ID) {
+    if (!params.startingImage) {
+      throw new Error('BiRefNet background removal requires startingImage');
+    }
+    if (params.applyMask !== undefined && typeof params.applyMask !== 'boolean') {
+      throw new Error('applyMask must be a boolean');
+    }
+    keyFrame.applyMask = params.applyMask === true;
+  } else if (params.applyMask !== undefined) {
+    throw new Error(`applyMask is only supported by ${BIREFNET_BACKGROUND_REMOVAL_WORKFLOW_ID}`);
+  }
   if (params.modelId === PIXAL3D_WORKFLOW_ID && !params.startingImage) {
     throw new Error('Pixal3D reconstruction requires startingImage');
   }
@@ -1576,16 +1593,17 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
   const jobRequest: Record<string, any> = {
     ...template,
     keyFrames: [keyFrame],
-    // Neither utility workflow has intermediate images to preview: SAM 3
+    // No utility workflow has intermediate images to preview: segmentation
     // returns one mask and Pixal3D a 3D reconstruction.
     previews:
-      params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID || params.modelId === PIXAL3D_WORKFLOW_ID
+      isSegmentationModel(params.modelId) || params.modelId === PIXAL3D_WORKFLOW_ID
         ? 0
         : isImageParams(params)
           ? params.numberOfPreviews || 0
           : 0,
-    numberOfImages:
-      params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID ? 1 : params.numberOfMedia || 1,
+    // Segmentation is deterministic: it takes no seed, so N copies of one
+    // source are N identical masks at N times the price.
+    numberOfImages: isSegmentationModel(params.modelId) ? 1 : params.numberOfMedia || 1,
     jobID: id,
     disableSafety: !!params.disableNSFWFilter,
     tokenType: params.tokenType,
@@ -1593,7 +1611,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     outputFormat:
       params.modelId === PIXAL3D_WORKFLOW_ID
         ? 'glb'
-        : params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID
+        : isSegmentationModel(params.modelId)
         ? 'png'
         : params.outputFormat ||
           (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),

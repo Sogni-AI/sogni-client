@@ -722,6 +722,19 @@ export interface ImageProjectParams extends BaseProjectParams, Pixal3dGeneration
    */
   sam3Prompt?: Sam3ImagePrompt;
   /**
+   * Return an RGBA cutout instead of the bare mask.
+   *
+   * Only for `birefnet_image_background_removal_fp16`, which requires a
+   * `startingImage` and takes no prompt. Left unset (the default) the job
+   * returns the foreground matte at the source dimensions; set, it returns the
+   * source image carrying that matte as its alpha channel, so the mask is still
+   * recoverable from the artifact.
+   *
+   * SAM 3 has its own `applyMask`, inside `sam3Prompt`. They are different
+   * fields on different models and are not interchangeable.
+   */
+  applyMask?: boolean;
+  /**
    * How strong effect of starting image should be. From 0 to 1, default 0.5
    */
   startingImageStrength?: number;

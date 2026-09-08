@@ -68,6 +68,7 @@ import {
   isAudioModel,
   isModelArtifactModel,
   isMinimaxH3ReferenceModel,
+  isSegmentationModel,
   isVideoModel,
   usesReferenceMask
 } from './utils/index.js';
@@ -1350,11 +1351,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param data
    */
   async create(data: ProjectParams): Promise<Project> {
-    // SAM3 is a one-source/one-mask utility workflow. Normalize before Project
-    // construction so lifecycle completion and result MIME use the same values
-    // as the serialized request.
+    // Segmentation is a one-source/one-mask utility workflow, SAM 3 and
+    // BiRefNet alike. Normalize before Project construction so lifecycle
+    // completion and result MIME use the same values as the serialized request.
     let normalizedData =
-      data.type === 'image' && data.modelId === 'sam3_image_segment_bf16'
+      data.type === 'image' && isSegmentationModel(data.modelId)
         ? ({
             ...data,
             numberOfMedia: 1,

@@ -99,6 +99,9 @@ export const PIXAL3D_IMAGE_TO_3D_MODEL_ID = 'pixal3d_int8_i23d';
 /** Canonical id of the SAM 3 interactive image-segmentation workflow. */
 export const SAM3_IMAGE_SEGMENT_MODEL_ID = 'sam3_image_segment_bf16';
 
+/** Canonical id of the standalone BiRefNet background-removal workflow. */
+export const BIREFNET_BACKGROUND_REMOVAL_MODEL_ID = 'birefnet_image_background_removal_fp16';
+
 /** Check if a model returns a downloadable 3D model artifact. */
 export function isModelArtifactModel(modelId: string): boolean {
   return modelId.startsWith('pixal3d_');
@@ -110,9 +113,16 @@ export function isModelArtifactModel(modelId: string): boolean {
  * Segmentation returns a lossless mask PNG the same size as the source, not a
  * new image, so callers must not treat it as a generated result: it has no
  * meaningful prompt-to-pixels relationship and is not enhanceable.
+ *
+ * BiRefNet counts. It reaches the same artifact with no prompt at all, and its
+ * cutout branch is that mask carried as an alpha channel, so every consumer
+ * that hides a mask from a gallery, refuses to enhance one, or requires a
+ * source image has to treat it exactly as it treats SAM 3.
  */
 export function isSegmentationModel(modelId: string): boolean {
-  return modelId === SAM3_IMAGE_SEGMENT_MODEL_ID;
+  return (
+    modelId === SAM3_IMAGE_SEGMENT_MODEL_ID || modelId === BIREFNET_BACKGROUND_REMOVAL_MODEL_ID
+  );
 }
 
 /**

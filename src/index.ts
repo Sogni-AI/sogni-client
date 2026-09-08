@@ -24,6 +24,7 @@ import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger.js';
 import EIP712Helper from './lib/EIP712Helper.js';
 // Projects API
 import {
+  BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
   isAudioModel,
@@ -418,6 +419,7 @@ export type {
 };
 
 export {
+  BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
   isAudioModel,
