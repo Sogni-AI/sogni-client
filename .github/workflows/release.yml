@@ -48,6 +48,12 @@ jobs:
         run: node scripts/check-project-recovery.cjs
       - name: Run project liveness checks
         run: node scripts/check-project-liveness.cjs
+      - name: Run SAM 3 image-segment checks
+        run: node scripts/check-sam3-image-segment.cjs
+      - name: Run Pixal3D artifact checks
+        run: node scripts/check-pixal3d-artifact.cjs
+      - name: Run capability export checks
+        run: node scripts/check-capability-exports.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
