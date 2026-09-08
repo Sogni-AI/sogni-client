@@ -1,3 +1,15 @@
+# [5.34.0](https://github.com/Sogni-AI/sogni-client/compare/v5.33.0...v5.34.0) (2026-09-08)
+
+
+### Bug Fixes
+
+* **projects:** accept the SAM 3 applyMask and maxInstances fields ([619348c](https://github.com/Sogni-AI/sogni-client/commit/619348cfdd6a09d86b301067b83c52e0dab9779a))
+
+
+### Features
+
+* **projects:** export the 3D and segmentation capability surface ([27a7d68](https://github.com/Sogni-AI/sogni-client/commit/27a7d68be9beaa7176f8227e9d1eeae0bcf5e549))
+
 # [5.33.0](https://github.com/Sogni-AI/sogni-client/compare/v5.32.0...v5.33.0) (2026-09-08)
 
 
