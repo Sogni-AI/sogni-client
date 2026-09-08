@@ -1,3 +1,11 @@
+# [5.35.0](https://github.com/Sogni-AI/sogni-client/compare/v5.34.1...v5.35.0) (2026-09-08)
+
+
+### Features
+
+* **projects:** let a caller pick the Pixal3D reconstruction graph ([60a4926](https://github.com/Sogni-AI/sogni-client/commit/60a49260cdb3816dc0bb2cce934f2756a4065d3f))
+* **projects:** port the BiRefNet background-removal surface ([2c6b8d8](https://github.com/Sogni-AI/sogni-client/commit/2c6b8d8334afa512e5d1a16ad51b627647b8b2dc))
+
 ## [5.34.1](https://github.com/Sogni-AI/sogni-client/compare/v5.34.0...v5.34.1) (2026-09-08)
 
 
