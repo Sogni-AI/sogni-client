@@ -93,9 +93,34 @@ export function isAudioModel(modelId: string): boolean {
   return modelId.startsWith('ace_step') || modelId === 'minimax_music3';
 }
 
+/** Canonical id of the prompt-guided image-to-3D reconstruction workflow. */
+export const PIXAL3D_IMAGE_TO_3D_MODEL_ID = 'pixal3d_int8_i23d';
+
+/** Canonical id of the SAM 3 interactive image-segmentation workflow. */
+export const SAM3_IMAGE_SEGMENT_MODEL_ID = 'sam3_image_segment_bf16';
+
 /** Check if a model returns a downloadable 3D model artifact. */
 export function isModelArtifactModel(modelId: string): boolean {
   return modelId.startsWith('pixal3d_');
+}
+
+/**
+ * Check if a model performs image segmentation rather than generation.
+ *
+ * Segmentation returns a lossless mask PNG the same size as the source, not a
+ * new image, so callers must not treat it as a generated result: it has no
+ * meaningful prompt-to-pixels relationship and is not enhanceable.
+ */
+export function isSegmentationModel(modelId: string): boolean {
+  return modelId === SAM3_IMAGE_SEGMENT_MODEL_ID;
+}
+
+/**
+ * Models that need a starting image because they transform one rather than
+ * generating from a prompt alone.
+ */
+export function requiresStartingImage(modelId: string): boolean {
+  return isSegmentationModel(modelId) || isModelArtifactModel(modelId);
 }
 
 /**

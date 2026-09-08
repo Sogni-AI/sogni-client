@@ -23,6 +23,15 @@ import { ApiConfig } from './ApiGroup.js';
 import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger.js';
 import EIP712Helper from './lib/EIP712Helper.js';
 // Projects API
+import {
+  PIXAL3D_IMAGE_TO_3D_MODEL_ID,
+  SAM3_IMAGE_SEGMENT_MODEL_ID,
+  isAudioModel,
+  isModelArtifactModel,
+  isSegmentationModel,
+  isVideoModel,
+  requiresStartingImage
+} from './Projects/utils/index.js';
 import ProjectsApi from './Projects/index.js';
 import Job, { JobStatus } from './Projects/Job.js';
 import Project, { ProjectStatus } from './Projects/Project.js';
@@ -409,6 +418,13 @@ export type {
 };
 
 export {
+  PIXAL3D_IMAGE_TO_3D_MODEL_ID,
+  SAM3_IMAGE_SEGMENT_MODEL_ID,
+  isAudioModel,
+  isModelArtifactModel,
+  isSegmentationModel,
+  isVideoModel,
+  requiresStartingImage,
   ApiError,
   ApiKeyAuthManager,
   ChatJobError,
