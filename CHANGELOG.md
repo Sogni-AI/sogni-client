@@ -1,3 +1,10 @@
+## [5.34.1](https://github.com/Sogni-AI/sogni-client/compare/v5.34.0...v5.34.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* **projects:** mint REST-discovered result URLs and refuse mask enhancement ([07a0ab8](https://github.com/Sogni-AI/sogni-client/commit/07a0ab8999abc9f908ddaf0915d61790f050cfbb))
+
 # [5.34.0](https://github.com/Sogni-AI/sogni-client/compare/v5.33.0...v5.34.0) (2026-09-08)
 
 
