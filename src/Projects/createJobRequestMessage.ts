@@ -5,6 +5,7 @@ import {
   isAudioParams,
   isImageParams,
   isVideoParams,
+  Pixal3dTemplateVariant,
   ProjectParams,
   VideoProjectParams
 } from './types/index.js';
@@ -74,6 +75,16 @@ import { workloadAttributionToWireFields } from '../lib/attribution.js';
 const SAM3_IMAGE_SEGMENT_WORKFLOW_ID = 'sam3_image_segment_bf16';
 const BIREFNET_BACKGROUND_REMOVAL_WORKFLOW_ID = 'birefnet_image_background_removal_fp16';
 const PIXAL3D_WORKFLOW_ID = 'pixal3d_int8_i23d';
+// The two graphs ComfyUI's workflows/image/manifest.json registers under the
+// Pixal3D workflow id, by their manifest `variant` names. A closed list, not a
+// passthrough: `templateVariant` is the worker's generic template selector, so
+// an open one would let a caller aim a paid job at any graph a worker carries.
+const PIXAL3D_DEFAULT_TEMPLATE_VARIANT = 'i23d-birefnet';
+const PIXAL3D_PROMPTED_TEMPLATE_VARIANT = 'i23d';
+const PIXAL3D_TEMPLATE_VARIANTS: Pixal3dTemplateVariant[] = [
+  PIXAL3D_DEFAULT_TEMPLATE_VARIANT,
+  PIXAL3D_PROMPTED_TEMPLATE_VARIANT
+];
 const WORLD_TARGET_STILL_MODEL_ID = 'krea2_identity_edit_sogni_v0_3_alpha';
 const WORLD_TRANSITION_MODEL_ID = 'minimax-h3-fastvideo-int8_flf2v_turbo';
 const MAX_SAM3_POINTS = 32;
@@ -1227,6 +1238,29 @@ function applyImageParams(
   }
   if (params.modelId === PIXAL3D_WORKFLOW_ID && !params.startingImage) {
     throw new Error('Pixal3D reconstruction requires startingImage');
+  }
+  // Which of the two Pixal3D graphs to run. Unset is not the same as naming the
+  // default: a worker resolves only the variants its own manifest declares, so
+  // an unset field lets each worker run its own shipped default, while naming
+  // one pins the graph for callers that need the other path.
+  if (params.templateVariant !== undefined) {
+    if (params.modelId !== PIXAL3D_WORKFLOW_ID) {
+      throw new Error(`templateVariant is only supported by ${PIXAL3D_WORKFLOW_ID}`);
+    }
+    if (!PIXAL3D_TEMPLATE_VARIANTS.includes(params.templateVariant)) {
+      throw new Error(`templateVariant must be one of: ${PIXAL3D_TEMPLATE_VARIANTS.join(', ')}`);
+    }
+    // The prompted graph selects the object to reconstruct. With no prompt it
+    // reconstructs whatever the empty string picks out, at the same price.
+    if (
+      params.templateVariant === PIXAL3D_PROMPTED_TEMPLATE_VARIANT &&
+      !params.positivePrompt?.trim()
+    ) {
+      throw new Error(
+        `templateVariant "${PIXAL3D_PROMPTED_TEMPLATE_VARIANT}" requires positivePrompt`
+      );
+    }
+    keyFrame.templateVariant = params.templateVariant;
   }
   for (const [key, limit] of Object.entries(PIXAL3D_REDUCE_ONLY_LIMITS)) {
     const requested = (params as Record<string, any>)[key];

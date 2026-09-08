@@ -163,6 +163,71 @@ async function checkRestDiscoveredJobGetsResultUrl() {
   );
 }
 
+// ComfyUI registers two graphs under this one workflow id: `i23d-birefnet`
+// (isDefault, prompt-free, isolates the subject with BiRefNet) and `i23d` (the
+// prompted path that used to be the default). The worker picks between them
+// from clientParams.templateVariant, which the socket forwards only when the
+// request names one - so without this field the prompted graph is unreachable
+// from the SDK, and naming an unreleased variant is a template lookup failure
+// rather than a silent fallback.
+function checkTemplateVariantSelection() {
+  const unnamed = createJobRequestMessage('pixal3d-default-variant', params(), MODEL_OPTIONS);
+  assert.equal(
+    'templateVariant' in unnamed.keyFrames[0],
+    false,
+    'an unnamed request must let each worker run its own default graph'
+  );
+
+  for (const templateVariant of ['i23d-birefnet', 'i23d']) {
+    const named = createJobRequestMessage(
+      `pixal3d-variant-${templateVariant}`,
+      params({ templateVariant }),
+      MODEL_OPTIONS
+    );
+    assert.equal(named.keyFrames[0].templateVariant, templateVariant);
+  }
+
+  // The prompt-free graph does not need one.
+  const birefnet = createJobRequestMessage(
+    'pixal3d-birefnet-no-prompt',
+    params({ templateVariant: 'i23d-birefnet', positivePrompt: '' }),
+    MODEL_OPTIONS
+  );
+  assert.equal(birefnet.keyFrames[0].templateVariant, 'i23d-birefnet');
+
+  // The prompted graph names the object to reconstruct, so an empty prompt is a
+  // full-price reconstruction of whatever the empty string selects.
+  assert.throws(
+    () =>
+      createJobRequestMessage(
+        'pixal3d-prompted-no-prompt',
+        params({ templateVariant: 'i23d', positivePrompt: '   ' }),
+        MODEL_OPTIONS
+      ),
+    /templateVariant "i23d" requires positivePrompt/
+  );
+
+  // A closed list, not a passthrough.
+  assert.throws(
+    () =>
+      createJobRequestMessage(
+        'pixal3d-unknown-variant',
+        params({ templateVariant: 'i23d-experimental' }),
+        MODEL_OPTIONS
+      ),
+    /templateVariant must be one of: i23d-birefnet, i23d/
+  );
+  assert.throws(
+    () =>
+      createJobRequestMessage(
+        'pixal3d-variant-wrong-model',
+        params({ modelId: 'krea2_turbo_fp8_scaled', templateVariant: 'i23d' }),
+        MODEL_OPTIONS
+      ),
+    /templateVariant is only supported by pixal3d_int8_i23d/
+  );
+}
+
 async function main() {
   const request = createJobRequestMessage('pixal3d-wire-test', params(), MODEL_OPTIONS);
   assert.equal(request.outputFormat, 'glb');
@@ -172,6 +237,7 @@ async function main() {
     () => createJobRequestMessage('missing-source', params({ startingImage: undefined }), MODEL_OPTIONS),
     /requires startingImage/
   );
+  checkTemplateVariantSelection();
 
   const client = new ClientStub();
   const projects = new ProjectsApi({ client, eip712: {} });
