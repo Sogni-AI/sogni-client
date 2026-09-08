@@ -402,13 +402,23 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return isAudioModel(modelId);
   }
 
-  /** Check whether a model returns a 3D artifact through the media endpoint. */
+  /**
+   * Check whether a model returns a 3D artifact through the media endpoint.
+   *
+   * The `pixal3d_` prefix is a positive override here, not merely a fallback
+   * for an unloaded catalog. That prefix is structural rather than curated:
+   * every Pixal3D workflow reconstructs a binary glTF, and the image download
+   * endpoint cannot serve one. A catalog that mislabels such a model as
+   * `image` therefore breaks every artifact download with no client-side
+   * recovery, so the SDK's own knowledge wins wherever it has any.
+   *
+   * The catalog stays authoritative for every model the SDK has no prefix
+   * knowledge of, so a future `media: 'model'` family needs no SDK release.
+   */
   isModelArtifactModelId(modelId: string): boolean {
+    if (isModelArtifactModel(modelId)) return true;
     const model = this._supportedModels.data?.find((m) => m.id === modelId);
-    if (model) {
-      return model.media === 'model';
-    }
-    return isModelArtifactModel(modelId);
+    return model ? model.media === 'model' : false;
   }
 
   constructor(config: ApiConfig) {
@@ -1343,7 +1353,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // SAM3 is a one-source/one-mask utility workflow. Normalize before Project
     // construction so lifecycle completion and result MIME use the same values
     // as the serialized request.
-    const normalizedData =
+    let normalizedData =
       data.type === 'image' && data.modelId === 'sam3_image_segment_bf16'
         ? ({
             ...data,
@@ -1352,6 +1362,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             outputFormat: 'png'
           } as ProjectParams)
         : data;
+    // Pixal3D reconstructs a 3D artifact, so there are no intermediate images
+    // to preview. Normalize here as well as on the wire so the Project's own
+    // params agree with the request that was actually sent.
+    if (normalizedData.type === 'image' && isModelArtifactModel(normalizedData.modelId)) {
+      normalizedData = { ...normalizedData, numberOfPreviews: 0 } as ProjectParams;
+    }
     const project = new Project({ ...normalizedData }, { api: this, logger: this.client.logger });
     const modelOptions = await this.getModelOptions(normalizedData.modelId);
     const requestParams = {

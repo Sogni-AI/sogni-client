@@ -7,7 +7,7 @@ import getUUID from '../lib/getUUID.js';
 import { EnhancementStrength } from './types/index.js';
 import Project from './Project.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
-import { getEnhacementStrength } from './utils/index.js';
+import { getEnhacementStrength, isSegmentationModel } from './utils/index.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
 import type { JobProvenance } from './types/JobProvenance.js';
@@ -663,6 +663,13 @@ class Job extends DataEntity<JobData, JobEventMap> {
     const parentProjectParams = this._project.params;
     if (parentProjectParams.type !== 'image' || this.type !== 'image') {
       throw new Error('Enhancement is only available for images');
+    }
+    // A segmentation result reports `type === 'image'` and would otherwise sail
+    // through the guard above, then be submitted as the starting image of a
+    // paid Flux render. A mask PNG (or its cut-out) has no prompt-to-pixels
+    // relationship to enhance, so this spends real Spark on a nonsense render.
+    if (isSegmentationModel(parentProjectParams.modelId)) {
+      throw new Error('Enhancement is not available for segmentation masks');
     }
     if (this.status !== 'completed') {
       throw new Error('Job is not completed yet');

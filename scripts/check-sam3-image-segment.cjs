@@ -191,6 +191,22 @@ async function main() {
     maskHeight: 576,
     samVersion: 'sam3-test'
   });
+  // A segmentation job reports type 'image' on an image project, so the media
+  // guard alone lets it through: enhance() would download the mask PNG and
+  // submit it as the starting image of a paid Flux render. Nothing about the
+  // request may reach the socket.
+  const requestsBefore = client.socket.sent.length;
+  await assert.rejects(
+    () => project.job('mask-result-1').enhance('medium'),
+    /Enhancement is not available for segmentation masks/,
+    'a SAM 3 mask must not be enhanceable'
+  );
+  assert.equal(
+    client.socket.sent.length,
+    requestsBefore,
+    'a rejected enhancement must not send a job request'
+  );
+
   project._update({ status: 'failed', error: { code: 0, message: 'test cleanup' } });
 
   console.log('SAM3 SDK contract checks passed');

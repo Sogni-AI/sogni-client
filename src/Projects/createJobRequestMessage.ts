@@ -1576,8 +1576,10 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
   const jobRequest: Record<string, any> = {
     ...template,
     keyFrames: [keyFrame],
+    // Neither utility workflow has intermediate images to preview: SAM 3
+    // returns one mask and Pixal3D a 3D reconstruction.
     previews:
-      params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID
+      params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID || params.modelId === PIXAL3D_WORKFLOW_ID
         ? 0
         : isImageParams(params)
           ? params.numberOfPreviews || 0

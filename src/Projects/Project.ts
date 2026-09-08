@@ -503,6 +503,19 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
           project: this
         });
         this._addJob(jobInstance);
+        // A job discovered for the first time through the REST snapshot needs
+        // the same sync a tracked job gets. `Job.fromRaw` only copies the
+        // legacy `resultUrl`/`imageUrl`/`videoUrl` fields, and a completed job
+        // whose media carries none of them — every GLB, and any record the
+        // server did not inline a URL for — would otherwise stay at
+        // `resultUrl: null` forever, so `waitForCompletion()` resolves with
+        // nothing. This mints the download URL exactly as the tracked path does.
+        try {
+          await jobInstance._syncWithRestData(job);
+        } catch (error) {
+          this._logger.error(error);
+          this._logger.error(`Failed to sync job ${jobInstance.id}`);
+        }
       }
     }
 

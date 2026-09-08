@@ -48,6 +48,121 @@ class ClientStub extends EventEmitter {
   }
 }
 
+function newProjectsApi() {
+  const client = new ClientStub();
+  const projects = new ProjectsApi({ client, eip712: {} });
+  projects.getModelOptions = async () => MODEL_OPTIONS;
+  return { client, projects };
+}
+
+// A model-artifact model must resolve as one even when the served catalog says
+// otherwise. The live /models/list route regressed to `media: 'image'` for
+// Pixal3D, which routed every GLB to the image download endpoint.
+function checkCatalogCannotDowngradeArtifactModel() {
+  const { projects } = newProjectsApi();
+  projects._supportedModels = {
+    data: [{ id: MODEL_ID, media: 'image' }],
+    updatedAt: new Date()
+  };
+  assert.equal(
+    projects.isModelArtifactModelId(MODEL_ID),
+    true,
+    'a pixal3d_ id must stay a model artifact even when the catalog says image'
+  );
+
+  // The catalog stays authoritative for ids the SDK has no prefix knowledge of.
+  projects._supportedModels = {
+    data: [{ id: 'future_recon_v1', media: 'model' }],
+    updatedAt: new Date()
+  };
+  assert.equal(
+    projects.isModelArtifactModelId('future_recon_v1'),
+    true,
+    'an unknown id must still follow the catalog media field'
+  );
+  assert.equal(projects.isModelArtifactModelId('flux1-schnell-fp8'), false);
+}
+
+// Pixal3D reconstructs a 3D artifact, so there are no intermediate images to
+// preview. Both the wire request and the Project's own params must say 0.
+async function checkPreviewsPinnedToZero() {
+  const request = createJobRequestMessage(
+    'pixal3d-previews',
+    params({ numberOfPreviews: 6 }),
+    MODEL_OPTIONS
+  );
+  assert.equal(request.previews, 0, 'Pixal3D must never request image previews');
+
+  const { client, projects } = newProjectsApi();
+  const project = await projects.create(params({ numberOfPreviews: 6 }));
+  assert.equal(project.params.numberOfPreviews, 0, 'Pixal3D project params must pin previews to 0');
+  assert.equal(client.socket.sent[0].data.previews, 0);
+  project._update({ status: 'failed', error: { code: 0, message: 'test cleanup' } });
+}
+
+// Regression: a job learned about for the first time through the REST snapshot
+// (a reconnect, or an explicit sync while the project runs) used to be added
+// with resultUrl: null and never minted one, because Job.fromRaw only copies
+// the legacy *Url fields and a GLB carries none of them.
+async function checkRestDiscoveredJobGetsResultUrl() {
+  const { projects } = newProjectsApi();
+  const mediaCalls = [];
+  projects.mediaDownloadUrl = async (input) => {
+    mediaCalls.push(input);
+    return 'https://cdn.example.test/rest-synced.glb';
+  };
+  projects.downloadUrl = async () => {
+    throw new Error('Pixal3D must not use the image endpoint');
+  };
+
+  const project = await projects.create(params());
+  // No jobState/jobResult socket event ever arrives for this job.
+  projects.get = async () => ({
+    id: project.id,
+    imageCount: 1,
+    stepCount: 56,
+    previewCount: 0,
+    status: 'completed',
+    reason: null,
+    completedWorkerJobs: [
+      {
+        id: project.id,
+        imgID: 'rest-only-1',
+        worker: { name: 'pixal3d-test-worker' },
+        status: 'jobCompleted',
+        reason: 'jobCompleted',
+        performedSteps: 56,
+        triggeredNSFWFilter: false,
+        seedUsed: 42
+      }
+    ]
+  });
+  await project._syncToServer();
+
+  const job = project.job('rest-only-1');
+  assert.ok(job, 'REST sync must add a job it has not seen before');
+  assert.equal(job.status, 'completed');
+  assert.equal(job.type, 'model');
+  assert.equal(
+    job.resultUrl,
+    'https://cdn.example.test/rest-synced.glb',
+    'a REST-discovered completed job must have its result URL minted'
+  );
+  assert.deepEqual(mediaCalls, [
+    {
+      jobId: project.id,
+      id: 'rest-only-1',
+      type: 'complete',
+      contentType: 'model/gltf-binary'
+    }
+  ]);
+  assert.deepEqual(
+    await project.waitForCompletion(),
+    ['https://cdn.example.test/rest-synced.glb'],
+    'waitForCompletion must not resolve with a missing URL'
+  );
+}
+
 async function main() {
   const request = createJobRequestMessage('pixal3d-wire-test', params(), MODEL_OPTIONS);
   assert.equal(request.outputFormat, 'glb');
@@ -98,6 +213,10 @@ async function main() {
     contentType: 'model/gltf-binary'
   }]);
   project._update({ status: 'failed', error: { code: 0, message: 'test cleanup' } });
+
+  checkCatalogCannotDowngradeArtifactModel();
+  await checkPreviewsPinnedToZero();
+  await checkRestDiscoveredJobGetsResultUrl();
 
   console.log('Pixal3D SDK artifact checks passed');
 }
