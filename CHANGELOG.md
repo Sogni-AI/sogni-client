@@ -1,3 +1,10 @@
+## [5.36.1](https://github.com/Sogni-AI/sogni-client/compare/v5.36.0...v5.36.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* **chat:** export Qwen speech tool helper ([cd1a37f](https://github.com/Sogni-AI/sogni-client/commit/cd1a37f9644967a015b394cbbed9947eec62a940))
+
 # [5.36.0](https://github.com/Sogni-AI/sogni-client/compare/v5.35.0...v5.36.0) (2026-09-08)
 
 
