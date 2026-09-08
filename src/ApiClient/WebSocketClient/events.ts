@@ -262,6 +262,16 @@ export type JobResultData = {
   maskRleSha256?: string;
   maskWidth?: number;
   maskHeight?: number;
+  maskBox?: [number, number, number, number] | null;
+  maskCoverage?: number;
+  maskDetectedCount?: number;
+  maskReturnedCount?: number;
+  maskSelections?: Array<{
+    score: number | null;
+    box: [number, number, number, number] | null;
+    coverage: number;
+    included: boolean;
+  }>;
   samVersion?: string;
   selectionHash?: string;
   firstFrameSha256?: string;

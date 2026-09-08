@@ -626,6 +626,12 @@ export interface Sam3PromptBox {
   y0: number;
   x1: number;
   y1: number;
+  /**
+   * `positive` (the default) is an example of the thing to select. `negative`
+   * excludes one instance of a text-prompted concept — "every dog but this
+   * one" — and requires `text`, since the point path cannot express it.
+   */
+  label?: 'positive' | 'negative';
 }
 
 /** A bounded prompt for the SAM3 image-segmentation workflow. */
@@ -633,11 +639,68 @@ export interface Sam3ImagePrompt {
   points?: Sam3PromptPoint[];
   boxes?: Sam3PromptBox[];
   text?: string;
+  /**
+   * With `points`, a pass/fail gate: the job fails if the best candidate scores
+   * below it. With `text`, the detection filter applied to concept matches.
+   * Defaults to 0.5.
+   */
   threshold?: number;
+  /**
+   * Choose among SAM's whole/part/subpart candidates for one ambiguous click.
+   * Point prompts only — supplying it with `text` is rejected.
+   */
   multimask?: boolean;
+  /**
+   * Return the selection cut out of the source as an RGBA PNG, with the mask
+   * carried in alpha, instead of the bare black-and-white mask. Defaults to
+   * false so existing callers keep receiving a mask.
+   */
+  applyMask?: boolean;
+  /**
+   * Keep only the highest-scoring N selections, 1 to 16. With `text` those are
+   * distinct instances of the concept, so `maxInstances: 1` returns just the
+   * strongest match instead of every match merged together; with `points` they
+   * are SAM's whole/part/subpart candidates for the one clicked object.
+   * Defaults to keeping every selection above `threshold`.
+   */
+  maxInstances?: number;
 }
 
-export interface ImageProjectParams extends BaseProjectParams {
+/**
+ * Pixal3D image-to-3D generation options. Every one may only REDUCE work: each
+ * maximum is the shipped default, so the flat price is a guaranteed upper bound
+ * and a smaller value simply costs less to produce.
+ *
+ * `meshTargetFaces` is the one most worth setting. The 700,000-triangle default
+ * is far heavier than a real-time engine wants, so asking for less yields a
+ * more useful asset.
+ */
+export interface Pixal3dGenerationOptions {
+  /** Base-colour bake and UV atlas resolution, 1024 to 4096. Default 4096. */
+  textureSize?: number;
+  /** Decimation target in triangles, 5000 to 700000. Default 700000. */
+  meshTargetFaces?: number;
+  /** Normal map resolution, 512 to 2048. Default 2048. */
+  normalMapSize?: number;
+  /** Ambient occlusion map resolution, 256 to 1024. Default 1024. */
+  ambientOcclusionSize?: number;
+  /** Sparse-latent upsampling resolution, 1024 to 1536. Default 1536. */
+  shapeResolution?: number;
+}
+
+/** One SAM3 selection: a concept instance, or a candidate for one click. */
+export interface Sam3Selection {
+  /** Model confidence, 0 to 1. */
+  score: number | null;
+  /** Normalized [x0, y0, x1, y1]; null for an empty selection. */
+  box: [number, number, number, number] | null;
+  /** Fraction of the source this selection covers, 0 to 1. */
+  coverage: number;
+  /** Whether this selection is part of the returned mask. */
+  included: boolean;
+}
+
+export interface ImageProjectParams extends BaseProjectParams, Pixal3dGenerationOptions {
   type: 'image';
   /**
    * Number of previews to generate. Note that previews affect project cost

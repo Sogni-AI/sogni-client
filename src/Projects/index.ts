@@ -123,6 +123,19 @@ const JOB_PROVENANCE_HASH_FIELDS = [
   'lastFrameSha256'
 ] as const;
 
+function isUnitInterval(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+/** Accept normalized [x0, y0, x1, y1] bounds, rejecting inverted or empty ones. */
+function normalizedBounds(value: unknown): [number, number, number, number] | undefined {
+  if (!Array.isArray(value) || value.length !== 4 || !value.every(isUnitInterval)) {
+    return undefined;
+  }
+  const [x0, y0, x1, y1] = value as [number, number, number, number];
+  return x0 < x1 && y0 < y1 ? [x0, y0, x1, y1] : undefined;
+}
+
 function jobProvenanceFromResult(data: Partial<JobResultData>): JobProvenance | undefined {
   const result: JobProvenance = {};
   for (const field of JOB_PROVENANCE_HASH_FIELDS) {
@@ -142,6 +155,35 @@ function jobProvenanceFromResult(data: Partial<JobResultData>): JobProvenance | 
     /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,79}$/.test(data.samVersion)
   ) {
     result.samVersion = data.samVersion;
+  }
+  const bounds = normalizedBounds(data.maskBox);
+  if (bounds) result.maskBox = bounds;
+  if (isUnitInterval(data.maskCoverage)) result.maskCoverage = data.maskCoverage;
+  if (Number.isSafeInteger(data.maskDetectedCount) && Number(data.maskDetectedCount) >= 0) {
+    result.maskDetectedCount = Number(data.maskDetectedCount);
+  }
+  if (Number.isSafeInteger(data.maskReturnedCount) && Number(data.maskReturnedCount) >= 0) {
+    result.maskReturnedCount = Number(data.maskReturnedCount);
+  }
+  if (Array.isArray(data.maskSelections)) {
+    // Drop anything malformed rather than surfacing a half-valid selection:
+    // a caller reading `score` should never get undefined from a typed field.
+    const selections = data.maskSelections
+      .filter(
+        (entry): entry is NonNullable<typeof entry> =>
+          !!entry &&
+          typeof entry === 'object' &&
+          typeof entry.included === 'boolean' &&
+          isUnitInterval(entry.coverage) &&
+          (entry.score === null || isUnitInterval(entry.score))
+      )
+      .map((entry) => ({
+        score: entry.score === null ? null : Number(entry.score),
+        box: normalizedBounds(entry.box) ?? null,
+        coverage: Number(entry.coverage),
+        included: entry.included
+      }));
+    if (selections.length > 0) result.maskSelections = selections;
   }
   return Object.keys(result).length > 0 ? result : undefined;
 }

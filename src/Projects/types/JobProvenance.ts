@@ -1,3 +1,5 @@
+import type { Sam3Selection } from './index.js';
+
 /**
  * Worker-attested hashes used to bind generated media to its exact inputs.
  * Every field is optional because ordinary projects and older workers do not
@@ -14,6 +16,20 @@ export interface JobProvenance {
   maskRleSha256?: string;
   maskWidth?: number;
   maskHeight?: number;
+  /** Selection bounds as normalized [x0, y0, x1, y1]; absent for an empty mask. */
+  maskBox?: [number, number, number, number];
+  /** Fraction of the source covered by the returned mask, 0 to 1. */
+  maskCoverage?: number;
+  /** Selections that passed the threshold; may exceed the reported window. */
+  maskDetectedCount?: number;
+  /** Selections unioned into the returned mask. */
+  maskReturnedCount?: number;
+  /**
+   * Per-selection confidence and bounds, highest confidence first. Use it to
+   * tell a confident selection from a marginal one, and to discover that a
+   * concept matched more instances than the single returned mask suggests.
+   */
+  maskSelections?: Sam3Selection[];
   /** Immutable operator-provisioned SAM runtime/checkpoint version. */
   samVersion?: string;
   /** World selection receipt bound to an image-edit job. */

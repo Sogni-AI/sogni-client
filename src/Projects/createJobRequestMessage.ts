@@ -77,6 +77,17 @@ const WORLD_TRANSITION_MODEL_ID = 'minimax-h3-fastvideo-int8_flf2v_turbo';
 const MAX_SAM3_POINTS = 32;
 const MAX_SAM3_BOXES = 16;
 const MAX_SAM3_TEXT_LENGTH = 240;
+const MAX_SAM3_INSTANCES = 16;
+// Pixal3D reduce-only options. Each max is the shipped default, so a request
+// can only ever ask for less work than the flat price already covers; the
+// socket and the worker both clamp again.
+const PIXAL3D_REDUCE_ONLY_LIMITS: Record<string, { min: number; max: number }> = {
+  textureSize: { min: 1024, max: 4096 },
+  meshTargetFaces: { min: 5000, max: 700000 },
+  normalMapSize: { min: 512, max: 2048 },
+  ambientOcclusionSize: { min: 256, max: 1024 },
+  shapeResolution: { min: 1024, max: 1536 }
+};
 
 function normalizeWorldGenerationReceipt(params: ProjectParams) {
   const receipt = params.worldGenerationReceipt;
@@ -1011,8 +1022,9 @@ function getVideoControlNet(params: VideoControlNetParams): VideoControlNetParam
 
 function normalizeSam3Prompt(
   prompt: Sam3ImagePrompt
-): Required<Pick<Sam3ImagePrompt, 'points' | 'boxes' | 'threshold' | 'multimask'>> &
-  Pick<Sam3ImagePrompt, 'text'> {
+  // multimask is emitted only on the point path, so it stays optional here.
+): Required<Pick<Sam3ImagePrompt, 'points' | 'boxes' | 'threshold' | 'applyMask'>> &
+  Pick<Sam3ImagePrompt, 'text' | 'multimask' | 'maxInstances'> {
   if (!prompt || typeof prompt !== 'object' || Array.isArray(prompt)) {
     throw new Error('sam3Prompt must be an object');
   }
@@ -1058,15 +1070,23 @@ function normalizeSam3Prompt(
     if (!box || typeof box !== 'object' || Array.isArray(box)) {
       throw new Error(`sam3Prompt.boxes[${index}] must be an object`);
     }
-    const unknown = Object.keys(box).filter((key) => !['x0', 'y0', 'x1', 'y1'].includes(key));
+    const unknown = Object.keys(box).filter(
+      (key) => !['x0', 'y0', 'x1', 'y1', 'label'].includes(key)
+    );
     if (unknown.length > 0) {
       throw new Error(`sam3Prompt.boxes[${index}] contains unsupported fields`);
+    }
+    if (box.label !== undefined && box.label !== 'positive' && box.label !== 'negative') {
+      throw new Error(`sam3Prompt.boxes[${index}].label must be "positive" or "negative"`);
     }
     const normalized = {
       x0: coordinate(box.x0, `sam3Prompt.boxes[${index}].x0`),
       y0: coordinate(box.y0, `sam3Prompt.boxes[${index}].y0`),
       x1: coordinate(box.x1, `sam3Prompt.boxes[${index}].x1`),
-      y1: coordinate(box.y1, `sam3Prompt.boxes[${index}].y1`)
+      y1: coordinate(box.y1, `sam3Prompt.boxes[${index}].y1`),
+      // Boxes have always been positive exemplars, so an absent label leaves
+      // every existing caller on exactly its current behavior.
+      label: box.label === undefined ? ('positive' as const) : box.label
     };
     if (normalized.x0 >= normalized.x1 || normalized.y0 >= normalized.y1) {
       throw new Error(`sam3Prompt.boxes[${index}] must have x0 < x1 and y0 < y1`);
@@ -1091,6 +1111,11 @@ function normalizeSam3Prompt(
   if (normalizedPoints.length > 0 && normalizedBoxes.length > 1) {
     throw new Error('sam3Prompt supports at most one box when point prompts are present');
   }
+  // SAM 3 takes an exclusion exemplar only alongside a text prompt; the
+  // interactive point path has no way to express one.
+  if (normalizedPoints.length > 0 && normalizedBoxes.some((box) => box.label === 'negative')) {
+    throw new Error('sam3Prompt negative boxes require a text prompt');
+  }
   if (
     prompt.threshold !== undefined &&
     (typeof prompt.threshold !== 'number' ||
@@ -1103,12 +1128,32 @@ function normalizeSam3Prompt(
   if (prompt.multimask !== undefined && typeof prompt.multimask !== 'boolean') {
     throw new Error('sam3Prompt.multimask must be a boolean');
   }
+  // multimask chooses among SAM's whole/part/subpart candidates for one
+  // ambiguous click, so it only means anything on the point path.
+  if (prompt.multimask !== undefined && normalizedPoints.length === 0) {
+    throw new Error('sam3Prompt.multimask requires point prompts');
+  }
+  if (prompt.applyMask !== undefined && typeof prompt.applyMask !== 'boolean') {
+    throw new Error('sam3Prompt.applyMask must be a boolean');
+  }
+  if (
+    prompt.maxInstances !== undefined &&
+    (!Number.isSafeInteger(prompt.maxInstances) ||
+      prompt.maxInstances < 1 ||
+      prompt.maxInstances > MAX_SAM3_INSTANCES)
+  ) {
+    throw new Error(`sam3Prompt.maxInstances must be an integer from 1 to ${MAX_SAM3_INSTANCES}`);
+  }
   return {
     points: normalizedPoints,
     boxes: normalizedBoxes,
     ...(text ? { text } : {}),
     threshold: prompt.threshold === undefined ? 0.5 : prompt.threshold,
-    multimask: prompt.multimask === undefined ? true : prompt.multimask
+    ...(normalizedPoints.length > 0
+      ? { multimask: prompt.multimask === undefined ? true : prompt.multimask }
+      : {}),
+    applyMask: prompt.applyMask === true,
+    ...(prompt.maxInstances === undefined ? {} : { maxInstances: prompt.maxInstances })
   };
 }
 
@@ -1157,6 +1202,17 @@ function applyImageParams(
   }
   if (params.modelId === PIXAL3D_WORKFLOW_ID && !params.startingImage) {
     throw new Error('Pixal3D reconstruction requires startingImage');
+  }
+  for (const [key, limit] of Object.entries(PIXAL3D_REDUCE_ONLY_LIMITS)) {
+    const requested = (params as Record<string, any>)[key];
+    if (requested === undefined) continue;
+    if (params.modelId !== PIXAL3D_WORKFLOW_ID) {
+      throw new Error(`${key} is only supported by ${PIXAL3D_WORKFLOW_ID}`);
+    }
+    if (!Number.isSafeInteger(requested) || requested < limit.min || requested > limit.max) {
+      throw new Error(`${key} must be an integer from ${limit.min} to ${limit.max}`);
+    }
+    keyFrame[key] = requested;
   }
 
   if (params.controlNet) {
