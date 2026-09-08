@@ -1028,7 +1028,15 @@ function normalizeSam3Prompt(
   if (!prompt || typeof prompt !== 'object' || Array.isArray(prompt)) {
     throw new Error('sam3Prompt must be an object');
   }
-  const allowedRootKeys = new Set(['points', 'boxes', 'text', 'threshold', 'multimask']);
+  const allowedRootKeys = new Set([
+    'points',
+    'boxes',
+    'text',
+    'threshold',
+    'multimask',
+    'applyMask',
+    'maxInstances'
+  ]);
   const unknownRootKeys = Object.keys(prompt).filter((key) => !allowedRootKeys.has(key));
   if (unknownRootKeys.length > 0) {
     throw new Error(`sam3Prompt contains unsupported fields: ${unknownRootKeys.join(', ')}`);

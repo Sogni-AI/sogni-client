@@ -6,6 +6,8 @@ const createJobRequestMessage = require('../dist/Projects/createJobRequestMessag
 const ProjectsApi = require('../dist/Projects/index.js').default;
 
 const MODEL_ID = 'sam3_image_segment_bf16';
+// Mirrors MAX_SAM3_INSTANCES in src/Projects/createJobRequestMessage.ts.
+const MAX_INSTANCES = 16;
 const MODEL_OPTIONS = {
   type: 'image',
   steps: { min: 1, max: 1, step: 1, default: 1 },
@@ -64,8 +66,78 @@ async function main() {
     points: [{ x: 0.42, y: 0.61, label: 'positive' }],
     boxes: [],
     threshold: 0.5,
-    multimask: true
+    multimask: true,
+    // Omitting applyMask must serialize as an explicit false, not as absence.
+    applyMask: false
   });
+  // An omitted cap stays off the wire entirely rather than being sent as a default.
+  assert.equal('maxInstances' in request.keyFrames[0].sam3Prompt, false);
+
+  // applyMask and maxInstances shipped in the request contract and in this
+  // function's own validation, but the root-level unknown-key gate above it was
+  // never taught either name, so both were rejected before they could be
+  // validated. That made the whole feature unreachable in 5.32.0 and 5.33.0.
+  const cutout = createJobRequestMessage(
+    'sam3-apply-mask',
+    params({ sam3Prompt: { text: 'the teapot', applyMask: true } }),
+    MODEL_OPTIONS
+  );
+  assert.deepEqual(cutout.keyFrames[0].sam3Prompt, {
+    points: [],
+    boxes: [],
+    text: 'the teapot',
+    threshold: 0.5,
+    applyMask: true
+  });
+
+  const capped = createJobRequestMessage(
+    'sam3-max-instances',
+    params({ sam3Prompt: { text: 'the teapots', maxInstances: 4 } }),
+    MODEL_OPTIONS
+  );
+  assert.equal(capped.keyFrames[0].sam3Prompt.maxInstances, 4);
+  assert.equal(capped.keyFrames[0].sam3Prompt.applyMask, false);
+
+  for (const maxInstances of [0, MAX_INSTANCES + 1]) {
+    assert.throws(
+      () =>
+        createJobRequestMessage(
+          'sam3-max-instances-range',
+          params({ sam3Prompt: { text: 'the teapots', maxInstances } }),
+          MODEL_OPTIONS
+        ),
+      new RegExp(`sam3Prompt.maxInstances must be an integer from 1 to ${MAX_INSTANCES}`)
+    );
+  }
+
+  // The gate still has to reject a name the request contract has no field for,
+  // which is the only reason it exists.
+  assert.throws(
+    () =>
+      createJobRequestMessage(
+        'sam3-unknown-root-key',
+        params({ sam3Prompt: { text: 'the teapot', bogus: 1 } }),
+        MODEL_OPTIONS
+      ),
+    /sam3Prompt contains unsupported fields: bogus/
+  );
+
+  // A negative box excludes one instance of a text-prompted concept. Its own
+  // box-level key check already allows 'label'; pin the round trip so it does
+  // not regress the way the root-level gate did.
+  const excluded = createJobRequestMessage(
+    'sam3-negative-box',
+    params({
+      sam3Prompt: {
+        text: 'the teapots',
+        boxes: [{ x0: 0.1, y0: 0.2, x1: 0.3, y1: 0.4, label: 'negative' }]
+      }
+    }),
+    MODEL_OPTIONS
+  );
+  assert.deepEqual(excluded.keyFrames[0].sam3Prompt.boxes, [
+    { x0: 0.1, y0: 0.2, x1: 0.3, y1: 0.4, label: 'negative' }
+  ]);
 
   assert.throws(
     () => createJobRequestMessage('missing-source', params({ startingImage: undefined }), MODEL_OPTIONS),
