@@ -876,6 +876,30 @@ export interface AudioProjectParams extends BaseProjectParams {
    * Output audio format. Can be 'mp3', 'flac', or 'wav'. Defaults to 'mp3'.
    */
   outputFormat?: AudioOutputFormat;
+  /**
+   * Speech only. Preset studio voice to speak in, for models that offer them
+   * (Qwen3-TTS CustomVoice: serena, vivian, uncle_fu, ryan, aiden, ono_anna,
+   * sohee, eric, dylan). Ignored by music models, which have no voice roster.
+   */
+  speaker?: string;
+  /**
+   * Speech only. A written direction for the delivery. On Qwen3-TTS CustomVoice
+   * it restyles the chosen voice ("whispering, close to the mic") without
+   * changing who it is; on VoiceDesign it describes the voice to invent and is
+   * required.
+   */
+  instruct?: string;
+  /**
+   * Speech only. The exact transcript of `referenceAudio`. Supplying it lets a
+   * voice clone condition on the recording itself rather than on the speaker
+   * embedding alone, which is markedly closer to the source.
+   */
+  referenceText?: string;
+  /**
+   * Speech only. Three to thirty seconds of the voice to clone, as one person
+   * speaking cleanly. Required by Qwen3-TTS Voice Clone and unused elsewhere.
+   */
+  referenceAudio?: InputMedia;
 }
 
 export type ProjectParams = ImageProjectParams | VideoProjectParams | AudioProjectParams;

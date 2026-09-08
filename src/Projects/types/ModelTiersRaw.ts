@@ -94,14 +94,23 @@ export interface BooleanDefault {
   default: boolean;
 }
 
+/**
+ * An audio model tier.
+ *
+ * Music and speech share this shape but use disjoint halves of it. A music
+ * model composes for a requested duration with a diffusion sampler; a speech
+ * model reads a script for however long the words take and has no sampler, no
+ * step count and no tempo. Everything either family lacks is optional here, so
+ * a tier declares only the controls its model can actually honour.
+ */
 export interface AudioTier {
   benchmark: Benchmark;
   bpm?: NumericDefaults;
-  comfySampler: StringDefaults;
-  comfyScheduler: StringDefaults;
+  comfySampler?: StringDefaults;
+  comfyScheduler?: StringDefaults;
   composerMode?: BooleanDefault;
   creativity?: NumericDefaults;
-  duration: NumericDefaults;
+  duration?: NumericDefaults;
   guidance?: NumericDefaults;
   keyscale?: StringDefaults;
   language?: StringDefaults;
@@ -110,6 +119,16 @@ export interface AudioTier {
   steps: NumericDefaults;
   timesignature?: StringDefaults;
   type: 'audio';
+  /** Speech: the preset voices this model can speak in. */
+  speaker?: StringDefaults;
+  /** Speech: whether the model takes a written direction for the delivery. */
+  instruct?: { maxLength: number; required?: boolean; description?: string };
+  /** Speech: whether the model takes a transcript of the reference recording. */
+  referenceText?: { maxLength: number; description?: string };
+  /** Speech: whether a reference recording may be uploaded. */
+  acceptInputAudio?: boolean;
+  /** Speech: whether a reference recording is mandatory (voice cloning). */
+  requiresReferenceAudio?: boolean;
 }
 
 export function isAudioTier(t: ModelTier): t is AudioTier {

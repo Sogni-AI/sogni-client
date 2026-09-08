@@ -11,6 +11,7 @@ import {
   SupportedModel,
   ImageProjectParams,
   VideoProjectParams,
+  AudioProjectParams,
   VideoEstimateRequest,
   AudioEstimateRequest
 } from './types/index.js';
@@ -1387,7 +1388,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this._annotateVideoAssetContentTypes(request, normalizedData);
         break;
       case 'audio':
-        // No assets to upload for audio
+        await this._processAudioAssets(project, normalizedData);
+        this._annotateAudioAssetContentTypes(request, normalizedData);
         break;
     }
     await this.client.socket.send('jobRequest', request);
@@ -1423,6 +1425,21 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           }
         })
       );
+    }
+  }
+
+  /** Voice cloning is the only audio model that takes an upload. */
+  private async _processAudioAssets(project: Project, data: AudioProjectParams) {
+    if (data?.referenceAudio && data.referenceAudio !== true) {
+      await this.uploadReferenceAudio(project.id, data.referenceAudio);
+    }
+  }
+
+  private _annotateAudioAssetContentTypes(request: Record<string, any>, data: AudioProjectParams) {
+    const keyFrame = request.keyFrames?.[0];
+    if (!keyFrame) return;
+    if (data.referenceAudio && data.referenceAudio !== true) {
+      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio);
     }
   }
 

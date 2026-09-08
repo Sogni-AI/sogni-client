@@ -152,7 +152,11 @@ export const PREFERRED_MODEL_IDS = {
     aceStepXlSft: 'ace_step_1.5_xl_sft',
     aceStepTurbo: 'ace_step_1.5_turbo',
     aceStepSft: 'ace_step_1.5_sft',
-    minimaxMusic3: 'minimax_music3'
+    minimaxMusic3: 'minimax_music3',
+    // Speech, not music: the same audio media type, a different job entirely.
+    qwen3TtsCustomVoice: 'qwen3_tts_1.7b_custom_voice_bf16',
+    qwen3TtsVoiceClone: 'qwen3_tts_1.7b_voice_clone_bf16',
+    qwen3TtsVoiceDesign: 'qwen3_tts_1.7b_voice_design_bf16'
   }
 } as const;
 

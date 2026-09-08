@@ -1537,6 +1537,21 @@ function applyAudioParams(
   if (params.shift !== undefined) {
     keyFrame.shift = params.shift;
   }
+  // Speech controls. sogni-socket rejects each of these for the audio models
+  // that have no node for it, so they are passed through rather than filtered
+  // by model id here - one less place for a new speech model to be forgotten.
+  if (params.speaker !== undefined) {
+    keyFrame.speaker = params.speaker;
+  }
+  if (params.instruct !== undefined) {
+    keyFrame.instruct = params.instruct;
+  }
+  if (params.referenceText !== undefined) {
+    keyFrame.referenceText = params.referenceText;
+  }
+  if (params.referenceAudio) {
+    keyFrame.hasReferenceAudio = true;
+  }
 
   keyFrame.comfySampler = validateSampler(params.sampler, options);
   keyFrame.comfyScheduler = validateScheduler(params.scheduler, options);

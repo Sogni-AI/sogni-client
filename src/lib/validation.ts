@@ -148,7 +148,8 @@ export function isComfyModel(modelId: string): boolean {
     'rtx_vsr_',
     'wan_',
     'ace_step',
-    'minimax_music3'
+    'minimax_music3',
+    'qwen3_tts_'
   ];
   return COMFY_PREFIXES.some((prefix) => modelId.startsWith(prefix));
 }
@@ -194,13 +195,16 @@ function validateOption<T = unknown>(value: T, options: T[], errorMessage: strin
  * Returns the validated value unchanged - sogni-socket handles normalization.
  */
 export function validateSampler(value: string | undefined, options: ModelOptions) {
-  if (!options.sampler.allowed.length || !value) {
+  // A model with no sampler at all - a Qwen3-TTS speech model, say - offers no
+  // choice to validate, so a value here is dropped rather than rejected.
+  const sampler = options.sampler;
+  if (!sampler?.allowed.length || !value) {
     return null;
   }
   return validateOption(
     value,
-    options.sampler.allowed,
-    `Invalid sampler ${value}. Must be one of "${options.sampler.allowed.join('", "')}".`
+    sampler.allowed,
+    `Invalid sampler ${value}. Must be one of "${sampler.allowed.join('", "')}".`
   );
 }
 
@@ -209,13 +213,14 @@ export function validateSampler(value: string | undefined, options: ModelOptions
  * Returns the validated value unchanged - sogni-socket handles normalization.
  */
 export function validateScheduler(value: string | undefined, options: ModelOptions) {
-  if (!options.scheduler.allowed.length || !value) {
+  const scheduler = options.scheduler;
+  if (!scheduler?.allowed.length || !value) {
     return null;
   }
   return validateOption(
     value,
-    options.scheduler.allowed,
-    `Invalid scheduler ${value}. Must be one of "${options.scheduler.allowed.join('", "')}".`
+    scheduler.allowed,
+    `Invalid scheduler ${value}. Must be one of "${scheduler.allowed.join('", "')}".`
   );
 }
 
