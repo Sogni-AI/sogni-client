@@ -24,6 +24,11 @@ assert.equal(
   sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
   'birefnet_image_background_removal_fp16'
 );
+assert.equal(sdk.SogniTools.generateSpeech.function.name, 'generate_speech');
+assert.ok(
+  sdk.SogniTools.all.some((tool) => tool.function.name === 'generate_speech'),
+  'generate_speech is missing from the canonical tool catalog'
+);
 
 assert.equal(sdk.isModelArtifactModel(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID), true);
 assert.equal(sdk.isModelArtifactModel(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), false);
