@@ -1,3 +1,15 @@
+# [5.36.0](https://github.com/Sogni-AI/sogni-client/compare/v5.35.0...v5.36.0) (2026-09-08)
+
+
+### Bug Fixes
+
+* **deps:** consume Qwen speech protocol ([40f7a44](https://github.com/Sogni-AI/sogni-client/commit/40f7a449f994dfee1a85992602d0453c5fca3fb4))
+
+
+### Features
+
+* **projects:** support speech generation and voice cloning ([d660c21](https://github.com/Sogni-AI/sogni-client/commit/d660c2133dcf7c423ea3c1f1f1eb22ec6280b097))
+
 # [5.35.0](https://github.com/Sogni-AI/sogni-client/compare/v5.34.1...v5.35.0) (2026-09-08)
 
 
