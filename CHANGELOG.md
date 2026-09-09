@@ -1,3 +1,11 @@
+## [5.36.2](https://github.com/Sogni-AI/sogni-client/compare/v5.36.1...v5.36.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* **pixal3d:** retire prompted template variant ([1440621](https://github.com/Sogni-AI/sogni-client/commit/1440621d345b962ac3bee899578d4f8cd797a6af))
+* **sam3:** accept an explicit multimask: false on the text path ([88eba94](https://github.com/Sogni-AI/sogni-client/commit/88eba9434eeb21a3a116b8ee4ec5533c41d08413))
+
 ## [5.36.1](https://github.com/Sogni-AI/sogni-client/compare/v5.36.0...v5.36.1) (2026-09-08)
 
 
