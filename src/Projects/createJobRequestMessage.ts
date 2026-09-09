@@ -1148,8 +1148,13 @@ function normalizeSam3Prompt(
     throw new Error('sam3Prompt.multimask must be a boolean');
   }
   // multimask chooses among SAM's whole/part/subpart candidates for one
-  // ambiguous click, so it only means anything on the point path.
-  if (prompt.multimask !== undefined && normalizedPoints.length === 0) {
+  // ambiguous click, so it only means anything on the point path. Asking for it
+  // without points is a mistake worth naming; explicitly declining it is not,
+  // and rejecting `false` refuses a request that already says what the text path
+  // does anyway. That cost a caller a working selection: the throw surfaced as
+  // the generic "a worker couldn't complete this generation", which reads as a
+  // capacity problem rather than a rejected field.
+  if (prompt.multimask === true && normalizedPoints.length === 0) {
     throw new Error('sam3Prompt.multimask requires point prompts');
   }
   if (prompt.applyMask !== undefined && typeof prompt.applyMask !== 'boolean') {

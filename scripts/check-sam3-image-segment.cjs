@@ -73,6 +73,38 @@ async function main() {
   // An omitted cap stays off the wire entirely rather than being sent as a default.
   assert.equal('maxInstances' in request.keyFrames[0].sam3Prompt, false);
 
+  // Declining multimask on the text path is not a mistake. It only chooses among
+  // SAM's whole/part/subpart candidates for one ambiguous click, so `false` says
+  // exactly what the text path already does, and rejecting it refused a valid
+  // request. Worse, the throw reached callers as the generic "a worker couldn't
+  // complete this generation", which reads as missing capacity rather than a
+  // rejected field, so it went undiagnosed and cost a whole selection.
+  const declined = createJobRequestMessage(
+    'sam3-multimask-false',
+    params({ sam3Prompt: { text: 'the picnic basket', multimask: false } }),
+    MODEL_OPTIONS
+  );
+  // Accepted, and then left off the wire entirely, which is what a no-op should
+  // look like: the caller's intent is honoured without inventing a field.
+  assert.deepEqual(declined.keyFrames[0].sam3Prompt, {
+    points: [],
+    boxes: [],
+    text: 'the picnic basket',
+    threshold: 0.5,
+    applyMask: false
+  });
+
+  // Asking FOR multimask without points is still a real mistake and still named.
+  assert.throws(
+    () => createJobRequestMessage(
+      'sam3-multimask-true-no-points',
+      params({ sam3Prompt: { text: 'the picnic basket', multimask: true } }),
+      MODEL_OPTIONS
+    ),
+    /multimask requires point prompts/,
+    'multimask: true without points must still be rejected'
+  );
+
   // applyMask and maxInstances shipped in the request contract and in this
   // function's own validation, but the root-level unknown-key gate above it was
   // never taught either name, so both were rejected before they could be
