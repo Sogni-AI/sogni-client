@@ -163,13 +163,8 @@ async function checkRestDiscoveredJobGetsResultUrl() {
   );
 }
 
-// ComfyUI registers two graphs under this one workflow id: `i23d-birefnet`
-// (isDefault, prompt-free, isolates the subject with BiRefNet) and `i23d` (the
-// prompted path that used to be the default). The worker picks between them
-// from clientParams.templateVariant, which the socket forwards only when the
-// request names one - so without this field the prompted graph is unreachable
-// from the SDK, and naming an unreleased variant is a template lookup failure
-// rather than a silent fallback.
+// ComfyUI registers one prompt-free BiRefNet graph under this workflow id.
+// Naming anything else must fail locally rather than reaching template lookup.
 function checkTemplateVariantSelection() {
   const unnamed = createJobRequestMessage('pixal3d-default-variant', params(), MODEL_OPTIONS);
   assert.equal(
@@ -178,14 +173,12 @@ function checkTemplateVariantSelection() {
     'an unnamed request must let each worker run its own default graph'
   );
 
-  for (const templateVariant of ['i23d-birefnet', 'i23d']) {
-    const named = createJobRequestMessage(
-      `pixal3d-variant-${templateVariant}`,
-      params({ templateVariant }),
-      MODEL_OPTIONS
-    );
-    assert.equal(named.keyFrames[0].templateVariant, templateVariant);
-  }
+  const named = createJobRequestMessage(
+    'pixal3d-variant-i23d-birefnet',
+    params({ templateVariant: 'i23d-birefnet' }),
+    MODEL_OPTIONS
+  );
+  assert.equal(named.keyFrames[0].templateVariant, 'i23d-birefnet');
 
   // The prompt-free graph does not need one.
   const birefnet = createJobRequestMessage(
@@ -195,16 +188,15 @@ function checkTemplateVariantSelection() {
   );
   assert.equal(birefnet.keyFrames[0].templateVariant, 'i23d-birefnet');
 
-  // The prompted graph names the object to reconstruct, so an empty prompt is a
-  // full-price reconstruction of whatever the empty string selects.
+  // The retired prompted graph is no longer a valid option.
   assert.throws(
     () =>
       createJobRequestMessage(
-        'pixal3d-prompted-no-prompt',
-        params({ templateVariant: 'i23d', positivePrompt: '   ' }),
+        'pixal3d-retired-variant',
+        params({ templateVariant: 'i23d', positivePrompt: 'the subject' }),
         MODEL_OPTIONS
       ),
-    /templateVariant "i23d" requires positivePrompt/
+    /templateVariant must be one of: i23d-birefnet/
   );
 
   // A closed list, not a passthrough.
@@ -215,13 +207,13 @@ function checkTemplateVariantSelection() {
         params({ templateVariant: 'i23d-experimental' }),
         MODEL_OPTIONS
       ),
-    /templateVariant must be one of: i23d-birefnet, i23d/
+    /templateVariant must be one of: i23d-birefnet/
   );
   assert.throws(
     () =>
       createJobRequestMessage(
         'pixal3d-variant-wrong-model',
-        params({ modelId: 'krea2_turbo_fp8_scaled', templateVariant: 'i23d' }),
+        params({ modelId: 'krea2_turbo_fp8_scaled', templateVariant: 'i23d-birefnet' }),
         MODEL_OPTIONS
       ),
     /templateVariant is only supported by pixal3d_int8_i23d/

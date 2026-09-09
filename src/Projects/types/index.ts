@@ -678,21 +678,15 @@ export interface Sam3ImagePrompt {
 /**
  * Which Pixal3D reconstruction graph to run.
  *
- * ComfyUI registers two under the one workflow id. `i23d-birefnet` is the
- * default: it isolates the subject with BiRefNet and takes no prompt.
- * `i23d` is the prompted graph, where `positivePrompt` names the object to
- * reconstruct rather than describing how it should look.
- *
- * Both cost the same and accept the same options. Leave it unset to let the
- * worker run its own default, which is what every caller wants unless it
- * specifically needs the prompted path.
+ * ComfyUI registers one graph under the workflow id. `i23d-birefnet` isolates
+ * the subject with BiRefNet and takes no prompt. Leave it unset to let the
+ * worker choose that shipped default.
  */
-export type Pixal3dTemplateVariant = 'i23d-birefnet' | 'i23d';
+export type Pixal3dTemplateVariant = 'i23d-birefnet';
 
 export interface Pixal3dGenerationOptions {
   /**
    * Which reconstruction graph to run. Unset means the worker's own default.
-   * `i23d` requires `positivePrompt`.
    */
   templateVariant?: Pixal3dTemplateVariant;
   /** Base-colour bake and UV atlas resolution, 1024 to 4096. Default 4096. */
