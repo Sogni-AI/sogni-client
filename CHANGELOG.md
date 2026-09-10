@@ -1,3 +1,10 @@
+# [5.37.0](https://github.com/Sogni-AI/sogni-client/compare/v5.36.3...v5.37.0) (2026-09-10)
+
+
+### Features
+
+* **projects:** add FlashVSR promptless video upscaling ([374fb6f](https://github.com/Sogni-AI/sogni-client/commit/374fb6f9efa9a9da08814b24a0c6c2037204538a))
+
 ## [5.36.3](https://github.com/Sogni-AI/sogni-client/compare/v5.36.2...v5.36.3) (2026-09-10)
 
 
