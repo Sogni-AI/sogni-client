@@ -1,3 +1,11 @@
+## [5.37.1](https://github.com/Sogni-AI/sogni-client/compare/v5.37.0...v5.37.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **projects:** let FlashVSR adopt the verified source timing ([1333b95](https://github.com/Sogni-AI/sogni-client/commit/1333b958f82c17010848f8f384edb80d7e377e82))
+* **workflows:** include upscale_image in hosted workflow tool names ([d0939a0](https://github.com/Sogni-AI/sogni-client/commit/d0939a02fa5fe602ebb572da898a152eae21e8ef))
+
 # [5.37.0](https://github.com/Sogni-AI/sogni-client/compare/v5.36.3...v5.37.0) (2026-09-10)
 
 
