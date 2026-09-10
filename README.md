@@ -870,6 +870,7 @@ Example model IDs:
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
 - `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
 - `wan3.0-video` (Wan 3 unified multimodal video, external API, 2-30s, 480P/720P/1080P, fixed 30fps)
+- `flashvsr_v1.1_tiny_long_bf16` (FlashVSR v1.1 promptless 1080p/1440p video upscaling of one finished video)
 
 The repository does not bundle sample prompts or input media for the 10Eros model. Creators
 who choose to use it must provide their own prompt and image to
@@ -888,7 +889,8 @@ When creating video projects, you can specify:
 - `steps` - Increase inference steps to increase quality
 - `seed` - Random seed for reproducibility
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
-- `referenceVideo` - Reference video for animate and v2v workflows
+- `referenceVideo` - Reference video for animate and v2v workflows, and the source video for FlashVSR upscaling
+- `upscaleResolution` - FlashVSR only: output short edge, `1080` or `1440`
 - `referenceVideoDurations` - Optional MiniMax H3 r2v duration hints in `[referenceVideo, ...referenceVideos]` order for early client-side validation; Socket probes the uploaded files and uses measured durations for pricing and admission
 - `referenceAudio` - Reference audio for sound-to-video workflow
 - `referenceImageUrls` - Loose image context URLs for Seedance, Happy Horse, and Wan 3; Wan 3 accepts up to 10
@@ -1045,6 +1047,30 @@ const project = await sogni.projects.create({
 const videoUrls = await project.waitForCompletion();
 ```
 
+### Video Upscale Example (FlashVSR)
+
+`FLASHVSR_VIDEO_UPSCALE_MODEL_ID` (`flashvsr_v1.1_tiny_long_bf16`) upscales one finished video to 1080p or 1440p on its short edge. It is promptless and separate from video generation: it keeps every source frame, the exact frame rate (including fractional rates such as 24000/1001), the full aspect ratio, and the original audio, and it never trims, crops, restyles, or interpolates.
+
+Sources must be at most 768px on the short edge, 1-362 frames and about 15 seconds, 1-60 fps at a constant frame rate, SDR, square pixels with rotation applied, and 100 MB or less. The output is at most twice the source size, so 1080p needs a source short edge of at least 540px and 1440p at least 720px. You do not send the source's frame count, frame rate, or size: the server probes the upload and uses its verified values. `frames`, `fps`, `width`, and `height` are optional, and any you do send must match the source.
+
+```javascript
+import { FLASHVSR_VIDEO_UPSCALE_MODEL_ID } from '@sogni-ai/sogni-client';
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
+  positivePrompt: '',
+  numberOfMedia: 1,
+  referenceVideo: fs.readFileSync('./clip.mp4'),
+  upscaleResolution: 1440 // or 1080: the output's short edge
+});
+
+const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the original audio
+```
+
+To show a price first, call `estimateVideoCost()` with the output `width`/`height` (the source scaled so its short edge equals the target, both edges rounded to even pixels), the source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the verified source.
+
 ## LLM Text Generation & Tool Calling
 
 The Sogni SDK supports LLM text generation through the Sogni Supernet, providing an OpenAI-compatible chat completions API with streaming, multi-turn conversations, and tool calling (function calling).
@@ -1113,10 +1139,11 @@ const response = await sogni.chat.completions.create({
 
 ### Sogni Platform Tools — Generate Media via Chat
 
-Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes the full canonical hosted creative-tool surface through `SogniTools.all` (24 tools):
+Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes the full canonical hosted creative-tool surface through `SogniTools.all` (26 tools):
 
-- **Generation** — `generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`
+- **Generation** — `generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`, `generate_speech`
 - **Image adapters** — `restore_photo`, `apply_style`, `refine_result`, `change_angle`, `animate_photo` (image-to-video with multi-source fan-out)
+- **Upscaling** — `upscale_image` (promptless RTX VSR)
 - **Video composition / post-production** — `stitch_video`, `orbit_video`, `dance_montage`, `extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`
 - **Synchronous composition and planning** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`
 
