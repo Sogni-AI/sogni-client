@@ -25,12 +25,14 @@ import EIP712Helper from './lib/EIP712Helper.js';
 // Projects API
 import {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
   isAudioModel,
   isModelArtifactModel,
   isSegmentationModel,
   isVideoModel,
+  isVideoUpscaleModel,
   requiresStartingImage
 } from './Projects/utils/index.js';
 import ProjectsApi from './Projects/index.js';
@@ -422,12 +424,14 @@ export type {
 
 export {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
   isAudioModel,
   isModelArtifactModel,
   isSegmentationModel,
   isVideoModel,
+  isVideoUpscaleModel,
   requiresStartingImage,
   ApiError,
   ApiKeyAuthManager,

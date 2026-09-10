@@ -2070,6 +2070,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       params.hasVideoInput === true ||
       Boolean(params.referenceVideo) ||
       (Array.isArray(params.referenceVideoUrls) && params.referenceVideoUrls.length > 0);
+    if (params.sourceWidth !== undefined && params.sourceHeight !== undefined) {
+      query.set('sourceWidth', String(params.sourceWidth));
+      query.set('sourceHeight', String(params.sourceHeight));
+    }
     if (hasVideoInput) {
       query.set('hasVideoInput', '1');
     }

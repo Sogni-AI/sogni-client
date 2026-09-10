@@ -36,6 +36,10 @@ export interface ImageModelOptions {
 
 export interface VideoModelOptions {
   type: 'video';
+  task?: 'video-upscale';
+  outputResolutions?: number[];
+  preservesSourceTiming?: boolean;
+  requiresReferenceVideo?: boolean;
   /** Server-advertised horizontal pixel range and grid. */
   width: NumRange;
   /** Server-advertised vertical pixel range and grid. */
@@ -145,6 +149,12 @@ export function mapVideoTier(tier: VideoTier): VideoModelOptions {
     scheduler: mapOptions(tier.comfyScheduler, schedulerValueToAlias),
     sampler: mapOptions(tier.comfySampler, samplerValueToAlias)
   };
+  if (tier.task !== undefined) options.task = tier.task;
+  if (tier.outputResolutions !== undefined) options.outputResolutions = [...tier.outputResolutions];
+  if (tier.preservesSourceTiming !== undefined)
+    options.preservesSourceTiming = tier.preservesSourceTiming;
+  if (tier.requiresReferenceVideo !== undefined)
+    options.requiresReferenceVideo = tier.requiresReferenceVideo;
   if (tier.maxPixels !== undefined) {
     options.maxPixels = tier.maxPixels;
   }

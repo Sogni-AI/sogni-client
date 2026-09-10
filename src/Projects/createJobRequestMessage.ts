@@ -30,6 +30,7 @@ import {
   getVideoWorkflowType,
   getVideoAssetRequirements,
   isVideoModel,
+  isVideoUpscaleModel,
   calculateVideoFrames,
   isLtx2Model,
   isWanAnimateModel,
@@ -886,6 +887,7 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
 }
 
 function getMaxVideoDuration(modelId: string): number {
+  if (isVideoUpscaleModel(modelId)) return 362 / 24;
   if (isMinimaxH3Model(modelId)) {
     // 362 frames at a fixed 24fps, the top of the H3 frame grid.
     return MINIMAX_H3_MAX_DURATION;
@@ -1310,6 +1312,37 @@ function applyVideoParams(
     });
   }
   validateVideoWorkflowAssets(params);
+  if (isVideoUpscaleModel(params.modelId)) {
+    const resolution =
+      params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
+    if (![1080, 1440].includes(resolution))
+      throw new Error('Choose 1080p or 1440p for video upscaling.');
+    if (!params.referenceVideo) throw new Error('FlashVSR requires an uploaded referenceVideo.');
+    const frames = params.frames ?? Math.round(Number(params.duration) * Number(params.fps));
+    if (!Number.isInteger(frames) || frames < 1 || frames > 362 || !Number.isFinite(params.fps)
+      || Number(params.fps) < 1 || Number(params.fps) > 60 || frames / Number(params.fps) > 362 / 24 + 0.001) {
+      throw new Error('Supply the source video’s exact frame count and frame rate (up to 362 frames and 15 seconds).');
+    }
+    if (params.positivePrompt?.trim() || params.negativePrompt?.trim())
+      throw new Error('FlashVSR is promptless.');
+    if (
+      params.teacacheThreshold != null ||
+      params.trimEndFrame ||
+      params.controlNet ||
+      params.videoStart != null ||
+      params.referenceVideoUrls?.length ||
+      params.referenceImageUrls?.length ||
+      params.referenceAudioUrls?.length ||
+      params.referenceFileUrl ||
+      params.referenceLinkUrl ||
+      params.generateAudio === false
+    ) {
+      throw new Error(
+        'Video upscaling preserves the complete source video and its audio; generation controls are unsupported.'
+      );
+    }
+    if (params.numberOfMedia !== 1) throw new Error('Upscale one source video per project.');
+  }
   validateMinimaxH3Params(params);
   const keyFrame: Record<string, any> = { ...inputKeyframe };
   if (params.referenceImage) {
@@ -1396,18 +1429,23 @@ function applyVideoParams(
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
   }
-  if (params.duration !== undefined) {
+  if (
+    params.duration !== undefined &&
+    !(isVideoUpscaleModel(params.modelId) && params.frames !== undefined)
+  ) {
     // Minimum direct-SDK duration: MiniMax H3 5.167s (124 frames at 24fps,
     // the bottom of its frame grid), HappyHorse 3s, Seedance 4s, others 1s.
-    const minDuration = isMinimaxH3Model(params.modelId)
-      ? MINIMAX_H3_MIN_DURATION
-      : isWan3Model(params.modelId)
-        ? 2
-        : isHappyhorseModel(params.modelId)
-          ? 3
-          : isSeedanceModel(params.modelId)
-            ? 4
-            : 1;
+    const minDuration = isVideoUpscaleModel(params.modelId)
+      ? 1 / (params.fps ?? 24)
+      : isMinimaxH3Model(params.modelId)
+        ? MINIMAX_H3_MIN_DURATION
+        : isWan3Model(params.modelId)
+          ? 2
+          : isHappyhorseModel(params.modelId)
+            ? 3
+            : isSeedanceModel(params.modelId)
+              ? 4
+              : 1;
     const duration = validateVideoDuration(
       params.duration,
       minDuration,
@@ -1489,6 +1527,15 @@ function applyVideoParams(
 
   keyFrame.comfySampler = validateSampler(params.sampler, options);
   keyFrame.comfyScheduler = validateScheduler(params.scheduler, options);
+
+  if (isVideoUpscaleModel(params.modelId)) {
+    keyFrame.upscaleResolution =
+      params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
+    keyFrame.steps = 1;
+    keyFrame.seed = 0;
+    keyFrame.generateAudio = true;
+    keyFrame.interpolation = 'none';
+  }
 
   return keyFrame;
 }

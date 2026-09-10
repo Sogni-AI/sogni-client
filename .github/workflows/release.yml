@@ -56,6 +56,8 @@ jobs:
         run: node scripts/check-pixal3d-artifact.cjs
       - name: Run BiRefNet background-removal checks
         run: node scripts/check-birefnet-background-removal.cjs
+      - name: Run FlashVSR video-upscale checks
+        run: node scripts/check-flashvsr-video.cjs
       - name: Run capability export checks
         run: node scripts/check-capability-exports.cjs
       - name: Release

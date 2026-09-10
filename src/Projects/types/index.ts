@@ -280,6 +280,8 @@ export type Wan3Ratio = 'adaptive' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
 
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
+  /** FlashVSR delivery resolution on the shorter edge. Source timing and audio are preserved. */
+  upscaleResolution?: 1080 | 1440;
   /**
    * Number of frames to generate.
    * @deprecated Use duration instead. When using duration, the SDK automatically
@@ -1037,6 +1039,9 @@ export interface EstimateRequest {
 }
 
 export interface VideoEstimateRequest {
+  /** FlashVSR source geometry for an estimate. The server verifies the uploaded file at admission. */
+  sourceWidth?: number;
+  sourceHeight?: number;
   tokenType: TokenType;
   model: string;
   width: number;
@@ -1130,6 +1135,7 @@ export type EnhancementStrength = 'light' | 'medium' | 'heavy';
  * interpolates between two required anchor images.
  */
 export type VideoWorkflowType =
+  | 'upscale'
   | 't2v'
   | 'i2v'
   | 'flf2v'
