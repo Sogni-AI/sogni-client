@@ -1,3 +1,10 @@
+## [5.36.3](https://github.com/Sogni-AI/sogni-client/compare/v5.36.2...v5.36.3) (2026-09-10)
+
+
+### Bug Fixes
+
+* **workflows:** serialize the content filter preference ([db0c187](https://github.com/Sogni-AI/sogni-client/commit/db0c187be57dc0a7bce0e54764c800c6e4391304))
+
 ## [5.36.2](https://github.com/Sogni-AI/sogni-client/compare/v5.36.1...v5.36.2) (2026-09-09)
 
 
