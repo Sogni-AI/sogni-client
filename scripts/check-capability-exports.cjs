@@ -29,6 +29,13 @@ assert.ok(
   sdk.SogniTools.all.some((tool) => tool.function.name === 'generate_speech'),
   'generate_speech is missing from the canonical tool catalog'
 );
+assert.equal(sdk.SogniTools.upscaleImage.function.name, 'upscale_image');
+assert.equal(sdk.SogniTools.upscaleVideo.function.name, 'upscale_video');
+assert.deepEqual(
+  sdk.SogniTools.upscaleVideo.function.parameters.properties.targetResolution.enum,
+  [1080, 1440]
+);
+assert.equal(sdk.SogniTools.all.length, 27);
 
 assert.equal(sdk.isModelArtifactModel(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID), true);
 assert.equal(sdk.isModelArtifactModel(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), false);

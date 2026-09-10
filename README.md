@@ -1069,7 +1069,7 @@ const project = await sogni.projects.create({
 const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the original audio
 ```
 
-To show a price first, call `estimateVideoCost()` with the output `width`/`height` (the source scaled so its short edge equals the target, both edges rounded to even pixels), the source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the verified source.
+To show a price first, call `estimateVideoCost()` with the output `width`/`height` (the source scaled so its short edge equals the target, both edges rounded to even pixels), the source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the verified source. In hosted chat and durable workflows, the same operation is the promptless `upscale_video` tool.
 
 ## LLM Text Generation & Tool Calling
 
@@ -1139,11 +1139,11 @@ const response = await sogni.chat.completions.create({
 
 ### Sogni Platform Tools — Generate Media via Chat
 
-Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes the full canonical hosted creative-tool surface through `SogniTools.all` (26 tools):
+Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes the full canonical hosted creative-tool surface through `SogniTools.all` (27 tools):
 
 - **Generation** — `generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`, `generate_speech`
 - **Image adapters** — `restore_photo`, `apply_style`, `refine_result`, `change_angle`, `animate_photo` (image-to-video with multi-source fan-out)
-- **Upscaling** — `upscale_image` (promptless RTX VSR)
+- **Upscaling** — `upscale_image` (promptless RTX VSR), `upscale_video` (promptless FlashVSR 1080p/1440p video upscale that keeps every frame, the frame rate, and the original audio)
 - **Video composition / post-production** — `stitch_video`, `orbit_video`, `dance_montage`, `extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`
 - **Synchronous composition and planning** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`
 

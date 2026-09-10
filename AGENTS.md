@@ -240,7 +240,7 @@ The SDK supports two families of video models with **fundamentally different FPS
 - Exactly one `referenceVideo`, `numberOfMedia: 1`, empty prompt; the SDK fixes steps to 1 and seed to 0 and rejects generation controls.
 - Output short edge is `upscaleResolution` (1080 or 1440); the aspect ratio, every frame, the exact (possibly fractional) fps, and the original audio are preserved.
 - Minimal call: `referenceVideo` + `upscaleResolution` + `numberOfMedia: 1` + empty prompt. `frames`, `fps`, `width` and `height` are optional; the server probes the upload and adopts the verified source values, and rejects only values a caller sent that conflict with the source. Estimates take the output size, the source's `frames`/`fps`, and `sourceWidth`/`sourceHeight`.
-- `isVideoUpscaleModel()` detects it; `getVideoWorkflowType()` returns `'upscale'`.
+- `isVideoUpscaleModel()` detects it; `getVideoWorkflowType()` returns `'upscale'`. Hosted chat/workflows expose it as the `upscale_video` tool.
 
 ### Key Files
 - `src/Projects/utils/index.ts` - `isWanModel()`, `isLtx2Model()`, `calculateVideoFrames()`
