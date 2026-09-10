@@ -1299,6 +1299,36 @@ function applyImageParams(
   return keyFrame;
 }
 
+const VIDEO_UPSCALE_TIMING_ERROR =
+  'Omit the source timing, or supply the source video’s exact frame count and frame rate (up to 362 frames and 15 seconds).';
+
+/**
+ * FlashVSR source timing is optional. The server probes the uploaded video and
+ * adopts its exact frame count and frame rate when they are omitted; values a
+ * caller does send must describe the source and are checked against it.
+ */
+function validateVideoUpscaleTiming(params: VideoProjectParams): void {
+  const fps = params.fps === undefined ? undefined : Number(params.fps);
+  if (fps !== undefined && (!Number.isFinite(fps) || fps < 1 || fps > 60)) {
+    throw new Error(VIDEO_UPSCALE_TIMING_ERROR);
+  }
+  let frames = params.frames;
+  if (frames === undefined && params.duration !== undefined) {
+    // A duration identifies the source's frames only together with its exact rate.
+    if (fps === undefined) throw new Error(VIDEO_UPSCALE_TIMING_ERROR);
+    frames = Math.round(Number(params.duration) * fps);
+  }
+  if (frames === undefined) return;
+  if (
+    !Number.isInteger(frames) ||
+    frames < 1 ||
+    frames > 362 ||
+    (fps !== undefined && frames / fps > 362 / 24 + 0.001)
+  ) {
+    throw new Error(VIDEO_UPSCALE_TIMING_ERROR);
+  }
+}
+
 function applyVideoParams(
   inputKeyframe: Record<string, any>,
   params: VideoProjectParams,
@@ -1318,11 +1348,7 @@ function applyVideoParams(
     if (![1080, 1440].includes(resolution))
       throw new Error('Choose 1080p or 1440p for video upscaling.');
     if (!params.referenceVideo) throw new Error('FlashVSR requires an uploaded referenceVideo.');
-    const frames = params.frames ?? Math.round(Number(params.duration) * Number(params.fps));
-    if (!Number.isInteger(frames) || frames < 1 || frames > 362 || !Number.isFinite(params.fps)
-      || Number(params.fps) < 1 || Number(params.fps) > 60 || frames / Number(params.fps) > 362 / 24 + 0.001) {
-      throw new Error('Supply the source video’s exact frame count and frame rate (up to 362 frames and 15 seconds).');
-    }
+    validateVideoUpscaleTiming(params);
     if (params.positivePrompt?.trim() || params.negativePrompt?.trim())
       throw new Error('FlashVSR is promptless.');
     if (

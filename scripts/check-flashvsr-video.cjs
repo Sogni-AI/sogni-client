@@ -49,4 +49,23 @@ assert.throws(() => request({ positivePrompt: 'replace the face' }), /promptless
 for (const changes of [{ teacacheThreshold: 0 }, { trimEndFrame: true }, { generateAudio: false }, { numberOfMedia: 2 }]) {
   assert.throws(() => request(changes));
 }
+// Minimal call: the server adopts the verified source frames, rate and size.
+const minimal = create('00000000-0000-4000-8000-000000000004', {
+  type: 'video', modelId, positivePrompt: '', numberOfMedia: 1,
+  referenceVideo: source, upscaleResolution: 1080
+}, options).keyFrames[0];
+assert.equal(minimal.upscaleResolution, 1080);
+assert.equal(minimal.hasReferenceVideo, true);
+for (const key of ['frames', 'fps', 'width', 'height']) {
+  assert.equal(minimal[key], undefined, `minimal upscale must leave ${key} to the verified source`);
+}
+assert.equal(minimal.steps, 1);
+assert.equal(minimal.seed, 0);
+const rateOnly = request({ width: undefined, height: undefined, frames: undefined, upscaleResolution: 1440, fps: 30000 / 1001 }).keyFrames[0];
+assert.equal(rateOnly.fps, 30000 / 1001);
+assert.equal(rateOnly.frames, undefined);
+assert.throws(() => request({ frames: undefined, fps: undefined, duration: 5 }), /exact frame count and frame rate/);
+assert.throws(() => request({ frames: 363 }), /exact frame count and frame rate/);
+assert.throws(() => request({ fps: 120 }), /exact frame count and frame rate/);
+assert.throws(() => request({ width: undefined, height: undefined, upscaleResolution: undefined }), /1080p or 1440p/);
 console.log('FlashVSR SDK upload, timing, resolution, promptless and catalog checks passed.');

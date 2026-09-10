@@ -280,7 +280,11 @@ export type Wan3Ratio = 'adaptive' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
 
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
-  /** FlashVSR delivery resolution on the shorter edge. Source timing and audio are preserved. */
+  /**
+   * FlashVSR delivery resolution on the shorter edge. Source timing and audio are preserved.
+   * With a FlashVSR `referenceVideo`, `frames`, `fps`, `width` and `height` may be omitted: the
+   * server adopts the verified source's values. Values that are sent must match the source.
+   */
   upscaleResolution?: 1080 | 1440;
   /**
    * Number of frames to generate.
