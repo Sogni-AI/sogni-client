@@ -1071,8 +1071,8 @@ never trims, crops, restyles, or interpolates. `isVideoUpscaleModel(modelId)`
 detects it, `getVideoWorkflowType(modelId)` returns `'upscale'`, and
 `getVideoAssetRequirements(modelId).referenceVideo` is `'required'`.
 
-Source limits: short edge at most 768px; 1-362 frames and at most about 15
-seconds; 1-60 fps at a constant frame rate; SDR; square pixels with rotation
+Source limits: short edge at most 768px and about 1344x768 pixels overall
+(768x1344 in portrait); 1-362 frames and at most about 15 seconds; 1-60 fps at a constant frame rate; SDR; square pixels with rotation
 applied; 100 MB or less. The output is at most twice the source size, so 1080p
 needs a source short edge of at least 540px and 1440p at least 720px. The model
 catalog advertises `task: 'video-upscale'`, `outputResolutions: [1080, 1440]`,

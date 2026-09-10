@@ -1051,7 +1051,7 @@ const videoUrls = await project.waitForCompletion();
 
 `FLASHVSR_VIDEO_UPSCALE_MODEL_ID` (`flashvsr_v1.1_tiny_long_bf16`) upscales one finished video to 1080p or 1440p on its short edge. It is promptless and separate from video generation: it keeps every source frame, the exact frame rate (including fractional rates such as 24000/1001), the full aspect ratio, and the original audio, and it never trims, crops, restyles, or interpolates.
 
-Sources must be at most 768px on the short edge, 1-362 frames and about 15 seconds, 1-60 fps at a constant frame rate, SDR, square pixels with rotation applied, and 100 MB or less. The output is at most twice the source size, so 1080p needs a source short edge of at least 540px and 1440p at least 720px. You do not send the source's frame count, frame rate, or size: the server probes the upload and uses its verified values. `frames`, `fps`, `width`, and `height` are optional, and any you do send must match the source.
+Sources must be at most 768px on the short edge and about 1344×768 pixels overall (768×1344 in portrait), 1-362 frames and about 15 seconds, 1-60 fps at a constant frame rate, SDR, square pixels with rotation applied, and 100 MB or less. The output is at most twice the source size, so 1080p needs a source short edge of at least 540px and 1440p at least 720px. You do not send the source's frame count, frame rate, or size: the server probes the upload and uses its verified values. `frames`, `fps`, `width`, and `height` are optional, and any you do send must match the source.
 
 ```javascript
 import { FLASHVSR_VIDEO_UPSCALE_MODEL_ID } from '@sogni-ai/sogni-client';
