@@ -161,6 +161,7 @@ class CreativeWorkflowsApi extends ApiGroup {
     const maxEstimatedCapacityUnits =
       params.maxEstimatedCapacityUnits ?? params.max_estimated_capacity_units;
     const confirmCost = params.confirmCost ?? params.confirm_cost;
+    const safeContentFilter = params.safeContentFilter ?? params.safe_content_filter;
     const workflowId = params.workflowId ?? params.workflow_id;
 
     if (!params.input && !workflowId) {
@@ -185,6 +186,7 @@ class CreativeWorkflowsApi extends ApiGroup {
       body.max_estimated_capacity_units = maxEstimatedCapacityUnits;
     }
     if (confirmCost !== undefined) body.confirm_cost = confirmCost;
+    if (safeContentFilter !== undefined) body.safe_content_filter = safeContentFilter;
     if (mediaReferences !== undefined) body.media_references = mediaReferences;
 
     const headers: Record<string, string> = {
