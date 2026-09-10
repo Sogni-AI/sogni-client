@@ -78,6 +78,8 @@ export interface CreativeWorkflowEvent {
 
 export interface CreativeWorkflowRecord {
   workflowId: string;
+  /** Safe Content Filter preference captured when the run started. Defaults to true. */
+  safeContentFilter?: boolean;
   title?: string;
   status?: CreativeWorkflowStatus;
   /** Why a `waiting_for_user` workflow is paused. */
@@ -167,6 +169,11 @@ export interface StartCreativeWorkflowParams {
   mediaReferences?: unknown[];
   maxEstimatedCapacityUnits?: number;
   confirmCost?: boolean;
+  /**
+   * Safe Content Filter preference for this run. Defaults to true.
+   * Resuming or reseeding a run preserves its original preference.
+   */
+  safeContentFilter?: boolean;
   /** @internal Undocumented compatibility alias. Use workflowId. */
   workflow_id?: string;
   /** @internal Undocumented compatibility alias. Use tokenType. */
@@ -183,6 +190,8 @@ export interface StartCreativeWorkflowParams {
   max_estimated_capacity_units?: number;
   /** @internal Undocumented compatibility alias. Use confirmCost. */
   confirm_cost?: boolean;
+  /** @internal Undocumented compatibility alias. Use safeContentFilter. */
+  safe_content_filter?: boolean;
 }
 
 export interface ResumeCreativeWorkflowParams {

@@ -81,6 +81,7 @@
     "test:project-recovery": "npm run build && node scripts/check-project-recovery.cjs",
     "test:queue-wait-eta": "npm run build && node scripts/check-queue-wait-eta.cjs",
     "test:workflow-template-envelope": "npm run build && node scripts/check-workflow-template-envelope.cjs",
+    "test:workflow-content-filter": "npm run build && node scripts/check-workflow-content-filter.cjs",
     "watch": "npm run clean && npm run codegen && tsc --watch --project tsconfig.json",
     "watch:esm": "npm run codegen && tsc --watch --project tsconfig.esm.json",
     "prettier": "prettier --check ./src",
