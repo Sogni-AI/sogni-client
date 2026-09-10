@@ -7,9 +7,10 @@ import getUUID from '../lib/getUUID.js';
 import { EnhancementStrength } from './types/index.js';
 import Project from './Project.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
-import { getEnhacementStrength } from './utils/index.js';
+import { getEnhacementStrength, isSegmentationModel } from './utils/index.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
+import type { JobProvenance } from './types/JobProvenance.js';
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -133,9 +134,18 @@ export interface JobData {
   workerName?: string;
   seed?: number;
   isNSFW?: boolean;
+  /**
+   * A safety signal fired on media that was still delivered, because the artist
+   * turned the Sensitive Content Filter off. Advisory: the media is
+   * downloadable and the app decides whether to blur it.
+   */
+  nsfwDetected?: boolean;
+  /** Which signals fired: 'prompt' (text vocabulary), 'image' (classifier). */
+  nsfwSources?: string[];
   userCanceled?: boolean;
   previewUrl?: string;
   resultUrl?: string | null;
+  provenance?: JobProvenance;
   error?: ErrorData;
   positivePrompt?: string;
   negativePrompt?: string;
@@ -189,7 +199,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
         workerName: rawJob.worker.name,
         seed: rawJob.seedUsed,
         isNSFW: rawJob.triggeredNSFWFilter,
-        resultUrl: directResultUrlFromRawJob(rawJob)
+        nsfwDetected: rawJob.nsfwDetected === true,
+        nsfwSources: rawJob.nsfwSources ? [...rawJob.nsfwSources] : undefined,
+        resultUrl: directResultUrlFromRawJob(rawJob),
+        provenance: rawJob.result
       },
       options
     );
@@ -284,6 +297,11 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.data.resultUrl;
   }
 
+  /** Worker-attested input/output hashes for this result, when available. */
+  get provenance() {
+    return this.data.provenance;
+  }
+
   get imageUrl() {
     return this.data.resultUrl || this.data.previewUrl;
   }
@@ -294,18 +312,32 @@ class Job extends DataEntity<JobData, JobEventMap> {
 
   /**
    * Whether this job has a result media file available for download.
-   * Returns true if completed and not NSFW filtered.
+   *
+   * Media existence, not a content judgement. A render the artist made with the
+   * Sensitive Content Filter off is delivered even when a safety signal fired
+   * on it (see {@link nsfwDetected}), so it has media like any other result.
+   * Only a job the server actually withheld has none.
    */
   get hasResultMedia() {
-    return this.status === 'completed' && !this.isNSFW;
+    return this.status === 'completed' && !this.isWithheld;
+  }
+
+  /**
+   * Whether the server withheld this job's media for sensitive content. True
+   * only for a job that ran with the Sensitive Content Filter ON, and it means
+   * no media exists to download.
+   */
+  get isWithheld() {
+    return this.isNSFW && !this.nsfwDetected;
   }
 
   /**
    * Media type produced by this job's model
    */
-  get type(): 'image' | 'video' | 'audio' {
+  get type(): 'image' | 'video' | 'audio' | 'model' {
     if (this._api.isVideoModelId(this._project.params.modelId)) return 'video';
     if (this._api.isAudioModelId(this._project.params.modelId)) return 'audio';
+    if (this._api.isModelArtifactModelId(this._project.params.modelId)) return 'model';
     return 'image';
   }
 
@@ -370,12 +402,13 @@ class Job extends DataEntity<JobData, JobEventMap> {
       throw new Error('Job is not completed yet');
     }
     let url: string;
-    if (this.type === 'video' || this.type === 'audio') {
+    if (this.type === 'video' || this.type === 'audio' || this.type === 'model') {
       url = await this._api.mediaDownloadUrl({
         jobId: this.projectId,
         id: this.id,
         type: 'complete',
-        ...(this.type === 'audio' ? { contentType: this._audioContentType } : {})
+        ...(this.type === 'audio' ? { contentType: this._audioContentType } : {}),
+        ...(this.type === 'model' ? { contentType: 'model/gltf-binary' } : {})
       });
     } else {
       url = await this._api.downloadUrl({
@@ -390,12 +423,34 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
-   * Whether the image is NSFW or not. Only makes sense if job is completed.
-   * If NSFW filter is disabled, this property will always be false.
-   * If NSFW filter is enabled and the image is NSFW, image will not be available for download.
+   * Whether the server withheld this job's media for sensitive content: the
+   * render ran with the Sensitive Content Filter ON, a signal fired, and there
+   * is no media to download. Only makes sense once the job is completed.
+   *
+   * Unchanged from every earlier release. A render the artist made with the
+   * filter OFF is delivered and merely labelled, and reports FALSE here; read
+   * {@link nsfwDetected} for that and decide from the viewer's own current
+   * filter setting whether to blur it.
    */
   get isNSFW() {
     return !!this.data.isNSFW;
+  }
+
+  /**
+   * Whether the safety signal is a label on delivered media rather than a
+   * withhold. True only when the artist rendered with the filter off, in which
+   * case {@link resultUrl} is available like any other completed job.
+   */
+  get nsfwDetected() {
+    return !!this.data.nsfwDetected;
+  }
+
+  /**
+   * Which safety signals fired: `prompt` (shared text vocabulary) and/or
+   * `image` (output classifier). Empty when none fired or none were reported.
+   */
+  get nsfwSources(): string[] {
+    return this.data.nsfwSources ? [...this.data.nsfwSources] : [];
   }
 
   /**
@@ -446,7 +501,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
       step: data.performedSteps,
       workerName: data.worker?.name,
       seed: data.seedUsed,
-      isNSFW: data.triggeredNSFWFilter
+      isNSFW: data.triggeredNSFWFilter,
+      nsfwDetected: data.nsfwDetected === true,
+      ...(data.nsfwSources ? { nsfwSources: [...data.nsfwSources] } : {}),
+      ...(data.result ? { provenance: data.result } : {})
     };
     if (JOB_STATUS_MAP[data.status]) {
       delta.status = JOB_STATUS_MAP[data.status];
@@ -458,15 +516,18 @@ class Job extends DataEntity<JobData, JobEventMap> {
       !this.data.resultUrl &&
       !delta.resultUrl &&
       delta.status === 'completed' &&
-      !data.triggeredNSFWFilter
+      // Withheld media has nothing to mint. Labelled-but-delivered media does.
+      // A record claiming both resolves to withheld, the safe reading.
+      !(data.triggeredNSFWFilter === true && data.nsfwDetected !== true)
     ) {
       try {
-        if (this.type === 'video' || this.type === 'audio') {
+        if (this.type === 'video' || this.type === 'audio' || this.type === 'model') {
           delta.resultUrl = await this._api.mediaDownloadUrl({
             jobId: this.projectId,
             id: this.id,
             type: 'complete',
-            ...(this.type === 'audio' ? { contentType: this._audioContentType } : {})
+            ...(this.type === 'audio' ? { contentType: this._audioContentType } : {}),
+            ...(this.type === 'model' ? { contentType: 'model/gltf-binary' } : {})
           });
         } else {
           delta.resultUrl = await this._api.downloadUrl({
@@ -600,13 +661,22 @@ class Job extends DataEntity<JobData, JobEventMap> {
     overrides: { positivePrompt?: string; stylePrompt?: string; tokenType?: TokenType } = {}
   ) {
     const parentProjectParams = this._project.params;
-    if (parentProjectParams.type !== 'image') {
+    if (parentProjectParams.type !== 'image' || this.type !== 'image') {
       throw new Error('Enhancement is only available for images');
+    }
+    // A segmentation result reports `type === 'image'` and would otherwise sail
+    // through the guard above, then be submitted as the starting image of a
+    // paid Flux render. A mask PNG (or its cut-out) has no prompt-to-pixels
+    // relationship to enhance, so this spends real Spark on a nonsense render.
+    if (isSegmentationModel(parentProjectParams.modelId)) {
+      throw new Error('Enhancement is not available for segmentation masks');
     }
     if (this.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
-    if (this.isNSFW) {
+    // Only withheld media is unusable here. Media the artist rendered with the
+    // filter off exists and can be enhanced like any other result.
+    if (this.isWithheld) {
       throw new Error('Job did not pass NSFW filter');
     }
     if (this._enhancementProject) {

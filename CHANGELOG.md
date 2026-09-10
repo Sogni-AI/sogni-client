@@ -1,3 +1,160 @@
+## [5.36.2](https://github.com/Sogni-AI/sogni-client/compare/v5.36.1...v5.36.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* **pixal3d:** retire prompted template variant ([1440621](https://github.com/Sogni-AI/sogni-client/commit/1440621d345b962ac3bee899578d4f8cd797a6af))
+* **sam3:** accept an explicit multimask: false on the text path ([88eba94](https://github.com/Sogni-AI/sogni-client/commit/88eba9434eeb21a3a116b8ee4ec5533c41d08413))
+
+## [5.36.1](https://github.com/Sogni-AI/sogni-client/compare/v5.36.0...v5.36.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* **chat:** export Qwen speech tool helper ([cd1a37f](https://github.com/Sogni-AI/sogni-client/commit/cd1a37f9644967a015b394cbbed9947eec62a940))
+
+# [5.36.0](https://github.com/Sogni-AI/sogni-client/compare/v5.35.0...v5.36.0) (2026-09-08)
+
+
+### Bug Fixes
+
+* **deps:** consume Qwen speech protocol ([40f7a44](https://github.com/Sogni-AI/sogni-client/commit/40f7a449f994dfee1a85992602d0453c5fca3fb4))
+
+
+### Features
+
+* **projects:** support speech generation and voice cloning ([d660c21](https://github.com/Sogni-AI/sogni-client/commit/d660c2133dcf7c423ea3c1f1f1eb22ec6280b097))
+
+# [5.35.0](https://github.com/Sogni-AI/sogni-client/compare/v5.34.1...v5.35.0) (2026-09-08)
+
+
+### Features
+
+* **projects:** let a caller pick the Pixal3D reconstruction graph ([60a4926](https://github.com/Sogni-AI/sogni-client/commit/60a49260cdb3816dc0bb2cce934f2756a4065d3f))
+* **projects:** port the BiRefNet background-removal surface ([2c6b8d8](https://github.com/Sogni-AI/sogni-client/commit/2c6b8d8334afa512e5d1a16ad51b627647b8b2dc))
+
+## [5.34.1](https://github.com/Sogni-AI/sogni-client/compare/v5.34.0...v5.34.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* **projects:** mint REST-discovered result URLs and refuse mask enhancement ([07a0ab8](https://github.com/Sogni-AI/sogni-client/commit/07a0ab8999abc9f908ddaf0915d61790f050cfbb))
+
+# [5.34.0](https://github.com/Sogni-AI/sogni-client/compare/v5.33.0...v5.34.0) (2026-09-08)
+
+
+### Bug Fixes
+
+* **projects:** accept the SAM 3 applyMask and maxInstances fields ([619348c](https://github.com/Sogni-AI/sogni-client/commit/619348cfdd6a09d86b301067b83c52e0dab9779a))
+
+
+### Features
+
+* **projects:** export the 3D and segmentation capability surface ([27a7d68](https://github.com/Sogni-AI/sogni-client/commit/27a7d68be9beaa7176f8227e9d1eeae0bcf5e549))
+
+# [5.33.0](https://github.com/Sogni-AI/sogni-client/compare/v5.32.0...v5.33.0) (2026-09-08)
+
+
+### Features
+
+* **sam3,pixal3d:** expose the new segmentation and 3D options ([1e099a3](https://github.com/Sogni-AI/sogni-client/commit/1e099a31b94d7657a8e9904ea2203b69a89447c6))
+
+# [5.32.0](https://github.com/Sogni-AI/sogni-client/compare/v5.31.0...v5.32.0) (2026-09-07)
+
+
+### Bug Fixes
+
+* **projects:** update the Wan 3 checks to the smartDuration retirement ([9c22d49](https://github.com/Sogni-AI/sogni-client/commit/9c22d49324bd9bb601a810a6897856009755ca2b))
+
+
+### Features
+
+* **projects:** deliver Pixal3D 3D model artifacts ([8240830](https://github.com/Sogni-AI/sogni-client/commit/82408308520481336289b054718daa28f3073be5))
+
+# [5.31.0](https://github.com/Sogni-AI/sogni-client/compare/v5.30.0...v5.31.0) (2026-09-06)
+
+
+### Features
+
+* **projects:** use canonical SAM3 model id ([3fbeab3](https://github.com/Sogni-AI/sogni-client/commit/3fbeab378021fcaefaea93981889bd34c4327fe9))
+
+# [5.30.0](https://github.com/Sogni-AI/sogni-client/compare/v5.29.2...v5.30.0) (2026-09-06)
+
+
+### Features
+
+* **projects:** support attested world generation ([99ab932](https://github.com/Sogni-AI/sogni-client/commit/99ab932e26d320de6f5423e657f0ea034c19bfbe))
+
+## [5.29.2](https://github.com/Sogni-AI/sogni-client/compare/v5.29.1...v5.29.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* **client:** support REST-only startup without app ID ([90dc94d](https://github.com/Sogni-AI/sogni-client/commit/90dc94d8ca2fa5ca7a3e05aa58efc2543979794d))
+
+## [5.29.1](https://github.com/Sogni-AI/sogni-client/compare/v5.29.0...v5.29.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **projects:** settle canceled and recovered terminal projects ([4f687eb](https://github.com/Sogni-AI/sogni-client/commit/4f687eb1d7da00f935adb17793d773318e53d080))
+
+# [5.29.0](https://github.com/Sogni-AI/sogni-client/compare/v5.28.0...v5.29.0) (2026-09-05)
+
+
+### Features
+
+* **projects:** type the model unload and load phases a worker reports while initiating ([3e8d04d](https://github.com/Sogni-AI/sogni-client/commit/3e8d04d25bf50809f36ab9b81229d54e691cd102))
+
+# [5.28.0](https://github.com/Sogni-AI/sogni-client/compare/v5.27.1...v5.28.0) (2026-09-04)
+
+
+### Features
+
+* **announcements:** add the appAlert event and announcements API ([abcc1f4](https://github.com/Sogni-AI/sogni-client/commit/abcc1f4de5a384bbfffe6de0ec7b922ed59df43d))
+
+## [5.27.1](https://github.com/Sogni-AI/sogni-client/compare/v5.27.0...v5.27.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **projects:** keep isNSFW meaning withheld so upgrading changes nothing ([0e4416f](https://github.com/Sogni-AI/sogni-client/commit/0e4416f6fa0eb290454f6401a51b8cb3cd291626))
+
+# [5.27.0](https://github.com/Sogni-AI/sogni-client/compare/v5.26.4...v5.27.0) (2026-09-02)
+
+
+### Features
+
+* **projects:** deliver labelled sensitive media instead of withholding it ([d4dc156](https://github.com/Sogni-AI/sogni-client/commit/d4dc156248938e606118a50b4095d504642ca5e9))
+
+## [5.26.4](https://github.com/Sogni-AI/sogni-client/compare/v5.26.3...v5.26.4) (2026-09-02)
+
+
+### Bug Fixes
+
+* **deps:** bump @sogni-ai/sogni-protocol to 1.0.0-alpha.32 ([a9b6353](https://github.com/Sogni-AI/sogni-client/commit/a9b635393cd9cbf879ec947e24a56f44940f2dfd))
+
+## [5.26.3](https://github.com/Sogni-AI/sogni-client/compare/v5.26.2...v5.26.3) (2026-09-02)
+
+
+### Bug Fixes
+
+* **minimax-h3:** expose FastH3 hosted selectors ([67d3870](https://github.com/Sogni-AI/sogni-client/commit/67d38708b485045f906b6b43dfa2c5e37835e94e))
+
+## [5.26.2](https://github.com/Sogni-AI/sogni-client/compare/v5.26.1...v5.26.2) (2026-09-01)
+
+
+### Bug Fixes
+
+* **minimax-h3:** classify FastH3 as video ([9363db8](https://github.com/Sogni-AI/sogni-client/commit/9363db80de674a8a84701165b061bc7cc436e158))
+
+## [5.26.1](https://github.com/Sogni-AI/sogni-client/compare/v5.26.0...v5.26.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **video:** reject the retired Wan 3 smartDuration parameter ([c8259d6](https://github.com/Sogni-AI/sogni-client/commit/c8259d6730b893f9e8f478229249db0a380bd9dc))
+
 # [5.26.0](https://github.com/Sogni-AI/sogni-client/compare/v5.25.0...v5.26.0) (2026-08-29)
 
 

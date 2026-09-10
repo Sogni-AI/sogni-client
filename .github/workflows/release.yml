@@ -40,12 +40,22 @@ jobs:
         run: npm run test:model-options
       - name: Run attribution transport checks
         run: npm run test:attribution
+      - name: Run REST-only client checks
+        run: npm run test:rest-only
       - name: Run project cancellation checks
         run: npm run test:project-cancellation
       - name: Run project recovery checks
         run: node scripts/check-project-recovery.cjs
       - name: Run project liveness checks
         run: node scripts/check-project-liveness.cjs
+      - name: Run SAM 3 image-segment checks
+        run: node scripts/check-sam3-image-segment.cjs
+      - name: Run Pixal3D artifact checks
+        run: node scripts/check-pixal3d-artifact.cjs
+      - name: Run BiRefNet background-removal checks
+        run: node scripts/check-birefnet-background-removal.cjs
+      - name: Run capability export checks
+        run: node scripts/check-capability-exports.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

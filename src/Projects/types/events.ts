@@ -5,6 +5,7 @@ import type {
   ProjectRecoverySnapshot,
   RecoveredProject
 } from '../../ApiClient/WebSocketClient/events.js';
+import type { JobProvenance } from './JobProvenance.js';
 
 export type { JobPreparation } from '../../ApiClient/WebSocketClient/events.js';
 
@@ -98,8 +99,21 @@ export interface JobCompleted extends JobEventBase {
    * it was not disabled by the user
    */
   resultUrl: string | null;
+  /**
+   * A safety signal fired. Either the media was withheld (filter on, no
+   * `resultUrl`) or it was delivered and merely labelled - see `nsfwDetected`.
+   */
   isNSFW: boolean;
+  /**
+   * The signal is a label on delivered media, not a withhold: the artist
+   * rendered with the filter off and `resultUrl` is available as usual.
+   */
+  nsfwDetected: boolean;
+  /** Which signals fired: 'prompt' and/or 'image'. */
+  nsfwSources: string[];
   userCanceled: boolean;
+  /** Worker-attested input/output hashes, when the workflow emits them. */
+  provenance?: JobProvenance;
 }
 
 export interface JobError extends JobEventBase {

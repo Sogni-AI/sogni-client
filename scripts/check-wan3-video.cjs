@@ -67,16 +67,16 @@ const text = request();
 assert.equal(text.keyFrames[0].fps, 30);
 assert.equal(text.keyFrames[0].frames, 151);
 
+// The 30-second maximum, which smartDuration used to reach implicitly.
 const completeOptions = request({
-  duration: undefined,
-  smartDuration: true,
+  duration: 30,
   ratio: 'adaptive',
   promptExtend: false,
   watermark: true,
   referenceFileUrl: 'https://cdn.example.com/brief.pdf'
 });
-assert.equal(completeOptions.keyFrames[0].smartDuration, true);
 assert.equal(completeOptions.keyFrames[0].frames, 901);
+assert.equal(completeOptions.keyFrames[0].smartDuration, undefined);
 assert.equal(completeOptions.keyFrames[0].ratio, 'adaptive');
 assert.equal(completeOptions.keyFrames[0].promptExtend, false);
 assert.equal(completeOptions.keyFrames[0].watermark, true);
@@ -133,6 +133,9 @@ const legacyTaskField = request({
 });
 assert.equal(legacyTaskField.keyFrames[0].ratio, '16:9');
 assert.equal(legacyTaskField.keyFrames[0].wan3TaskType, undefined);
-assert.throws(() => request({ smartDuration: true }), /mutually exclusive/);
+// Retired: the field is rejected for its presence, not its value, so an
+// explicit false must fail the same way rather than silently meaning "off".
+assert.throws(() => request({ smartDuration: true }), /smartDuration has been retired/);
+assert.throws(() => request({ smartDuration: false }), /smartDuration has been retired/);
 
 console.log('Wan 3 video transport checks passed');

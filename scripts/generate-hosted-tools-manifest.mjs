@@ -66,6 +66,8 @@ if (generateVideoModel) {
     ...new Set([
       ...(Array.isArray(generateVideoModel.enum) ? generateVideoModel.enum : []),
       'minimax-h3-turbo',
+      'minimax-h3-fasth3-turbo',
+      'minimax-h3-fasth3-t2v-turbo',
       'minimax-h3-balanced',
       'minimax-h3-t2v-balanced',
       'minimax-h3-r2v-balanced',
@@ -77,6 +79,10 @@ if (generateVideoModel) {
     generateVideoModel.description,
     `MiniMax H3 Balanced uses the LightX2V 8-step 768p accelerator for FL2VA and Larry v4 step-600 EMA for Ref2VA, between 4-step Turbo and 20-step Standard; use "minimax-h3-balanced" or "minimax-h3-t2v-balanced" for FL2VA text-to-video and "minimax-h3-r2v-balanced" for Ref2VA reference-to-video. Sources: ${MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL} and ${MINIMAX_H3_LARRY_BALANCED_SOURCE_URL}.`
   );
+  generateVideoModel.description = appendDescriptionOnce(
+    generateVideoModel.description,
+    'MiniMax H3 FastH3 Turbo is the separate FastVideo VSA four-step engine, qualified only with Euler/simple; use "minimax-h3-fasth3-turbo" or "minimax-h3-fasth3-t2v-turbo" for text-to-video. Existing "minimax-h3-turbo" selectors remain LightX2V Turbo. FastH3 has no R2V mode.'
+  );
 }
 
 const animatePhotoTool = manifest.tools?.find((tool) => tool?.function?.name === 'animate_photo');
@@ -86,12 +92,18 @@ if (animatePhotoModel) {
     ...new Set([
       ...(Array.isArray(animatePhotoModel.enum) ? animatePhotoModel.enum : []),
       'minimax-h3-i2v-balanced',
-      'minimax-h3-flf2v-balanced'
+      'minimax-h3-flf2v-balanced',
+      'minimax-h3-fasth3-i2v-turbo',
+      'minimax-h3-fasth3-flf2v-turbo'
     ])
   ];
   animatePhotoModel.description = appendDescriptionOnce(
     animatePhotoModel.description,
     `MiniMax H3 Balanced uses the LightX2V 8-step 768p accelerator for fixed 8-step generation; use "minimax-h3-i2v-balanced" for one endpoint image and "minimax-h3-flf2v-balanced" for required first-and-last frames. Source: ${MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL}.`
+  );
+  animatePhotoModel.description = appendDescriptionOnce(
+    animatePhotoModel.description,
+    'MiniMax H3 FastH3 Turbo is the separate FastVideo VSA four-step engine, qualified only with Euler/simple; use "minimax-h3-fasth3-i2v-turbo" for one endpoint image and "minimax-h3-fasth3-flf2v-turbo" for required first-and-last frames. Existing "minimax-h3-*-turbo" selectors remain LightX2V Turbo.'
   );
 }
 
@@ -99,19 +111,23 @@ const h3LoraSelectorsByTool = {
   generate_video: [
     'minimax-h3-t2v',
     'minimax-h3-t2v-turbo',
+    'minimax-h3-fasth3-t2v-turbo',
     'minimax-h3-t2v-balanced',
     'minimax-h3-r2v',
     'minimax-h3-r2v-turbo',
     'minimax-h3-r2v-balanced',
     'minimax-h3-turbo',
+    'minimax-h3-fasth3-turbo',
     'minimax-h3-balanced'
   ],
   animate_photo: [
     'minimax-h3-i2v',
     'minimax-h3-i2v-turbo',
+    'minimax-h3-fasth3-i2v-turbo',
     'minimax-h3-i2v-balanced',
     'minimax-h3-flf2v',
     'minimax-h3-flf2v-turbo',
+    'minimax-h3-fasth3-flf2v-turbo',
     'minimax-h3-flf2v-balanced'
   ]
 };

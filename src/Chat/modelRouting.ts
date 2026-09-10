@@ -137,6 +137,9 @@ export const PREFERRED_MODEL_IDS = {
     minimaxH3TurboI2v: 'minimax-h3-fl2va-fp8_i2v_turbo',
     minimaxH3TurboFlf2v: 'minimax-h3-fl2va-fp8_flf2v_turbo',
     minimaxH3TurboR2v: 'minimax-h3-ref2va-fp8_r2v_turbo',
+    minimaxH3FastH3TurboT2v: 'minimax-h3-fastvideo-int8_t2v_turbo',
+    minimaxH3FastH3TurboI2v: 'minimax-h3-fastvideo-int8_i2v_turbo',
+    minimaxH3FastH3TurboFlf2v: 'minimax-h3-fastvideo-int8_flf2v_turbo',
     minimaxH3BalancedT2v: 'minimax-h3-fl2va-fp8_t2v_balanced',
     minimaxH3BalancedI2v: 'minimax-h3-fl2va-fp8_i2v_balanced',
     minimaxH3BalancedFlf2v: 'minimax-h3-fl2va-fp8_flf2v_balanced',
@@ -149,7 +152,11 @@ export const PREFERRED_MODEL_IDS = {
     aceStepXlSft: 'ace_step_1.5_xl_sft',
     aceStepTurbo: 'ace_step_1.5_turbo',
     aceStepSft: 'ace_step_1.5_sft',
-    minimaxMusic3: 'minimax_music3'
+    minimaxMusic3: 'minimax_music3',
+    // Speech, not music: the same audio media type, a different job entirely.
+    qwen3TtsCustomVoice: 'qwen3_tts_1.7b_custom_voice_bf16',
+    qwen3TtsVoiceClone: 'qwen3_tts_1.7b_voice_clone_bf16',
+    qwen3TtsVoiceDesign: 'qwen3_tts_1.7b_voice_design_bf16'
   }
 } as const;
 
@@ -247,6 +254,8 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-t2v': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
   'minimax-h3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v,
   'minimax-h3-t2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v,
+  'minimax-h3-fasth3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboT2v,
+  'minimax-h3-fasth3-t2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboT2v,
   'minimax-h3-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedT2v,
   'minimax-h3-t2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedT2v,
   'minimax-h3-r2v': PREFERRED_MODEL_IDS.video.minimaxH3R2v,
@@ -274,6 +283,9 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboI2v,
   'minimax-h3-i2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboI2v,
   'minimax-h3-flf2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboFlf2v,
+  'minimax-h3-fasth3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboI2v,
+  'minimax-h3-fasth3-i2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboI2v,
+  'minimax-h3-fasth3-flf2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboFlf2v,
   'minimax-h3-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedI2v,
   'minimax-h3-i2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedI2v,
   'minimax-h3-flf2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedFlf2v,

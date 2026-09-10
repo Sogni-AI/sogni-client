@@ -266,6 +266,38 @@ chore: Update example scripts for video generation
 
 **Important:** Changes that only affect the `/examples` folder should typically use `chore:` since they don't affect the published SDK package.
 
+## Python Client Parity
+
+There is a second official client, [`sogni-client-python`](https://github.com/Sogni-AI/sogni-client-python),
+which is a hand-maintained port of this SDK — not a generated artifact. It does
+not update itself when this package publishes.
+
+**Whenever this package publishes a release, port the same change to the Python
+client.** A release here that changes the client contract — model IDs and their
+validation, request/keyframe shape, event or job fields, socket/recovery
+behavior, hosted tool schemas — leaves Python callers on a stale contract until
+someone does. The drift is silent: the Python client keeps working and simply
+does not know about the new surface.
+
+That has already bitten us. The Python client sat at `5.21.3` while this package
+reached `5.27.1`, so it rejected the FastH3 `minimax-h3-fastvideo-int8_*_turbo`
+checkpoints as non-video models after they became the default Turbo engine, and
+it still failed every in-flight project on a socket drop — behavior removed here
+in 5.24.0.
+
+How to port:
+1. Read this repo's `CHANGELOG.md` between the Python client's
+   `pyproject.toml` version and the new one; each entry is one port.
+2. Mirror the change in `sogni-client-python`, matching validation messages and
+   wire field names exactly so both clients fail the same way.
+3. Sync `sogni_client/data/hosted_tools.json` from
+   `src/Chat/_hostedToolsManifest.generated.ts` when tool schemas moved, then
+   re-pin `tests/fixtures/hosted-tool-alias-parity.generated.json`.
+4. Set the Python version to match this package's version and tag `v<version>`.
+
+Not every release needs a port — a `chore:` release or a Node-only change does
+not. Judge by whether the client contract moved.
+
 ## Common Tasks Quick Reference
 
 ### Generate an Image

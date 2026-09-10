@@ -10,8 +10,13 @@ export interface SocketSubscriptionFairUseState {
   planPriceUsd: number;
   /** Epoch milliseconds on the socket wire; mapped to ISO in AccountApi. */
   resetAt: number;
-  fastConcurrencyLimit: 1;
-  fastQueueLimit: 1;
+  /**
+   * Fast plan rendering is paused until `resetAt`. Until 2026-08-30 this state
+   * clamped Fast to one active and one queued job and published that as
+   * `fastConcurrencyLimit` / `fastQueueLimit`; both retired with the clamp,
+   * because a refused render has no reduced ceiling to report.
+   */
+  fastRenderingPaused: true;
   relaxedUnrestricted: true;
   upgradeAvailable: boolean;
 }
@@ -183,7 +188,11 @@ export type JobETAData = {
   etaSeconds: number;
 };
 
-export type JobPreparation = {
+/**
+ * A LoRA the job needs is being fetched by the worker before the graph is
+ * queued. Arrives on `initiatingModel` and updates as the download progresses.
+ */
+export type JobAssetPreparation = {
   phase: 'downloadingAssets';
   assetType: 'lora';
   requested: number;
@@ -194,15 +203,50 @@ export type JobPreparation = {
   currentProgress?: number;
 };
 
+/**
+ * The worker is switching models: ComfyUI is moving the previous model out of
+ * VRAM (`unloadingModel`) or the next one in (`loadingModel`). Each phase
+ * arrives twice on `initiatingModel`, at `start` and at `end`; the `end` step
+ * carries how long it took. A switch can run past a minute on a card that was
+ * full, so show it rather than a render that appears stuck at 0%.
+ */
+export type JobModelPhasePreparation = {
+  phase: 'unloadingModel' | 'loadingModel';
+  /** The model class ComfyUI names, e.g. "Flux" or "WAN21"; not a display name. */
+  model: string;
+  step: 'start' | 'end';
+  elapsedSec?: number;
+};
+
+/**
+ * What the worker is doing while a job is `initiating`. Narrow on `phase`
+ * before reading the other fields.
+ */
+export type JobPreparation = JobAssetPreparation | JobModelPhasePreparation;
+
 export type JobResultData = {
   jobID: string;
   imgID: string;
   performedStepCount?: number;
   lastSeed?: string;
   userCanceled?: boolean;
+  /**
+   * Delivery was withheld for sensitive content: the job ran with the
+   * Sensitive Content Filter on, a signal fired, and no media exists.
+   */
   triggeredNSFWFilter?: boolean;
+  /**
+   * A safety signal fired on media that WAS delivered, because the artist
+   * turned the filter off. Advisory only: the media is downloadable and the
+   * app decides whether to blur it from the viewer's current setting.
+   */
+  nsfwDetected?: boolean;
+  /** Which signals fired: 'prompt' (text vocabulary), 'image' (classifier). */
+  nsfwSources?: string[];
   resultUrl?: string;
   resultKey?: string;
+  /** Allowlisted worker result receipt persisted by the socket. */
+  result?: Record<string, unknown>;
   /**
    * @deprecated Use `resultUrl`. Kept for older video worker/socket payload compatibility.
    */
@@ -211,6 +255,27 @@ export type JobResultData = {
    * @deprecated Use `resultUrl`. Kept for older video worker/socket payload compatibility.
    */
   videoFile?: string;
+  /** Worker-attested completed artifact hash. */
+  sha256?: string;
+  sourceImageSha256?: string;
+  samPromptSha256?: string;
+  maskRleSha256?: string;
+  maskWidth?: number;
+  maskHeight?: number;
+  maskBox?: [number, number, number, number] | null;
+  maskCoverage?: number;
+  maskDetectedCount?: number;
+  maskReturnedCount?: number;
+  maskSelections?: Array<{
+    score: number | null;
+    box: [number, number, number, number] | null;
+    coverage: number;
+    included: boolean;
+  }>;
+  samVersion?: string;
+  selectionHash?: string;
+  firstFrameSha256?: string;
+  lastFrameSha256?: string;
 };
 
 export type JobStateData =
@@ -261,6 +326,62 @@ export type ToastMessage = {
   // Number of milliseconds to show the toast
   autoClose: number;
   stickyID: string;
+};
+
+/** A call to action rendered inside an announcement. Always an absolute http(s) URL. */
+export type AppAlertAction = {
+  label: string;
+  href: string;
+  /** Open in a new tab / the system browser rather than routing in-app. */
+  external?: boolean;
+};
+
+/**
+ * An admin-authored in-app announcement, composed in the Sogni Admin Portal.
+ *
+ * OPT-IN: the server sends this only to clients that asked for it with
+ * `socketEventSubscriptions: { appAlert: true }`. A client that does not opt in
+ * keeps receiving the same announcement as a plain {@link ToastMessage}, so this
+ * event can be adopted at any time without coordination. A client never
+ * receives both renderings of one announcement.
+ *
+ * NOT at-most-once: a live pinned announcement is re-sent on every reconnect
+ * while its window is open, so a user who was offline when it published still
+ * sees it. Deduplicate on `id`.
+ *
+ * Full contract: `docs/app-alert-contract.md` in sogni-socket.
+ */
+export type AppAlert = {
+  /** Stable across redeliveries; also the key for `announcements.dismiss(id)`. */
+  id: string;
+  /** `toast` is a one-shot; `banner` persists until dismissed or `endsAt`. */
+  kind: 'toast' | 'banner';
+  severity: 'info' | 'success' | 'warn' | 'danger';
+  /**
+   * Icon token, never a URL — map it to your own icon set. One of `info`,
+   * `success`, `warning`, `error`, `megaphone`, `wrench`, `sparkles`, `gift`,
+   * `rocket`, `clock`. Absent means "use the icon for `severity`".
+   */
+  icon?: string;
+  /** Optional `#RRGGBB` tint. Ignoring it must still render a legible alert. */
+  accent?: string;
+  title: string;
+  /**
+   * Restricted markdown: paragraphs, bold, italic, inline code, strikethrough,
+   * links, and line breaks. No images, no raw HTML, no headings or lists.
+   */
+  bodyMarkdown: string;
+  /** Do not auto-dismiss. Banners are pinned; toasts normally are not. */
+  pinned: boolean;
+  /** When false, hide the close affordance — it still clears at `endsAt`. */
+  dismissible: boolean;
+  /** Toasts only. Milliseconds. */
+  autoCloseMs?: number;
+  actions?: AppAlertAction[];
+  /** Epoch ms. */
+  startsAt: number;
+  /** Epoch ms. Always present for a banner. */
+  endsAt?: number;
 };
 
 export type ArtistCancelConfirmation = {
@@ -402,6 +523,14 @@ export type SocketEventMap = {
    * @event WebSocketClient#toastMessage - Toast message received
    */
   toastMessage: ToastMessage;
+  /**
+   * @event WebSocketClient#appAlert - Admin announcement received (banner or toast)
+   *
+   * Opt in with `socketEventSubscriptions: { appAlert: true }`; without it the
+   * server sends the same announcement as `toastMessage` instead. Redelivered on
+   * reconnect while a pinned announcement is live — deduplicate on `id`.
+   */
+  appAlert: AppAlert;
 
   artistCancelConfirmation: ArtistCancelConfirmation;
 };

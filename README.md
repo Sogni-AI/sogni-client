@@ -53,7 +53,7 @@ yarn add @sogni-ai/sogni-client
 ## Core concepts
 
 In order to use Sogni Supernet, you need an active Sogni account with a positive SOGNI or Spark token balance. You can authenticate using either an **API key** (recommended) or **username and password**.
-You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio) which will give you tokens just for signing up and confirming your email. Each email-verified account is allowed 400 free Spark render credits per month. On the API, free credits can be used with Z-Image Turbo; paid credits can access all models and features.
+You can create a free account in our [Web App](https://app.sogni.ai) or [Mac App](https://www.sogni.ai/studio) which will give you tokens just for signing up and confirming your email. Each email-verified account is allowed 400 free Spark render credits per month. On the API, free credits can be used with Krea 2 Turbo; paid credits can access all models and features.
 
 **To get your API key:** Log in to [dashboard.sogni.ai](https://dashboard.sogni.ai), click your **Username** dropdown in the top-right corner, and provision your API key.
 
@@ -80,7 +80,8 @@ uploaded to Sogni servers where it will be stored for 24 hours. After this perio
 
 ## Client initialization
 
-To initialize a client, you need to provide `appId`, and account credentials.
+To initialize a WebSocket client, provide a stable `appId` and account credentials. Generate the ID
+once per application installation and persist it across process restarts or page reloads.
 
 ### Option 1: API Key Authentication (Recommended)
 
@@ -92,7 +93,8 @@ API key authentication is the simplest way to connect. The client auto-authentic
 import { SogniClient } from '@sogni-ai/sogni-client';
 
 const sogni = await SogniClient.createInstance({
-  appId: 'your-app-id', // Required, must be unique string, UUID is recommended
+  appId: 'my-app-installation', // Stable across restarts; do not generate a new value per run
+  appSource: 'my-app',
   network: 'fast', // Network to use, 'fast' or 'relaxed'
   apiKey: 'your-api-key' // API key for authentication
 });
@@ -109,7 +111,8 @@ const models = await sogni.projects.waitForModels();
 import { SogniClient } from '@sogni-ai/sogni-client';
 
 const sogni = await SogniClient.createInstance({
-  appId: 'your-app-id',
+  appId: 'my-app-installation',
+  appSource: 'my-app',
   network: 'fast'
 });
 
@@ -120,8 +123,25 @@ const models = await sogni.projects.waitForModels();
 **Important Note:**
 
 - These samples assume you are using ES modules, which allow `await` on the top level, if you are CommonJS you will need to wrap `await` calls in an async function.
-- `appId` must be unique string, UUID is recommended. It is used to identify your application.
+- `appId` identifies one application installation. Reuse the same value across restarts and reloads.
+- If you generate an `appId`, generate it once and save it (for example in browser
+  `localStorage`). Do not call `randomUUID()` every time the application starts.
 - Only one connection per `appId` is allowed. If you try to connect with the same `appId` multiple times, the previous connection will be closed.
+
+### REST-only clients
+
+Set `disableSocket: true` when a process uses only REST APIs. This mode opens no artist WebSocket
+and does not require an `appId`:
+
+```javascript
+const sogni = await SogniClient.createInstance({
+  apiKey: 'your-api-key',
+  disableSocket: true
+});
+```
+
+Socket-backed project generation and chat completions are unavailable in REST-only mode. Hosted
+chat, durable workflows, replay records, announcements, and account REST APIs remain available.
 
 ### Connection metadata and event subscriptions
 
@@ -1210,7 +1230,6 @@ Long-running multi-step creative workflows can be persisted on the server and ob
 
 ```javascript
 const sogni = await SogniClient.createInstance({
-  appId: 'creative-workflow-demo',
   apiKey: process.env.SOGNI_API_KEY,
   disableSocket: true
 });

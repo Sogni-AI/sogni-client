@@ -55,8 +55,12 @@ export interface SubscriptionFairUseState {
   planPriceUsd: number;
   /** ISO timestamp for the subscriber-anchored monthly reset. */
   resetAt: string;
-  fastConcurrencyLimit: 1;
-  fastQueueLimit: 1;
+  /**
+   * Fast plan rendering is paused until `resetAt`. Until 2026-08-30 this state
+   * clamped Fast to one active and one queued job and published that as
+   * `fastConcurrencyLimit` / `fastQueueLimit`; both retired with the clamp.
+   */
+  fastRenderingPaused: true;
   relaxedUnrestricted: true;
   /** True for Unlimited, whose next tier is Unlimited Pro. */
   upgradeAvailable: boolean;

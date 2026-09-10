@@ -459,6 +459,57 @@ function createMinimaxH3BalancedModel(workflow) {
   };
 }
 
+function createMinimaxH3FastH3Model(workflow) {
+  const workflowLabel = workflow.toUpperCase();
+  return {
+    id: `minimax-h3-fastvideo-int8_${workflow}_turbo`,
+    name: `MiniMax H3 FastH3 Turbo ${workflowLabel}`,
+    description:
+      workflow === 't2v'
+        ? 'FastVideo VSA four-step text-to-video with jointly generated 32kHz stereo audio'
+        : workflow === 'i2v'
+          ? 'FastVideo VSA four-step first-, last-, or first-and-last-frame video with jointly generated stereo audio'
+          : 'FastVideo VSA four-step first-and-last-frame video with jointly generated stereo audio; both anchors required',
+    workflowType: workflow,
+    defaultWidth: 1344,
+    defaultHeight: 768,
+    minWidth: 32,
+    maxWidth: 1344,
+    minHeight: 32,
+    maxHeight: 1344,
+    dimensionStep: 32,
+    maxPixels: 1032192,
+    defaultSteps: 4,
+    minSteps: 4,
+    maxSteps: 4,
+    defaultGuidance: 1.0,
+    minGuidance: 1.0,
+    maxGuidance: 1.0,
+    defaultComfySampler: 'euler',
+    allowedComfySamplers: ['euler'],
+    defaultComfyScheduler: 'simple',
+    allowedComfySchedulers: ['simple'],
+    minFrames: MINIMAX_H3_MIN_FRAMES,
+    maxFrames: MINIMAX_H3_MAX_FRAMES,
+    defaultFrames: MINIMAX_H3_BASE_FRAMES,
+    frameStep: MINIMAX_H3_FRAME_STEP,
+    frameBase: MINIMAX_H3_BASE_FRAMES,
+    defaultFps: MINIMAX_H3_FPS,
+    allowedFps: [MINIMAX_H3_FPS],
+    minDuration: MINIMAX_H3_MIN_DURATION,
+    maxDuration: MINIMAX_H3_MAX_DURATION,
+    isLightning: true,
+    isComfyModel: true,
+    hasAudio: true,
+    supportsNegativePrompt: false,
+    acceleration: 'fastvideo-vsa-4step',
+    ...(workflow === 'flf2v'
+      ? { requiresReferenceImage: true, requiresReferenceImageEnd: true }
+      : {}),
+    ...(workflow === 'i2v' ? { requiresReferenceImage: false } : {})
+  };
+}
+
 export const MODELS = {
   // Text-to-Image Models (ComfyUI worker)
   image: {
@@ -1776,6 +1827,9 @@ export const MODELS = {
     'minimax-h3-t2v-balanced': createMinimaxH3BalancedModel('t2v'),
     'minimax-h3-i2v-balanced': createMinimaxH3BalancedModel('i2v'),
     'minimax-h3-flf2v-balanced': createMinimaxH3BalancedModel('flf2v'),
+    'minimax-h3-fasth3-t2v-turbo': createMinimaxH3FastH3Model('t2v'),
+    'minimax-h3-fasth3-i2v-turbo': createMinimaxH3FastH3Model('i2v'),
+    'minimax-h3-fasth3-flf2v-turbo': createMinimaxH3FastH3Model('flf2v'),
     'minimax-h3-t2v-turbo': {
       id: 'minimax-h3-fl2va-fp8_t2v_turbo',
       name: 'MiniMax H3 FL2VA FP8 Turbo T2V',

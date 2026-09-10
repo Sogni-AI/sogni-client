@@ -6,9 +6,11 @@
  * Sogni. t2v, i2v, and flf2v share the FL2VA checkpoint; r2v is a separate
  * Ref2VA checkpoint that conditions on labelled reference material rather than
  * on frame anchors. Standard H3 uses fixed 24fps, 20 steps, guidance 1, and
- * res_multistep/simple. FL2VA Turbo uses fixed 24fps, 4 steps, guidance 1, and
- * its validated sampler set with the simple scheduler. Ref2VA Turbo uses its
- * dedicated four-step LoRA with Euler/simple and a 960x544 default. Frames sit on the
+ * res_multistep/simple. The existing FL2VA Turbo selectors use the LightX2V
+ * four-step engine and its validated sampler set with the simple scheduler.
+ * FastH3 Turbo is a separate FastVideo VSA four-step T2V/I2V/FLF2V engine,
+ * fixed to Euler/simple; it has no R2V mode. Ref2VA Turbo
+ * uses its dedicated four-step LoRA with Euler/simple and a 960x544 default. Frames sit on the
  * 124 + n*17 grid (124-362 frames, 5.167s to 15.083s) and the canvas uses a
  * 32px grid capped at 1032192 pixels, which is why 1344x768 and 768x1344 are
  * the two shipped presets. Availability depends on current compatible
@@ -51,6 +53,7 @@
  *   node workflow_minimax_h3_video.mjs --mode i2v --end-image finish.jpg
  *   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --end-image finish.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
+ *   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-fasth3-t2v-turbo
  *   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --print-prompt  # Print prompt, do not submit
  *   node workflow_minimax_h3_video.mjs --mode t2v --prompt-file my_prompt.txt
@@ -958,6 +961,7 @@ Usage:
   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-balanced
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-turbo
+  node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-fasth3-t2v-turbo
   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
   node workflow_minimax_h3_video.mjs --mode r2v --ref-video camera-move.mp4
 
@@ -971,7 +975,9 @@ Fixed model parameters (not configurable):
   Standard: fps 24, steps 20, guidance 1, sampler res_multistep, scheduler simple
   Balanced: fps 24, steps 8, guidance 1, sampler Euler, scheduler simple
             (LightX2V 8-step 768p for FL2VA; Larry v4 step-600 EMA for Ref2VA)
-  FL2VA Turbo: fps 24, steps 4, guidance 1, server-selected sampler, scheduler simple
+  LightX2V FL2VA Turbo: fps 24, steps 4, guidance 1, server-selected sampler, scheduler simple
+  FastH3 Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
+                (FastVideo VSA T2V/I2V/FLF2V only; no R2V mode)
   Ref2VA Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
   Native 32kHz stereo audio is generated jointly and included by default;
   --no-audio returns a video without an audio track
@@ -986,7 +992,7 @@ Options:
   --mode <t2v|i2v|flf2v|r2v>  Workflow to run (default: t2v)
   --model <key>           Model key override (default: matching -balanced key;
                           standard keys omit the suffix, and accelerated keys
-                          end in -balanced or -turbo)
+                          end in -balanced or -turbo; FastH3 keys include -fasth3-)
   --image <path>          First-frame reference image (i2v, flf2v)
   --end-image <path>      Last-frame reference image (i2v, flf2v)
   --ref-image <path>      Reference image (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES})

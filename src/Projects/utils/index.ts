@@ -48,6 +48,9 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fl2va-fp8_t2v_turbo',
   'minimax-h3-fl2va-fp8_i2v_turbo',
   'minimax-h3-fl2va-fp8_flf2v_turbo',
+  'minimax-h3-fastvideo-int8_t2v_turbo',
+  'minimax-h3-fastvideo-int8_i2v_turbo',
+  'minimax-h3-fastvideo-int8_flf2v_turbo',
   'minimax-h3-ref2va-fp8_r2v_turbo',
   'minimax-h3-fl2va-fp8_t2v_balanced',
   'minimax-h3-fl2va-fp8_i2v_balanced',
@@ -88,6 +91,46 @@ export function isVideoModel(modelId: string): boolean {
  */
 export function isAudioModel(modelId: string): boolean {
   return modelId.startsWith('ace_step') || modelId === 'minimax_music3';
+}
+
+/** Canonical id of the prompt-guided image-to-3D reconstruction workflow. */
+export const PIXAL3D_IMAGE_TO_3D_MODEL_ID = 'pixal3d_int8_i23d';
+
+/** Canonical id of the SAM 3 interactive image-segmentation workflow. */
+export const SAM3_IMAGE_SEGMENT_MODEL_ID = 'sam3_image_segment_bf16';
+
+/** Canonical id of the standalone BiRefNet background-removal workflow. */
+export const BIREFNET_BACKGROUND_REMOVAL_MODEL_ID = 'birefnet_image_background_removal_fp16';
+
+/** Check if a model returns a downloadable 3D model artifact. */
+export function isModelArtifactModel(modelId: string): boolean {
+  return modelId.startsWith('pixal3d_');
+}
+
+/**
+ * Check if a model performs image segmentation rather than generation.
+ *
+ * Segmentation returns a lossless mask PNG the same size as the source, not a
+ * new image, so callers must not treat it as a generated result: it has no
+ * meaningful prompt-to-pixels relationship and is not enhanceable.
+ *
+ * BiRefNet counts. It reaches the same artifact with no prompt at all, and its
+ * cutout branch is that mask carried as an alpha channel, so every consumer
+ * that hides a mask from a gallery, refuses to enhance one, or requires a
+ * source image has to treat it exactly as it treats SAM 3.
+ */
+export function isSegmentationModel(modelId: string): boolean {
+  return (
+    modelId === SAM3_IMAGE_SEGMENT_MODEL_ID || modelId === BIREFNET_BACKGROUND_REMOVAL_MODEL_ID
+  );
+}
+
+/**
+ * Models that need a starting image because they transform one rather than
+ * generating from a prompt alone.
+ */
+export function requiresStartingImage(modelId: string): boolean {
+  return isSegmentationModel(modelId) || isModelArtifactModel(modelId);
 }
 
 /**
@@ -184,7 +227,7 @@ export function isWan3Model(modelId: string): boolean {
   return WAN3_VIDEO_MODEL_IDS.has(modelId);
 }
 
-/** Check for the MuleRouter-powered Wan 3.0 Enhanced model specifically. */
+/** Check for the Wan 3.0 Enhanced model specifically. */
 export function isWan3EnhancedModel(modelId: string): boolean {
   return modelId === 'wan3.0-spicy-video';
 }
@@ -196,14 +239,15 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  * - FL2VA: `minimax-h3-fl2va-fp8_t2v`, `..._i2v`, and `..._flf2v`
  * - Ref2VA: `minimax-h3-ref2va-fp8_r2v` (the multi-reference workflow)
  * - FL2VA Turbo: the same three FL2VA ids with a `_turbo` suffix
+ * - FastH3 Turbo: three FastVideo INT8 FL2VA workflows with a `_turbo` suffix
  * - Ref2VA Turbo: `minimax-h3-ref2va-fp8_r2v_turbo`
  * - FL2VA Balanced: the same three FL2VA ids with a `_balanced` suffix
  * - Ref2VA Balanced: `minimax-h3-ref2va-fp8_r2v_balanced`
  *
  * All H3 paths share fixed 24fps, guidance 1, the `124 + n*17` frame grid,
  * and jointly generated 32kHz stereo audio. Standard H3 uses 20 steps;
- * Balanced uses Alibaba PAI's 8-step Parallel Decoding Distillation (PDD)
- * adapters; each Turbo family uses its own 4-step distillation LoRA.
+ * Balanced uses qualified fixed 8-step acceleration: LightX2V for FL2VA and
+ * Larry v4 for Ref2VA; each Turbo family uses its own 4-step distillation LoRA.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
   return MINIMAX_H3_VIDEO_MODEL_IDS.has(modelId);
@@ -215,14 +259,14 @@ export function isMinimaxH3Model(modelId: string): boolean {
  */
 export function isMinimaxH3TurboModel(modelId: string): boolean {
   return (
-    /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_turbo$/.test(modelId) ||
+    /^minimax-h3-(?:fl2va-fp8|fastvideo-int8)_(?:t2v|i2v|flf2v)_turbo$/.test(modelId) ||
     modelId === 'minimax-h3-ref2va-fp8_r2v_turbo'
   );
 }
 
 /**
  * Check if a model ID is one of the 8-step MiniMax H3 Balanced workflows.
- * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching PDD adapter for r2v.
+ * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching Larry v4 adapter for r2v.
  */
 export function isMinimaxH3BalancedModel(modelId: string): boolean {
   return (

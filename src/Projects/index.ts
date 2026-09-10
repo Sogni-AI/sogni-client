@@ -11,6 +11,7 @@ import {
   SupportedModel,
   ImageProjectParams,
   VideoProjectParams,
+  AudioProjectParams,
   VideoEstimateRequest,
   AudioEstimateRequest
 } from './types/index.js';
@@ -66,11 +67,14 @@ import {
   getMinimaxH3ReferenceVideoSlots,
   getVideoWorkflowType,
   isAudioModel,
+  isModelArtifactModel,
   isMinimaxH3ReferenceModel,
+  isSegmentationModel,
   isVideoModel,
   usesReferenceMask
 } from './utils/index.js';
 import { TokenType } from '../types/token.js';
+import type { JobProvenance } from './types/JobProvenance.js';
 import { getMaxContextImages, validateSampler } from '../lib/validation.js';
 import ModelTiersRaw, {
   isAudioTier,
@@ -110,6 +114,81 @@ const DEFAULT_LORA_CONSTRAINTS: LoraConstraints = {
   maxStrength: 100
 };
 const GARBAGE_COLLECT_TIMEOUT = 30000;
+
+const JOB_PROVENANCE_HASH_FIELDS = [
+  'sha256',
+  'sourceImageSha256',
+  'samPromptSha256',
+  'maskRleSha256',
+  'selectionHash',
+  'firstFrameSha256',
+  'lastFrameSha256'
+] as const;
+
+function isUnitInterval(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+/** Accept normalized [x0, y0, x1, y1] bounds, rejecting inverted or empty ones. */
+function normalizedBounds(value: unknown): [number, number, number, number] | undefined {
+  if (!Array.isArray(value) || value.length !== 4 || !value.every(isUnitInterval)) {
+    return undefined;
+  }
+  const [x0, y0, x1, y1] = value as [number, number, number, number];
+  return x0 < x1 && y0 < y1 ? [x0, y0, x1, y1] : undefined;
+}
+
+function jobProvenanceFromResult(data: Partial<JobResultData>): JobProvenance | undefined {
+  const result: JobProvenance = {};
+  for (const field of JOB_PROVENANCE_HASH_FIELDS) {
+    const value = data[field];
+    if (typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value)) {
+      result[field] = value.toLowerCase();
+    }
+  }
+  if (Number.isSafeInteger(data.maskWidth) && Number(data.maskWidth) > 0) {
+    result.maskWidth = Number(data.maskWidth);
+  }
+  if (Number.isSafeInteger(data.maskHeight) && Number(data.maskHeight) > 0) {
+    result.maskHeight = Number(data.maskHeight);
+  }
+  if (
+    typeof data.samVersion === 'string' &&
+    /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,79}$/.test(data.samVersion)
+  ) {
+    result.samVersion = data.samVersion;
+  }
+  const bounds = normalizedBounds(data.maskBox);
+  if (bounds) result.maskBox = bounds;
+  if (isUnitInterval(data.maskCoverage)) result.maskCoverage = data.maskCoverage;
+  if (Number.isSafeInteger(data.maskDetectedCount) && Number(data.maskDetectedCount) >= 0) {
+    result.maskDetectedCount = Number(data.maskDetectedCount);
+  }
+  if (Number.isSafeInteger(data.maskReturnedCount) && Number(data.maskReturnedCount) >= 0) {
+    result.maskReturnedCount = Number(data.maskReturnedCount);
+  }
+  if (Array.isArray(data.maskSelections)) {
+    // Drop anything malformed rather than surfacing a half-valid selection:
+    // a caller reading `score` should never get undefined from a typed field.
+    const selections = data.maskSelections
+      .filter(
+        (entry): entry is NonNullable<typeof entry> =>
+          !!entry &&
+          typeof entry === 'object' &&
+          typeof entry.included === 'boolean' &&
+          isUnitInterval(entry.coverage) &&
+          (entry.score === null || isUnitInterval(entry.score))
+      )
+      .map((entry) => ({
+        score: entry.score === null ? null : Number(entry.score),
+        box: normalizedBounds(entry.box) ?? null,
+        coverage: Number(entry.coverage),
+        included: entry.included
+      }));
+    if (selections.length > 0) result.maskSelections = selections;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
 // Socket owns a 105s provider-confirmation deadline. Keep transport/UI slack
 // above it so the client cannot report failure while Socket is still able to
 // confirm and refund the same cancellation.
@@ -325,6 +404,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return isAudioModel(modelId);
   }
 
+  /**
+   * Check whether a model returns a 3D artifact through the media endpoint.
+   *
+   * The `pixal3d_` prefix is a positive override here, not merely a fallback
+   * for an unloaded catalog. That prefix is structural rather than curated:
+   * every Pixal3D workflow reconstructs a binary glTF, and the image download
+   * endpoint cannot serve one. A catalog that mislabels such a model as
+   * `image` therefore breaks every artifact download with no client-side
+   * recovery, so the SDK's own knowledge wins wherever it has any.
+   *
+   * The catalog stays authoritative for every model the SDK has no prefix
+   * knowledge of, so a future `media: 'model'` family needs no SDK release.
+   */
+  isModelArtifactModelId(modelId: string): boolean {
+    if (isModelArtifactModel(modelId)) return true;
+    const model = this._supportedModels.data?.find((m) => m.id === modelId);
+    return model ? model.media === 'model' : false;
+  }
+
   constructor(config: ApiConfig) {
     super(config);
     // Listen to server events and emit them as project and job events
@@ -506,7 +604,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async handleJobResult(data: JobResultData) {
     const project = this.projects.find((p) => p.id === data.jobID);
-    const passNSFWCheck = !data.triggeredNSFWFilter || !project || project.params.disableNSFWFilter;
+    // `triggeredNSFWFilter` means the server withheld the media, so there is
+    // nothing to mint a URL for. `nsfwDetected` is the opposite case: a signal
+    // fired on a render the artist asked for with the filter off, the media
+    // exists, and the app blurs or shows it from the viewer's own setting.
+    // Trusting the server's own reading also covers a recovered project whose
+    // params could not be rebuilt, where `disableNSFWFilter` is unknown here.
+    // A frame claiming both is contradictory; resolve it to withheld so a
+    // client never chases media that may not exist.
+    const withheld = data.triggeredNSFWFilter === true && data.nsfwDetected !== true;
+    const passNSFWCheck = !withheld || !project || project.params.disableNSFWFilter;
     let downloadUrl = data.resultUrl || data.videoUrl || data.videoFile || null; // Use result URL from event if provided
 
     // If no resultUrl provided and NSFW check passes, generate download URL
@@ -514,14 +621,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       // Use media endpoint for video/audio models, image endpoint for image models
       const isVideo = project && this.isVideoModelId(project.params.modelId);
       const isAudio = project && this.isAudioModelId(project.params.modelId);
-      const isMedia = isVideo || isAudio;
+      const isModelArtifact = project && this.isModelArtifactModelId(project.params.modelId);
+      const isMedia = isVideo || isAudio || isModelArtifact;
       try {
         if (isMedia) {
           downloadUrl = await this.mediaDownloadUrl({
             jobId: data.jobID,
             id: data.imgID,
             type: 'complete',
-            ...(isAudio && project ? { contentType: getAudioContentType(project) } : {})
+            ...(isAudio && project ? { contentType: getAudioContentType(project) } : {}),
+            ...(isModelArtifact ? { contentType: 'model/gltf-binary' } : {})
           });
         } else {
           const imageContentType = project ? getImageContentType(project) : undefined;
@@ -541,6 +650,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // Update the job directly with the result URL to prevent duplicate API calls
     let performedStepCount = data.performedStepCount;
     let seed = data.lastSeed !== undefined ? Number(data.lastSeed) : undefined;
+    const provenance = jobProvenanceFromResult(data);
     if (project) {
       const job = project.job(data.imgID);
       if (job) {
@@ -556,8 +666,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           step: performedStepCount,
           seed,
           resultUrl: downloadUrl,
+          // Unchanged meaning: the server withheld the media. The label for
+          // media that WAS delivered is `nsfwDetected`, deliberately kept out of
+          // this flag so upgrading the SDK changes no existing app's behaviour.
+          // Several apps disable the filter for their own utility renders
+          // (transitions, thumbnails, restorations) and drop anything flagged;
+          // folding the label in here would silently delete that output.
           isNSFW: Boolean(data.triggeredNSFWFilter),
-          userCanceled: Boolean(data.userCanceled)
+          nsfwDetected: data.nsfwDetected === true,
+          nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
+          userCanceled: Boolean(data.userCanceled),
+          ...(provenance ? { provenance } : {})
         });
       }
     }
@@ -571,7 +690,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       ...(typeof seed === 'number' && Number.isFinite(seed) ? { seed } : {}),
       resultUrl: downloadUrl,
       isNSFW: Boolean(data.triggeredNSFWFilter),
-      userCanceled: Boolean(data.userCanceled)
+      nsfwDetected: data.nsfwDetected === true,
+      nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
+      userCanceled: Boolean(data.userCanceled),
+      ...(provenance ? { provenance } : {})
     });
   }
 
@@ -758,14 +880,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           status: 'completed' | 'canceled';
           resultUrl: string | null;
           isNSFW: boolean;
+          nsfwDetected: boolean;
+          nsfwSources: string[];
           userCanceled: boolean;
+          provenance?: JobProvenance;
           step?: number;
           seed?: number;
         } = {
           status: event.userCanceled ? 'canceled' : 'completed',
           resultUrl: event.resultUrl,
           isNSFW: event.isNSFW,
-          userCanceled: event.userCanceled
+          nsfwDetected: Boolean(event.nsfwDetected),
+          nsfwSources: Array.isArray(event.nsfwSources) ? [...event.nsfwSources] : [],
+          userCanceled: event.userCanceled,
+          ...(event.provenance ? { provenance: event.provenance } : {})
         };
         if (typeof event.steps === 'number') {
           delta.step = event.steps;
@@ -1111,6 +1239,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           userCanceled: job.reason === 'artistCanceled',
           ...(typeof job.resultUrl === 'string' && job.resultUrl
             ? { resultUrl: job.resultUrl }
+            : {}),
+          ...(job.result && typeof job.result === 'object'
+            ? jobProvenanceFromResult(job.result as Partial<JobResultData>)
             : {})
         });
         continue;
@@ -1221,25 +1352,44 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param data
    */
   async create(data: ProjectParams): Promise<Project> {
-    const project = new Project({ ...data }, { api: this, logger: this.client.logger });
-    const modelOptions = await this.getModelOptions(data.modelId);
+    // Segmentation is a one-source/one-mask utility workflow, SAM 3 and
+    // BiRefNet alike. Normalize before Project construction so lifecycle
+    // completion and result MIME use the same values as the serialized request.
+    let normalizedData =
+      data.type === 'image' && isSegmentationModel(data.modelId)
+        ? ({
+            ...data,
+            numberOfMedia: 1,
+            numberOfPreviews: 0,
+            outputFormat: 'png'
+          } as ProjectParams)
+        : data;
+    // Pixal3D reconstructs a 3D artifact, so there are no intermediate images
+    // to preview. Normalize here as well as on the wire so the Project's own
+    // params agree with the request that was actually sent.
+    if (normalizedData.type === 'image' && isModelArtifactModel(normalizedData.modelId)) {
+      normalizedData = { ...normalizedData, numberOfPreviews: 0 } as ProjectParams;
+    }
+    const project = new Project({ ...normalizedData }, { api: this, logger: this.client.logger });
+    const modelOptions = await this.getModelOptions(normalizedData.modelId);
     const requestParams = {
-      ...data,
-      appSource: data.appSource || this.client.appSource,
-      attribution: this.resolveWorkloadAttribution(data.attribution, project.id)
+      ...normalizedData,
+      appSource: normalizedData.appSource || this.client.appSource,
+      attribution: this.resolveWorkloadAttribution(normalizedData.attribution, project.id)
     } as ProjectParams;
     const request = createJobRequestMessage(project.id, requestParams, modelOptions);
 
-    switch (data.type) {
+    switch (normalizedData.type) {
       case 'image':
-        await this._processImageAssets(project, data);
+        await this._processImageAssets(project, normalizedData);
         break;
       case 'video':
-        await this._processVideoAssets(project, data);
-        this._annotateVideoAssetContentTypes(request, data);
+        await this._processVideoAssets(project, normalizedData);
+        this._annotateVideoAssetContentTypes(request, normalizedData);
         break;
       case 'audio':
-        // No assets to upload for audio
+        await this._processAudioAssets(project, normalizedData);
+        this._annotateAudioAssetContentTypes(request, normalizedData);
         break;
     }
     await this.client.socket.send('jobRequest', request);
@@ -1275,6 +1425,21 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           }
         })
       );
+    }
+  }
+
+  /** Voice cloning is the only audio model that takes an upload. */
+  private async _processAudioAssets(project: Project, data: AudioProjectParams) {
+    if (data?.referenceAudio && data.referenceAudio !== true) {
+      await this.uploadReferenceAudio(project.id, data.referenceAudio);
+    }
+  }
+
+  private _annotateAudioAssetContentTypes(request: Record<string, any>, data: AudioProjectParams) {
+    const keyFrame = request.keyFrames?.[0];
+    if (!keyFrame) return;
+    if (data.referenceAudio && data.referenceAudio !== true) {
+      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio);
     }
   }
 

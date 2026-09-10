@@ -427,9 +427,9 @@ const project = await sogni.projects.create({
 });
 ```
 
-### MiniMax H3 and H3 Turbo (Sogni workers)
+### MiniMax H3, Balanced, LightX2V Turbo, and FastH3 Turbo (Sogni workers)
 
-MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. Standard H3 uses fixed 20-step `res_multistep` / `simple` sampling. H3 Turbo applies a dedicated four-step LoRA for each checkpoint family: FL2VA uses its validated sampler set and Ref2VA R2V uses Euler/simple. Both use fixed 24fps, guidance 1, no negative prompt, the `124 + n*17` frame grid (124-362), and a 32px canvas grid capped at 1,032,192 pixels.
+MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. Standard H3 uses 20 steps, Balanced uses eight, and Turbo uses four. Existing `fl2va`/`ref2va` Turbo IDs are LightX2V; the three `fastvideo-int8` IDs are the separate FastVideo VSA FastH3 engine, fixed to Euler/simple. FastH3 supports T2V, I2V, and FLF2V only—there is no FastH3 R2V. All H3 variants use fixed 24fps, guidance 1, no negative prompt, the `124 + n*17` frame grid (124-362), and a 32px canvas grid capped at 1,032,192 pixels.
 
 | Model ID                      | Mode                       | References                                                |
 | ----------------------------- | -------------------------- | --------------------------------------------------------- |
@@ -441,18 +441,25 @@ MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. S
 | `minimax-h3-fl2va-fp8_i2v_turbo` | Turbo endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | `minimax-h3-fl2va-fp8_flf2v_turbo` | Turbo first-and-last-frame video | both anchor images required |
 | `minimax-h3-ref2va-fp8_r2v_turbo` | Turbo reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+| `minimax-h3-fastvideo-int8_t2v_turbo` | FastH3 Turbo text-to-video | none |
+| `minimax-h3-fastvideo-int8_i2v_turbo` | FastH3 Turbo endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
+| `minimax-h3-fastvideo-int8_flf2v_turbo` | FastH3 Turbo first-and-last-frame video | both anchor images required |
+| `minimax-h3-fl2va-fp8_t2v_balanced` | Balanced text-to-video | none |
+| `minimax-h3-fl2va-fp8_i2v_balanced` | Balanced endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
+| `minimax-h3-fl2va-fp8_flf2v_balanced` | Balanced first-and-last-frame video | both anchor images required |
+| `minimax-h3-ref2va-fp8_r2v_balanced` | Balanced reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 
 Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544. Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 
-All eight current workflow IDs are available through the Sogni projects API and the Sogni Creative Agent Skill: four standard modes plus four Turbo modes.
+All 15 current workflow IDs are available through the Sogni projects API: four Standard, four Balanced, four LightX2V Turbo, and three FastH3 Turbo modes.
 
-For direct `projects.create()` calls, both H3 I2V IDs accept `referenceImage`, `referenceImageEnd`, or both, with at least one required. The explicit FLF2V IDs still require both anchors. SDK creative-tool routing is a separate hosted contract: `generate_video` accepts `minimax-h3-turbo` (automatic t2v or first-frame i2v), `minimax-h3-t2v-turbo`, `minimax-h3-r2v`, and `minimax-h3-r2v-turbo`; `animate_photo` accepts `minimax-h3-i2v-turbo` and `minimax-h3-flf2v-turbo`.
+For direct `projects.create()` calls, H3 I2V IDs accept `referenceImage`, `referenceImageEnd`, or both, with at least one required. Explicit FLF2V IDs require both anchors. SDK creative-tool routing keeps `minimax-h3-turbo` mapped to LightX2V for compatibility and adds `minimax-h3-fasth3-turbo` (automatic T2V or I2V), `minimax-h3-fasth3-t2v-turbo`, `minimax-h3-fasth3-i2v-turbo`, and `minimax-h3-fasth3-flf2v-turbo` for FastH3.
 
 ```javascript
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
-  modelId: 'minimax-h3-fl2va-fp8_t2v_turbo',
+  modelId: 'minimax-h3-fastvideo-int8_t2v_turbo',
   positivePrompt:
     'integrated_multimodal_description: [Shot 1] Live-action, cinematic, a tracking shot moves through a rainy night market.\n\n' +
     'overall_soundscape: Steady rain, close footsteps, and layered crowd ambience.\n\n' +
@@ -460,6 +467,7 @@ const project = await sogni.projects.create({
   duration: 8,
   steps: 4,
   guidance: 1,
+  sampler: 'euler',
   scheduler: 'simple',
   generateAudio: true,
   tokenType: 'spark'

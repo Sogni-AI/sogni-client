@@ -1,4 +1,5 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types.js';
+import type { JobProvenance } from './JobProvenance.js';
 
 export interface RawProject {
   id: string;
@@ -56,12 +57,20 @@ export interface RawJob {
   reason: WorkerJobReason;
   performedSteps: number;
   triggeredNSFWFilter: boolean;
+  /**
+   * A safety signal fired on media that was delivered anyway, because the
+   * artist rendered with the Sensitive Content Filter off. Advisory label.
+   */
+  nsfwDetected?: boolean;
+  /** Which signals fired: 'prompt' and/or 'image'. */
+  nsfwSources?: string[];
   seedUsed: number;
   costActual: CostActual;
   network: SupernetType;
   txId?: string;
   resultUrl?: string | null;
   resultKey?: string | null;
+  result?: JobProvenance & Record<string, unknown>;
 }
 
 export interface CostActual {

@@ -53,10 +53,15 @@ export interface AudioModelOptions {
   type: 'audio';
   steps: NumRange;
   guidance?: NumRange;
-  sampler: Options<string>;
-  scheduler: Options<string>;
-  duration: NumRange;
+  /** Music only. Speech models have no diffusion sampler. */
+  sampler?: Options<string>;
+  /** Music only. Speech models have no diffusion scheduler. */
+  scheduler?: Options<string>;
+  /** Music only. A speech render is as long as the script takes to read. */
+  duration?: NumRange;
+  /** Music only. */
   bpm?: NumRange;
+  /** Music only. */
   timesignature?: Options<string>;
   language?: Options<string>;
   keyscale?: Options<string>;
@@ -64,6 +69,16 @@ export interface AudioModelOptions {
   promptStrength?: NumRange;
   creativity?: NumRange;
   shift?: NumRange;
+  /** Speech only. The preset voices this model can speak in. */
+  speaker?: Options<string>;
+  /** Speech only. Maximum length of the delivery direction, and whether it is required. */
+  instruct?: { maxLength: number; required: boolean };
+  /** Speech only. Maximum length of the reference recording's transcript. */
+  referenceText?: { maxLength: number };
+  /** Speech only. Whether a reference recording may be uploaded. */
+  acceptsReferenceAudio?: boolean;
+  /** Speech only. Whether a reference recording is mandatory (voice cloning). */
+  requiresReferenceAudio?: boolean;
 }
 
 export type ModelOptions = ImageModelOptions | VideoModelOptions | AudioModelOptions;
@@ -146,13 +161,48 @@ export function mapVideoTier(tier: VideoTier): VideoModelOptions {
 }
 
 export function mapAudioTier(tier: AudioTier): AudioModelOptions {
+  // `steps` is the only control both music and speech always declare. Everything
+  // else is set below when the tier declares it, so a speech model does not
+  // advertise a tempo or a sampler it will refuse, and a music tier keeps
+  // exactly the fields it had before speech existed.
   const options: AudioModelOptions = {
     type: 'audio',
-    steps: mapRange(tier.steps),
-    sampler: mapOptions(tier.comfySampler, samplerValueToAlias),
-    scheduler: mapOptions(tier.comfyScheduler, schedulerValueToAlias),
-    duration: mapRange(tier.duration)
+    steps: mapRange(tier.steps)
   };
+  if (tier.comfySampler) {
+    options.sampler = mapOptions(tier.comfySampler, samplerValueToAlias);
+  }
+  if (tier.comfyScheduler) {
+    options.scheduler = mapOptions(tier.comfyScheduler, schedulerValueToAlias);
+  }
+  if (tier.duration) {
+    options.duration = mapRange(tier.duration);
+  }
+  if (tier.bpm) {
+    options.bpm = mapRange(tier.bpm);
+  }
+  if (tier.timesignature) {
+    options.timesignature = mapOptions(tier.timesignature);
+  }
+  if (tier.speaker) {
+    options.speaker = mapOptions(tier.speaker);
+  }
+  if (tier.instruct) {
+    options.instruct = {
+      maxLength: tier.instruct.maxLength,
+      required: tier.instruct.required === true
+    };
+  }
+  if (tier.referenceText) {
+    options.referenceText = { maxLength: tier.referenceText.maxLength };
+  }
+  if (tier.acceptInputAudio) {
+    options.acceptsReferenceAudio = true;
+  }
+  if (tier.requiresReferenceAudio) {
+    options.acceptsReferenceAudio = true;
+    options.requiresReferenceAudio = true;
+  }
   if (tier.guidance) {
     options.guidance = mapRange(tier.guidance);
   }

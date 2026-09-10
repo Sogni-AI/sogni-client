@@ -3,15 +3,27 @@ import { ControlNetParams, VideoControlNetParams } from './ControlNetParams.js';
 import { TokenType } from '../../types/token.js';
 import type { WorkloadAttributionInput } from '../../types/attribution.js';
 
+export type WorldGenerationReceiptRequest =
+  | {
+      stage: 'target_still';
+      sourceImageSha256: string;
+      selectionHash: string;
+    }
+  | {
+      stage: 'transition';
+      firstFrameSha256: string;
+      lastFrameSha256: string;
+    };
+
 export interface SupportedModel {
   id: string;
   name: string;
   SID: number;
   tier: string;
   /**
-   * Media type produced by this model: 'image', 'video', or 'audio'
+   * Media type produced by this model: image, video, audio, or a 3D model artifact.
    */
-  media: 'image' | 'video' | 'audio';
+  media: 'image' | 'video' | 'audio' | 'model';
 }
 
 export interface AvailableModel {
@@ -19,9 +31,9 @@ export interface AvailableModel {
   name: string;
   workerCount: number;
   /**
-   * Media type produced by this model: 'image', 'video', or 'audio'
+   * Media type produced by this model: image, video, audio, or a 3D model artifact.
    */
-  media: 'image' | 'video' | 'audio';
+  media: 'image' | 'video' | 'audio' | 'model';
 }
 
 export interface SizePreset {
@@ -99,6 +111,12 @@ export interface BaseProjectParams {
    * Optional client app/source label to attach to the project request for server-side attribution.
    */
   appSource?: string;
+  /**
+   * Hash receipt requested by the Sogni World pipeline. The worker verifies
+   * these hashes against the original uploaded frame bytes before echoing an
+   * attestation. This is accepted only for `appSource: "sogni-world"`.
+   */
+  worldGenerationReceipt?: WorldGenerationReceiptRequest;
   /**
    * Optional workload attribution for this project. Fields override the
    * immutable defaults configured on SogniClient.
@@ -185,9 +203,8 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * - Turbo adds `_turbo` to the FL2VA t2v/i2v/flf2v IDs and to Ref2VA r2v.
  *   Ref2VA Turbo is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses its dedicated
  *   LightX2V v0.1 four-step LoRA with Euler/simple, not the FL2VA Turbo LoRA.
- * - Balanced adds `_balanced` to the same four workflow IDs and uses Alibaba
- *   PAI's matching FL2VA or Ref2VA 8-step Parallel Decoding Distillation (PDD)
- *   adapter with Euler/simple.
+ * - Balanced adds `_balanced` to the same four workflow IDs and uses the
+ *   qualified LightX2V FL2VA or Larry v4 Ref2VA 8-step adapter with Euler/simple.
  * - Video and 32kHz stereo audio are generated jointly. Audio is included by
  *   default; set `generateAudio: false` to return a video without an audio track.
  * - Generation is fixed at 24fps and guidance 1, with no separate
@@ -202,7 +219,7 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * #### MiniMax H3 `r2v` (Ref2VA) multi-reference video
  * - `minimax-h3-ref2va-fp8_r2v` (standard) and
  *   `minimax-h3-ref2va-fp8_r2v_turbo` (four-step Turbo), and
- *   `minimax-h3-ref2va-fp8_r2v_balanced` (eight-step PDD Balanced) condition on labelled reference material
+ *   `minimax-h3-ref2va-fp8_r2v_balanced` (eight-step Larry v4 Balanced) condition on labelled reference material
  *   rather than on frame anchors. The checkpoint accepts up to 9 reference
  *   images, 3 reference videos (24fps, 2-15 seconds each), and 3 reference
  *   audio clips, with at most 12 reference files in total.
@@ -272,7 +289,7 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * Duration of the video in seconds. Supported range 1 to 10 (WAN), 2 to 20 (LTX 2.5), 4 to 20 (LTX 2.3),
    * 4 to 15 (Seedance 2.0), 4 to 30 (Seedance 2.5), 3 to 15 (HappyHorse),
-   * 2 to 30 (Wan 3; use `smartDuration` to let the model choose),
+   * 2 to 30 (Wan 3),
    * or 124/24 to 362/24 seconds (MiniMax H3).
    *
    * The SDK automatically calculates the correct frame count based on the model:
@@ -286,9 +303,12 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   duration?: number;
   /**
-   * Let Wan 3 choose an output duration from 2 to 30 seconds. Sogni reserves
-   * the 30-second maximum when the job is admitted and settles down to the
-   * duration the provider reports after completion. Wan 3 only.
+   * @deprecated Retired — sending this throws. Use `duration` instead, which
+   * covers the same 2-30 second range for Wan 3.
+   *
+   * This let Wan 3 pick the output length after the job was admitted, so the
+   * quote had to reserve the 30-second maximum and the artist was held at a
+   * price the render rarely reached.
    */
   smartDuration?: boolean;
   /**
@@ -592,7 +612,108 @@ export interface VideoProjectParams extends BaseProjectParams {
   outpaintPosition?: 'center' | 'top' | 'bottom' | 'left' | 'right';
 }
 
-export interface ImageProjectParams extends BaseProjectParams {
+export interface Sam3PromptPoint {
+  /** Horizontal coordinate normalized to the original source image width. */
+  x: number;
+  /** Vertical coordinate normalized to the original source image height. */
+  y: number;
+  label: 'positive' | 'negative';
+}
+
+export interface Sam3PromptBox {
+  /** Normalized top-left and bottom-right coordinates. */
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  /**
+   * `positive` (the default) is an example of the thing to select. `negative`
+   * excludes one instance of a text-prompted concept — "every dog but this
+   * one" — and requires `text`, since the point path cannot express it.
+   */
+  label?: 'positive' | 'negative';
+}
+
+/** A bounded prompt for the SAM3 image-segmentation workflow. */
+export interface Sam3ImagePrompt {
+  points?: Sam3PromptPoint[];
+  boxes?: Sam3PromptBox[];
+  text?: string;
+  /**
+   * With `points`, a pass/fail gate: the job fails if the best candidate scores
+   * below it. With `text`, the detection filter applied to concept matches.
+   * Defaults to 0.5.
+   */
+  threshold?: number;
+  /**
+   * Choose among SAM's whole/part/subpart candidates for one ambiguous click.
+   * Point prompts only — supplying it with `text` is rejected.
+   */
+  multimask?: boolean;
+  /**
+   * Return the selection cut out of the source as an RGBA PNG, with the mask
+   * carried in alpha, instead of the bare black-and-white mask. Defaults to
+   * false so existing callers keep receiving a mask.
+   */
+  applyMask?: boolean;
+  /**
+   * Keep only the highest-scoring N selections, 1 to 16. With `text` those are
+   * distinct instances of the concept, so `maxInstances: 1` returns just the
+   * strongest match instead of every match merged together; with `points` they
+   * are SAM's whole/part/subpart candidates for the one clicked object.
+   * Defaults to keeping every selection above `threshold`.
+   */
+  maxInstances?: number;
+}
+
+/**
+ * Pixal3D image-to-3D generation options. Every one may only REDUCE work: each
+ * maximum is the shipped default, so the flat price is a guaranteed upper bound
+ * and a smaller value simply costs less to produce.
+ *
+ * `meshTargetFaces` is the one most worth setting. The 700,000-triangle default
+ * is far heavier than a real-time engine wants, so asking for less yields a
+ * more useful asset.
+ */
+/**
+ * Which Pixal3D reconstruction graph to run.
+ *
+ * ComfyUI registers one graph under the workflow id. `i23d-birefnet` isolates
+ * the subject with BiRefNet and takes no prompt. Leave it unset to let the
+ * worker choose that shipped default.
+ */
+export type Pixal3dTemplateVariant = 'i23d-birefnet';
+
+export interface Pixal3dGenerationOptions {
+  /**
+   * Which reconstruction graph to run. Unset means the worker's own default.
+   */
+  templateVariant?: Pixal3dTemplateVariant;
+  /** Base-colour bake and UV atlas resolution, 1024 to 4096. Default 4096. */
+  textureSize?: number;
+  /** Decimation target in triangles, 5000 to 700000. Default 700000. */
+  meshTargetFaces?: number;
+  /** Normal map resolution, 512 to 2048. Default 2048. */
+  normalMapSize?: number;
+  /** Ambient occlusion map resolution, 256 to 1024. Default 1024. */
+  ambientOcclusionSize?: number;
+  /** Sparse-latent upsampling resolution, 1024 to 1536. Default 1536. */
+  shapeResolution?: number;
+}
+
+/** One SAM3 selection: a concept instance, or a candidate for one click. */
+export interface Sam3Selection {
+  /** Model confidence, 0 to 1. */
+  score: number | null;
+  /** Normalized [x0, y0, x1, y1]; null for an empty selection. */
+  box: [number, number, number, number] | null;
+  /** Fraction of the source this selection covers, 0 to 1. */
+  coverage: number;
+  /** Whether this selection is part of the returned mask. */
+  included: boolean;
+}
+
+export interface ImageProjectParams extends BaseProjectParams, Pixal3dGenerationOptions {
   type: 'image';
   /**
    * Number of previews to generate. Note that previews affect project cost
@@ -607,6 +728,25 @@ export interface ImageProjectParams extends BaseProjectParams {
    * `true` - indicates that the image is already uploaded to the server
    */
   startingImage?: InputMedia;
+  /**
+   * Interactive selection prompt for the SAM3 image segmentation
+   * workflow. Coordinates are normalized from 0 to 1 and refer to the original
+   * `startingImage`; one source image produces one lossless binary PNG mask.
+   */
+  sam3Prompt?: Sam3ImagePrompt;
+  /**
+   * Return an RGBA cutout instead of the bare mask.
+   *
+   * Only for `birefnet_image_background_removal_fp16`, which requires a
+   * `startingImage` and takes no prompt. Left unset (the default) the job
+   * returns the foreground matte at the source dimensions; set, it returns the
+   * source image carrying that matte as its alpha channel, so the mask is still
+   * recoverable from the artifact.
+   *
+   * SAM 3 has its own `applyMask`, inside `sam3Prompt`. They are different
+   * fields on different models and are not interchangeable.
+   */
+  applyMask?: boolean;
   /**
    * How strong effect of starting image should be. From 0 to 1, default 0.5
    */
@@ -730,6 +870,30 @@ export interface AudioProjectParams extends BaseProjectParams {
    * Output audio format. Can be 'mp3', 'flac', or 'wav'. Defaults to 'mp3'.
    */
   outputFormat?: AudioOutputFormat;
+  /**
+   * Speech only. Preset studio voice to speak in, for models that offer them
+   * (Qwen3-TTS CustomVoice: serena, vivian, uncle_fu, ryan, aiden, ono_anna,
+   * sohee, eric, dylan). Ignored by music models, which have no voice roster.
+   */
+  speaker?: string;
+  /**
+   * Speech only. A written direction for the delivery. On Qwen3-TTS CustomVoice
+   * it restyles the chosen voice ("whispering, close to the mic") without
+   * changing who it is; on VoiceDesign it describes the voice to invent and is
+   * required.
+   */
+  instruct?: string;
+  /**
+   * Speech only. The exact transcript of `referenceAudio`. Supplying it lets a
+   * voice clone condition on the recording itself rather than on the speaker
+   * embedding alone, which is markedly closer to the source.
+   */
+  referenceText?: string;
+  /**
+   * Speech only. Three to thirty seconds of the voice to clone, as one person
+   * speaking cleanly. Required by Qwen3-TTS Voice Clone and unused elsewhere.
+   */
+  referenceAudio?: InputMedia;
 }
 
 export type ProjectParams = ImageProjectParams | VideoProjectParams | AudioProjectParams;

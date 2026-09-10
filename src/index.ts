@@ -23,6 +23,16 @@ import { ApiConfig } from './ApiGroup.js';
 import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger.js';
 import EIP712Helper from './lib/EIP712Helper.js';
 // Projects API
+import {
+  BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  PIXAL3D_IMAGE_TO_3D_MODEL_ID,
+  SAM3_IMAGE_SEGMENT_MODEL_ID,
+  isAudioModel,
+  isModelArtifactModel,
+  isSegmentationModel,
+  isVideoModel,
+  requiresStartingImage
+} from './Projects/utils/index.js';
 import ProjectsApi from './Projects/index.js';
 import Job, { JobStatus } from './Projects/Job.js';
 import Project, { ProjectStatus } from './Projects/Project.js';
@@ -33,6 +43,12 @@ import {
   BillingMode,
   ImageProjectParams,
   ImageOutputFormat,
+  Pixal3dGenerationOptions,
+  Pixal3dTemplateVariant,
+  Sam3ImagePrompt,
+  Sam3PromptBox,
+  Sam3PromptPoint,
+  Sam3Selection,
   ProjectParams,
   VideoProjectParams,
   AudioFormat,
@@ -42,8 +58,10 @@ import {
   SizePreset,
   EstimateRequest,
   CostEstimation,
-  InputMedia
+  InputMedia,
+  WorldGenerationReceiptRequest
 } from './Projects/types/index.js';
+import type { JobProvenance } from './Projects/types/JobProvenance.js';
 import type {
   AvailableLorasParams,
   LoraCatalog,
@@ -100,7 +118,7 @@ import type {
   TrialEligibility,
   TrialReasonCode
 } from './Account/subscription.types.js';
-import type { ToastMessage } from './ApiClient/WebSocketClient/events.js';
+import type { AppAlert, AppAlertAction, ToastMessage } from './ApiClient/WebSocketClient/events.js';
 import type DataEntity from './lib/DataEntity.js';
 import {
   ControlNetName,
@@ -196,6 +214,7 @@ import {
 import StatsApi from './Stats/index.js';
 // Replay records
 import ReplayApi from './Replay/index.js';
+import AnnouncementsApi from './Announcements/index.js';
 import {
   GetReplayRecordResult,
   ListReplayRecordsOptions,
@@ -285,6 +304,12 @@ export type {
   ErrorData,
   ImageProjectParams,
   ImageOutputFormat,
+  Pixal3dGenerationOptions,
+  Pixal3dTemplateVariant,
+  Sam3ImagePrompt,
+  Sam3PromptBox,
+  Sam3PromptPoint,
+  Sam3Selection,
   JobStatus,
   Logger,
   LogLevel,
@@ -383,6 +408,8 @@ export type {
   JobPreparation,
   RawProject,
   ToastMessage,
+  AppAlert,
+  AppAlertAction,
   DataEntity,
   InputMedia,
   AgentAttributionMetadata,
@@ -396,7 +423,9 @@ export type {
   WorkloadAttribution,
   WorkloadAttributionDefaults,
   WorkloadAttributionInput,
-  WorkloadKind
+  WorkloadKind,
+  JobProvenance,
+  WorldGenerationReceiptRequest
 };
 
 export type {
@@ -410,6 +439,14 @@ export type {
 };
 
 export {
+  BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  PIXAL3D_IMAGE_TO_3D_MODEL_ID,
+  SAM3_IMAGE_SEGMENT_MODEL_ID,
+  isAudioModel,
+  isModelArtifactModel,
+  isSegmentationModel,
+  isVideoModel,
+  requiresStartingImage,
   ApiError,
   ApiKeyAuthManager,
   ChatJobError,
@@ -435,7 +472,9 @@ export {
 
 export interface SogniClientConfig {
   /**
-   * The application ID string. Must be unique, multiple connections with the same ID will be rejected.
+   * Stable ID for this application installation. Reuse it across process restarts and page reloads.
+   * It only needs to be unique among simultaneous connections for the same account; a second live
+   * connection with the same ID replaces the first one.
    */
   appId: string;
   /**
@@ -471,10 +510,9 @@ export interface SogniClientConfig {
    */
   socketEndpoint?: string;
   /**
-   * Disable WebSocket connection. Useful for testing or when WebSocket is not needed.
-   * Note that many APIs may not work without WebSocket connection.
-   * @experimental
-   * @internal
+   * Disable the WebSocket connection for REST-only clients. Socket-backed project generation and
+   * chat completions are unavailable in this mode. An `appId` is optional when this is `true`.
+   * @default false
    */
   disableSocket?: boolean;
   /**
@@ -524,6 +562,12 @@ export interface SogniClientConfig {
   multiInstance?: boolean;
 }
 
+/** Configuration for a client that uses only REST APIs and never opens an artist WebSocket. */
+export type RestOnlySogniClientConfig = Omit<SogniClientConfig, 'appId' | 'disableSocket'> & {
+  disableSocket: true;
+  appId?: string;
+};
+
 export class SogniClient {
   account: AccountApi;
   projects: ProjectsApi;
@@ -552,6 +596,14 @@ export class SogniClient {
    * identity.
    */
   replay: ReplayApi;
+  /**
+   * Admin-authored in-app announcements (`/v1/announcements`). Live delivery is
+   * the `appAlert` socket event — opt in with
+   * `socketEventSubscriptions: { appAlert: true }`. This group covers the two
+   * moments the socket cannot: reading what is live at launch, and dismissing an
+   * announcement per account so it stays dismissed on every device.
+   */
+  announcements: AnnouncementsApi;
 
   apiClient: ApiClient;
 
@@ -562,6 +614,7 @@ export class SogniClient {
     this.chat = new ChatApi(config, this.projects);
     this.workflows = new CreativeWorkflowsApi(config);
     this.replay = new ReplayApi(config);
+    this.announcements = new AnnouncementsApi(config);
 
     this.apiClient = config.client;
   }
@@ -634,18 +687,24 @@ export class SogniClient {
    * Create client instance, with default configuration
    * @param config
    */
-  static async createInstance(config: SogniClientConfig): Promise<SogniClient> {
+  static async createInstance(
+    config: SogniClientConfig | RestOnlySogniClientConfig
+  ): Promise<SogniClient> {
     const restEndpoint = config.restEndpoint || 'https://api.sogni.ai';
     const socketEndpoint = config.socketEndpoint || 'wss://socket.sogni.ai';
     const network = config.network || 'fast';
     const logger = config.logger || new DefaultLogger(config.logLevel || 'warn');
     const isTestnet = config.testnet !== undefined ? config.testnet : false;
     const authType = config.apiKey ? 'apiKey' : config.authType || 'token';
+    const appId = config.appId?.trim();
+    if (!appId && !config.disableSocket) {
+      throw new Error('appId is required when WebSocket connections are enabled');
+    }
 
     const client = new ApiClient({
       baseUrl: restEndpoint,
       socketUrl: socketEndpoint,
-      appId: config.appId,
+      appId: appId || 'rest-only',
       appSource: config.appSource,
       attribution: config.attribution,
       socketEventSubscriptions: config.socketEventSubscriptions,
