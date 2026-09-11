@@ -1,3 +1,10 @@
+# [5.43.0](https://github.com/Sogni-AI/sogni-client/compare/v5.42.0...v5.43.0) (2026-09-11)
+
+
+### Features
+
+* **socket:** recover requests and chat streams across socket restarts ([248c618](https://github.com/Sogni-AI/sogni-client/commit/248c618c8d85d4ed74a1c82e65b1b98d2778c842))
+
 # [5.42.0](https://github.com/Sogni-AI/sogni-client/compare/v5.41.0...v5.42.0) (2026-09-11)
 
 
