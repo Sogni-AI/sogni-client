@@ -581,7 +581,7 @@ const quote = await sogni.projects.estimateVideoCost({
 });
 ```
 
-The SDK rejects prompts, TeaCache, trimming, control nets, reference URLs, other reference media, `generateAudio: false`, and `numberOfMedia` other than 1, and it fixes steps to 1 and seed to 0. Until a compatible worker is connected, the server refuses FlashVSR requests with "FlashVSR video upscaling is not available yet. Please try again later." Hosted chat and durable workflows expose the same operation as the promptless `upscale_video` tool.
+The SDK rejects prompts, TeaCache, trimming, control nets, reference URLs, other reference media, `generateAudio: false`, and `numberOfMedia` other than 1, and it fixes steps to 1. `detailPreference` (`stable` or `sharper`) and `processingSpeed` (`stable` or `faster`) default to `stable`, and `seed` defaults to 0 (`-1` asks for a random seed); only non-default values need Comfy worker 1.0.212 or newer, and none changes the price. Until a compatible worker is connected, the server refuses FlashVSR requests with "FlashVSR video upscaling is not available yet. Please try again later." Hosted chat and durable workflows expose the same operation as the promptless `upscale_video` tool.
 
 ---
 
@@ -766,7 +766,7 @@ Canonical hosted creative-tool surface (`SogniTools.all`, 27 tools, executed ser
 
 - `generate_image`, `edit_image`, `generate_video`, `generate_music`, `generate_speech`, `sound_to_video`, `video_to_video` (generation)
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` (image-edit adapters)
-- `upscale_image`, `upscale_video` (promptless RTX VSR image and FlashVSR 1080p/1440p video upscaling; `upscale_video` takes one generated or uploaded video by `sourceVideoIndex` plus an optional `targetResolution` of 1080 or 1440)
+- `upscale_image`, `upscale_video` (promptless RTX VSR image and FlashVSR 1080p/1440p video upscaling; `upscale_video` takes one generated or uploaded video by `sourceVideoIndex` plus an optional `targetResolution` of 1080 or 1440, and optional `detailPreference`, `processingSpeed` and `seed`)
 - `animate_photo` (image-to-video with multi-source fan-out via `sourceImageIndices`; composed into one MP4 by default — opt out with `stitched: false`)
 - `stitch_video`, `orbit_video`, `dance_montage` (server-side composition into a single MP4)
 - `extend_video`, `replace_video_segment` (append or replace bounded windows; replacements can trim source windows with `replacementStartSeconds` / `replacementEndSeconds`)

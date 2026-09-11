@@ -1150,12 +1150,16 @@ const quote = await sogni.projects.estimateVideoCost({
 
 The request builder rejects a prompt, `teacacheThreshold`, `trimEndFrame`,
 `controlNet`, `videoStart`, reference URL arrays, other reference media,
-`generateAudio: false`, and `numberOfMedia` other than 1. Steps are fixed at 1
-and seed at 0. Until a compatible worker is connected, the server refuses
+`generateAudio: false`, and `numberOfMedia` other than 1. Steps are fixed at 1.
+`detailPreference` (`stable` or `sharper`) and `processingSpeed` (`stable` or
+`faster`) default to `stable`, and `seed` defaults to 0 (`-1` asks for a random
+seed); only non-default values need Comfy worker 1.0.212 or newer, and none
+changes the price. Until a compatible worker is connected, the server refuses
 FlashVSR requests with "FlashVSR video upscaling is not available yet. Please
 try again later." Hosted chat, durable chat runs, and durable workflows expose
 the same operation as the promptless `upscale_video` tool (`sourceVideoIndex`,
-optional `targetResolution` 1080 or 1440); the server reads the source metadata
+optional `targetResolution` 1080 or 1440, and optional `detailPreference`,
+`processingSpeed` and `seed`); the server reads the source metadata
 itself, so the model never supplies frames or fps.
 
 ================================================================================ 8. AUDIO GENERATION - ACE-STEP 1.5 MODELS
@@ -1576,7 +1580,7 @@ The full hosted surface executes server-side via `sogni.chat.hosted.create()` / 
 - `generate_image`, `edit_image`, `generate_video`, `generate_music`, `generate_speech`, `sound_to_video`, `video_to_video` — core media-generation tools with creative-agent naming.
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` — image-edit adapters backed by the shared image-edit workflow.
 - `upscale_image` — promptless RTX VSR image enlargement.
-- `upscale_video` — promptless FlashVSR upscale of one generated or uploaded video (`sourceVideoIndex`) to 1080p or 1440p (`targetResolution`), keeping every frame, the frame rate, and the original audio. Use it instead of `video_to_video` when the user only wants more resolution.
+- `upscale_video` — promptless FlashVSR upscale of one generated or uploaded video (`sourceVideoIndex`) to 1080p or 1440p (`targetResolution`), with optional `detailPreference`, `processingSpeed` and `seed`, keeping every frame, the frame rate, and the original audio. Use it instead of `video_to_video` when the user only wants more resolution.
 - `animate_photo` — image-to-video, with multi-source fan-out via `sourceImageIndices`. Fan-out (>1 source image) is composed into one MP4 by default; opt out with `stitched: false` for a flat clip list.
 - `stitch_video` — concatenate selected video clips (with optional audio overlay via `audioIndex`) into one MP4.
 - `orbit_video` — generate orbit clips around a subject and stitch them into one MP4.
