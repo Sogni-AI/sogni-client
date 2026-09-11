@@ -18,6 +18,7 @@ import {
 import {
   validateNumber,
   validateCustomImageSize,
+  validateGptImageOptions,
   validateVideoSize,
   validateTeacacheThreshold,
   isComfyModel,
@@ -1289,11 +1290,22 @@ function applyImageParams(
       propertyName: 'Height'
     });
   }
+  validateGptImageOptions(params);
+  if (params.gptImageMask) {
+    keyFrame.hasReferenceMask = true;
+    keyFrame.referenceMaskContentType = 'image/png';
+  }
+  if (params.gptImageMaskUrl !== undefined) {
+    keyFrame.gptImageMaskUrl = params.gptImageMaskUrl;
+  }
   if (params.gptImageQuality !== undefined) {
     keyFrame.gptImageQuality = params.gptImageQuality;
   }
   if (params.gptImageBackground !== undefined) {
     keyFrame.gptImageBackground = params.gptImageBackground;
+  }
+  if (params.gptImageOutputCompression !== undefined) {
+    keyFrame.gptImageOutputCompression = params.gptImageOutputCompression;
   }
   return keyFrame;
 }

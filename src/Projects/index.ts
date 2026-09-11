@@ -76,7 +76,7 @@ import {
 } from './utils/index.js';
 import { TokenType } from '../types/token.js';
 import type { JobProvenance } from './types/JobProvenance.js';
-import { getMaxContextImages, validateSampler } from '../lib/validation.js';
+import { getMaxContextImages, validateSampler, isGptImageModel } from '../lib/validation.js';
 import ModelTiersRaw, {
   isAudioTier,
   isComfyImageTier,
@@ -1448,6 +1448,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (normalizedData.type === 'image' && isModelArtifactModel(normalizedData.modelId)) {
       normalizedData = { ...normalizedData, numberOfPreviews: 0 } as ProjectParams;
     }
+    if (
+      normalizedData.type === 'image' &&
+      isGptImageModel(normalizedData.modelId) &&
+      normalizedData.gptImageMaskUrl?.startsWith('data:')
+    ) {
+      if (normalizedData.gptImageMask) {
+        throw new Error('Provide one GPT Image mask, not both media and URL');
+      }
+      const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(normalizedData.gptImageMaskUrl);
+      if (!match || match[1].length >= Math.ceil((50 * 1024 * 1024 * 4) / 3)) {
+        throw new Error('GPT Image mask must be a PNG data URI smaller than 50 MB');
+      }
+      const bytes = Uint8Array.from(atob(match[1]), (char) => char.charCodeAt(0));
+      normalizedData = {
+        ...normalizedData,
+        gptImageMask: new Blob([bytes], { type: 'image/png' }),
+        gptImageMaskUrl: undefined
+      };
+    }
     const project = new Project({ ...normalizedData }, { api: this, logger: this.client.logger });
     const modelOptions = await this.getModelOptions(normalizedData.modelId);
     const requestParams = {
@@ -1476,6 +1495,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private async _processImageAssets(project: Project, data: ImageProjectParams) {
+    if (data.gptImageMask && data.gptImageMask !== true) {
+      await this.uploadReferenceMask(project.id, data.gptImageMask);
+    }
     //Guide image
     if (data.startingImage && data.startingImage !== true) {
       await this.uploadGuideImage(project.id, data.startingImage);

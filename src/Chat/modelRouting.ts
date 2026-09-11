@@ -90,6 +90,8 @@ export interface SelectedBackboneModel {
 export const PREFERRED_MODEL_IDS = {
   image: {
     gptImage2: 'gpt-image-2',
+    gptImage25Sunburst: 'gpt-image-2.5-sunburst',
+    gptImage25Flare: 'gpt-image-2.5-flare',
     flux1Schnell: 'flux1-schnell-fp8',
     chromaFlash: 'chroma-v.46-flash_fp8',
     zTurbo: 'z_image_turbo_bf16',
@@ -178,6 +180,7 @@ const GPT_IMAGE_MODEL_ALIASES = [
   'gpt-2-image',
   'gptimage2',
   'gpt-image2',
+  'gpt-image-2.0',
   'gpt-image-2'
 ];
 
@@ -188,10 +191,20 @@ function normalizeSelectorKey(value: string): string {
     .replace(/[_\s]+/g, '-');
 }
 
+const GPT_IMAGE_25_SELECTORS: Record<string, string> = {
+  'gpt-image-2.5-sunburst': PREFERRED_MODEL_IDS.image.gptImage25Sunburst,
+  'gpt-image-2.5-flare': PREFERRED_MODEL_IDS.image.gptImage25Flare,
+  'gpt-image-2.5': PREFERRED_MODEL_IDS.image.gptImage25Flare,
+  'gpt-image2.5': PREFERRED_MODEL_IDS.image.gptImage25Flare,
+  sunburst: PREFERRED_MODEL_IDS.image.gptImage25Sunburst,
+  flare: PREFERRED_MODEL_IDS.image.gptImage25Flare
+};
+
 const IMAGE_MODEL_SELECTORS: Record<string, string> = {
   ...Object.fromEntries(
     GPT_IMAGE_MODEL_ALIASES.map((alias) => [alias, PREFERRED_MODEL_IDS.image.gptImage2])
   ),
+  ...GPT_IMAGE_25_SELECTORS,
   'z-turbo': 'z_image_turbo_bf16',
   'krea-2-turbo': 'krea2_turbo_fp8_scaled',
   'krea2-turbo': 'krea2_turbo_fp8_scaled',
@@ -229,6 +242,7 @@ const EDIT_IMAGE_MODEL_SELECTORS: Record<string, string> = {
   ...Object.fromEntries(
     GPT_IMAGE_MODEL_ALIASES.map((alias) => [alias, PREFERRED_MODEL_IDS.image.gptImage2])
   ),
+  ...GPT_IMAGE_25_SELECTORS,
   'qwen-lightning': 'qwen_image_edit_2511_fp8_lightning',
   qwen: 'qwen_image_edit_2511_fp8',
   'krea-2-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
@@ -508,6 +522,8 @@ export function serializeUnknownError(error: unknown, fallback = 'Unknown error'
 export function isEditImageModel(modelId: string): boolean {
   return (
     modelId === PREFERRED_MODEL_IDS.image.gptImage2 ||
+    modelId === PREFERRED_MODEL_IDS.image.gptImage25Sunburst ||
+    modelId === PREFERRED_MODEL_IDS.image.gptImage25Flare ||
     isQwenImageEditModel(modelId) ||
     isKreaIdentityEditModel(modelId)
   );

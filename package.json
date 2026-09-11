@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "5.40.0",
+  "version": "5.41.0",
   "engines": {
     "node": ">=22"
   },
@@ -91,7 +91,8 @@
     "release": "semantic-release",
     "docs": "rimraf ./docs && npx typedoc",
     "postdocs": "node -p \"'sdk-docs.sogni.ai'\" > docs/CNAME",
-    "prepare": "npm run codegen && husky"
+    "prepare": "npm run codegen && husky",
+    "test:gpt-image-25": "npm run build && node scripts/check-gpt-image-25.cjs"
   },
   "repository": {
     "type": "git",
@@ -105,7 +106,7 @@
   "homepage": "https://github.com/Sogni-AI/sogni-client#readme",
   "dependencies": {
     "@lukeed/uuid": "^2.0.1",
-    "@sogni-ai/sogni-protocol": "1.0.0-alpha.35",
+    "@sogni-ai/sogni-protocol": "1.0.0-alpha.36",
     "@types/js-cookie": "^3.0.6",
     "@types/lodash": "^4.17.23",
     "@types/ws": "^8.5.13",

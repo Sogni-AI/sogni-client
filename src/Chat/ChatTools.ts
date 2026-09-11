@@ -139,6 +139,12 @@ function applyHostedImageOptions(
   const gptImageQuality = getStringArg(args.gpt_image_quality ?? args.gptImageQuality);
   if (gptImageQuality) projectParams.gptImageQuality = gptImageQuality.toLowerCase();
 
+  if (args.mask_image_url != null) projectParams.gptImageMaskUrl = args.mask_image_url;
+  const background = getStringArg(args.gpt_image_background ?? args.gptImageBackground);
+  if (background) projectParams.gptImageBackground = background.toLowerCase();
+  const compression = args.gpt_image_output_compression ?? args.gptImageOutputCompression;
+  if (compression != null) projectParams.gptImageOutputCompression = compression;
+
   const outputFormat = normalizeImageOutputFormat(args.output_format ?? args.outputFormat);
   if (outputFormat) projectParams.outputFormat = outputFormat;
 }
@@ -463,8 +469,14 @@ class ChatToolsApi {
       filter: isEditImageModel
     });
     const maxContextImages = getMaxContextImages(modelId);
+    // A model never receives more references than it accepts; none are dropped.
+    if (inputUrls.length > maxContextImages) {
+      throw new Error(
+        `${modelId} accepts at most ${maxContextImages} reference images; this request supplies ${inputUrls.length}`
+      );
+    }
     const contextImages = await Promise.all(
-      inputUrls.slice(0, maxContextImages).map(
+      inputUrls.map(
         (url) =>
           parseInlineMediaDataUri(url, 'image', {
             maxBytes: MAX_INPUT_MEDIA_BYTES.image

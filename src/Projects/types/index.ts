@@ -46,8 +46,17 @@ export interface SizePreset {
 }
 
 export type ImageOutputFormat = 'png' | 'jpg' | 'webp';
-export type GptImageQuality = 'low' | 'medium' | 'high' | 'auto' | 'standard' | 'hd';
-export type GptImageBackground = 'opaque' | 'auto';
+/**
+ * GPT Image quality preset. `xhigh` and `max` need GPT Image 2.5.
+ *
+ * `'auto'` is retired and rejected at the SDK boundary: Sogni never lets the
+ * provider settle quality after the quote, so every request names the concrete
+ * value it is quoted, charged and rendered at. It stays in this union only
+ * because removing it would be a breaking type change for every consumer.
+ */
+export type GptImageQuality =
+  'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'auto' | 'standard' | 'hd';
+export type GptImageBackground = 'opaque' | 'auto' | 'transparent';
 export type VideoOutputFormat = 'mp4';
 export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
 export type BillingMode = 'auto' | 'subscription' | 'tokens';
@@ -806,14 +815,20 @@ export interface ImageProjectParams extends BaseProjectParams, Pixal3dGeneration
    */
   outputFormat?: ImageOutputFormat;
   /**
-   * GPT Image 2 quality preset. Only used by external OpenAI image models.
+   * GPT Image quality preset (2.5 also supports xhigh/max). Only used by external OpenAI image models.
    * Defaults to 'medium'.
    */
   gptImageQuality?: GptImageQuality;
   /**
-   * GPT Image 2 background mode. Only used by external OpenAI image models.
+   * GPT Image background mode (transparency requires 2.5 and PNG/WebP). Only used by external OpenAI image models.
    */
   gptImageBackground?: GptImageBackground;
+  /** JPEG/WebP compression (0–100). Omit for PNG. */
+  gptImageOutputCompression?: number;
+  /** PNG alpha mask URL or data URI matching contextImages[0]. Transparent regions are edited. */
+  gptImageMaskUrl?: string;
+  /** PNG alpha mask, uploaded in the referenceMask asset slot for durable replay. */
+  gptImageMask?: InputMedia;
 }
 
 export interface AudioProjectParams extends BaseProjectParams {
