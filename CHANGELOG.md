@@ -1,3 +1,16 @@
+# [5.38.0](https://github.com/Sogni-AI/sogni-client/compare/v5.37.1...v5.38.0) (2026-09-11)
+
+
+### Bug Fixes
+
+* **deps:** lock @sogni-ai/sogni-protocol 1.0.0-alpha.34 from the registry ([9606173](https://github.com/Sogni-AI/sogni-client/commit/96061734ae210f49c9f4ad05ecaa85e0a023f42d))
+* **rest:** omit unset query params instead of sending "undefined" ([270aa84](https://github.com/Sogni-AI/sogni-client/commit/270aa84ae960f999b5a12bc98dec936599c5a6be))
+
+
+### Features
+
+* **chat:** sync the hosted upscale_video tool from protocol alpha.34 ([7f232a9](https://github.com/Sogni-AI/sogni-client/commit/7f232a95e1c816cde0c8345657ef6c19d925a064))
+
 ## [5.37.1](https://github.com/Sogni-AI/sogni-client/compare/v5.37.0...v5.37.1) (2026-09-10)
 
 
