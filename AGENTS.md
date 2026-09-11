@@ -239,7 +239,7 @@ The SDK supports two families of video models with **fundamentally different FPS
 **FlashVSR v1.1** (`FLASHVSR_VIDEO_UPSCALE_MODEL_ID`, `flashvsr_v1.1_tiny_long_bf16`) is a standalone, promptless upscale job, not a generation model:
 - Exactly one `referenceVideo`, `numberOfMedia: 1`, empty prompt; the SDK fixes steps to 1 and seed to 0 and rejects generation controls.
 - Output short edge is `upscaleResolution` (1080 or 1440); the aspect ratio, every frame, the exact (possibly fractional) fps, and the original audio are preserved.
-- Minimal call: `referenceVideo` + `upscaleResolution` + `numberOfMedia: 1` + empty prompt. `frames`, `fps`, `width` and `height` are optional; the server probes the upload and adopts the verified source values, and rejects only values a caller sent that conflict with the source. Estimates take the output size, the source's `frames`/`fps`, and `sourceWidth`/`sourceHeight`.
+- Minimal call: `referenceVideo` + `upscaleResolution` + `numberOfMedia: 1` + empty prompt. `frames`, `fps`, `width` and `height` are optional; the server probes the upload and adopts the verified source values, and rejects only values a caller sent that conflict with the source. The SDK sets no frame-count or duration limit: the server enforces the maximum clip length and returns a clear error for a source that is too long. Estimates take the output size, the source's `frames`/`fps`, and `sourceWidth`/`sourceHeight`.
 - `isVideoUpscaleModel()` detects it; `getVideoWorkflowType()` returns `'upscale'`. Hosted chat/workflows expose it as the `upscale_video` tool.
 
 ### Key Files

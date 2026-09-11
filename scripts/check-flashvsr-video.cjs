@@ -5,13 +5,14 @@ const create = require('../dist/Projects/createJobRequestMessage.js').default;
 const { calculateVideoFrames, getVideoAssetRequirements, getVideoWorkflowType } = require('../dist/Projects/utils/index.js');
 const { mapVideoTier } = require('../dist/Projects/types/ModelOptions.js');
 const modelId = 'flashvsr_v1.1_tiny_long_bf16';
-// The server-advertised FlashVSR tier, as delivered in the model catalog.
+// The server-advertised FlashVSR tier, as delivered in the model catalog. Its
+// frame range is left out on purpose: the SDK never caps FlashVSR length, which
+// only the server's admission check decides.
 const tier = {
   type: 'video', task: 'video-upscale', requiresReferenceVideo: true, preservesSourceTiming: true,
   outputResolutions: [1080, 1440], maxPixels: 3686400,
   width: { min: 2, max: 2560, step: 2, default: 2520 },
   height: { min: 2, max: 2560, step: 2, default: 1440 },
-  frames: { min: 1, max: 362, step: 1, default: 158 },
   fps: { min: 1, max: 60, default: 24 },
   steps: { min: 1, max: 1, default: 1 },
   guidance: { min: 1, max: 1, default: 1 },
@@ -65,8 +66,24 @@ const rateOnly = request({ width: undefined, height: undefined, frames: undefine
 assert.equal(rateOnly.fps, 30000 / 1001);
 assert.equal(rateOnly.frames, undefined);
 assert.throws(() => request({ frames: undefined, fps: undefined, duration: 5 }), /exact frame count and frame rate/);
-assert.throws(() => request({ frames: 363 }), /exact frame count and frame rate/);
 assert.throws(() => request({ fps: 120 }), /exact frame count and frame rate/);
+for (const frames of [0, 158.5]) {
+  assert.throws(() => request({ frames }), /exact frame count and frame rate/);
+}
+// No client-side length cap: the server's admission check alone refuses a
+// source that is too long, so long clips pass the SDK untouched.
+for (const frames of [900, 1800]) {
+  const long = request({ frames, fps: 30 }).keyFrames[0];
+  assert.equal(long.frames, frames, `${frames} frames at 30 fps must pass the SDK`);
+  assert.equal(long.fps, 30);
+}
+assert.equal(request({ frames: undefined, fps: 30, duration: 60 }).keyFrames[0].frames, 1800);
+assert.equal(request({ frames: undefined, fps: 60, duration: 120 }).keyFrames[0].frames, 7200);
+assert.doesNotMatch(
+  (() => { try { request({ frames: 0 }); } catch (error) { return error.message; } })(),
+  /\d+ frames|seconds/,
+  'the timing error must not state a length limit'
+);
 assert.throws(() => request({ width: undefined, height: undefined, upscaleResolution: undefined }), /1080p or 1440p/);
 console.log('FlashVSR SDK upload, timing, resolution, promptless and catalog checks passed.');
 

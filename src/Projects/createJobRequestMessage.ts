@@ -887,7 +887,6 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
 }
 
 function getMaxVideoDuration(modelId: string): number {
-  if (isVideoUpscaleModel(modelId)) return 362 / 24;
   if (isMinimaxH3Model(modelId)) {
     // 362 frames at a fixed 24fps, the top of the H3 frame grid.
     return MINIMAX_H3_MAX_DURATION;
@@ -1300,12 +1299,16 @@ function applyImageParams(
 }
 
 const VIDEO_UPSCALE_TIMING_ERROR =
-  'Omit the source timing, or supply the source video’s exact frame count and frame rate (up to 362 frames and 15 seconds).';
+  'Omit the source timing, or supply the source video’s exact frame count and frame rate.';
 
 /**
  * FlashVSR source timing is optional. The server probes the uploaded video and
  * adopts its exact frame count and frame rate when they are omitted; values a
  * caller does send must describe the source and are checked against it.
+ *
+ * These are sanity checks only. The SDK sets no maximum frame count or clip
+ * length: the server's admission check is the one place that limit lives, and
+ * it refuses a source that is too long with a clear error.
  */
 function validateVideoUpscaleTiming(params: VideoProjectParams): void {
   const fps = params.fps === undefined ? undefined : Number(params.fps);
@@ -1319,12 +1322,7 @@ function validateVideoUpscaleTiming(params: VideoProjectParams): void {
     frames = Math.round(Number(params.duration) * fps);
   }
   if (frames === undefined) return;
-  if (
-    !Number.isInteger(frames) ||
-    frames < 1 ||
-    frames > 362 ||
-    (fps !== undefined && frames / fps > 362 / 24 + 0.001)
-  ) {
+  if (!Number.isInteger(frames) || frames < 1) {
     throw new Error(VIDEO_UPSCALE_TIMING_ERROR);
   }
 }
@@ -1472,11 +1470,11 @@ function applyVideoParams(
             : isSeedanceModel(params.modelId)
               ? 4
               : 1;
-    const duration = validateVideoDuration(
-      params.duration,
-      minDuration,
-      getMaxVideoDuration(params.modelId)
-    );
+    // FlashVSR has no client-side maximum: the server's admission check owns
+    // the longest source it accepts and refuses a longer one itself.
+    const duration = isVideoUpscaleModel(params.modelId)
+      ? validateNumber(params.duration, { min: minDuration, propertyName: 'Video duration' })
+      : validateVideoDuration(params.duration, minDuration, getMaxVideoDuration(params.modelId));
     // Use fps from params or default based on model type:
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
     // - LTX 2.x: fps directly affects frame count (default 24fps if not specified)

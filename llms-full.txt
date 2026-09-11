@@ -1072,8 +1072,10 @@ detects it, `getVideoWorkflowType(modelId)` returns `'upscale'`, and
 `getVideoAssetRequirements(modelId).referenceVideo` is `'required'`.
 
 Source limits: short edge at most 768px and about 1344x768 pixels overall
-(768x1344 in portrait); 1-362 frames and at most about 15 seconds; 1-60 fps at a constant frame rate; SDR; square pixels with rotation
-applied; 100 MB or less. The output is at most twice the source size, so 1080p
+(768x1344 in portrait); 1-60 fps at a constant frame rate; SDR; square pixels with rotation
+applied; 100 MB or less. The SDK sets no frame-count or duration limit: the server
+enforces the maximum clip length and refuses a source that is too long with a
+clear error. The output is at most twice the source size, so 1080p
 needs a source short edge of at least 540px and 1440p at least 720px. The model
 catalog advertises `task: 'video-upscale'`, `outputResolutions: [1080, 1440]`,
 `preservesSourceTiming: true`, and `requiresReferenceVideo: true`.
