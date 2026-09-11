@@ -62,6 +62,22 @@ for (const key of ['frames', 'fps', 'width', 'height']) {
 }
 assert.equal(minimal.steps, 1);
 assert.equal(minimal.seed, 0);
+assert.equal(minimal.detailPreference, 'stable');
+assert.equal(minimal.processingSpeed, 'stable');
+for (const detailPreference of ['stable', 'sharper']) {
+  for (const processingSpeed of ['stable', 'faster']) {
+    const key = request({ detailPreference, processingSpeed, seed: 4294967295 }).keyFrames[0];
+    assert.equal(key.detailPreference, detailPreference);
+    assert.equal(key.processingSpeed, processingSpeed);
+    assert.equal(key.seed, 4294967295);
+  }
+}
+for (const changes of [
+  { detailPreference: 'auto' }, { processingSpeed: 'auto' },
+  { seed: -2 }, { seed: 0.5 }, { seed: 4294967296 }, { seed: '42' }, { seed: NaN }
+]) assert.throws(() => request(changes), /FlashVSR/);
+// -1 is the server's random seed (Sogni Socket 115409c2) and is forwarded as-is.
+assert.equal(request({ seed: -1 }).keyFrames[0].seed, -1);
 const rateOnly = request({ width: undefined, height: undefined, frames: undefined, upscaleResolution: 1440, fps: 30000 / 1001 }).keyFrames[0];
 assert.equal(rateOnly.fps, 30000 / 1001);
 assert.equal(rateOnly.frames, undefined);

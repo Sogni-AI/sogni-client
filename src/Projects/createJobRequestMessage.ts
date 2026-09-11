@@ -1341,6 +1341,16 @@ function applyVideoParams(
   }
   validateVideoWorkflowAssets(params);
   if (isVideoUpscaleModel(params.modelId)) {
+    if (params.detailPreference != null && !['stable', 'sharper'].includes(params.detailPreference)) {
+      throw new Error('FlashVSR detailPreference must be stable or sharper.');
+    }
+    if (params.processingSpeed != null && !['stable', 'faster'].includes(params.processingSpeed)) {
+      throw new Error('FlashVSR processingSpeed must be stable or faster.');
+    }
+    const seed = params.seed ?? 0;
+    if (!Number.isInteger(seed) || seed < -1 || seed > 4294967295) {
+      throw new Error('FlashVSR seed must be -1 (random) or an integer from 0 through 4294967295.');
+    }
     const resolution =
       params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
     if (![1080, 1440].includes(resolution))
@@ -1556,7 +1566,9 @@ function applyVideoParams(
     keyFrame.upscaleResolution =
       params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
     keyFrame.steps = 1;
-    keyFrame.seed = 0;
+    keyFrame.seed = params.seed ?? 0;
+    keyFrame.detailPreference = params.detailPreference ?? 'stable';
+    keyFrame.processingSpeed = params.processingSpeed ?? 'stable';
     keyFrame.generateAudio = true;
     keyFrame.interpolation = 'none';
   }

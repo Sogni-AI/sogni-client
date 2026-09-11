@@ -286,6 +286,10 @@ export interface VideoProjectParams extends BaseProjectParams {
    * server adopts the verified source's values. Values that are sent must match the source.
    */
   upscaleResolution?: 1080 | 1440;
+  /** FlashVSR detail preference. Defaults to stable (More Stable). */
+  detailPreference?: 'stable' | 'sharper';
+  /** FlashVSR processing speed. Defaults to stable (More Stable). */
+  processingSpeed?: 'stable' | 'faster';
   /**
    * Number of frames to generate.
    * @deprecated Use duration instead. When using duration, the SDK automatically
