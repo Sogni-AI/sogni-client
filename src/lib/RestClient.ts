@@ -29,10 +29,14 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     return this._auth;
   }
 
-  private formatUrl(relativeUrl: string, query: Record<string, string> = {}): string {
+  private formatUrl(relativeUrl: string, query: Record<string, unknown> = {}): string {
     const url = new URL(relativeUrl, this.baseUrl);
     Object.keys(query).forEach((key) => {
-      url.searchParams.append(key, query[key]);
+      const value = query[key];
+      // Omit unset optional params: URLSearchParams would send the literal
+      // string "undefined", which the API reads as a real value.
+      if (value === undefined || value === null) return;
+      url.searchParams.append(key, String(value));
     });
     return url.toString();
   }

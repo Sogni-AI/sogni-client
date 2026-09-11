@@ -21,6 +21,8 @@ export type SogniHostedToolName =
   | 'edit_image'
   | 'apply_style'
   | 'restore_photo'
+  | 'upscale_image'
+  | 'upscale_video'
   | 'refine_result'
   | 'animate_photo'
   | 'change_angle'
@@ -76,6 +78,10 @@ export const refineResultTool: ToolDefinition = getHostedTool('refine_result');
 export const changeAngleTool: ToolDefinition = getHostedTool('change_angle');
 export const animatePhotoTool: ToolDefinition = getHostedTool('animate_photo');
 
+// Promptless upscalers (RTX VSR image enlargement, FlashVSR 1080p/1440p video).
+export const upscaleImageTool: ToolDefinition = getHostedTool('upscale_image');
+export const upscaleVideoTool: ToolDefinition = getHostedTool('upscale_video');
+
 // Video composition / post-production tools.
 export const stitchVideoTool: ToolDefinition = getHostedTool('stitch_video');
 export const orbitVideoTool: ToolDefinition = getHostedTool('orbit_video');
@@ -108,6 +114,8 @@ export const SogniTools = {
   refineResult: refineResultTool,
   changeAngle: changeAngleTool,
   animatePhoto: animatePhotoTool,
+  upscaleImage: upscaleImageTool,
+  upscaleVideo: upscaleVideoTool,
   stitchVideo: stitchVideoTool,
   orbitVideo: orbitVideoTool,
   danceMontage: danceMontageTool,

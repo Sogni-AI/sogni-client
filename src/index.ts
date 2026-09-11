@@ -25,12 +25,14 @@ import EIP712Helper from './lib/EIP712Helper.js';
 // Projects API
 import {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
   isAudioModel,
   isModelArtifactModel,
   isSegmentationModel,
   isVideoModel,
+  isVideoUpscaleModel,
   requiresStartingImage
 } from './Projects/utils/index.js';
 import ProjectsApi from './Projects/index.js';
@@ -83,7 +85,11 @@ import type {
   RecoveredProject,
   RecoveredWorkerJob
 } from './ApiClient/WebSocketClient/events.js';
-import type { ProjectResolution } from './Projects/index.js';
+import type {
+  ProjectLookupStatus,
+  ProjectResolution,
+  ProjectStatusSnapshot
+} from './Projects/index.js';
 import {
   PROJECT_LOST_ORIGINAL_CODE,
   isProjectLostError,
@@ -412,8 +418,10 @@ export type {
 
 export type {
   CompletedRecoveredProject,
+  ProjectLookupStatus,
   ProjectRecoverySnapshot,
   ProjectResolution,
+  ProjectStatusSnapshot,
   ProjectSyncReason,
   ProjectSyncResult,
   RecoveredProject,
@@ -424,12 +432,14 @@ export type { ProjectLoraSource } from './Projects/types/RawProject.js';
 
 export {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
   isAudioModel,
   isModelArtifactModel,
   isSegmentationModel,
   isVideoModel,
+  isVideoUpscaleModel,
   requiresStartingImage,
   ApiError,
   ApiKeyAuthManager,

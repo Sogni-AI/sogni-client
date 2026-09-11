@@ -30,6 +30,8 @@ export type CreativeWorkflowHostedToolName =
   | 'edit_image'
   | 'apply_style'
   | 'restore_photo'
+  | 'upscale_image'
+  | 'upscale_video'
   | 'refine_result'
   | 'animate_photo'
   | 'change_angle'

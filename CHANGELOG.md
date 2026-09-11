@@ -1,3 +1,57 @@
+# [5.40.0](https://github.com/Sogni-AI/sogni-client/compare/v5.39.1...v5.40.0) (2026-09-11)
+
+
+### Features
+
+* **projects:** add FlashVSR detail, speed and seed options ([be8b5be](https://github.com/Sogni-AI/sogni-client/commit/be8b5be9025606c7f1f29e17fbe322942649c4f8))
+
+## [5.39.1](https://github.com/Sogni-AI/sogni-client/compare/v5.39.0...v5.39.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **deps:** bump @sogni-ai/sogni-protocol to 1.0.0-alpha.35 ([103510e](https://github.com/Sogni-AI/sogni-client/commit/103510e3fe6769653c1b2e9d49d6ecfcbe7cb8e9))
+
+# [5.39.0](https://github.com/Sogni-AI/sogni-client/compare/v5.38.0...v5.39.0) (2026-09-11)
+
+
+### Bug Fixes
+
+* **projects:** leave FlashVSR clip length to the server ([b589d2a](https://github.com/Sogni-AI/sogni-client/commit/b589d2a213c8654d45273fc54786ca25b5b7a860))
+
+
+### Features
+
+* **projects:** add getStatus live lookup and consult it before declaring a project lost ([484d797](https://github.com/Sogni-AI/sogni-client/commit/484d7976d372184e3823b1ee2711cab80f3a7a0a))
+
+# [5.38.0](https://github.com/Sogni-AI/sogni-client/compare/v5.37.1...v5.38.0) (2026-09-11)
+
+
+### Bug Fixes
+
+* **deps:** lock @sogni-ai/sogni-protocol 1.0.0-alpha.34 from the registry ([9606173](https://github.com/Sogni-AI/sogni-client/commit/96061734ae210f49c9f4ad05ecaa85e0a023f42d))
+* **rest:** omit unset query params instead of sending "undefined" ([270aa84](https://github.com/Sogni-AI/sogni-client/commit/270aa84ae960f999b5a12bc98dec936599c5a6be))
+
+
+### Features
+
+* **chat:** sync the hosted upscale_video tool from protocol alpha.34 ([7f232a9](https://github.com/Sogni-AI/sogni-client/commit/7f232a95e1c816cde0c8345657ef6c19d925a064))
+
+## [5.37.1](https://github.com/Sogni-AI/sogni-client/compare/v5.37.0...v5.37.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **projects:** let FlashVSR adopt the verified source timing ([1333b95](https://github.com/Sogni-AI/sogni-client/commit/1333b958f82c17010848f8f384edb80d7e377e82))
+* **workflows:** include upscale_image in hosted workflow tool names ([d0939a0](https://github.com/Sogni-AI/sogni-client/commit/d0939a02fa5fe602ebb572da898a152eae21e8ef))
+
+# [5.37.0](https://github.com/Sogni-AI/sogni-client/compare/v5.36.3...v5.37.0) (2026-09-10)
+
+
+### Features
+
+* **projects:** add FlashVSR promptless video upscaling ([374fb6f](https://github.com/Sogni-AI/sogni-client/commit/374fb6f9efa9a9da08814b24a0c6c2037204538a))
+
 ## [5.36.3](https://github.com/Sogni-AI/sogni-client/compare/v5.36.2...v5.36.3) (2026-09-10)
 
 

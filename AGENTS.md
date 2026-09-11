@@ -72,7 +72,7 @@ Public chat and workflow media rules:
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, Wan 3, LTX-2.3, Seedance 2.0, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, Wan 3, LTX-2.3, Seedance 2.0, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), promptless video upscaling (FlashVSR v1.1), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
 
 Choosing an image-edit model: pick by what the edit has to preserve, not by step count or quality tier. When a person or character must stay recognisable through the edit — style transfer, makeover, clothing or person swap, face swap, new pose or expression, character sheet — use Krea 2 Identity Edit (`krea2_identity_edit_v1_2`, or `dark_beast_krea2_identity_edit_v1_2` uncensored) with 1-2 context images. For general-purpose editing — photo transforms, in-image text, multi-person changes, combining up to 3 references — use a Qwen image-edit model. A higher-step general-purpose editor does not beat the identity model at a likeness task; it reinterprets the subject instead of preserving it. See `llms.txt` for parameters.
 
@@ -235,6 +235,14 @@ The SDK supports two families of video models with **fundamentally different FPS
 - **Wan 3** is one fixed-30fps model for 2-30s T2V/I2V/FLF/R2V/A2V/IA2V generation. It accepts up to 10 loose images, 5 videos, and 5 audios, but native frame mode cannot mix with loose references. Video inputs are loose conditioning, not provider-backed edit/extend tasks.
 - Family predicates: `isSeedanceModel()`, `isHappyhorseModel()`, `isExternalApiVideoModel()` in `src/Projects/utils/index.ts`.
 
+### Video Upscaling (FlashVSR)
+
+**FlashVSR v1.1** (`FLASHVSR_VIDEO_UPSCALE_MODEL_ID`, `flashvsr_v1.1_tiny_long_bf16`) is a standalone, promptless upscale job, not a generation model:
+- Exactly one `referenceVideo`, `numberOfMedia: 1`, empty prompt; the SDK fixes steps to 1 and seed to 0 and rejects generation controls.
+- Output short edge is `upscaleResolution` (1080 or 1440); the aspect ratio, every frame, the exact (possibly fractional) fps, and the original audio are preserved.
+- Minimal call: `referenceVideo` + `upscaleResolution` + `numberOfMedia: 1` + empty prompt. `frames`, `fps`, `width` and `height` are optional; the server probes the upload and adopts the verified source values, and rejects only values a caller sent that conflict with the source. The SDK sets no frame-count or duration limit: the server enforces the maximum clip length and returns a clear error for a source that is too long. Estimates take the output size, the source's `frames`/`fps`, and `sourceWidth`/`sourceHeight`.
+- `isVideoUpscaleModel()` detects it; `getVideoWorkflowType()` returns `'upscale'`. Hosted chat/workflows expose it as the `upscale_video` tool.
+
 ### Key Files
 - `src/Projects/utils/index.ts` - `isWanModel()`, `isLtx2Model()`, `calculateVideoFrames()`
 - `src/Projects/createJobRequestMessage.ts` - Uses `calculateVideoFrames()` for duration→frames conversion
@@ -363,6 +371,7 @@ const urls = await project.waitForCompletion();
 | Audio-to-Video | `*_a2v*` (LTX-2.3) | `referenceAudio` |
 | Animate-Move | `*_animate-move*` | `referenceImage` + `referenceVideo` |
 | Animate-Replace | `*_animate-replace*` | `referenceImage` + `referenceVideo` |
+| Video Upscale | `flashvsr_*` | exactly one `referenceVideo` (promptless) |
 
 ## LLM Chat — Thinking Models & Tool Calling
 

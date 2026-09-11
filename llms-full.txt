@@ -1081,6 +1081,81 @@ including first-only I2VA, last-only L2VA, and dual-anchor FL2VA through I2V,
 plus the three Turbo model-key overrides. Turbo uses the same official
 T2V/I2V/L2V/FLF2V prompt contract as standard FL2VA.
 
+FLASHVSR VIDEO UPSCALING:
+`FLASHVSR_VIDEO_UPSCALE_MODEL_ID` (`flashvsr_v1.1_tiny_long_bf16`) is a
+standalone, promptless video upscaler that runs on Sogni NVIDIA workers. It
+takes exactly one finished `referenceVideo` and delivers it at 1080p or 1440p
+on the short edge (`upscaleResolution`, or the smaller of `width`/`height`).
+It keeps every source frame, the exact frame rate (fractional rates such as
+24000/1001 are preserved), the full aspect ratio, and the original audio. It
+never trims, crops, restyles, or interpolates. `isVideoUpscaleModel(modelId)`
+detects it, `getVideoWorkflowType(modelId)` returns `'upscale'`, and
+`getVideoAssetRequirements(modelId).referenceVideo` is `'required'`.
+
+Source limits: short edge at most 768px and about 1344x768 pixels overall
+(768x1344 in portrait); 1-60 fps at a constant frame rate; SDR; square pixels with rotation
+applied; 100 MB or less. The SDK sets no frame-count or duration limit: the server
+enforces the maximum clip length and refuses a source that is too long with a
+clear error. The output is at most twice the source size, so 1080p
+needs a source short edge of at least 540px and 1440p at least 720px. The model
+catalog advertises `task: 'video-upscale'`, `outputResolutions: [1080, 1440]`,
+`preservesSourceTiming: true`, and `requiresReferenceVideo: true`.
+
+The minimal call is `referenceVideo` + `upscaleResolution` + `numberOfMedia: 1`
++ an empty prompt. The caller does not send the source's frame count, frame
+rate, or size: the server probes the uploaded file and uses its verified
+values. `frames`, `fps`, `width`, and `height` are optional; any value you do
+send must match the verified source or the request is rejected. A `duration`
+is only accepted together with the source's exact `fps`.
+
+```javascript
+import fs from 'node:fs';
+import { FLASHVSR_VIDEO_UPSCALE_MODEL_ID } from '@sogni-ai/sogni-client';
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
+  positivePrompt: '',          // promptless
+  numberOfMedia: 1,            // one source video per project
+  referenceVideo: fs.readFileSync('./clip.mp4'),
+  upscaleResolution: 1440      // 1080 | 1440: the output's short edge
+});
+const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the original audio
+```
+
+To show a price before submitting, estimate with the source's metadata (for
+example from ffprobe). The output size is the source scaled so its short edge
+equals the target, with both edges rounded to even pixels. The job itself is
+charged from the verified source.
+
+```javascript
+// Source: 1280x720, 158 frames at 24 fps -> 1440p output is 2560x1440.
+const quote = await sogni.projects.estimateVideoCost({
+  tokenType: 'spark',
+  model: FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
+  width: 2560,
+  height: 1440,
+  frames: 158,
+  fps: 24,
+  duration: 158 / 24,
+  steps: 1,
+  numberOfMedia: 1,
+  sourceWidth: 1280,
+  sourceHeight: 720
+});
+```
+
+The request builder rejects a prompt, `teacacheThreshold`, `trimEndFrame`,
+`controlNet`, `videoStart`, reference URL arrays, other reference media,
+`generateAudio: false`, and `numberOfMedia` other than 1. Steps are fixed at 1
+and seed at 0. Until a compatible worker is connected, the server refuses
+FlashVSR requests with "FlashVSR video upscaling is not available yet. Please
+try again later." Hosted chat, durable chat runs, and durable workflows expose
+the same operation as the promptless `upscale_video` tool (`sourceVideoIndex`,
+optional `targetResolution` 1080 or 1440); the server reads the source metadata
+itself, so the model never supplies frames or fps.
+
 ================================================================================ 8. AUDIO GENERATION - ACE-STEP 1.5 MODELS
 ================================================================================
 
@@ -1493,11 +1568,13 @@ Sogni's generation APIs automatically:
 - Video-to-Video: "Restyle this video as anime"
 - Music Generation: "Compose a jazz song about the rain"
 
-CANONICAL HOSTED CREATIVE-TOOL SURFACE (`SogniTools.all`, 24 tools):
+CANONICAL HOSTED CREATIVE-TOOL SURFACE (`SogniTools.all`, 27 tools):
 The full hosted surface executes server-side via `sogni.chat.hosted.create()` / `sogni.chat.runs.create()`. The default `creative-tools` value of `sogni_tools` injects this surface server-side; `sogni_tools: "creative-agent"` adds workflow control and asset-manifest tools on top. The client-side `sogni.chat.tools.execute()` path directly dispatches only the core generation tools (`generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`). Known synchronous composition/planning calls can use `sogni.chat.hosted.executeTool()`; post-production tools should be routed through hosted chat, durable runs, or explicit workflows.
 
-- `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video` — core media-generation tools with creative-agent naming.
+- `generate_image`, `edit_image`, `generate_video`, `generate_music`, `generate_speech`, `sound_to_video`, `video_to_video` — core media-generation tools with creative-agent naming.
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` — image-edit adapters backed by the shared image-edit workflow.
+- `upscale_image` — promptless RTX VSR image enlargement.
+- `upscale_video` — promptless FlashVSR upscale of one generated or uploaded video (`sourceVideoIndex`) to 1080p or 1440p (`targetResolution`), keeping every frame, the frame rate, and the original audio. Use it instead of `video_to_video` when the user only wants more resolution.
 - `animate_photo` — image-to-video, with multi-source fan-out via `sourceImageIndices`. Fan-out (>1 source image) is composed into one MP4 by default; opt out with `stitched: false` for a flat clip list.
 - `stitch_video` — concatenate selected video clips (with optional audio overlay via `audioIndex`) into one MP4.
 - `orbit_video` — generate orbit clips around a subject and stitch them into one MP4.
@@ -1781,6 +1858,8 @@ VIDEO-SPECIFIC PARAMETERS:
   lastFrameStrength?: number;   // LTX-2.3 only (0-1)
   trimEndFrame?: boolean;
   controlNet?: VideoControlNetParams;  // LTX-2.3 only
+  upscaleResolution?: 1080 | 1440;  // FlashVSR upscale only: output short edge
+  frames?: number;           // FlashVSR upscale: optional; must equal the source's frame count if sent
   outputFormat?: 'mp4';
 }
 ```
@@ -1844,6 +1923,22 @@ project.on('failed', (error) => {
   console.error('Project failed:', error.message);
 });
 ```
+
+STATUS OF A PROJECT BY ID:
+
+```javascript
+// One of your own projects, including while it is queued or rendering.
+// Owner-scoped live lookup (GET /v2/projects/:id); needs an authenticated client.
+const snapshot = await sogni.projects.getStatus(projectId);
+// snapshot.status: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
+// snapshot.finished: true for completed, failed and canceled
+```
+
+`sogni.projects.get(projectId)` is different: it returns the stored record of a finished
+project (raw statuses such as 'completed' / 'errored') and throws a 404 while the project is still
+queued or rendering. Use getStatus() when you need to tell "still waiting" from "gone"; a project
+owned by another account, or one that does not exist, rejects getStatus() with a 404, and a 503
+means the state is temporarily unavailable and can be retried.
 
 JOB EVENTS:
 
@@ -2022,6 +2117,11 @@ When estimating a reference-to-video job, pass `referenceImageCount`,
 will actually submit. MiniMax H3 bills reference-video duration at the full
 resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with
 Turbo output. These fields are ignored by unrelated models.
+
+For a FlashVSR upscale estimate, pass the output `width`/`height`, the source's
+`frames` and `fps`, `steps: 1`, `numberOfMedia: 1`, and
+`sourceWidth`/`sourceHeight` (see FLASHVSR VIDEO UPSCALING). The project itself
+is charged from the verified uploaded source.
 
 CHECK BALANCE:
 
@@ -2202,6 +2302,7 @@ interface VideoProjectParams extends BaseProjectParams {
   lastFrameStrength?: number;
   outputFormat?: 'mp4';
   controlNet?: VideoControlNetParams;
+  upscaleResolution?: 1080 | 1440; // FlashVSR upscale only
 }
 ```
 

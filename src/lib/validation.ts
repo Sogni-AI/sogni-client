@@ -146,6 +146,7 @@ export function isComfyModel(modelId: string): boolean {
     'dark_beast_krea2_',
     'qwen_image_',
     'rtx_vsr_',
+    'flashvsr_',
     'wan_',
     'ace_step',
     'minimax_music3',

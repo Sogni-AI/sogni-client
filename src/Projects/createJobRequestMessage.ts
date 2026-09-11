@@ -30,6 +30,7 @@ import {
   getVideoWorkflowType,
   getVideoAssetRequirements,
   isVideoModel,
+  isVideoUpscaleModel,
   calculateVideoFrames,
   isLtx2Model,
   isWanAnimateModel,
@@ -1297,6 +1298,35 @@ function applyImageParams(
   return keyFrame;
 }
 
+const VIDEO_UPSCALE_TIMING_ERROR =
+  'Omit the source timing, or supply the source video’s exact frame count and frame rate.';
+
+/**
+ * FlashVSR source timing is optional. The server probes the uploaded video and
+ * adopts its exact frame count and frame rate when they are omitted; values a
+ * caller does send must describe the source and are checked against it.
+ *
+ * These are sanity checks only. The SDK sets no maximum frame count or clip
+ * length: the server's admission check is the one place that limit lives, and
+ * it refuses a source that is too long with a clear error.
+ */
+function validateVideoUpscaleTiming(params: VideoProjectParams): void {
+  const fps = params.fps === undefined ? undefined : Number(params.fps);
+  if (fps !== undefined && (!Number.isFinite(fps) || fps < 1 || fps > 60)) {
+    throw new Error(VIDEO_UPSCALE_TIMING_ERROR);
+  }
+  let frames = params.frames;
+  if (frames === undefined && params.duration !== undefined) {
+    // A duration identifies the source's frames only together with its exact rate.
+    if (fps === undefined) throw new Error(VIDEO_UPSCALE_TIMING_ERROR);
+    frames = Math.round(Number(params.duration) * fps);
+  }
+  if (frames === undefined) return;
+  if (!Number.isInteger(frames) || frames < 1) {
+    throw new Error(VIDEO_UPSCALE_TIMING_ERROR);
+  }
+}
+
 function applyVideoParams(
   inputKeyframe: Record<string, any>,
   params: VideoProjectParams,
@@ -1310,6 +1340,43 @@ function applyVideoParams(
     });
   }
   validateVideoWorkflowAssets(params);
+  if (isVideoUpscaleModel(params.modelId)) {
+    if (params.detailPreference != null && !['stable', 'sharper'].includes(params.detailPreference)) {
+      throw new Error('FlashVSR detailPreference must be stable or sharper.');
+    }
+    if (params.processingSpeed != null && !['stable', 'faster'].includes(params.processingSpeed)) {
+      throw new Error('FlashVSR processingSpeed must be stable or faster.');
+    }
+    const seed = params.seed ?? 0;
+    if (!Number.isInteger(seed) || seed < -1 || seed > 4294967295) {
+      throw new Error('FlashVSR seed must be -1 (random) or an integer from 0 through 4294967295.');
+    }
+    const resolution =
+      params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
+    if (![1080, 1440].includes(resolution))
+      throw new Error('Choose 1080p or 1440p for video upscaling.');
+    if (!params.referenceVideo) throw new Error('FlashVSR requires an uploaded referenceVideo.');
+    validateVideoUpscaleTiming(params);
+    if (params.positivePrompt?.trim() || params.negativePrompt?.trim())
+      throw new Error('FlashVSR is promptless.');
+    if (
+      params.teacacheThreshold != null ||
+      params.trimEndFrame ||
+      params.controlNet ||
+      params.videoStart != null ||
+      params.referenceVideoUrls?.length ||
+      params.referenceImageUrls?.length ||
+      params.referenceAudioUrls?.length ||
+      params.referenceFileUrl ||
+      params.referenceLinkUrl ||
+      params.generateAudio === false
+    ) {
+      throw new Error(
+        'Video upscaling preserves the complete source video and its audio; generation controls are unsupported.'
+      );
+    }
+    if (params.numberOfMedia !== 1) throw new Error('Upscale one source video per project.');
+  }
   validateMinimaxH3Params(params);
   const keyFrame: Record<string, any> = { ...inputKeyframe };
   if (params.referenceImage) {
@@ -1396,23 +1463,28 @@ function applyVideoParams(
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
   }
-  if (params.duration !== undefined) {
+  if (
+    params.duration !== undefined &&
+    !(isVideoUpscaleModel(params.modelId) && params.frames !== undefined)
+  ) {
     // Minimum direct-SDK duration: MiniMax H3 5.167s (124 frames at 24fps,
     // the bottom of its frame grid), HappyHorse 3s, Seedance 4s, others 1s.
-    const minDuration = isMinimaxH3Model(params.modelId)
-      ? MINIMAX_H3_MIN_DURATION
-      : isWan3Model(params.modelId)
-        ? 2
-        : isHappyhorseModel(params.modelId)
-          ? 3
-          : isSeedanceModel(params.modelId)
-            ? 4
-            : 1;
-    const duration = validateVideoDuration(
-      params.duration,
-      minDuration,
-      getMaxVideoDuration(params.modelId)
-    );
+    const minDuration = isVideoUpscaleModel(params.modelId)
+      ? 1 / (params.fps ?? 24)
+      : isMinimaxH3Model(params.modelId)
+        ? MINIMAX_H3_MIN_DURATION
+        : isWan3Model(params.modelId)
+          ? 2
+          : isHappyhorseModel(params.modelId)
+            ? 3
+            : isSeedanceModel(params.modelId)
+              ? 4
+              : 1;
+    // FlashVSR has no client-side maximum: the server's admission check owns
+    // the longest source it accepts and refuses a longer one itself.
+    const duration = isVideoUpscaleModel(params.modelId)
+      ? validateNumber(params.duration, { min: minDuration, propertyName: 'Video duration' })
+      : validateVideoDuration(params.duration, minDuration, getMaxVideoDuration(params.modelId));
     // Use fps from params or default based on model type:
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
     // - LTX 2.x: fps directly affects frame count (default 24fps if not specified)
@@ -1489,6 +1561,17 @@ function applyVideoParams(
 
   keyFrame.comfySampler = validateSampler(params.sampler, options);
   keyFrame.comfyScheduler = validateScheduler(params.scheduler, options);
+
+  if (isVideoUpscaleModel(params.modelId)) {
+    keyFrame.upscaleResolution =
+      params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
+    keyFrame.steps = 1;
+    keyFrame.seed = params.seed ?? 0;
+    keyFrame.detailPreference = params.detailPreference ?? 'stable';
+    keyFrame.processingSpeed = params.processingSpeed ?? 'stable';
+    keyFrame.generateAudio = true;
+    keyFrame.interpolation = 'none';
+  }
 
   return keyFrame;
 }

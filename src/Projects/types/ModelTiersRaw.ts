@@ -59,6 +59,10 @@ export interface Benchmark {
 }
 
 export interface VideoTier {
+  task?: 'video-upscale';
+  outputResolutions?: number[];
+  preservesSourceTiming?: boolean;
+  requiresReferenceVideo?: boolean;
   audioDuration?: DurationDefaults;
   audioStart?: DurationDefaults;
   benchmark: Benchmark;

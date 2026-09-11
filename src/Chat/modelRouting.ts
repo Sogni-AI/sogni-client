@@ -44,6 +44,7 @@ export {
 export type BackboneMediaType = 'image' | 'video' | 'audio';
 
 export type VideoWorkflow =
+  | 'upscale'
   | 't2v'
   | 'i2v'
   | 'flf2v'

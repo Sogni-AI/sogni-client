@@ -329,15 +329,50 @@ const MISSING_PROJECT_RETRY_MS = 2500;
  *
  * - `finished`: the REST API has the completed record.
  * - `active`: the socket lists it after all (it was registered after the
- *   snapshot was taken); wait for live events.
- * - `lost`: neither the socket nor the REST API know it.
- * - `unknown`: a transport error prevented a verdict; nothing was changed.
+ *   snapshot was taken), or the owner's live lookup reports it pending, queued
+ *   or processing; wait for live events.
+ * - `lost`: neither the socket, the REST API nor the live lookup know it.
+ * - `unknown`: a transport error prevented a verdict, or the live lookup says it
+ *   finished before its full record was stored; nothing was changed.
  */
 export type ProjectResolution =
   | { state: 'finished'; project: RawProject }
   | { state: 'active' }
   | { state: 'lost' }
   | { state: 'unknown'; error: unknown };
+
+/**
+ * Lifecycle state reported by {@link ProjectsApi.getStatus}. These are the
+ * server's normalized names, not the raw `RawProject.status` values: `pending`
+ * (awaiting authorization), `queued`, `processing`, and the finished states
+ * `completed`, `failed` and `canceled`.
+ */
+export type ProjectLookupStatus =
+  | 'pending'
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'canceled';
+
+/**
+ * One of the caller's own projects as the live lookup reports it. Only `id`,
+ * `status`, `finished` and the two job arrays are guaranteed; the remaining
+ * {@link RawProject} fields can be absent for a project whose full record the
+ * server has not stored yet.
+ */
+export type ProjectStatusSnapshot = Partial<
+  Omit<RawProject, 'status' | 'workerJobs' | 'completedWorkerJobs'>
+> & {
+  id: string;
+  status: ProjectLookupStatus;
+  /** `true` for `completed`, `failed` and `canceled`. */
+  finished: boolean;
+  workerJobs: RawProject['workerJobs'];
+  completedWorkerJobs: RawProject['completedWorkerJobs'];
+};
+
+const IN_FLIGHT_LOOKUP_STATUSES: ReadonlySet<string> = new Set(['pending', 'queued', 'processing']);
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -1081,13 +1116,50 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (pending.length) {
       // Last word goes to the socket: a project that reached the server after
       // the snapshot was taken is in flight, not lost. `null` means the list
-      // could not be fetched, in which case the REST verdict stands.
+      // could not be fetched.
       const live = await this._listActiveProjectIds();
+      // Before failing anything, ask the owner-scoped live lookup. It can only
+      // rescue a project: a positive in-flight answer means `active`, and a
+      // finished answer whose full record has not reached the terminal REST
+      // store yet stays unverified for the next sync. Anything else, including
+      // an unauthenticated client or an older API without the lookup, keeps the
+      // `lost` verdict.
+      const unlisted = pending.filter((id) => !live?.includes(id));
+      const checks = new Map(
+        await Promise.all(
+          unlisted.map(async (id) => [id, await this._lookupUnlistedProject(id)] as const)
+        )
+      );
       for (const id of pending) {
-        result[id] = live?.includes(id) ? { state: 'active' } : { state: 'lost' };
+        result[id] = live?.includes(id)
+          ? { state: 'active' }
+          : (checks.get(id) ?? { state: 'lost' });
       }
     }
     return result;
+  }
+
+  /**
+   * Second opinion for a project neither the terminal REST record nor the live
+   * socket list knows. Returns `undefined` when the lookup cannot vouch for it.
+   */
+  private async _lookupUnlistedProject(projectId: string): Promise<ProjectResolution | undefined> {
+    try {
+      const project = await this.getStatus(projectId);
+      if (project?.id !== projectId) return undefined;
+      if (!project.finished && IN_FLIGHT_LOOKUP_STATUSES.has(project.status)) {
+        return { state: 'active' };
+      }
+      if (project.finished) {
+        return {
+          state: 'unknown',
+          error: new Error('The project finished but its full record is not available yet')
+        };
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /** Serialize syncs so two snapshots never interleave their replays. */
@@ -1539,12 +1611,33 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   /**
    * Get project by id, this API returns project data from the server only if the project is
    * completed or failed. If the project is still processing, it will throw 404 error.
+   * Use {@link getStatus} to see a project of your own while it is still queued or rendering.
    * @internal
    * @param projectId
    */
   async get(projectId: string) {
     const { data } = await this.client.rest.get<ApiResponse<{ project: RawProject }>>(
       `/v1/projects/${projectId}`
+    );
+    return data.project;
+  }
+
+  /**
+   * Current state of one of this account's projects, including while it is still
+   * queued or rendering (`GET /v2/projects/:id`).
+   *
+   * Unlike {@link get}, which answers only once a project has finished and 404s
+   * until then, this reads the owner-scoped live lookup, so it needs an
+   * authenticated client. Statuses use the normalized {@link ProjectLookupStatus}
+   * names, and `finished` is set for completed, failed and canceled projects.
+   * A project that belongs to another account, or does not exist, rejects with a
+   * 404 `ApiError`; a 503 means the server could not determine the state yet and
+   * the call can be retried.
+   * @param projectId
+   */
+  async getStatus(projectId: string): Promise<ProjectStatusSnapshot> {
+    const { data } = await this.client.rest.get<ApiResponse<{ project: ProjectStatusSnapshot }>>(
+      `/v2/projects/${encodeURIComponent(projectId)}`
     );
     return data.project;
   }
@@ -2097,6 +2190,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       params.hasVideoInput === true ||
       Boolean(params.referenceVideo) ||
       (Array.isArray(params.referenceVideoUrls) && params.referenceVideoUrls.length > 0);
+    if (params.sourceWidth !== undefined && params.sourceHeight !== undefined) {
+      query.set('sourceWidth', String(params.sourceWidth));
+      query.set('sourceHeight', String(params.sourceHeight));
+    }
     if (hasVideoInput) {
       query.set('hasVideoInput', '1');
     }

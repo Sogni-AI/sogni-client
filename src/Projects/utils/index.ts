@@ -81,8 +81,16 @@ export function isVideoModel(modelId: string): boolean {
     isSeedanceModel(modelId) ||
     isHappyhorseModel(modelId) ||
     isWan3Model(modelId) ||
-    isMinimaxH3Model(modelId)
+    isMinimaxH3Model(modelId) ||
+    isVideoUpscaleModel(modelId)
   );
+}
+
+/** Standalone, promptless enhancement of a finished video. */
+export const FLASHVSR_VIDEO_UPSCALE_MODEL_ID = 'flashvsr_v1.1_tiny_long_bf16';
+
+export function isVideoUpscaleModel(modelId: string): boolean {
+  return modelId === FLASHVSR_VIDEO_UPSCALE_MODEL_ID;
 }
 
 /**
@@ -367,7 +375,10 @@ export function calculateVideoFrames(
 ): number {
   let frames: number;
 
-  if (isWanModel(modelId)) {
+  if (isVideoUpscaleModel(modelId)) {
+    // Upscaling preserves the source frame count; never append or snap frames.
+    frames = Math.round(duration * fps);
+  } else if (isWanModel(modelId)) {
     // WAN 2.2: Always generates at 16fps, fps param is for post-render interpolation only
     // This is legacy behavior specific to WAN models
     frames = Math.round(duration * 16) + 1;
@@ -420,6 +431,7 @@ export function calculateVideoFrames(
  */
 export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   if (!modelId) return null;
+  if (isVideoUpscaleModel(modelId)) return 'upscale';
 
   const isWan = isWanModel(modelId);
   const isLtx2 = isLtx2Model(modelId);
@@ -502,6 +514,14 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
   NonNullable<VideoWorkflowType>,
   Record<VideoAssetKey, AssetRequirement>
 > = {
+  upscale: {
+    referenceImage: 'forbidden',
+    referenceImageEnd: 'forbidden',
+    referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'forbidden',
+    referenceVideo: 'required',
+    referenceMask: 'forbidden'
+  },
   t2v: {
     referenceImage: 'forbidden',
     referenceImageEnd: 'forbidden',
