@@ -1,3 +1,10 @@
+# [5.40.0](https://github.com/Sogni-AI/sogni-client/compare/v5.39.1...v5.40.0) (2026-09-11)
+
+
+### Features
+
+* **projects:** add FlashVSR detail, speed and seed options ([be8b5be](https://github.com/Sogni-AI/sogni-client/commit/be8b5be9025606c7f1f29e17fbe322942649c4f8))
+
 ## [5.39.1](https://github.com/Sogni-AI/sogni-client/compare/v5.39.0...v5.39.1) (2026-09-11)
 
 
