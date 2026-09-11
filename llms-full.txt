@@ -1903,6 +1903,22 @@ project.on('failed', (error) => {
 });
 ```
 
+STATUS OF A PROJECT BY ID:
+
+```javascript
+// One of your own projects, including while it is queued or rendering.
+// Owner-scoped live lookup (GET /v2/projects/:id); needs an authenticated client.
+const snapshot = await sogni.projects.getStatus(projectId);
+// snapshot.status: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
+// snapshot.finished: true for completed, failed and canceled
+```
+
+`sogni.projects.get(projectId)` is different: it returns the stored record of a finished
+project (raw statuses such as 'completed' / 'errored') and throws a 404 while the project is still
+queued or rendering. Use getStatus() when you need to tell "still waiting" from "gone"; a project
+owned by another account, or one that does not exist, rejects getStatus() with a 404, and a 503
+means the state is temporarily unavailable and can be retried.
+
 JOB EVENTS:
 
 ```javascript

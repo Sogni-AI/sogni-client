@@ -879,6 +879,16 @@ project.jobs[0].on('progress', ({ step, stepCount }) => {
 });
 ```
 
+### Status of a project by id
+
+```javascript
+// Your own project, including while it is queued or rendering (authenticated client).
+const { status, finished } = await sogni.projects.getStatus(projectId);
+// status: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
+```
+
+`sogni.projects.get(projectId)` returns only the stored record of a finished project and 404s while it is queued or rendering; use `getStatus()` to tell "still waiting" from "gone".
+
 ---
 
 ## 11. Discovering Models & Options

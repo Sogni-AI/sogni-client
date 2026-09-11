@@ -432,6 +432,132 @@ async function main() {
     stopTimers(api);
   }
 
+  // 6d-6g. The socket live list is unavailable and the terminal REST record is
+  //     missing. The owner-scoped live lookup (`GET /v2/projects/:id`) can only
+  //     rescue a project; every other answer keeps today's `lost` verdict.
+  {
+    const liveLookup = async (answers) => {
+      const { api, socket, client, synced } = makeHarness();
+      const projects = {};
+      for (const key of Object.keys(answers)) projects[key] = await createTracked(api);
+      const v2Calls = [];
+      client.rest.get = (function (original) {
+        return async function (path, query) {
+          const match = path.match(/^\/v2\/projects\/(.+)$/);
+          if (match) {
+            const id = decodeURIComponent(match[1]);
+            v2Calls.push(id);
+            const key = Object.keys(projects).find((name) => projects[name].id === id);
+            const answer = answers[key];
+            if (answer instanceof Error) throw answer;
+            return { status: 'success', data: { project: { id, ...answer } } };
+          }
+          return original.call(this, path, query);
+        };
+      })(client.rest.get);
+      client.emit('connected', { network: 'fast' });
+      socket.emit('authenticated', {
+        clientType: 'artist',
+        activeProjects: [],
+        unclaimedCompletedProjects: []
+      });
+      await sleep(80);
+      return { api, projects, synced, v2Calls };
+    };
+    const notFound = Object.assign(new Error('Not Found'), { status: 404 });
+    const unauthorized = Object.assign(new Error('Unauthorized'), { status: 401 });
+    const jobs = { workerJobs: [], completedWorkerJobs: [] };
+    const { api, projects, synced, v2Calls } = await liveLookup({
+      queued: { status: 'queued', finished: false, ...jobs },
+      processing: { status: 'processing', finished: false, ...jobs },
+      gone: notFound,
+      anonymous: unauthorized,
+      settled: { status: 'completed', finished: true, ...jobs }
+    });
+    assert.deepEqual(
+      [...synced[0].active].sort(),
+      [projects.queued.id, projects.processing.id].sort(),
+      'a project the live lookup reports in flight is active, not lost'
+    );
+    assert.equal(projects.queued.status, 'pending', 'a queued project is never failed as lost');
+    assert.equal(projects.processing.status, 'pending');
+    assert.deepEqual(
+      [...synced[0].lost].sort(),
+      [projects.gone.id, projects.anonymous.id].sort(),
+      'a 404 or an unauthenticated lookup keeps the lost verdict'
+    );
+    assert.equal(projects.gone.status, 'failed');
+    assert.deepEqual(
+      synced[0].unverified,
+      [projects.settled.id],
+      'a finished answer without a stored record stays unverified'
+    );
+    assert.equal(projects.settled.status, 'pending', 'an unverified project is left untouched');
+    assert.deepEqual(synced[0].completed, [], 'the live lookup never completes a project itself');
+    assert.equal(v2Calls.length, 5, 'one live lookup per unlisted project');
+    stopTimers(api);
+  }
+
+  // 6h. A project the socket lists is never looked up again.
+  {
+    const { api, socket, client, synced } = makeHarness();
+    const late = await createTracked(api);
+    api._listActiveProjectIds = async () => [late.id];
+    const v2Calls = [];
+    client.rest.get = (function (original) {
+      return async function (path, query) {
+        if (path.startsWith('/v2/projects/')) v2Calls.push(path);
+        return original.call(this, path, query);
+      };
+    })(client.rest.get);
+    client.emit('connected', { network: 'fast' });
+    socket.emit('authenticated', {
+      clientType: 'artist',
+      activeProjects: [],
+      unclaimedCompletedProjects: []
+    });
+    await sleep(60);
+    assert.deepEqual(synced[0].active, [late.id]);
+    assert.deepEqual(v2Calls, [], 'the socket list answers first');
+    stopTimers(api);
+  }
+
+  // 6i. getStatus reads the owner-scoped live lookup and returns it unchanged;
+  //     get() still reads the terminal record.
+  {
+    const { api, client } = makeHarness();
+    const seen = [];
+    client.rest.get = async (path) => {
+      seen.push(path);
+      if (path === '/v2/projects/A%2FB') {
+        return {
+          status: 'success',
+          data: {
+            project: {
+              id: 'A/B',
+              status: 'queued',
+              finished: false,
+              workerJobs: [],
+              completedWorkerJobs: []
+            }
+          }
+        };
+      }
+      throw Object.assign(new Error('Not Found'), { status: 404 });
+    };
+    const status = await api.getStatus('A/B');
+    assert.deepEqual(status, {
+      id: 'A/B',
+      status: 'queued',
+      finished: false,
+      workerJobs: [],
+      completedWorkerJobs: []
+    });
+    await assert.rejects(api.get('A/B'), (error) => error.status === 404);
+    assert.deepEqual(seen, ['/v2/projects/A%2FB', '/v1/projects/A/B'], 'get() keeps its v1 path');
+    stopTimers(api);
+  }
+
   // 6c. Cancelled while away reaches API-level listeners as an artistCanceled
   //     error and settles the instance on `canceled`.
   {

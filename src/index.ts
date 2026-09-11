@@ -85,7 +85,11 @@ import type {
   RecoveredProject,
   RecoveredWorkerJob
 } from './ApiClient/WebSocketClient/events.js';
-import type { ProjectResolution } from './Projects/index.js';
+import type {
+  ProjectLookupStatus,
+  ProjectResolution,
+  ProjectStatusSnapshot
+} from './Projects/index.js';
 import {
   PROJECT_LOST_ORIGINAL_CODE,
   isProjectLostError,
@@ -414,8 +418,10 @@ export type {
 
 export type {
   CompletedRecoveredProject,
+  ProjectLookupStatus,
   ProjectRecoverySnapshot,
   ProjectResolution,
+  ProjectStatusSnapshot,
   ProjectSyncReason,
   ProjectSyncResult,
   RecoveredProject,

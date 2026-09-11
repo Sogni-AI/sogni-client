@@ -449,8 +449,20 @@ document.addEventListener('visibilitychange', () => {
 
 A project that the server no longer lists is looked up on the REST API (which only stores finished
 projects) a few times before it is declared lost; it then fails with an error where
-`isProjectLostError(error)` is `true`. Apps that persist project ids themselves can run the same
-lookup with `sogni.projects.resolveMissing(ids)`.
+`isProjectLostError(error)` is `true`. Before failing it, the SDK also asks the account's live
+project lookup, so a project that is only slow to be picked up stays active instead. Apps that
+persist project ids themselves can run the same lookup with `sogni.projects.resolveMissing(ids)`.
+
+To read one of your own projects while it is still queued or rendering, use
+`sogni.projects.getStatus(id)`. It needs an authenticated client and returns normalized statuses
+(`pending`, `queued`, `processing`, `completed`, `failed`, `canceled`) with a `finished` flag.
+`sogni.projects.get(id)` is unchanged: it returns the stored record of a finished project and 404s
+until then.
+
+```typescript
+const { status, finished } = await sogni.projects.getStatus(projectId);
+if (!finished) console.log(`Still ${status}`);
+```
 
 The same snapshot also answers "is anything rendering elsewhere on this account?" — another tab in
 a different Sogni app, another device, a headless client. `sogni.projects.listProjectsElsewhere()`
