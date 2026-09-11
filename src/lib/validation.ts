@@ -1,5 +1,74 @@
 import { ApiError } from '../ApiClient/index.js';
 import { ModelOptions } from '../Projects/types/ModelOptions.js';
+import type { ImageProjectParams } from '../Projects/types/index.js';
+
+const GPT_IMAGE_MODEL_IDS = new Set([
+  'gpt-image-2',
+  'gpt-image-2.5-sunburst',
+  'gpt-image-2.5-flare'
+]);
+
+export function isGptImageModel(modelId?: string): boolean {
+  return modelId !== undefined && GPT_IMAGE_MODEL_IDS.has(modelId);
+}
+
+export function validateGptImageOptions(params: ImageProjectParams): void {
+  if (!isGptImageModel(params.modelId)) {
+    if (params.gptImageMask || params.gptImageMaskUrl)
+      throw new Error('GPT Image masks require a GPT Image model');
+    return;
+  }
+  if (params.gptImageMask && params.gptImageMaskUrl) throw new Error('Provide one GPT Image mask');
+  if (params.gptImageMask && !params.contextImages?.length)
+    throw new Error('GPT Image mask requires a first reference image');
+  if (
+    params.contextImages !== undefined &&
+    (!Array.isArray(params.contextImages) ||
+      params.contextImages.length > 16 ||
+      params.contextImages.some((image) => !image))
+  ) {
+    throw new Error('GPT Image accepts up to 16 non-empty references in source order');
+  }
+  if (
+    params.gptImageMaskUrl !== undefined &&
+    (typeof params.gptImageMaskUrl !== 'string' ||
+      !params.gptImageMaskUrl.trim() ||
+      !params.contextImages?.length)
+  ) {
+    throw new Error('GPT Image mask requires a mask URL and a first reference image');
+  }
+  const is25 = params.modelId !== 'gpt-image-2';
+  const quality = params.gptImageQuality;
+  if (quality === 'auto') {
+    throw new Error(
+      `Unsupported quality for ${params.modelId}: auto. Choose low, medium or high${is25 ? ', xhigh or max' : ''}.`
+    );
+  }
+  if (quality !== undefined) {
+    const allowed = ['low', 'medium', 'high', 'standard', 'hd', ...(is25 ? ['xhigh', 'max'] : [])];
+    if (!allowed.includes(quality))
+      throw new Error(`Unsupported quality for ${params.modelId}: ${quality}`);
+  }
+  const background = params.gptImageBackground;
+  if (
+    background !== undefined &&
+    !['opaque', 'auto', ...(is25 ? ['transparent'] : [])].includes(background)
+  ) {
+    throw new Error(`Unsupported background for ${params.modelId}: ${background}`);
+  }
+  if (background === 'transparent' && params.outputFormat === 'jpg') {
+    throw new Error('Transparent GPT Image output requires PNG or WebP');
+  }
+  const compression = params.gptImageOutputCompression;
+  if (compression !== undefined) {
+    if (!Number.isInteger(compression) || compression < 0 || compression > 100) {
+      throw new Error('GPT Image output compression must be an integer from 0 to 100');
+    }
+    if (params.outputFormat !== 'jpg' && params.outputFormat !== 'webp') {
+      throw new Error('GPT Image output compression requires JPEG or WebP');
+    }
+  }
+}
 
 const EXTENDED_IMAGE_SIZE_MODEL_IDS = new Set([
   'z_image_bf16',
@@ -50,7 +119,7 @@ function getCustomImageSizeBounds(modelId?: string): { min: number; max: number 
   if (modelId && KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId)) {
     return { min: 512, max: 2048 };
   }
-  if (modelId === 'gpt-image-2') {
+  if (isGptImageModel(modelId)) {
     return { min: 256, max: 3840 };
   }
   if (modelId && EXTENDED_IMAGE_SIZE_MODEL_IDS.has(modelId)) {
@@ -164,7 +233,7 @@ export function isComfyModel(modelId: string): boolean {
  * - Default: 3 images
  */
 export function getMaxContextImages(modelId: string): number {
-  if (modelId === 'gpt-image-2') {
+  if (isGptImageModel(modelId)) {
     return 16;
   }
   if (QWEN_IMAGE_MODEL_IDS.has(modelId)) {

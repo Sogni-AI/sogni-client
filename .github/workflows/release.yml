@@ -60,6 +60,8 @@ jobs:
         run: node scripts/check-flashvsr-video.cjs
       - name: Run capability export checks
         run: node scripts/check-capability-exports.cjs
+      - name: Run GPT Image 2.5 checks
+        run: node scripts/check-gpt-image-25.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
