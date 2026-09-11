@@ -201,6 +201,15 @@ Keep `appSource` as the stable product/integration ID. Agent wrappers may additi
 }
 ```
 
+### Reusable uploads
+
+Eligible subscribers on supported servers automatically reuse matching image,
+video and audio files across `projects.create()` calls. The saved library is
+private to the account. `sogni.projects.assets.upload(file, contentType, name)`,
+`.list()` and `.remove(id)` manage it; use returned limits and `expiresAt` in UI.
+Continue passing files to `projects.create()`, not saved-upload IDs. Verification
+errors stop project submission. Older servers retain ordinary project uploads.
+
 ### With ControlNet
 
 ```javascript

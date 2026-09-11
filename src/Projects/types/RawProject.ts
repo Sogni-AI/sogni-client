@@ -22,6 +22,22 @@ export interface RawProject {
   txId: string;
   workerJobs: RawJob[];
   completedWorkerJobs: RawJob[];
+  /** Undefined on older projects whose BYOL usage was not recorded. */
+  byolUsed?: boolean;
+  personalLoras?: ProjectLoraSource[];
+  reusedAssetCount?: number;
+}
+
+/** Immutable public-source snapshot; deleting a library entry does not erase it. */
+export interface ProjectLoraSource {
+  loraId: string;
+  name: string;
+  provider: 'huggingface' | 'civitai';
+  sourceUrl: string;
+  sourceVersion: string;
+  sha256: string;
+  modelId: string;
+  strength?: number;
 }
 
 type RawProjectStatus =

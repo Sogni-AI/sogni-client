@@ -122,6 +122,10 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     return this.request<T>(this.formatUrl(path, query));
   }
 
+  delete<T = JSONValue>(path: string): Promise<T> {
+    return this.request<T>(this.formatUrl(path), { method: 'DELETE' });
+  }
+
   post<T = JSONValue>(
     path: string,
     body: Record<string, unknown> = {},

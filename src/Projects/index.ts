@@ -1,4 +1,5 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
+import ReusableUploads from './ReusableUploads.js';
 import {
   AvailableModel,
   EnhancementStrength,
@@ -341,6 +342,11 @@ export type ProjectResolution =
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 class ProjectsApi extends ApiGroup<ProjectApiEvents> {
+  private _assets?: ReusableUploads;
+  /** Manage subscriber uploads once and reuse them across projects. */
+  get assets(): ReusableUploads {
+    return (this._assets ??= new ReusableUploads(this.client.rest));
+  }
   private _availableModels: AvailableModel[] = [];
   private _currentNetworkType: SupernetType | null = null;
   private projects: Project[] = [];
@@ -1679,6 +1685,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'startingImage' }))
+      return imageId;
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1705,6 +1713,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async uploadCNImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'cnImage' }))
+      return imageId;
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1752,6 +1762,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       | 15
       | 16;
     const contentType = getFileContentType(file);
+    if (
+      await this.assets.tryBindFile(file, contentType, {
+        projectId,
+        type: `contextImage${imageIndex}`
+      })
+    )
+      return imageId;
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1787,6 +1804,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async uploadReferenceImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceImage' }))
+      return imageId;
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1817,6 +1836,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async uploadReferenceMask(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceMask' }))
+      return imageId;
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1847,6 +1868,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async uploadReferenceImageEnd(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceImageEnd' }))
+      return imageId;
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1878,6 +1901,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceAudio(projectId: string, file: File | Buffer | Blob, id?: string) {
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceAudio', id }))
+      return;
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
       type: 'referenceAudio',
@@ -1909,6 +1934,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceVideo(projectId: string, file: File | Buffer | Blob, id?: string) {
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceVideo', id }))
+      return;
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
       type: 'referenceVideo',

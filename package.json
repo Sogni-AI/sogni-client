@@ -75,6 +75,7 @@
     "test:minimax-h3-audio-policy": "node scripts/check-minimax-h3-source-audio-policy.cjs",
     "test:minimax-h3-balanced": "npm run build && node scripts/check-minimax-h3-balanced.cjs",
     "test:lora-catalog": "npm run build && node scripts/check-lora-catalog.cjs",
+    "test:reusable-uploads": "npm run build && node scripts/check-reusable-uploads.cjs",
     "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
     "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",
     "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",

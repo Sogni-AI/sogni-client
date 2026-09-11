@@ -27,6 +27,7 @@ Current public API anchors:
 - Socket-native LLM chat uses `sogni.chat.completions.create()`.
 - Durable creative workflows use `sogni.workflows`.
 - Project cost helpers are `sogni.projects.estimateCost()`, `estimateVideoCost()`, and `estimateAudioCost()`.
+- `sogni.projects.assets` manages private subscriber uploads (`upload`, `list`, `remove`, `bind`). Supported servers automatically reuse matching files passed to `projects.create()`; saved IDs do not replace file parameters.
 - `checkAuth()` is only for cookie-auth browser flows. API-key auth auto-authenticates during `createInstance()`, and token auth uses `login()` or `setTokens()`.
 - `ChatCompletionResult` is SDK-shaped (`content`, `role`, `finishReason`, `tool_calls`, `usage`, `cost`). Streaming chunks expose `chunk.content` and optional `chunk.tool_calls`.
 

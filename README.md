@@ -737,6 +737,34 @@ const project = await sogni.projects.create({
 - Workers download a LoRA on first use, so the first render with an uncached one
   takes longer to start.
 
+### Reusable subscriber uploads
+
+On servers that support saved uploads, eligible subscribers can reuse the same
+image, video or audio file across projects. Pass files to `projects.create()` as
+usual: the SDK checks for a previously saved copy before transferring bytes.
+Uploads remain private to the signed-in account. Older servers and accounts
+without this feature continue using ordinary project uploads.
+
+```javascript
+const saved = await sogni.projects.assets.upload(file, file.type, 'Product reference');
+const { assets, limits } = await sogni.projects.assets.list();
+console.log(saved.id, assets, limits);
+// Reusing the same file in later projects needs no repeat upload.
+// Removal does not remove inputs already copied into an existing project.
+await sogni.projects.assets.remove(saved.id);
+```
+
+Use the returned limits and `expiresAt` to display remaining storage and expiry.
+An expired entry can be removed even after the subscription ends. Explicit
+`assets.upload()` calls report errors; automatic project uploads fall back only
+when saved storage cannot be prepared. Transfer or verification failures stop
+project submission. Saved-upload IDs are not accepted in place of files in
+`projects.create()`; `assets.bind(id, { projectId, type, id? })` is available for
+clients that manage project IDs and input slots directly.
+
+Project history may include `byolUsed`, `personalLoras` public-source snapshots,
+and `reusedAssetCount`. Missing fields on older projects mean unknown, not zero.
+
 ### ControlNets
 
 **EXPERIMENTAL FEATURE:** This feature is still in development and may not work as expected. Use at your own risk.

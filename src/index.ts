@@ -419,6 +419,8 @@ export type {
   RecoveredProject,
   RecoveredWorkerJob
 };
+export type { SavedUpload, SavedUploadBinding } from './Projects/ReusableUploads.js';
+export type { ProjectLoraSource } from './Projects/types/RawProject.js';
 
 export {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,

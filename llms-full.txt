@@ -392,6 +392,27 @@ const project = await sogni.projects.create({
 });
 ```
 
+REUSABLE SUBSCRIBER UPLOADS:
+
+On supported servers, `projects.create()` checks for an account-owned saved copy
+of each image, video or audio file before uploading it again. Other accounts
+cannot reuse or list that private file. Older servers and ineligible accounts
+continue using ordinary uploads. Transfer and verification errors stop submission.
+
+```javascript
+const saved = await sogni.projects.assets.upload(file, 'image/png', 'Reference');
+const { assets, limits } = await sogni.projects.assets.list();
+await sogni.projects.assets.remove(saved.id);
+```
+
+Display the returned limits and `expiresAt`. Deletion leaves existing project
+inputs intact. Continue passing files, not saved IDs, to `projects.create()`.
+For clients managing their own project IDs, `.assets.bind(saved.id, { projectId,
+type: 'referenceImage' })` copies a saved input into the project before submission.
+Video/audio slot IDs can be passed as `id`. Completed project records may contain
+`byolUsed`, `personalLoras` public-source snapshots and `reusedAssetCount`; missing
+fields on older records mean unknown.
+
 WITH CONTROLNET:
 
 ```javascript
