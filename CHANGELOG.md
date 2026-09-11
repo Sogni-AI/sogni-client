@@ -1,3 +1,10 @@
+# [5.42.0](https://github.com/Sogni-AI/sogni-client/compare/v5.41.0...v5.42.0) (2026-09-11)
+
+
+### Features
+
+* **projects:** reuse private subscriber uploads across projects ([938e8a4](https://github.com/Sogni-AI/sogni-client/commit/938e8a4d9716706530be4586ee324490f6374b01))
+
 # [5.41.0](https://github.com/Sogni-AI/sogni-client/compare/v5.40.0...v5.41.0) (2026-09-11)
 
 
