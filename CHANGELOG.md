@@ -1,3 +1,15 @@
+# [5.39.0](https://github.com/Sogni-AI/sogni-client/compare/v5.38.0...v5.39.0) (2026-09-11)
+
+
+### Bug Fixes
+
+* **projects:** leave FlashVSR clip length to the server ([b589d2a](https://github.com/Sogni-AI/sogni-client/commit/b589d2a213c8654d45273fc54786ca25b5b7a860))
+
+
+### Features
+
+* **projects:** add getStatus live lookup and consult it before declaring a project lost ([484d797](https://github.com/Sogni-AI/sogni-client/commit/484d7976d372184e3823b1ee2711cab80f3a7a0a))
+
 # [5.38.0](https://github.com/Sogni-AI/sogni-client/compare/v5.37.1...v5.38.0) (2026-09-11)
 
 
