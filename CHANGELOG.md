@@ -1,3 +1,11 @@
+## [5.44.1](https://github.com/Sogni-AI/sogni-client/compare/v5.44.0...v5.44.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **examples:** support SAM boxes and validate prompt combinations ([d65db77](https://github.com/Sogni-AI/sogni-client/commit/d65db77decf00ca1d41d17a1608e0c12ec7ba8f7))
+* **socket:** redact transport diagnostics before logging ([73ceee9](https://github.com/Sogni-AI/sogni-client/commit/73ceee9a7dbd48924bd17d62f2dc2458cd8c9190))
+
 # [5.44.0](https://github.com/Sogni-AI/sogni-client/compare/v5.43.0...v5.44.0) (2026-09-11)
 
 
