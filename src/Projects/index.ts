@@ -36,7 +36,7 @@ import {
   isRecoveredJobFinished,
   projectParamsFromRecoveredProject
 } from './recovery.js';
-import createJobRequestMessage from './createJobRequestMessage.js';
+import createJobRequestMessage, { type JobRequestRaw } from './createJobRequestMessage.js';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import { EstimationResponse } from './types/EstimationResponse.js';
 import {
@@ -320,6 +320,14 @@ const AUTHENTICATED_GRACE_MS = 1500;
  * as missing.
  */
 const RECENTLY_CREATED_GRACE_MS = 5000;
+/**
+ * Close code the socket also sends as a project `jobError` when a request
+ * reaches it while it is shutting down: the project was never admitted
+ * (nothing queued, nothing charged) and can be sent again after reconnect.
+ */
+const SERVER_RESTARTING_ERROR_CODE = 1001;
+/** How long a rejected-while-restarting project waits for a connection to resubmit on. */
+const RESUBMIT_RECONNECT_TIMEOUT_MS = 60000;
 /** Retries for the REST lookup of a project the socket no longer lists. */
 const MISSING_PROJECT_ATTEMPTS = 4;
 const MISSING_PROJECT_RETRY_MS = 2500;
@@ -391,6 +399,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _authenticatedTimer: ReturnType<typeof setTimeout> | null = null;
   private _syncChain: Promise<unknown> = Promise.resolve();
   private _recoveredCompletedIds = new Set<string>();
+  private _recheckTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Requests sent but not yet acknowledged by any server frame. Kept so a
+   * request the socket refused while restarting can be sent again unchanged.
+   */
+  private _unadmittedRequests = new Map<string, JobRequestRaw>();
+  /** Projects waiting for a reconnect to be resubmitted on. */
+  private _awaitingResubmit = new Set<string>();
+  /** When each resubmitted project was last sent, for the recently-created grace. */
+  private _resubmittedAt = new Map<string, number>();
   /**
    * Recovery timings. Overridable so regression scripts can run the flow in
    * milliseconds instead of seconds.
@@ -478,7 +496,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this.client.logger.error('Error in handleJobResult:', err);
       });
     });
-    // Listen to the server disconnect event
+    // Listen to the server disconnect event. `connecting` is a recoverable
+    // drop (the client is reconnecting); `disconnected` is terminal.
+    this.client.on('connecting', this.handleTransportLost.bind(this));
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     this.client.on('connected', this.handleServerConnected.bind(this));
     this.client.socket.on('authenticated', (data: AuthenticatedData) => {
@@ -551,6 +571,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private handleJobState(data: JobStateData) {
+    this._unadmittedRequests.delete(data.jobID);
     switch (data.type) {
       case 'queued': {
         const estimatedStartSeconds =
@@ -740,6 +761,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private handleJobError(data: JobErrorData) {
     const errorCode = Number(data.error);
+    if (
+      !data.imgID &&
+      errorCode === SERVER_RESTARTING_ERROR_CODE &&
+      this._resubmitAfterReconnect(data.jobID, data.error_message)
+    ) {
+      return;
+    }
+    this._unadmittedRequests.delete(data.jobID);
     let error: ErrorData;
     if (!isNaN(errorCode)) {
       error = {
@@ -804,6 +833,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         });
     }
     if (project.finished) {
+      this._unadmittedRequests.delete(project.id);
+      this._resubmittedAt.delete(project.id);
       // Sync project data with the server and remove it from the list after some time
       project._syncToServer().catch((e) => {
         // 404 errors are expected when project is still initializing
@@ -966,17 +997,98 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
   }
 
-  private handleServerDisconnected() {
+  private handleTransportLost() {
     this.transportDisconnected = true;
     this._clearAuthenticatedTimer();
-    this._availableModels = [];
-    this.emit('availableModels', this._availableModels);
     // A transport gap is not a project failure. The server keeps rendering and
     // hands the project back on reconnect (same app-id), so keep the tracked
     // projects alive and quiet until then.
     this.projects.forEach((p) => {
       if (!p.finished) p._keepAlive();
     });
+  }
+
+  private handleServerDisconnected() {
+    this.handleTransportLost();
+    this._availableModels = [];
+    this.emit('availableModels', this._availableModels);
+  }
+
+  /**
+   * The socket refused this project because it was shutting down, so it never
+   * ran and nothing was charged. Send the same request again once the client
+   * has reconnected, once per project. Returns `false` when the project cannot
+   * be resubmitted and the error should surface as usual.
+   */
+  private _resubmitAfterReconnect(projectId: string, message: string): boolean {
+    const request = this._unadmittedRequests.get(projectId);
+    const project = this.projects.find((p) => p.id === projectId);
+    if (!request || !project || project.finished) return false;
+    // One resubmit per project: a second refusal surfaces as an error.
+    this._unadmittedRequests.delete(projectId);
+    this._awaitingResubmit.add(projectId);
+    project._keepAlive();
+    this.client.logger.info(
+      `Project ${projectId} reached the server while it was restarting; resubmitting after reconnect`
+    );
+    const fail = (error: unknown) => {
+      this._awaitingResubmit.delete(projectId);
+      this.client.logger.warn(`Resubmitting project ${projectId} failed`, error);
+      this.emit('project', {
+        type: 'error',
+        projectId,
+        error: { code: SERVER_RESTARTING_ERROR_CODE, message }
+      });
+    };
+    // The refusal arrives just before the server closes this socket, so wait
+    // for the next connection instead of writing into the closing one.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const offConnected = this.client.on('connected', () => {
+      offConnected();
+      if (timer) clearTimeout(timer);
+      if (project.finished) {
+        this._awaitingResubmit.delete(projectId);
+        return;
+      }
+      this.client.socket
+        .send('jobRequest', request)
+        .then(() => {
+          this._awaitingResubmit.delete(projectId);
+          this._resubmittedAt.set(projectId, Date.now());
+          this._unadmittedRequests.set(projectId, request);
+          project._keepAlive();
+          this._scheduleRecheck(this._recoveryTuning.recentlyCreatedGraceMs);
+        })
+        .catch(fail);
+    });
+    timer = setTimeout(() => {
+      offConnected();
+      fail(new Error('No connection to resubmit on'));
+    }, RESUBMIT_RECONNECT_TIMEOUT_MS);
+    return true;
+  }
+
+  /**
+   * Reconcile again once projects that were too new (or still being
+   * resubmitted) at the last sync can be judged. Without this a project whose
+   * request died with the old socket is only caught by the slow staleness
+   * watchdog, minutes later.
+   */
+  private _scheduleRecheck(delayMs: number) {
+    if (this._recheckTimer) clearTimeout(this._recheckTimer);
+    this._recheckTimer = setTimeout(
+      () => {
+        this._recheckTimer = null;
+        this.sync('recheck').catch((error) => {
+          this.client.logger.warn('Project recheck sync failed', error);
+        });
+      },
+      Math.max(0, delayMs) + 250
+    );
+  }
+
+  private _lastSubmittedAt(project: Project): number {
+    return Math.max(project.startedAt.getTime(), this._resubmittedAt.get(project.id) ?? 0);
   }
 
   private handleServerConnected() {
@@ -1194,6 +1306,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     for (const recovered of snapshot.activeProjects) {
       if (!recovered?.id || isLLMRecoveredProject(recovered) || seen.has(recovered.id)) continue;
       seen.add(recovered.id);
+      this._unadmittedRequests.delete(recovered.id);
       const tracked = this.projects.find((p) => p.id === recovered.id);
       if (tracked) {
         if (tracked.finished) continue;
@@ -1229,12 +1342,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // Tracked, unfinished projects the server did not mention: either they
     // finished (and the socket has already posted them to the REST API) or they
     // are gone. Projects created moments ago may simply not be registered yet.
-    const missing = this.projects.filter(
-      (p) =>
-        !p.finished &&
-        !seen.has(p.id) &&
-        p.startedAt.getTime() <= requestedAt - this._recoveryTuning.recentlyCreatedGraceMs
+    const graceMs = this._recoveryTuning.recentlyCreatedGraceMs;
+    const unlisted = this.projects.filter((p) => !p.finished && !seen.has(p.id));
+    const missing = unlisted.filter(
+      (p) => !this._awaitingResubmit.has(p.id) && this._lastSubmittedAt(p) <= requestedAt - graceMs
     );
+    // Awaiting-resubmit projects schedule their own recheck once re-sent.
+    const deferred = unlisted.filter(
+      (p) => !missing.includes(p) && !this._awaitingResubmit.has(p.id)
+    );
+    if (deferred.length) {
+      const judgeableAt = Math.max(...deferred.map((p) => this._lastSubmittedAt(p) + graceMs));
+      this._scheduleRecheck(judgeableAt - Date.now());
+    }
     if (missing.length) {
       const resolved = await this.resolveMissing(missing.map((p) => p.id));
       for (const project of missing) {
@@ -1456,7 +1576,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       if (normalizedData.gptImageMask) {
         throw new Error('Provide one GPT Image mask, not both media and URL');
       }
-      const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(normalizedData.gptImageMaskUrl);
+      const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(
+        normalizedData.gptImageMaskUrl
+      );
       if (!match || match[1].length >= Math.ceil((50 * 1024 * 1024 * 4) / 3)) {
         throw new Error('GPT Image mask must be a PNG data URI smaller than 50 MB');
       }
@@ -1489,7 +1611,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this._annotateAudioAssetContentTypes(request, normalizedData);
         break;
     }
-    await this.client.socket.send('jobRequest', request);
+    // Recorded before sending: a refusal can arrive as soon as the frame lands.
+    this._unadmittedRequests.set(project.id, request);
+    try {
+      await this.client.socket.send('jobRequest', request);
+    } catch (error) {
+      this._unadmittedRequests.delete(project.id);
+      throw error;
+    }
     this.projects.push(project);
     return project;
   }

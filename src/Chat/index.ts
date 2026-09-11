@@ -1,10 +1,13 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { ApiError } from '../ApiClient/index.js';
 import {
+  AuthenticatedData,
   JobTokensData,
   LLMJobResultData,
   LLMJobErrorData
 } from '../ApiClient/WebSocketClient/events.js';
+import type { ApiClientEvents } from '../ApiClient/events.js';
+import ErrorCode from '../ApiClient/WebSocketClient/ErrorCode.js';
 import ChatJobError, { extractChatJobErrorFields } from './ChatJobError.js';
 import ChatStream from './ChatStream.js';
 import ChatToolsApi from './ChatTools.js';
@@ -38,6 +41,17 @@ import type ProjectsApi from '../Projects/index.js';
 import { mediaInputToInlineDataUri } from '../lib/mediaValidation.js';
 import { workloadAttributionToWireFields } from '../lib/attribution.js';
 import type { WorkloadAttributionInput } from '../types/attribution.js';
+
+/**
+ * How long a stream that was open when the socket dropped may stay silent
+ * before it is failed as `transport_lost`. The server keeps an in-flight LLM job
+ * for 30 s after its artist disconnects and rebinds it if the same app-id
+ * returns; after that the job is gone. Newer servers answer sooner by listing
+ * the surviving jobs in the `authenticated` frame.
+ */
+const LLM_TRANSPORT_GRACE_MS = 35000;
+const TRANSPORT_LOST_MESSAGE =
+  'The connection to Sogni dropped and this request did not survive it. Send it again.';
 
 const MAX_VISION_IMAGE_COUNT = 20;
 const MAX_VISION_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -257,6 +271,17 @@ export interface ChatApiEvents {
  */
 class ChatApi extends ApiGroup<ChatApiEvents> {
   private activeStreams = new Map<string, ChatStream>();
+  /** Jobs whose request has not reached the socket yet (`send` may be waiting out a reconnect). */
+  private unsentJobs = new Set<string>();
+  /** Jobs that were in flight when the transport dropped and have not been confirmed alive since. */
+  private jobsAwaitingReconnect = new Set<string>();
+  private transportGraceTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Transport-recovery timing. Overridable so regression scripts can run the
+   * flow in milliseconds.
+   * @internal
+   */
+  _transportTuning = { graceMs: LLM_TRANSPORT_GRACE_MS };
   private availableLLMModels: Record<string, LLMModelInfo> = {};
 
   /**
@@ -329,6 +354,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     this.client.socket.on('llmJobError', this.handleJobError.bind(this));
     this.client.socket.on('jobState', this.handleJobState.bind(this));
     this.client.socket.on('swarmLLMModels', this.handleSwarmLLMModels.bind(this));
+    this.client.socket.on('authenticated', this.handleSocketAuthenticated.bind(this));
+    this.client.on('connecting', this.handleTransportLost.bind(this));
+    this.client.on('disconnected', this.handleTransportClosed.bind(this));
 
     // Set up the completions namespace (mimics OpenAI SDK structure)
     this.completions = {
@@ -883,7 +911,19 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     this.activeStreams.set(jobID, stream);
 
     // Send the job request via socket
-    await this.client.socket.send('llmJobRequest', request as any);
+    this.unsentJobs.add(jobID);
+    try {
+      await this.client.socket.send('llmJobRequest', request as any);
+    } catch (error: any) {
+      this.activeStreams.delete(jobID);
+      // Nothing reached the server, so nothing was charged: safe to send again.
+      throw new ChatJobError(`${TRANSPORT_LOST_MESSAGE} (${error?.message || error})`, {
+        errorType: 'transport_lost',
+        jobID
+      });
+    } finally {
+      this.unsentJobs.delete(jobID);
+    }
 
     if (params.stream) {
       return stream;
@@ -1019,9 +1059,76 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     };
   }
 
+  /**
+   * The socket dropped and a reconnect is scheduled. The server may keep each
+   * in-flight job and hand it back (same app-id, inside its grace window), or it
+   * may be gone (the socket restarted). Wait for the reconnect to say which;
+   * never wait longer than the server would have kept the job.
+   */
+  private handleTransportLost(): void {
+    for (const jobID of this.activeStreams.keys()) {
+      if (!this.unsentJobs.has(jobID)) this.jobsAwaitingReconnect.add(jobID);
+    }
+    if (this.jobsAwaitingReconnect.size && !this.transportGraceTimer) {
+      this.transportGraceTimer = setTimeout(() => {
+        this.transportGraceTimer = null;
+        this.failJobsAwaitingReconnect();
+      }, this._transportTuning.graceMs);
+    }
+  }
+
+  private handleTransportClosed(data: ApiClientEvents['disconnected']): void {
+    // A tab handoff keeps the app-id alive on another tab, which forwards this
+    // job's events; treat it like a reconnect. Any other terminal close ends
+    // the session, and no event will ever finish these streams.
+    this.handleTransportLost();
+    if (data?.code !== ErrorCode.SWITCH_CONNECTION) this.failJobsAwaitingReconnect();
+  }
+
+  private handleSocketAuthenticated(data: AuthenticatedData): void {
+    if (!this.jobsAwaitingReconnect.size || !Array.isArray(data?.activeLLMJobIDs)) return;
+    const live = new Set(data.activeLLMJobIDs.map((id) => String(id).toUpperCase()));
+    const gone: string[] = [];
+    for (const jobID of this.jobsAwaitingReconnect) {
+      if (!live.has(jobID.toUpperCase())) gone.push(jobID);
+    }
+    this.jobsAwaitingReconnect.clear();
+    this.clearTransportGraceTimer();
+    gone.forEach((jobID) => this.failTransportLost(jobID));
+  }
+
+  private failJobsAwaitingReconnect(): void {
+    const jobIDs = Array.from(this.jobsAwaitingReconnect);
+    this.jobsAwaitingReconnect.clear();
+    this.clearTransportGraceTimer();
+    jobIDs.forEach((jobID) => this.failTransportLost(jobID));
+  }
+
+  private failTransportLost(jobID: string): void {
+    this.handleJobError({
+      jobID,
+      error: 'transport_lost',
+      error_message: TRANSPORT_LOST_MESSAGE
+    } as LLMJobErrorData);
+  }
+
+  /** The job produced a frame, so it survived the gap; stop watching it. */
+  private markJobAlive(jobID: string): void {
+    if (!this.jobsAwaitingReconnect.delete(jobID)) return;
+    if (!this.jobsAwaitingReconnect.size) this.clearTransportGraceTimer();
+  }
+
+  private clearTransportGraceTimer(): void {
+    if (this.transportGraceTimer) {
+      clearTimeout(this.transportGraceTimer);
+      this.transportGraceTimer = null;
+    }
+  }
+
   private handleJobTokens(data: JobTokensData): void {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
+    this.markJobAlive(data.jobID);
 
     const chunk: ChatCompletionChunk = {
       jobID: data.jobID,
@@ -1039,6 +1146,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private handleJobResult(data: LLMJobResultData): void {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
+    this.markJobAlive(data.jobID);
 
     // Update worker name from result if available (may contain proper username/nftTokenId)
     if (data.workerName) {
@@ -1063,6 +1171,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private handleJobState(data: any): void {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
+    this.markJobAlive(data.jobID);
 
     // Track worker name on the stream for inclusion in finalResult
     if (data.workerName) {
@@ -1093,6 +1202,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private handleJobError(data: LLMJobErrorData): void {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
+    this.markJobAlive(data.jobID);
 
     // Capture worker name if available (worker may have been assigned before error)
     if (data.workerName) {

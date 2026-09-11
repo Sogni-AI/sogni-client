@@ -695,6 +695,80 @@ async function main() {
     stopTimers(api);
   }
 
+  // 11. A recoverable drop (`connecting`, the socket-deploy path) defers
+  //     timeouts too; `disconnected` is only emitted for terminal closes.
+  {
+    const { api, client } = makeHarness();
+    await createTracked(api);
+    client.emit('connecting', { network: 'fast' });
+    assert.equal(api._shouldDeferProjectTimeouts(), true, 'timeouts defer while reconnecting');
+    client.emit('connected', { network: 'fast' });
+    assert.equal(api._shouldDeferProjectTimeouts(), false, 'timeouts resume on reconnect');
+    stopTimers(api);
+  }
+
+  // 12. A request refused while the socket restarts (jobError 1001, no imgID)
+  //     is not a failure: it is sent again, unchanged, on the next connection.
+  {
+    const { api, socket, client, apiEvents } = makeHarness();
+    const project = await createTracked(api);
+    const request = { jobID: project.id, keyFrames: [{ modelID: 'flux1-schnell-fp8' }] };
+    api._unadmittedRequests.set(project.id, request);
+    socket.emit('jobError', {
+      jobID: project.id,
+      isFromWorker: false,
+      error: '1001',
+      error_message: 'Server is restarting'
+    });
+    assert.equal(project.status, 'pending', 'a refusal during restart does not fail the project');
+    assert.equal(socket.sent.length, 0, 'nothing is written into the closing socket');
+    client.emit('connecting', { network: 'fast' });
+    client.emit('connected', { network: 'fast' });
+    await sleep(10);
+    assert.deepEqual(socket.sent, [{ type: 'jobRequest', data: request }], 'resubmitted once');
+    assert.equal(
+      apiEvents.filter((e) => e.kind === 'project' && e.type === 'error').length,
+      0,
+      'no error surfaced'
+    );
+    // A second refusal is not retried again: it surfaces.
+    api._unadmittedRequests.delete(project.id);
+    socket.emit('jobError', {
+      jobID: project.id,
+      isFromWorker: false,
+      error: '1001',
+      error_message: 'Server is restarting'
+    });
+    assert.equal(project.status, 'failed', 'a request with nothing left to resubmit fails');
+    if (api._recheckTimer) clearTimeout(api._recheckTimer);
+    stopTimers(api);
+  }
+
+  // 13. A project too new to judge at the reconnect sync is re-checked once the
+  //     grace ends, instead of waiting minutes for the staleness watchdog.
+  {
+    const { api, socket, client, synced } = makeHarness({
+      syncSnapshot: { activeProjects: [], unclaimedCompletedProjects: [] }
+    });
+    api._recoveryTuning.recentlyCreatedGraceMs = 40;
+    const project = await createTracked(api);
+    project.data.startedAt = new Date();
+    client.emit('connected', { network: 'fast' });
+    socket.emit('authenticated', {
+      clientType: 'artist',
+      activeProjects: [],
+      unclaimedCompletedProjects: []
+    });
+    await sleep(20);
+    assert.equal(synced.length, 1);
+    assert.deepEqual(synced[0].lost, [], 'too new to judge on the first sync');
+    await sleep(400);
+    const recheck = synced.find((r) => r.reason === 'recheck');
+    assert.ok(recheck, 'a recheck sync ran after the grace');
+    assert.deepEqual(recheck.lost, [project.id], 'the recheck resolves it');
+    stopTimers(api);
+  }
+
   console.log('check-project-recovery: ALL TESTS PASSED');
   process.exit(0);
 }

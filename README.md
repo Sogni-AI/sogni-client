@@ -453,6 +453,34 @@ projects) a few times before it is declared lost; it then fails with an error wh
 project lookup, so a project that is only slow to be picked up stays active instead. Apps that
 persist project ids themselves can run the same lookup with `sogni.projects.resolveMissing(ids)`.
 
+#### Socket server restarts
+
+A Sogni platform release restarts the socket server: every connection closes with code `1001`
+for a few seconds. The SDK is built so apps need no special handling for it:
+
+- `create()` and chat requests made during the gap wait (up to 30 seconds) for the reconnected,
+  authenticated socket instead of failing.
+- A project request that reached the server while it was shutting down is refused by id; the SDK
+  sends the same request again after reconnecting, once. Projects created moments before a
+  reconnect are re-checked when they become old enough to judge, rather than minutes later.
+- LLM jobs are not carried across a restart. The server refunds them, and a stream that was open
+  fails with a `ChatJobError` whose `retryable` is `true` (`errorType` `'server_restarting'` or
+  `'transport_lost'`) rather than waiting forever. After a plain network blip the server keeps the
+  job for 30 seconds and the stream simply continues. Re-issue retryable failures as new requests:
+
+```typescript
+import { isRetryableChatError } from '@sogni-ai/sogni-client';
+
+async function completeWithRetry(params) {
+  try {
+    return await sogni.chat.completions.create(params);
+  } catch (error) {
+    if (!isRetryableChatError(error)) throw error;
+    return sogni.chat.completions.create(params); // waits for the reconnect
+  }
+}
+```
+
 To read one of your own projects while it is still queued or rendering, use
 `sogni.projects.getStatus(id)`. It needs an authenticated client and returns normalized statuses
 (`pending`, `queued`, `processing`, `completed`, `failed`, `canceled`) with a `finished` flag.

@@ -123,7 +123,11 @@ import {
 } from './Projects/types/ControlNetParams.js';
 // Chat API
 import ChatApi from './Chat/index.js';
-import ChatJobError, { ChatJobErrorFields } from './Chat/ChatJobError.js';
+import ChatJobError, {
+  ChatJobErrorFields,
+  isRetryableChatError,
+  RETRYABLE_CHAT_ERROR_TYPES
+} from './Chat/ChatJobError.js';
 import ChatStream from './Chat/ChatStream.js';
 import ChatToolsApi from './Chat/ChatTools.js';
 import {
@@ -444,6 +448,8 @@ export {
   ApiError,
   ApiKeyAuthManager,
   ChatJobError,
+  isRetryableChatError,
+  RETRYABLE_CHAT_ERROR_TYPES,
   ChatStream,
   ChatToolsApi,
   CreativeWorkflowsApi,

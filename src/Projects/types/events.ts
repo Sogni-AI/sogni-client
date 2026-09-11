@@ -140,7 +140,7 @@ export interface CompletedRecoveredProject extends RecoveredProject {
   resultUrls: string[];
 }
 
-export type ProjectSyncReason = 'authenticated' | 'connected' | 'manual';
+export type ProjectSyncReason = 'authenticated' | 'connected' | 'manual' | 'recheck';
 
 /**
  * Outcome of one reconciliation of local project state against the server

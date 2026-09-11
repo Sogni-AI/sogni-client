@@ -81,6 +81,8 @@
     "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",
     "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
     "test:project-recovery": "npm run build && node scripts/check-project-recovery.cjs",
+    "test:chat-transport-recovery": "npm run build && node scripts/check-chat-transport-recovery.cjs",
+    "test:socket-send-readiness": "npm run build && node scripts/check-socket-send-readiness.cjs",
     "test:queue-wait-eta": "npm run build && node scripts/check-queue-wait-eta.cjs",
     "test:workflow-template-envelope": "npm run build && node scripts/check-workflow-template-envelope.cjs",
     "test:workflow-content-filter": "npm run build && node scripts/check-workflow-content-filter.cjs",

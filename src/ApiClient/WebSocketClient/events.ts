@@ -129,6 +129,14 @@ export interface AuthenticatedData {
    * socket. Held server-side for one hour; delivered here once.
    */
   unclaimedCompletedProjects: RecoveredProject[];
+  /**
+   * LLM job ids this app-id still has in flight after the handshake: jobs the
+   * server rebound to the new socket inside its reconnect grace window. A
+   * stream that was open across the gap and is missing here no longer exists
+   * on the server (for example the socket restarted). Carried by newer socket
+   * builds only; `undefined` means the server did not say.
+   */
+  activeLLMJobIDs?: string[];
   isMainnet: boolean;
   accountWasMigrated: boolean;
   /**

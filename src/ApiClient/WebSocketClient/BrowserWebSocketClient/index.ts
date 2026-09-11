@@ -212,9 +212,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]): Promise<void> {
     await this.coordinator.isReady();
     if (this.coordinator.isPrimary) {
-      if (!this.socketClient.isConnected) {
-        await this.socketClient.connect();
-      }
+      // send() connects when needed and waits out a reconnect in progress.
       return this.socketClient.send(messageType, data);
     }
     return this.coordinator.sendMessage({
@@ -227,9 +225,6 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     this._logger.debug('Received control message', message);
     switch (message.type) {
       case 'socket-send': {
-        if (!this.socketClient.isConnected) {
-          await this.socketClient.connect();
-        }
         return this.socketClient.send(message.payload.type, message.payload.data);
       }
       case 'connect': {
