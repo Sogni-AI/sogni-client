@@ -69,3 +69,36 @@ assert.throws(() => request({ frames: 363 }), /exact frame count and frame rate/
 assert.throws(() => request({ fps: 120 }), /exact frame count and frame rate/);
 assert.throws(() => request({ width: undefined, height: undefined, upscaleResolution: undefined }), /1080p or 1440p/);
 console.log('FlashVSR SDK upload, timing, resolution, promptless and catalog checks passed.');
+
+// An unset optional query param must be omitted, not sent as "undefined": the API
+// keys the uploaded source by `id`, and a literal "undefined" id hid FlashVSR
+// sources from admission.
+(async () => {
+  const RestClient = require('../dist/lib/RestClient.js').default;
+  const urls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    urls.push(new URL(String(url)));
+    return new Response(JSON.stringify({ status: 'success', data: { uploadUrl: 'https://upload' } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  };
+  try {
+    const auth = { authenticateRequest: async (options) => options };
+    const logger = { debug() {}, info() {}, warn() {}, error() {} };
+    const rest = new RestClient('https://api.example', auth, logger);
+    await rest.get('/v1/media/uploadUrl', { jobId: 'job-1', type: 'referenceVideo', id: undefined, contentType: 'video/mp4', note: null, frames: 158 });
+    const query = urls.at(-1).searchParams;
+    assert.equal(query.has('id'), false, 'an unset id must not reach the API');
+    assert.equal(query.has('note'), false);
+    assert.equal(query.get('type'), 'referenceVideo');
+    assert.equal(query.get('frames'), '158');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  console.log('FlashVSR upload query checks passed.');
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
