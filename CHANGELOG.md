@@ -1,3 +1,10 @@
+# [5.44.0](https://github.com/Sogni-AI/sogni-client/compare/v5.43.0...v5.44.0) (2026-09-11)
+
+
+### Features
+
+* **chat:** sync hosted FlashVSR options from protocol alpha.37 ([e94baea](https://github.com/Sogni-AI/sogni-client/commit/e94baea0d0a87559bf13f25373c8892ce050407f))
+
 # [5.43.0](https://github.com/Sogni-AI/sogni-client/compare/v5.42.0...v5.43.0) (2026-09-11)
 
 
