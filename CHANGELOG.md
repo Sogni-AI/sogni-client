@@ -1,3 +1,10 @@
+## [5.39.1](https://github.com/Sogni-AI/sogni-client/compare/v5.39.0...v5.39.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **deps:** bump @sogni-ai/sogni-protocol to 1.0.0-alpha.35 ([103510e](https://github.com/Sogni-AI/sogni-client/commit/103510e3fe6769653c1b2e9d49d6ecfcbe7cb8e9))
+
 # [5.39.0](https://github.com/Sogni-AI/sogni-client/compare/v5.38.0...v5.39.0) (2026-09-11)
 
 
