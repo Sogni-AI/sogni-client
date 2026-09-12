@@ -1,3 +1,10 @@
+# [5.46.0](https://github.com/Sogni-AI/sogni-client/compare/v5.45.0...v5.46.0) (2026-09-12)
+
+
+### Features
+
+* **projects:** keep a render the server moves to another worker in its own job ([e3e49fc](https://github.com/Sogni-AI/sogni-client/commit/e3e49fc6e29b275227c6295bf6c8a75e0baa6e79)), closes [hi#water](https://github.com/hi/issues/water)
+
 # [5.45.0](https://github.com/Sogni-AI/sogni-client/compare/v5.44.1...v5.45.0) (2026-09-12)
 
 
