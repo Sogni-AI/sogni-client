@@ -96,7 +96,8 @@
     "docs": "rimraf ./docs && npx typedoc",
     "postdocs": "node -p \"'sdk-docs.sogni.ai'\" > docs/CNAME",
     "prepare": "npm run codegen && husky",
-    "test:gpt-image-25": "npm run build && node scripts/check-gpt-image-25.cjs"
+    "test:gpt-image-25": "npm run build && node scripts/check-gpt-image-25.cjs",
+    "test:job-reassignment": "npm run build && node scripts/check-job-reassignment.cjs"
   },
   "repository": {
     "type": "git",

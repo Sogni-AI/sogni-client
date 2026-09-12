@@ -169,6 +169,32 @@ export type JobErrorData = {
   fairUse?: SocketSubscriptionFairUseState | null;
 };
 
+/**
+ * One render attempt failed on its worker and the server put the SAME render
+ * back in the queue for a different one, inside the same project. The project is
+ * still running: nothing failed for the artist and nothing was charged.
+ *
+ * `imgID` names the ABANDONED attempt; the retry arrives later under a new id
+ * its next worker mints. The SDK reclaims the render's existing {@link Job} by
+ * `jobIndex` when that happens, so this frame is deliberately NOT surfaced as a
+ * job event -- as a job error it would fail a single-media project outright,
+ * which is precisely the render the retry exists to save. It is typed here for
+ * consumers that want to show that a render is being reassigned.
+ */
+export type JobRetryData = {
+  jobID: string;
+  /** The abandoned attempt's id. The retry arrives under a different one. */
+  imgID: string;
+  /** This render's position in the project; stable across the move. */
+  jobIndex?: number;
+  /** 1-based attempt that just failed; `maxAttempts` is the server's budget. */
+  attempt: number;
+  maxAttempts: number;
+  isFromWorker: boolean;
+  error: number | string;
+  error_message: string;
+};
+
 export type JobProgressData = {
   jobID: string;
   imgID: string;
@@ -476,6 +502,10 @@ export type SocketEventMap = {
    * @event WebSocketClient#jobError - Job error occurred
    */
   jobError: JobErrorData;
+  /**
+   * @event WebSocketClient#jobRetry - A render attempt failed and the server requeued it for another worker
+   */
+  jobRetry: JobRetryData;
   /**
    * @event WebSocketClient#jobProgress - Job progress update
    */

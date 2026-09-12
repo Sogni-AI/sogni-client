@@ -461,6 +461,14 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
+   * This render's position in its project. Unlike `id`, which each worker mints
+   * afresh, it stays the same when the server moves the render to another worker.
+   */
+  get jobIndex() {
+    return this.data.jobIndex;
+  }
+
+  /**
    * Estimated time remaining in seconds for long-running jobs (e.g., video generation).
    * Only available for ComfyUI-based workers during inference.
    * Returns undefined if no ETA has been received.
@@ -610,11 +618,18 @@ class Job extends DataEntity<JobData, JobEventMap> {
     // the hard start time for this actual worker job.
     if (this._runtimeTimeout || this.finished) return;
     const limitMs = this._runtimeLimitMs();
-    this._runtimeTimeout = setTimeout(() => {
+    const handle = setTimeout(() => {
+      // Only the budget this job is currently running may act. A job that the
+      // server moved to another worker keeps this same instance and is
+      // `processing` again under its new attempt, so status alone cannot tell
+      // the departed worker's budget from the live one -- and acting on the
+      // stale one cancels the whole project on the server, retry included.
+      if (this._runtimeTimeout !== handle) return;
       this._runtimeTimeout = null;
       if (this.status !== 'processing' || this._project.finished) return;
       this._project._handleJobRuntimeTimeout(this, limitMs);
     }, limitMs);
+    this._runtimeTimeout = handle;
   }
 
   private handleUpdated(keys: string[]) {

@@ -50,6 +50,8 @@ jobs:
         run: node scripts/check-project-recovery.cjs
       - name: Run project liveness checks
         run: node scripts/check-project-liveness.cjs
+      - name: Run job reassignment checks
+        run: node scripts/check-job-reassignment.cjs
       - name: Run SAM 3 image-segment checks
         run: node scripts/check-sam3-image-segment.cjs
       - name: Run Pixal3D artifact checks

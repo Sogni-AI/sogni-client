@@ -23,6 +23,7 @@ import {
   JobETAData,
   JobProgressData,
   JobResultData,
+  JobRetryData,
   JobStateData,
   type ProjectRecoverySnapshot,
   type RecoveredProject,
@@ -58,7 +59,7 @@ import { RawProject } from './types/RawProject.js';
 import ErrorData from '../types/ErrorData.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 import Cache from '../lib/Cache.js';
-import { enhancementDefaults } from './Job.js';
+import Job, { enhancementDefaults } from './Job.js';
 import {
   calculateVideoFrames,
   getEnhacementStrength,
@@ -410,6 +411,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   /** When each resubmitted project was last sent, for the recently-created grace. */
   private _resubmittedAt = new Map<string, number>();
   /**
+   * Renders the server announced it moved to another worker (`jobRetry`), still
+   * waiting for that worker's first frame. Only consulted when a frame arrives
+   * with no `jobIndex` to match on; see {@link ProjectsApi.findReassignedJob}.
+   */
+  private _awaitingReassignment = new WeakSet<Job>();
+  /**
    * Recovery timings. Overridable so regression scripts can run the flow in
    * milliseconds instead of seconds.
    * @internal
@@ -491,6 +498,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.client.socket.on('jobProgress', this.handleJobProgress.bind(this));
     this.client.socket.on('jobETA', this.handleJobETA.bind(this));
     this.client.socket.on('jobError', this.handleJobError.bind(this));
+    this.client.socket.on('jobRetry', this.handleJobRetry.bind(this));
     this.client.socket.on('jobResult', (data: any) => {
       this.handleJobResult(data).catch((err) => {
         this.client.logger.error('Error in handleJobResult:', err);
@@ -804,6 +812,93 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
   }
 
+  /**
+   * The server gave up on this render's worker and put the SAME render back in
+   * the queue for another one, inside the same project.
+   *
+   * Handled entirely inside the SDK's own state and never emitted as a job
+   * event: surfaced as a job error it would fail a single-media project outright,
+   * which is exactly the render the server-side retry exists to save. The job
+   * goes back to waiting, and the next worker's first frame reclaims it by
+   * `jobIndex` (see {@link ProjectsApi.findReassignedJob}).
+   */
+  private handleJobRetry(data: JobRetryData) {
+    const project = data?.jobID && this.projects.find((p) => p.id === data.jobID);
+    if (!project || project.finished) return;
+    const jobIndex = typeof data.jobIndex === 'number' ? data.jobIndex : undefined;
+    const job =
+      (data.imgID ? project.job(data.imgID) : undefined) ??
+      (jobIndex !== undefined ? project.jobs.find((j) => j.jobIndex === jobIndex) : undefined);
+    if (!job || job.finished) return;
+    this._awaitingReassignment.add(job);
+    ProjectsApi.resetJobForNewAttempt(job, { status: 'pending', jobIndex });
+  }
+
+  /**
+   * The existing job a render that moved to another worker should come back to.
+   *
+   * A reassigned render keeps its place in the project but not its identity: the
+   * new worker mints a fresh `imgID`, which is what the SDK reports as `jobId`.
+   * The server moves renders on several paths -- a worker that failed, one that
+   * disconnected and never reclaimed its render, a personal LoRA that went away
+   * -- and only the failure path announces itself with `jobRetry`, so the match
+   * cannot rely on that frame alone.
+   *
+   * `jobIndex` is the render's stable position in the project and rides every
+   * `initiating` / `started` frame: an unfinished job already holding that index
+   * IS this render under the id its previous worker gave it. With no index on
+   * either side, the match falls back to a render explicitly announced as
+   * waiting, and only when it is the only one, so a frame can never take a
+   * sibling's job.
+   */
+  private findReassignedJob(project: Project, event: JobEvent): Job | undefined {
+    const unfinished = project.jobs.filter((job) => !job.finished);
+    if (!unfinished.length) return undefined;
+    const jobIndex = 'jobIndex' in event ? event.jobIndex : undefined;
+    if (typeof jobIndex === 'number') {
+      const byIndex = unfinished.find((job) => job.jobIndex === jobIndex);
+      if (byIndex) return byIndex;
+    }
+    const waiting = unfinished.filter(
+      (job) => this._awaitingReassignment.has(job) && job.jobIndex === undefined
+    );
+    return waiting.length === 1 ? waiting[0] : undefined;
+  }
+
+  /**
+   * Put a job back to the start of a render.
+   *
+   * Every number the abandoned worker reported described work that no longer
+   * exists. `step` in particular only ever moves forward (progress frames take a
+   * running maximum), so leaving it would pin the new attempt to the old one's
+   * high-water mark.
+   *
+   * The runtime budget is stopped as well. It is deliberately never reset by
+   * progress -- the first processing transition is the hard start of ONE worker
+   * job -- but a reassigned render is a different worker job. Left running, the
+   * departed worker's deadline expires during the queue wait and
+   * `_handleJobRuntimeTimeout` cancels the whole project on the server, retry
+   * included. The next processing transition arms a fresh deadline.
+   */
+  private static resetJobForNewAttempt(
+    job: Job,
+    { status, jobIndex }: { status?: 'pending'; jobIndex?: number } = {}
+  ) {
+    job._stopRuntimeTimeout();
+    job._update({
+      ...(status ? { status } : {}),
+      ...(jobIndex !== undefined ? { jobIndex } : {}),
+      step: 0,
+      workerName: undefined,
+      previewUrl: undefined,
+      externalProgress: undefined,
+      eta: undefined,
+      etaStartedAt: undefined,
+      etaSeconds: undefined,
+      etaRange: undefined
+    });
+  }
+
   private handleProjectEvent(event: ProjectEvent) {
     let project = this.projects.find((p) => p.id === event.projectId);
     if (!project) {
@@ -811,6 +906,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     switch (event.type) {
       case 'queued':
+        // The server only reports a project as queued while none of its renders
+        // is on a worker, so any runtime budget still running belongs to a
+        // render that was taken off its worker -- a disconnect reclaim or a
+        // personal-LoRA requeue, neither of which announces itself. Left
+        // running, that deadline would expire during the queue wait and cancel
+        // the project on the server before the render is ever picked back up.
+        project.jobs.forEach((job) => {
+          if (!job.finished) job._stopRuntimeTimeout();
+        });
         project._update({
           status: 'queued',
           queuePosition: event.queuePosition,
@@ -855,6 +959,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       return;
     }
     let job = project.job(event.jobId);
+    if (!job) {
+      // A render the server moved to another worker comes back under that
+      // worker's new id. It already has a job -- the one its abandoned attempt
+      // was tracked in -- so it reclaims that one instead of adding a second,
+      // which would leave the project with more jobs than it requested and an
+      // orphan whose runtime budget later cancels the project.
+      const reassigned = this.findReassignedJob(project, event);
+      if (reassigned) {
+        this._awaitingReassignment.delete(reassigned);
+        ProjectsApi.resetJobForNewAttempt(reassigned);
+        reassigned._update({ id: event.jobId });
+        job = reassigned;
+      }
+    }
     if (!job) {
       job = project._addJob({
         id: event.jobId,
