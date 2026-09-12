@@ -82,9 +82,7 @@ const PIXAL3D_WORKFLOW_ID = 'pixal3d_int8_i23d';
 // `templateVariant` is the worker's generic template selector, so
 // an open one would let a caller aim a paid job at any graph a worker carries.
 const PIXAL3D_DEFAULT_TEMPLATE_VARIANT = 'i23d-birefnet';
-const PIXAL3D_TEMPLATE_VARIANTS: Pixal3dTemplateVariant[] = [
-  PIXAL3D_DEFAULT_TEMPLATE_VARIANT
-];
+const PIXAL3D_TEMPLATE_VARIANTS: Pixal3dTemplateVariant[] = [PIXAL3D_DEFAULT_TEMPLATE_VARIANT];
 const MAX_SAM3_POINTS = 32;
 const MAX_SAM3_BOXES = 16;
 const MAX_SAM3_TEXT_LENGTH = 240;
@@ -496,6 +494,24 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
       );
     }
   }
+  if (params.outputScale !== undefined && params.outputScale !== 1 && params.outputScale !== 2) {
+    invalid('MiniMax H3 outputScale must be 1 or 2 (2 delivers 2K output).');
+  }
+}
+
+/**
+ * `outputScale` is MiniMax H3's 2K delivery switch. Other video models have no
+ * such stage, so a request for 2K on them is refused up front rather than
+ * silently ignored; `1` (the standard size) is harmless anywhere.
+ */
+function validateOutputScale(params: VideoProjectParams): void {
+  if (params.outputScale === undefined || params.outputScale === 1) return;
+  if (isMinimaxH3Model(params.modelId)) return;
+  throw new ApiError(400, {
+    status: 'error',
+    errorCode: 0,
+    message: 'outputScale is supported only by MiniMax H3 models (2 delivers 2K output).'
+  });
 }
 
 function asReferenceUrlArray(value: unknown): string[] {
@@ -1331,7 +1347,10 @@ function applyVideoParams(
   }
   validateVideoWorkflowAssets(params);
   if (isVideoUpscaleModel(params.modelId)) {
-    if (params.detailPreference != null && !['stable', 'sharper'].includes(params.detailPreference)) {
+    if (
+      params.detailPreference != null &&
+      !['stable', 'sharper'].includes(params.detailPreference)
+    ) {
       throw new Error('FlashVSR detailPreference must be stable or sharper.');
     }
     if (params.processingSpeed != null && !['stable', 'faster'].includes(params.processingSpeed)) {
@@ -1368,6 +1387,7 @@ function applyVideoParams(
     if (params.numberOfMedia !== 1) throw new Error('Upscale one source video per project.');
   }
   validateMinimaxH3Params(params);
+  validateOutputScale(params);
   const keyFrame: Record<string, any> = { ...inputKeyframe };
   if (params.referenceImage) {
     keyFrame.hasReferenceImage = true;
@@ -1484,6 +1504,11 @@ function applyVideoParams(
   }
   if (params.shift !== undefined) {
     keyFrame.shift = params.shift;
+  }
+  // MiniMax H3 2K delivery. Sent only when requested, so every other request
+  // (and the worker payload the socket builds from it) stays byte-identical.
+  if (params.outputScale === 2) {
+    keyFrame.outputScale = 2;
   }
   if (params.teacacheThreshold !== undefined) {
     const validatedThreshold = validateTeacacheThreshold(params.teacacheThreshold);
@@ -1727,9 +1752,9 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
       params.modelId === PIXAL3D_WORKFLOW_ID
         ? 'glb'
         : isSegmentationModel(params.modelId)
-        ? 'png'
-        : params.outputFormat ||
-          (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),
+          ? 'png'
+          : params.outputFormat ||
+            (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),
     ...workloadAttributionToWireFields(params.attribution)
   };
 

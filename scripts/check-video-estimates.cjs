@@ -98,6 +98,22 @@ async function main() {
   assert.equal(h3VideoInput.get('referenceVideoCount'), '2');
   assert.equal(h3VideoInput.get('referenceVideoDurationSeconds'), '13.5');
 
+  await estimate(projects, { model: 'minimax-h3-fl2va-fp8_t2v', outputScale: 2 });
+  const twoK = new URL(`https://socket.test${client.socket.paths.at(-1)}`);
+  assert.equal(
+    twoK.pathname,
+    '/api/v1/job-video/estimate/spark/minimax-h3-fl2va-fp8_t2v/1344/768/141/24/20/1',
+    '2K keeps the requested canvas in the path: it is a delivery switch, not a size'
+  );
+  assert.equal(twoK.searchParams.get('outputScale'), '2', '2K delivery must reach the estimate endpoint');
+
+  await estimate(projects, { model: 'minimax-h3-fl2va-fp8_t2v', outputScale: 1 });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-fl2va-fp8_t2v/1344/768/141/24/20/1',
+    'outputScale 1 must preserve the legacy request exactly'
+  );
+
   await estimate(projects, {
     model: 'seedance-2-0',
     hasVideoInput: true,

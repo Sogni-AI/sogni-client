@@ -477,7 +477,7 @@ Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Tur
 
 All 15 current workflow IDs are available through the Sogni projects API: four Standard, four Balanced, four LightX2V Turbo, and three FastH3 Turbo modes.
 
-For direct `projects.create()` calls, H3 I2V IDs accept `referenceImage`, `referenceImageEnd`, or both, with at least one required. Explicit FLF2V IDs require both anchors. SDK creative-tool routing keeps `minimax-h3-turbo` mapped to LightX2V for compatibility and adds `minimax-h3-fasth3-turbo` (automatic T2V or I2V), `minimax-h3-fasth3-t2v-turbo`, `minimax-h3-fasth3-i2v-turbo`, and `minimax-h3-fasth3-flf2v-turbo` for FastH3.
+For direct `projects.create()` calls, H3 I2V IDs accept `referenceImage`, `referenceImageEnd`, or both, with at least one required. Explicit FLF2V IDs require both anchors. Every H3 ID accepts `outputScale: 2` for 2K delivery: the clip is generated on the requested canvas and delivered at exactly twice its width and height (1344x768 becomes 2688x1536; Ref2VA Turbo's 960x544 becomes 1920x1088) with the same frame count, 24 fps timing and audio. It adds 10 Spark/s ($0.05) at 544/768p-class sizes or 6 Spark/s ($0.03) at 480p on top of the tier rate, needs Comfy worker 1.0.212 or newer, and is refused by every other video model. Omit it, or pass 1, for the standard size. SDK creative-tool routing keeps `minimax-h3-turbo` mapped to LightX2V for compatibility and adds `minimax-h3-fasth3-turbo` (automatic T2V or I2V), `minimax-h3-fasth3-t2v-turbo`, `minimax-h3-fasth3-i2v-turbo`, and `minimax-h3-fasth3-flf2v-turbo` for FastH3.
 
 ```javascript
 const project = await sogni.projects.create({
@@ -949,7 +949,7 @@ Use `estimateVideoCost()` for video jobs and `estimateAudioCost()` for audio job
 For reference-to-video estimates, supply `referenceImageCount`, `referenceVideoCount`,
 and `referenceVideoDurationSeconds` for the assets the job will actually submit.
 MiniMax H3 bills reference-video duration at the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output;
-unrelated models ignore these fields. For a FlashVSR upscale estimate, pass the output `width`/`height`, the
+unrelated models ignore these fields. Pass `outputScale: 2` to quote a MiniMax H3 2K delivery (the requested canvas stays in the request; the 2K surcharge is added server-side). For a FlashVSR upscale estimate, pass the output `width`/`height`, the
 source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the
 verified uploaded source.
 

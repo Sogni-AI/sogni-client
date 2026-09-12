@@ -950,7 +950,17 @@ Standard, four Balanced, four LightX2V Turbo, and three FastH3 Turbo modes.
 
 For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
 `referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids
-still require both anchors. SDK creative-tool routing is a separate hosted
+still require both anchors.
+
+2K DELIVERY (`outputScale`): every H3 id accepts `outputScale: 2`. The clip is
+generated on the requested canvas and delivered at exactly twice its width and
+height (1344x768 becomes 2688x1536; Ref2VA Turbo's 960x544 becomes 1920x1088)
+with the same frame count, 24 fps timing and audio, so it is a delivery switch,
+not a size preset: keep `width`/`height` on the normal H3 grid. It adds
+10 Spark/s ($0.05) at 544/768p-class sizes or 6 Spark/s ($0.03) at 480p on top
+of the tier rate, needs Comfy worker 1.0.212 or newer, and is refused by every
+other video model. Omit it, or pass 1, for the standard size; nothing is sent in
+that case, so existing requests are unchanged. SDK creative-tool routing is a separate hosted
 contract: existing `minimax-h3-turbo` selectors remain LightX2V for backwards
 compatibility. FastH3 uses `minimax-h3-fasth3-turbo` (automatic t2v or i2v),
 `minimax-h3-fasth3-t2v-turbo`, `minimax-h3-fasth3-i2v-turbo`, and
@@ -1840,6 +1850,7 @@ VIDEO-SPECIFIC PARAMETERS:
   duration?: number;         // Seconds
   fps?: number;              // Model-dependent behavior!
   shift?: number;            // Motion intensity (1.0-8.0)
+  outputScale?: 1 | 2;       // MiniMax H3 only: 2 = 2K delivery (2x width and height)
   teacacheThreshold?: number;// Speedup (0.0-1.0)
   width?: number;
   height?: number;
@@ -2123,6 +2134,8 @@ When estimating a reference-to-video job, pass `referenceImageCount`,
 will actually submit. MiniMax H3 bills reference-video duration at the full
 resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with
 Turbo output. These fields are ignored by unrelated models.
+Pass `outputScale: 2` to quote a MiniMax H3 2K delivery: the requested canvas
+stays in the request and the server adds the 2K surcharge.
 
 For a FlashVSR upscale estimate, pass the output `width`/`height`, the source's
 `frames` and `fps`, `steps: 1`, `numberOfMedia: 1`, and
@@ -2291,6 +2304,7 @@ interface VideoProjectParams extends BaseProjectParams {
   duration?: number;
   fps?: number;
   shift?: number;
+  outputScale?: 1 | 2;
   teacacheThreshold?: number;
   referenceImage?: File | Buffer | Blob;
   referenceImageEnd?: File | Buffer | Blob;

@@ -2309,6 +2309,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - referenceImageCount: Number of image references submitted by the estimated job.
    *   - referenceVideoCount: Number of video references submitted by a MiniMax H3 r2v job.
    *   - referenceVideoDurationSeconds: Combined duration of MiniMax H3 r2v video input.
+   *   - outputScale: MiniMax H3 2K delivery (2), so the quote includes the 2K surcharge.
    * @return {Promise<Object>} Returns an object containing the estimated costs for the video in different units:
    *   - token: Cost in tokens.
    *   - usd: Cost in USD.
@@ -2368,6 +2369,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         'referenceVideoDurationSeconds',
         String(params.referenceVideoDurationSeconds as number)
       );
+    }
+    // MiniMax H3 2K delivery carries a per-second surcharge; the server prices it
+    // only when told. Omitted or 1 keeps the legacy request exactly.
+    if (params.outputScale === 2) {
+      query.set('outputScale', '2');
     }
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(

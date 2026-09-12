@@ -56,7 +56,14 @@ export type ImageOutputFormat = 'png' | 'jpg' | 'webp';
  * because removing it would be a breaking type change for every consumer.
  */
 export type GptImageQuality =
-  'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'auto' | 'standard' | 'hd';
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max'
+  | 'auto'
+  | 'standard'
+  | 'hd';
 export type GptImageBackground = 'opaque' | 'auto' | 'transparent';
 export type VideoOutputFormat = 'mp4';
 export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
@@ -223,6 +230,9 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   uses its fixed 4-step sampling path.
  * - Frames follow `124 + n*17` from 124 through 362. Dimensions use a 32px
  *   grid, with a 1344px per-axis limit and a 1032192-pixel canvas limit.
+ * - `outputScale: 2` delivers 2K: exactly twice the requested width and height
+ *   with the same length and audio, for a per-second surcharge (see
+ *   `VideoProjectParams.outputScale`). Omit it for the standard delivery size.
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
  *   requires at least one of them. The `flf2v` model requires both.
  *
@@ -300,6 +310,16 @@ export interface VideoProjectParams extends BaseProjectParams {
   detailPreference?: 'stable' | 'sharper';
   /** FlashVSR processing speed. Defaults to stable (More Stable). */
   processingSpeed?: 'stable' | 'faster';
+  /**
+   * MiniMax H3 only. `2` delivers 2K output: the clip is generated on the requested
+   * canvas and delivered at exactly twice its width and height (1344x768 becomes
+   * 2688x1536; Ref2VA Turbo's 960x544 becomes 1920x1088) with the same frame count,
+   * 24 fps timing and audio. Omit it, or pass `1`, for the standard delivery size.
+   * 2K adds 10 Spark per output second at the 544/768p class and 6 Spark per
+   * second at the 480p class on top of the tier rate, and needs Comfy worker
+   * 1.0.212 or newer. Other video models reject `2`.
+   */
+  outputScale?: 1 | 2;
   /**
    * Number of frames to generate.
    * @deprecated Use duration instead. When using duration, the SDK automatically
@@ -1097,6 +1117,8 @@ export interface VideoEstimateRequest {
    * The estimate bills it at the selected output resolution/tier rate.
    */
   referenceVideoDurationSeconds?: number;
+  /** MiniMax H3 2K delivery (`2`): the quote then includes the 2K per-second surcharge. */
+  outputScale?: 1 | 2;
   /**
    * Optional estimate-only signal: presence implies Seedance video-input pricing.
    */
