@@ -1,3 +1,15 @@
+# [5.45.0](https://github.com/Sogni-AI/sogni-client/compare/v5.44.1...v5.45.0) (2026-09-12)
+
+
+### Bug Fixes
+
+* **deps:** bump sogni-protocol to 1.0.0-alpha.39 for the H3 2K option ([e4c58bd](https://github.com/Sogni-AI/sogni-client/commit/e4c58bd9edf8731aa565819488f4d6940b4b4240))
+
+
+### Features
+
+* **projects:** add outputScale for MiniMax H3 2K delivery ([fa0d9ef](https://github.com/Sogni-AI/sogni-client/commit/fa0d9ef9246ceefb023915d04ed119170388e900))
+
 ## [5.44.1](https://github.com/Sogni-AI/sogni-client/compare/v5.44.0...v5.44.1) (2026-09-11)
 
 
