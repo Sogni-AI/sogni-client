@@ -1,3 +1,18 @@
+# [5.47.0](https://github.com/Sogni-AI/sogni-client/compare/v5.46.0...v5.47.0) (2026-09-13)
+
+
+### Bug Fixes
+
+* **projects:** finish upload fallback and submission cleanup ([9f9db15](https://github.com/Sogni-AI/sogni-client/commit/9f9db156ff7d338716c56008b909d8d20cb961d9))
+* **projects:** refuse a retired outputScale instead of silently dropping it ([4b8e7b7](https://github.com/Sogni-AI/sogni-client/commit/4b8e7b730bdda7b51c440d750290a425d1a80f77))
+
+
+### Features
+
+* **chat:** route the MiniMax H3 FastH3 two-stage hosted selectors ([c7b87e5](https://github.com/Sogni-AI/sogni-client/commit/c7b87e5c6b83e83350bc263b023f4278d052e6f7))
+* **projects:** integrate FastH3 two-stage SDK contracts ([36165ac](https://github.com/Sogni-AI/sogni-client/commit/36165acfe576cd3747f881ce1a7e35f140c9bac2))
+* **projects:** move MiniMax H3 two-stage output to its own model ids ([2283184](https://github.com/Sogni-AI/sogni-client/commit/22831841e1cc51d639e0af5a6593e20bbac58f6d))
+
 # [5.46.0](https://github.com/Sogni-AI/sogni-client/compare/v5.45.0...v5.46.0) (2026-09-12)
 
 
