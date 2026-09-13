@@ -37,7 +37,10 @@ import {
   isRecoveredJobFinished,
   projectParamsFromRecoveredProject
 } from './recovery.js';
-import createJobRequestMessage, { type JobRequestRaw } from './createJobRequestMessage.js';
+import createJobRequestMessage, {
+  type JobRequestRaw,
+  rejectRetiredOutputScale
+} from './createJobRequestMessage.js';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import { EstimationResponse } from './types/EstimationResponse.js';
 import {
@@ -1668,6 +1671,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param data
    */
   async create(data: ProjectParams): Promise<Project> {
+    if (data.type === 'video') rejectRetiredOutputScale(data);
     // Segmentation is a one-source/one-mask utility workflow, SAM 3 and
     // BiRefNet alike. Normalize before Project construction so lifecycle
     // completion and result MIME use the same values as the serialized request.
@@ -2434,6 +2438,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - sogni: Cost in Sogni.
    */
   async estimateVideoCost(params: VideoEstimateRequest) {
+    rejectRetiredOutputScale(params);
     const frames = params.frames
       ? params.frames
       : calculateVideoFrames(params.model, params.duration, params.fps);

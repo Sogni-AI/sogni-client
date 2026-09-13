@@ -973,10 +973,11 @@ grid and pick the canvas for the delivery you want:
 | 2K | the 768p canvas (1344x768) | 2688x1536 |
 
 Portrait keeps the aspect: 384x672 delivers 768x1344, 544x960 delivers
-1088x1920.
-Price it with `estimateVideoCost` using the `_2stage` id and that canvas. The
-socket refuses the retired `outputScale` field on project requests and on
-estimates.
+1088x1920. Price it with `estimateVideoCost` using the `_2stage` id and that
+canvas.
+`projects.create()` and `estimateVideoCost()` throw before sending anything if
+the retired `outputScale` field is passed (the socket refuses it too), naming
+the two-stage ids to use instead.
 
 SDK creative-tool routing is a separate hosted contract: existing
 `minimax-h3-turbo` selectors remain LightX2V for backwards compatibility.

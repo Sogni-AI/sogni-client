@@ -129,14 +129,19 @@ async function main() {
     '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_flf2v_turbo_2stage/672/384/141/24/4/1',
     '720p pricing must be requested with the two-stage model id and the 384 canvas'
   );
-  // The socket refuses outputScale on the estimate endpoint; an untyped caller
-  // that still passes it must not put it on the wire.
-  await estimate(projects, { model: 'minimax-h3-fastvideo-int8_t2v_turbo', steps: 4, outputScale: 2 });
-  assert.equal(
-    client.socket.paths.at(-1),
-    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_t2v_turbo/1344/768/141/24/4/1',
-    'outputScale must never reach the estimate endpoint'
-  );
+  // outputScale is retired: an untyped caller that still passes it (any value)
+  // is refused with the socket's wording before any estimate request is made.
+  const requestsBefore = client.socket.paths.length;
+  for (const outputScale of [2, 1, null]) {
+    await assert.rejects(
+      estimate(projects, { model: 'minimax-h3-fastvideo-int8_t2v_turbo', steps: 4, outputScale }),
+      (error) =>
+        error.status === 400 &&
+        error.message ===
+          'outputScale is no longer supported. For MiniMax H3 1080p or 2K output use the two-stage model ids minimax-h3-fastvideo-int8_t2v_turbo_2stage, minimax-h3-fastvideo-int8_i2v_turbo_2stage or minimax-h3-fastvideo-int8_flf2v_turbo_2stage.'
+    );
+  }
+  assert.equal(client.socket.paths.length, requestsBefore, 'a retired outputScale sends no request');
 
   await estimate(projects, {
     model: 'seedance-2-0',

@@ -438,6 +438,25 @@ function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {
   }
 }
 
+export const RETIRED_OUTPUT_SCALE_MESSAGE =
+  'outputScale is no longer supported. For MiniMax H3 1080p or 2K output use the two-stage model ids minimax-h3-fastvideo-int8_t2v_turbo_2stage, minimax-h3-fastvideo-int8_i2v_turbo_2stage or minimax-h3-fastvideo-int8_flf2v_turbo_2stage.';
+
+/**
+ * outputScale is retired: MiniMax H3 1080p and 2K output are the two-stage model
+ * ids, and the socket refuses any request or estimate that carries the field.
+ * It is gone from the types, so this only catches untyped callers — and fails
+ * them before any request instead of silently delivering the standard size.
+ */
+export function rejectRetiredOutputScale(params: object): void {
+  if ((params as { outputScale?: unknown }).outputScale !== undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: RETIRED_OUTPUT_SCALE_MESSAGE
+    });
+  }
+}
+
 function validateMinimaxH3Params(params: VideoProjectParams): void {
   if (!isMinimaxH3Model(params.modelId)) return;
 
@@ -1368,6 +1387,7 @@ function applyVideoParams(
     }
     if (params.numberOfMedia !== 1) throw new Error('Upscale one source video per project.');
   }
+  rejectRetiredOutputScale(params);
   validateMinimaxH3Params(params);
   const keyFrame: Record<string, any> = { ...inputKeyframe };
   if (params.referenceImage) {

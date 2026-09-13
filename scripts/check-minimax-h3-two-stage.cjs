@@ -7,8 +7,9 @@
  *   class, with the workflow, frame grid and canvas defaults of their FastH3 base;
  * - their request is the FastH3 request with only the model id changed, for the
  *   720p (384 short edge), 1080p (544 short edge) and 2K (768p) canvases alike;
- * - no request built by the SDK carries `outputScale`, on any MiniMax H3 id, even
- *   when an untyped caller still passes it: the socket refuses the key outright.
+ * - a caller that still passes the retired `outputScale` (any value, on any video
+ *   model) is refused with the socket's wording before any request is made, both
+ *   by projects.create and by the request builder; no request carries the key.
  */
 const assert = require('node:assert/strict');
 const create = require('../dist/Projects/createJobRequestMessage.js').default;
@@ -22,6 +23,12 @@ const {
   isVideoModel
 } = require('../dist/Projects/utils/index.js');
 const { getVideoDefaults } = require('../dist/Chat/modelRouting.js');
+const ProjectsApi = require('../dist/Projects/index.js').default;
+
+const retiredOutputScale =
+  /^outputScale is no longer supported\. For MiniMax H3 1080p or 2K output use the two-stage model ids minimax-h3-fastvideo-int8_t2v_turbo_2stage, minimax-h3-fastvideo-int8_i2v_turbo_2stage or minimax-h3-fastvideo-int8_flf2v_turbo_2stage\.$/;
+const isRetiredOutputScale = (error) =>
+  error.status === 400 && retiredOutputScale.test(error.message);
 
 const twoStage = {
   t2v: ['minimax-h3-fastvideo-int8_t2v_turbo_2stage', 'minimax-h3-fastvideo-int8_t2v_turbo'],
@@ -133,12 +140,12 @@ let covered = 0;
 for (const [tier, ids] of Object.entries(h3Ids)) {
   for (const modelId of ids) {
     assert.equal(isMinimaxH3Model(modelId), true, `${modelId} is a MiniMax H3 id`);
-    for (const changes of [{}, { outputScale: 2 }, { outputScale: 1 }]) {
-      const message = request(modelId, tier, changes);
-      assert.equal(
-        JSON.stringify(message).includes('outputScale'),
-        false,
-        `${modelId}: the request never carries outputScale`
+    assert.equal(JSON.stringify(request(modelId, tier)).includes('outputScale'), false);
+    for (const outputScale of [2, 1, 0, null, '2', false]) {
+      assert.throws(
+        () => request(modelId, tier, { outputScale }),
+        isRetiredOutputScale,
+        `${modelId}: outputScale ${String(outputScale)} is refused`
       );
     }
     covered += 1;
@@ -146,4 +153,49 @@ for (const [tier, ids] of Object.entries(h3Ids)) {
 }
 assert.equal(covered, 18, 'every MiniMax H3 workflow id is covered');
 
-console.log('MiniMax H3 two-stage model id checks passed');
+// The retired field is refused on every video model, not only on MiniMax H3.
+for (const modelId of ['ltx25-22b-int8_t2v_distilled', 'wan_v2.2-14b-fp8_t2v_lightx2v']) {
+  const base = {
+    type: 'video',
+    modelId,
+    positivePrompt: 'a kite',
+    numberOfMedia: 1,
+    duration: 5,
+    width: 1280,
+    height: 720
+  };
+  assert.throws(
+    () => create(`retired-${modelId}`, { ...base, outputScale: 1 }, options),
+    isRetiredOutputScale
+  );
+}
+
+(async () => {
+  // projects.create refuses before it fetches model options or uploads anything.
+  const networkCalls = [];
+  const client = {
+    socket: {
+      get: async (path) => networkCalls.push(path),
+      send: async (type) => networkCalls.push(type)
+    },
+    logger: { info() {}, warn() {}, error() {}, debug() {} },
+    on() {},
+    off() {}
+  };
+  const projects = Object.create(ProjectsApi.prototype);
+  projects.client = client;
+  projects.getModelOptions = async (modelId) => {
+    networkCalls.push(`model-options:${modelId}`);
+    return options;
+  };
+  await assert.rejects(
+    projects.create(paramsFor(twoStage.t2v[1], 'turbo', { outputScale: 2 })),
+    isRetiredOutputScale
+  );
+  assert.deepEqual(networkCalls, [], 'no request is made for a retired outputScale');
+
+  console.log('MiniMax H3 two-stage model id checks passed');
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
