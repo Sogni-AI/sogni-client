@@ -438,6 +438,25 @@ function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {
   }
 }
 
+export const RETIRED_OUTPUT_SCALE_MESSAGE =
+  'outputScale is no longer supported. For MiniMax H3 1080p or 2K output use the two-stage model ids minimax-h3-fastvideo-int8_t2v_turbo_2stage, minimax-h3-fastvideo-int8_i2v_turbo_2stage or minimax-h3-fastvideo-int8_flf2v_turbo_2stage.';
+
+/**
+ * outputScale is retired: MiniMax H3 1080p and 2K output are the two-stage model
+ * ids, and the socket refuses any request or estimate that carries the field.
+ * It is gone from the types, so this only catches untyped callers — and fails
+ * them before any request instead of silently delivering the standard size.
+ */
+export function rejectRetiredOutputScale(params: object): void {
+  if ((params as { outputScale?: unknown }).outputScale !== undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: RETIRED_OUTPUT_SCALE_MESSAGE
+    });
+  }
+}
+
 function validateMinimaxH3Params(params: VideoProjectParams): void {
   if (!isMinimaxH3Model(params.modelId)) return;
 
@@ -494,24 +513,6 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
       );
     }
   }
-  if (params.outputScale !== undefined && params.outputScale !== 1 && params.outputScale !== 2) {
-    invalid('MiniMax H3 outputScale must be 1 or 2 (2 delivers 2K output).');
-  }
-}
-
-/**
- * `outputScale` is MiniMax H3's 2K delivery switch. Other video models have no
- * such stage, so a request for 2K on them is refused up front rather than
- * silently ignored; `1` (the standard size) is harmless anywhere.
- */
-function validateOutputScale(params: VideoProjectParams): void {
-  if (params.outputScale === undefined || params.outputScale === 1) return;
-  if (isMinimaxH3Model(params.modelId)) return;
-  throw new ApiError(400, {
-    status: 'error',
-    errorCode: 0,
-    message: 'outputScale is supported only by MiniMax H3 models (2 delivers 2K output).'
-  });
 }
 
 function asReferenceUrlArray(value: unknown): string[] {
@@ -1386,8 +1387,8 @@ function applyVideoParams(
     }
     if (params.numberOfMedia !== 1) throw new Error('Upscale one source video per project.');
   }
+  rejectRetiredOutputScale(params);
   validateMinimaxH3Params(params);
-  validateOutputScale(params);
   const keyFrame: Record<string, any> = { ...inputKeyframe };
   if (params.referenceImage) {
     keyFrame.hasReferenceImage = true;
@@ -1504,11 +1505,6 @@ function applyVideoParams(
   }
   if (params.shift !== undefined) {
     keyFrame.shift = params.shift;
-  }
-  // MiniMax H3 2K delivery. Sent only when requested, so every other request
-  // (and the worker payload the socket builds from it) stays byte-identical.
-  if (params.outputScale === 2) {
-    keyFrame.outputScale = 2;
   }
   if (params.teacacheThreshold !== undefined) {
     const validatedThreshold = validateTeacacheThreshold(params.teacacheThreshold);

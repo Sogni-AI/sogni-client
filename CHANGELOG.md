@@ -1,3 +1,22 @@
+# [5.46.0](https://github.com/Sogni-AI/sogni-client/compare/v5.45.0...v5.46.0) (2026-09-12)
+
+
+### Features
+
+* **projects:** keep a render the server moves to another worker in its own job ([e3e49fc](https://github.com/Sogni-AI/sogni-client/commit/e3e49fc6e29b275227c6295bf6c8a75e0baa6e79)), closes [hi#water](https://github.com/hi/issues/water)
+
+# [5.45.0](https://github.com/Sogni-AI/sogni-client/compare/v5.44.1...v5.45.0) (2026-09-12)
+
+
+### Bug Fixes
+
+* **deps:** bump sogni-protocol to 1.0.0-alpha.39 for the H3 2K option ([e4c58bd](https://github.com/Sogni-AI/sogni-client/commit/e4c58bd9edf8731aa565819488f4d6940b4b4240))
+
+
+### Features
+
+* **projects:** add outputScale for MiniMax H3 2K delivery ([fa0d9ef](https://github.com/Sogni-AI/sogni-client/commit/fa0d9ef9246ceefb023915d04ed119170388e900))
+
 ## [5.44.1](https://github.com/Sogni-AI/sogni-client/compare/v5.44.0...v5.44.1) (2026-09-11)
 
 

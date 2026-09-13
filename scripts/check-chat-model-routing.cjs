@@ -289,6 +289,11 @@ const minimaxH3FastVideoModelIds = {
   i2v: 'minimax-h3-fastvideo-int8_i2v_turbo',
   flf2v: 'minimax-h3-fastvideo-int8_flf2v_turbo'
 };
+const minimaxH3TwoStageModelIds = {
+  t2v: 'minimax-h3-fastvideo-int8_t2v_turbo_2stage',
+  i2v: 'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
+  flf2v: 'minimax-h3-fastvideo-int8_flf2v_turbo_2stage'
+};
 const minimaxH3BalancedModelIds = {
   t2v: 'minimax-h3-fl2va-fp8_t2v_balanced',
   i2v: 'minimax-h3-fl2va-fp8_i2v_balanced',
@@ -317,6 +322,29 @@ for (const selector of [
   'minimax-h3-fasth3-flf2v-turbo'
 ]) {
   assert.ok(animatePhotoModelSchema.enum.includes(selector));
+}
+for (const selector of ['minimax-h3-fasth3-turbo-2stage', 'minimax-h3-fasth3-t2v-turbo-2stage']) {
+  assert.ok(generateVideoModelSchema.enum.includes(selector));
+  assert.ok(generateVideoLoraSchema.description.includes(`"${selector}"`));
+}
+for (const selector of [
+  'minimax-h3-fasth3-i2v-turbo-2stage',
+  'minimax-h3-fasth3-flf2v-turbo-2stage'
+]) {
+  assert.ok(animatePhotoModelSchema.enum.includes(selector));
+  assert.ok(animatePhotoLoraSchema.description.includes(`"${selector}"`));
+}
+// Two-stage output is a model id: no hosted tool offers the retired outputScale argument.
+for (const toolName of ['generate_video', 'animate_photo']) {
+  const properties = sdkHostedToolsByName.get(toolName).function.parameters.properties;
+  assert.equal('outputScale' in properties, false, `${toolName} must not offer outputScale`);
+}
+for (const schema of [generateVideoModelSchema, animatePhotoModelSchema]) {
+  assert.match(schema.description, /FastH3 Two-Stage/);
+  // targetResolution names the delivered class: 544, 768 and 384 px canvases.
+  assert.match(schema.description, /960x544 delivers 1920x1088/);
+  assert.match(schema.description, /1344x768 delivers 2688x1536/);
+  assert.match(schema.description, /672x384 delivers 1344x768/);
 }
 assert.ok(!generateVideoModelSchema.enum.includes('minimax-h3-fasth3-r2v-turbo'));
 assert.match(generateVideoModelSchema.description, /FastVideo VSA four-step FastH3/);
@@ -362,6 +390,11 @@ assert.ok(Object.values(minimaxH3ModelIds).every(isMinimaxH3Model));
 assert.ok(Object.values(minimaxH3TurboModelIds).every(isMinimaxH3TurboModel));
 assert.ok(Object.values(minimaxH3FastVideoModelIds).every(isMinimaxH3Model));
 assert.ok(Object.values(minimaxH3FastVideoModelIds).every(isMinimaxH3TurboModel));
+assert.ok(Object.values(minimaxH3TwoStageModelIds).every(isMinimaxH3Model));
+assert.ok(Object.values(minimaxH3TwoStageModelIds).every(isVideoModel));
+assert.ok(Object.values(minimaxH3TwoStageModelIds).every(isMinimaxH3TurboModel));
+assert.equal(isMinimaxH3TurboModel('minimax-h3-fl2va-fp8_t2v_turbo_2stage'), false);
+assert.equal(isMinimaxH3TurboModel('minimax-h3-fastvideo-int8_r2v_turbo_2stage'), false);
 assert.ok(Object.values(minimaxH3BalancedModelIds).every(isMinimaxH3Model));
 assert.ok(Object.values(minimaxH3BalancedModelIds).every(isMinimaxH3BalancedModel));
 assert.equal(isMinimaxH3TurboModel(minimaxH3ModelIds.t2v), false);
@@ -378,6 +411,9 @@ assert.equal(getVideoWorkflowType(minimaxH3TurboModelIds.r2v), 'r2v');
 assert.equal(getVideoWorkflowType(minimaxH3FastVideoModelIds.t2v), 't2v');
 assert.equal(getVideoWorkflowType(minimaxH3FastVideoModelIds.i2v), 'i2v');
 assert.equal(getVideoWorkflowType(minimaxH3FastVideoModelIds.flf2v), 'flf2v');
+assert.equal(getVideoWorkflowType(minimaxH3TwoStageModelIds.t2v), 't2v');
+assert.equal(getVideoWorkflowType(minimaxH3TwoStageModelIds.i2v), 'i2v');
+assert.equal(getVideoWorkflowType(minimaxH3TwoStageModelIds.flf2v), 'flf2v');
 assert.equal(getVideoWorkflowType(minimaxH3BalancedModelIds.t2v), 't2v');
 assert.equal(getVideoWorkflowType(minimaxH3BalancedModelIds.i2v), 'i2v');
 assert.equal(getVideoWorkflowType(minimaxH3BalancedModelIds.flf2v), 'flf2v');
@@ -397,6 +433,12 @@ assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v, minimaxH3TurboModelIds
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboT2v, minimaxH3FastVideoModelIds.t2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboI2v, minimaxH3FastVideoModelIds.i2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboFlf2v, minimaxH3FastVideoModelIds.flf2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageT2v, minimaxH3TwoStageModelIds.t2v);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageI2v, minimaxH3TwoStageModelIds.i2v);
+assert.equal(
+  PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageFlf2v,
+  minimaxH3TwoStageModelIds.flf2v
+);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3BalancedT2v, minimaxH3BalancedModelIds.t2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3BalancedI2v, minimaxH3BalancedModelIds.i2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3BalancedFlf2v, minimaxH3BalancedModelIds.flf2v);
@@ -432,6 +474,33 @@ assert.equal(
     referenceImageIndices: [0]
   }),
   minimaxH3TurboModelIds.i2v
+);
+for (const selector of ['minimax-h3-fasth3-turbo-2stage', 'minimax-h3-fasth3-t2v-turbo-2stage']) {
+  assert.equal(
+    resolveHostedToolModelSelector('generate_video', { videoModel: selector }),
+    minimaxH3TwoStageModelIds.t2v
+  );
+}
+assert.equal(
+  resolveHostedToolModelSelector('generate_video', {
+    videoModel: 'minimax-h3-fasth3-turbo-2stage',
+    referenceImageIndices: [0]
+  }),
+  minimaxH3TwoStageModelIds.i2v
+);
+for (const [selector, modelId] of [
+  ['minimax-h3-fasth3-turbo-2stage', minimaxH3TwoStageModelIds.i2v],
+  ['minimax-h3-fasth3-i2v-turbo-2stage', minimaxH3TwoStageModelIds.i2v],
+  ['minimax-h3-fasth3-flf2v-turbo-2stage', minimaxH3TwoStageModelIds.flf2v]
+]) {
+  assert.equal(resolveHostedToolModelSelector('animate_photo', { videoModel: selector }), modelId);
+}
+assert.deepEqual(
+  validateHostedToolArguments(SogniTools.all, 'generate_video', {
+    prompt: 'A synchronized cinematic scene.',
+    videoModel: 'minimax-h3-fasth3-t2v-turbo-2stage'
+  }),
+  { ok: true, errors: [] }
 );
 assert.equal(
   resolveHostedToolModelSelector('generate_video', { videoModel: 'minimax-h3-r2v-turbo' }),

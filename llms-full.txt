@@ -937,6 +937,9 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 | minimax-h3-fastvideo-int8_t2v_turbo | FastH3 Turbo text-to-video | none |
 | minimax-h3-fastvideo-int8_i2v_turbo | FastH3 Turbo endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fastvideo-int8_flf2v_turbo | FastH3 Turbo first-and-last-frame video | both anchor images required |
+| minimax-h3-fastvideo-int8_t2v_turbo_2stage | FastH3 Two-Stage text-to-video (2x canvas delivery) | none |
+| minimax-h3-fastvideo-int8_i2v_turbo_2stage | FastH3 Two-Stage endpoint-conditioned image-to-video (2x canvas delivery) | first frame, last frame, or both (at least one) |
+| minimax-h3-fastvideo-int8_flf2v_turbo_2stage | FastH3 Two-Stage first-and-last-frame video (2x canvas delivery) | both anchor images required |
 | minimax-h3-fl2va-fp8_t2v_balanced | Balanced text-to-video | none |
 | minimax-h3-fl2va-fp8_i2v_balanced | Balanced endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fl2va-fp8_flf2v_balanced | Balanced first-and-last-frame video | both anchor images required |
@@ -945,26 +948,71 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544.
 Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 
-All 15 current workflow ids are available through the Sogni projects API: four
-Standard, four Balanced, four LightX2V Turbo, and three FastH3 Turbo modes.
+All 18 current workflow ids are available through the Sogni projects API: four
+Standard, four Balanced, four LightX2V Turbo, three FastH3 Turbo, and three
+FastH3 Two-Stage modes.
 
 For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
 `referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids
 still require both anchors.
 
-2K DELIVERY (`outputScale`): every H3 id accepts `outputScale: 2`. The clip is
-generated on the requested canvas and delivered at exactly twice its width and
-height (1344x768 becomes 2688x1536; Ref2VA Turbo's 960x544 becomes 1920x1088)
-with the same frame count, 24 fps timing and audio, so it is a delivery switch,
-not a size preset: keep `width`/`height` on the normal H3 grid. It adds
-10 Spark/s ($0.05) at 544/768p-class sizes or 6 Spark/s ($0.03) at 480p on top
-of the tier rate, needs Comfy worker 1.0.212 or newer, and is refused by every
-other video model. Omit it, or pass 1, for the standard size; nothing is sent in
-that case, so existing requests are unchanged. SDK creative-tool routing is a separate hosted
-contract: existing `minimax-h3-turbo` selectors remain LightX2V for backwards
-compatibility. FastH3 uses `minimax-h3-fasth3-turbo` (automatic t2v or i2v),
+720P, 1080P AND 2K OUTPUT (FastH3 Two-Stage): two-stage output is a model id, not a
+request option. `minimax-h3-fastvideo-int8_t2v_turbo_2stage`,
+`minimax-h3-fastvideo-int8_i2v_turbo_2stage` and
+`minimax-h3-fastvideo-int8_flf2v_turbo_2stage` each take exactly the request of
+their FastH3 Turbo id (canvas, frames, 4 steps, Euler/simple, inputs, LoRAs).
+FastH3 renders the canvas, then the worker enlarges it 2x and refines it, so the
+clip is delivered at exactly twice the canvas width and height with the same
+frame count, 24 fps timing and audio. Keep `width`/`height` on the normal H3
+grid and pick the canvas for the delivery you want:
+
+| Choice | Canvas to send | Delivered |
+|--------|----------------|-----------|
+| 720p | chosen aspect at a 384 px short edge (1344x768 -> 672x384) | 1344x768 |
+| 1080p | chosen aspect at a 544 px short edge (1344x768 -> 960x544) | 1920x1088 |
+| 2K | the 768p canvas (1344x768) | 2688x1536 |
+
+Portrait keeps the aspect: 384x672 delivers 768x1344, 544x960 delivers
+1088x1920. Price it with `estimateVideoCost` using the `_2stage` id and that
+canvas.
+`projects.create()` and `estimateVideoCost()` throw before sending anything if
+the retired `outputScale` field is passed (the socket refuses it too), naming
+the two-stage ids to use instead.
+
+SDK creative-tool routing is a separate hosted contract: existing
+`minimax-h3-turbo` selectors remain LightX2V for backwards compatibility.
+FastH3 uses `minimax-h3-fasth3-turbo` (automatic t2v or i2v),
 `minimax-h3-fasth3-t2v-turbo`, `minimax-h3-fasth3-i2v-turbo`, and
-`minimax-h3-fasth3-flf2v-turbo`.
+`minimax-h3-fasth3-flf2v-turbo`. FastH3 Two-Stage uses
+`minimax-h3-fasth3-turbo-2stage` (automatic t2v or i2v),
+`minimax-h3-fasth3-t2v-turbo-2stage`, `minimax-h3-fasth3-i2v-turbo-2stage`, and
+`minimax-h3-fasth3-flf2v-turbo-2stage`. On those hosted selectors
+`targetResolution` names the delivered class: `720` renders the 384 px canvas,
+`1080` the 544 px canvas, and `1440` (or omitted) the 768p canvas for 2K.
+
+A 720p two-stage render sends the 384 px canvas and receives 1344x768:
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-fastvideo-int8_t2v_turbo_2stage',
+  numberOfMedia: 1,
+  positivePrompt:
+    'integrated_multimodal_description: [Shot 1] Live-action, cinematic, a tracking shot moves through a rainy night market.\n\n' +
+    'overall_soundscape: Steady rain, close footsteps, and layered crowd ambience.\n\n' +
+    'non_diegetic_music: A low electronic pulse at a moderate tempo.',
+  width: 672,
+  height: 384,
+  duration: 8,
+  steps: 4,
+  guidance: 1,
+  sampler: 'euler',
+  scheduler: 'simple',
+  generateAudio: true,
+  tokenType: 'spark'
+});
+```
 
 ```javascript
 const project = await sogni.projects.create({
@@ -1850,7 +1898,6 @@ VIDEO-SPECIFIC PARAMETERS:
   duration?: number;         // Seconds
   fps?: number;              // Model-dependent behavior!
   shift?: number;            // Motion intensity (1.0-8.0)
-  outputScale?: 1 | 2;       // MiniMax H3 only: 2 = 2K delivery (2x width and height)
   teacacheThreshold?: number;// Speedup (0.0-1.0)
   width?: number;
   height?: number;
@@ -2134,8 +2181,8 @@ When estimating a reference-to-video job, pass `referenceImageCount`,
 will actually submit. MiniMax H3 bills reference-video duration at the full
 resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with
 Turbo output. These fields are ignored by unrelated models.
-Pass `outputScale: 2` to quote a MiniMax H3 2K delivery: the requested canvas
-stays in the request and the server adds the 2K surcharge.
+Quote MiniMax H3 two-stage output with the `_2stage` model id and the canvas
+the job renders (672x384 for 720p, 960x544 for 1080p, 1344x768 for 2K).
 
 For a FlashVSR upscale estimate, pass the output `width`/`height`, the source's
 `frames` and `fps`, `steps: 1`, `numberOfMedia: 1`, and
@@ -2304,7 +2351,6 @@ interface VideoProjectParams extends BaseProjectParams {
   duration?: number;
   fps?: number;
   shift?: number;
-  outputScale?: 1 | 2;
   teacacheThreshold?: number;
   referenceImage?: File | Buffer | Blob;
   referenceImageEnd?: File | Buffer | Blob;
