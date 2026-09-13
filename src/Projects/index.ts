@@ -1590,37 +1590,38 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       };
     }
     const project = new Project({ ...normalizedData }, { api: this, logger: this.client.logger });
-    const modelOptions = await this.getModelOptions(normalizedData.modelId);
-    const requestParams = {
-      ...normalizedData,
-      appSource: normalizedData.appSource || this.client.appSource,
-      attribution: this.resolveWorkloadAttribution(normalizedData.attribution, project.id)
-    } as ProjectParams;
-    const request = createJobRequestMessage(project.id, requestParams, modelOptions);
-
-    switch (normalizedData.type) {
-      case 'image':
-        await this._processImageAssets(project, normalizedData);
-        break;
-      case 'video':
-        await this._processVideoAssets(project, normalizedData);
-        this._annotateVideoAssetContentTypes(request, normalizedData);
-        break;
-      case 'audio':
-        await this._processAudioAssets(project, normalizedData);
-        this._annotateAudioAssetContentTypes(request, normalizedData);
-        break;
-    }
-    // Recorded before sending: a refusal can arrive as soon as the frame lands.
-    this._unadmittedRequests.set(project.id, request);
     try {
+      const modelOptions = await this.getModelOptions(normalizedData.modelId);
+      const requestParams = {
+        ...normalizedData,
+        appSource: normalizedData.appSource || this.client.appSource,
+        attribution: this.resolveWorkloadAttribution(normalizedData.attribution, project.id)
+      } as ProjectParams;
+      const request = createJobRequestMessage(project.id, requestParams, modelOptions);
+
+      switch (normalizedData.type) {
+        case 'image':
+          await this._processImageAssets(project, normalizedData);
+          break;
+        case 'video':
+          await this._processVideoAssets(project, normalizedData);
+          this._annotateVideoAssetContentTypes(request, normalizedData);
+          break;
+        case 'audio':
+          await this._processAudioAssets(project, normalizedData);
+          this._annotateAudioAssetContentTypes(request, normalizedData);
+          break;
+      }
+      // Recorded before sending: a refusal can arrive as soon as the frame lands.
+      this._unadmittedRequests.set(project.id, request);
       await this.client.socket.send('jobRequest', request);
+      this.projects.push(project);
+      return project;
     } catch (error) {
       this._unadmittedRequests.delete(project.id);
+      project._dispose();
       throw error;
     }
-    this.projects.push(project);
-    return project;
   }
 
   private async _processImageAssets(project: Project, data: ImageProjectParams) {

@@ -34,6 +34,9 @@ const SUPPORTED_TYPES = new Set([
   'audio/x-wav',
   'audio/wave'
 ]);
+const QUOTA_RETRY_DELAY_MS = 15 * 60 * 1000;
+const QUOTA_MESSAGE = 'Your saved upload library is full.';
+class AutomaticSaveBlockedError extends Error {}
 
 /** Private subscriber uploads that can be reused across projects. */
 export default class ReusableUploads {
@@ -43,12 +46,14 @@ export default class ReusableUploads {
   private nextLane = 0;
   private session = 0;
   private availability?: { expiresAt: number; result: Promise<boolean> };
+  private automaticSaveBlockedUntil = 0;
   private preparationFailures = new WeakSet<Error>();
   constructor(private readonly rest: RestClient) {
     rest.auth?.on('updated', () => {
       this.session += 1;
       this.pending.clear();
       this.availability = undefined;
+      this.automaticSaveBlockedUntil = 0;
     });
   }
 
@@ -57,6 +62,7 @@ export default class ReusableUploads {
   }
 
   private canAutomaticallySave(): Promise<boolean> {
+    if (this.automaticSaveBlockedUntil > Date.now()) return Promise.resolve(false);
     if (this.availability && this.availability.expiresAt > Date.now())
       return this.availability.result;
     const result = this.rest
@@ -90,6 +96,7 @@ export default class ReusableUploads {
 
   async remove(id: string): Promise<void> {
     await this.rest.delete(`/v1/assets/${encodeURIComponent(id)}`);
+    this.automaticSaveBlockedUntil = 0;
   }
 
   async bind(id: string, binding: SavedUploadBinding): Promise<void> {
@@ -114,6 +121,15 @@ export default class ReusableUploads {
 
   /** Upload once; the API verifies the file before making it reusable. */
   upload(file: Blob | Buffer, contentType: string, name = 'Saved upload'): Promise<SavedUpload> {
+    return this.uploadInternal(file, contentType, name, false);
+  }
+
+  private uploadInternal(
+    file: Blob | Buffer,
+    contentType: string,
+    name: string,
+    automatic: boolean
+  ): Promise<SavedUpload> {
     const session = this.session;
     const size = file instanceof Blob ? file.size : file.byteLength;
     if (!size || size > 100 * 1024 * 1024)
@@ -127,6 +143,11 @@ export default class ReusableUploads {
     const lane = this.nextLane++ % this.lanes.length;
     const run = this.lanes[lane].then(async () => {
       this.assertSession(session);
+      // Concurrent project helpers can all pass the capability check before
+      // the first quota response arrives. Recheck once this lane reaches the
+      // front so queued automatic saves fall back without hashing or probing.
+      if (automatic && this.automaticSaveBlockedUntil > Date.now())
+        throw new AutomaticSaveBlockedError();
       const bytes = file instanceof Blob ? await file.arrayBuffer() : file;
       const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes as BufferSource);
       this.assertSession(session);
@@ -214,25 +235,33 @@ export default class ReusableUploads {
     if (!(await this.canAutomaticallySave())) return false;
     this.assertSession(session);
     try {
-      const saved = await this.upload(
+      const saved = await this.uploadInternal(
         file,
         contentType,
         file instanceof Blob && 'name' in file && typeof file.name === 'string'
           ? file.name
-          : 'Saved upload'
+          : 'Saved upload',
+        true
       );
       this.assertSession(session);
       await this.bind(saved.id, binding);
       return true;
     } catch (error) {
+      if (error instanceof AutomaticSaveBlockedError) return false;
       // Fallback is permitted only before a transfer was prepared. Checksum,
       // storage-access and binding failures must surface before job submission.
       if (
         error instanceof ApiError &&
         this.preparationFailures.has(error) &&
         [400, 403, 404, 409, 410, 503].includes(error.status)
-      )
+      ) {
+        // A full automatic library still permits the ordinary project-upload
+        // path. Avoid hashing and probing every remaining file in the batch;
+        // retry later in case expiry or an explicit removal released space.
+        if (error.status === 409 && error.message.startsWith(QUOTA_MESSAGE))
+          this.automaticSaveBlockedUntil = Date.now() + QUOTA_RETRY_DELAY_MS;
         return false;
+      }
       throw error;
     }
   }

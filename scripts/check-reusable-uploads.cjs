@@ -1,5 +1,6 @@
 'use strict';
 const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
 const ReusableUploads = require('../dist/Projects/ReusableUploads.js').default;
 const { ApiError } = require('../dist/ApiClient/index.js');
 
@@ -49,9 +50,39 @@ async function main() {
     await assert.rejects(() => unavailable.upload(file, 'image/png'), /Subscription/);
     const wrongChecksum = new ReusableUploads({ get: rest.get, post: async (path) => path.endsWith('/prepare') ? { data: { ...record, state: 'uploading', uploadUrl: 'https://uploads.example.test/file', uploadHeaders: { 'If-None-Match': '*' } } } : Promise.reject(new ApiError(409, { status: 'error', errorCode: 0, message: 'Checksum mismatch' })) });
     await assert.rejects(() => wrongChecksum.tryBindFile(file, 'image/png', { projectId: 'never-queued', type: 'referenceImage' }), /Checksum/);
-    const noQuota = new ReusableUploads({ get: rest.get, post: async () => { throw new ApiError(409, { status: 'error', errorCode: 0, message: 'Library full' }); } });
+    let quotaPrepares = 0;
+    const quotaAuth = new EventEmitter();
+    const noQuota = new ReusableUploads({
+      auth: quotaAuth,
+      get: rest.get,
+      delete: rest.delete,
+      post: async () => {
+        quotaPrepares += 1;
+        throw new ApiError(409, { status: 'error', errorCode: 0, message: 'Your saved upload library is full. Remove an upload and try again.' });
+      }
+    });
     assert.equal(await noQuota.tryBindFile(file, 'image/png', { projectId: 'legacy-three', type: 'referenceImage' }), false);
-    const { EventEmitter } = require('node:events');
+    assert.equal(await noQuota.tryBindFile(file, 'image/png', { projectId: 'legacy-four', type: 'referenceImage' }), false);
+    assert.equal(quotaPrepares, 1, 'a quota response suppresses repeated automatic prepare probes');
+    quotaAuth.emit('updated', false);
+    assert.equal(await noQuota.tryBindFile(file, 'image/png', { projectId: 'legacy-five', type: 'referenceImage' }), false);
+    assert.equal(quotaPrepares, 2, 'an account change clears the quota suppression');
+    await noQuota.remove(record.id);
+    assert.equal(await noQuota.tryBindFile(file, 'image/png', { projectId: 'legacy-six', type: 'referenceImage' }), false);
+    assert.equal(quotaPrepares, 3, 'an explicit removal clears the quota suppression');
+    let concurrentQuotaPrepares = 0;
+    const concurrentQuota = new ReusableUploads({
+      get: rest.get,
+      post: async () => {
+        concurrentQuotaPrepares += 1;
+        await new Promise(resolve => setTimeout(resolve, 10));
+        throw new ApiError(409, { status: 'error', errorCode: 0, message: 'Your saved upload library is full. Remove an upload and try again.' });
+      }
+    });
+    await Promise.all(Array.from({ length: 8 }, (_, index) =>
+      concurrentQuota.tryBindFile(new Blob([`image-${index}`], { type: 'image/png' }), 'image/png', { projectId: `concurrent-${index}`, type: 'referenceImage' })
+    ));
+    assert.equal(concurrentQuotaPrepares, 2, 'only the two active lanes probe before queued automatic saves observe the quota block');
     const auth = new EventEmitter();
     const switched = new ReusableUploads({ ...rest, auth });
     const inFlight = switched.upload(file, 'image/png');

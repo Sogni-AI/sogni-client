@@ -288,6 +288,16 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     await this._api.cancel(this.id);
   }
 
+  /** Stop local watchdogs for a project that was never submitted. @internal */
+  _dispose() {
+    if (this._timeout) {
+      clearInterval(this._timeout);
+      this._timeout = null;
+    }
+    this._jobs.forEach((job) => job._stopRuntimeTimeout());
+    this.removeAllListeners();
+  }
+
   /**
    * Find a job by id
    * @param id
