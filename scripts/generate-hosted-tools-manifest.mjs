@@ -68,6 +68,8 @@ if (generateVideoModel) {
       'minimax-h3-turbo',
       'minimax-h3-fasth3-turbo',
       'minimax-h3-fasth3-t2v-turbo',
+      'minimax-h3-fasth3-turbo-2stage',
+      'minimax-h3-fasth3-t2v-turbo-2stage',
       'minimax-h3-balanced',
       'minimax-h3-t2v-balanced',
       'minimax-h3-r2v-balanced',
@@ -83,6 +85,10 @@ if (generateVideoModel) {
     generateVideoModel.description,
     'MiniMax H3 FastH3 Turbo is the separate FastVideo VSA four-step engine, qualified only with Euler/simple; use "minimax-h3-fasth3-turbo" or "minimax-h3-fasth3-t2v-turbo" for text-to-video. Existing "minimax-h3-turbo" selectors remain LightX2V Turbo. FastH3 has no R2V mode.'
   );
+  generateVideoModel.description = appendDescriptionOnce(
+    generateVideoModel.description,
+    'MiniMax H3 FastH3 Two-Stage renders the FastH3 canvas, then enlarges it 2x and refines it, delivering twice the canvas with the same length and audio; use "minimax-h3-fasth3-turbo-2stage" or "minimax-h3-fasth3-t2v-turbo-2stage" for two-stage text-to-video. Its targetResolution names the delivered class: 1080 (544px canvas, 960x544 delivers 1920x1088), 1440 or omitted for 2K (768p canvas, 1344x768 delivers 2688x1536), or 720 (384px canvas, 672x384 delivers 1344x768).'
+  );
 }
 
 const animatePhotoTool = manifest.tools?.find((tool) => tool?.function?.name === 'animate_photo');
@@ -94,7 +100,9 @@ if (animatePhotoModel) {
       'minimax-h3-i2v-balanced',
       'minimax-h3-flf2v-balanced',
       'minimax-h3-fasth3-i2v-turbo',
-      'minimax-h3-fasth3-flf2v-turbo'
+      'minimax-h3-fasth3-flf2v-turbo',
+      'minimax-h3-fasth3-i2v-turbo-2stage',
+      'minimax-h3-fasth3-flf2v-turbo-2stage'
     ])
   ];
   animatePhotoModel.description = appendDescriptionOnce(
@@ -105,6 +113,10 @@ if (animatePhotoModel) {
     animatePhotoModel.description,
     'MiniMax H3 FastH3 Turbo is the separate FastVideo VSA four-step engine, qualified only with Euler/simple; use "minimax-h3-fasth3-i2v-turbo" for one endpoint image and "minimax-h3-fasth3-flf2v-turbo" for required first-and-last frames. Existing "minimax-h3-*-turbo" selectors remain LightX2V Turbo.'
   );
+  animatePhotoModel.description = appendDescriptionOnce(
+    animatePhotoModel.description,
+    'MiniMax H3 FastH3 Two-Stage renders the FastH3 canvas, then enlarges it 2x and refines it, delivering twice the canvas with the same length and audio; use "minimax-h3-fasth3-i2v-turbo-2stage" for one endpoint image and "minimax-h3-fasth3-flf2v-turbo-2stage" for required first-and-last frames. Its targetResolution names the delivered class: 1080 (544px canvas, 960x544 delivers 1920x1088), 1440 or omitted for 2K (768p canvas, 1344x768 delivers 2688x1536), or 720 (384px canvas, 672x384 delivers 1344x768).'
+  );
 }
 
 const h3LoraSelectorsByTool = {
@@ -112,22 +124,26 @@ const h3LoraSelectorsByTool = {
     'minimax-h3-t2v',
     'minimax-h3-t2v-turbo',
     'minimax-h3-fasth3-t2v-turbo',
+    'minimax-h3-fasth3-t2v-turbo-2stage',
     'minimax-h3-t2v-balanced',
     'minimax-h3-r2v',
     'minimax-h3-r2v-turbo',
     'minimax-h3-r2v-balanced',
     'minimax-h3-turbo',
     'minimax-h3-fasth3-turbo',
+    'minimax-h3-fasth3-turbo-2stage',
     'minimax-h3-balanced'
   ],
   animate_photo: [
     'minimax-h3-i2v',
     'minimax-h3-i2v-turbo',
     'minimax-h3-fasth3-i2v-turbo',
+    'minimax-h3-fasth3-i2v-turbo-2stage',
     'minimax-h3-i2v-balanced',
     'minimax-h3-flf2v',
     'minimax-h3-flf2v-turbo',
     'minimax-h3-fasth3-flf2v-turbo',
+    'minimax-h3-fasth3-flf2v-turbo-2stage',
     'minimax-h3-flf2v-balanced'
   ]
 };
