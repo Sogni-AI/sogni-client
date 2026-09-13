@@ -98,20 +98,44 @@ async function main() {
   assert.equal(h3VideoInput.get('referenceVideoCount'), '2');
   assert.equal(h3VideoInput.get('referenceVideoDurationSeconds'), '13.5');
 
-  await estimate(projects, { model: 'minimax-h3-fl2va-fp8_t2v', outputScale: 2 });
-  const twoK = new URL(`https://socket.test${client.socket.paths.at(-1)}`);
-  assert.equal(
-    twoK.pathname,
-    '/api/v1/job-video/estimate/spark/minimax-h3-fl2va-fp8_t2v/1344/768/141/24/20/1',
-    '2K keeps the requested canvas in the path: it is a delivery switch, not a size'
-  );
-  assert.equal(twoK.searchParams.get('outputScale'), '2', '2K delivery must reach the estimate endpoint');
-
-  await estimate(projects, { model: 'minimax-h3-fl2va-fp8_t2v', outputScale: 1 });
+  // MiniMax H3 two-stage output is priced by its own model id on the canvas the
+  // job renders (768p for 2K, a 544 short edge for 1080p, a 384 short edge for
+  // 720p); nothing rides the query.
+  await estimate(projects, { model: 'minimax-h3-fastvideo-int8_t2v_turbo_2stage', steps: 4 });
   assert.equal(
     client.socket.paths.at(-1),
-    '/api/v1/job-video/estimate/spark/minimax-h3-fl2va-fp8_t2v/1344/768/141/24/20/1',
-    'outputScale 1 must preserve the legacy request exactly'
+    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_t2v_turbo_2stage/1344/768/141/24/4/1',
+    '2K pricing must be requested with the two-stage model id and the 768p canvas'
+  );
+  await estimate(projects, {
+    model: 'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
+    width: 960,
+    height: 544,
+    steps: 4
+  });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_i2v_turbo_2stage/960/544/141/24/4/1',
+    '1080p pricing must be requested with the two-stage model id and the 544 canvas'
+  );
+  await estimate(projects, {
+    model: 'minimax-h3-fastvideo-int8_flf2v_turbo_2stage',
+    width: 672,
+    height: 384,
+    steps: 4
+  });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_flf2v_turbo_2stage/672/384/141/24/4/1',
+    '720p pricing must be requested with the two-stage model id and the 384 canvas'
+  );
+  // The socket refuses outputScale on the estimate endpoint; an untyped caller
+  // that still passes it must not put it on the wire.
+  await estimate(projects, { model: 'minimax-h3-fastvideo-int8_t2v_turbo', steps: 4, outputScale: 2 });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_t2v_turbo/1344/768/141/24/4/1',
+    'outputScale must never reach the estimate endpoint'
   );
 
   await estimate(projects, {

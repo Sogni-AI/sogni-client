@@ -51,6 +51,9 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fastvideo-int8_t2v_turbo',
   'minimax-h3-fastvideo-int8_i2v_turbo',
   'minimax-h3-fastvideo-int8_flf2v_turbo',
+  'minimax-h3-fastvideo-int8_t2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_flf2v_turbo_2stage',
   'minimax-h3-ref2va-fp8_r2v_turbo',
   'minimax-h3-fl2va-fp8_t2v_balanced',
   'minimax-h3-fl2va-fp8_i2v_balanced',
@@ -248,6 +251,12 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  * - Ref2VA: `minimax-h3-ref2va-fp8_r2v` (the multi-reference workflow)
  * - FL2VA Turbo: the same three FL2VA ids with a `_turbo` suffix
  * - FastH3 Turbo: three FastVideo INT8 FL2VA workflows with a `_turbo` suffix
+ * - FastH3 Two-Stage: the same three FastH3 ids with a `_turbo_2stage` suffix.
+ *   The request is identical to the FastH3 id (canvas, frames, 4 steps,
+ *   Euler/simple, inputs, LoRAs), but the clip is delivered at exactly twice the
+ *   canvas width and height: a 672x384 canvas delivers 1344x768 (720p), a
+ *   960x544 canvas delivers 1920x1088 (1080p) and the 1344x768 canvas delivers
+ *   2688x1536 (2K). Price it with `estimateVideoCost` using the `_2stage` id.
  * - Ref2VA Turbo: `minimax-h3-ref2va-fp8_r2v_turbo`
  * - FL2VA Balanced: the same three FL2VA ids with a `_balanced` suffix
  * - Ref2VA Balanced: `minimax-h3-ref2va-fp8_r2v_balanced`
@@ -264,10 +273,12 @@ export function isMinimaxH3Model(modelId: string): boolean {
 /**
  * Check if a model ID is one of the 4-step MiniMax H3 Turbo workflows.
  * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its dedicated r2v Turbo LoRA.
+ * FastH3 covers t2v/i2v/flf2v, and its two-stage ids share its 4-step sampling.
  */
 export function isMinimaxH3TurboModel(modelId: string): boolean {
   return (
-    /^minimax-h3-(?:fl2va-fp8|fastvideo-int8)_(?:t2v|i2v|flf2v)_turbo$/.test(modelId) ||
+    /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_turbo$/.test(modelId) ||
+    /^minimax-h3-fastvideo-int8_(?:t2v|i2v|flf2v)_turbo(?:_2stage)?$/.test(modelId) ||
     modelId === 'minimax-h3-ref2va-fp8_r2v_turbo'
   );
 }
