@@ -294,6 +294,16 @@ const minimaxH3TwoStageModelIds = {
   i2v: 'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
   flf2v: 'minimax-h3-fastvideo-int8_flf2v_turbo_2stage'
 };
+// MiniMax H3 FastH3 audio guide: [base id, two-stage id] per workflow.
+const minimaxH3AudioGuideModelIds = {
+  ia2v: ['minimax-h3-fastvideo-int8_ia2v_turbo', 'minimax-h3-fastvideo-int8_ia2v_turbo_2stage'],
+  flfa2v: [
+    'minimax-h3-fastvideo-int8_flfa2v_turbo',
+    'minimax-h3-fastvideo-int8_flfa2v_turbo_2stage'
+  ],
+  a2v: ['minimax-h3-fastvideo-int8_a2v_turbo', 'minimax-h3-fastvideo-int8_a2v_turbo_2stage']
+};
+const minimaxH3FastVideoIa2vModelId = minimaxH3AudioGuideModelIds.ia2v[0];
 const minimaxH3BalancedModelIds = {
   t2v: 'minimax-h3-fl2va-fp8_t2v_balanced',
   i2v: 'minimax-h3-fl2va-fp8_i2v_balanced',
@@ -439,6 +449,58 @@ assert.equal(
   PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageFlf2v,
   minimaxH3TwoStageModelIds.flf2v
 );
+for (const [workflow, key] of [
+  ['ia2v', 'Ia2v'],
+  ['flfa2v', 'Flfa2v'],
+  ['a2v', 'A2v']
+]) {
+  const [baseId, twoStageId] = minimaxH3AudioGuideModelIds[workflow];
+  assert.equal(PREFERRED_MODEL_IDS.video[`minimaxH3FastH3Turbo${key}`], baseId);
+  assert.equal(PREFERRED_MODEL_IDS.video[`minimaxH3FastH3TwoStage${key}`], twoStageId);
+  for (const modelId of [baseId, twoStageId]) {
+    assert.equal(isVideoModel(modelId), true, modelId);
+    assert.equal(isMinimaxH3Model(modelId), true, modelId);
+    assert.equal(isMinimaxH3TurboModel(modelId), true, modelId);
+    assert.equal(isMinimaxH3BalancedModel(modelId), false, modelId);
+    assert.equal(getVideoWorkflowType(modelId), workflow, modelId);
+    assert.deepEqual(getVideoAssetRequirements(modelId), VIDEO_WORKFLOW_ASSETS[workflow]);
+    assert.deepEqual(getVideoDefaults(modelId), { width: 1344, height: 768, fps: 24 });
+  }
+  // Only the FastH3 checkpoint has audio-guide graphs; the FL2VA spelling is not a model.
+  const fl2vaSpelling = baseId.replace('fastvideo-int8', 'fl2va-fp8');
+  assert.equal(isMinimaxH3Model(fl2vaSpelling), false);
+  assert.equal(isMinimaxH3TurboModel(fl2vaSpelling), false);
+}
+assert.deepEqual(VIDEO_WORKFLOW_ASSETS.flfa2v, {
+  referenceImage: 'required',
+  referenceImageEnd: 'required',
+  referenceAudio: 'required',
+  referenceAudioIdentity: 'forbidden',
+  referenceVideo: 'forbidden',
+  referenceMask: 'forbidden'
+});
+{
+  const pool = [
+    ...Object.values(minimaxH3AudioGuideModelIds).flat(),
+    ...Object.values(minimaxH3FastVideoModelIds),
+    ...Object.values(minimaxH3TwoStageModelIds),
+    PREFERRED_MODEL_IDS.video.ia2v,
+    PREFERRED_MODEL_IDS.video.a2v
+  ].map((id) => ({ id, media: 'video' }));
+  assert.deepEqual(filterVideoModelsByWorkflow(pool, ['ia2v']), [
+    ...minimaxH3AudioGuideModelIds.ia2v,
+    PREFERRED_MODEL_IDS.video.ia2v
+  ]);
+  assert.deepEqual(filterVideoModelsByWorkflow(pool, ['flfa2v']), minimaxH3AudioGuideModelIds.flfa2v);
+  assert.deepEqual(filterVideoModelsByWorkflow(pool, ['a2v']), [
+    ...minimaxH3AudioGuideModelIds.a2v,
+    PREFERRED_MODEL_IDS.video.a2v
+  ]);
+  assert.deepEqual(filterVideoModelsByWorkflow(pool, ['flf2v']), [
+    minimaxH3FastVideoModelIds.flf2v,
+    minimaxH3TwoStageModelIds.flf2v
+  ]);
+}
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3BalancedT2v, minimaxH3BalancedModelIds.t2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3BalancedI2v, minimaxH3BalancedModelIds.i2v);
 assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3BalancedFlf2v, minimaxH3BalancedModelIds.flf2v);
@@ -1414,6 +1476,24 @@ assert.equal(
   resolveHostedToolModelSelector('sound_to_video', { videoModel: 'seedance2-5' }),
   PREFERRED_MODEL_IDS.video.seedance25Ia2v
 );
+// The FastH3 audio-guide selectors are audio-bearing only: the image tools
+// cannot supply their required referenceAudio. Two-stage selectors mirror the
+// other FastH3 two-stage selectors (`minimax-h3-fasth3-<workflow>-turbo-2stage`).
+for (const [workflow, [baseId, twoStageId]] of Object.entries(minimaxH3AudioGuideModelIds)) {
+  for (const [selector, modelId] of [
+    [`minimax-h3-fasth3-${workflow}-turbo`, baseId],
+    [`minimax-h3-fasth3-${workflow}-turbo-2stage`, twoStageId]
+  ]) {
+    assert.equal(resolveHostedToolModelSelector('sound_to_video', { videoModel: selector }), modelId);
+    for (const toolName of ['animate_photo', 'generate_video', 'video_to_video']) {
+      const resolved = resolveHostedToolModelSelector(toolName, {
+        videoModel: selector,
+        referenceImageIndices: [0]
+      });
+      assert.notEqual(resolved, modelId, `${toolName} must not map ${selector} to a model`);
+    }
+  }
+}
 assert.equal(
   resolveHostedToolModelSelector('generate_music', {
     model: PREFERRED_MODEL_IDS.audio.aceStepXlTurbo
@@ -1592,6 +1672,172 @@ async function checkCanonicalDirectVideoExecution() {
   });
   assert.equal(invalidH3TurboResult.success, false);
   assert.match(invalidH3TurboResult.error, /minimax-h3-t2v-turbo does not accept reference images/);
+
+  // sound_to_video: LTX stays preferred; when selection lands on a MiniMax H3
+  // FastH3 audio-guide id the request is shaped for the H3 grid instead of
+  // failing, and the supplied images pick the mode (flfa2v / ia2v / a2v).
+  const tinyWav = `data:audio/wav;base64,${Buffer.from('RIFF\x24\x00\x00\x00WAVEfmt ', 'latin1').toString('base64')}`;
+  const soundProjects = (available) => ({
+    waitForModels: async () => available,
+    create: projects.create
+  });
+  const soundCall = (args, images = { reference_image_url: tinyPng }) => ({
+    id: 'call_direct_sound_to_video_test',
+    type: 'function',
+    function: {
+      name: 'sound_to_video',
+      arguments: JSON.stringify({
+        prompt: 'The portrait sings the song.',
+        reference_audio_url: tinyWav,
+        ...images,
+        ...args
+      })
+    }
+  });
+  const video = (id, workerCount) => ({ id, media: 'video', workerCount });
+  const h3Audio = Object.fromEntries(
+    Object.entries(minimaxH3AudioGuideModelIds).map(([workflow, [baseId, twoStageId]]) => [
+      workflow,
+      [video(baseId, 50), video(twoStageId, 40)]
+    ])
+  );
+  const allH3Audio = Object.values(h3Audio).flat();
+  const ltxIa2v = video(PREFERRED_MODEL_IDS.video.ia2v, 1);
+  const ltxA2v = video(PREFERRED_MODEL_IDS.video.a2v, 1);
+  const imagesFor = {
+    ia2v: { reference_image_url: tinyPng },
+    flfa2v: { reference_image_url: tinyPng, reference_image_end_url: tinyPng },
+    a2v: {}
+  };
+
+  capturedParams = undefined;
+  const ltxSound = await new ChatToolsApi(soundProjects([...allH3Audio, ltxIa2v])).execute(
+    soundCall({ duration: 8, audio_start: 3 })
+  );
+  assert.equal(ltxSound.success, true, ltxSound.error);
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.video.ia2v, 'LTX ia2v stays preferred');
+  assert.equal(capturedParams.duration, 8);
+  assert.equal(capturedParams.audioDuration, 8);
+  assert.equal(capturedParams.audioStart, 3);
+  assert.equal('frames' in capturedParams, false);
+
+  capturedParams = undefined;
+  const ltxAudioOnly = await new ChatToolsApi(soundProjects([...allH3Audio, ltxA2v])).execute(
+    soundCall({ duration: 8 }, imagesFor.a2v)
+  );
+  assert.equal(ltxAudioOnly.success, true, ltxAudioOnly.error);
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.video.a2v, 'LTX a2v stays preferred');
+  assert.equal('referenceImage' in capturedParams, false);
+
+  const h3ProjectOptions = {
+    type: 'video',
+    sampler: { allowed: [], default: null },
+    scheduler: { allowed: [], default: null }
+  };
+  for (const workflow of ['ia2v', 'flfa2v', 'a2v']) {
+    // Only H3 audio-guide ids are available, so the images alone pick the mode.
+    const h3Api = new ChatToolsApi(soundProjects(allH3Audio));
+    for (const [args, frames, audioStart] of [
+      [{}, 124, undefined],
+      [{ duration: 10, audioStart: 2.5 }, 243, 2.5],
+      [{ duration: 6, audio_start: 1 }, 158, 1],
+      [{ duration: 12, generateAudio: true }, 294, undefined]
+    ]) {
+      capturedParams = undefined;
+      const result = await h3Api.execute(soundCall(args, imagesFor[workflow]));
+      assert.equal(result.success, true, `${workflow}: ${result.error}`);
+      assert.equal(capturedParams.modelId, minimaxH3AudioGuideModelIds[workflow][0], workflow);
+      assert.equal(capturedParams.frames, frames, `${workflow} ${JSON.stringify(args)}`);
+      assert.equal(capturedParams.fps, 24);
+      assert.equal(capturedParams.width, 1344);
+      assert.equal(capturedParams.height, 768);
+      assert.equal(capturedParams.audioStart, audioStart);
+      for (const absent of [
+        'duration',
+        'audioDuration',
+        'loras',
+        'loraStrengths',
+        'outputScale',
+        'generateAudio'
+      ]) {
+        assert.equal(absent in capturedParams, false, `H3 ${workflow} tool request must not send ${absent}`);
+      }
+      assert.ok(capturedParams.referenceAudio instanceof Blob);
+      assert.equal(capturedParams.referenceImage instanceof Blob, workflow !== 'a2v');
+      assert.equal(capturedParams.referenceImageEnd instanceof Blob, workflow === 'flfa2v');
+      // The SDK's own request validation accepts exactly what the tool built.
+      const keyFrame = createJobRequestMessage(`h3-${workflow}-tool`, capturedParams, h3ProjectOptions)
+        .keyFrames[0];
+      assert.equal(keyFrame.frames, frames);
+      assert.equal(keyFrame.hasReferenceAudio, true);
+      assert.equal(keyFrame.hasReferenceImage === true, workflow !== 'a2v');
+      assert.equal(keyFrame.hasReferenceImageEnd === true, workflow === 'flfa2v');
+    }
+    capturedParams = undefined;
+    const h3Silent = await h3Api.execute(
+      soundCall({ duration: 8, generateAudio: false }, imagesFor[workflow])
+    );
+    assert.equal(h3Silent.success, false);
+    assert.match(h3Silent.error, /always carries the uploaded audio/);
+    assert.equal(capturedParams, undefined);
+  }
+
+  // first + last frame is H3 FastH3 only: never another model, even with LTX up.
+  capturedParams = undefined;
+  const flfa2vWithLtx = await new ChatToolsApi(
+    soundProjects([...h3Audio.flfa2v, ltxIa2v, ltxA2v, video(PREFERRED_MODEL_IDS.video.s2v, 99)])
+  ).execute(soundCall({}, imagesFor.flfa2v));
+  assert.equal(flfa2vWithLtx.success, true, flfa2vWithLtx.error);
+  assert.equal(capturedParams.modelId, minimaxH3AudioGuideModelIds.flfa2v[0]);
+
+  capturedParams = undefined;
+  const noFlfa2v = await new ChatToolsApi(soundProjects([ltxIa2v, ltxA2v])).execute(
+    soundCall({}, imagesFor.flfa2v)
+  );
+  assert.equal(noFlfa2v.success, false);
+  assert.match(noFlfa2v.error, /No compatible video models available for workflows: flfa2v/);
+  assert.equal(capturedParams, undefined);
+
+  capturedParams = undefined;
+  const endOnly = await new ChatToolsApi(soundProjects(allH3Audio)).execute(
+    soundCall({}, { reference_image_end_url: tinyPng })
+  );
+  assert.equal(endOnly.success, false);
+  assert.match(endOnly.error, /reference_image_end_url needs reference_image_url/);
+  assert.equal(capturedParams, undefined);
+
+  // An explicitly selected H3 audio mode must match the supplied images. The
+  // published sound_to_video videoModel enum does not list these selectors yet,
+  // so drive the handler past argument validation.
+  const selectorApi = new ChatToolsApi(soundProjects([...allH3Audio, ltxIa2v, ltxA2v]));
+  const runSound = (args, images) =>
+    selectorApi.executeSoundToVideo(soundCall({}, images), {
+      prompt: 'The portrait sings the song.',
+      reference_audio_url: tinyWav,
+      ...images,
+      ...args
+    });
+  for (const [workflow, [baseId, twoStageId]] of Object.entries(minimaxH3AudioGuideModelIds)) {
+    for (const [selector, modelId] of [
+      [`minimax-h3-fasth3-${workflow}-turbo`, baseId],
+      [`minimax-h3-fasth3-${workflow}-turbo-2stage`, twoStageId]
+    ]) {
+      capturedParams = undefined;
+      const result = await runSound({ videoModel: selector }, imagesFor[workflow]);
+      assert.equal(result.success, true, `${selector}: ${result.error}`);
+      assert.equal(capturedParams.modelId, modelId, `${selector} renders on ${modelId}, not LTX`);
+      assert.ok(createJobRequestMessage(`h3-${selector}`, capturedParams, h3ProjectOptions));
+      for (const other of ['ia2v', 'flfa2v', 'a2v'].filter((mode) => mode !== workflow)) {
+        capturedParams = undefined;
+        await assert.rejects(
+          runSound({ videoModel: selector }, imagesFor[other]),
+          new RegExp(`${modelId} \\(MiniMax H3 ${workflow}\\) needs`),
+          `${selector} with ${other} images must be refused`
+        );
+        assert.equal(capturedParams, undefined);
+      }
+    }
+  }
 }
 
 checkCanonicalDirectVideoExecution()

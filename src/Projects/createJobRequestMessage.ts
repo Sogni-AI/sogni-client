@@ -44,6 +44,7 @@ import {
   isMinimaxH3TurboModel,
   isMinimaxH3BalancedModel,
   isMinimaxH3ReferenceModel,
+  isMinimaxH3AudioGuideModel,
   isExternalApiVideoModel,
   usesReferenceMask,
   countMinimaxH3References,
@@ -525,6 +526,39 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
         'MiniMax H3 dimensions must use a 32px grid, stay at or below 1344px per axis, and fit within 1,032,192 pixels.'
       );
     }
+  }
+  // The worker derives the audio window from frames/24, so a caller-sent
+  // audioDuration would be ignored.
+  if (params.audioDuration !== undefined) {
+    invalid(
+      'MiniMax H3 has no audioDuration input. Set frames or duration; the uploaded audio is trimmed to the video length.'
+    );
+  }
+  if (isMinimaxH3AudioGuideModel(params.modelId)) {
+    const workflow = getVideoWorkflowType(params.modelId);
+    if (params.generateAudio === false) {
+      invalid(
+        `MiniMax H3 ${workflow} output always carries the uploaded audio. Omit generateAudio or set it to true.`
+      );
+    }
+    if (
+      params.audioStart !== undefined &&
+      (typeof params.audioStart !== 'number' ||
+        !Number.isFinite(params.audioStart) ||
+        params.audioStart < 0)
+    ) {
+      invalid(`MiniMax H3 ${workflow} audioStart must be a number of seconds, 0 or greater.`);
+    }
+    // No LoRA has been qualified on the audio-guide graphs.
+    const hasEntries = (value: unknown) =>
+      value !== undefined && !(Array.isArray(value) && value.length === 0);
+    if (hasEntries(params.loras) || hasEntries(params.loraStrengths)) {
+      invalid(`MiniMax H3 ${workflow} does not support LoRAs. Remove loras and loraStrengths.`);
+    }
+  } else if (params.audioStart !== undefined) {
+    invalid(
+      'audioStart is supported only by the MiniMax H3 FastH3 audio-guide workflows (minimax-h3-fastvideo-int8_ia2v_turbo, minimax-h3-fastvideo-int8_flfa2v_turbo, minimax-h3-fastvideo-int8_a2v_turbo and their _2stage ids).'
+    );
   }
 }
 

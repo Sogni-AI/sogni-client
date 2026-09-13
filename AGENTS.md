@@ -367,8 +367,9 @@ const urls = await project.waitForCompletion();
 | Reference-to-Video | `*_r2v*` (Happy Horse) | 1-9 images via `referenceImage`/`referenceImageUrls` |
 | Video-to-Video | `*_v2v*` (LTX-2.3) | `referenceVideo` + `controlNet` |
 | Sound-to-Video | `*_s2v*` (WAN only) | `referenceImage` + `referenceAudio` |
-| Image+Audio-to-Video | `*_ia2v*` (LTX-2.3) | `referenceImage` + `referenceAudio` |
-| Audio-to-Video | `*_a2v*` (LTX-2.3) | `referenceAudio` |
+| Image+Audio-to-Video | `*_ia2v*` (LTX-2.3, MiniMax H3 FastH3) | `referenceImage` + `referenceAudio` |
+| First/Last-Frame+Audio-to-Video | `*_flfa2v*` (MiniMax H3 FastH3) | `referenceImage` + `referenceImageEnd` + `referenceAudio` |
+| Audio-to-Video | `*_a2v*` (LTX-2.3, MiniMax H3 FastH3) | `referenceAudio` |
 | Animate-Move | `*_animate-move*` | `referenceImage` + `referenceVideo` |
 | Animate-Replace | `*_animate-replace*` | `referenceImage` + `referenceVideo` |
 | Video Upscale | `flashvsr_*` | exactly one `referenceVideo` (promptless) |

@@ -57,6 +57,12 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fastvideo-int8_t2v_turbo_2stage_720p',
   'minimax-h3-fastvideo-int8_i2v_turbo_2stage_720p',
   'minimax-h3-fastvideo-int8_flf2v_turbo_2stage_720p',
+  'minimax-h3-fastvideo-int8_ia2v_turbo',
+  'minimax-h3-fastvideo-int8_flfa2v_turbo',
+  'minimax-h3-fastvideo-int8_a2v_turbo',
+  'minimax-h3-fastvideo-int8_ia2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_flfa2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_a2v_turbo_2stage',
   'minimax-h3-ref2va-fp8_r2v_turbo',
   'minimax-h3-fl2va-fp8_t2v_balanced',
   'minimax-h3-fl2va-fp8_i2v_balanced',
@@ -254,13 +260,16 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  * - Ref2VA: `minimax-h3-ref2va-fp8_r2v` (the multi-reference workflow)
  * - FL2VA Turbo: the same three FL2VA ids with a `_turbo` suffix
  * - FastH3 Turbo: three FastVideo INT8 FL2VA workflows with a `_turbo` suffix
- * - FastH3 Two-Stage: the same three FastH3 ids with a `_turbo_2stage` suffix.
- *   The request is identical to the FastH3 id (canvas, frames, 4 steps,
+ * - FastH3 audio guide: `minimax-h3-fastvideo-int8_ia2v_turbo` (first frame +
+ *   uploaded audio), `..._flfa2v_turbo` (first and last frame + uploaded audio)
+ *   and `..._a2v_turbo` (uploaded audio only); see `isMinimaxH3AudioGuideModel`
+ * - FastH3 Two-Stage: each of the six FastH3 ids above with a `_turbo_2stage`
+ *   suffix. The request is identical to the FastH3 id (canvas, frames, 4 steps,
  *   Euler/simple, inputs, LoRAs), but the clip is delivered at exactly twice the
  *   canvas width and height: a 672x384 canvas delivers 1344x768 (720p), a
  *   960x544 canvas delivers 1920x1088 (1080p) and the 1344x768 canvas delivers
  *   2688x1536 (2K). Price it with `estimateVideoCost` using the `_2stage` id.
- * - FastH3 Two-Stage 720p: the same three FastH3 ids with a `_turbo_2stage_720p`
+ * - FastH3 Two-Stage 720p: the FastH3 t2v/i2v/flf2v ids with a `_turbo_2stage_720p`
  *   suffix, the half-size 384 px canvas render of 768p output. The socket records
  *   384 px `_2stage` requests (and, once two-stage is open, ordinary 768p FastH3)
  *   under these ids; callers do not need to send them.
@@ -268,8 +277,9 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  * - FL2VA Balanced: the same three FL2VA ids with a `_balanced` suffix
  * - Ref2VA Balanced: `minimax-h3-ref2va-fp8_r2v_balanced`
  *
- * All H3 paths share fixed 24fps, guidance 1, the `124 + n*17` frame grid,
- * and jointly generated 32kHz stereo audio. Standard H3 uses 20 steps;
+ * All H3 paths share fixed 24fps, guidance 1, and the `124 + n*17` frame grid.
+ * Every path except the FastH3 audio guide generates 32kHz stereo audio
+ * jointly; audio-guide output carries the uploaded audio instead. Standard H3 uses 20 steps;
  * Balanced uses qualified fixed 8-step acceleration: LightX2V for FL2VA and
  * Larry v4 for Ref2VA; each Turbo family uses its own 4-step distillation LoRA.
  */
@@ -280,14 +290,38 @@ export function isMinimaxH3Model(modelId: string): boolean {
 /**
  * Check if a model ID is one of the 4-step MiniMax H3 Turbo workflows.
  * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its dedicated r2v Turbo LoRA.
- * FastH3 covers t2v/i2v/flf2v, and its two-stage ids share its 4-step sampling.
+ * FastH3 covers t2v/i2v/flf2v and the ia2v/flfa2v/a2v audio guide, and its
+ * two-stage ids share its 4-step sampling.
  */
 export function isMinimaxH3TurboModel(modelId: string): boolean {
   return (
     /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_turbo$/.test(modelId) ||
     /^minimax-h3-fastvideo-int8_(?:t2v|i2v|flf2v)_turbo(?:_2stage(?:_720p)?)?$/.test(modelId) ||
+    /^minimax-h3-fastvideo-int8_(?:ia2v|flfa2v|a2v)_turbo(?:_2stage)?$/.test(modelId) ||
     modelId === 'minimax-h3-ref2va-fp8_r2v_turbo'
   );
+}
+
+/** MiniMax H3 FastH3 first-frame image + uploaded audio to video. */
+export const MINIMAX_H3_FASTH3_IA2V_MODEL_ID = 'minimax-h3-fastvideo-int8_ia2v_turbo';
+/** MiniMax H3 FastH3 first and last frame + uploaded audio to video. */
+export const MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID = 'minimax-h3-fastvideo-int8_flfa2v_turbo';
+/** MiniMax H3 FastH3 uploaded audio (and prompt) to video. */
+export const MINIMAX_H3_FASTH3_A2V_MODEL_ID = 'minimax-h3-fastvideo-int8_a2v_turbo';
+
+/**
+ * Check if a model ID is a MiniMax H3 FastH3 audio-guide workflow: `ia2v`
+ * (`referenceImage` + `referenceAudio`), `flfa2v` (`referenceImage` +
+ * `referenceImageEnd` + `referenceAudio`) or `a2v` (`referenceAudio` only),
+ * each at the standard size (`..._turbo`) or two-stage (`..._turbo_2stage`).
+ *
+ * The uploaded audio drives the video from frame 0 and is trimmed to the video
+ * length (`frames / 24` seconds, starting at the optional `audioStart`), and
+ * the output always carries it: `generateAudio: false` and `audioDuration` are
+ * rejected. LoRAs are not supported on these graphs.
+ */
+export function isMinimaxH3AudioGuideModel(modelId: string): boolean {
+  return /^minimax-h3-fastvideo-int8_(?:ia2v|flfa2v|a2v)_turbo(?:_2stage)?$/.test(modelId);
 }
 
 /**
@@ -357,6 +391,31 @@ export const MINIMAX_H3_MIN_DURATION = MINIMAX_H3_MIN_FRAMES / MINIMAX_H3_FPS;
  * Longest MiniMax H3 duration, in seconds (362 frames at 24fps).
  */
 export const MINIMAX_H3_MAX_DURATION = MINIMAX_H3_MAX_FRAMES / MINIMAX_H3_FPS;
+
+/**
+ * Smallest valid MiniMax H3 frame count that covers an audio clip.
+ *
+ * Returns the first `124 + n*17` value at or above `audioDurationSeconds * 24`,
+ * clamped to 124-362. Use it to size a MiniMax H3 FastH3 audio-guide request
+ * (`isMinimaxH3AudioGuideModel`) to its uploaded audio: clips shorter than 124/24 s still render 124
+ * frames, and clips longer than 362/24 s are cut at 362 frames (offset the
+ * window with `audioStart`).
+ *
+ * @param audioDurationSeconds - Length of the driving audio, in seconds (> 0)
+ * @returns A frame count to pass as `frames`
+ */
+export function getMinimaxH3FramesForAudioDuration(audioDurationSeconds: number): number {
+  if (!Number.isFinite(audioDurationSeconds) || audioDurationSeconds <= 0) {
+    throw new RangeError('Audio duration must be a finite number of seconds greater than 0.');
+  }
+  // The epsilon keeps exact grid durations (e.g. 141/24 s) from rounding up a step.
+  const neededFrames = Math.ceil(audioDurationSeconds * MINIMAX_H3_FPS - 1e-6);
+  const steps = Math.max(
+    0,
+    Math.ceil((neededFrames - MINIMAX_H3_BASE_FRAMES) / MINIMAX_H3_FRAME_STEP)
+  );
+  return Math.min(MINIMAX_H3_MAX_FRAMES, MINIMAX_H3_BASE_FRAMES + steps * MINIMAX_H3_FRAME_STEP);
+}
 
 /**
  * Calculate the frame count for a given duration and fps based on the video model.
@@ -475,16 +534,23 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   }
 
   // MiniMax H3 model ids carry the workflow as an underscore suffix on a
-  // checkpoint name: minimax-h3-fl2va-fp8_t2v / _i2v / _flf2v and
-  // minimax-h3-ref2va-fp8_r2v.
+  // checkpoint name: minimax-h3-fl2va-fp8_t2v / _i2v / _flf2v,
+  // minimax-h3-ref2va-fp8_r2v, and the FastH3 audio guide
+  // minimax-h3-fastvideo-int8_ia2v / _flfa2v / _a2v.
   //
   // Every suffix is matched with its leading underscore, which is what keeps
   // the checkpoint segment out of the match: 'ref2va' contains a bare 'f2v' and
-  // 'fl2va' a bare 'l2v', but neither contains '_t2v', '_i2v', '_flf2v', or
-  // '_r2v'. Check the longer '_flf2v' before '_i2v'/'_t2v', and check '_r2v'
-  // up front so a future suffix cannot shadow it.
+  // 'fl2va' a bare 'l2v', but neither contains '_t2v', '_i2v', '_flf2v',
+  // '_ia2v', '_flfa2v', '_a2v', or '_r2v'. '_flfa2v' contains none of the other
+  // suffixes ('_flf2v' needs '2' after 'flf'; '_a2v' needs '_' before 'a'), and
+  // '_ia2v' does not contain '_a2v' either, so each audio suffix is its own
+  // test. Check the longer '_flf2v' before '_i2v'/'_t2v', and check '_r2v' up
+  // front so a future suffix cannot shadow it.
   if (isMinimaxH3) {
     if (modelId.includes('_r2v')) return 'r2v';
+    if (modelId.includes('_flfa2v')) return 'flfa2v';
+    if (modelId.includes('_ia2v')) return 'ia2v';
+    if (modelId.includes('_a2v')) return 'a2v';
     if (modelId.includes('_flf2v')) return 'flf2v';
     if (modelId.includes('_i2v')) return 'i2v';
     if (modelId.includes('_t2v')) return 't2v';
@@ -563,6 +629,16 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceImage: 'required',
     referenceImageEnd: 'required',
     referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'forbidden',
+    referenceVideo: 'forbidden',
+    referenceMask: 'forbidden'
+  },
+  flfa2v: {
+    // MiniMax H3 FastH3 first and last frame + uploaded audio: both anchors
+    // and the driving audio are required.
+    referenceImage: 'required',
+    referenceImageEnd: 'required',
+    referenceAudio: 'required',
     referenceAudioIdentity: 'forbidden',
     referenceVideo: 'forbidden',
     referenceMask: 'forbidden'

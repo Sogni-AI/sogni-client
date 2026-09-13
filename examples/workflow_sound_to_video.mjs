@@ -6,6 +6,8 @@
  * - WAN 2.2 S2V: Sound-to-video with reference image (lip-sync/motion-sync)
  * - LTX 2.5/2.3 IA2V: Image+audio to video (audio-reactive, distilled/dev)
  * - LTX 2.5/2.3 A2V: Audio to video (audio-reactive generation, distilled/dev)
+ * - MiniMax H3 FastH3 audio guide: image + audio (ia2v), first + last frame +
+ *   audio (flfa2v) or audio only (a2v); the output keeps the uploaded audio
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
@@ -15,9 +17,13 @@
  *   node workflow_sound_to_video.mjs --image person.jpg --audio speech.m4a
  *   node workflow_sound_to_video.mjs "A person speaking" --image face.jpg --audio voice.mp3
  *   node workflow_sound_to_video.mjs "A music visualizer" --audio music.mp3 --model ltx23-a2v-distilled
+ *   node workflow_sound_to_video.mjs "The singer performs" --image singer.jpg --audio song.m4a --model minimax-h3-fasth3-ia2v-turbo
+ *   node workflow_sound_to_video.mjs "She walks to the window" --image start.jpg --image-end end.jpg --audio song.m4a --model minimax-h3-fasth3-flfa2v-turbo
+ *   node workflow_sound_to_video.mjs "Neon city at night" --audio song.m4a --model minimax-h3-fasth3-a2v-turbo
  *
  * Options:
- *   --image       Reference image path (required for s2v/ia2v, not used for a2v)
+ *   --image       Reference image path (required for s2v/ia2v/flfa2v, not used for a2v)
+ *   --image-end   Last-frame image path (required for flfa2v, not used by other models)
  *   --audio       Audio file path (required, m4a/mp3/wav)
  *   --audio-start Start position in audio in seconds (default: 0)
  *   --audio-duration  Duration of audio to use in seconds (default: auto from video)
@@ -40,7 +46,11 @@
  *   --help        Show this help message
  */
 
-import { SogniClient } from '../dist/index.js';
+import {
+  SogniClient,
+  getMinimaxH3FramesForAudioDuration,
+  isMinimaxH3AudioGuideModel
+} from '../dist/index.js';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -105,6 +115,7 @@ async function parseArgs() {
     negative: null,
     style: null,
     image: null,
+    imageEnd: null,
     audio: null,
     audioStart: undefined,
     audioDuration: undefined,
@@ -147,6 +158,8 @@ async function parseArgs() {
       options.interactive = false;
     } else if (arg === '--image' && args[i + 1]) {
       options.image = args[++i];
+    } else if (arg === '--image-end' && args[i + 1]) {
+      options.imageEnd = args[++i];
     } else if (arg === '--audio' && args[i + 1]) {
       options.audio = args[++i];
     } else if (arg === '--audio-start' && args[i + 1]) {
@@ -205,6 +218,9 @@ Usage:
   node workflow_sound_to_video.mjs --image person.jpg --audio speech.m4a
   node workflow_sound_to_video.mjs "A person speaking" --image face.jpg --audio voice.mp3
   node workflow_sound_to_video.mjs "A music visualizer" --audio music.mp3 --model ltx23-a2v-distilled
+  node workflow_sound_to_video.mjs "The singer performs" --image singer.jpg --audio song.m4a --model minimax-h3-fasth3-ia2v-turbo
+  node workflow_sound_to_video.mjs "She walks to the window" --image start.jpg --image-end end.jpg --audio song.m4a --model minimax-h3-fasth3-flfa2v-turbo
+  node workflow_sound_to_video.mjs "Neon city at night" --audio song.m4a --model minimax-h3-fasth3-a2v-turbo
 
 Available Models:
   lightx2v             - WAN 2.2 14B S2V LightX2V (fast, 4-step, default)
@@ -217,9 +233,18 @@ Available Models:
   ltx23-ia2v-dev       - LTX-2.3 22B Image+Audio to Video (quality, 30-step, requires image)
   ltx23-a2v-distilled  - LTX-2.3 22B Audio to Video (fast, 8-step, no image needed)
   ltx23-a2v-dev        - LTX-2.3 22B Audio to Video (quality, 30-step, no image needed)
+  minimax-h3-fasth3-ia2v-turbo   - MiniMax H3 FastH3 image + uploaded audio (4-step, requires --image)
+  minimax-h3-fasth3-flfa2v-turbo - MiniMax H3 FastH3 first + last frame + uploaded audio
+                                   (4-step, requires --image and --image-end)
+  minimax-h3-fasth3-a2v-turbo    - MiniMax H3 FastH3 uploaded audio only (4-step, no image)
+  minimax-h3-fasth3-*-turbo-2stage - The same three modes delivered at twice the canvas
+                         MiniMax H3 audio guide: output keeps your audio; length follows the audio,
+                         124-362 frames at 24fps; canvas fitted to the first image on a 32px grid
+                         (1344x768 without one); no --audio-duration, no LoRAs
 
 Options:
-  --image       Reference image path (required for s2v/ia2v, not used for a2v)
+  --image       Reference image path (required for s2v/ia2v/flfa2v, not used for a2v)
+  --image-end   Last-frame image path (required for flfa2v, not used by other models)
   --audio       Audio file path (required, m4a/mp3/wav)
   --audio-start Start position in audio in seconds (default: 0)
   --audio-duration  Duration of audio to use in seconds (default: auto from video)
@@ -363,13 +388,23 @@ async function main() {
   }
 
   log('🎬', `Selected model: ${modelConfig.name}`);
+  // The MiniMax H3 audio guide sizes its clip to the audio on the H3 grids (see below).
+  const isMinimaxH3AudioGuide = isMinimaxH3AudioGuideModel(modelConfig.id);
 
-  // Determine if this model needs a reference image
+  // Determine if this model needs a reference image (and a last-frame image)
   const needsReferenceImage = modelConfig.requiresReferenceImage !== false;
+  const needsReferenceImageEnd = modelConfig.requiresReferenceImageEnd === true;
+  if (OPTIONS.imageEnd && !needsReferenceImageEnd) {
+    console.error(`Error: --image-end is not used by ${modelConfig.name}`);
+    process.exit(1);
+  }
 
   // Interactive mode: get image path if not provided (only for models that need it)
   if (needsReferenceImage && OPTIONS.interactive && !OPTIONS.image) {
-    OPTIONS.image = await pickImageFile(null, 'reference image');
+    OPTIONS.image = await pickImageFile(null, needsReferenceImageEnd ? 'first-frame image' : 'reference image');
+  }
+  if (needsReferenceImageEnd && OPTIONS.interactive && !OPTIONS.imageEnd) {
+    OPTIONS.imageEnd = await pickImageFile(null, 'last-frame image');
   }
 
   // Interactive mode: get audio path if not provided
@@ -385,6 +420,16 @@ async function main() {
     }
     if (!fs.existsSync(OPTIONS.image)) {
       console.error(`Error: Reference image '${OPTIONS.image}' does not exist`);
+      process.exit(1);
+    }
+  }
+  if (needsReferenceImageEnd) {
+    if (!OPTIONS.imageEnd) {
+      console.error('Error: A last-frame image is required for this model (use --image-end option)');
+      process.exit(1);
+    }
+    if (!fs.existsSync(OPTIONS.imageEnd)) {
+      console.error(`Error: Last-frame image '${OPTIONS.imageEnd}' does not exist`);
       process.exit(1);
     }
   }
@@ -431,11 +476,15 @@ async function main() {
       isVideo: true
     });
 
-    // Video duration - default to audio length for audio-driven workflows
-    await promptVideoDuration(OPTIONS, modelConfig, { audioDuration });
+    // The H3 audio guide takes its length from the audio on the 124 + n*17
+    // grid, so the generic duration and audio-duration prompts do not apply.
+    if (!isMinimaxH3AudioGuide) {
+      // Video duration - default to audio length for audio-driven workflows
+      await promptVideoDuration(OPTIONS, modelConfig, { audioDuration });
 
-    // S2V-specific options
-    await promptS2VOptions(OPTIONS, audioDuration);
+      // S2V-specific options
+      await promptS2VOptions(OPTIONS, audioDuration);
+    }
 
     // Ask about advanced options
     const advancedChoice = await askQuestion('\nCustomize advanced options? [y/N]: ');
@@ -462,6 +511,7 @@ async function main() {
   const maxFrames = modelConfig.maxFrames || VIDEO_CONSTRAINTS.frames.max;
   const minFrames = modelConfig.minFrames || VIDEO_CONSTRAINTS.frames.min;
 
+  const requestedSize = { width: OPTIONS.width, height: OPTIONS.height };
   // Set dimensions with video constraints
   let { width, height } = ensureEvenDimensions(
     OPTIONS.width || imageInfo.width,
@@ -480,6 +530,41 @@ async function main() {
 
   OPTIONS.width = width;
   OPTIONS.height = height;
+
+  if (isMinimaxH3AudioGuide) {
+    if (OPTIONS.audioDuration !== undefined) {
+      console.error(
+        'Error: --audio-duration is not supported by the MiniMax H3 audio guide; the audio is trimmed to the video length.'
+      );
+      process.exit(1);
+    }
+    // Fit the first image's aspect ratio (or the 1344x768 default without one)
+    // onto the H3 canvas: 32px grid, 1344px per side, at most 1,032,192 pixels.
+    // Explicit --width/--height are sent as-is and the SDK rejects off-grid values.
+    if (requestedSize.width || requestedSize.height) {
+      OPTIONS.width = requestedSize.width;
+      OPTIONS.height = requestedSize.height;
+    } else {
+      const step = modelConfig.dimensionStep;
+      const scale = Math.min(
+        modelConfig.maxWidth / imageInfo.width,
+        modelConfig.maxHeight / imageInfo.height,
+        Math.sqrt(modelConfig.maxPixels / (imageInfo.width * imageInfo.height))
+      );
+      const toGrid = (value) => Math.max(step, Math.floor((value * scale) / step) * step);
+      OPTIONS.width = toGrid(imageInfo.width);
+      OPTIONS.height = toGrid(imageInfo.height);
+    }
+    // Smallest valid frame count that covers the audio from --audio-start on.
+    if (!OPTIONS.frames) {
+      const remainingAudio = audioDuration - (OPTIONS.audioStart || 0);
+      if (!OPTIONS.duration && remainingAudio <= 0) {
+        console.error('Error: --audio-start is at or past the end of the audio.');
+        process.exit(1);
+      }
+      OPTIONS.frames = getMinimaxH3FramesForAudioDuration(OPTIONS.duration || remainingAudio);
+    }
+  }
 
   // Calculate frames from duration if not explicitly set
   // Default duration: match audio length (rounded down to fit frame constraints)
@@ -627,6 +712,7 @@ async function main() {
       Model: modelConfig.name,
       Prompt: OPTIONS.prompt,
       ...(OPTIONS.image && { Image: OPTIONS.image }),
+      ...(OPTIONS.imageEnd && { 'Last-frame Image': OPTIONS.imageEnd }),
       Audio: OPTIONS.audio,
       'Audio Start': `${(OPTIONS.audioStart || 0).toFixed(1)}s`,
       Resolution: `${OPTIONS.width}x${OPTIONS.height}`,
@@ -765,9 +851,13 @@ async function main() {
         billingMode: OPTIONS.billingMode
       };
 
-      // Only include referenceImage for models that need it (s2v, ia2v)
+      // Only include referenceImage for models that need it (s2v, ia2v, flfa2v)
       if (referenceImageBuffer) {
         projectParams.referenceImage = referenceImageBuffer;
+      }
+      // flfa2v also pins the last frame
+      if (OPTIONS.imageEnd) {
+        projectParams.referenceImageEnd = readFileAsBuffer(OPTIONS.imageEnd);
       }
 
       // Video models only support ComfyUI sampler/scheduler

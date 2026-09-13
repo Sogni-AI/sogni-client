@@ -938,7 +938,8 @@ Example model IDs:
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
 - `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
 - `wan3.0-video` (Wan 3 unified multimodal video, external API, 2-30s, 480P/720P/1080P, fixed 30fps)
-- `minimax-h3-fastvideo-int8_t2v_turbo_2stage` / `minimax-h3-fastvideo-int8_i2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flf2v_turbo_2stage` (MiniMax H3 FastH3 Two-Stage: the FastH3 Turbo request, delivered at twice the canvas with the same length and audio. 720p: the chosen aspect at a 384 px short edge, 672×384 → 1344×768. 1080p: a 544 px short edge, 960×544 → 1920×1088. 2K: the 768p canvas, 1344×768 → 2688×1536)
+- `minimax-h3-fastvideo-int8_ia2v_turbo` / `minimax-h3-fastvideo-int8_flfa2v_turbo` / `minimax-h3-fastvideo-int8_a2v_turbo` (MiniMax H3 FastH3 audio guide: an uploaded `referenceAudio` drives the video and is kept in the output, with a first frame, first and last frames, or no image; 124-362 frames, size with `getMinimaxH3FramesForAudioDuration()`; no LoRAs, `generateAudio: false` or `audioDuration`)
+- `minimax-h3-fastvideo-int8_t2v_turbo_2stage` / `minimax-h3-fastvideo-int8_i2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flf2v_turbo_2stage` / `minimax-h3-fastvideo-int8_ia2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flfa2v_turbo_2stage` / `minimax-h3-fastvideo-int8_a2v_turbo_2stage` (MiniMax H3 FastH3 Two-Stage: the FastH3 Turbo request, delivered at twice the canvas with the same length and audio. 720p: the chosen aspect at a 384 px short edge, 672×384 → 1344×768. 1080p: a 544 px short edge, 960×544 → 1920×1088. 2K: the 768p canvas, 1344×768 → 2688×1536)
 - `flashvsr_v1.1_tiny_long_bf16` (FlashVSR v1.1 promptless 1080p/1440p video upscaling of one finished video)
 
 The repository does not bundle sample prompts or input media for the 10Eros model. Creators
@@ -961,7 +962,8 @@ When creating video projects, you can specify:
 - `referenceVideo` - Reference video for animate and v2v workflows, and the source video for FlashVSR upscaling
 - `upscaleResolution` - FlashVSR only: output short edge, `1080` or `1440`
 - `referenceVideoDurations` - Optional MiniMax H3 r2v duration hints in `[referenceVideo, ...referenceVideos]` order for early client-side validation; Socket probes the uploaded files and uses measured durations for pricing and admission
-- `referenceAudio` - Reference audio for sound-to-video workflow
+- `referenceAudio` - Reference audio for sound-to-video workflows (s2v, ia2v, flfa2v, a2v)
+- `referenceImageEnd` - Last frame for i2v, flf2v and the MiniMax H3 FastH3 flfa2v audio-guide workflow
 - `referenceImageUrls` - Loose image context URLs for Seedance, Happy Horse, and Wan 3; Wan 3 accepts up to 10
 - `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `referenceAudioUrls` - Loose audio context URLs for Seedance and Wan 3; Wan 3 accepts up to 5

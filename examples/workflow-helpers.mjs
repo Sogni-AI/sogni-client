@@ -459,17 +459,30 @@ function createMinimaxH3BalancedModel(workflow) {
   };
 }
 
-function createMinimaxH3FastH3Model(workflow) {
+const MINIMAX_H3_FASTH3_DESCRIPTIONS = {
+  t2v: 'FastVideo VSA four-step text-to-video with jointly generated 32kHz stereo audio',
+  i2v: 'FastVideo VSA four-step first-, last-, or first-and-last-frame video with jointly generated stereo audio',
+  flf2v:
+    'FastVideo VSA four-step first-and-last-frame video with jointly generated stereo audio; both anchors required',
+  ia2v: 'FastVideo VSA four-step first-frame video driven by your uploaded audio, which the output keeps; no LoRAs',
+  flfa2v:
+    'FastVideo VSA four-step first-and-last-frame video driven by your uploaded audio, which the output keeps; no LoRAs',
+  a2v: 'FastVideo VSA four-step video from your prompt and uploaded audio, which the output keeps; no LoRAs'
+};
+
+/**
+ * MiniMax H3 FastH3 Turbo example config. `twoStage` selects the matching
+ * `_turbo_2stage` id: the same request, delivered at twice the canvas.
+ */
+function createMinimaxH3FastH3Model(workflow, { twoStage = false } = {}) {
   const workflowLabel = workflow.toUpperCase();
+  const isAudioGuide = workflow === 'ia2v' || workflow === 'flfa2v' || workflow === 'a2v';
   return {
-    id: `minimax-h3-fastvideo-int8_${workflow}_turbo`,
-    name: `MiniMax H3 FastH3 Turbo ${workflowLabel}`,
-    description:
-      workflow === 't2v'
-        ? 'FastVideo VSA four-step text-to-video with jointly generated 32kHz stereo audio'
-        : workflow === 'i2v'
-          ? 'FastVideo VSA four-step first-, last-, or first-and-last-frame video with jointly generated stereo audio'
-          : 'FastVideo VSA four-step first-and-last-frame video with jointly generated stereo audio; both anchors required',
+    id: `minimax-h3-fastvideo-int8_${workflow}_turbo${twoStage ? '_2stage' : ''}`,
+    name: `MiniMax H3 FastH3 ${twoStage ? 'Two-Stage' : 'Turbo'} ${workflowLabel}`,
+    description: twoStage
+      ? `${MINIMAX_H3_FASTH3_DESCRIPTIONS[workflow]}; delivered at twice the canvas`
+      : MINIMAX_H3_FASTH3_DESCRIPTIONS[workflow],
     workflowType: workflow,
     defaultWidth: 1344,
     defaultHeight: 768,
@@ -503,10 +516,13 @@ function createMinimaxH3FastH3Model(workflow) {
     hasAudio: true,
     supportsNegativePrompt: false,
     acceleration: 'fastvideo-vsa-4step',
-    ...(workflow === 'flf2v'
+    ...(workflow === 'flf2v' || workflow === 'flfa2v'
       ? { requiresReferenceImage: true, requiresReferenceImageEnd: true }
       : {}),
-    ...(workflow === 'i2v' ? { requiresReferenceImage: false } : {})
+    ...(workflow === 'i2v' ? { requiresReferenceImage: false } : {}),
+    ...(workflow === 'ia2v' ? { requiresReferenceImage: true } : {}),
+    ...(workflow === 'a2v' ? { requiresReferenceImage: false } : {}),
+    ...(isAudioGuide ? { requiresReferenceAudio: true, supportsLoras: false } : {})
   };
 }
 
@@ -1547,7 +1563,18 @@ export const MODELS = {
       isComfyModel: true,
       hasAudio: true,
       requiresReferenceImage: false
-    }
+    },
+    // MiniMax H3 FastH3 audio guide - the uploaded audio drives the video and is
+    // kept in the output. ia2v: first frame; flfa2v: first + last frame; a2v:
+    // audio only. The -2stage keys deliver twice the canvas.
+    'minimax-h3-fasth3-ia2v-turbo': createMinimaxH3FastH3Model('ia2v'),
+    'minimax-h3-fasth3-flfa2v-turbo': createMinimaxH3FastH3Model('flfa2v'),
+    'minimax-h3-fasth3-a2v-turbo': createMinimaxH3FastH3Model('a2v'),
+    'minimax-h3-fasth3-ia2v-turbo-2stage': createMinimaxH3FastH3Model('ia2v', { twoStage: true }),
+    'minimax-h3-fasth3-flfa2v-turbo-2stage': createMinimaxH3FastH3Model('flfa2v', {
+      twoStage: true
+    }),
+    'minimax-h3-fasth3-a2v-turbo-2stage': createMinimaxH3FastH3Model('a2v', { twoStage: true })
   },
 
   // Video-to-Video Models (ComfyUI workflow)

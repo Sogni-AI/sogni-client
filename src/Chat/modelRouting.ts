@@ -50,6 +50,7 @@ export type VideoWorkflow =
   | 'flf2v'
   | 's2v'
   | 'ia2v'
+  | 'flfa2v'
   | 'a2v'
   | 'v2v'
   | 'r2v'
@@ -143,9 +144,15 @@ export const PREFERRED_MODEL_IDS = {
     minimaxH3FastH3TurboT2v: 'minimax-h3-fastvideo-int8_t2v_turbo',
     minimaxH3FastH3TurboI2v: 'minimax-h3-fastvideo-int8_i2v_turbo',
     minimaxH3FastH3TurboFlf2v: 'minimax-h3-fastvideo-int8_flf2v_turbo',
+    minimaxH3FastH3TurboIa2v: 'minimax-h3-fastvideo-int8_ia2v_turbo',
+    minimaxH3FastH3TurboFlfa2v: 'minimax-h3-fastvideo-int8_flfa2v_turbo',
+    minimaxH3FastH3TurboA2v: 'minimax-h3-fastvideo-int8_a2v_turbo',
     minimaxH3FastH3TwoStageT2v: 'minimax-h3-fastvideo-int8_t2v_turbo_2stage',
     minimaxH3FastH3TwoStageI2v: 'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
     minimaxH3FastH3TwoStageFlf2v: 'minimax-h3-fastvideo-int8_flf2v_turbo_2stage',
+    minimaxH3FastH3TwoStageIa2v: 'minimax-h3-fastvideo-int8_ia2v_turbo_2stage',
+    minimaxH3FastH3TwoStageFlfa2v: 'minimax-h3-fastvideo-int8_flfa2v_turbo_2stage',
+    minimaxH3FastH3TwoStageA2v: 'minimax-h3-fastvideo-int8_a2v_turbo_2stage',
     minimaxH3BalancedT2v: 'minimax-h3-fl2va-fp8_t2v_balanced',
     minimaxH3BalancedI2v: 'minimax-h3-fl2va-fp8_i2v_balanced',
     minimaxH3BalancedFlf2v: 'minimax-h3-fl2va-fp8_flf2v_balanced',
@@ -344,6 +351,15 @@ const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'ltx25-a2v': PREFERRED_MODEL_IDS.video.ltx25A2vDistilled,
   'ltx23-ia2v': PREFERRED_MODEL_IDS.video.ia2v,
   'ltx23-a2v': PREFERRED_MODEL_IDS.video.a2v,
+  // MiniMax H3 FastH3 audio guide. These live here rather than with the image
+  // selectors because only the audio-bearing tool can supply the required
+  // referenceAudio. The two-stage selectors mirror the FastH3 two-stage naming.
+  'minimax-h3-fasth3-ia2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboIa2v,
+  'minimax-h3-fasth3-flfa2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboFlfa2v,
+  'minimax-h3-fasth3-a2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboA2v,
+  'minimax-h3-fasth3-ia2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageIa2v,
+  'minimax-h3-fasth3-flfa2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageFlfa2v,
+  'minimax-h3-fasth3-a2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageA2v,
   wan3: PREFERRED_MODEL_IDS.video.wan3,
   'wan3.0': PREFERRED_MODEL_IDS.video.wan3,
   'wan3-video': PREFERRED_MODEL_IDS.video.wan3

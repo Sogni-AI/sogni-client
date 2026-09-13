@@ -918,9 +918,11 @@ MINIMAX H3 STANDARD, BALANCED, LIGHTX2V TURBO, AND FASTH3 TURBO (Sogni workers, 
 
 MiniMax H3 generates video and 32kHz stereo audio jointly in one pass on Sogni's
 own GPUs. Standard H3 uses 20-step res_multistep/simple sampling and Balanced
-uses eight steps. Existing fl2va/ref2va Turbo IDs use LightX2V; the three
+uses eight steps. Existing fl2va/ref2va Turbo IDs use LightX2V; the
 fastvideo-int8 IDs use the separate FastVideo VSA FastH3 four-step engine,
-fixed to Euler/simple. FastH3 has no R2V mode. All use fixed 24fps,
+fixed to Euler/simple. FastH3 adds the audio guide driven by an uploaded audio
+(IA2V first frame + audio, FLFA2V first and last frame + audio, A2V audio only)
+and has no R2V mode. All use fixed 24fps,
 guidance 1, no negative prompt, the `124 + n*17` frame grid
 from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 
@@ -937,9 +939,15 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 | minimax-h3-fastvideo-int8_t2v_turbo | FastH3 Turbo text-to-video | none |
 | minimax-h3-fastvideo-int8_i2v_turbo | FastH3 Turbo endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fastvideo-int8_flf2v_turbo | FastH3 Turbo first-and-last-frame video | both anchor images required |
+| minimax-h3-fastvideo-int8_ia2v_turbo | FastH3 Turbo image + uploaded audio to video | referenceImage (first frame) and referenceAudio (driving audio) both required |
+| minimax-h3-fastvideo-int8_flfa2v_turbo | FastH3 Turbo first and last frame + uploaded audio to video | referenceImage, referenceImageEnd and referenceAudio all required |
+| minimax-h3-fastvideo-int8_a2v_turbo | FastH3 Turbo uploaded audio to video | referenceAudio only |
 | minimax-h3-fastvideo-int8_t2v_turbo_2stage | FastH3 Two-Stage text-to-video (2x canvas delivery) | none |
 | minimax-h3-fastvideo-int8_i2v_turbo_2stage | FastH3 Two-Stage endpoint-conditioned image-to-video (2x canvas delivery) | first frame, last frame, or both (at least one) |
 | minimax-h3-fastvideo-int8_flf2v_turbo_2stage | FastH3 Two-Stage first-and-last-frame video (2x canvas delivery) | both anchor images required |
+| minimax-h3-fastvideo-int8_ia2v_turbo_2stage | FastH3 Two-Stage image + uploaded audio to video (2x canvas delivery) | referenceImage and referenceAudio both required |
+| minimax-h3-fastvideo-int8_flfa2v_turbo_2stage | FastH3 Two-Stage first and last frame + uploaded audio to video (2x canvas delivery) | referenceImage, referenceImageEnd and referenceAudio all required |
+| minimax-h3-fastvideo-int8_a2v_turbo_2stage | FastH3 Two-Stage uploaded audio to video (2x canvas delivery) | referenceAudio only |
 | minimax-h3-fl2va-fp8_t2v_balanced | Balanced text-to-video | none |
 | minimax-h3-fl2va-fp8_i2v_balanced | Balanced endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fl2va-fp8_flf2v_balanced | Balanced first-and-last-frame video | both anchor images required |
@@ -948,18 +956,61 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544.
 Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 
-All 18 current workflow ids are available through the Sogni projects API: four
-Standard, four Balanced, four LightX2V Turbo, three FastH3 Turbo, and three
-FastH3 Two-Stage modes.
+All 24 current workflow ids are available through the Sogni projects API: four
+Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with
+generated audio, three audio-guide), and six FastH3 Two-Stage modes.
 
 For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
 `referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids
 still require both anchors.
 
+FASTH3 AUDIO GUIDE (`minimax-h3-fastvideo-int8_ia2v_turbo`,
+`minimax-h3-fastvideo-int8_flfa2v_turbo`, `minimax-h3-fastvideo-int8_a2v_turbo`
+and their `_turbo_2stage` ids): an uploaded `referenceAudio` drives the video
+from frame 0. IA2V also requires `referenceImage` (first frame), FLFA2V requires
+`referenceImage` and `referenceImageEnd` (first and last frame), and A2V takes
+no image; each refuses any upload it does not take. The output keeps the
+uploaded audio, trimmed to the video length; optional `audioStart` (seconds, 0
+or greater) offsets it. These ids reject `generateAudio: false`,
+`audioDuration`, and LoRAs (`loras` / `loraStrengths`). Size a request to the
+audio with `getMinimaxH3FramesForAudioDuration(seconds)` (package root export):
+the smallest `124 + n*17` frame count covering `seconds * 24`, clamped to
+124-362. `isMinimaxH3AudioGuideModel(modelId)` recognizes all six ids, and
+`MINIMAX_H3_FASTH3_IA2V_MODEL_ID`, `MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID` and
+`MINIMAX_H3_FASTH3_A2V_MODEL_ID` name the base ids. Every other H3 id rejects
+`audioStart`, every H3 id except R2V rejects `referenceAudio`, and every H3 id
+rejects `audioDuration`.
+
+```javascript
+import { getMinimaxH3FramesForAudioDuration } from '@sogni-ai/sogni-client';
+
+// First and last frame + uploaded audio, delivered at twice the 768p canvas.
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-fastvideo-int8_flfa2v_turbo_2stage',
+  numberOfMedia: 1,
+  positivePrompt: 'The dancer crosses the studio in time with the music and lands the final pose.',
+  referenceImage: firstFrameBuffer,
+  referenceImageEnd: lastFrameBuffer,
+  referenceAudio: audioBuffer, // the output keeps this audio
+  audioStart: 12, // optional offset into the audio, seconds
+  frames: getMinimaxH3FramesForAudioDuration(audioSeconds - 12),
+  width: 1344,
+  height: 768,
+  steps: 4,
+  guidance: 1,
+  tokenType: 'spark'
+});
+```
+
 720P, 1080P AND 2K OUTPUT (FastH3 Two-Stage): two-stage output is a model id, not a
 request option. `minimax-h3-fastvideo-int8_t2v_turbo_2stage`,
-`minimax-h3-fastvideo-int8_i2v_turbo_2stage` and
-`minimax-h3-fastvideo-int8_flf2v_turbo_2stage` each take exactly the request of
+`minimax-h3-fastvideo-int8_i2v_turbo_2stage`,
+`minimax-h3-fastvideo-int8_flf2v_turbo_2stage`,
+`minimax-h3-fastvideo-int8_ia2v_turbo_2stage`,
+`minimax-h3-fastvideo-int8_flfa2v_turbo_2stage` and
+`minimax-h3-fastvideo-int8_a2v_turbo_2stage` each take exactly the request of
 their FastH3 Turbo id (canvas, frames, 4 steps, Euler/simple, inputs, LoRAs).
 FastH3 renders the canvas, then the worker enlarges it 2x and refines it, so the
 clip is delivered at exactly twice the canvas width and height with the same
@@ -994,6 +1045,16 @@ FastH3 uses `minimax-h3-fasth3-turbo` (automatic t2v or i2v),
 `minimax-h3-fasth3-flf2v-turbo-2stage`. On those hosted selectors
 `targetResolution` names the delivered class: `720` renders the 384 px canvas,
 `1080` the 544 px canvas, and `1440` (or omitted) the 768p canvas for 2K.
+For `sound_to_video`, `resolveHostedToolModelSelector()` maps
+`minimax-h3-fasth3-ia2v-turbo`, `minimax-h3-fasth3-flfa2v-turbo`,
+`minimax-h3-fasth3-a2v-turbo` and their `-2stage` selectors to the audio-guide
+ids; these selectors are not yet in the hosted tool schema. SDK
+`sound_to_video` tool execution picks the mode from the images supplied:
+`reference_image_url` plus `reference_image_end_url` selects FastH3 FLFA2V,
+`reference_image_url` alone keeps LTX IA2V preferred, and no image keeps LTX
+A2V preferred. When selection lands on an audio-guide id, the request is sized
+to `duration` on the H3 frame grid; an explicitly chosen audio-guide selector
+whose images do not match its mode is refused.
 
 A 720p two-stage render sends the 384 px canvas and receives 1344x768:
 

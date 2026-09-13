@@ -1,6 +1,10 @@
 import type ProjectsApi from '../Projects/index.js';
 import type { AvailableModel } from '../Projects/types/index.js';
 import { getMaxContextImages } from '../lib/validation.js';
+import {
+  getMinimaxH3FramesForAudioDuration,
+  isMinimaxH3AudioGuideModel
+} from '../Projects/utils/index.js';
 import { mediaInputToInlineDataUri, parseInlineMediaDataUri } from '../lib/mediaValidation.js';
 import type { MediaType } from '../lib/mediaValidation.js';
 import {
@@ -750,45 +754,114 @@ class ChatToolsApi {
     }
 
     const hasReferenceImage = isNonEmptyString(args.reference_image_url);
-    const workflows: VideoWorkflow[] = hasReferenceImage ? ['ia2v', 's2v'] : ['a2v'];
-    const preferredModelIds = hasReferenceImage
-      ? [PREFERRED_MODEL_IDS.video.ia2v, PREFERRED_MODEL_IDS.video.s2v]
-      : [PREFERRED_MODEL_IDS.video.a2v];
+    const hasReferenceImageEnd = isNonEmptyString(args.reference_image_end_url);
+    if (hasReferenceImageEnd && !hasReferenceImage) {
+      throw new Error(
+        'sound_to_video reference_image_end_url needs reference_image_url as the first frame'
+      );
+    }
+    // The supplied images pick the audio mode: first and last frame (flfa2v,
+    // MiniMax H3 FastH3 only), first frame (ia2v/s2v; LTX preferred), or none
+    // (a2v; LTX preferred).
+    const workflows: VideoWorkflow[] = hasReferenceImageEnd
+      ? ['flfa2v']
+      : hasReferenceImage
+        ? ['ia2v', 's2v']
+        : ['a2v'];
+    const preferredModelIds = hasReferenceImageEnd
+      ? [PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboFlfa2v]
+      : hasReferenceImage
+        ? [PREFERRED_MODEL_IDS.video.ia2v, PREFERRED_MODEL_IDS.video.s2v]
+        : [PREFERRED_MODEL_IDS.video.a2v];
+    const requestedModel = resolveHostedToolModelSelector('sound_to_video', args);
+    // An explicitly chosen H3 audio mode must match the supplied images rather
+    // than quietly rendering on another model.
+    if (requestedModel && isMinimaxH3AudioGuideModel(requestedModel)) {
+      const requestedWorkflow = getVideoWorkflowType(requestedModel);
+      if (!requestedWorkflow || !workflows.includes(requestedWorkflow)) {
+        const needs =
+          requestedWorkflow === 'flfa2v'
+            ? 'reference_image_url and reference_image_end_url'
+            : requestedWorkflow === 'ia2v'
+              ? 'reference_image_url and no reference_image_end_url'
+              : 'no reference images';
+        throw new Error(`${requestedModel} (MiniMax H3 ${requestedWorkflow}) needs ${needs}`);
+      }
+    }
     const modelId = await this.selectModel({
       mediaType: 'video',
-      requestedModel: resolveHostedToolModelSelector('sound_to_video', args),
+      requestedModel,
       workflows,
       preferredModelIds
     });
     const defaults = getVideoDefaults(modelId);
     const duration = asFiniteNumber(args.duration) ?? 5;
-
-    const projectParams: Record<string, unknown> = {
-      type: 'video' as const,
+    const referenceAudio = parseInlineMediaDataUri(args.reference_audio_url, 'audio', {
+      maxBytes: MAX_INPUT_MEDIA_BYTES.audio
+    }).blob;
+    const generateAudio = asBooleanValue(args.generateAudio);
+    const exportOptions = {
       ...(args.outputFormat !== undefined ? { outputFormat: args.outputFormat } : {}),
-      ...(args.returnLastFrame !== undefined ? { returnLastFrame: args.returnLastFrame } : {}),
-      modelId,
-      positivePrompt: args.prompt as string,
-      numberOfMedia: getVariationCount(args, options),
-      referenceAudio: parseInlineMediaDataUri(args.reference_audio_url, 'audio', {
-        maxBytes: MAX_INPUT_MEDIA_BYTES.audio
-      }).blob,
-      width: (args.width as number) || defaults.width,
-      height: (args.height as number) || defaults.height,
-      fps: defaults.fps,
-      duration,
-      audioDuration: duration
+      ...(args.returnLastFrame !== undefined ? { returnLastFrame: args.returnLastFrame } : {})
     };
 
-    if (isNonEmptyString(args.reference_image_url)) {
-      projectParams.referenceImage = parseInlineMediaDataUri(args.reference_image_url, 'image', {
-        maxBytes: MAX_INPUT_MEDIA_BYTES.image
-      }).blob;
+    let projectParams: Record<string, unknown>;
+    if (isMinimaxH3AudioGuideModel(modelId)) {
+      // The H3 audio guide runs on the 124 + n*17 grid at a fixed 24fps and
+      // trims the uploaded audio to the video length itself: it takes frames,
+      // not duration/audioDuration, and its output always keeps that audio.
+      if (generateAudio === false) {
+        throw new Error(
+          `${modelId} output always carries the uploaded audio; generateAudio: false is not supported`
+        );
+      }
+      projectParams = {
+        type: 'video' as const,
+        ...exportOptions,
+        modelId,
+        positivePrompt: args.prompt as string,
+        numberOfMedia: getVariationCount(args, options),
+        referenceAudio,
+        width: defaults.width,
+        height: defaults.height,
+        fps: 24,
+        frames: getMinimaxH3FramesForAudioDuration(duration)
+      };
+      const audioStart = args.audioStart ?? args.audio_start;
+      if (audioStart !== undefined) projectParams.audioStart = audioStart;
+    } else {
+      projectParams = {
+        type: 'video' as const,
+        ...exportOptions,
+        modelId,
+        positivePrompt: args.prompt as string,
+        numberOfMedia: getVariationCount(args, options),
+        referenceAudio,
+        width: (args.width as number) || defaults.width,
+        height: (args.height as number) || defaults.height,
+        fps: defaults.fps,
+        duration,
+        audioDuration: duration
+      };
+      if (args.audio_start !== undefined) projectParams.audioStart = args.audio_start;
+      if (generateAudio !== undefined) {
+        projectParams.generateAudio = generateAudio;
+      }
     }
-    if (args.audio_start !== undefined) projectParams.audioStart = args.audio_start;
-    const generateAudio = asBooleanValue(args.generateAudio);
-    if (generateAudio !== undefined) {
-      projectParams.generateAudio = generateAudio;
+
+    if (hasReferenceImage) {
+      projectParams.referenceImage = parseInlineMediaDataUri(
+        args.reference_image_url as string,
+        'image',
+        { maxBytes: MAX_INPUT_MEDIA_BYTES.image }
+      ).blob;
+    }
+    if (hasReferenceImageEnd) {
+      projectParams.referenceImageEnd = parseInlineMediaDataUri(
+        args.reference_image_end_url as string,
+        'image',
+        { maxBytes: MAX_INPUT_MEDIA_BYTES.image }
+      ).blob;
     }
     if (args.seed !== undefined) projectParams.seed = args.seed;
     if (options?.tokenType) projectParams.tokenType = options.tokenType;

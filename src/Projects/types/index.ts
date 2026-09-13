@@ -230,7 +230,8 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   uses its fixed 4-step sampling path.
  * - Frames follow `124 + n*17` from 124 through 362. Dimensions use a 32px
  *   grid, with a 1344px per-axis limit and a 1032192-pixel canvas limit.
- * - FastH3 Two-Stage (`minimax-h3-fastvideo-int8_{t2v,i2v,flf2v}_turbo_2stage`)
+ * - FastH3 Two-Stage
+ *   (`minimax-h3-fastvideo-int8_{t2v,i2v,flf2v,ia2v,flfa2v,a2v}_turbo_2stage`)
  *   takes exactly the request of the matching FastH3 Turbo ID
  *   (`minimax-h3-fastvideo-int8_*_turbo`) and delivers the clip at twice the
  *   canvas width and height with the same length and audio. Send the chosen
@@ -240,6 +241,23 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   using the `_2stage` model id and that canvas.
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
  *   requires at least one of them. The `flf2v` model requires both.
+ *
+ * #### MiniMax H3 FastH3 audio guide (`ia2v`, `flfa2v`, `a2v`)
+ * - An uploaded `referenceAudio` drives the video from frame 0 in three modes:
+ *   `minimax-h3-fastvideo-int8_ia2v_turbo` (plus a first-frame
+ *   `referenceImage`), `..._flfa2v_turbo` (plus `referenceImage` and
+ *   `referenceImageEnd`) and `..._a2v_turbo` (audio and prompt only). Each
+ *   mode requires exactly its uploads and rejects any other.
+ * - Each has a two-stage id (`..._turbo_2stage`) that takes the same request
+ *   and delivers twice the canvas, like the other FastH3 two-stage ids.
+ * - The output always carries the uploaded audio, so `generateAudio: false` is
+ *   rejected. `audioStart` (seconds, 0 or greater) offsets the audio window; the
+ *   window length is always the video length, so `audioDuration` is rejected.
+ * - Fixed 4-step FastH3 sampling on the same frame and canvas grids as the other
+ *   H3 ids. LoRAs are not supported: `loras` / `loraStrengths` are rejected.
+ * - Size a request to its audio with `getMinimaxH3FramesForAudioDuration()`.
+ * - Every other H3 id rejects `referenceAudio` except `r2v`, where it is a
+ *   labelled reference rather than a driving track, and rejects `audioStart`.
  *
  * #### MiniMax H3 `r2v` (Ref2VA) multi-reference video
  * - `minimax-h3-ref2va-fp8_r2v` (standard) and
@@ -449,14 +467,19 @@ export interface VideoProjectParams extends BaseProjectParams {
    *
    * Required, together with `referenceImage`, for the MiniMax H3 `flf2v`
    * workflow (`minimax-h3-fl2va-fp8_flf2v`), which always interpolates between
-   * two anchor frames.
+   * two anchor frames, and for the FastH3 audio-guide `flfa2v` workflow
+   * (`minimax-h3-fastvideo-int8_flfa2v_turbo`), which adds a driving audio.
    *
    * Rejected by the MiniMax H3 `r2v` workflow, which has no closing frame to
    * pin. Its second reference image is the next entry in `contextImages`.
    */
   referenceImageEnd?: InputMedia;
   /**
-   * Reference audio for audio-driven video workflows (s2v, ia2v, a2v).
+   * Reference audio for audio-driven video workflows (s2v, ia2v, flfa2v, a2v).
+   *
+   * Required by the MiniMax H3 FastH3 audio-guide workflows (`ia2v`, `flfa2v`,
+   * `a2v`; `minimax-h3-fastvideo-int8_*_turbo` and `..._turbo_2stage`), whose
+   * output carries this audio trimmed to the video length.
    *
    * On the MiniMax H3 `r2v` workflow this is standalone reference audio 1 - a
    * voice or soundtrack the prompt assigns a job to, not a track the video is
@@ -517,7 +540,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   audioIdentityStrength?: number;
   /**
-   * Audio start position in seconds for audio-driven workflows (s2v, ia2v, a2v).
+   * Audio start position in seconds for audio-driven workflows (s2v, ia2v, flfa2v, a2v).
    * Specifies where to begin reading from the audio file.
    * Default: 0
    */
@@ -1176,6 +1199,8 @@ export type EnhancementStrength = 'light' | 'medium' | 'heavy';
  * `VIDEO_WORKFLOW_ASSETS.r2v` directly.
  * `flf2v` (first-and-last-frame-to-video) is the MiniMax H3 workflow that
  * interpolates between two required anchor images.
+ * `flfa2v` (first-and-last-frame + audio to video) is the MiniMax H3 FastH3
+ * audio-guide workflow that adds a required driving `referenceAudio` to them.
  */
 export type VideoWorkflowType =
   | 'upscale'
@@ -1184,6 +1209,7 @@ export type VideoWorkflowType =
   | 'flf2v'
   | 's2v'
   | 'ia2v'
+  | 'flfa2v'
   | 'a2v'
   | 'v2v'
   | 'r2v'
