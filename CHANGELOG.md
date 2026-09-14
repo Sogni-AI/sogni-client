@@ -1,3 +1,16 @@
+# [5.48.0](https://github.com/Sogni-AI/sogni-client/compare/v5.47.0...v5.48.0) (2026-09-14)
+
+
+### Bug Fixes
+
+* **rest:** surface a plain-text error body instead of the HTTP reason phrase ([2f76203](https://github.com/Sogni-AI/sogni-client/commit/2f762037bad19fd93af6d79d68dd9bc2fb002cf1))
+
+
+### Features
+
+* **projects:** recognize the MiniMax H3 FastH3 two-stage 720p model ids ([8fe8e22](https://github.com/Sogni-AI/sogni-client/commit/8fe8e228d9e8d1ce529947ab16aec4282bb2d96d))
+* **video:** add seedance 2.5 export options ([bb10c17](https://github.com/Sogni-AI/sogni-client/commit/bb10c17872046e9bf46d6eda423e3d5f84e61180))
+
 # [5.47.0](https://github.com/Sogni-AI/sogni-client/compare/v5.46.0...v5.47.0) (2026-09-13)
 
 
