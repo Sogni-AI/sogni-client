@@ -54,6 +54,9 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fastvideo-int8_t2v_turbo_2stage',
   'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
   'minimax-h3-fastvideo-int8_flf2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_t2v_turbo_2stage_720p',
+  'minimax-h3-fastvideo-int8_i2v_turbo_2stage_720p',
+  'minimax-h3-fastvideo-int8_flf2v_turbo_2stage_720p',
   'minimax-h3-ref2va-fp8_r2v_turbo',
   'minimax-h3-fl2va-fp8_t2v_balanced',
   'minimax-h3-fl2va-fp8_i2v_balanced',
@@ -257,6 +260,10 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  *   canvas width and height: a 672x384 canvas delivers 1344x768 (720p), a
  *   960x544 canvas delivers 1920x1088 (1080p) and the 1344x768 canvas delivers
  *   2688x1536 (2K). Price it with `estimateVideoCost` using the `_2stage` id.
+ * - FastH3 Two-Stage 720p: the same three FastH3 ids with a `_turbo_2stage_720p`
+ *   suffix, the half-size 384 px canvas render of 768p output. The socket records
+ *   384 px `_2stage` requests (and, once two-stage is open, ordinary 768p FastH3)
+ *   under these ids; callers do not need to send them.
  * - Ref2VA Turbo: `minimax-h3-ref2va-fp8_r2v_turbo`
  * - FL2VA Balanced: the same three FL2VA ids with a `_balanced` suffix
  * - Ref2VA Balanced: `minimax-h3-ref2va-fp8_r2v_balanced`
@@ -278,7 +285,7 @@ export function isMinimaxH3Model(modelId: string): boolean {
 export function isMinimaxH3TurboModel(modelId: string): boolean {
   return (
     /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_turbo$/.test(modelId) ||
-    /^minimax-h3-fastvideo-int8_(?:t2v|i2v|flf2v)_turbo(?:_2stage)?$/.test(modelId) ||
+    /^minimax-h3-fastvideo-int8_(?:t2v|i2v|flf2v)_turbo(?:_2stage(?:_720p)?)?$/.test(modelId) ||
     modelId === 'minimax-h3-ref2va-fp8_r2v_turbo'
   );
 }

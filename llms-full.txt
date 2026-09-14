@@ -978,6 +978,11 @@ canvas.
 `projects.create()` and `estimateVideoCost()` throw before sending anything if
 the retired `outputScale` field is passed (the socket refuses it too), naming
 the two-stage ids to use instead.
+Jobs record 720p output under the socket's own FastH3 Two-Stage 720p ids
+(`minimax-h3-fastvideo-int8_t2v_turbo_2stage_720p`, `_i2v_turbo_2stage_720p`,
+`_flf2v_turbo_2stage_720p`): the socket files 384 px `_2stage` requests there,
+priced like one-stage FastH3, so job history and cost reports show those ids.
+Callers do not need to send them.
 
 SDK creative-tool routing is a separate hosted contract: existing
 `minimax-h3-turbo` selectors remain LightX2V for backwards compatibility.

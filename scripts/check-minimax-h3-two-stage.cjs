@@ -35,6 +35,13 @@ const twoStage = {
   i2v: ['minimax-h3-fastvideo-int8_i2v_turbo_2stage', 'minimax-h3-fastvideo-int8_i2v_turbo'],
   flf2v: ['minimax-h3-fastvideo-int8_flf2v_turbo_2stage', 'minimax-h3-fastvideo-int8_flf2v_turbo']
 };
+// The socket records 384 px two-stage renders under these ids; the SDK knows them
+// as FastH3-class H3 video ids so their projects and results are handled.
+const twoStage720p = {
+  t2v: ['minimax-h3-fastvideo-int8_t2v_turbo_2stage_720p', 'minimax-h3-fastvideo-int8_t2v_turbo'],
+  i2v: ['minimax-h3-fastvideo-int8_i2v_turbo_2stage_720p', 'minimax-h3-fastvideo-int8_i2v_turbo'],
+  flf2v: ['minimax-h3-fastvideo-int8_flf2v_turbo_2stage_720p', 'minimax-h3-fastvideo-int8_flf2v_turbo']
+};
 const h3Ids = {
   standard: [
     'minimax-h3-fl2va-fp8_t2v',
@@ -53,7 +60,8 @@ const h3Ids = {
     'minimax-h3-fl2va-fp8_i2v_turbo',
     'minimax-h3-fl2va-fp8_flf2v_turbo',
     'minimax-h3-ref2va-fp8_r2v_turbo',
-    ...Object.values(twoStage).flat()
+    ...Object.values(twoStage).flat(),
+    ...Object.values(twoStage720p).map(([modelId]) => modelId)
   ]
 };
 const steps = { standard: 20, balanced: 8, turbo: 4 };
@@ -136,6 +144,16 @@ for (const [workflow, [modelId, baseId]] of Object.entries(twoStage)) {
   );
 }
 
+for (const [workflow, [modelId, baseId]] of Object.entries(twoStage720p)) {
+  assert.equal(isVideoModel(modelId), true, `${modelId} is a video model`);
+  assert.equal(isMinimaxH3Model(modelId), true, `${modelId} is a MiniMax H3 id`);
+  assert.equal(isMinimaxH3TurboModel(modelId), true, `${modelId} is 4-step FastH3 class`);
+  assert.equal(getVideoWorkflowType(modelId), workflow);
+  assert.equal(calculateVideoFrames(modelId, 6, 24), calculateVideoFrames(baseId, 6, 24));
+  const sent = request(modelId, 'turbo', { width: 672, height: 384 }).keyFrames[0];
+  assert.deepEqual({ ...sent, modelID: baseId }, request(baseId, 'turbo', { width: 672, height: 384 }).keyFrames[0]);
+}
+
 let covered = 0;
 for (const [tier, ids] of Object.entries(h3Ids)) {
   for (const modelId of ids) {
@@ -151,7 +169,7 @@ for (const [tier, ids] of Object.entries(h3Ids)) {
     covered += 1;
   }
 }
-assert.equal(covered, 18, 'every MiniMax H3 workflow id is covered');
+assert.equal(covered, 21, 'every MiniMax H3 workflow id is covered');
 
 // The retired field is refused on every video model, not only on MiniMax H3.
 for (const modelId of ['ltx25-22b-int8_t2v_distilled', 'wan_v2.2-14b-fp8_t2v_lightx2v']) {
