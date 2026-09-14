@@ -1,3 +1,10 @@
+## [5.48.1](https://github.com/Sogni-AI/sogni-client/compare/v5.48.0...v5.48.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* **deps:** align the published protocol and tool snapshots ([d78b78f](https://github.com/Sogni-AI/sogni-client/commit/d78b78f624fa4375170a96a7f10f0d4274077d6d))
+
 # [5.48.0](https://github.com/Sogni-AI/sogni-client/compare/v5.47.0...v5.48.0) (2026-09-14)
 
 
