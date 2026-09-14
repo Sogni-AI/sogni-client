@@ -1,3 +1,11 @@
+# [5.49.0](https://github.com/Sogni-AI/sogni-client/compare/v5.48.1...v5.49.0) (2026-09-14)
+
+
+### Features
+
+* **projects:** add MiniMax H3 FastH3 audio-guide video modes ([59872a3](https://github.com/Sogni-AI/sogni-client/commit/59872a3247d9d4ac825c62af97a9132ad4fa05ec))
+* **projects:** add Pixal3D multi-view image-to-3D reconstruction ([5d34a25](https://github.com/Sogni-AI/sogni-client/commit/5d34a25f978dc04245f42cc4731312c2176b8d15))
+
 ## [5.48.1](https://github.com/Sogni-AI/sogni-client/compare/v5.48.0...v5.48.1) (2026-09-14)
 
 
