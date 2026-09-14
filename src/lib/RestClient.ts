@@ -13,6 +13,29 @@ interface RestPostOptions {
   headers?: Record<string, string>;
 }
 
+const PLAIN_TEXT_ERROR_MAX_LENGTH = 500;
+const ERROR_BODY_EXCERPT_LENGTH = 200;
+
+/**
+ * Message for a non-2xx response whose body is not a JSON object.
+ *
+ * A plain-text body is the server's own explanation (sogni-socket answers a held
+ * model with "MiniMax H3 Latent Upscaler (Community) will be available soon."), so
+ * it is the message. The HTTP reason phrase ("Bad Request") only labels an empty
+ * body or a gateway's HTML error page, which gets a short excerpt instead.
+ */
+function nonJsonErrorMessage(response: Response, rawText: string): string {
+  const body = rawText.replace(/\s+/g, ' ').trim();
+  const status = response.statusText || `HTTP ${response.status}`;
+  if (!body) return status;
+  if (!body.startsWith('<')) {
+    return body.length > PLAIN_TEXT_ERROR_MAX_LENGTH
+      ? `${body.slice(0, PLAIN_TEXT_ERROR_MAX_LENGTH)}…`
+      : body;
+  }
+  return `${status}: ${body.slice(0, ERROR_BODY_EXCERPT_LENGTH)}`;
+}
+
 class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   readonly baseUrl: string;
   protected _auth: AuthManager;
@@ -89,17 +112,13 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
 
     if (!response.ok) {
       // Non-2xx. If body was JSON, surface its shape; otherwise synthesize an
-      // ApiErrorResponse from the HTTP status + a truncated body excerpt so
-      // callers and operators can see what came back.
+      // ApiErrorResponse so callers and operators can see what came back.
       const payload: ApiErrorResponse =
         parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)
           ? (parsedBody as unknown as ApiErrorResponse)
           : {
               status: 'error',
-              message:
-                response.statusText ||
-                `HTTP ${response.status}` +
-                  (rawText ? `: ${rawText.slice(0, 200).replace(/\s+/g, ' ').trim()}` : ''),
+              message: nonJsonErrorMessage(response, rawText),
               errorCode: response.status
             };
       throw new ApiError(response.status, payload);

@@ -44,6 +44,8 @@ jobs:
         run: node scripts/check-workflow-content-filter.cjs
       - name: Run REST-only client checks
         run: npm run test:rest-only
+      - name: Run REST error message checks
+        run: node scripts/check-rest-error-messages.cjs
       - name: Run project cancellation checks
         run: npm run test:project-cancellation
       - name: Run project recovery checks
