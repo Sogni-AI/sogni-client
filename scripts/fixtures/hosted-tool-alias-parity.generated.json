@@ -88,7 +88,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_video",
       "sdkToolName": "generate_video",
-      "hostedSchemaSha256": "d9c35a46d460a27cf0e2662c57b4912b8694f88be6be2bf783e82d8395a65353",
+      "hostedSchemaSha256": "ae19829ada19c3483a6f374c3000cea0f39d4dab3d54d67f1baea643c62fbe7b",
       "hostedRequired": [
         "prompt"
       ],
@@ -114,7 +114,9 @@
         "aspectRatio",
         "voicePersonaName",
         "loras",
-        "loraStrengths"
+        "loraStrengths",
+        "outputFormat",
+        "returnLastFrame"
       ],
       "argumentAliasTargets": [
         "prompt",
@@ -186,7 +188,7 @@
       "executionMode": "direct",
       "hostedToolName": "sound_to_video",
       "sdkToolName": "sound_to_video",
-      "hostedSchemaSha256": "66bb9fb390dee61b2dac27679e89fb3a18c6c5ab4b69510b387f14ba0615fa6b",
+      "hostedSchemaSha256": "6f6adb87499b191fadae9872bb216a755426f25eb4de3c76c81191427df1f6ec",
       "hostedRequired": [
         "prompt"
       ],
@@ -206,7 +208,9 @@
         "generateAudio",
         "numberOfVariations",
         "targetResolution",
-        "aspectRatio"
+        "aspectRatio",
+        "outputFormat",
+        "returnLastFrame"
       ],
       "argumentAliasTargets": [
         "prompt",
@@ -227,7 +231,7 @@
       "executionMode": "direct",
       "hostedToolName": "video_to_video",
       "sdkToolName": "video_to_video",
-      "hostedSchemaSha256": "e59293e3a56dc6a0620fb05f72a8be8efb37a536d9bb9237602f1be7b1b04014",
+      "hostedSchemaSha256": "2f062f23263972ff719990ff0b99b594980f2c8f844abf743a2bc97187f88980",
       "hostedRequired": [
         "prompt"
       ],
@@ -245,7 +249,9 @@
         "outpaintAspectRatio",
         "maskImageIndex",
         "duration",
-        "numberOfVariations"
+        "numberOfVariations",
+        "outputFormat",
+        "returnLastFrame"
       ],
       "argumentAliasTargets": [
         "prompt",
