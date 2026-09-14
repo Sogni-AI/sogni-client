@@ -64,7 +64,13 @@ import {
   MINIMAX_H3_MAX_FRAMES,
   MINIMAX_H3_FRAME_STEP,
   MINIMAX_H3_BASE_FRAMES,
-  isSegmentationModel
+  isSegmentationModel,
+  isPixal3dModel,
+  isPixal3dMultiViewModel,
+  getPixal3dOrbitViewSlots,
+  PIXAL3D_ORBIT_VIEW_SLOTS,
+  PIXAL3D_IMAGE_TO_3D_MODEL_ID,
+  PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID
 } from './utils/index.js';
 import { ApiError } from '../ApiClient/index.js';
 import {
@@ -77,9 +83,10 @@ import { workloadAttributionToWireFields } from '../lib/attribution.js';
 
 const SAM3_IMAGE_SEGMENT_WORKFLOW_ID = 'sam3_image_segment_bf16';
 const BIREFNET_BACKGROUND_REMOVAL_WORKFLOW_ID = 'birefnet_image_background_removal_fp16';
-const PIXAL3D_WORKFLOW_ID = 'pixal3d_int8_i23d';
+const PIXAL3D_WORKFLOW_ID = PIXAL3D_IMAGE_TO_3D_MODEL_ID;
 // The sole graph ComfyUI's workflows/image/manifest.json registers under the
-// Pixal3D workflow id. This is a closed list, not a passthrough:
+// single-view Pixal3D workflow id (the multi-view id has one graph and no
+// selector). This is a closed list, not a passthrough:
 // `templateVariant` is the worker's generic template selector, so
 // an open one would let a caller aim a paid job at any graph a worker carries.
 const PIXAL3D_DEFAULT_TEMPLATE_VARIANT = 'i23d-birefnet';
@@ -88,9 +95,9 @@ const MAX_SAM3_POINTS = 32;
 const MAX_SAM3_BOXES = 16;
 const MAX_SAM3_TEXT_LENGTH = 240;
 const MAX_SAM3_INSTANCES = 16;
-// Pixal3D reduce-only options. Each max is the shipped default, so a request
-// can only ever ask for less work than the flat price already covers; the
-// socket and the worker both clamp again.
+// Pixal3D options, shared by the single-view and multi-view workflows. Four are
+// reduce-only (each max is the shipped default); shapeResolution defaults to
+// 1024 and 1536 is a priced step up. The socket and the worker both clamp again.
 const PIXAL3D_REDUCE_ONLY_LIMITS: Record<string, { min: number; max: number }> = {
   textureSize: { min: 1024, max: 4096 },
   meshTargetFaces: { min: 5000, max: 700000 },
@@ -1283,8 +1290,40 @@ function applyImageParams(
   } else if (params.applyMask !== undefined) {
     throw new Error(`applyMask is only supported by ${BIREFNET_BACKGROUND_REMOVAL_WORKFLOW_ID}`);
   }
-  if (params.modelId === PIXAL3D_WORKFLOW_ID && !params.startingImage) {
-    throw new Error('Pixal3D reconstruction requires startingImage');
+  if (isPixal3dModel(params.modelId) && !params.startingImage) {
+    throw new Error(
+      isPixal3dMultiViewModel(params.modelId)
+        ? 'Pixal3D multi-view reconstruction requires startingImage (the front view)'
+        : 'Pixal3D reconstruction requires startingImage'
+    );
+  }
+  // Pixal3D multi-view orbit views travel in fixed contextImage slots (left 1,
+  // back 2, right 3). Any subset is allowed. The single-view graph has no input
+  // for them, so it refuses them rather than charging for images it ignores,
+  // and both Pixal3D ids refuse generic contextImages, whose slots carry no view.
+  if (isPixal3dModel(params.modelId) && params.contextImages?.some(Boolean)) {
+    throw new Error(
+      isPixal3dMultiViewModel(params.modelId)
+        ? `${PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID} takes its orbit views as leftViewImage, backViewImage and rightViewImage, not contextImages`
+        : `${PIXAL3D_WORKFLOW_ID} reconstructs from startingImage alone and does not support contextImages; use ${PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID} for more views`
+    );
+  }
+  for (const view of Object.keys(PIXAL3D_ORBIT_VIEW_SLOTS)) {
+    const value = (params as Record<string, any>)[view];
+    if (value === undefined) continue;
+    if (!isPixal3dMultiViewModel(params.modelId)) {
+      throw new Error(
+        params.modelId === PIXAL3D_WORKFLOW_ID
+          ? `${PIXAL3D_WORKFLOW_ID} reconstructs from startingImage alone and ignores ${view}; use ${PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID} for orbit views`
+          : `${view} is only supported by ${PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID}`
+      );
+    }
+    if (!value) {
+      throw new Error(`${view} must be an image; leave it unset to omit that view`);
+    }
+  }
+  for (const { slot } of getPixal3dOrbitViewSlots(params)) {
+    keyFrame[`hasContextImage${slot}`] = true;
   }
   // Which of the two Pixal3D graphs to run. Unset is not the same as naming the
   // default: a worker resolves only the variants its own manifest declares, so
@@ -1302,8 +1341,10 @@ function applyImageParams(
   for (const [key, limit] of Object.entries(PIXAL3D_REDUCE_ONLY_LIMITS)) {
     const requested = (params as Record<string, any>)[key];
     if (requested === undefined) continue;
-    if (params.modelId !== PIXAL3D_WORKFLOW_ID) {
-      throw new Error(`${key} is only supported by ${PIXAL3D_WORKFLOW_ID}`);
+    if (!isPixal3dModel(params.modelId)) {
+      throw new Error(
+        `${key} is only supported by ${PIXAL3D_WORKFLOW_ID} and ${PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID}`
+      );
     }
     if (!Number.isSafeInteger(requested) || requested < limit.min || requested > limit.max) {
       throw new Error(`${key} must be an integer from ${limit.min} to ${limit.max}`);
@@ -1782,7 +1823,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     // No utility workflow has intermediate images to preview: segmentation
     // returns one mask and Pixal3D a 3D reconstruction.
     previews:
-      isSegmentationModel(params.modelId) || params.modelId === PIXAL3D_WORKFLOW_ID
+      isSegmentationModel(params.modelId) || isPixal3dModel(params.modelId)
         ? 0
         : isImageParams(params)
           ? params.numberOfPreviews || 0
@@ -1794,13 +1835,12 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     disableSafety: !!params.disableNSFWFilter,
     tokenType: params.tokenType,
     billingMode: params.billingMode,
-    outputFormat:
-      params.modelId === PIXAL3D_WORKFLOW_ID
-        ? 'glb'
-        : isSegmentationModel(params.modelId)
-          ? 'png'
-          : params.outputFormat ||
-            (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),
+    outputFormat: isPixal3dModel(params.modelId)
+      ? 'glb'
+      : isSegmentationModel(params.modelId)
+        ? 'png'
+        : params.outputFormat ||
+          (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),
     ...workloadAttributionToWireFields(params.attribution)
   };
 

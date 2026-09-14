@@ -267,6 +267,28 @@ likeness task — it reinterprets the subject instead of preserving it. When an
 edit both preserves a likeness and needs general-purpose work, run the identity
 model first, then edit its output.
 
+### Image to 3D (Pixal3D)
+
+Pixal3D reconstructs one object as a textured GLB (`job.type === 'model'`, `job.resultUrl` is the GLB). There is no prompt: BiRefNet isolates the subject in each image. `pixal3d_int8_i23d` uses `startingImage` alone. `pixal3d_multiview_int8_i23d` uses `startingImage` as the required FRONT view plus any subset of `leftViewImage`, `backViewImage` and `rightViewImage`, uploaded as `contextImage1`, `contextImage2` and `contextImage3`. Views show the same object at the same height, 90 degrees apart at eye level. Name views from the subject's own point of view: `leftViewImage` is the subject turned so ITS OWN LEFT SIDE faces the camera (it faces screen-left), `rightViewImage` is its own right side toward the camera (it faces screen-right), `backViewImage` is seen from behind. Swapping left and right builds a model turned 180 degrees; some turnaround templates label the subject's right side "left", so do not follow those labels. The single-view id refuses orbit views, both ids refuse `contextImages`, and only the single-view id accepts `templateVariant`.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'pixal3d_multiview_int8_i23d',
+  positivePrompt: '',
+  startingImage: fs.readFileSync('./front.png'),
+  leftViewImage: fs.readFileSync('./left.png'),   // subject's own left side toward the camera
+  backViewImage: fs.readFileSync('./back.png'),
+  rightViewImage: fs.readFileSync('./right.png'), // subject's own right side toward the camera
+  numberOfMedia: 1,
+  network: 'fast',
+  tokenType: 'spark'
+});
+const [glbUrl] = await project.waitForCompletion();
+```
+
+Both ids take `textureSize` (1024-4096), `meshTargetFaces` (5000-700000), `normalMapSize` (512-2048) and `ambientOcclusionSize` (256-1024), each defaulting to its maximum and only reducing work, plus `shapeResolution` (1024 default; 1536 costs more).
+
 ---
 
 ## 3. Video Generation (WAN 2.2)

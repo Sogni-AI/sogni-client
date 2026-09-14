@@ -498,6 +498,46 @@ references — use a qwen_image_edit_2511 variant. A higher-step general-purpose
 editor does not beat the identity model at a likeness task; it reinterprets the
 subject instead of preserving it.
 
+IMAGE TO 3D (PIXAL3D): reconstructs one object as a textured GLB; the job's
+type is 'model' and resultUrl is the GLB. No prompt: BiRefNet isolates the
+subject in each image.
+- pixal3d_int8_i23d: startingImage only. Refuses orbit views and contextImages.
+- pixal3d_multiview_int8_i23d: startingImage is the required FRONT view, plus
+  any subset of leftViewImage (uploaded as contextImage1), backViewImage
+  (contextImage2) and rightViewImage (contextImage3). Refuses contextImages and
+  templateVariant. Views show the same object at the same height, 90 degrees
+  apart at eye level.
+View names follow the subject's own point of view, not the viewer's:
+leftViewImage = the subject turned so ITS OWN LEFT SIDE faces the camera (it
+faces screen-left); rightViewImage = its own right side faces the camera (it
+faces screen-right); backViewImage = seen from behind. Swapping left and right
+builds a model turned 180 degrees; some turnaround templates label the
+subject's right side "left", so do not follow those labels.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'pixal3d_multiview_int8_i23d',
+  positivePrompt: '',
+  startingImage: fs.readFileSync('./front.png'),  // required
+  leftViewImage: fs.readFileSync('./left.png'),   // optional
+  backViewImage: fs.readFileSync('./back.png'),   // optional
+  rightViewImage: fs.readFileSync('./right.png'), // optional
+  numberOfMedia: 1,
+  meshTargetFaces: 200000,
+  network: 'fast',
+  tokenType: 'spark'
+});
+const [glbUrl] = await project.waitForCompletion();
+```
+
+Options on both ids: textureSize 1024-4096, meshTargetFaces 5000-700000,
+normalMapSize 512-2048 and ambientOcclusionSize 256-1024 each default to the
+maximum and only reduce work; shapeResolution defaults to 1024 and 1536 costs
+more. Helpers: isPixal3dModel, isPixal3dMultiViewModel,
+PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID, PIXAL3D_ORBIT_VIEW_SLOTS,
+getPixal3dOrbitViewSlots.
+
 COMMUNITY FINE-TUNES (uncensored; discover with sogni.projects.getAvailableModels()):
 | Model ID | Type | Steps | Guidance | Notes |
 |----------|------|-------|----------|-------|
@@ -2400,9 +2440,12 @@ interface BaseProjectParams {
 interface ImageProjectParams extends BaseProjectParams {
   type: 'image';
   numberOfPreviews?: number;
-  startingImage?: File | Buffer | Blob;
+  startingImage?: File | Buffer | Blob;       // Pixal3D multi-view: the FRONT view
   startingImageStrength?: number;
   contextImages?: (File | Buffer | Blob)[];
+  leftViewImage?: File | Buffer | Blob;       // pixal3d_multiview_int8_i23d only: subject's own left side
+  backViewImage?: File | Buffer | Blob;       // pixal3d_multiview_int8_i23d only: subject from behind
+  rightViewImage?: File | Buffer | Blob;      // pixal3d_multiview_int8_i23d only: subject's own right side
   sampler?: string;
   scheduler?: string;
   sizePreset?: string | 'custom';

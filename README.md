@@ -1427,6 +1427,59 @@ accept at most one box. Do not turn the prompt box into a substitute object mask
 
 The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) directory contains working examples for all workflows:
 
+### Pixal3D image to 3D
+
+Pixal3D reconstructs one object as a textured GLB model (base colour,
+metallic, roughness, normal and ambient-occlusion maps). It takes no prompt:
+BiRefNet isolates the subject in each image, so a plain background with the
+whole object in frame works best. The job's `type` is `'model'` and its
+`resultUrl` is the GLB.
+
+- `pixal3d_int8_i23d` reconstructs from one image, `startingImage`.
+- `pixal3d_multiview_int8_i23d` takes `startingImage` as the required FRONT
+  view plus any of three optional orbit views: `leftViewImage`,
+  `backViewImage` and `rightViewImage`. Views must show the same object at the
+  same height, 90 degrees apart around it at eye level, like a character
+  turnaround sheet.
+
+Views are named from the subject's own point of view, not the viewer's:
+
+| Field | What the image shows | Upload slot |
+|-------|----------------------|-------------|
+| `startingImage` | Front view (required) | `startingImage` |
+| `leftViewImage` | The subject turned so **its own left side** faces the camera (it faces screen-left) | `contextImage1` |
+| `backViewImage` | The subject seen from behind | `contextImage2` |
+| `rightViewImage` | The subject turned so **its own right side** faces the camera (it faces screen-right) | `contextImage3` |
+
+Swapping left and right builds a model turned 180 degrees. Some turnaround
+templates label the photo of the subject's right side "left"; follow the table,
+not those labels. The single-view model refuses orbit views, and both models
+refuse `contextImages`.
+
+```typescript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'pixal3d_multiview_int8_i23d',
+  positivePrompt: '',
+  startingImage: front, // required
+  leftViewImage: left, // optional; any subset of the three orbit views
+  backViewImage: back,
+  rightViewImage: right,
+  numberOfMedia: 1,
+  meshTargetFaces: 200000, // optional
+  network: 'fast',
+  tokenType: 'spark'
+});
+const [glbUrl] = await project.waitForCompletion();
+```
+
+Both models accept the same options. `textureSize` (1024-4096),
+`meshTargetFaces` (5,000-700,000), `normalMapSize` (512-2048) and
+`ambientOcclusionSize` (256-1024) default to their maximum and only reduce
+work. Lower `meshTargetFaces` for a game-ready asset. `shapeResolution` is
+1024 by default, and 1536 costs more. `isPixal3dModel(modelId)`,
+`isPixal3dMultiViewModel(modelId)` and `PIXAL3D_ORBIT_VIEW_SLOTS` are exported.
+
 ### Image Workflow Examples
 
 - **`workflow_text_to_image.mjs`** - Text-to-image generation with multiple model options

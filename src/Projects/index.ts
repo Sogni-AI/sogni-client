@@ -68,6 +68,7 @@ import {
   getEnhacementStrength,
   getVideoAssetRequirements,
   getVideoContextImageSlots,
+  getPixal3dOrbitViewSlots,
   getMinimaxH3ReferenceAudioSlots,
   getMinimaxH3ReferenceVideoSlots,
   getVideoWorkflowType,
@@ -1793,6 +1794,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         })
       );
     }
+
+    // Pixal3D multi-view orbit views use fixed contextImage slots (left 1, back
+    // 2, right 3); createJobRequestMessage has already refused them anywhere else.
+    await Promise.all(
+      getPixal3dOrbitViewSlots(data).map(({ slot, media }) =>
+        media === true
+          ? undefined
+          : this.uploadContextImage(project.id, (slot - 1) as ContextImageIndex, media)
+      )
+    );
   }
 
   /** Voice cloning is the only audio model that takes an upload. */

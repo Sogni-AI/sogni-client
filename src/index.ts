@@ -30,11 +30,16 @@ import {
   MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID,
   MINIMAX_H3_FASTH3_IA2V_MODEL_ID,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
+  PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
+  PIXAL3D_ORBIT_VIEW_SLOTS,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
   getMinimaxH3FramesForAudioDuration,
+  getPixal3dOrbitViewSlots,
   isMinimaxH3AudioGuideModel,
   isAudioModel,
   isModelArtifactModel,
+  isPixal3dModel,
+  isPixal3dMultiViewModel,
   isSegmentationModel,
   isVideoModel,
   isVideoUpscaleModel,
@@ -51,6 +56,7 @@ import {
   ImageProjectParams,
   ImageOutputFormat,
   Pixal3dGenerationOptions,
+  Pixal3dMultiViewImages,
   Pixal3dTemplateVariant,
   Sam3ImagePrompt,
   Sam3PromptBox,
@@ -308,6 +314,7 @@ export type {
   ImageProjectParams,
   ImageOutputFormat,
   Pixal3dGenerationOptions,
+  Pixal3dMultiViewImages,
   Pixal3dTemplateVariant,
   Sam3ImagePrompt,
   Sam3PromptBox,
@@ -438,6 +445,7 @@ export type {
 };
 export type { SavedUpload, SavedUploadBinding } from './Projects/ReusableUploads.js';
 export type { ProjectLoraSource } from './Projects/types/RawProject.js';
+export type { Pixal3dOrbitView } from './Projects/utils/index.js';
 
 export {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
@@ -446,11 +454,16 @@ export {
   MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID,
   MINIMAX_H3_FASTH3_IA2V_MODEL_ID,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
+  PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
+  PIXAL3D_ORBIT_VIEW_SLOTS,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
   getMinimaxH3FramesForAudioDuration,
+  getPixal3dOrbitViewSlots,
   isMinimaxH3AudioGuideModel,
   isAudioModel,
   isModelArtifactModel,
+  isPixal3dModel,
+  isPixal3dMultiViewModel,
   isSegmentationModel,
   isVideoModel,
   isVideoUpscaleModel,

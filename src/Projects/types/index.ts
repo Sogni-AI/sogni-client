@@ -727,26 +727,30 @@ export interface Sam3ImagePrompt {
 }
 
 /**
- * Pixal3D image-to-3D generation options. Every one may only REDUCE work: each
- * maximum is the shipped default, so the flat price is a guaranteed upper bound
- * and a smaller value simply costs less to produce.
+ * Which Pixal3D reconstruction graph to run.
+ *
+ * ComfyUI registers one graph under the single-view workflow id
+ * (`pixal3d_int8_i23d`). `i23d-birefnet` isolates the subject with BiRefNet and
+ * takes no prompt. Leave it unset to let the worker choose that shipped default.
+ * The multi-view id (`pixal3d_multiview_int8_i23d`) has no selector.
+ */
+export type Pixal3dTemplateVariant = 'i23d-birefnet';
+
+/**
+ * Pixal3D image-to-3D generation options, accepted by both `pixal3d_int8_i23d`
+ * and `pixal3d_multiview_int8_i23d`. `textureSize`, `meshTargetFaces`,
+ * `normalMapSize` and `ambientOcclusionSize` may only REDUCE work: each maximum
+ * is the shipped default, so a smaller value simply costs less to produce.
+ * `shapeResolution` defaults to 1024; 1536 is a priced step up.
  *
  * `meshTargetFaces` is the one most worth setting. The 700,000-triangle default
  * is far heavier than a real-time engine wants, so asking for less yields a
  * more useful asset.
  */
-/**
- * Which Pixal3D reconstruction graph to run.
- *
- * ComfyUI registers one graph under the workflow id. `i23d-birefnet` isolates
- * the subject with BiRefNet and takes no prompt. Leave it unset to let the
- * worker choose that shipped default.
- */
-export type Pixal3dTemplateVariant = 'i23d-birefnet';
-
 export interface Pixal3dGenerationOptions {
   /**
    * Which reconstruction graph to run. Unset means the worker's own default.
+   * Only `pixal3d_int8_i23d` accepts it.
    */
   templateVariant?: Pixal3dTemplateVariant;
   /** Base-colour bake and UV atlas resolution, 1024 to 4096. Default 4096. */
@@ -757,8 +761,37 @@ export interface Pixal3dGenerationOptions {
   normalMapSize?: number;
   /** Ambient occlusion map resolution, 256 to 1024. Default 1024. */
   ambientOcclusionSize?: number;
-  /** Sparse-latent upsampling resolution, 1024 to 1536. Default 1536. */
+  /** Sparse-latent upsampling resolution, 1024 or 1536. Default 1024; 1536 costs more. */
   shapeResolution?: number;
+}
+
+/**
+ * Orbit views for Pixal3D multi-view reconstruction
+ * (`pixal3d_multiview_int8_i23d`). `startingImage` is the FRONT view and is
+ * required; each orbit view is optional and any subset may be sent. Every view
+ * must show the same object at the same height, 90 degrees apart around it at
+ * eye level, like a character turnaround sheet.
+ *
+ * Views are named from the subject's own point of view, not the viewer's:
+ *
+ * - `leftViewImage`: the subject turned so ITS OWN LEFT SIDE faces the camera
+ *   (the subject faces screen-left). Uploaded as `contextImage1`.
+ * - `backViewImage`: the subject seen from behind. Uploaded as `contextImage2`.
+ * - `rightViewImage`: the subject turned so ITS OWN RIGHT SIDE faces the camera
+ *   (the subject faces screen-right). Uploaded as `contextImage3`.
+ *
+ * Swapping left and right builds a model turned 180 degrees. Some turnaround
+ * templates label the photo of the subject's right side "left"; follow the
+ * definitions above, not those labels. `pixal3d_int8_i23d` and every other
+ * model refuse these fields, and both Pixal3D ids refuse `contextImages`.
+ */
+export interface Pixal3dMultiViewImages {
+  /** Subject's own left side toward the camera (subject faces screen-left). */
+  leftViewImage?: InputMedia;
+  /** Subject seen from behind. */
+  backViewImage?: InputMedia;
+  /** Subject's own right side toward the camera (subject faces screen-right). */
+  rightViewImage?: InputMedia;
 }
 
 /** One SAM3 selection: a concept instance, or a candidate for one click. */
@@ -773,14 +806,16 @@ export interface Sam3Selection {
   included: boolean;
 }
 
-export interface ImageProjectParams extends BaseProjectParams, Pixal3dGenerationOptions {
+export interface ImageProjectParams
+  extends BaseProjectParams, Pixal3dGenerationOptions, Pixal3dMultiViewImages {
   type: 'image';
   /**
    * Number of previews to generate. Note that previews affect project cost
    */
   numberOfPreviews?: number;
   /**
-   * Starting image for img2img workflows.
+   * Starting image for img2img workflows. For Pixal3D it is the source image,
+   * and for `pixal3d_multiview_int8_i23d` the required FRONT view.
    * Supported types:
    * `File` - file object from input[type=file]
    * `Buffer` - Node.js buffer object with image data

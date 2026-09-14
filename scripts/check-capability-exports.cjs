@@ -7,6 +7,11 @@ const sdk = require('../dist/index.js');
 // to ask the SDK what a model does instead of hardcoding id strings.
 for (const name of [
   'PIXAL3D_IMAGE_TO_3D_MODEL_ID',
+  'PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID',
+  'PIXAL3D_ORBIT_VIEW_SLOTS',
+  'getPixal3dOrbitViewSlots',
+  'isPixal3dModel',
+  'isPixal3dMultiViewModel',
   'SAM3_IMAGE_SEGMENT_MODEL_ID',
   'BIREFNET_BACKGROUND_REMOVAL_MODEL_ID',
   'isModelArtifactModel',
@@ -19,6 +24,23 @@ for (const name of [
 }
 
 assert.equal(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID, 'pixal3d_int8_i23d');
+assert.equal(sdk.PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID, 'pixal3d_multiview_int8_i23d');
+// Left, back and right are the worker's contextImage1/2/3 asset keys.
+assert.deepEqual(sdk.PIXAL3D_ORBIT_VIEW_SLOTS, { leftViewImage: 1, backViewImage: 2, rightViewImage: 3 });
+assert.deepEqual(
+  sdk.getPixal3dOrbitViewSlots({ rightViewImage: true, leftViewImage: undefined }),
+  [{ view: 'rightViewImage', slot: 3, media: true }]
+);
+for (const modelId of [sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID, sdk.PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID]) {
+  assert.equal(sdk.isPixal3dModel(modelId), true, modelId);
+  assert.equal(sdk.isModelArtifactModel(modelId), true, modelId);
+  assert.equal(sdk.requiresStartingImage(modelId), true, modelId);
+  assert.equal(sdk.isSegmentationModel(modelId), false, modelId);
+  assert.equal(sdk.isVideoModel(modelId), false, modelId);
+}
+assert.equal(sdk.isPixal3dMultiViewModel(sdk.PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID), true);
+assert.equal(sdk.isPixal3dMultiViewModel(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID), false);
+assert.equal(sdk.isPixal3dModel(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), false);
 assert.equal(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID, 'sam3_image_segment_bf16');
 assert.equal(
   sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,

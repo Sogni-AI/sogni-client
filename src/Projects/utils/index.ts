@@ -113,8 +113,54 @@ export function isAudioModel(modelId: string): boolean {
   return modelId.startsWith('ace_step') || modelId === 'minimax_music3';
 }
 
-/** Canonical id of the prompt-guided image-to-3D reconstruction workflow. */
+/** Canonical id of the single-image (front view only) image-to-3D reconstruction workflow. */
 export const PIXAL3D_IMAGE_TO_3D_MODEL_ID = 'pixal3d_int8_i23d';
+
+/**
+ * Canonical id of the multi-view image-to-3D reconstruction workflow: a
+ * required front view (`startingImage`) plus any of the optional
+ * `leftViewImage`, `backViewImage` and `rightViewImage` orbit views.
+ */
+export const PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID = 'pixal3d_multiview_int8_i23d';
+
+/** Check if a model ID is one of the Pixal3D image-to-3D workflows. */
+export function isPixal3dModel(modelId: string): boolean {
+  return (
+    modelId === PIXAL3D_IMAGE_TO_3D_MODEL_ID || modelId === PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID
+  );
+}
+
+/** Check if a model ID is the Pixal3D workflow that accepts orbit views. */
+export function isPixal3dMultiViewModel(modelId: string): boolean {
+  return modelId === PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID;
+}
+
+/**
+ * Pixal3D multi-view orbit views and the `contextImage<slot>` upload each one
+ * travels in. The slots are the worker's asset keys, so the order is fixed:
+ * left is `contextImage1`, back is `contextImage2`, right is `contextImage3`.
+ */
+export const PIXAL3D_ORBIT_VIEW_SLOTS = {
+  leftViewImage: 1,
+  backViewImage: 2,
+  rightViewImage: 3
+} as const;
+
+export type Pixal3dOrbitView = keyof typeof PIXAL3D_ORBIT_VIEW_SLOTS;
+
+/**
+ * The orbit views supplied on a request, each with its 1-based
+ * `contextImage<slot>` upload slot. Views left unset are omitted, so any subset
+ * keeps its own slot rather than being renumbered.
+ */
+export function getPixal3dOrbitViewSlots(
+  params: Partial<Record<Pixal3dOrbitView, InputMedia | undefined>>
+): { view: Pixal3dOrbitView; slot: 1 | 2 | 3; media: Exclude<InputMedia, false> }[] {
+  return (Object.keys(PIXAL3D_ORBIT_VIEW_SLOTS) as Pixal3dOrbitView[]).flatMap((view) => {
+    const media = params[view];
+    return media ? [{ view, slot: PIXAL3D_ORBIT_VIEW_SLOTS[view], media }] : [];
+  });
+}
 
 /** Canonical id of the SAM 3 interactive image-segmentation workflow. */
 export const SAM3_IMAGE_SEGMENT_MODEL_ID = 'sam3_image_segment_bf16';
