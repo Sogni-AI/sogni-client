@@ -387,6 +387,9 @@ class ChatToolsApi {
           success: true,
           media_type: mediaType,
           urls: resultUrls,
+          ...(project.jobs.some((job) => job.lastFrameUrl)
+            ? { lastFrameUrls: project.jobs.map((job) => job.lastFrameUrl ?? null) }
+            : {}),
           model: modelId,
           prompt
         })
@@ -602,6 +605,8 @@ class ChatToolsApi {
 
     const projectParams: Record<string, unknown> = {
       type: 'video' as const,
+      ...(args.outputFormat !== undefined ? { outputFormat: args.outputFormat } : {}),
+      ...(args.returnLastFrame !== undefined ? { returnLastFrame: args.returnLastFrame } : {}),
       modelId,
       positivePrompt: args.prompt as string,
       numberOfMedia: getVariationCount(args, options),
@@ -760,6 +765,8 @@ class ChatToolsApi {
 
     const projectParams: Record<string, unknown> = {
       type: 'video' as const,
+      ...(args.outputFormat !== undefined ? { outputFormat: args.outputFormat } : {}),
+      ...(args.returnLastFrame !== undefined ? { returnLastFrame: args.returnLastFrame } : {}),
       modelId,
       positivePrompt: args.prompt as string,
       numberOfMedia: getVariationCount(args, options),
@@ -834,6 +841,8 @@ class ChatToolsApi {
 
     const projectParams: Record<string, unknown> = {
       type: 'video' as const,
+      ...(args.outputFormat !== undefined ? { outputFormat: args.outputFormat } : {}),
+      ...(args.returnLastFrame !== undefined ? { returnLastFrame: args.returnLastFrame } : {}),
       modelId,
       positivePrompt: args.prompt as string,
       numberOfMedia: getVariationCount(args, options),

@@ -279,6 +279,9 @@ export type JobResultData = {
   nsfwSources?: string[];
   resultUrl?: string;
   resultKey?: string;
+  lastFrameUrl?: string;
+  lastFrameKey?: string;
+  outputFormat?: string;
   /** Allowlisted worker result receipt persisted by the socket. */
   result?: Record<string, unknown>;
   /**

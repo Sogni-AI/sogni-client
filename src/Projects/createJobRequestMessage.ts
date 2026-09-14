@@ -138,6 +138,19 @@ function normalizeWorldGenerationReceipt(receipt: ProjectParams['worldGeneration
  * Throws an error if required assets are missing or forbidden assets are provided.
  */
 function validateVideoWorkflowAssets(params: VideoProjectParams): void {
+  const exportError =
+    params.outputFormat !== undefined && !['mp4', 'mov'].includes(params.outputFormat)
+      ? 'Video outputFormat must be mp4 or mov.'
+      : params.outputFormat === 'mov' && !isSeedance25Model(params.modelId)
+        ? 'MOV output is supported only by Seedance 2.5.'
+        : params.returnLastFrame !== undefined && typeof params.returnLastFrame !== 'boolean'
+          ? 'returnLastFrame must be a boolean.'
+          : params.returnLastFrame === true && !isSeedance25Model(params.modelId)
+            ? 'Last-frame export is supported only by Seedance 2.5.'
+            : undefined;
+  if (exportError) {
+    throw new ApiError(400, { status: 'error', errorCode: 0, message: exportError });
+  }
   validateVideoContextImages(params);
   validateVideoReferenceArrays(params);
 
@@ -1454,6 +1467,9 @@ function applyVideoParams(
   }
   if (params.ratio !== undefined) {
     keyFrame.ratio = params.ratio;
+  }
+  if (params.returnLastFrame !== undefined) {
+    keyFrame.returnLastFrame = params.returnLastFrame;
   }
   if (params.seedanceTaskType !== undefined) {
     keyFrame.seedanceTaskType = params.seedanceTaskType;

@@ -145,6 +145,9 @@ export interface JobData {
   userCanceled?: boolean;
   previewUrl?: string;
   resultUrl?: string | null;
+  lastFrameUrl?: string;
+  lastFrameKey?: string;
+  outputFormat?: string;
   provenance?: JobProvenance;
   error?: ErrorData;
   positivePrompt?: string;
@@ -202,6 +205,9 @@ class Job extends DataEntity<JobData, JobEventMap> {
         nsfwDetected: rawJob.nsfwDetected === true,
         nsfwSources: rawJob.nsfwSources ? [...rawJob.nsfwSources] : undefined,
         resultUrl: directResultUrlFromRawJob(rawJob),
+        lastFrameUrl: rawJob.lastFrameUrl ?? (rawJob.result?.lastFrameUrl as string | undefined),
+        lastFrameKey: rawJob.lastFrameKey ?? (rawJob.result?.lastFrameKey as string | undefined),
+        outputFormat: rawJob.outputFormat ?? (rawJob.result?.outputFormat as string | undefined),
         provenance: rawJob.result
       },
       options
@@ -287,6 +293,23 @@ class Job extends DataEntity<JobData, JobEventMap> {
    */
   get previewUrl() {
     return this.data.previewUrl;
+  }
+
+  /** Exported final-frame image URL, when requested. */
+  get lastFrameUrl() {
+    return this.data.lastFrameUrl;
+  }
+
+  /** Refresh the signed URL for an exported final frame. */
+  async getLastFrameUrl(): Promise<string> {
+    const url = await this._api.mediaDownloadUrl({
+      jobId: this.projectId,
+      id: this.id,
+      type: 'complete',
+      artifact: 'lastFrame'
+    });
+    this._update({ lastFrameUrl: url });
+    return url;
   }
 
   /**
@@ -512,7 +535,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
       isNSFW: data.triggeredNSFWFilter,
       nsfwDetected: data.nsfwDetected === true,
       ...(data.nsfwSources ? { nsfwSources: [...data.nsfwSources] } : {}),
-      ...(data.result ? { provenance: data.result } : {})
+      ...(data.result ? { provenance: data.result } : {}),
+      lastFrameUrl: data.lastFrameUrl ?? (data.result?.lastFrameUrl as string | undefined),
+      lastFrameKey: data.lastFrameKey ?? (data.result?.lastFrameKey as string | undefined),
+      outputFormat: data.outputFormat ?? (data.result?.outputFormat as string | undefined)
     };
     if (JOB_STATUS_MAP[data.status]) {
       delta.status = JOB_STATUS_MAP[data.status];

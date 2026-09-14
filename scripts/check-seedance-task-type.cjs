@@ -102,3 +102,14 @@ assert.throws(
 );
 
 console.log('Seedance task-type transport checks passed');
+
+const exported = request({ outputFormat: 'mov', returnLastFrame: true });
+assert.equal(exported.outputFormat, 'mov');
+assert.equal(exported.keyFrames[0].returnLastFrame, true);
+assert.equal(request({}).outputFormat, 'mp4');
+assert.equal(request({}).keyFrames[0].returnLastFrame, undefined);
+assert.throws(() => request({ outputFormat: 'avi' }), /must be mp4 or mov/);
+assert.throws(() => request({ modelId: 'seedance-2-0', outputFormat: 'mov' }), /only by Seedance 2.5/);
+assert.throws(() => request({ modelId: 'seedance-2-0', returnLastFrame: true }), /only by Seedance 2.5/);
+assert.throws(() => request({ returnLastFrame: 'true' }), /must be a boolean/);
+console.log('Seedance export transport checks passed');

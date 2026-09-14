@@ -65,7 +65,7 @@ export type GptImageQuality =
   | 'standard'
   | 'hd';
 export type GptImageBackground = 'opaque' | 'auto' | 'transparent';
-export type VideoOutputFormat = 'mp4';
+export type VideoOutputFormat = 'mp4' | 'mov';
 export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
 export type BillingMode = 'auto' | 'subscription' | 'tokens';
 
@@ -624,9 +624,11 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   lastFrameStrength?: number;
   /**
-   * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
+   * Output video format. Defaults to 'mp4'; 'mov' is supported by Seedance 2.5.
    */
   outputFormat?: VideoOutputFormat;
+  /** Seedance 2.5: export a separate final-frame image, available as job.lastFrameUrl. */
+  returnLastFrame?: boolean;
   /**
    * SAM2 click coordinates for subject detection in animate-replace workflows.
    * Array of {x, y} coordinate objects indicating where the subject is located
@@ -1002,6 +1004,8 @@ export type MediaUrlParams = {
   id?: string;
   jobId: string;
   type: 'complete' | 'preview' | 'referenceAudio' | 'referenceVideo';
+  /** Select a separately exported final-frame image from a completed video. */
+  artifact?: 'lastFrame';
   contentType?: string;
 };
 

@@ -86,6 +86,9 @@ export interface RawJob {
   txId?: string;
   resultUrl?: string | null;
   resultKey?: string | null;
+  lastFrameUrl?: string;
+  lastFrameKey?: string;
+  outputFormat?: string;
   result?: JobProvenance & Record<string, unknown>;
 }
 

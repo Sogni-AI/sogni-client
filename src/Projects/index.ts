@@ -739,6 +739,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           step: performedStepCount,
           seed,
           resultUrl: downloadUrl,
+          lastFrameUrl: data.lastFrameUrl,
+          lastFrameKey: data.lastFrameKey,
+          outputFormat: data.outputFormat,
           // Unchanged meaning: the server withheld the media. The label for
           // media that WAS delivered is `nsfwDetected`, deliberately kept out of
           // this flag so upgrading the SDK changes no existing app's behaviour.
@@ -762,6 +765,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       ...(typeof performedStepCount === 'number' ? { steps: performedStepCount } : {}),
       ...(typeof seed === 'number' && Number.isFinite(seed) ? { seed } : {}),
       resultUrl: downloadUrl,
+      lastFrameUrl: data.lastFrameUrl,
+      outputFormat: data.outputFormat,
       isNSFW: Boolean(data.triggeredNSFWFilter),
       nsfwDetected: data.nsfwDetected === true,
       nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
@@ -1556,6 +1561,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           ...(typeof job.seedUsed === 'number' ? { lastSeed: String(job.seedUsed) } : {}),
           triggeredNSFWFilter: Boolean(job.triggeredNSFWFilter),
           userCanceled: job.reason === 'artistCanceled',
+          lastFrameUrl: (typeof job.lastFrameUrl === 'string'
+            ? job.lastFrameUrl
+            : (job.result as Record<string, unknown> | undefined)?.lastFrameUrl) as
+            | string
+            | undefined,
+          outputFormat: (typeof job.outputFormat === 'string'
+            ? job.outputFormat
+            : (job.result as Record<string, unknown> | undefined)?.outputFormat) as
+            | string
+            | undefined,
           ...(typeof job.resultUrl === 'string' && job.resultUrl
             ? { resultUrl: job.resultUrl }
             : {}),

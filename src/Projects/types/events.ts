@@ -99,6 +99,8 @@ export interface JobCompleted extends JobEventBase {
    * it was not disabled by the user
    */
   resultUrl: string | null;
+  lastFrameUrl?: string;
+  outputFormat?: string;
   /**
    * A safety signal fired. Either the media was withheld (filter on, no
    * `resultUrl`) or it was delivered and merely labelled - see `nsfwDetected`.
