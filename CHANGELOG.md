@@ -1,3 +1,10 @@
+## [5.49.1](https://github.com/Sogni-AI/sogni-client/compare/v5.49.0...v5.49.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* **projects:** drop the retired 720p two-stage FastH3 ids ([7e9745a](https://github.com/Sogni-AI/sogni-client/commit/7e9745a077446bcd9fd4c4f7ef88505c9866e33e))
+
 # [5.49.0](https://github.com/Sogni-AI/sogni-client/compare/v5.48.1...v5.49.0) (2026-09-14)
 
 
