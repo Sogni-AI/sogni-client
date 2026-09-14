@@ -188,7 +188,7 @@
       "executionMode": "direct",
       "hostedToolName": "sound_to_video",
       "sdkToolName": "sound_to_video",
-      "hostedSchemaSha256": "6f6adb87499b191fadae9872bb216a755426f25eb4de3c76c81191427df1f6ec",
+      "hostedSchemaSha256": "6451568f77683b28956749c56f2f652a8ecea58b8addcb453fa016803120b3e0",
       "hostedRequired": [
         "prompt"
       ],
@@ -198,6 +198,7 @@
         "negativePrompt",
         "audioSourceIndex",
         "sourceImageIndex",
+        "endImageIndex",
         "audioStart",
         "duration",
         "ratio",
