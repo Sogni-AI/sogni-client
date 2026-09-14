@@ -1,3 +1,10 @@
+# [5.50.0](https://github.com/Sogni-AI/sogni-client/compare/v5.49.1...v5.50.0) (2026-09-14)
+
+
+### Features
+
+* **hosted-tools:** pin protocol alpha.42 for the FastH3 audio-guide sound_to_video selectors ([6b4e6fe](https://github.com/Sogni-AI/sogni-client/commit/6b4e6fe61a5fe9f02158bf1a5fd857b644b28970))
+
 ## [5.49.1](https://github.com/Sogni-AI/sogni-client/compare/v5.49.0...v5.49.1) (2026-09-14)
 
 
