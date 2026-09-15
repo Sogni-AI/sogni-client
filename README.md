@@ -453,6 +453,13 @@ projects) a few times before it is declared lost; it then fails with an error wh
 project lookup, so a project that is only slow to be picked up stays active instead. Apps that
 persist project ids themselves can run the same lookup with `sogni.projects.resolveMissing(ids)`.
 
+When the status lookup confirms failure or cancellation without a full result record,
+`resolveMissing()` returns `state: 'terminal'` with a compact `project` snapshot whose status is
+`failed` or `canceled`. Apps with their own stores should finish any remaining jobs accordingly
+and preserve results already received; optional model and cost fields may be absent. Tracked
+`Project` instances receive the usual failure/cancellation events automatically. A successful
+completion without its full result record remains `unknown` until the result data is available.
+
 #### Socket server restarts
 
 A Sogni platform release restarts the socket server: every connection closes with code `1001`
