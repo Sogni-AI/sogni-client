@@ -341,15 +341,21 @@ const MISSING_PROJECT_RETRY_MS = 2500;
  * Outcome of looking up a project the last snapshot did not list.
  *
  * - `finished`: the REST API has the completed record.
+ * - `terminal`: the owner's status lookup confirms failure or cancellation;
+ *   the full result record can be absent. Only snapshot fields are available.
  * - `active`: the socket lists it after all (it was registered after the
  *   snapshot was taken), or the owner's live lookup reports it pending, queued
  *   or processing; wait for live events.
  * - `lost`: neither the socket, the REST API nor the live lookup know it.
- * - `unknown`: a transport error prevented a verdict, or the live lookup says it
- *   finished before its full record was stored; nothing was changed.
+ * - `unknown`: a transport error prevented a verdict, or a successful completion
+ *   is waiting for its full result record; nothing was changed.
  */
 export type ProjectResolution =
   | { state: 'finished'; project: RawProject }
+  | {
+      state: 'terminal';
+      project: ProjectStatusSnapshot & { status: 'failed' | 'canceled'; finished: true };
+    }
   | { state: 'active' }
   | { state: 'lost' }
   | { state: 'unknown'; error: unknown };
@@ -1357,10 +1363,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       // the snapshot was taken is in flight, not lost. `null` means the list
       // could not be fetched.
       const live = await this._listActiveProjectIds();
-      // Before failing anything, ask the owner-scoped live lookup. It can only
-      // rescue a project: a positive in-flight answer means `active`, and a
-      // finished answer whose full record has not reached the terminal REST
-      // store yet stays unverified for the next sync. Anything else, including
+      // Before failing anything, ask the owner-scoped live lookup. It can
+      // confirm an active project or a terminal failure/cancellation without
+      // a full record. A successful completion still needs its result record
+      // and stays unverified until that arrives. Anything else, including
       // an unauthenticated client or an older API without the lookup, keeps the
       // `lost` verdict.
       const unlisted = pending.filter((id) => !live?.includes(id));
@@ -1388,6 +1394,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       if (project?.id !== projectId) return undefined;
       if (!project.finished && IN_FLIGHT_LOOKUP_STATUSES.has(project.status)) {
         return { state: 'active' };
+      }
+      if (project.finished && (project.status === 'failed' || project.status === 'canceled')) {
+        return {
+          state: 'terminal',
+          project: { ...project, status: project.status, finished: true }
+        };
       }
       if (project.finished) {
         return {
@@ -1490,6 +1502,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         if (resolution?.state === 'finished') {
           await this._replayRawProject(project, resolution.project, false);
           result.completed.push(project.id);
+        } else if (resolution?.state === 'terminal') {
+          await this._replayRawProject(
+            project,
+            {
+              ...resolution.project,
+              status: resolution.project.status === 'failed' ? 'errored' : 'cancelled'
+            },
+            false
+          );
+          result.completed.push(project.id);
         } else if (resolution?.state === 'active') {
           project._keepAlive();
           result.active.push(project.id);
@@ -1533,7 +1555,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * connection would have delivered. Nothing is ever downgraded: a job or
    * project already finished locally ignores an older in-flight state.
    */
-  private async _replayRawProject(project: Project, raw: RawProject, includeInFlightJobs: boolean) {
+  private async _replayRawProject(
+    project: Project,
+    raw: Pick<RawProject, 'status' | 'completedWorkerJobs'> &
+      Partial<Pick<RawProject, 'workerJobs' | 'stepCount' | 'reason'>>,
+    includeInFlightJobs: boolean
+  ) {
     const projectId = project.id;
     const stepCount = typeof raw.stepCount === 'number' ? raw.stepCount : project.params.steps;
     const jobs: Array<RawProject['completedWorkerJobs'][number] | RecoveredWorkerJob> = [
@@ -1616,7 +1643,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this.handleJobState({ type: 'jobCompleted', jobID: projectId });
         break;
       case 'errored': {
-        const reason = typeof raw.reason === 'string' && raw.reason ? raw.reason : 'genfailure';
+        // This lifecycle marker says all attempts ended, not that they succeeded.
+        const reason =
+          typeof raw.reason === 'string' && raw.reason && raw.reason !== 'allJobsCompleted'
+            ? raw.reason
+            : 'genfailure';
         this.handleJobError({
           jobID: projectId,
           isFromWorker: true,

@@ -432,12 +432,12 @@ async function main() {
     stopTimers(api);
   }
 
-  // 6d-6g. The socket live list is unavailable and the terminal REST record is
-  //     missing. The owner-scoped live lookup (`GET /v2/projects/:id`) can only
-  //     rescue a project; every other answer keeps today's `lost` verdict.
+  // 6d-6g. The owner-scoped lookup can confirm an in-flight project or a
+  //     terminal failure/cancellation without a full result record. Successful
+  //     completions still wait for that record so their media is not lost.
   {
     const liveLookup = async (answers) => {
-      const { api, socket, client, synced } = makeHarness();
+      const { api, socket, client, synced, apiEvents } = makeHarness();
       const projects = {};
       for (const key of Object.keys(answers)) projects[key] = await createTracked(api);
       const v2Calls = [];
@@ -462,17 +462,25 @@ async function main() {
         unclaimedCompletedProjects: []
       });
       await sleep(80);
-      return { api, projects, synced, v2Calls };
+      return { api, projects, synced, v2Calls, apiEvents, socket, client };
     };
     const notFound = Object.assign(new Error('Not Found'), { status: 404 });
     const unauthorized = Object.assign(new Error('Unauthorized'), { status: 401 });
     const jobs = { workerJobs: [], completedWorkerJobs: [] };
-    const { api, projects, synced, v2Calls } = await liveLookup({
+    const { api, projects, synced, v2Calls, apiEvents, socket, client } = await liveLookup({
       queued: { status: 'queued', finished: false, ...jobs },
       processing: { status: 'processing', finished: false, ...jobs },
       gone: notFound,
       anonymous: unauthorized,
-      settled: { status: 'completed', finished: true, ...jobs }
+      settled: { status: 'completed', finished: true, ...jobs },
+      failed: {
+        status: 'failed',
+        finished: true,
+        statusOnly: true,
+        reason: 'allJobsCompleted',
+        ...jobs
+      },
+      canceled: { status: 'canceled', finished: true, statusOnly: true, ...jobs }
     });
     assert.deepEqual(
       [...synced[0].active].sort(),
@@ -490,11 +498,47 @@ async function main() {
     assert.deepEqual(
       synced[0].unverified,
       [projects.settled.id],
-      'a finished answer without a stored record stays unverified'
+      'a successful answer without a stored record stays unverified'
     );
     assert.equal(projects.settled.status, 'pending', 'an unverified project is left untouched');
-    assert.deepEqual(synced[0].completed, [], 'the live lookup never completes a project itself');
-    assert.equal(v2Calls.length, 5, 'one live lookup per unlisted project');
+    assert.deepEqual(
+      [...synced[0].completed].sort(),
+      [projects.failed.id, projects.canceled.id].sort(),
+      'known failures and cancellations are reconciled as finished'
+    );
+    assert.equal(projects.failed.status, 'failed');
+    assert.equal(projects.canceled.status, 'canceled');
+    assert.equal(projects.canceled.toJSON().error, undefined);
+    assert.equal(projects.failed.toJSON().error.originalCode, 'genfailure');
+    await assert.rejects(projects.failed.waitForCompletion());
+    await assert.rejects(projects.canceled.waitForCompletion());
+    const terminalEvents = () =>
+      apiEvents.filter(
+        (event) =>
+          event.kind === 'project' &&
+          event.type === 'error' &&
+          [projects.failed.id, projects.canceled.id].includes(event.projectId)
+      );
+    assert.equal(terminalEvents().length, 2, 'API listeners receive both terminal outcomes');
+    assert.equal(v2Calls.length, 7, 'one live lookup per unlisted project');
+    assert.ok(!client.rest.calls.some(({ path }) => path.includes('downloadUrl')));
+
+    // Stores without tracked Project instances can consume the compact status
+    // without invented model, cost, or result metadata.
+    const resolutions = await api.resolveMissing([projects.failed.id, projects.canceled.id]);
+    assert.equal(resolutions[projects.failed.id].state, 'terminal');
+    assert.equal(resolutions[projects.failed.id].project.status, 'failed');
+    assert.equal(resolutions[projects.failed.id].project.costActual, undefined);
+    assert.equal(resolutions[projects.canceled.id].state, 'terminal');
+    assert.equal(resolutions[projects.canceled.id].project.status, 'canceled');
+
+    socket.emit('authenticated', {
+      clientType: 'artist',
+      activeProjects: [],
+      unclaimedCompletedProjects: []
+    });
+    await sleep(80);
+    assert.equal(terminalEvents().length, 2, 'another sync never replays a settled outcome');
     stopTimers(api);
   }
 
