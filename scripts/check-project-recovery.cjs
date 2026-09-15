@@ -542,6 +542,115 @@ async function main() {
     stopTimers(api);
   }
 
+  // Compact outcomes must settle the jobs this client already saw. Their
+  // empty job arrays cannot repair those jobs through the full-record API.
+  for (const status of ['failed', 'canceled']) {
+    for (const hasCompletedJob of [false, true]) {
+      const { api, socket, client, apiEvents } = makeHarness();
+      const project = await createTracked(api, { numberOfMedia: hasCompletedJob ? 4 : 3 });
+      let projectFailures = 0;
+      let jobFailures = 0;
+      project.on('failed', () => projectFailures++);
+      project.on('jobFailed', () => jobFailures++);
+      const waiting = project.waitForCompletion().then(
+        () => assert.fail('a confirmed terminal failure must reject the completion wait'),
+        (error) => error
+      );
+      if (hasCompletedJob) {
+        await api.handleJobResult({
+          jobID: project.id,
+          imgID: 'DONE',
+          resultUrl: 'https://cdn.test/preserved.png',
+          triggeredNSFWFilter: false,
+          userCanceled: false
+        });
+      }
+      const completed = project.job('DONE')?.toJSON();
+      for (const [id, state] of [
+        ['RUNNING', 'processing'],
+        ['LOADING', 'initiating'],
+        ['RETRYING', 'pending']
+      ]) {
+        const job = project._addJob({
+          id,
+          projectId: project.id,
+          status: 'pending',
+          step: 1,
+          stepCount: 4
+        });
+        job._update({ status: state });
+        if (state === 'processing') assert.ok(job._runtimeTimeout, 'running jobs have a watchdog');
+      }
+      project._update({ status: 'processing' });
+      const originalGet = client.rest.get.bind(client.rest);
+      client.rest.get = async (path, query) => {
+        if (path === `/v2/projects/${project.id}`) {
+          return {
+            status: 'success',
+            data: {
+              project: {
+                id: project.id,
+                status,
+                finished: true,
+                reason: status === 'failed' ? 'allJobsCompleted' : 'artistCanceled',
+                workerJobs: [],
+                completedWorkerJobs: []
+              }
+            }
+          };
+        }
+        return originalGet(path, query);
+      };
+      const snapshot = { activeProjects: [], unclaimedCompletedProjects: [] };
+      const result = await api._queueSync(snapshot, 'manual', Date.now());
+      assert.equal(project.status, status);
+      assert.deepEqual(result.completed, [project.id]);
+      assert.equal(projectFailures, 1, 'the project failure lifecycle fires once');
+      assert.equal(jobFailures, status === 'failed' ? 3 : 0);
+      assert.ok((await waiting).message);
+      for (const job of project.jobs.filter((job) => job.id !== 'DONE')) {
+        assert.equal(job.status, status, `${job.id} must settle with its project`);
+        assert.equal(job.finished, true);
+        assert.equal(job._runtimeTimeout, null);
+        assert.equal(job.error?.originalCode, status === 'failed' ? 'genfailure' : undefined);
+      }
+      assert.deepEqual(project.job('DONE')?.toJSON(), completed);
+      assert.deepEqual(
+        project.resultUrls,
+        hasCompletedJob ? ['https://cdn.test/preserved.png'] : []
+      );
+      const jobErrors = () =>
+        apiEvents.filter((event) => event.kind === 'job' && event.type === 'error');
+      assert.equal(
+        jobErrors().length,
+        3,
+        'API job observers receive each missing terminal outcome'
+      );
+      assert.equal(
+        apiEvents.filter((event) => event.kind === 'project' && event.type === 'error').length,
+        1
+      );
+      await api._queueSync(snapshot, 'manual', Date.now());
+      assert.equal(jobErrors().length, 3, 'another sync does not repeat job terminal events');
+      assert.equal(projectFailures, 1);
+      // A delayed job error must not overwrite a confirmed cancellation or
+      // media that was already delivered before recovery.
+      for (const job of project.jobs) {
+        socket.emit('jobError', {
+          jobID: project.id,
+          imgID: job.id,
+          error: 'workerDisconnected',
+          error_message: 'Worker disconnected',
+          isFromWorker: true
+        });
+      }
+      assert.equal(project.status, status);
+      assert.deepEqual(project.job('DONE')?.toJSON(), completed);
+      assert.ok(project.jobs.every((job) => job.id === 'DONE' || job.status === status));
+      stopTimers(api);
+    }
+  }
+
   // 6h. A project the socket lists is never looked up again.
   {
     const { api, socket, client, synced } = makeHarness();

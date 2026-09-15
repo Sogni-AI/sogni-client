@@ -1114,6 +1114,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         break;
       }
       case 'error':
+        // Terminal jobs cannot be failed again by a delayed worker frame or
+        // by the API notification of a cancellation already applied locally.
+        if (job.finished) break;
         job._update({ status: 'failed', error: event.error });
         // Check if project should also fail when a job fails
         // For video jobs (single image) or when all jobs have failed, propagate to project
@@ -1648,6 +1651,18 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           typeof raw.reason === 'string' && raw.reason && raw.reason !== 'allJobsCompleted'
             ? raw.reason
             : 'genfailure';
+        // Compact status records omit jobs. Finish every attempt this client
+        // already knows before the parent settles and stops its watchdogs.
+        for (const job of project.jobs) {
+          if (job.finished) continue;
+          this.handleJobError({
+            jobID: projectId,
+            imgID: job.id,
+            isFromWorker: true,
+            error: reason,
+            error_message: reason
+          });
+        }
         this.handleJobError({
           jobID: projectId,
           isFromWorker: true,
@@ -1657,6 +1672,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         break;
       }
       case 'cancelled':
+        for (const job of project.jobs) {
+          if (job.finished) continue;
+          // Apply cancellation before notifying API listeners. The regular
+          // job error handler preserves this terminal status, so cancellation
+          // does not become a generation failure on the Job instance.
+          job._update({ status: 'canceled', error: undefined });
+          this.handleJobError({
+            jobID: projectId,
+            imgID: job.id,
+            isFromWorker: false,
+            error: 'artistCanceled',
+            error_message: 'artistCanceled'
+          });
+        }
         // Route through the regular error path so API-level listeners learn
         // about the cancellation too, then settle the instance on `canceled`.
         this.handleJobError({
