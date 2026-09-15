@@ -1,3 +1,11 @@
+## [5.50.1](https://github.com/Sogni-AI/sogni-client/compare/v5.50.0...v5.50.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* **projects:** recover terminal failures without full records ([6608600](https://github.com/Sogni-AI/sogni-client/commit/66086003414f27d3f2b874a230bf5e830e4c9f92))
+* **projects:** settle known jobs during terminal recovery ([8f5cd0e](https://github.com/Sogni-AI/sogni-client/commit/8f5cd0e23627a20ca8fa9275daf0ccd3415ebc81))
+
 # [5.50.0](https://github.com/Sogni-AI/sogni-client/compare/v5.49.1...v5.50.0) (2026-09-14)
 
 
