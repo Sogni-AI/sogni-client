@@ -156,7 +156,7 @@ export interface ProjectSyncResult {
   snapshot: ProjectRecoverySnapshot;
   /** Tracked projects the server confirmed are still in flight. */
   active: string[];
-  /** Tracked projects confirmed finished (by the snapshot or the REST record) and updated in place. */
+  /** Tracked projects confirmed finished (including failed/canceled status lookups) and updated in place. */
   completed: string[];
   /**
    * Tracked projects the server no longer knows and the REST API has no record
