@@ -1,3 +1,10 @@
+## [5.51.1](https://github.com/Sogni-AI/sogni-client/compare/v5.51.0...v5.51.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* **chat:** send the accepted cost preview when confirming a chat run ([548fa9e](https://github.com/Sogni-AI/sogni-client/commit/548fa9e64b91e8d4c01bb7fe405bf0ea6d6a6e51))
+
 # [5.51.0](https://github.com/Sogni-AI/sogni-client/compare/v5.50.1...v5.51.0) (2026-09-16)
 
 
