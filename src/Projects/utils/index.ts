@@ -246,7 +246,7 @@ export function isLtx2Model(modelId: string): boolean {
  * 24fps. Duration and resolution differ by generation:
  * - `seedance-2-0` / `-mini`: 4-15 second clips; the full model goes up to 4K
  *   while Mini caps at 720p.
- * - `seedance-2-5`: 4-30 second clips, 480p/720p only (no 1080p, no 4K).
+ * - `seedance-2-5`: 4-30 second clips at 480p/720p/1080p (no 4K).
  */
 export function isSeedanceModel(modelId: string): boolean {
   return SEEDANCE_VIDEO_MODEL_IDS.has(modelId);

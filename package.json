@@ -80,6 +80,7 @@
     "test:minimax-h3-two-stage": "npm run build && node scripts/check-minimax-h3-two-stage.cjs",
     "test:minimax-h3-audio": "npm run build && node scripts/check-minimax-h3-audio.cjs",
     "test:lora-catalog": "npm run build && node scripts/check-lora-catalog.cjs",
+    "test:personal-loras": "npm run build && node scripts/check-personal-loras.cjs",
     "test:reusable-uploads": "npm run build && node scripts/check-reusable-uploads.cjs",
     "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
     "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",
@@ -113,7 +114,7 @@
   "homepage": "https://github.com/Sogni-AI/sogni-client#readme",
   "dependencies": {
     "@lukeed/uuid": "^2.0.1",
-    "@sogni-ai/sogni-protocol": "1.0.0-alpha.42",
+    "@sogni-ai/sogni-protocol": "1.0.0-alpha.44",
     "@types/js-cookie": "^3.0.6",
     "@types/lodash": "^4.17.23",
     "@types/ws": "^8.5.13",

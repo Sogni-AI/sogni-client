@@ -549,6 +549,36 @@ COMMUNITY FINE-TUNES (uncensored; discover with sogni.projects.getAvailableModel
 ================================================================================ 5. VIDEO GENERATION - WAN 2.2 MODELS
 ================================================================================
 
+
+### Personal LoRA library
+
+Use the same account/API key as Sogni Web. Importing and generating require an active Unlimited subscription; listing and removing owned entries remain available after expiry. The server checks ownership, readiness, content-filter requirements, compatible models, and quotas on every request.
+
+```typescript
+const library = await sogni.projects.personalLoras.list();
+// Choose modelId from library.models; obtain the user's permission to use the file.
+const imported = await sogni.projects.personalLoras.import({
+  url: 'https://huggingface.co/author/repository/resolve/main/style.safetensors',
+  name: 'My style',
+  modelId: 'krea2_turbo_fp8_scaled',
+  rightsConfirmed: true,
+});
+const current = await sogni.projects.personalLoras.get(imported.id);
+// Importing is asynchronous. Poll get() until ready, rejected, or revoked;
+// queued, validating, and review are not usable yet. Surface reason/failureCode.
+const { loras } = await sogni.projects.availableLoras({
+  modelId: 'krea2_turbo_fp8_scaled', includePersonal: true,
+});
+// Pass a ready row.loraId in project.loras and row.ui.default in loraStrengths.
+// Respect its modelIds, requirements, and ui.nsfw content-filter requirement.
+// Removal is explicit:
+// await sogni.projects.personalLoras.remove(imported.id);
+```
+
+`personalLoras.catalog({modelId})` returns ready private catalog rows. `getLora('personal-…')` also reads the authenticated catalog. Personal catalog responses are never placed in the shared public cache. `forceRefresh` controls the public catalog; personal entries are always fetched again. Standard and non-audio FastH3 Two-Stage modes expose their compatible adapters through `modelIds`; audio-guided H3 modes do not support LoRAs.
+
+Hosted tools include `SogniTools.imageTo3d`, `SogniTools.removeBackground`, and `SogniTools.segmentImage`. Use `image_to_3d` with a front image and optional named `leftViewImageIndex`, `backViewImageIndex`, and `rightViewImageIndex`; its result has `mediaType: 'model'` and is a binary GLB. `generate_speech` supports `creativity` (0.1–2), `outputFormat` (`wav`, `mp3`, `flac`), and `seed`, alongside studio voices, reference-audio cloning, and voice design.
+
 ## CRITICAL: WAN 2.2 FPS BEHAVIOR
 
 WAN 2.2 models ALWAYS generate video at 16fps internally.

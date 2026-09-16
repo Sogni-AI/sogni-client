@@ -445,6 +445,7 @@ export type {
 };
 export type { SavedUpload, SavedUploadBinding } from './Projects/ReusableUploads.js';
 export type { ProjectLoraSource } from './Projects/types/RawProject.js';
+export type { PersonalLora, PersonalLoraLibrary, ImportPersonalLoraParams } from './Projects/PersonalLoras.js';
 export type { Pixal3dOrbitView } from './Projects/utils/index.js';
 
 export {

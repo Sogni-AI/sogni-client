@@ -39,7 +39,7 @@ async function main() {
   assert.equal(referenceParams.seedanceTaskType, 'reference');
   assert.deepEqual(
     { width: referenceParams.width, height: referenceParams.height, fps: referenceParams.fps },
-    { width: 1280, height: 720, fps: 24 }
+    { width: 1920, height: 1080, fps: 24 }
   );
 
   for (const taskType of ['edit', 'extend']) {
@@ -76,19 +76,21 @@ async function main() {
       ),
     /Direct edit requires --duration set to @Video1's source duration/
   );
+  assert.doesNotThrow(() =>
+    validateOptions(
+      parsed(parseArgs, [
+        '--task-type',
+        'reference',
+        '--audio',
+        'https://cdn.example.com/voice.mp3',
+        '--resolution',
+        '1080p'
+      ])
+    )
+  );
   assert.throws(
-    () =>
-      validateOptions(
-        parsed(parseArgs, [
-          '--task-type',
-          'reference',
-          '--audio',
-          'https://cdn.example.com/voice.mp3',
-          '--resolution',
-          '1080p'
-        ])
-      ),
-    /seedance-2-5 supports 480p\/720p output/
+    () => validateOptions(parsed(parseArgs, ['--task-type', 'reference', '--image', 'https://cdn.example.com/frame.jpg', '--resolution', '4k'])),
+    /seedance-2-5 supports 480p\/720p\/1080p output/
   );
 
   const maximum25 = parsed(parseArgs, [
@@ -161,7 +163,7 @@ async function main() {
     assert.doesNotMatch(JSON.stringify(request), /seedanceTaskType|seedance_task_type/);
   }
 
-  const oversizedPartnerDimension = spawnSync(
+  const partner1080Dimension = spawnSync(
     process.execPath,
     [
       path.resolve(__dirname, '../examples/workflow_partner_seedance_video.mjs'),
@@ -170,13 +172,31 @@ async function main() {
       'seedance-2-5',
       '--width',
       '1920',
+      '--height',
+      '1080',
+      '--no-execute',
+      '--no-estimate'
+    ],
+    { encoding: 'utf8' }
+  );
+  assert.equal(partner1080Dimension.status, 0, partner1080Dimension.stderr);
+
+  const oversizedPartnerDimension = spawnSync(
+    process.execPath,
+    [
+      path.resolve(__dirname, '../examples/workflow_partner_seedance_video.mjs'),
+      'Contract check prompt.',
+      '--model',
+      'seedance-2-5',
+      '--width',
+      '3840',
       '--no-execute',
       '--no-estimate'
     ],
     { encoding: 'utf8' }
   );
   assert.notEqual(oversizedPartnerDimension.status, 0);
-  assert.match(oversizedPartnerDimension.stderr, /capped at the 720p tier/);
+  assert.match(oversizedPartnerDimension.stderr, /capped at the 1080p tier/);
 
   console.log('Seedance 2.5 R2V example checks passed');
 }

@@ -14,6 +14,9 @@ import { ToolDefinition, ToolCall } from './types.js';
  * now flat.
  */
 export type SogniHostedToolName =
+  | 'image_to_3d'
+  | 'remove_background'
+  | 'segment_image'
   | 'generate_image'
   | 'generate_video'
   | 'generate_music'
@@ -70,6 +73,9 @@ export const soundToVideoTool: ToolDefinition = getHostedTool('sound_to_video');
 export const videoToVideoTool: ToolDefinition = getHostedTool('video_to_video');
 export const generateMusicTool: ToolDefinition = getHostedTool('generate_music');
 export const generateSpeechTool: ToolDefinition = getHostedTool('generate_speech');
+export const imageTo3dTool: ToolDefinition = getHostedTool('image_to_3d');
+export const removeBackgroundTool: ToolDefinition = getHostedTool('remove_background');
+export const segmentImageTool: ToolDefinition = getHostedTool('segment_image');
 
 // Image adapters (style / restore / refine / re-angle / animate).
 export const applyStyleTool: ToolDefinition = getHostedTool('apply_style');
@@ -102,6 +108,9 @@ export const composeWorkflowTemplateTool: ToolDefinition = getHostedTool(
 );
 
 export const SogniTools = {
+  imageTo3d: imageTo3dTool,
+  removeBackground: removeBackgroundTool,
+  segmentImage: segmentImageTool,
   generateImage: generateImageTool,
   editImage: editImageTool,
   generateVideo: generateVideoTool,

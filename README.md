@@ -889,6 +889,36 @@ export interface ControlNetParams {
 }
 ```
 
+
+### Personal LoRA library
+
+Use the same account/API key as Sogni Web. Importing and generating require an active Unlimited subscription; listing and removing owned entries remain available after expiry. The server checks ownership, readiness, content-filter requirements, compatible models, and quotas on every request.
+
+```typescript
+const library = await sogni.projects.personalLoras.list();
+// Choose modelId from library.models; obtain the user's permission to use the file.
+const imported = await sogni.projects.personalLoras.import({
+  url: 'https://huggingface.co/author/repository/resolve/main/style.safetensors',
+  name: 'My style',
+  modelId: 'krea2_turbo_fp8_scaled',
+  rightsConfirmed: true,
+});
+const current = await sogni.projects.personalLoras.get(imported.id);
+// Importing is asynchronous. Poll get() until ready, rejected, or revoked;
+// queued, validating, and review are not usable yet. Surface reason/failureCode.
+const { loras } = await sogni.projects.availableLoras({
+  modelId: 'krea2_turbo_fp8_scaled', includePersonal: true,
+});
+// Pass a ready row.loraId in project.loras and row.ui.default in loraStrengths.
+// Respect its modelIds, requirements, and ui.nsfw content-filter requirement.
+// Removal is explicit:
+// await sogni.projects.personalLoras.remove(imported.id);
+```
+
+`personalLoras.catalog({modelId})` returns ready private catalog rows. `getLora('personal-…')` also reads the authenticated catalog. Personal catalog responses are never placed in the shared public cache. `forceRefresh` controls the public catalog; personal entries are always fetched again. Standard and non-audio FastH3 Two-Stage modes expose their compatible adapters through `modelIds`; audio-guided H3 modes do not support LoRAs.
+
+Hosted tools include `SogniTools.imageTo3d`, `SogniTools.removeBackground`, and `SogniTools.segmentImage`. Use `image_to_3d` with a front image and optional named `leftViewImageIndex`, `backViewImageIndex`, and `rightViewImageIndex`; its result has `mediaType: 'model'` and is a binary GLB. `generate_speech` supports `creativity` (0.1–2), `outputFormat` (`wav`, `mp3`, `flac`), and `seed`, alongside studio voices, reference-audio cloning, and voice design.
+
 ## Video Generation (WAN 2.2, Wan 3, LTX-2.3, Seedance & Happy Horse)
 
 The Sogni SDK supports advanced video generation workflows powered by **Wan 2.2 14B FP8** models. These models are available on the `fast` network and support various video generation workflows.
@@ -933,7 +963,7 @@ Example model IDs:
 - `ltx23-22b-fp8_v2v_distilled` (LTX-2.3 Video-to-Video ControlNet, fast)
 - `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-mini` (Seedance 2.0 Mini multimodal video, external API, 720p cap)
-- `seedance-2-5` (Seedance 2.5 multimodal video, external API, 480p/720p only, 4-30s, first+last frame)
+- `seedance-2-5` (Seedance 2.5 multimodal video, external API, 480p/720p/1080p, 4-30s, first+last frame)
 - `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
 - `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
@@ -1525,7 +1555,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `wan_v2.2-14b-fp8_t2v_lightx2v`       | **Wan 2.2 T2V** - Text-to-video                          | Generate videos from text prompts                                                                            |
 | `seedance-2-0`                        | **Seedance 2.0** - 4K external API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-mini`                   | **Seedance 2.0 Mini** - 720p external API video          | Fastest, lower-cost 24fps Seedance video generation                                                          |
-| `seedance-2-5`                        | **Seedance 2.5** - 480p/720p external API video          | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs |
+| `seedance-2-5`                        | **Seedance 2.5** - up to 1080p external API video         | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs |
 | `dark_beast_z_image_turbo_v9_bf16`    | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                     |
 | `dark_beast_krea2_fp8`                | **Dark Beast KREA 2** - Community (uncensored)           | Uncensored Krea 2 fine-tune (2K output needs a 24GB+ VRAM worker)                                            |
 | `dark_beast_krea2_identity_edit_v1_2` | **Dark Beast Krea 2 Identity Edit** - Community          | Uncensored identity-preserving Krea 2 edit LoRA with 1-2 reference images                                    |

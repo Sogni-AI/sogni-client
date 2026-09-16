@@ -221,10 +221,10 @@ assert.deepEqual(getVideoDefaults('seedance-2-0-fast'), {
   height: 720,
   fps: 24
 });
-// Seedance 2.5 is 480p/720p only, so it must never default to the 1080p full-2.0 shape.
+// Seedance 2.5 supports 1080p and defaults to that shape.
 assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.seedance25T2v), {
-  width: 1280,
-  height: 720,
+  width: 1920,
+  height: 1080,
   fps: 24
 });
 assert.deepEqual(getVideoDefaults(PREFERRED_MODEL_IDS.video.happyhorseT2v), {

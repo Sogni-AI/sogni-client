@@ -24,6 +24,10 @@ export type CreativeWorkflowWaitingReason =
   | 'other';
 
 export type CreativeWorkflowHostedToolName =
+  | 'image_to_3d'
+  | 'remove_background'
+  | 'segment_image'
+  | 'generate_speech'
   | 'generate_image'
   | 'generate_video'
   | 'generate_music'

@@ -49,6 +49,7 @@ import {
   LoraCatalogEntry,
   LoraConstraints
 } from './types/LoraCatalog.js';
+import PersonalLoras from './PersonalLoras.js';
 import {
   type CompletedRecoveredProject,
   JobEvent,
@@ -390,6 +391,11 @@ const IN_FLIGHT_LOOKUP_STATUSES: ReadonlySet<string> = new Set(['pending', 'queu
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 class ProjectsApi extends ApiGroup<ProjectApiEvents> {
+  private _personalLoras?: PersonalLoras;
+  /** Import, inspect, discover, and remove the signed-in account's personal LoRAs. */
+  get personalLoras(): PersonalLoras {
+    return (this._personalLoras ??= new PersonalLoras(this.client.rest));
+  }
   private _assets?: ReusableUploads;
   /** Manage subscriber uploads once and reuse them across projects. */
   get assets(): ReusableUploads {
@@ -2866,6 +2872,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param params.forceRefresh - bypass the cache
    */
   async availableLoras(params: AvailableLorasParams = {}): Promise<LoraCatalog> {
+    if (params.includePersonal) {
+      const catalog = await this.availableLoras({ ...params, includePersonal: false });
+      const personal = await this.personalLoras.catalog();
+      return {
+        ...catalog,
+        loras: [...catalog.loras, ...personal.loras.filter(row => !params.modelId || row.modelIds.includes(params.modelId))],
+        models: [...new Set([...catalog.models, ...deriveLoraCapableModelIds(personal.loras)])].sort()
+      };
+    }
     const { modelId, forceRefresh } = params;
     const cacheKey = modelId ?? '';
     const cached = loraCatalogCache.read(cacheKey);
@@ -2906,6 +2921,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * ```
    */
   async getLora(loraId: string): Promise<LoraCatalogEntry | undefined> {
+    if (loraId.startsWith('personal-')) {
+      const { loras } = await this.personalLoras.catalog();
+      return loras.find(row => row.loraId === loraId);
+    }
     const { loras } = await this.availableLoras();
     return loras.find((lora) => lora.loraId === loraId);
   }

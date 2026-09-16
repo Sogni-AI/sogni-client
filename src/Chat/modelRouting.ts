@@ -614,11 +614,10 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
   }
-  // Seedance Mini and 2.5 cap at 720p; the retired Fast id keeps the same cap. Only full Seedance 2.0 goes higher.
+  // Seedance Mini and the retired Fast id cap at 720p. Seedance 2.0 and 2.5 default to 1080p.
   if (
     modelId === 'seedance-2-0-mini' ||
-    modelId === 'seedance-2-0-fast' ||
-    modelId === 'seedance-2-5'
+    modelId === 'seedance-2-0-fast'
   ) {
     return { width: 1280, height: 720, fps: 24 };
   }

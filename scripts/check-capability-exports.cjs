@@ -57,7 +57,7 @@ assert.deepEqual(
   sdk.SogniTools.upscaleVideo.function.parameters.properties.targetResolution.enum,
   [1080, 1440]
 );
-assert.equal(sdk.SogniTools.all.length, 27);
+assert.equal(sdk.SogniTools.all.length, 30);
 
 assert.equal(sdk.isModelArtifactModel(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID), true);
 assert.equal(sdk.isModelArtifactModel(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), false);
@@ -82,3 +82,5 @@ assert.equal(sdk.isVideoModel(sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID), false);
 assert.equal(sdk.isAudioModel(sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID), false);
 
 console.log('SDK capability export checks passed');
+
+for (const name of ['imageTo3d', 'removeBackground', 'segmentImage']) assert.ok(sdk.SogniTools[name]?.function?.name);

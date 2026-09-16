@@ -19,7 +19,7 @@ import { loadCredentials } from './credentials.mjs';
 
 const DEFAULT_ENDPOINT = 'https://api.sogni.ai';
 const DEFAULT_MODEL = 'seedance-2-5';
-const DEFAULT_RESOLUTION = '720p';
+const DEFAULT_RESOLUTION = '1080p';
 const TASK_TYPES = new Set(['reference', 'edit', 'extend']);
 const LAYERS = new Set(['direct', 'creative-agent']);
 
@@ -27,8 +27,8 @@ const MODEL_CONFIG = {
   'seedance-2-5': {
     hostedSelector: 'seedance2-5',
     maxDuration: 30,
-    resolutions: ['480p', '720p'],
-    defaultResolution: '720p',
+    resolutions: ['480p', '720p', '1080p'],
+    defaultResolution: '1080p',
     limits: { images: 30, videos: 10, audios: 10, total: 50 },
     supportsTaskType: true,
     audioOnlyReference: true
