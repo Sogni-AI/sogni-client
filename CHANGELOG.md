@@ -1,3 +1,10 @@
+# [5.51.0](https://github.com/Sogni-AI/sogni-client/compare/v5.50.1...v5.51.0) (2026-09-16)
+
+
+### Features
+
+* **projects:** expose personal LoRAs and hosted media tools ([201d0e0](https://github.com/Sogni-AI/sogni-client/commit/201d0e051b10a50d523094cfe169a204b9105452))
+
 ## [5.50.1](https://github.com/Sogni-AI/sogni-client/compare/v5.50.0...v5.50.1) (2026-09-15)
 
 
