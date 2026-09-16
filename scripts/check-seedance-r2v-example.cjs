@@ -174,6 +174,7 @@ async function main() {
       '1920',
       '--height',
       '1080',
+      '--workflow',
       '--no-execute',
       '--no-estimate'
     ],
