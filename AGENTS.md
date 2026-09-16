@@ -128,7 +128,7 @@ Generated artifacts:
 - `chat: ChatApi` - Unified chat namespace:
   - `chat.completions.create` - Socket-native synchronous chat
   - `chat.hosted.create` - Hosted synchronous chat via `/v1/chat/completions`
-  - `chat.runs.{create, get, cancel, streamEvents}` - Durable hosted chat runs via `/v1/chat/runs` with SSE replay
+  - `chat.runs.{create, get, cancel, confirmCost, streamEvents}` - Durable hosted chat runs via `/v1/chat/runs` with SSE replay; `confirmCost` echoes `waiting.details.costApprovalPreview` as `acceptedCostPreview`
   - `chat.tools` - Tool helpers (build, parse, validate)
 - `workflows: CreativeWorkflowsApi` - Durable explicit creative workflows via `/v1/creative-agent/workflows`
   - `workflows.{start, list, get, events, streamEvents, resume, reseed, cancel}`

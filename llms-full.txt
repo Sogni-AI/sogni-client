@@ -1471,9 +1471,9 @@ PRIMARY CHAT SURFACES:
 - `sogni.chat.hosted.executeTool(params)` - direct synchronous hosted
   composition/planning tool execution at `/v1/creative-agent/tools/execute`;
   use when the caller already has the exact tool and JSON arguments.
-- `sogni.chat.runs.{create,get,cancel,streamEvents}` - durable hosted runs at
-  `/v1/chat/runs`; the server owns the LLM/tool loop and clients can reconnect
-  through SSE event replay.
+- `sogni.chat.runs.{create,get,cancel,confirmCost,streamEvents}` - durable
+  hosted runs at `/v1/chat/runs`; the server owns the LLM/tool loop and clients
+  can reconnect through SSE event replay.
 
 CHAT COMPLETION (Non-Streaming):
 
@@ -1610,6 +1610,42 @@ for await (const event of sogni.chat.runs.streamEvents(run.runId)) {
   console.log(event.type, event.payload);
 }
 ```
+
+DURABLE CHAT RUN COST APPROVAL:
+
+A run can pause before paid tool calls with `status: 'waiting_for_user'` and
+`waiting.reason: 'cost_approval_required'`. Read `toolCallId` and
+`costApprovalPreview` (`totalEstimatedCapacityUnits`, `tokenType`,
+`validityUntil`, optional `perToolBreakdown`) from `run.waiting.details`, or
+from `event.payload.details` on the `run_waiting_for_user` event. Show the
+preview to the user and pass it back unchanged as `acceptedCostPreview`:
+
+```javascript
+const paused = await sogni.chat.runs.get(run.runId);
+const details = paused.waiting?.details;
+
+// After the user approves details.costApprovalPreview:
+await sogni.chat.runs.confirmCost(run.runId, {
+  toolCallId: details.toolCallId,
+  decision: 'confirm',
+  acceptedCostPreview: details.costApprovalPreview,
+  idempotencyKey: `confirm-${details.toolCallId}` // sent as Idempotency-Key
+});
+
+// Or decline; no preview is needed:
+await sogni.chat.runs.confirmCost(run.runId, {
+  toolCallId: details.toolCallId,
+  decision: 'cancel'
+});
+```
+
+`ConfirmChatRunCostParams` fields: `toolCallId` (required), `decision`
+(`'confirm' | 'cancel'`), `acceptedCostPreview` (required by the server to
+confirm), `overrides`, `reason`, and `idempotencyKey`. A confirm without the
+preview fails with HTTP 400; an expired or changed preview fails with HTTP 409,
+so read the run again and ask the user to approve the new preview. The SDK never
+fills in the preview for you. A pause without `costApprovalPreview`, such as one
+caused by running out of credits, cannot be confirmed; cancel it instead.
 
 Durable chat runs use uploaded HTTP(S) URLs for media references so run state,
 event replay, and recovery can resolve the same media after the initial request.

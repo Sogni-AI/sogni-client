@@ -333,10 +333,16 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     get: (runId: string) => Promise<ChatRunRecord>;
     cancel: (runId: string, reason?: string) => Promise<ChatRunRecord>;
     /**
-     * Resume a run that paused with `run_awaiting_cost_confirmation`.
-     * Pass the user's decision (confirm or cancel) and optional
-     * override args. The cloud either dispatches the paused tool
-     * (confirm) or short-circuits with a cancelled tool result.
+     * Resume a run paused for cost approval (`status: 'waiting_for_user'`,
+     * `waiting.reason: 'cost_approval_required'`). Pass the user's decision
+     * and optional override args. The cloud either dispatches the paused
+     * tool calls (confirm) or short-circuits them with a cancelled result.
+     *
+     * To confirm, send `toolCallId` and `acceptedCostPreview` from
+     * `run.waiting.details` (or `payload.details` on the
+     * `run_waiting_for_user` event) after showing the preview to the user.
+     * The server rejects a confirm without the preview (HTTP 400) or with a
+     * stale one (HTTP 409). Cancel needs only `toolCallId`.
      */
     confirmCost: (runId: string, params: ConfirmChatRunCostParams) => Promise<ChatRunRecord>;
     streamEvents: (
@@ -762,11 +768,13 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   }
 
   /**
-   * Resume a chat run that emitted `run_awaiting_cost_confirmation`.
-   * Posts the user's decision (confirm/cancel + optional override
-   * args) and returns the updated run record. Errors with HTTP 4xx
-   * when the run isn't in `waiting_for_user` state or the
-   * `toolCallId` doesn't match the pending tool.
+   * Resume a chat run paused for cost approval. Posts the user's decision
+   * (confirm/cancel + optional override args) and returns the updated run
+   * record. `acceptedCostPreview` is forwarded exactly as the caller passed
+   * it; the SDK never reads the current preview and accepts it on the
+   * user's behalf. Errors with HTTP 4xx when the run isn't awaiting cost
+   * approval, the `toolCallId` doesn't match the pending tool, or a confirm
+   * is missing or carries a stale `acceptedCostPreview`.
    */
   private async confirmChatRunCost(
     runId: string,
@@ -775,14 +783,17 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const body: Record<string, unknown> = {
       tool_call_id: params.toolCallId,
       decision: params.decision,
+      ...(params.acceptedCostPreview ? { acceptedCostPreview: params.acceptedCostPreview } : {}),
       ...(params.overrides ? { overrides: params.overrides } : {}),
       ...(params.reason ? { reason: params.reason } : {})
     };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (params.idempotencyKey) headers['Idempotency-Key'] = params.idempotencyKey;
     const response = await this.chatRunJson<{ status: string; data: { run: ChatRunRecord } }>(
       `/v1/chat/runs/${encodeURIComponent(runId)}/confirm-cost`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body)
       }
     );

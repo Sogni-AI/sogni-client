@@ -746,6 +746,8 @@ const project = await sogni.projects.create({
 
 The Sogni SDK supports LLM text generation via the Supernet. Socket-native chat uses `sogni.chat.completions.create()`. Hosted REST chat uses `sogni.chat.hosted.create()`. Direct synchronous hosted tool execution uses `sogni.chat.hosted.executeTool()`. Durable server-side chat runs use `sogni.chat.runs`.
 
+When a durable run pauses with `waiting.reason: 'cost_approval_required'`, show the user `run.waiting.details.costApprovalPreview` (also on the `run_waiting_for_user` event at `payload.details.costApprovalPreview`), then call `sogni.chat.runs.confirmCost(runId, { toolCallId: details.toolCallId, decision: 'confirm', acceptedCostPreview: details.costApprovalPreview, idempotencyKey })`. The server requires the unchanged preview to confirm (HTTP 400 without it, HTTP 409 if it expired or changed); `decision: 'cancel'` needs no preview. `idempotencyKey` is sent as the `Idempotency-Key` header.
+
 ### Chat Completion (Non-Streaming)
 
 ```javascript

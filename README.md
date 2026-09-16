@@ -1348,6 +1348,37 @@ node examples/workflow_seedance_2_5_r2v.mjs "Edit @Video1" --task-type edit --vi
 node examples/workflow_seedance_2_5_r2v.mjs "Extend @Video1" --task-type extend --video https://cdn.example.com/source.mp4 --duration 8 --creative-agent --dry-run
 ```
 
+### Durable Chat Runs and Cost Approval
+
+`sogni.chat.runs` (`create`, `get`, `cancel`, `confirmCost`, `streamEvents`) wraps `/v1/chat/runs`, where the server drives the LLM and tool loop and the client can disconnect and reattach through SSE replay.
+
+A run can pause before paid tool calls with `status: 'waiting_for_user'` and `waiting.reason: 'cost_approval_required'`. The pause carries the paused `toolCallId` and a `costApprovalPreview` (`totalEstimatedCapacityUnits`, `tokenType`, `validityUntil`, and an optional `perToolBreakdown`) in `run.waiting.details`, and in `event.payload.details` on the `run_waiting_for_user` event. Show that preview to the user, then pass it back unchanged as `acceptedCostPreview`:
+
+```javascript
+const run = await sogni.chat.runs.get(runId);
+const details = run.waiting?.details;
+
+if (run.waiting?.reason === 'cost_approval_required' && details?.toolCallId) {
+  const preview = details.costApprovalPreview;
+  // askUserToApprove is your UI: show the preview and wait for the answer.
+  const approved = preview ? await askUserToApprove(preview) : false;
+
+  if (approved) {
+    await sogni.chat.runs.confirmCost(runId, {
+      toolCallId: details.toolCallId,
+      decision: 'confirm',
+      acceptedCostPreview: preview,
+      idempotencyKey: `confirm-${details.toolCallId}`
+    });
+  } else {
+    // Declining needs no preview.
+    await sogni.chat.runs.confirmCost(runId, { toolCallId: details.toolCallId, decision: 'cancel' });
+  }
+}
+```
+
+The server rejects a confirm without `acceptedCostPreview` (HTTP 400), and one whose preview has expired or no longer matches (HTTP 409); read the run again and ask the user to approve the new preview. The SDK never fills in the preview for you. `idempotencyKey` is sent as the `Idempotency-Key` header, so reuse it for duplicate submissions of the same decision. A pause without `costApprovalPreview`, such as one caused by running out of credits, cannot be confirmed; cancel it instead.
+
 ### Durable Creative Workflows (server-side)
 
 Long-running multi-step creative workflows can be persisted on the server and observed independently of the chat completion that started them. The SDK exposes these authenticated endpoints through `sogni.workflows`:
