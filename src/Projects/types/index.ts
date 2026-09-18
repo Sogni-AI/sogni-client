@@ -239,6 +239,12 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   544px short edge for 1080p (960x544 delivers 1920x1088), or the 768p canvas
  *   for 2K (1344x768 delivers 2688x1536). Quote it with `estimateVideoCost`
  *   using the `_2stage` model id and that canvas.
+ * - Ref2VA Two-Stage (`minimax-h3-ref2va-fp8_r2v_2stage`, Standard, and
+ *   `minimax-h3-ref2va-fp8_r2v_balanced_2stage`, Balanced) takes exactly the
+ *   request of its one-stage `r2v` ID (references, steps, sampling, LoRAs) and
+ *   delivers the clip at twice the canvas, with the same 384/544/768 px canvas
+ *   choices as the FastH3 Two-Stage IDs. Quote it with `estimateVideoCost`
+ *   using the `_2stage` model id and that canvas.
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
  *   requires at least one of them. The `flf2v` model requires both.
  *

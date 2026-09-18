@@ -471,6 +471,57 @@ const MINIMAX_H3_FASTH3_DESCRIPTIONS = {
 };
 
 /**
+ * MiniMax H3 two-stage reference-to-video example config: the Standard or
+ * Balanced Ref2VA request on its own `_2stage` id, rendered on the half canvas
+ * (384, 544 or 768 px short edge) and delivered at twice it.
+ */
+function createMinimaxH3R2vTwoStageModel(tier) {
+  const balanced = tier === 'balanced';
+  return {
+    id: balanced ? 'minimax-h3-ref2va-fp8_r2v_balanced_2stage' : 'minimax-h3-ref2va-fp8_r2v_2stage',
+    name: `MiniMax H3 Ref2VA FP8 ${balanced ? 'Balanced ' : ''}Two-Stage R2V`,
+    description: `${balanced ? 'Eight-step Larry v4' : 'Twenty-step'} multi-reference video with jointly generated stereo audio, delivered at twice the canvas; at least one image or video reference`,
+    workflowType: 'r2v',
+    defaultWidth: 1344,
+    defaultHeight: 768,
+    minWidth: 32,
+    maxWidth: 1344,
+    minHeight: 32,
+    maxHeight: 1344,
+    dimensionStep: 32,
+    maxPixels: 1032192,
+    defaultSteps: balanced ? 8 : 20,
+    minSteps: balanced ? 8 : 20,
+    maxSteps: balanced ? 8 : 20,
+    defaultGuidance: 1.0,
+    minGuidance: 1.0,
+    maxGuidance: 1.0,
+    defaultComfySampler: balanced ? 'euler' : 'res_multistep',
+    allowedComfySamplers: [balanced ? 'euler' : 'res_multistep'],
+    defaultComfyScheduler: 'simple',
+    allowedComfySchedulers: ['simple'],
+    minFrames: MINIMAX_H3_MIN_FRAMES,
+    maxFrames: MINIMAX_H3_MAX_FRAMES,
+    defaultFrames: MINIMAX_H3_BASE_FRAMES,
+    frameStep: MINIMAX_H3_FRAME_STEP,
+    frameBase: MINIMAX_H3_BASE_FRAMES,
+    defaultFps: MINIMAX_H3_FPS,
+    allowedFps: [MINIMAX_H3_FPS],
+    minDuration: MINIMAX_H3_MIN_DURATION,
+    maxDuration: MINIMAX_H3_MAX_DURATION,
+    isLightning: balanced,
+    isComfyModel: true,
+    hasAudio: true,
+    supportsNegativePrompt: false,
+    requiresVisualReference: true,
+    maxReferenceImages: MINIMAX_H3_MAX_REFERENCE_IMAGES,
+    maxReferenceVideos: MINIMAX_H3_MAX_REFERENCE_VIDEOS,
+    maxReferenceAudios: MINIMAX_H3_MAX_REFERENCE_AUDIOS,
+    maxReferenceFiles: MINIMAX_H3_MAX_REFERENCE_FILES
+  };
+}
+
+/**
  * MiniMax H3 FastH3 Turbo example config. `twoStage` selects the matching
  * `_turbo_2stage` id: the same request, delivered at twice the canvas.
  */
@@ -2018,6 +2069,8 @@ export const MODELS = {
       maxReferenceFiles: MINIMAX_H3_MAX_REFERENCE_FILES
     },
     'minimax-h3-r2v-balanced': createMinimaxH3BalancedModel('r2v'),
+    'minimax-h3-r2v-2stage': createMinimaxH3R2vTwoStageModel('standard'),
+    'minimax-h3-r2v-balanced-2stage': createMinimaxH3R2vTwoStageModel('balanced'),
     'minimax-h3-r2v-turbo': {
       id: 'minimax-h3-ref2va-fp8_r2v_turbo',
       name: 'MiniMax H3 Ref2VA FP8 Turbo R2V',

@@ -157,6 +157,10 @@ export const PREFERRED_MODEL_IDS = {
     minimaxH3BalancedI2v: 'minimax-h3-fl2va-fp8_i2v_balanced',
     minimaxH3BalancedFlf2v: 'minimax-h3-fl2va-fp8_flf2v_balanced',
     minimaxH3BalancedR2v: 'minimax-h3-ref2va-fp8_r2v_balanced',
+    // Two-stage reference-to-video: the Standard or Balanced R2V request on its
+    // own id, rendered on the half canvas and delivered at 2x.
+    minimaxH3TwoStageR2v: 'minimax-h3-ref2va-fp8_r2v_2stage',
+    minimaxH3BalancedTwoStageR2v: 'minimax-h3-ref2va-fp8_r2v_balanced_2stage',
     animateMove: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
@@ -288,6 +292,8 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-r2v': PREFERRED_MODEL_IDS.video.minimaxH3R2v,
   'minimax-h3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v,
   'minimax-h3-r2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedR2v,
+  'minimax-h3-r2v-2stage': PREFERRED_MODEL_IDS.video.minimaxH3TwoStageR2v,
+  'minimax-h3-r2v-balanced-2stage': PREFERRED_MODEL_IDS.video.minimaxH3BalancedTwoStageR2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseT2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseT2v,
   wan3: PREFERRED_MODEL_IDS.video.wan3,
@@ -322,6 +328,8 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-r2v': PREFERRED_MODEL_IDS.video.minimaxH3R2v,
   'minimax-h3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v,
   'minimax-h3-r2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedR2v,
+  'minimax-h3-r2v-2stage': PREFERRED_MODEL_IDS.video.minimaxH3TwoStageR2v,
+  'minimax-h3-r2v-balanced-2stage': PREFERRED_MODEL_IDS.video.minimaxH3BalancedTwoStageR2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse-1.1-i2v': PREFERRED_MODEL_IDS.video.happyhorseI2v,
@@ -615,10 +623,7 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
     return { width: 832, height: 480, fps: 16 };
   }
   // Seedance Mini and the retired Fast id cap at 720p. Seedance 2.0 and 2.5 default to 1080p.
-  if (
-    modelId === 'seedance-2-0-mini' ||
-    modelId === 'seedance-2-0-fast'
-  ) {
+  if (modelId === 'seedance-2-0-mini' || modelId === 'seedance-2-0-fast') {
     return { width: 1280, height: 720, fps: 24 };
   }
   if (isSeedance || isHappyhorse) {

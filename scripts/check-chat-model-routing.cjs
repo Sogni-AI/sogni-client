@@ -405,6 +405,36 @@ assert.ok(Object.values(minimaxH3TwoStageModelIds).every(isVideoModel));
 assert.ok(Object.values(minimaxH3TwoStageModelIds).every(isMinimaxH3TurboModel));
 assert.equal(isMinimaxH3TurboModel('minimax-h3-fl2va-fp8_t2v_turbo_2stage'), false);
 assert.equal(isMinimaxH3TurboModel('minimax-h3-fastvideo-int8_r2v_turbo_2stage'), false);
+// Two-stage reference-to-video: the Standard or Balanced R2V request on its own
+// id, delivered at 2x. Never Turbo; Balanced keeps its tier; both are r2v.
+const minimaxH3TwoStageR2vModelIds = {
+  standard: 'minimax-h3-ref2va-fp8_r2v_2stage',
+  balanced: 'minimax-h3-ref2va-fp8_r2v_balanced_2stage'
+};
+assert.ok(Object.values(minimaxH3TwoStageR2vModelIds).every(isMinimaxH3Model));
+assert.ok(Object.values(minimaxH3TwoStageR2vModelIds).every(isVideoModel));
+assert.ok(Object.values(minimaxH3TwoStageR2vModelIds).every((id) => !isMinimaxH3TurboModel(id)));
+assert.equal(isMinimaxH3BalancedModel(minimaxH3TwoStageR2vModelIds.standard), false);
+assert.equal(isMinimaxH3BalancedModel(minimaxH3TwoStageR2vModelIds.balanced), true);
+assert.ok(Object.values(minimaxH3TwoStageR2vModelIds).every((id) => getVideoWorkflowType(id) === 'r2v'));
+for (const id of Object.values(minimaxH3TwoStageR2vModelIds)) {
+  assert.deepEqual(getVideoDefaults(id), { width: 1344, height: 768, fps: 24 });
+}
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3TwoStageR2v, minimaxH3TwoStageR2vModelIds.standard);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3BalancedTwoStageR2v, minimaxH3TwoStageR2vModelIds.balanced);
+for (const [selector, expected] of [
+  ['minimax-h3-r2v-2stage', minimaxH3TwoStageR2vModelIds.standard],
+  ['minimax-h3-r2v-balanced-2stage', minimaxH3TwoStageR2vModelIds.balanced]
+]) {
+  assert.ok(generateVideoModelSchema.enum.includes(selector), `${selector} is a hosted generate_video selector`);
+  assert.equal(resolveHostedToolModelSelector('generate_video', { videoModel: selector }), expected);
+  assert.equal(
+    resolveHostedToolModelSelector('generate_video', { videoModel: selector, referenceImageIndices: [0] }),
+    expected
+  );
+}
+assert.match(generateVideoLoraSchema.description, /"minimax-h3-r2v-2stage"/);
+assert.match(generateVideoLoraSchema.description, /"minimax-h3-r2v-balanced-2stage"/);
 assert.ok(Object.values(minimaxH3BalancedModelIds).every(isMinimaxH3Model));
 assert.ok(Object.values(minimaxH3BalancedModelIds).every(isMinimaxH3BalancedModel));
 assert.equal(isMinimaxH3TurboModel(minimaxH3ModelIds.t2v), false);

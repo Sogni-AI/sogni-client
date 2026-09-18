@@ -64,7 +64,9 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fl2va-fp8_t2v_balanced',
   'minimax-h3-fl2va-fp8_i2v_balanced',
   'minimax-h3-fl2va-fp8_flf2v_balanced',
-  'minimax-h3-ref2va-fp8_r2v_balanced'
+  'minimax-h3-ref2va-fp8_r2v_balanced',
+  'minimax-h3-ref2va-fp8_r2v_2stage',
+  'minimax-h3-ref2va-fp8_r2v_balanced_2stage'
 ]);
 
 export function getEnhacementStrength(strength: EnhancementStrength): number {
@@ -315,6 +317,13 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  * - Ref2VA Turbo: `minimax-h3-ref2va-fp8_r2v_turbo`
  * - FL2VA Balanced: the same three FL2VA ids with a `_balanced` suffix
  * - Ref2VA Balanced: `minimax-h3-ref2va-fp8_r2v_balanced`
+ * - Ref2VA Two-Stage: `minimax-h3-ref2va-fp8_r2v_2stage` (Standard, 20 steps)
+ *   and `minimax-h3-ref2va-fp8_r2v_balanced_2stage` (Balanced, 8 steps). The
+ *   request is identical to the one-stage R2V id of the same tier (canvas,
+ *   frames, steps, sampling, references, LoRAs), and the clip is delivered at
+ *   exactly twice the canvas, with the same 384/544/768 px canvas choices as
+ *   the FastH3 two-stage ids. Price it with `estimateVideoCost` using the
+ *   `_2stage` id.
  *
  * All H3 paths share fixed 24fps, guidance 1, and the `124 + n*17` frame grid.
  * Every path except the FastH3 audio guide generates 32kHz stereo audio
@@ -365,18 +374,21 @@ export function isMinimaxH3AudioGuideModel(modelId: string): boolean {
 
 /**
  * Check if a model ID is one of the 8-step MiniMax H3 Balanced workflows.
- * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching Larry v4 adapter for r2v.
+ * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching Larry v4 adapter for
+ * r2v, on its one-stage and two-stage (`..._r2v_balanced_2stage`) ids alike.
  */
 export function isMinimaxH3BalancedModel(modelId: string): boolean {
   return (
     /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_balanced$/.test(modelId) ||
-    modelId === 'minimax-h3-ref2va-fp8_r2v_balanced'
+    modelId === 'minimax-h3-ref2va-fp8_r2v_balanced' ||
+    modelId === 'minimax-h3-ref2va-fp8_r2v_balanced_2stage'
   );
 }
 
 /**
  * Check if a model ID is the MiniMax H3 Ref2VA multi-reference workflow
- * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, or `..._r2v_balanced`).
+ * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, `..._r2v_balanced`, or the
+ * two-stage `..._r2v_2stage` and `..._r2v_balanced_2stage`).
  *
  * This is the only MiniMax H3 workflow that conditions on more than two input
  * files, and the only video workflow of any family that carries reference

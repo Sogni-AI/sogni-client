@@ -964,6 +964,7 @@ Usage:
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-fasth3-t2v-turbo
   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
   node workflow_minimax_h3_video.mjs --mode r2v --ref-video camera-move.mp4
+  node workflow_minimax_h3_video.mjs --mode r2v --model minimax-h3-r2v-2stage --ref-video camera-move.mp4
 
 Modes:
   t2v    Text-to-video                     (minimax-h3-fl2va-fp8_t2v)
@@ -979,6 +980,10 @@ Fixed model parameters (not configurable):
   FastH3 Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
                 (FastVideo VSA T2V/I2V/FLF2V only; no R2V mode)
   Ref2VA Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
+  Ref2VA Two-Stage: the Standard (minimax-h3-r2v-2stage, 20 steps) or Balanced
+                (minimax-h3-r2v-balanced-2stage, 8 steps) R2V recipe on its own id;
+                send the half canvas (384/544/768 px short edge) and receive twice it
+                (720p/1080p/2K)
   Native 32kHz stereo audio is generated jointly and included by default;
   --no-audio returns a video without an audio track
   Frames follow 124 + n*17 in the range 124-362 (${MINIMAX_H3_MIN_DURATION}s to ${MINIMAX_H3_MAX_DURATION}s)

@@ -35,18 +35,28 @@ const twoStage = {
   i2v: ['minimax-h3-fastvideo-int8_i2v_turbo_2stage', 'minimax-h3-fastvideo-int8_i2v_turbo'],
   flf2v: ['minimax-h3-fastvideo-int8_flf2v_turbo_2stage', 'minimax-h3-fastvideo-int8_flf2v_turbo']
 };
+// Two-stage reference-to-video: the Standard or Balanced R2V request on its own
+// id, rendered on the half canvas and delivered at 2x. Each keeps its tier's
+// steps and sampling; only the model id changes, and one id per tier serves
+// every canvas class.
+const r2vTwoStage = {
+  standard: ['minimax-h3-ref2va-fp8_r2v_2stage', 'minimax-h3-ref2va-fp8_r2v'],
+  balanced: ['minimax-h3-ref2va-fp8_r2v_balanced_2stage', 'minimax-h3-ref2va-fp8_r2v_balanced']
+};
 const h3Ids = {
   standard: [
     'minimax-h3-fl2va-fp8_t2v',
     'minimax-h3-fl2va-fp8_i2v',
     'minimax-h3-fl2va-fp8_flf2v',
-    'minimax-h3-ref2va-fp8_r2v'
+    'minimax-h3-ref2va-fp8_r2v',
+    r2vTwoStage.standard[0]
   ],
   balanced: [
     'minimax-h3-fl2va-fp8_t2v_balanced',
     'minimax-h3-fl2va-fp8_i2v_balanced',
     'minimax-h3-fl2va-fp8_flf2v_balanced',
-    'minimax-h3-ref2va-fp8_r2v_balanced'
+    'minimax-h3-ref2va-fp8_r2v_balanced',
+    r2vTwoStage.balanced[0]
   ],
   turbo: [
     'minimax-h3-fl2va-fp8_t2v_turbo',
@@ -136,6 +146,51 @@ for (const [workflow, [modelId, baseId]] of Object.entries(twoStage)) {
   );
 }
 
+for (const [tier, [modelId, baseId]] of Object.entries(r2vTwoStage)) {
+  assert.equal(isVideoModel(modelId), true, `${modelId} is a video model`);
+  assert.equal(isMinimaxH3Model(modelId), true, `${modelId} is a MiniMax H3 id`);
+  assert.equal(isMinimaxH3TurboModel(modelId), false, `${modelId} is not Turbo`);
+  assert.equal(isMinimaxH3BalancedModel(modelId), tier === 'balanced', `${modelId} keeps its tier`);
+  assert.equal(isMinimaxH3ReferenceModel(modelId), true, `${modelId} is the reference workflow`);
+  assert.equal(getVideoWorkflowType(modelId), 'r2v');
+  assert.deepEqual(getVideoDefaults(modelId), getVideoDefaults(baseId));
+  assert.deepEqual(getVideoDefaults(modelId), { width: 1344, height: 768, fps: 24 });
+  for (const duration of [1, 5, 6, 10, 15.08, 30]) {
+    assert.equal(calculateVideoFrames(modelId, duration, 24), calculateVideoFrames(baseId, duration, 24));
+  }
+  for (const [width, height] of [
+    [1344, 768],
+    [768, 1344],
+    [960, 544],
+    [544, 960],
+    [672, 384],
+    [384, 672]
+  ]) {
+    const sent = request(modelId, tier, { width, height }).keyFrames[0];
+    const base = request(baseId, tier, { width, height }).keyFrames[0];
+    assert.equal(sent.modelID, modelId);
+    assert.deepEqual(
+      { ...sent, modelID: baseId },
+      base,
+      `${modelId} ${width}x${height}: the request is the ${tier} R2V request with only the id changed`
+    );
+    assert.equal(sent.width, width);
+    assert.equal(sent.height, height);
+    assert.equal(sent.steps, steps[tier]);
+    assert.equal(sent.frames, 141);
+  }
+  assert.throws(
+    () => request(modelId, tier === 'balanced' ? 'standard' : 'balanced'),
+    /MiniMax H3(?: Balanced)? steps are fixed at (?:20|8)/,
+    `${modelId}: steps other than its tier's are refused`
+  );
+  assert.throws(
+    () => request(modelId, tier, { width: 1920, height: 1088 }),
+    /MiniMax H3 dimensions must use a 32px grid/,
+    `${modelId}: the delivered size is not a canvas`
+  );
+}
+
 let covered = 0;
 for (const [tier, ids] of Object.entries(h3Ids)) {
   for (const modelId of ids) {
@@ -151,7 +206,7 @@ for (const [tier, ids] of Object.entries(h3Ids)) {
     covered += 1;
   }
 }
-assert.equal(covered, 18, 'every MiniMax H3 workflow id is covered');
+assert.equal(covered, 20, 'every MiniMax H3 workflow id is covered');
 
 // The retired field is refused on every video model, not only on MiniMax H3.
 for (const modelId of ['ltx25-22b-int8_t2v_distilled', 'wan_v2.2-14b-fp8_t2v_lightx2v']) {

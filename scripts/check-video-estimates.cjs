@@ -129,6 +129,25 @@ async function main() {
     '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_flf2v_turbo_2stage/672/384/141/24/4/1',
     '720p pricing must be requested with the two-stage model id and the 384 canvas'
   );
+  // Two-stage reference-to-video is priced the same way: its own id on the
+  // canvas the job renders, at its tier's own step count.
+  await estimate(projects, {
+    model: 'minimax-h3-ref2va-fp8_r2v_2stage',
+    width: 960,
+    height: 544,
+    steps: 20
+  });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-ref2va-fp8_r2v_2stage/960/544/141/24/20/1',
+    '1080p Standard R2V two-stage pricing must be requested with the two-stage model id and the 544 canvas'
+  );
+  await estimate(projects, { model: 'minimax-h3-ref2va-fp8_r2v_balanced_2stage', steps: 8 });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-ref2va-fp8_r2v_balanced_2stage/1344/768/141/24/8/1',
+    '2K Balanced R2V two-stage pricing must be requested with the two-stage model id and the 768p canvas'
+  );
   // outputScale is retired: an untyped caller that still passes it (any value)
   // is refused with the socket's wording before any estimate request is made.
   const requestsBefore = client.socket.paths.length;

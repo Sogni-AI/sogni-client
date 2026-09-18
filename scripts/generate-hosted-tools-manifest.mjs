@@ -73,6 +73,8 @@ if (generateVideoModel) {
       'minimax-h3-balanced',
       'minimax-h3-t2v-balanced',
       'minimax-h3-r2v-balanced',
+      'minimax-h3-r2v-2stage',
+      'minimax-h3-r2v-balanced-2stage',
       'wan3.0-video',
       'wan3.0-spicy-video'
     ])
@@ -88,6 +90,10 @@ if (generateVideoModel) {
   generateVideoModel.description = appendDescriptionOnce(
     generateVideoModel.description,
     'MiniMax H3 FastH3 Two-Stage renders the FastH3 canvas, then enlarges it 2x and refines it, delivering twice the canvas with the same length and audio; use "minimax-h3-fasth3-turbo-2stage" or "minimax-h3-fasth3-t2v-turbo-2stage" for two-stage text-to-video. Its targetResolution names the delivered class: 1080 (544px canvas, 960x544 delivers 1920x1088), 1440 or omitted for 2K (768p canvas, 1344x768 delivers 2688x1536), or 720 (384px canvas, 672x384 delivers 1344x768).'
+  );
+  generateVideoModel.description = appendDescriptionOnce(
+    generateVideoModel.description,
+    'MiniMax H3 Two-Stage Reference-to-Video is the Standard or Balanced Ref2VA request delivered at twice the canvas with the same length, audio and references; use "minimax-h3-r2v-2stage" (20 steps) or "minimax-h3-r2v-balanced-2stage" (8 steps). targetResolution names the delivered class exactly as for the FastH3 two-stage selectors (1080, 1440 or omitted for 2K, 720), and each bills its tier\'s rate plus the two-stage surcharge of that class; keep "minimax-h3-r2v" or "minimax-h3-r2v-balanced" for ordinary 768p output.'
   );
 }
 
@@ -129,6 +135,8 @@ const h3LoraSelectorsByTool = {
     'minimax-h3-r2v',
     'minimax-h3-r2v-turbo',
     'minimax-h3-r2v-balanced',
+    'minimax-h3-r2v-2stage',
+    'minimax-h3-r2v-balanced-2stage',
     'minimax-h3-turbo',
     'minimax-h3-fasth3-turbo',
     'minimax-h3-fasth3-turbo-2stage',
