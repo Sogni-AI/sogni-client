@@ -1,4 +1,5 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
+import { MessageDeliveryUncertainError } from '../ApiClient/WebSocketClient/requestDelivery.js';
 import ReusableUploads from './ReusableUploads.js';
 import {
   AvailableModel,
@@ -1192,16 +1193,18 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this._awaitingResubmit.delete(projectId);
         return;
       }
+      const sent = () => {
+        this._awaitingResubmit.delete(projectId);
+        this._resubmittedAt.set(projectId, Date.now());
+        this._unadmittedRequests.set(projectId, request);
+        project._keepAlive();
+        this._scheduleRecheck(this._recoveryTuning.recentlyCreatedGraceMs);
+      };
       this.client.socket
         .send('jobRequest', request)
-        .then(() => {
-          this._awaitingResubmit.delete(projectId);
-          this._resubmittedAt.set(projectId, Date.now());
-          this._unadmittedRequests.set(projectId, request);
-          project._keepAlive();
-          this._scheduleRecheck(this._recoveryTuning.recentlyCreatedGraceMs);
-        })
-        .catch(fail);
+        .then(sent)
+        // A missing browser ACK may still have been sent: let the recheck decide.
+        .catch((error) => (error instanceof MessageDeliveryUncertainError ? sent() : fail(error)));
     });
     timer = setTimeout(() => {
       offConnected();
@@ -1819,13 +1822,36 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       // Recorded before sending: a refusal can arrive as soon as the frame lands.
       this._unadmittedRequests.set(project.id, request);
       await this.client.socket.send('jobRequest', request);
-      this.projects.push(project);
-      return project;
+      return this._trackSubmitted(project);
     } catch (error) {
+      if (error instanceof MessageDeliveryUncertainError) {
+        // A missing browser ACK does not establish that jobRequest failed.
+        // Preserve the same project for live events and read-only recovery;
+        // neither report a definite creation failure nor submit another job.
+        const tracked = this._trackSubmitted(project);
+        if (tracked === project) this._scheduleRecheck(0);
+        return tracked;
+      }
       this._unadmittedRequests.delete(project.id);
       project._dispose();
       throw error;
     }
+  }
+
+  /**
+   * Track a submitted project. A sync that ran while a secondary tab waited for
+   * its request to be forwarded may already have rebuilt this project from the
+   * server; events reach the first match, so keep that one and never two.
+   */
+  private _trackSubmitted(project: Project): Project {
+    const tracked = this.projects.find((candidate) => candidate.id === project.id);
+    if (!tracked) {
+      this.projects.push(project);
+      return project;
+    }
+    this._unadmittedRequests.delete(project.id);
+    project._dispose();
+    return tracked;
   }
 
   private async _processImageAssets(project: Project, data: ImageProjectParams) {
@@ -2937,8 +2963,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       const personal = await this.personalLoras.catalog();
       return {
         ...catalog,
-        loras: [...catalog.loras, ...personal.loras.filter(row => !params.modelId || row.modelIds.includes(params.modelId))],
-        models: [...new Set([...catalog.models, ...deriveLoraCapableModelIds(personal.loras)])].sort()
+        loras: [
+          ...catalog.loras,
+          ...personal.loras.filter(
+            (row) => !params.modelId || row.modelIds.includes(params.modelId)
+          )
+        ],
+        models: [
+          ...new Set([...catalog.models, ...deriveLoraCapableModelIds(personal.loras)])
+        ].sort()
       };
     }
     const { modelId, forceRefresh } = params;
@@ -2983,7 +3016,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   async getLora(loraId: string): Promise<LoraCatalogEntry | undefined> {
     if (loraId.startsWith('personal-')) {
       const { loras } = await this.personalLoras.catalog();
-      return loras.find(row => row.loraId === loraId);
+      return loras.find((row) => row.loraId === loraId);
     }
     const { loras } = await this.availableLoras();
     return loras.find((lora) => lora.loraId === loraId);

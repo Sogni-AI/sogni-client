@@ -50,6 +50,8 @@ jobs:
         run: npm run test:project-cancellation
       - name: Run project recovery checks
         run: node scripts/check-project-recovery.cjs
+      - name: Run browser request handoff and socket readiness checks
+        run: node scripts/check-browser-request-handoff.cjs && node scripts/check-socket-send-readiness.cjs
       - name: Run project liveness checks
         run: node scripts/check-project-liveness.cjs
       - name: Run job reassignment checks

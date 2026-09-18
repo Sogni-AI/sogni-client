@@ -20,6 +20,9 @@ const assert = require('node:assert/strict');
 const ProjectsApi = require('../dist/Projects/index.js').default;
 const Project = require('../dist/Projects/Project.js').default;
 const { isProjectLostError } = require('../dist/Projects/recovery.js');
+const {
+  MessageDeliveryUncertainError
+} = require('../dist/ApiClient/WebSocketClient/requestDelivery.js');
 
 const SILENT_LOGGER = { info() {}, warn() {}, error() {}, debug() {} };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -919,6 +922,141 @@ async function main() {
     const recheck = synced.find((r) => r.reason === 'recheck');
     assert.ok(recheck, 'a recheck sync ran after the grace');
     assert.deepEqual(recheck.lost, [project.id], 'the recheck resolves it');
+    stopTimers(api);
+  }
+
+  // 14. A missing cross-tab ACK is ambiguous. Keep the original project ID,
+  //     recover its status, and never submit a replacement generation.
+  for (const admitted of [true, false]) {
+    const snapshot = { activeProjects: [], unclaimedCompletedProjects: [] };
+    const { api, socket, synced } = makeHarness({ syncSnapshot: snapshot });
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    socket.send = async (type, data) => {
+      socket.sent.push({ type, data });
+      if (admitted) {
+        snapshot.activeProjects.push(
+          recoveredProject(data.jobID, {
+            workerJobs: [inFlightJob(data.jobID, 'ACK-LOST-IMG', 2)]
+          })
+        );
+      }
+      throw new MessageDeliveryUncertainError();
+    };
+    const project = await api.create({
+      type: 'image',
+      modelId: 'flux1-schnell-fp8',
+      numberOfMedia: 1,
+      positivePrompt: 'a lighthouse at dusk',
+      steps: 4
+    });
+    assert.equal(project.id, socket.sent[0].data.jobID, 'keep the submitted ID');
+    assert.equal(api.trackedProjects[0], project, 'caller and recovery share the instance');
+    assert.equal(project.status, 'pending', 'a lost ACK alone is not a failure');
+    await sleep(350);
+    assert.equal(synced.at(-1).reason, 'recheck', 'status recovery runs automatically');
+    assert.equal(socket.sent.length, 1, 'recovery does not send a replacement request');
+    if (admitted) {
+      assert.equal(project.status, 'processing');
+      assert.equal(project.job('ACK-LOST-IMG').step, 2, 'progress resumes on the original project');
+    } else {
+      assert.equal(project.status, 'failed', 'absence confirmed by recovery becomes a failure');
+      assert.deepEqual(synced.at(-1).lost, [project.id]);
+    }
+    stopTimers(api);
+  }
+
+  // 15. A definitive send error still rejects create() and discards the local
+  //     request. Only the missing-ACK error takes the recovery path.
+  {
+    const { api, socket } = makeHarness();
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    socket.send = async () => {
+      throw new Error('WebSocket connection failed');
+    };
+    await assert.rejects(
+      api.create({
+        type: 'image',
+        modelId: 'flux1-schnell-fp8',
+        numberOfMedia: 1,
+        positivePrompt: 'a lighthouse at dusk',
+        steps: 4
+      }),
+      /connection failed/
+    );
+    assert.equal(api.trackedProjects.length, 0);
+    assert.equal(api._unadmittedRequests.size, 0);
+    assert.equal(api._recheckTimer, null);
+  }
+
+  // 16. A resubmit after a server restart goes through the same cross-tab send.
+  //     A missing ACK there is just as ambiguous: no error, recovery decides.
+  {
+    const { api, socket, client, apiEvents } = makeHarness({
+      syncSnapshot: { activeProjects: [], unclaimedCompletedProjects: [] }
+    });
+    const project = await createTracked(api);
+    const request = { jobID: project.id, keyFrames: [{ modelID: 'flux1-schnell-fp8' }] };
+    api._unadmittedRequests.set(project.id, request);
+    socket.send = async (type, data) => {
+      socket.sent.push({ type, data });
+      throw new MessageDeliveryUncertainError();
+    };
+    socket.emit('jobError', {
+      jobID: project.id,
+      isFromWorker: false,
+      error: '1001',
+      error_message: 'Server is restarting'
+    });
+    client.emit('connecting', { network: 'fast' });
+    client.emit('connected', { network: 'fast' });
+    await sleep(10);
+    assert.equal(socket.sent.length, 1, 'resubmitted once');
+    assert.equal(project.status, 'pending', 'an unconfirmed resubmit is not a failure');
+    assert.equal(
+      apiEvents.filter((e) => e.kind === 'project' && e.type === 'error').length,
+      0,
+      'no error surfaced'
+    );
+    assert.equal(api._awaitingResubmit.has(project.id), false);
+    assert.ok(api._recheckTimer, 'status recovery is scheduled');
+    clearTimeout(api._recheckTimer);
+    stopTimers(api);
+  }
+
+  // 17. A sync that rebuilt the project while its request was still being
+  //     forwarded must not leave two tracked projects with one ID.
+  for (const uncertain of [false, true]) {
+    const { api, socket } = makeHarness();
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    let rebuilt;
+    socket.send = async (type, data) => {
+      rebuilt = api._rehydrateProject(recoveredProject(data.jobID, { workerJobs: [] }));
+      api.projects.push(rebuilt);
+      if (uncertain) throw new MessageDeliveryUncertainError();
+    };
+    const project = await api.create({
+      type: 'image',
+      modelId: 'flux1-schnell-fp8',
+      numberOfMedia: 1,
+      positivePrompt: 'a lighthouse at dusk',
+      steps: 4
+    });
+    assert.equal(project, rebuilt, 'the caller gets the instance that receives events');
+    assert.equal(api.trackedProjects.filter((p) => p.id === project.id).length, 1);
+    assert.equal(api._unadmittedRequests.size, 0, 'the stored request is released');
+    if (api._recheckTimer) clearTimeout(api._recheckTimer);
     stopTimers(api);
   }
 
