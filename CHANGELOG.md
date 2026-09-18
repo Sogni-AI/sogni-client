@@ -1,3 +1,10 @@
+# [5.52.0](https://github.com/Sogni-AI/sogni-client/compare/v5.51.1...v5.52.0) (2026-09-18)
+
+
+### Features
+
+* **minimax-h3:** add the two-stage Reference to Video model selectors ([b9abcce](https://github.com/Sogni-AI/sogni-client/commit/b9abccede408f1cfcc30f4b26b9d686c32e50afc))
+
 ## [5.51.1](https://github.com/Sogni-AI/sogni-client/compare/v5.51.0...v5.51.1) (2026-09-16)
 
 
