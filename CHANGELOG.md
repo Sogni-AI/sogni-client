@@ -1,3 +1,10 @@
+## [5.52.1](https://github.com/Sogni-AI/sogni-client/compare/v5.52.0...v5.52.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **browser:** preserve project submissions across socket reconnects ([#25](https://github.com/Sogni-AI/sogni-client/issues/25)) ([d65916e](https://github.com/Sogni-AI/sogni-client/commit/d65916e8a1ed38154c92d3237e2f4d937fa2c5da))
+
 # [5.52.0](https://github.com/Sogni-AI/sogni-client/compare/v5.51.1...v5.52.0) (2026-09-18)
 
 
