@@ -996,6 +996,70 @@ async function main() {
     assert.equal(api._recheckTimer, null);
   }
 
+  // 16. A resubmit after a server restart goes through the same cross-tab send.
+  //     A missing ACK there is just as ambiguous: no error, recovery decides.
+  {
+    const { api, socket, client, apiEvents } = makeHarness({
+      syncSnapshot: { activeProjects: [], unclaimedCompletedProjects: [] }
+    });
+    const project = await createTracked(api);
+    const request = { jobID: project.id, keyFrames: [{ modelID: 'flux1-schnell-fp8' }] };
+    api._unadmittedRequests.set(project.id, request);
+    socket.send = async (type, data) => {
+      socket.sent.push({ type, data });
+      throw new MessageDeliveryUncertainError();
+    };
+    socket.emit('jobError', {
+      jobID: project.id,
+      isFromWorker: false,
+      error: '1001',
+      error_message: 'Server is restarting'
+    });
+    client.emit('connecting', { network: 'fast' });
+    client.emit('connected', { network: 'fast' });
+    await sleep(10);
+    assert.equal(socket.sent.length, 1, 'resubmitted once');
+    assert.equal(project.status, 'pending', 'an unconfirmed resubmit is not a failure');
+    assert.equal(
+      apiEvents.filter((e) => e.kind === 'project' && e.type === 'error').length,
+      0,
+      'no error surfaced'
+    );
+    assert.equal(api._awaitingResubmit.has(project.id), false);
+    assert.ok(api._recheckTimer, 'status recovery is scheduled');
+    clearTimeout(api._recheckTimer);
+    stopTimers(api);
+  }
+
+  // 17. A sync that rebuilt the project while its request was still being
+  //     forwarded must not leave two tracked projects with one ID.
+  for (const uncertain of [false, true]) {
+    const { api, socket } = makeHarness();
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    let rebuilt;
+    socket.send = async (type, data) => {
+      rebuilt = api._rehydrateProject(recoveredProject(data.jobID, { workerJobs: [] }));
+      api.projects.push(rebuilt);
+      if (uncertain) throw new MessageDeliveryUncertainError();
+    };
+    const project = await api.create({
+      type: 'image',
+      modelId: 'flux1-schnell-fp8',
+      numberOfMedia: 1,
+      positivePrompt: 'a lighthouse at dusk',
+      steps: 4
+    });
+    assert.equal(project, rebuilt, 'the caller gets the instance that receives events');
+    assert.equal(api.trackedProjects.filter((p) => p.id === project.id).length, 1);
+    assert.equal(api._unadmittedRequests.size, 0, 'the stored request is released');
+    if (api._recheckTimer) clearTimeout(api._recheckTimer);
+    stopTimers(api);
+  }
+
   console.log('check-project-recovery: ALL TESTS PASSED');
   process.exit(0);
 }

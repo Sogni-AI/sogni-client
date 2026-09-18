@@ -1,14 +1,11 @@
 import getUUID from '../../../lib/getUUID.js';
 import { Logger } from '../../../lib/DefaultLogger.js';
-import {
-  MessageDeliveryUncertainError,
-  REQUEST_ACK_TIMEOUT_MS,
-  SEND_READY_TIMEOUT_MS
-} from '../requestDelivery.js';
+import { MessageDeliveryUncertainError, SEND_READY_TIMEOUT_MS } from '../requestDelivery.js';
 
 const PRIMARY_HEARTBEAT_INTERVAL = 2000;
 const PRIMARY_TIMEOUT = 4000;
 const ELECTION_SETTLE_TIMEOUT = 600;
+const ACK_TIMEOUT = 5000;
 
 enum MessageType {
   ELECTION = 'election',
@@ -380,13 +377,11 @@ class ChannelCoordinator<M, N> {
     }
     this.logger.debug(`Received request from secondary`, message.payload);
     // Use the sender's clock, not a fresh timeout when a suspended primary
-    // finally receives the request. Never forward an already expired request.
+    // finally receives the request. The handler enforces it for socket sends,
+    // so an expired request is never forwarded; control messages still apply.
     const deadline = envelope.timestamp + SEND_READY_TIMEOUT_MS;
     Promise.resolve()
-      .then(() => {
-        if (Date.now() >= deadline) throw new Error('Message delivery timeout');
-        return this.callbacks.onMessage(message.payload, deadline);
-      })
+      .then(() => this.callbacks.onMessage(message.payload, deadline))
       .then(() => {
         this.send(
           {
@@ -417,7 +412,8 @@ class ChannelCoordinator<M, N> {
 
   private async send(
     message: RequestMessage | RequestAckMessage,
-    recipientId?: string
+    recipientId?: string,
+    ackTimeoutMs = ACK_TIMEOUT
   ): Promise<void> {
     const envelope: Envelope = {
       id: getUUID(),
@@ -436,7 +432,7 @@ class ChannelCoordinator<M, N> {
           this.ackCallbacks[envelope.id](new MessageDeliveryUncertainError());
           delete this.ackCallbacks[envelope.id];
         }
-      }, REQUEST_ACK_TIMEOUT_MS);
+      }, ackTimeoutMs);
       this.ackCallbacks[envelope.id] = (error?: any) => {
         clearTimeout(ackTimeout);
         delete this.ackCallbacks[envelope.id];
@@ -461,17 +457,21 @@ class ChannelCoordinator<M, N> {
     return envelope.id;
   }
 
-  public async sendMessage(message: M): Promise<any> {
+  public async sendMessage(message: M, ackTimeoutMs = ACK_TIMEOUT): Promise<any> {
     this.logger.debug(`Sending message to primary`, message);
     await this.ensureFreshPrimaryBeforeRequest();
     if (this._isPrimary) {
       this.logger.debug(`Became primary before request delivery, handling locally`, message);
       return this.callbacks.onMessage(message);
     }
-    return this.send({
-      type: MessageType.REQUEST,
-      payload: message
-    });
+    return this.send(
+      {
+        type: MessageType.REQUEST,
+        payload: message
+      },
+      undefined,
+      ackTimeoutMs
+    );
   }
 
   public notify(message: N) {

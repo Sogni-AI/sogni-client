@@ -12,7 +12,8 @@ const ChannelCoordinator =
   require('../dist/ApiClient/WebSocketClient/BrowserWebSocketClient/ChannelCoordinator.js').default;
 const WebSocketClient = require('../dist/ApiClient/WebSocketClient/index.js').default;
 const {
-  MessageDeliveryUncertainError
+  MessageDeliveryUncertainError,
+  REQUEST_ACK_TIMEOUT_MS
 } = require('../dist/ApiClient/WebSocketClient/requestDelivery.js');
 
 const logger = { info() {}, warn() {}, error() {}, debug() {} };
@@ -138,7 +139,22 @@ async function checkMissingAckAndSuspension() {
       channel: { postMessage: (envelope) => posted.push(envelope) }
     });
     let settled = false;
-    const sending = secondary.sendMessage({ type: 'socket-send' });
+    // Control messages keep the short ACK window; only forwarded socket sends
+    // wait out the primary's readiness window.
+    const control = assert.rejects(
+      secondary.sendMessage({ type: 'connect' }),
+      MessageDeliveryUncertainError
+    );
+    await flush();
+    mock.timers.tick(5000);
+    await control;
+    posted.length = 0;
+    secondary.lastPrimaryHeartbeat = Date.now();
+
+    const sending = secondary.sendMessage(
+      { type: 'socket-send', payload: { type: 'jobRequest', data: { jobID: 'LATE' } } },
+      REQUEST_ACK_TIMEOUT_MS
+    );
     sending.then(
       () => {
         settled = true;
@@ -160,23 +176,47 @@ async function checkMissingAckAndSuspension() {
       'expired ACK callbacks are removed'
     );
 
-    let forwarded = 0;
+    // The primary runs the real forwarding path into a ready socket, so only
+    // the sender's deadline can keep the frame off the wire.
+    const forwarded = [];
+    const readySocket = { readyState: 1, send: (data) => forwarded.push(data) };
+    const primarySocket = new WebSocketClient(
+      'http://127.0.0.1',
+      auth,
+      'late-test',
+      'fast',
+      logger
+    );
+    primarySocket.socket = readySocket;
+    primarySocket._authenticatedSocket = readySocket;
+    let connects = 0;
+    primarySocket.connect = async () => {
+      connects++;
+    };
+    const browserClient = { _logger: logger, socketClient: primarySocket };
     const acks = [];
     const primary = Object.assign(Object.create(ChannelCoordinator.prototype), {
       id: 'primary',
       _isPrimary: true,
       logger,
       callbacks: {
-        onMessage: async () => {
-          forwarded++;
-        }
+        onMessage: (message, deadline) =>
+          BrowserWebSocketClient.prototype.handleMessage.call(browserClient, message, deadline)
       },
       channel: { postMessage: (envelope) => acks.push(envelope) }
     });
     primary.handleRequest(posted[0].message, posted[0]);
     await flush();
-    assert.equal(forwarded, 0, 'a primary resuming after expiry must not forward the request');
+    assert.deepEqual(forwarded, [], 'a primary resuming after expiry must not forward the request');
     assert.match(acks[0].message.payload.error.message, /timeout/);
+
+    // Expiry guards billable sends only: a late control message still applies.
+    primarySocket.socket = null;
+    primarySocket._authenticatedSocket = null;
+    primary.handleRequest({ type: 'request', payload: { type: 'connect' } }, posted[0]);
+    await flush();
+    assert.equal(connects, 1, 'a late connect request still reaches the primary socket');
+    assert.equal(acks[1].message.payload.error, undefined);
 
     // A primary can also suspend AFTER starting its readiness wait. Advance
     // wall time without running overdue timers, then deliver authentication.

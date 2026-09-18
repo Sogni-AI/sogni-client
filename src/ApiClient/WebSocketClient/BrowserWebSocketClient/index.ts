@@ -10,6 +10,7 @@ import RestClient from '../../../lib/RestClient.js';
 import { SocketEventMap } from '../events.js';
 import { MessageType, SocketMessageMap } from '../messages.js';
 import ChannelCoordinator from './ChannelCoordinator.js';
+import { REQUEST_ACK_TIMEOUT_MS } from '../requestDelivery.js';
 import type {
   SocketEventSubscriptionInput,
   SocketEventSubscriptions
@@ -215,10 +216,15 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       // send() connects when needed and waits out a reconnect in progress.
       return this.socketClient.send(messageType, data);
     }
-    return this.coordinator.sendMessage({
-      type: 'socket-send',
-      payload: { type: messageType, data }
-    });
+    // The primary may wait out a reconnect before it can send, so the ACK has
+    // to outlast that wait. Control messages keep the short default.
+    return this.coordinator.sendMessage(
+      {
+        type: 'socket-send',
+        payload: { type: messageType, data }
+      },
+      REQUEST_ACK_TIMEOUT_MS
+    );
   }
 
   private async handleMessage(message: Message, deadline?: number) {

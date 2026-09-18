@@ -7,7 +7,8 @@ export const REQUEST_ACK_TIMEOUT_MS = SEND_READY_TIMEOUT_MS + 5_000;
 
 export class MessageDeliveryUncertainError extends Error {
   constructor() {
-    super('Message delivery could not be confirmed');
+    // Keeps the message of the plain Error it replaces: consumers match on it.
+    super('Message delivery timeout');
     this.name = 'MessageDeliveryUncertainError';
   }
 }
