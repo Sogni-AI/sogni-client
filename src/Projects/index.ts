@@ -1,4 +1,5 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
+import { MessageDeliveryUncertainError } from '../ApiClient/WebSocketClient/requestDelivery.js';
 import ReusableUploads from './ReusableUploads.js';
 import {
   AvailableModel,
@@ -1822,6 +1823,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this.projects.push(project);
       return project;
     } catch (error) {
+      if (error instanceof MessageDeliveryUncertainError) {
+        // A missing browser ACK does not establish that jobRequest failed.
+        // Preserve the same project for live events and read-only recovery;
+        // neither report a definite creation failure nor submit another job.
+        const recovered = this.projects.find((candidate) => candidate.id === project.id);
+        if (recovered) {
+          project._dispose();
+          return recovered;
+        }
+        this.projects.push(project);
+        this._scheduleRecheck(0);
+        return project;
+      }
       this._unadmittedRequests.delete(project.id);
       project._dispose();
       throw error;

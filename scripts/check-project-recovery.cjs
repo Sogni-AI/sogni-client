@@ -20,6 +20,9 @@ const assert = require('node:assert/strict');
 const ProjectsApi = require('../dist/Projects/index.js').default;
 const Project = require('../dist/Projects/Project.js').default;
 const { isProjectLostError } = require('../dist/Projects/recovery.js');
+const {
+  MessageDeliveryUncertainError
+} = require('../dist/ApiClient/WebSocketClient/requestDelivery.js');
 
 const SILENT_LOGGER = { info() {}, warn() {}, error() {}, debug() {} };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -920,6 +923,77 @@ async function main() {
     assert.ok(recheck, 'a recheck sync ran after the grace');
     assert.deepEqual(recheck.lost, [project.id], 'the recheck resolves it');
     stopTimers(api);
+  }
+
+  // 14. A missing cross-tab ACK is ambiguous. Keep the original project ID,
+  //     recover its status, and never submit a replacement generation.
+  for (const admitted of [true, false]) {
+    const snapshot = { activeProjects: [], unclaimedCompletedProjects: [] };
+    const { api, socket, synced } = makeHarness({ syncSnapshot: snapshot });
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    socket.send = async (type, data) => {
+      socket.sent.push({ type, data });
+      if (admitted) {
+        snapshot.activeProjects.push(
+          recoveredProject(data.jobID, {
+            workerJobs: [inFlightJob(data.jobID, 'ACK-LOST-IMG', 2)]
+          })
+        );
+      }
+      throw new MessageDeliveryUncertainError();
+    };
+    const project = await api.create({
+      type: 'image',
+      modelId: 'flux1-schnell-fp8',
+      numberOfMedia: 1,
+      positivePrompt: 'a lighthouse at dusk',
+      steps: 4
+    });
+    assert.equal(project.id, socket.sent[0].data.jobID, 'keep the submitted ID');
+    assert.equal(api.trackedProjects[0], project, 'caller and recovery share the instance');
+    assert.equal(project.status, 'pending', 'a lost ACK alone is not a failure');
+    await sleep(350);
+    assert.equal(synced.at(-1).reason, 'recheck', 'status recovery runs automatically');
+    assert.equal(socket.sent.length, 1, 'recovery does not send a replacement request');
+    if (admitted) {
+      assert.equal(project.status, 'processing');
+      assert.equal(project.job('ACK-LOST-IMG').step, 2, 'progress resumes on the original project');
+    } else {
+      assert.equal(project.status, 'failed', 'absence confirmed by recovery becomes a failure');
+      assert.deepEqual(synced.at(-1).lost, [project.id]);
+    }
+    stopTimers(api);
+  }
+
+  // 15. A definitive send error still rejects create() and discards the local
+  //     request. Only the missing-ACK error takes the recovery path.
+  {
+    const { api, socket } = makeHarness();
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    socket.send = async () => {
+      throw new Error('WebSocket connection failed');
+    };
+    await assert.rejects(
+      api.create({
+        type: 'image',
+        modelId: 'flux1-schnell-fp8',
+        numberOfMedia: 1,
+        positivePrompt: 'a lighthouse at dusk',
+        steps: 4
+      }),
+      /connection failed/
+    );
+    assert.equal(api.trackedProjects.length, 0);
+    assert.equal(api._unadmittedRequests.size, 0);
+    assert.equal(api._recheckTimer, null);
   }
 
   console.log('check-project-recovery: ALL TESTS PASSED');

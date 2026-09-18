@@ -1,10 +1,14 @@
 import getUUID from '../../../lib/getUUID.js';
 import { Logger } from '../../../lib/DefaultLogger.js';
+import {
+  MessageDeliveryUncertainError,
+  REQUEST_ACK_TIMEOUT_MS,
+  SEND_READY_TIMEOUT_MS
+} from '../requestDelivery.js';
 
 const PRIMARY_HEARTBEAT_INTERVAL = 2000;
 const PRIMARY_TIMEOUT = 4000;
 const ELECTION_SETTLE_TIMEOUT = 600;
-const ACK_TIMEOUT = 5000;
 
 enum MessageType {
   ELECTION = 'election',
@@ -81,7 +85,7 @@ if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
 
 interface Callbacks<M, N> {
   onRoleChange: (isPrimary: boolean) => void;
-  onMessage: (message: M) => Promise<void>;
+  onMessage: (message: M, deadline?: number) => Promise<void>;
   onNotification: (notification: N) => void;
 }
 
@@ -375,8 +379,14 @@ class ChannelCoordinator<M, N> {
       return;
     }
     this.logger.debug(`Received request from secondary`, message.payload);
-    this.callbacks
-      .onMessage(message.payload)
+    // Use the sender's clock, not a fresh timeout when a suspended primary
+    // finally receives the request. Never forward an already expired request.
+    const deadline = envelope.timestamp + SEND_READY_TIMEOUT_MS;
+    Promise.resolve()
+      .then(() => {
+        if (Date.now() >= deadline) throw new Error('Message delivery timeout');
+        return this.callbacks.onMessage(message.payload, deadline);
+      })
       .then(() => {
         this.send(
           {
@@ -423,10 +433,10 @@ class ChannelCoordinator<M, N> {
     return new Promise<void>((resolve, reject) => {
       const ackTimeout = setTimeout(() => {
         if (this.ackCallbacks[envelope.id]) {
-          this.ackCallbacks[envelope.id](new Error('Message delivery timeout'));
+          this.ackCallbacks[envelope.id](new MessageDeliveryUncertainError());
           delete this.ackCallbacks[envelope.id];
         }
-      }, ACK_TIMEOUT);
+      }, REQUEST_ACK_TIMEOUT_MS);
       this.ackCallbacks[envelope.id] = (error?: any) => {
         clearTimeout(ackTimeout);
         delete this.ackCallbacks[envelope.id];

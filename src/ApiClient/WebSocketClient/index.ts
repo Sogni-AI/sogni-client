@@ -7,6 +7,7 @@ import { base64Decode, base64Encode } from '../../lib/base64.js';
 import isNodejs from '../../lib/isNodejs.js';
 import { isNotRecoverable } from './ErrorCode.js';
 import { LIB_VERSION } from '../../version.js';
+import { SEND_READY_TIMEOUT_MS } from './requestDelivery.js';
 import { Logger } from '../../lib/DefaultLogger.js';
 import { AuthManager } from '../../lib/AuthManager/index.js';
 import {
@@ -27,12 +28,6 @@ const PROTOCOL_VERSION = '3.0.0';
 
 const PING_INTERVAL = 15000;
 
-/**
- * How long `send` waits for a socket that can carry work. Covers a socket
- * deploy (a ~6 s gap plus reconnect backoff) without hanging the caller on a
- * transport that is not coming back.
- */
-const SEND_READY_TIMEOUT_MS = 30000;
 /**
  * The server drops frames that arrive before its `authenticated` handshake.
  * Every current server sends that frame within milliseconds; if an open socket
@@ -323,11 +318,24 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
       });
   }
 
-  async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]) {
+  async send<T extends MessageType>(
+    messageType: T,
+    data: SocketMessageMap[T],
+    deadline = Date.now() + SEND_READY_TIMEOUT_MS
+  ) {
+    const remaining = () => {
+      const ms = deadline - Date.now();
+      if (ms <= 0) throw new Error('WebSocket connection timeout');
+      return ms;
+    };
+    remaining();
     if (!this.isConnected && !this._reconnectExpected) {
       await this.connect();
     }
-    await this.waitForConnection();
+    await this.waitForConnection(remaining());
+    // A suspended tab can resume after its timers' deadlines. Check the wall
+    // clock again immediately before sending, even if authentication succeeded.
+    remaining();
     this._logger.debug('WebSocket send:', messageType, data);
     this.socket!.send(
       JSON.stringify({ type: messageType, data: base64Encode(JSON.stringify(data)) })

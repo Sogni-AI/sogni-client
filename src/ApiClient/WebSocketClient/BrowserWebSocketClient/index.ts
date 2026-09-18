@@ -221,11 +221,11 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     });
   }
 
-  private async handleMessage(message: Message) {
+  private async handleMessage(message: Message, deadline?: number) {
     this._logger.debug('Received control message', message);
     switch (message.type) {
       case 'socket-send': {
-        return this.socketClient.send(message.payload.type, message.payload.data);
+        return this.socketClient.send(message.payload.type, message.payload.data, deadline);
       }
       case 'connect': {
         if (!this.socketClient.isConnected) {
