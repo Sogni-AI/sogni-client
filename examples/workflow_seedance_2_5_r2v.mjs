@@ -439,7 +439,8 @@ Options:
   --duration <seconds>     4-30 for 2.5; 4-15 for the 2.0 family (default: 5)
                            Required for direct edit and must equal @Video1's source duration.
                            For extend, this is the new continuation duration.
-  --resolution <tier>     480p or 720p for 2.5 (default: 720p)
+  --resolution <tier>     480p, 720p, or 1080p for 2.5 (default: 1080p)
+                          Seedance 2.0 also supports 4k.
   --image <path|https>     Loose image reference; repeatable as @Image1, @Image2, ...
   --video <path|https>     Video reference; repeatable as @Video1, @Video2, ...
   --audio <path|https>     Loose audio reference; repeatable as @Audio1, @Audio2, ...
