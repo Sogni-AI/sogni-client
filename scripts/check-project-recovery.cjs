@@ -1060,6 +1060,62 @@ async function main() {
     stopTimers(api);
   }
 
+  // 18. A request written on a connection that dropped before the server read
+  //     it is unknown everywhere after the reconnect. It is sent again, once,
+  //     instead of failing as lost; a second disappearance does fail. With no
+  //     drop in between, absence still means lost and nothing is resent.
+  for (const scenario of ['admitted-after-resend', 'lost-again', 'no-drop']) {
+    const snapshot = { activeProjects: [], unclaimedCompletedProjects: [] };
+    const { api, socket, client, synced, apiEvents } = makeHarness({ syncSnapshot: snapshot });
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    socket.send = async (type, data) => {
+      socket.sent.push({ type, data });
+      if (scenario === 'admitted-after-resend' && socket.sent.length === 2) {
+        snapshot.activeProjects.push(recoveredProject(data.jobID, { workerJobs: [] }));
+      }
+    };
+    const project = await api.create({
+      type: 'image',
+      modelId: 'flux1-schnell-fp8',
+      numberOfMedia: 1,
+      positivePrompt: 'a lighthouse at dusk',
+      steps: 4
+    });
+    if (scenario === 'no-drop') {
+      await api.sync('manual');
+      assert.equal(socket.sent.length, 1, 'no drop: nothing is resent');
+      assert.equal(project.status, 'failed', 'no drop: absence is still a loss');
+      assert.ok(isProjectLostError(project.error));
+      stopTimers(api);
+      continue;
+    }
+    client.emit('connecting', { network: 'fast' });
+    client.emit('connected', { network: 'fast' });
+    await sleep(80);
+    assert.equal(socket.sent.length, 2, 'the dropped request is sent once more');
+    assert.deepEqual(socket.sent[1], socket.sent[0], 'unchanged, same project ID');
+    assert.equal(synced[0].lost.length, 0, 'the reconnect sync does not declare it lost');
+    await sleep(400);
+    if (scenario === 'admitted-after-resend') {
+      assert.notEqual(project.status, 'failed', 'the resent project runs');
+      assert.equal(
+        apiEvents.filter((e) => e.kind === 'project' && e.type === 'error').length,
+        0,
+        'no error surfaced'
+      );
+    } else {
+      assert.equal(socket.sent.length, 2, 'only one resend per project');
+      assert.equal(project.status, 'failed', 'a resent request that vanishes again is lost');
+      assert.ok(isProjectLostError(project.error));
+    }
+    if (api._recheckTimer) clearTimeout(api._recheckTimer);
+    stopTimers(api);
+  }
+
   console.log('check-project-recovery: ALL TESTS PASSED');
   process.exit(0);
 }

@@ -427,6 +427,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _awaitingResubmit = new Set<string>();
   /** When each resubmitted project was last sent, for the recently-created grace. */
   private _resubmittedAt = new Map<string, number>();
+  /** Bumped on every transport loss; tells a frame sent before a drop from one sent after. */
+  private _transportGeneration = 0;
+  /**
+   * The transport generation each request was written on, for requests whose
+   * send completed. A request written on a connection that has since dropped
+   * and that the server never saw died with that connection.
+   */
+  private _sentOnGeneration = new Map<string, number>();
   /**
    * Renders the server announced it moved to another worker (`jobRetry`), still
    * waiting for that worker's first frame. Only consulted when a frame arrives
@@ -961,6 +969,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (project.finished) {
       this._unadmittedRequests.delete(project.id);
       this._resubmittedAt.delete(project.id);
+      this._sentOnGeneration.delete(project.id);
       // Sync project data with the server and remove it from the list after some time
       project._syncToServer().catch((e) => {
         // 404 errors are expected when project is still initializing
@@ -1142,6 +1151,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private handleTransportLost() {
     this.transportDisconnected = true;
+    this._transportGeneration++;
     this._clearAuthenticatedTimer();
     // A transport gap is not a project failure. The server keeps rendering and
     // hands the project back on reconnect (same app-id), so keep the tracked
@@ -1388,12 +1398,73 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         )
       );
       for (const id of pending) {
-        result[id] = live?.includes(id)
-          ? { state: 'active' }
-          : (checks.get(id) ?? { state: 'lost' });
+        if (live?.includes(id)) {
+          result[id] = { state: 'active' };
+          continue;
+        }
+        const check = checks.get(id);
+        if (check) {
+          result[id] = check;
+          continue;
+        }
+        // Nothing on the server knows it. A request that died with a dropped
+        // connection is sent again; one just (re)sent is still being admitted.
+        result[id] =
+          (await this._resendUndelivered(id)) || this._recentlyResubmitted(id)
+            ? { state: 'active' }
+            : { state: 'lost' };
       }
     }
     return result;
+  }
+
+  /**
+   * Send a request again, once, when it was written on a connection that then
+   * dropped and no server frame, snapshot or lookup has ever mentioned it. A
+   * frame written into a dead socket can never arrive later, so this cannot run
+   * the generation twice. Requests whose delivery is merely uncertain (a
+   * missing cross-tab ACK) never qualify: the primary tab may still send them.
+   */
+  private async _resendUndelivered(projectId: string): Promise<boolean> {
+    const request = this._unadmittedRequests.get(projectId);
+    const sentOn = this._sentOnGeneration.get(projectId);
+    const project = this.projects.find((p) => p.id === projectId);
+    if (
+      !request ||
+      sentOn === undefined ||
+      sentOn >= this._transportGeneration ||
+      this.transportDisconnected ||
+      this._resubmittedAt.has(projectId) ||
+      this._awaitingResubmit.has(projectId) ||
+      (project && project.finished)
+    ) {
+      return false;
+    }
+    // Claimed before the await so a concurrent lookup cannot send it twice.
+    this._resubmittedAt.set(projectId, Date.now());
+    this._sentOnGeneration.delete(projectId);
+    this.client.logger.info(
+      `Project ${projectId} was sent on a connection that dropped before the server received it; resubmitting`
+    );
+    try {
+      await this.client.socket.send('jobRequest', request);
+    } catch (error) {
+      if (!(error instanceof MessageDeliveryUncertainError)) {
+        this.client.logger.warn(`Resubmitting project ${projectId} failed`, error);
+        return false;
+      }
+    }
+    this._resubmittedAt.set(projectId, Date.now());
+    this._sentOnGeneration.set(projectId, this._transportGeneration);
+    project?._keepAlive();
+    this._scheduleRecheck(this._recoveryTuning.recentlyCreatedGraceMs);
+    return true;
+  }
+
+  /** Resubmitted within the recently-created grace: the server may not list it yet. */
+  private _recentlyResubmitted(projectId: string): boolean {
+    const at = this._resubmittedAt.get(projectId);
+    return at !== undefined && Date.now() - at < this._recoveryTuning.recentlyCreatedGraceMs;
   }
 
   /**
@@ -1822,6 +1893,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       // Recorded before sending: a refusal can arrive as soon as the frame lands.
       this._unadmittedRequests.set(project.id, request);
       await this.client.socket.send('jobRequest', request);
+      this._sentOnGeneration.set(project.id, this._transportGeneration);
       return this._trackSubmitted(project);
     } catch (error) {
       if (error instanceof MessageDeliveryUncertainError) {
@@ -1850,6 +1922,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       return project;
     }
     this._unadmittedRequests.delete(project.id);
+    this._sentOnGeneration.delete(project.id);
     project._dispose();
     return tracked;
   }
