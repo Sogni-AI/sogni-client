@@ -1,3 +1,10 @@
+## [5.53.1](https://github.com/Sogni-AI/sogni-client/compare/v5.53.0...v5.53.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* **projects:** resend requests lost to a socket drop instead of failing them ([0d9fbee](https://github.com/Sogni-AI/sogni-client/commit/0d9fbee8b48aa3a73e18420d52691ac109806c4f))
+
 # [5.53.0](https://github.com/Sogni-AI/sogni-client/compare/v5.52.1...v5.53.0) (2026-09-19)
 
 
