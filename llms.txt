@@ -1041,7 +1041,8 @@ console.log(cost.sogni, cost.usd);
 Use `estimateVideoCost()` for video jobs and `estimateAudioCost()` for audio jobs.
 For reference-to-video estimates, supply `referenceImageCount`, `referenceVideoCount`,
 and `referenceVideoDurationSeconds` for the assets the job will actually submit.
-MiniMax H3 bills reference-video duration at the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output;
+MiniMax H3 bills reference-video duration at the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output
+(on the two-stage Reference ids, reference video with 2K output is $0.13/s);
 unrelated models ignore these fields. Quote MiniMax H3 two-stage output with the `_2stage` model ID and the canvas the job renders (672x384, 960x544 or 1344x768). For a FlashVSR upscale estimate, pass the output `width`/`height`, the
 source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the
 verified uploaded source.
