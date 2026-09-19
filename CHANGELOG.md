@@ -1,3 +1,10 @@
+# [5.53.0](https://github.com/Sogni-AI/sogni-client/compare/v5.52.1...v5.53.0) (2026-09-19)
+
+
+### Features
+
+* **projects:** return the daily fair-use share on cost estimates ([62594b1](https://github.com/Sogni-AI/sogni-client/commit/62594b1c67021015a69711081a2e668dee9514e7))
+
 ## [5.52.1](https://github.com/Sogni-AI/sogni-client/compare/v5.52.0...v5.52.1) (2026-09-18)
 
 
