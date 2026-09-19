@@ -2468,7 +2468,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     sampler,
     contextImages,
     gptImageQuality,
-    outputFormat
+    outputFormat,
+    billingMode
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const modelOptions = await this.getModelOptions(model);
@@ -2503,6 +2504,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const queryParams = new URLSearchParams();
     if (gptImageQuality) queryParams.set('gptImageQuality', gptImageQuality);
     if (outputFormat) queryParams.set('outputFormat', outputFormat);
+    if (billingMode) queryParams.set('billingMode', billingMode);
     const query = queryParams.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}${query ? `?${query}` : ''}`
@@ -2513,7 +2515,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       spark: r.quote.project.costInSpark,
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
-      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec
+      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
+      dailyFairUsePct: r.dailyFairUse?.pct
     };
   }
 
@@ -2611,6 +2614,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         String(params.referenceVideoDurationSeconds as number)
       );
     }
+    // Unpinned, the job renders on the connection's network, so quote that one.
+    const network = params.network ?? this._currentNetworkType;
+    if (network) query.set('network', network);
+    if (params.billingMode) query.set('billingMode', params.billingMode);
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-video/estimate/${path}${queryString ? `?${queryString}` : ''}`
@@ -2621,7 +2628,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       spark: r.quote.project.costInSpark,
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
-      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec
+      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
+      dailyFairUsePct: r.dailyFairUse?.pct
     };
   }
 
@@ -2645,8 +2653,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       params.numberOfMedia
     ];
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
+    const query = new URLSearchParams();
+    // Unpinned, the job renders on the connection's network, so quote that one.
+    const network = params.network ?? this._currentNetworkType;
+    if (network) query.set('network', network);
+    if (params.billingMode) query.set('billingMode', params.billingMode);
+    const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v1/job-audio/estimate/${path}`
+      `/api/v1/job-audio/estimate/${path}${queryString ? `?${queryString}` : ''}`
     );
     return {
       token: r.quote.project.costInToken,
@@ -2654,7 +2668,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       spark: r.quote.project.costInSpark,
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
-      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec
+      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
+      dailyFairUsePct: r.dailyFairUse?.pct
     };
   }
 

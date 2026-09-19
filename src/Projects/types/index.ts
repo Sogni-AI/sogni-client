@@ -1143,6 +1143,12 @@ export interface EstimateRequest {
    * Output format, when estimating models with format-specific request metadata.
    */
   outputFormat?: ImageOutputFormat;
+  /**
+   * Billing intent of the job being quoted. 'tokens' opts out of plan coverage,
+   * so the estimate carries no `dailyFairUsePct`.
+   * @default 'auto'
+   */
+  billingMode?: BillingMode;
 }
 
 export interface VideoEstimateRequest {
@@ -1188,6 +1194,18 @@ export interface VideoEstimateRequest {
    * Optional estimate-only signal: non-empty list implies Seedance video-input pricing.
    */
   referenceVideoUrls?: string[];
+  /**
+   * Network the job will render on. A Relaxed render never draws on the plan's
+   * daily fair-use capacity, so its estimate carries no `dailyFairUsePct`.
+   * Defaults to the network the connection is on.
+   */
+  network?: SupernetType;
+  /**
+   * Billing intent of the job being quoted. 'tokens' opts out of plan coverage,
+   * so the estimate carries no `dailyFairUsePct`.
+   * @default 'auto'
+   */
+  billingMode?: BillingMode;
 }
 
 export interface AudioEstimateRequest {
@@ -1196,6 +1214,18 @@ export interface AudioEstimateRequest {
   duration: number;
   steps: number;
   numberOfMedia: number;
+  /**
+   * Network the job will render on. A Relaxed render never draws on the plan's
+   * daily fair-use capacity, so its estimate carries no `dailyFairUsePct`.
+   * Defaults to the network the connection is on.
+   */
+  network?: SupernetType;
+  /**
+   * Billing intent of the job being quoted. 'tokens' opts out of plan coverage,
+   * so the estimate carries no `dailyFairUsePct`.
+   * @default 'auto'
+   */
+  billingMode?: BillingMode;
 }
 
 /**
@@ -1224,6 +1254,13 @@ export interface CostEstimation {
    * wait benchmark is available.
    */
   estimatedTotalSeconds?: number;
+  /**
+   * Share of the signed-in subscriber's daily fair-use capacity this project
+   * would draw, as a percentage to one decimal (0 for a project under 0.05%).
+   * Present only when the plan covers the project on the Fast network; absent
+   * for guests, premium-vendor models, token billing, trials and Relaxed.
+   */
+  dailyFairUsePct?: number;
 }
 
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';

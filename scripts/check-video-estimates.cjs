@@ -160,7 +160,11 @@ async function main() {
           'outputScale is no longer supported. For MiniMax H3 1080p or 2K output use the two-stage model ids minimax-h3-fastvideo-int8_t2v_turbo_2stage, minimax-h3-fastvideo-int8_i2v_turbo_2stage or minimax-h3-fastvideo-int8_flf2v_turbo_2stage.'
     );
   }
-  assert.equal(client.socket.paths.length, requestsBefore, 'a retired outputScale sends no request');
+  assert.equal(
+    client.socket.paths.length,
+    requestsBefore,
+    'a retired outputScale sends no request'
+  );
 
   await estimate(projects, {
     model: 'seedance-2-0',
@@ -179,6 +183,39 @@ async function main() {
     false,
     'invalid optional metadata must not corrupt a backwards-compatible estimate'
   );
+
+  // Daily fair-use share: the network the job renders on and an explicit token
+  // billing intent reach the socket, and its share comes back on the estimate.
+  const query = () => new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
+  await estimate(projects, { network: 'relaxed', billingMode: 'tokens' });
+  assert.equal(query().get('network'), 'relaxed');
+  assert.equal(query().get('billingMode'), 'tokens');
+  projects._currentNetworkType = 'fast';
+  await estimate(projects);
+  assert.equal(
+    query().get('network'),
+    'fast',
+    'an unpinned estimate quotes the connection network'
+  );
+  await projects.estimateAudioCost({
+    tokenType: 'spark',
+    model: 'audio-model',
+    duration: 30,
+    steps: 8,
+    numberOfMedia: 1
+  });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-audio/estimate/spark/audio-model/30/8/1?network=fast'
+  );
+  const shareSocket = client.socket.get.bind(client.socket);
+  client.socket.get = async (path) => ({
+    ...(await shareSocket(path)),
+    dailyFairUse: { pct: 0.4 }
+  });
+  assert.equal((await estimate(projects)).dailyFairUsePct, 0.4);
+  client.socket.get = shareSocket;
+  assert.equal((await estimate(projects)).dailyFairUsePct, undefined);
 
   console.log('Video estimate request checks passed');
 }
