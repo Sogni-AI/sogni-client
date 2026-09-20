@@ -1887,8 +1887,23 @@ saved template by id. Saved templates are managed through
 `sogni.workflows.templates` — `list`, `get`, `create`, `update`, `delete`,
 `fork`.
 `resume(workflowId)` releases a workflow paused in `waiting_for_user`;
-`reseed(workflowId, { seedOverrides })` clones a completed run with new seeds.
+`reseed(workflowId, { seedOverrides, idempotencyKey })` clones a completed run with new seeds.
 These endpoints use the SDK's active auth. See `workflow_creative_agent_workflows.mjs`.
+
+REST ERRORS AND SAFE RETRIES:
+A refused REST request throws `ApiError` (exported from the package root):
+`status` (HTTP status), `message`, `payload` (the error body), plus `retryAfter`
+and `details` when the server sent them. `retryAfter` is the wait in SECONDS,
+read from the body or else the `Retry-After` header (a `429`, or a `503` during
+a restart). `details` is structured context, e.g. the active-workflow count
+behind a `409`. Durable chat runs put the same two fields on the error they
+throw. Wait at least `retryAfter` seconds before retrying; never retry a `429`
+immediately. A `409` for too many active workflows clears when a workflow
+finishes: wait for a completion instead of re-sending the start.
+Pass `idempotencyKey` to `workflows.start()` and `workflows.reseed()` and reuse
+it when retrying a timed-out request: the retry returns the workflow the first
+request created instead of starting and billing another. A replayed reseed
+returns `idempotent: true`; use a new key for each take you want.
 
 EXAMPLE CLI USAGE:
 

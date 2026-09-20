@@ -1,5 +1,6 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
+import { apiErrorExtras } from '../lib/apiErrorFields.js';
 import CreativeWorkflowTemplatesApi from './Templates/index.js';
 import {
   CreativeWorkflowRecord,
@@ -264,14 +265,19 @@ class CreativeWorkflowsApi extends ApiGroup {
     if (billingMode) body.billing_mode = billingMode;
     if (appSource) body.app_source = appSource;
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...this.attributionHeaders(appSource, params.attribution, getUUID())
+    };
+    if (params.idempotencyKey) {
+      headers['Idempotency-Key'] = params.idempotencyKey;
+    }
+
     const response = await this.request<CreativeWorkflowEnvelope>(
       `/v1/creative-agent/workflows/${encodeURIComponent(workflowId)}/reseed`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...this.attributionHeaders(appSource, params.attribution, getUUID())
-        },
+        headers,
         body: JSON.stringify(body),
         signal: options.signal
       }
@@ -287,7 +293,11 @@ class CreativeWorkflowsApi extends ApiGroup {
         ? (reseedRaw.cloned_from_run_id as string)
         : '';
     const steps = reseedRaw && Array.isArray(reseedRaw.steps) ? reseedRaw.steps : [];
-    return { workflow, reseed: { clonedFromRunId, steps } };
+    return {
+      workflow,
+      ...(data?.idempotent === true ? { idempotent: true } : {}),
+      reseed: { clonedFromRunId, steps }
+    };
   }
 
   async list(options: ListCreativeWorkflowOptions = {}): Promise<CreativeWorkflowRecord[]> {
@@ -409,11 +419,16 @@ class CreativeWorkflowsApi extends ApiGroup {
     const body = parseJsonResponse(await response.text()) as Record<string, unknown>;
     const payload =
       body.status === 'error' ? body : ((body.data as Record<string, unknown>) ?? body);
-    return new ApiError(response.status, {
-      status: 'error',
-      message: typeof payload.message === 'string' ? payload.message : response.statusText,
-      errorCode: typeof payload.errorCode === 'number' ? payload.errorCode : 0
-    });
+    return new ApiError(
+      response.status,
+      {
+        status: 'error',
+        message: typeof payload.message === 'string' ? payload.message : response.statusText,
+        errorCode: typeof payload.errorCode === 'number' ? payload.errorCode : 0,
+        ...apiErrorExtras(payload)
+      },
+      response.headers.get('retry-after')
+    );
   }
 }
 

@@ -1390,7 +1390,7 @@ Long-running multi-step creative workflows can be persisted on the server and ob
 - `sogni.workflows.events(workflowId)` — poll event history
 - `sogni.workflows.streamEvents(workflowId, { after, lastEventId })` — SSE event stream with resume support
 - `sogni.workflows.resume(workflowId)` — resume a workflow paused in `waiting_for_user`
-- `sogni.workflows.reseed(workflowId, { seedOverrides })` — clone a completed/partial run with fresh seeds
+- `sogni.workflows.reseed(workflowId, { seedOverrides, idempotencyKey })` — clone a completed/partial run with fresh seeds
 - `sogni.workflows.cancel(workflowId)` — cooperative cancellation
 - `sogni.workflows.templates.{list, get, create, update, delete, fork}` — CRUD + fork for the saved workflow templates backing `start({ workflowId })`.
 
@@ -1440,6 +1440,31 @@ const workflow = await sogni.workflows.start({
 
 for await (const event of sogni.workflows.streamEvents(workflow.workflowId)) {
   console.log(event.event, event.data);
+}
+```
+
+#### Retrying safely: `retryAfter`, `details`, and idempotency keys
+
+A refused REST request throws an `ApiError` (exported from the package root) with the HTTP `status`, the server's `message`, and the error body as `payload`. When the server says how long to wait — a `429`, or a `503` while it restarts — `error.retryAfter` carries that wait **in seconds**, read from the response body or, failing that, the `Retry-After` header. `error.details` carries any structured context the server attached, such as the active-workflow count behind a `409`. Both are absent when the server sent neither. Durable chat runs (`sogni.chat.runs`) put the same `retryAfter` and `details` on the error they throw.
+
+Wait at least `retryAfter` seconds before trying again; a request sent sooner is refused again. A `409` for too many active workflows clears when one of your workflows finishes, so wait for a completion (`streamEvents()` or `get()`) rather than re-sending the start.
+
+Pass `idempotencyKey` to `start()` and `reseed()` and reuse it when you retry a request that timed out or lost its connection. The retry returns the workflow the first request created instead of starting — and billing — another one. A reseed mints new random seeds, so use a new key for each take you actually want; a replayed reseed comes back with `idempotent: true`.
+
+```javascript
+import { ApiError } from '@sogni-ai/sogni-client';
+
+async function startWithRetry(params, attempts = 5) {
+  const idempotencyKey = crypto.randomUUID();
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await sogni.workflows.start({ ...params, idempotencyKey });
+    } catch (error) {
+      const canWait = error instanceof ApiError && error.retryAfter !== undefined;
+      if (!canWait || attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, error.retryAfter * 1000));
+    }
+  }
 }
 ```
 

@@ -17,6 +17,7 @@
 
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { ApiError } from '../ApiClient/index.js';
+import { apiErrorExtras } from '../lib/apiErrorFields.js';
 import {
   GetReplayRecordResult,
   ListReplayRecordsOptions,
@@ -146,7 +147,11 @@ class ReplayApi extends ApiGroup {
     const payload = body.status === 'error' ? body : (body as Record<string, unknown>);
     const message = typeof payload.message === 'string' ? payload.message : response.statusText;
     const errorCode = typeof payload.errorCode === 'number' ? payload.errorCode : 0;
-    return new ApiError(response.status, { status: 'error', message, errorCode });
+    return new ApiError(
+      response.status,
+      { status: 'error', message, errorCode, ...apiErrorExtras(payload) },
+      response.headers.get('retry-after')
+    );
   }
 }
 

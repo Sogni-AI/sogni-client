@@ -121,7 +121,7 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
               message: nonJsonErrorMessage(response, rawText),
               errorCode: response.status
             };
-      throw new ApiError(response.status, payload);
+      throw new ApiError(response.status, payload, response.headers.get('retry-after'));
     }
 
     // 2xx. JSON-parse failure here is genuinely unexpected (the server claimed
