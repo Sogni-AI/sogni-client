@@ -1,3 +1,10 @@
+# [5.54.0](https://github.com/Sogni-AI/sogni-client/compare/v5.53.1...v5.54.0) (2026-09-20)
+
+
+### Features
+
+* **errors:** surface retryAfter and details on REST errors, and make reseed idempotent ([684f1bf](https://github.com/Sogni-AI/sogni-client/commit/684f1bf5baaa96ab0ef60ee8b3bc4c8c69644905))
+
 ## [5.53.1](https://github.com/Sogni-AI/sogni-client/compare/v5.53.0...v5.53.1) (2026-09-19)
 
 
