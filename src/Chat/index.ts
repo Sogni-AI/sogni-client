@@ -36,6 +36,7 @@ import {
   ToolExecutionResult,
   ToolHistoryEntry
 } from './types.js';
+import { apiErrorExtras, parseRetryAfterHeader } from '../lib/apiErrorFields.js';
 import getUUID from '../lib/getUUID.js';
 import type ProjectsApi from '../Projects/index.js';
 import { mediaInputToInlineDataUri } from '../lib/mediaValidation.js';
@@ -696,8 +697,19 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
           limitation: extracted.limitation
         });
       }
-      const err = new Error(message);
-      (err as { status?: number }).status = response.status;
+      const err = new Error(message) as Error & {
+        status?: number;
+        retryAfter?: number;
+        details?: Record<string, unknown>;
+      };
+      err.status = response.status;
+      // Same contract as ApiError: the server's wait in seconds (body first,
+      // then the Retry-After header) and any structured context it attached.
+      const extras = apiErrorExtras(payload);
+      const retryAfter =
+        extras.retryAfter ?? parseRetryAfterHeader(response.headers.get('retry-after'));
+      if (retryAfter !== undefined) err.retryAfter = retryAfter;
+      if (extras.details) err.details = extras.details;
       throw err;
     }
     return (await response.json()) as T;

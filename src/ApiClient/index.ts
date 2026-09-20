@@ -27,6 +27,7 @@ import type {
   WorkloadAttributionDefaults,
   WorkloadAttributionInput
 } from '../types/attribution.js';
+import { apiErrorExtras, parseRetryAfterHeader } from '../lib/apiErrorFields.js';
 
 /**
  * Reconnect backoff for recoverable socket drops. Attempts continue for as
@@ -47,15 +48,52 @@ export interface ApiErrorResponse {
   status: 'error';
   message: string;
   errorCode: number;
+  /** Seconds to wait before sending the request again, when the server gave one. */
+  retryAfter?: number;
+  /** Structured context for the error, when the server sent any. */
+  details?: Record<string, unknown>;
 }
 
+/**
+ * A non-2xx response from a Sogni REST endpoint.
+ *
+ * `status` is the HTTP status and `payload` the error body. When the server
+ * says how long to wait — a `429`, or a `503` during a restart — `retryAfter`
+ * carries that wait in seconds, taken from the body or, failing that, from the
+ * `Retry-After` header. Wait at least that long before retrying: a request sent
+ * sooner is refused again. `details` carries any structured context the server
+ * attached (for example the counts behind a capacity refusal).
+ *
+ * ```typescript
+ * try {
+ *   await sogni.workflows.start({ input });
+ * } catch (error) {
+ *   if (error instanceof ApiError && error.retryAfter !== undefined) {
+ *     await new Promise((resolve) => setTimeout(resolve, error.retryAfter! * 1000));
+ *     // ...then retry, reusing the same idempotencyKey.
+ *   }
+ * }
+ * ```
+ */
 export class ApiError extends Error {
   status: number;
   payload: ApiErrorResponse;
-  constructor(status: number, payload: ApiErrorResponse) {
+  /** Seconds to wait before retrying. Absent when the server gave no wait. */
+  retryAfter?: number;
+  /** Structured context the server attached to the error, when present. */
+  details?: Record<string, unknown>;
+  /**
+   * @param retryAfterHeader - The response's `Retry-After` header, used only
+   * when the body carries no `retryAfter`.
+   */
+  constructor(status: number, payload: ApiErrorResponse, retryAfterHeader?: string | null) {
     super(payload.message);
     this.status = status;
     this.payload = payload;
+    const extras = apiErrorExtras(payload);
+    const retryAfter = extras.retryAfter ?? parseRetryAfterHeader(retryAfterHeader);
+    if (retryAfter !== undefined) this.retryAfter = retryAfter;
+    if (extras.details) this.details = extras.details;
   }
 }
 

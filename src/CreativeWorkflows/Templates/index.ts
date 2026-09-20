@@ -19,6 +19,7 @@
 
 import ApiGroup, { ApiConfig } from '../../ApiGroup.js';
 import { ApiError } from '../../ApiClient/index.js';
+import { apiErrorExtras } from '../../lib/apiErrorFields.js';
 import {
   ForkWorkflowTemplateBody,
   ListWorkflowTemplatesOptions,
@@ -225,7 +226,11 @@ class CreativeWorkflowTemplatesApi extends ApiGroup {
     const body = parseErrorEnvelope(await response.text());
     const message = typeof body.message === 'string' ? body.message : response.statusText;
     const errorCode = typeof body.errorCode === 'number' ? body.errorCode : 0;
-    return new ApiError(response.status, { status: 'error', message, errorCode });
+    return new ApiError(
+      response.status,
+      { status: 'error', message, errorCode, ...apiErrorExtras(body) },
+      response.headers.get('retry-after')
+    );
   }
 }
 

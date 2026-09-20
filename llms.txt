@@ -881,6 +881,8 @@ The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/vid
 
 Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.workflows` (`start`, `list`, `get`, `events`, `streamEvents`, `resume`, `reseed`, `cancel`) backed by `/v1/creative-agent/workflows`. `start()` accepts either an inline `input` plan or a saved `workflowId` + `inputs`. Saved workflow templates are managed via `sogni.workflows.templates` (`list`, `get`, `create`, `update`, `delete`, `fork`). All endpoints use the SDK's active auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
 
+REST errors and safe retries: a refused REST request throws `ApiError` (exported from the package root) with `status`, `message`, `payload`, and — when the server sent them — `retryAfter` (the wait in seconds, from the body or else the `Retry-After` header) and `details` (structured context, e.g. the active-workflow count behind a `409`). Durable chat runs put the same two fields on the error they throw. Wait at least `retryAfter` seconds before retrying; never retry a `429` immediately, and treat a `409` for too many active workflows as "wait for a workflow to finish". Pass `idempotencyKey` to `workflows.start()` and `workflows.reseed()` and reuse it when retrying a timed-out request, so the retry returns the first request's workflow instead of starting and billing another (a replayed reseed returns `idempotent: true`).
+
 Default generation models used by platform tools:
 | Tool | Model | Description |
 |------|-------|-------------|
