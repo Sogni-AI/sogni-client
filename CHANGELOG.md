@@ -1,3 +1,10 @@
+## [5.54.1](https://github.com/Sogni-AI/sogni-client/compare/v5.54.0...v5.54.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* **images:** preserve metadata opt-out and zero-valued controls ([b0195b6](https://github.com/Sogni-AI/sogni-client/commit/b0195b6fb16e493feba94b155efc74bdaa276076))
+
 # [5.54.0](https://github.com/Sogni-AI/sogni-client/compare/v5.53.1...v5.54.0) (2026-09-20)
 
 
