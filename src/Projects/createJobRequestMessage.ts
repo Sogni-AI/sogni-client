@@ -1261,7 +1261,13 @@ function applyImageParams(
   if (params.startingImage) {
     keyFrame.hasStartingImage = true;
     keyFrame.strengthIsEnabled = true;
-    keyFrame.strength = 1 - (Number(params.startingImageStrength) || 0.5);
+    keyFrame.strength =
+      1 -
+      validateNumber(params.startingImageStrength ?? 0.5, {
+        min: 0,
+        max: 1,
+        propertyName: 'startingImageStrength'
+      });
   }
 
   if (params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID) {
@@ -1846,6 +1852,12 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
 
   if (params.network) {
     jobRequest.network = params.network;
+  }
+  if (isImageParams(params) && params.embedPromptMetadata !== undefined) {
+    if (typeof params.embedPromptMetadata !== 'boolean') {
+      throw new Error('embedPromptMetadata must be a boolean');
+    }
+    jobRequest.embedPromptMetadata = params.embedPromptMetadata;
   }
   if (params.appSource) {
     jobRequest.appSource = params.appSource;

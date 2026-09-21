@@ -731,7 +731,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       positivePrompt: overrides.positivePrompt || this._project.params.positivePrompt,
       stylePrompt: overrides.stylePrompt || this._project.params.stylePrompt,
       tokenType: overrides.tokenType || this._project.params.tokenType,
-      seed: this.seed || this._project.params.seed,
+      seed: this.seed ?? this._project.params.seed,
       startingImage: imageData,
       startingImageStrength: 1 - getEnhacementStrength(strength),
       sizePreset: parentProjectParams.sizePreset

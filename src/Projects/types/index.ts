@@ -893,9 +893,11 @@ export interface ImageProjectParams
    */
   controlNet?: ControlNetParams;
   /**
-   * Output format. Can be 'png' or 'jpg'. Defaults to 'png'.
+   * Output format: 'png', 'jpg', or 'webp'. Defaults to 'png'.
    */
   outputFormat?: ImageOutputFormat;
+  /** Embed the generation prompt/settings in worker image metadata. Defaults to true. */
+  embedPromptMetadata?: boolean;
   /**
    * GPT Image quality preset (2.5 also supports xhigh/max). Only used by external OpenAI image models.
    * Defaults to 'medium'.

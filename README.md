@@ -542,7 +542,8 @@ Here is a full list of project parameters that you can use:
 - `startingImage` - guide image in PNG format. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
 - `startingImageStrength` - strong effect of starting image should be. From 0 to 1, default 0.5.
 - `controlNet` - Stable Diffusion ControlNet parameters. See **ControlNets** section below for more info.
-- `outputFormat` - output image format. Can be `png`, `jpg`, or `webp` for GPT Image 2; most native image models support `png` or `jpg`. If not specified, `png` will be used.
+- `outputFormat` - output image format: `png`, `jpg`, or `webp`. The SDK defaults to `png`; worker availability determines support for each model and format.
+- `embedPromptMetadata` - whether worker images include the generation prompt and settings in their metadata. Defaults to `true`; pass `false` to omit them.
 
 TypeScript type definitions for project parameters can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 
