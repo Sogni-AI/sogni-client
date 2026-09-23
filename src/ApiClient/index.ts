@@ -331,12 +331,12 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   handleAuthUpdated(isAuthenticated: boolean) {
     if (!isAuthenticated) {
       this._clearReconnect();
-      if (this.socket.isConnected) {
-        this.socket.disconnect();
-      }
+      this.socket.disconnect();
     } else if (!this._disableSocket && !this.socket.isConnected) {
       this.handleSocketConnecting();
-      void this.socket.connect();
+      void this.socket.connect().catch((error) => {
+        this.logger.debug('WebSocket connection did not complete', error);
+      });
     }
   }
 

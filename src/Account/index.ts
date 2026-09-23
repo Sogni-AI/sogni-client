@@ -31,6 +31,7 @@ import {
   TrialEligibilityResponseData
 } from './subscription.types.js';
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
+import { captureRequestSession } from '../lib/requestSession.js';
 import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import CurrentAccount from './CurrentAccount.js';
@@ -99,9 +100,11 @@ class AccountApi extends ApiGroup {
    * and the REST snapshot is discarded as stale.
    */
   private appliedSubscriptionSocketWrites = 0;
+  private accountSessionVersion?: number;
 
   constructor(config: ApiConfig) {
     super(config);
+    this.accountSessionVersion = this.client.auth.sessionVersion;
     this.currentAccount._update({
       networkStatus: this.client.socket.isConnected ? 'connected' : 'disconnected',
       network: this.client.socket.supernetType
@@ -117,6 +120,7 @@ class AccountApi extends ApiGroup {
     this.client.on('connected', this.handleServerConnected.bind(this));
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     this.client.auth.on('updated', this.handleAuthUpdated.bind(this));
+    this.client.auth.on('sessionChanged', this.clearChangedAccountSession.bind(this));
   }
 
   private handleBalanceUpdate(data: Balances) {
@@ -345,6 +349,14 @@ class AccountApi extends ApiGroup {
     }
   }
 
+  private clearChangedAccountSession() {
+    if (this.accountSessionVersion === this.client.auth.sessionVersion) return;
+    this.accountSessionVersion = this.client.auth.sessionVersion;
+    this.lastAppliedSubscriptionVersion = null;
+    this.appliedSubscriptionSocketWrites = 0;
+    this.currentAccount._clear();
+  }
+
   private handleAuthUpdated(isAuthenticated: boolean) {
     if (!isAuthenticated) {
       // Reset the entitlement recency guard together with the account data so
@@ -353,7 +365,10 @@ class AccountApi extends ApiGroup {
       this.appliedSubscriptionSocketWrites = 0;
       this.currentAccount._clear();
     } else {
-      this.me();
+      this.clearChangedAccountSession();
+      this.me().catch((error) => {
+        this.client.logger.debug('Account refresh did not complete', error);
+      });
     }
   }
 
@@ -429,6 +444,7 @@ class AccountApi extends ApiGroup {
     if (auth instanceof TokenAuthManager) {
       await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
     } else if (auth instanceof CookieAuthManager) {
+      auth._setSessionIdentity(wallet.address.toLowerCase());
       await auth.authenticate();
     }
     return res.data;
@@ -473,6 +489,7 @@ class AccountApi extends ApiGroup {
     if (auth instanceof TokenAuthManager) {
       await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
     } else if (auth instanceof CookieAuthManager) {
+      auth._setSessionIdentity(wallet.address.toLowerCase());
       await auth.authenticate();
     }
     return res.data;
@@ -561,7 +578,12 @@ class AccountApi extends ApiGroup {
   }
 
   async me() {
+    const assertSession = captureRequestSession(this.client.auth);
     const res = await this.client.rest.get<ApiResponse<MeData>>('/v1/account/me');
+    assertSession();
+    if (this.client.auth instanceof CookieAuthManager) {
+      this.client.auth._setSessionIdentity(res.data.walletAddress.toLowerCase());
+    }
     this.currentAccount._update({
       username: res.data.username,
       email: res.data.currentEmail,

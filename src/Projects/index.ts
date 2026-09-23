@@ -1,6 +1,7 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { MessageDeliveryUncertainError } from '../ApiClient/WebSocketClient/requestDelivery.js';
 import ReusableUploads from './ReusableUploads.js';
+import { captureRequestSession } from '../lib/requestSession.js';
 import {
   AvailableModel,
   EnhancementStrength,
@@ -411,6 +412,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _availableModels: AvailableModel[] = [];
   private _currentNetworkType: SupernetType | null = null;
   private projects: Project[] = [];
+  private _preparingSessions = new Map<string, () => void>();
   private cancellationRequests = new Map<string, Promise<void>>();
   private transportDisconnected = false;
   private _connectedAt = 0;
@@ -423,6 +425,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * request the socket refused while restarting can be sent again unchanged.
    */
   private _unadmittedRequests = new Map<string, JobRequestRaw>();
+  private _requestSessions = new WeakMap<JobRequestRaw, () => void>();
   /** Projects waiting for a reconnect to be resubmitted on. */
   private _awaitingResubmit = new Set<string>();
   /** When each resubmitted project was last sent, for the recently-created grace. */
@@ -540,6 +543,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // Listen to project and job events and update project and job instances
     this.on('project', this.handleProjectEvent.bind(this));
     this.on('job', this.handleJobEvent.bind(this));
+    let sessionVersion = this.client.auth?.sessionVersion;
+    const clearPreviousSession = () => {
+      if (sessionVersion === this.client.auth?.sessionVersion) return;
+      sessionVersion = this.client.auth?.sessionVersion;
+      this.projects.forEach((project) => project._dispose());
+      this.projects = [];
+      this._unadmittedRequests.clear();
+      this._awaitingResubmit.clear();
+      this._resubmittedAt.clear();
+      this._sentOnGeneration.clear();
+      this._recoveredCompletedIds.clear();
+      this._syncChain = Promise.resolve();
+      this.cancellationRequests.clear();
+      this._clearAuthenticatedTimer();
+      if (this._recheckTimer) clearTimeout(this._recheckTimer);
+      this._recheckTimer = null;
+    };
+    this.client.auth?.on('updated', clearPreviousSession);
+    this.client.auth?.on('sessionChanged', clearPreviousSession);
   }
 
   /**
@@ -659,6 +681,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private async handleJobProgress(data: JobProgressData) {
+    const assertSession = captureRequestSession(this.client.auth);
     const event: JobEvent = {
       type: 'progress',
       projectId: data.jobID,
@@ -677,14 +700,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         jobId: data.jobID,
         imageId: data.imgID,
         type: 'preview'
-      }).then((url) => {
-        this.emit('job', {
-          type: 'preview',
-          projectId: data.jobID,
-          jobId: data.imgID,
-          url
+      })
+        .then((url) => {
+          assertSession();
+          this.emit('job', {
+            type: 'preview',
+            projectId: data.jobID,
+            jobId: data.imgID,
+            url
+          });
+        })
+        .catch((error) => {
+          this.client.logger.debug('Project preview did not complete', error);
         });
-      });
     }
   }
 
@@ -698,6 +726,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private async handleJobResult(data: JobResultData) {
+    const assertSession = captureRequestSession(this.client.auth);
     const project = this.projects.find((p) => p.id === data.jobID);
     // `triggeredNSFWFilter` means the server withheld the media, so there is
     // nothing to mint a URL for. `nsfwDetected` is the opposite case: a signal
@@ -742,6 +771,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       }
     }
 
+    assertSession();
     // Update the job directly with the result URL to prevent duplicate API calls
     let performedStepCount = data.performedStepCount;
     let seed = data.lastSeed !== undefined ? Number(data.lastSeed) : undefined;
@@ -1177,6 +1207,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const request = this._unadmittedRequests.get(projectId);
     const project = this.projects.find((p) => p.id === projectId);
     if (!request || !project || project.finished) return false;
+    const assertSession =
+      this._requestSessions.get(request) ?? captureRequestSession(this.client.auth);
+    try {
+      assertSession();
+    } catch {
+      return false;
+    }
     // One resubmit per project: a second refusal surfaces as an error.
     this._unadmittedRequests.delete(projectId);
     this._awaitingResubmit.add(projectId);
@@ -1187,6 +1224,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const fail = (error: unknown) => {
       this._awaitingResubmit.delete(projectId);
       this.client.logger.warn(`Resubmitting project ${projectId} failed`, error);
+      try {
+        assertSession();
+      } catch {
+        return;
+      }
       this.emit('project', {
         type: 'error',
         projectId,
@@ -1210,11 +1252,22 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         project._keepAlive();
         this._scheduleRecheck(this._recoveryTuning.recentlyCreatedGraceMs);
       };
-      this.client.socket
-        .send('jobRequest', request)
-        .then(sent)
-        // A missing browser ACK may still have been sent: let the recheck decide.
-        .catch((error) => (error instanceof MessageDeliveryUncertainError ? sent() : fail(error)));
+      const resubmit = async () => {
+        try {
+          assertSession();
+          try {
+            await this.client.socket.send('jobRequest', request);
+          } catch (error) {
+            // A missing browser ACK may still have been sent: let the recheck decide.
+            if (!(error instanceof MessageDeliveryUncertainError)) throw error;
+          }
+          assertSession();
+          sent();
+        } catch (error) {
+          fail(error);
+        }
+      };
+      void resubmit();
     });
     timer = setTimeout(() => {
       offConnected();
@@ -1302,11 +1355,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * Results are also broadcast as the `projectsSynced` event.
    */
   async sync(reason: ProjectSyncReason = 'manual'): Promise<ProjectSyncResult> {
+    const assertSession = captureRequestSession(this.client.auth);
     const requestedAt = Date.now();
     const body = await this.client.socket.get<ProjectRecoverySnapshot>(
       '/api/v1/artist/projects/sync',
       { appId: this.client.appId }
     );
+    assertSession();
     const snapshot: ProjectRecoverySnapshot = {
       activeProjects: Array.isArray(body?.activeProjects) ? body.activeProjects : [],
       unclaimedCompletedProjects: Array.isArray(body?.unclaimedCompletedProjects)
@@ -1359,18 +1414,22 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     projectIds: string[],
     options: { attempts?: number; delayMs?: number } = {}
   ): Promise<Record<string, ProjectResolution>> {
+    const assertSession = captureRequestSession(this.client.auth);
     const attempts = Math.max(1, options.attempts ?? this._recoveryTuning.missingProjectAttempts);
     const delayMs = options.delayMs ?? this._recoveryTuning.missingProjectRetryMs;
     const result: Record<string, ProjectResolution> = {};
     let pending = Array.from(new Set(projectIds));
     for (let attempt = 0; attempt < attempts && pending.length; attempt++) {
       if (attempt > 0) await sleep(delayMs);
+      assertSession();
       const stillMissing: string[] = [];
       for (const id of pending) {
         try {
           const project = await this.get(id);
+          assertSession();
           result[id] = { state: 'finished', project };
         } catch (error: any) {
+          assertSession();
           if (error?.status === 404) {
             stillMissing.push(id);
           } else {
@@ -1385,6 +1444,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       // the snapshot was taken is in flight, not lost. `null` means the list
       // could not be fetched.
       const live = await this._listActiveProjectIds();
+      assertSession();
       // Before failing anything, ask the owner-scoped live lookup. It can
       // confirm an active project or a terminal failure/cancellation without
       // a full record. A successful completion still needs its result record
@@ -1397,6 +1457,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           unlisted.map(async (id) => [id, await this._lookupUnlistedProject(id)] as const)
         )
       );
+      assertSession();
       for (const id of pending) {
         if (live?.includes(id)) {
           result[id] = { state: 'active' };
@@ -1413,6 +1474,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           (await this._resendUndelivered(id)) || this._recentlyResubmitted(id)
             ? { state: 'active' }
             : { state: 'lost' };
+        assertSession();
       }
     }
     return result;
@@ -1440,19 +1502,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     ) {
       return false;
     }
-    // Claimed before the await so a concurrent lookup cannot send it twice.
-    this._resubmittedAt.set(projectId, Date.now());
-    this._sentOnGeneration.delete(projectId);
-    this.client.logger.info(
-      `Project ${projectId} was sent on a connection that dropped before the server received it; resubmitting`
-    );
+    const assertSession =
+      this._requestSessions.get(request) ?? captureRequestSession(this.client.auth);
     try {
-      await this.client.socket.send('jobRequest', request);
-    } catch (error) {
-      if (!(error instanceof MessageDeliveryUncertainError)) {
-        this.client.logger.warn(`Resubmitting project ${projectId} failed`, error);
-        return false;
+      assertSession();
+      // Claimed before the await so a concurrent lookup cannot send it twice.
+      this._resubmittedAt.set(projectId, Date.now());
+      this._sentOnGeneration.delete(projectId);
+      this.client.logger.info(
+        `Project ${projectId} was sent on a connection that dropped before the server received it; resubmitting`
+      );
+      try {
+        await this.client.socket.send('jobRequest', request);
+      } catch (error) {
+        if (!(error instanceof MessageDeliveryUncertainError)) throw error;
       }
+      assertSession();
+    } catch (error) {
+      this.client.logger.warn(`Resubmitting project ${projectId} failed`, error);
+      return false;
     }
     this._resubmittedAt.set(projectId, Date.now());
     this._sentOnGeneration.set(projectId, this._transportGeneration);
@@ -1502,7 +1570,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     reason: ProjectSyncReason,
     requestedAt: number
   ): Promise<ProjectSyncResult> {
-    const run = () => this._reconcile(snapshot, reason, requestedAt);
+    const assertSession = captureRequestSession(this.client.auth);
+    const run = () => {
+      assertSession();
+      return this._reconcile(snapshot, reason, requestedAt, assertSession);
+    };
     const next = this._syncChain.then(run, run);
     this._syncChain = next.catch(() => undefined);
     return next;
@@ -1511,7 +1583,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async _reconcile(
     snapshot: ProjectRecoverySnapshot,
     reason: ProjectSyncReason,
-    requestedAt: number
+    requestedAt: number,
+    assertSession = captureRequestSession(this.client.auth)
   ): Promise<ProjectSyncResult> {
     const result: ProjectSyncResult = {
       reason,
@@ -1533,11 +1606,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       if (tracked) {
         if (tracked.finished) continue;
         await this._replayRecoveredProject(tracked, recovered);
+        assertSession();
         result.active.push(recovered.id);
       } else {
         const project = this._rehydrateProject(recovered);
         this.projects.push(project);
         await this._replayRecoveredProject(project, recovered);
+        assertSession();
         result.recoveredActive.push(recovered);
       }
     }
@@ -1549,6 +1624,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       if (tracked) {
         if (tracked.finished) continue;
         await this._replayRecoveredProject(tracked, recovered);
+        assertSession();
         result.completed.push(recovered.id);
       } else if (!this._recoveredCompletedIds.has(recovered.id)) {
         // The sync route is read-only, so the same finished project can show up
@@ -1557,6 +1633,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         const project = this._rehydrateProject(recovered);
         this.projects.push(project);
         await this._replayRecoveredProject(project, recovered);
+        assertSession();
         result.recoveredCompleted.push({ ...recovered, resultUrls: project.resultUrls });
       }
     }
@@ -1579,11 +1656,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     if (missing.length) {
       const resolved = await this.resolveMissing(missing.map((p) => p.id));
+      assertSession();
       for (const project of missing) {
         if (project.finished) continue; // a live event beat the lookup
         const resolution = resolved[project.id];
         if (resolution?.state === 'finished') {
           await this._replayRawProject(project, resolution.project, false);
+          assertSession();
           result.completed.push(project.id);
         } else if (resolution?.state === 'terminal') {
           await this._replayRawProject(
@@ -1594,6 +1673,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             },
             false
           );
+          assertSession();
           result.completed.push(project.id);
         } else if (resolution?.state === 'active') {
           project._keepAlive();
@@ -1607,6 +1687,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       }
     }
 
+    assertSession();
     if (result.recoveredActive.length) {
       this.emit('activeProjectsRecovered', result.recoveredActive);
     }
@@ -1644,6 +1725,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       Partial<Pick<RawProject, 'workerJobs' | 'stepCount' | 'reason'>>,
     includeInFlightJobs: boolean
   ) {
+    const assertSession = captureRequestSession(this.client.auth);
     const projectId = project.id;
     const stepCount = typeof raw.stepCount === 'number' ? raw.stepCount : project.params.steps;
     const jobs: Array<RawProject['completedWorkerJobs'][number] | RecoveredWorkerJob> = [
@@ -1689,6 +1771,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             ? jobProvenanceFromResult(job.result as Partial<JobResultData>)
             : {})
         });
+        assertSession();
         continue;
       }
       if (status === 'jobError') {
@@ -1716,6 +1799,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             step: performedSteps,
             ...(typeof stepCount === 'number' ? { stepCount } : {})
           });
+          assertSession();
         }
       }
     }
@@ -1827,6 +1911,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param data
    */
   async create(data: ProjectParams): Promise<Project> {
+    const assertSession = captureRequestSession(this.client.auth);
+    const assertSubmissionSession = captureRequestSession(
+      this.client.auth,
+      'Your account changed while this request was being submitted. ' +
+        'It may still be running in your previous account. Check its creations before submitting again.'
+    );
+    let submissionStarted = false;
     if (data.type === 'video') rejectRetiredOutputScale(data);
     // Segmentation is a one-source/one-mask utility workflow, SAM 3 and
     // BiRefNet alike. Normalize before Project construction so lifecycle
@@ -1868,8 +1959,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       };
     }
     const project = new Project({ ...normalizedData }, { api: this, logger: this.client.logger });
+    this._preparingSessions.set(project.id, assertSession);
     try {
       const modelOptions = await this.getModelOptions(normalizedData.modelId);
+      assertSession();
       const requestParams = {
         ...normalizedData,
         appSource: normalizedData.appSource || this.client.appSource,
@@ -1891,12 +1984,22 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           break;
       }
       // Recorded before sending: a refusal can arrive as soon as the frame lands.
+      assertSession();
       this._unadmittedRequests.set(project.id, request);
+      this._requestSessions.set(request, assertSubmissionSession);
+      submissionStarted = true;
       await this.client.socket.send('jobRequest', request);
+      assertSubmissionSession();
       this._sentOnGeneration.set(project.id, this._transportGeneration);
       return this._trackSubmitted(project);
     } catch (error) {
-      if (error instanceof MessageDeliveryUncertainError) {
+      let failure = error;
+      try {
+        (submissionStarted ? assertSubmissionSession : assertSession)();
+      } catch (sessionError) {
+        failure = sessionError;
+      }
+      if (failure instanceof MessageDeliveryUncertainError) {
         // A missing browser ACK does not establish that jobRequest failed.
         // Preserve the same project for live events and read-only recovery;
         // neither report a definite creation failure nor submit another job.
@@ -1906,8 +2009,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       }
       this._unadmittedRequests.delete(project.id);
       project._dispose();
-      throw error;
+      throw failure;
+    } finally {
+      this._preparingSessions.delete(project.id);
     }
+  }
+
+  private _assertPreparingSession(projectId: string) {
+    this._preparingSessions.get(projectId)?.();
   }
 
   /**
@@ -2242,9 +2351,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'startingImage' }))
       return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -2253,11 +2366,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -2270,9 +2385,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadCNImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'cnImage' }))
       return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -2281,11 +2400,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -2319,6 +2440,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       | 14
       | 15
       | 16;
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
     if (
       await this.assets.tryBindFile(file, contentType, {
@@ -2327,6 +2451,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       })
     )
       return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -2336,11 +2461,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const body = toFetchBody(file);
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body,
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -2361,9 +2488,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceImage' }))
       return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -2372,11 +2503,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -2393,9 +2526,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceMask(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceMask' }))
       return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -2404,11 +2541,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -2425,9 +2564,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceImageEnd(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceImageEnd' }))
       return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -2436,11 +2579,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -2458,9 +2603,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @internal
    */
   private async uploadReferenceAudio(projectId: string, file: File | Buffer | Blob, id?: string) {
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceAudio', id }))
       return;
+    assertSession();
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
       type: 'referenceAudio',
@@ -2471,11 +2620,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (contentType) {
       headers['Content-Type'] = contentType;
     }
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -2491,9 +2642,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @internal
    */
   private async uploadReferenceVideo(projectId: string, file: File | Buffer | Blob, id?: string) {
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceVideo', id }))
       return;
+    assertSession();
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
       type: 'referenceVideo',
@@ -2504,11 +2659,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (contentType) {
       headers['Content-Type'] = contentType;
     }
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -2773,10 +2930,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   upload the image bytes to. Short-lived; use immediately.
    */
   async uploadUrl(params: ImageUrlParams) {
+    this._assertPreparingSession(params.jobId);
     const r = await this.client.rest.get<ApiResponse<{ uploadUrl: string }>>(
       `/v1/image/uploadUrl`,
       params
     );
+    this._assertPreparingSession(params.jobId);
     return r.data.uploadUrl;
   }
 

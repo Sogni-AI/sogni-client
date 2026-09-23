@@ -7,6 +7,7 @@ import {
 import { Logger } from '../../../lib/DefaultLogger.js';
 import WebSocketClient from '../index.js';
 import RestClient from '../../../lib/RestClient.js';
+import { captureRequestSession } from '../../../lib/requestSession.js';
 import { SocketEventMap } from '../events.js';
 import { MessageType, SocketMessageMap } from '../messages.js';
 import ChannelCoordinator from './ChannelCoordinator.js';
@@ -16,14 +17,17 @@ import type {
   SocketEventSubscriptions
 } from '../eventSubscriptions.js';
 import type { NormalizedConnectionAttribution } from '../../../lib/attribution.js';
+import getUUID from '../../../lib/getUUID.js';
 
 interface SocketSend<T extends MessageType = MessageType> {
   type: 'socket-send';
   payload: { type: T; data: SocketMessageMap[T] };
+  sessionId?: string;
 }
 
 interface SocketConnect {
   type: 'connect';
+  sessionRequestId?: string;
 }
 
 interface SocketDisconnect {
@@ -50,14 +54,19 @@ type Message =
 interface EventNotification<T extends keyof SocketEventMap = keyof SocketEventMap> {
   type: 'socket-event';
   payload: { type: T; data: SocketEventMap[T] };
+  sessionId?: string;
 }
 
 interface AuthStateChanged {
   type: 'auth-state-changed';
   payload: boolean;
+  sessionChanged?: boolean;
 }
 
-type Notification = EventNotification | AuthStateChanged;
+type Notification =
+  | EventNotification
+  | AuthStateChanged
+  | { type: 'session-context'; sessionId: string; sessionRequestId?: string };
 
 type EventInterceptor<T extends keyof SocketEventMap = keyof SocketEventMap> = (
   eventType: T,
@@ -88,6 +97,11 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   // Also used so that a tab promoted to primary on legitimate primary death
   // actually rebinds its WebSocket (`handleRoleChange(true)`).
   private _wantConnected = false;
+  private _sessionVersion?: number;
+  private _sessionId: string | null = null;
+  private _staleSessionIds = new Set<string>();
+  private _sessionRequestId?: string;
+  private _contextRequest?: Promise<void>;
   private _supernetType: SupernetType;
   // Last balanceUpdate the primary observed. Socket events are only forwarded
   // to secondaries live, so a tab that joins after the balance arrived would
@@ -143,6 +157,14 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       logger
     });
     this.auth.on('updated', this.handleAuthUpdated.bind(this));
+    this.auth.on('sessionChanged', () => {
+      this.syncSessionContext();
+      this.coordinator.notify({
+        type: 'auth-state-changed',
+        payload: this.auth.isAuthenticated,
+        sessionChanged: true
+      });
+    });
     this.socketClient.intercept(this.handleSocketEvent.bind(this));
     // Keep this tab's WrappedClient subscription state in sync with the server's authoritative
     // snapshot, even when this tab is currently a secondary. If we get promoted to primary, the
@@ -155,7 +177,9 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   get isConnected() {
-    return this.coordinator.isPrimary ? this.socketClient.isConnected : this._wantConnected;
+    return this.coordinator.isPrimary
+      ? this.socketClient.isConnected
+      : this._wantConnected && !!this._sessionId;
   }
 
   get supernetType() {
@@ -163,14 +187,26 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   async connect(): Promise<void> {
+    const assertSession = captureRequestSession(this.auth);
     this._wantConnected = true;
     await this.coordinator.isReady();
+    assertSession();
+    this.syncSessionContext();
     if (this.coordinator.isPrimary) {
       await this.socketClient.connect();
     } else {
-      return this.coordinator.sendMessage({
-        type: 'connect'
-      });
+      if (this._contextRequest) return this._contextRequest;
+      const sessionRequestId = getUUID();
+      this._sessionRequestId = sessionRequestId;
+      const request = this.coordinator
+        .sendMessage({ type: 'connect', sessionRequestId })
+        .then(() => assertSession());
+      this._contextRequest = request;
+      try {
+        await request;
+      } finally {
+        if (this._contextRequest === request) this._contextRequest = undefined;
+      }
     }
   }
 
@@ -211,17 +247,28 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]): Promise<void> {
+    const assertSession = captureRequestSession(this.auth);
     await this.coordinator.isReady();
+    assertSession();
+    this.syncSessionContext();
     if (this.coordinator.isPrimary) {
       // send() connects when needed and waits out a reconnect in progress.
       return this.socketClient.send(messageType, data);
+    }
+    if (messageType === 'jobRequest' && !this._sessionId) {
+      await this.connect();
+      assertSession();
+      if (!this._sessionId) {
+        throw new Error('Reload your other Sogni tabs, then reload this tab and submit again.');
+      }
     }
     // The primary may wait out a reconnect before it can send, so the ACK has
     // to outlast that wait. Control messages keep the short default.
     return this.coordinator.sendMessage(
       {
         type: 'socket-send',
-        payload: { type: messageType, data }
+        payload: { type: messageType, data },
+        ...(messageType === 'jobRequest' && this._sessionId ? { sessionId: this._sessionId } : {})
       },
       REQUEST_ACK_TIMEOUT_MS
     );
@@ -231,9 +278,22 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     this._logger.debug('Received control message', message);
     switch (message.type) {
       case 'socket-send': {
+        this.syncSessionContext();
+        if (message.payload.type === 'jobRequest' && !message.sessionId) {
+          throw new Error('Reload your other Sogni tabs, then reload this tab and submit again.');
+        }
+        if (message.payload.type === 'jobRequest' && message.sessionId !== this._sessionId) {
+          throw new Error('The account changed. Submit this request again.');
+        }
         return this.socketClient.send(message.payload.type, message.payload.data, deadline);
       }
       case 'connect': {
+        this.syncSessionContext();
+        this.coordinator.notify({
+          type: 'session-context',
+          sessionId: this._sessionId!,
+          sessionRequestId: message.sessionRequestId
+        });
         if (!this.socketClient.isConnected) {
           await this.socketClient.connect();
         } else {
@@ -247,6 +307,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
           // free.) Replay current status so the requesting tab syncs.
           this.coordinator.notify({
             type: 'socket-event',
+            sessionId: this._sessionId ?? undefined,
             payload: {
               type: 'connected',
               data: { network: this.socketClient.supernetType }
@@ -258,6 +319,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
           if (this._lastBalanceUpdate) {
             this.coordinator.notify({
               type: 'socket-event',
+              sessionId: this._sessionId ?? undefined,
               payload: { type: 'balanceUpdate', data: this._lastBalanceUpdate }
             });
           }
@@ -266,18 +328,21 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
           if (this._lastSwarmModels) {
             this.coordinator.notify({
               type: 'socket-event',
+              sessionId: this._sessionId ?? undefined,
               payload: { type: 'swarmModels', data: this._lastSwarmModels }
             });
           }
           if (this._lastSwarmLLMModels) {
             this.coordinator.notify({
               type: 'socket-event',
+              sessionId: this._sessionId ?? undefined,
               payload: { type: 'swarmLLMModels', data: this._lastSwarmLLMModels }
             });
           }
           if (this._lastSubscriptionEntitlement) {
             this.coordinator.notify({
               type: 'socket-event',
+              sessionId: this._sessionId ?? undefined,
               payload: {
                 type: 'subscriptionEntitlementUpdated',
                 data: this._lastSubscriptionEntitlement
@@ -288,9 +353,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         return;
       }
       case 'disconnect': {
-        if (this.socketClient.isConnected) {
-          this.socketClient.disconnect();
-        }
+        this.socketClient.disconnect();
         return;
       }
       case 'switchNetwork': {
@@ -308,13 +371,44 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   private async handleNotification(notification: Notification) {
-    this._logger.debug('Received notification', notification.type, notification.payload);
+    this._logger.debug('Received notification', notification.type);
     switch (notification.type) {
+      case 'session-context': {
+        this.syncSessionContext();
+        if (
+          !notification.sessionRequestId ||
+          notification.sessionRequestId !== this._sessionRequestId
+        )
+          return;
+        if (this._staleSessionIds.has(notification.sessionId)) return;
+        this._sessionId = notification.sessionId;
+        return;
+      }
       case 'socket-event': {
+        this.syncSessionContext();
+        if (!notification.sessionId || this._staleSessionIds.has(notification.sessionId)) return;
+        if (notification.sessionId !== this._sessionId) {
+          // A tab promoted before learning the old context creates a fresh
+          // marker. Verify it through our own request before accepting events.
+          if (!this.coordinator.isPrimary && this._wantConnected) {
+            void this.connect().catch((error) => {
+              this._logger.debug('Shared socket context discovery did not complete', error);
+            });
+          }
+          return;
+        }
         this.emit(notification.payload.type, notification.payload.data);
         return;
       }
       case 'auth-state-changed': {
+        if (notification.sessionChanged) {
+          this.auth._invalidateSession();
+          this.syncSessionContext();
+          if (notification.payload && this.auth instanceof CookieAuthManager) {
+            // Refresh the account even when both sessions are authenticated.
+            this.auth.authenticate();
+          }
+        }
         this.handleAuthChanged(notification.payload);
         return;
       }
@@ -339,6 +433,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
 
   private handleSocketEvent(eventType: keyof SocketEventMap, payload: any) {
     if (this.coordinator.isPrimary) {
+      this.syncSessionContext();
       if (eventType === 'balanceUpdate') {
         this._lastBalanceUpdate = payload;
       } else if (eventType === 'swarmModels') {
@@ -352,6 +447,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       }
       this.coordinator.notify({
         type: 'socket-event',
+        sessionId: this._sessionId ?? undefined,
         payload: { type: eventType, data: payload }
       });
       this.emit(eventType, payload);
@@ -359,10 +455,25 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   private handleAuthUpdated(isAuthenticated: boolean) {
+    this.syncSessionContext();
     this.coordinator.notify({
       type: 'auth-state-changed',
       payload: isAuthenticated
     });
+  }
+
+  private syncSessionContext() {
+    const version = this.auth.sessionVersion;
+    if (version !== this._sessionVersion) {
+      if (this._sessionId) this._staleSessionIds.add(this._sessionId);
+      this._sessionVersion = version;
+      this._sessionId = null;
+      this._sessionRequestId = undefined;
+      this._contextRequest = undefined;
+      this._lastBalanceUpdate = null;
+      this._lastSubscriptionEntitlement = null;
+    }
+    if (this.coordinator.isPrimary && !this._sessionId) this._sessionId = getUUID();
   }
 
   private handleRoleChange(isPrimary: boolean) {
@@ -372,8 +483,10 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     // somebody calls send(), which auto-connects — but if the consumer never
     // explicitly sends, no socket ever opens and the session goes dark.
     if (isPrimary && !this.socketClient.isConnected && this._wantConnected) {
-      this.socketClient.connect();
-    } else if (!isPrimary && this.socketClient.isConnected) {
+      void this.socketClient.connect().catch((error) => {
+        this._logger.debug('WebSocket connection did not complete after tab handoff', error);
+      });
+    } else if (!isPrimary) {
       this.socketClient.disconnect();
     }
   }

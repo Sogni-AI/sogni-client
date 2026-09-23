@@ -3,6 +3,7 @@ import TypedEventEmitter, { EventMap } from './TypedEventEmitter.js';
 import { JSONValue } from '../types/json.js';
 import { Logger } from './DefaultLogger.js';
 import { AuthManager } from './AuthManager/index.js';
+import { captureRequestSession } from './requestSession.js';
 
 interface RestRequestInit extends RequestInit {
   timeoutMs?: number;
@@ -65,8 +66,10 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   }
 
   private async request<T = JSONValue>(url: string, options: RestRequestInit = {}): Promise<T> {
+    const assertSession = captureRequestSession(this.auth);
     const { timeoutMs = 30000, ...requestOptions } = options;
     const init = await this.auth.authenticateRequest(requestOptions);
+    assertSession();
 
     // Add a timeout to detect hanging requests
     const controller = new AbortController();
@@ -77,6 +80,7 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     try {
       const response = await fetch(url, { ...init, signal: controller.signal });
       clearTimeout(timeoutId);
+      assertSession();
       return this.processResponse(response) as T;
     } catch (fetchError: any) {
       clearTimeout(timeoutId);

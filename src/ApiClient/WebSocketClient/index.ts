@@ -10,6 +10,7 @@ import { LIB_VERSION } from '../../version.js';
 import { SEND_READY_TIMEOUT_MS } from './requestDelivery.js';
 import { Logger } from '../../lib/DefaultLogger.js';
 import { AuthManager } from '../../lib/AuthManager/index.js';
+import { captureRequestSession } from '../../lib/requestSession.js';
 import {
   normalizeSocketEventSubscriptionUpdate,
   serializeSocketEventSubscriptions
@@ -47,6 +48,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   private _pingInterval: NodeJS.Timeout | null = null;
   /** The socket the server has sent `authenticated` on, i.e. one that accepts work. */
   private _authenticatedSocket: WebSocket | null = null;
+  private _connectionSessionVersion?: number;
   private _openedAt = 0;
   /**
    * Set when the last close was recoverable while the session is
@@ -100,10 +102,11 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   get isConnected(): boolean {
-    return !!this.socket;
+    return !!this.socket && this._connectionSessionVersion === this.auth.sessionVersion;
   }
 
   async connect() {
+    const assertSession = captureRequestSession(this.auth);
     if (this.socket) {
       this.disconnect();
     }
@@ -129,6 +132,8 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     //At this point 'relaxed' does not work as expected, so we use 'fast' or empty
     url.searchParams.set('forceWorkerId', this._supernetType === 'fast' ? 'fast' : '');
     const params = await this.auth.socketOptions();
+    assertSession();
+    this._connectionSessionVersion = this.auth.sessionVersion;
     this.socket = new WebSocket(url.toString(), params);
     this.socket.onerror = this.handleError.bind(this);
     this.socket.onmessage = this.handleMessage.bind(this);
@@ -296,6 +301,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     }
     dataPromise
       .then((str: string) => {
+        if (source !== this.socket || !this.isConnected) return;
         const data = JSON.parse(str);
         let payload = null;
         if (data.data) {
@@ -323,6 +329,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     data: SocketMessageMap[T],
     deadline = Date.now() + SEND_READY_TIMEOUT_MS
   ) {
+    const assertSession = captureRequestSession(this.auth);
     const remaining = () => {
       const ms = deadline - Date.now();
       if (ms <= 0) throw new Error('WebSocket connection timeout');
@@ -333,6 +340,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
       await this.connect();
     }
     await this.waitForConnection(remaining());
+    assertSession();
     // A suspended tab can resume after its timers' deadlines. Check the wall
     // clock again immediately before sending, even if authentication succeeded.
     remaining();

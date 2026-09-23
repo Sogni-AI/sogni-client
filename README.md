@@ -787,6 +787,19 @@ const project = await sogni.projects.create({
 
 ### Reusable subscriber uploads
 
+`projects.create()` keeps preparation tied to the initiating sign-in session.
+If the SDK observes an account change or sign-out while the call is pending, it
+rejects with guidance for that stage. Routine token refresh does not interrupt
+preparation or reconnect recovery. A session change clears locally tracked
+projects and ignores recovery data from the previous session. In browser
+multi-tab mode, older open tabs may need to be reloaded
+before submitting; the error message identifies this case.
+
+This check cannot cancel an upload already sent to its original presigned URL,
+or observe a cookie change before the browser reports it to the SDK. A request
+already submitted may still run under its original account; rejecting the
+pending call does not cancel that work.
+
 On servers that support saved uploads, eligible subscribers can reuse the same
 image, video or audio file across projects. Pass files to `projects.create()` as
 usual: the SDK checks for a previously saved copy before transferring bytes.

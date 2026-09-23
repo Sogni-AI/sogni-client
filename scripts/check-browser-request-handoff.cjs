@@ -152,7 +152,11 @@ async function checkMissingAckAndSuspension() {
     secondary.lastPrimaryHeartbeat = Date.now();
 
     const sending = secondary.sendMessage(
-      { type: 'socket-send', payload: { type: 'jobRequest', data: { jobID: 'LATE' } } },
+      {
+        type: 'socket-send',
+        sessionId: 'test-session',
+        payload: { type: 'jobRequest', data: { jobID: 'LATE' } }
+      },
       REQUEST_ACK_TIMEOUT_MS
     );
     sending.then(
@@ -193,7 +197,15 @@ async function checkMissingAckAndSuspension() {
     primarySocket.connect = async () => {
       connects++;
     };
-    const browserClient = { _logger: logger, socketClient: primarySocket };
+    const browserClient = Object.assign(Object.create(BrowserWebSocketClient.prototype), {
+      _auth: auth,
+      _logger: logger,
+      _sessionVersion: auth.sessionVersion,
+      _sessionId: 'test-session',
+      _staleSessionIds: new Set(),
+      coordinator: { isPrimary: true, notify() {} },
+      socketClient: primarySocket
+    });
     const acks = [];
     const primary = Object.assign(Object.create(ChannelCoordinator.prototype), {
       id: 'primary',
