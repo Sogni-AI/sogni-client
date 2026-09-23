@@ -1235,7 +1235,7 @@ async function main() {
 
     // Add SAM2 coordinates for animate-replace
     if (modelConfig.supportsSam2Coordinates && OPTIONS.sam2Coordinates) {
-      projectParams.sam2Coordinates = OPTIONS.sam2Coordinates;
+      projectParams.sam2Coordinates = JSON.parse(OPTIONS.sam2Coordinates);
     }
 
     // Add guidance
