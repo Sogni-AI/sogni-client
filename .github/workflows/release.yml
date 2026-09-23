@@ -50,6 +50,8 @@ jobs:
         run: node scripts/check-rest-error-retry-after.cjs
       - name: Run project cancellation checks
         run: npm run test:project-cancellation
+      - name: Run account and project request session checks
+        run: node scripts/check-auth-session.cjs && node scripts/check-project-request-session.cjs
       - name: Run project recovery checks
         run: node scripts/check-project-recovery.cjs
       - name: Run browser request handoff and socket readiness checks
