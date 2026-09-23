@@ -49,7 +49,9 @@ async function check(legacyPrimary) {
     wire(socket, 'balanceUpdate', { fixture: 'initial-balance' });
     socket.on('message', (raw) => {
       const { type, data } = JSON.parse(raw.toString());
-      received.push({ type, ...JSON.parse(Buffer.from(data, 'base64').toString()) });
+      // Optional stream negotiation is separate from the submissions under test.
+      if (type === 'jobRequest' || type === 'llmJobRequest')
+        received.push({ type, ...JSON.parse(Buffer.from(data, 'base64').toString()) });
     });
   });
   const clients = [];

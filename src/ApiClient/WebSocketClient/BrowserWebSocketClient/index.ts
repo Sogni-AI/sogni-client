@@ -181,7 +181,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     // next `connect()` will serialize the up-to-date state into the URL query string.
     this.on('socketEventSubscriptionsUpdated', (payload) => {
       if (payload && payload.socketEventSubscriptions) {
-        this.socketClient.socketEventSubscriptions = { ...payload.socketEventSubscriptions };
+        this.socketClient._applySocketEventSubscriptions(payload.socketEventSubscriptions);
       }
     });
   }
@@ -221,6 +221,13 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         await request;
         if (!this._sessionId && !this._legacySessionUnsafe) {
           this._legacySessionVersion = this.auth.sessionVersion;
+        }
+        if (this.socketClient.socketEventSubscriptions?.projectQueue !== false) {
+          // An older primary may have connected before this optional event
+          // existed. Negotiate through its existing subscription-update route.
+          void this.setSocketEventSubscriptions({ projectQueue: true }).catch((error) => {
+            this._logger.debug('Shared socket queue updates are unavailable', error);
+          });
         }
       } finally {
         if (this._contextRequest === request) this._contextRequest = undefined;
@@ -271,6 +278,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
     await this.coordinator.isReady();
     if (this._disposed) throw new Error('WebSocket client disposed');
+    this.socketClient._rememberSocketEventSubscriptionUpdate(update);
     if (this.coordinator.isPrimary) {
       return this.socketClient.setSocketEventSubscriptions(update);
     }

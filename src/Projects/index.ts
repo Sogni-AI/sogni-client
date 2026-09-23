@@ -524,6 +524,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
     this.client.socket.on('swarmModels', this.handleSwarmModels.bind(this));
     this.client.socket.on('jobState', this.handleJobState.bind(this));
+    this.client.socket.on('projectQueue', this.handleProjectQueue.bind(this));
     this.client.socket.on('jobProgress', this.handleJobProgress.bind(this));
     this.client.socket.on('jobETA', this.handleJobETA.bind(this));
     this.client.socket.on('jobError', this.handleJobError.bind(this));
@@ -737,6 +738,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async handleJobResult(data: JobResultData) {
     const assertSession = captureRequestSession(this.client.auth);
     const project = this.projects.find((p) => p.id === data.jobID);
+    if (project) this.clearJobQueueState(project, data.imgID);
     // `triggeredNSFWFilter` means the server withheld the media, so there is
     // nothing to mint a URL for. `nsfwDetected` is the opposite case: a signal
     // fired on a render the artist asked for with the filter off, the media
@@ -899,6 +901,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       (data.imgID ? project.job(data.imgID) : undefined) ??
       (jobIndex !== undefined ? project.jobs.find((j) => j.jobIndex === jobIndex) : undefined);
     if (!job || job.finished) return;
+    this.clearJobQueueState(project, job.id, jobIndex ?? job.jobIndex);
     this._awaitingReassignment.add(job);
     ProjectsApi.resetJobForNewAttempt(job, { status: 'pending', jobIndex });
   }
@@ -966,6 +969,40 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       etaSeconds: undefined,
       etaRange: undefined
     });
+  }
+
+  private handleProjectQueue(data: SocketEventMap['projectQueue']) {
+    const project = this.projects.find((item) => item.id === data?.jobID);
+    if (!project || project.finished) return;
+    project._queueRevision += 1;
+    project._setQueueState(data.waitingReason, data.jobWaitingReasons);
+  }
+
+  /** @internal */
+  _emitQueueChanged(project: Project) {
+    this.emit('queueChanged', {
+      projectId: project.id,
+      waitingReason: project.waitingReason ?? null,
+      jobWaitingReasons: project.jobWaitingReasons
+    });
+  }
+
+  private clearJobQueueState(
+    project: Project,
+    jobId: string,
+    jobIndex = project.job(jobId)?.jobIndex
+  ) {
+    project._queueRevision += 1;
+    const remaining = project.jobWaitingReasons.filter(
+      (row) =>
+        row.imgID?.toUpperCase() !== jobId.toUpperCase() &&
+        (jobIndex === undefined || row.jobIndex !== jobIndex)
+    );
+    if (
+      remaining.length !== project.jobWaitingReasons.length ||
+      project.waitingReason?.reason === 'payment_pending'
+    )
+      project._setQueueState(remaining[0]?.waitingReason ?? null, remaining);
   }
 
   private handleProjectEvent(event: ProjectEvent) {
@@ -1053,6 +1090,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       });
     }
     // Any job-level event means a worker has taken this project, so the queue wait is over.
+    const jobIndex = 'jobIndex' in event ? event.jobIndex : job.jobIndex;
+    this.clearJobQueueState(project, event.jobId, jobIndex);
     // Leaving a stale estimate on the project would keep a "starts in ~2 min" label on
     // screen next to a job that is already rendering.
     if (project.estimatedStartAt !== undefined || project.queueStatus !== undefined) {
@@ -1196,7 +1235,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // hands the project back on reconnect (same app-id), so keep the tracked
     // projects alive and quiet until then.
     this.projects.forEach((p) => {
-      if (!p.finished) p._keepAlive();
+      if (!p.finished) {
+        p._queueRevision += 1;
+        p._setQueueState(null, []);
+        p._keepAlive();
+      }
     });
   }
 
@@ -1372,6 +1415,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   async sync(reason: ProjectSyncReason = 'manual'): Promise<ProjectSyncResult> {
     const assertSession = captureRequestSession(this.client.auth);
     const requestedAt = Date.now();
+    const queueRevisions = this.captureQueueRevisions();
     const body = await this.client.socket.get<ProjectRecoverySnapshot>(
       '/api/v1/artist/projects/sync',
       { appId: this.client.appId }
@@ -1384,7 +1428,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         : [],
       ...(typeof body?.serverTime === 'number' ? { serverTime: body.serverTime } : {})
     };
-    return this._queueSync(snapshot, reason, requestedAt);
+    return this._queueSync(snapshot, reason, requestedAt, queueRevisions);
   }
 
   /**
@@ -1580,15 +1624,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /** Serialize syncs so two snapshots never interleave their replays. */
+  private captureQueueRevisions() {
+    return new Map(this.projects.map((project) => [project.id, project._queueRevision]));
+  }
+
   private _queueSync(
     snapshot: ProjectRecoverySnapshot,
     reason: ProjectSyncReason,
-    requestedAt: number
+    requestedAt: number,
+    queueRevisions = this.captureQueueRevisions()
   ): Promise<ProjectSyncResult> {
     const assertSession = captureRequestSession(this.client.auth);
     const run = () => {
       assertSession();
-      return this._reconcile(snapshot, reason, requestedAt, assertSession);
+      return this._reconcile(snapshot, reason, requestedAt, assertSession, queueRevisions);
     };
     const next = this._syncChain.then(run, run);
     this._syncChain = next.catch(() => undefined);
@@ -1599,7 +1648,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     snapshot: ProjectRecoverySnapshot,
     reason: ProjectSyncReason,
     requestedAt: number,
-    assertSession = captureRequestSession(this.client.auth)
+    assertSession = captureRequestSession(this.client.auth),
+    queueRevisions = this.captureQueueRevisions()
   ): Promise<ProjectSyncResult> {
     const result: ProjectSyncResult = {
       reason,
@@ -1620,7 +1670,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       const tracked = this.projects.find((p) => p.id === recovered.id);
       if (tracked) {
         if (tracked.finished) continue;
-        await this._replayRecoveredProject(tracked, recovered);
+        await this._replayRecoveredProject(tracked, recovered, queueRevisions.get(tracked.id) ?? 0);
         assertSession();
         result.active.push(recovered.id);
       } else {
@@ -1638,7 +1688,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       const tracked = this.projects.find((p) => p.id === recovered.id);
       if (tracked) {
         if (tracked.finished) continue;
-        await this._replayRecoveredProject(tracked, recovered);
+        await this._replayRecoveredProject(tracked, recovered, queueRevisions.get(tracked.id) ?? 0);
         assertSession();
         result.completed.push(recovered.id);
       } else if (!this._recoveredCompletedIds.has(recovered.id)) {
@@ -1722,8 +1772,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
   }
 
-  private _replayRecoveredProject(project: Project, recovered: RecoveredProject) {
-    return this._replayRawProject(project, recovered as unknown as RawProject, true);
+  private _replayRecoveredProject(
+    project: Project,
+    recovered: RecoveredProject,
+    queueRevision = project._queueRevision
+  ) {
+    return this._replayRawProject(project, recovered as unknown as RawProject, true, queueRevision);
   }
 
   /**
@@ -1737,11 +1791,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async _replayRawProject(
     project: Project,
     raw: Pick<RawProject, 'status' | 'completedWorkerJobs'> &
-      Partial<Pick<RawProject, 'workerJobs' | 'stepCount' | 'reason'>>,
-    includeInFlightJobs: boolean
+      Partial<
+        Pick<
+          RawProject,
+          'workerJobs' | 'stepCount' | 'reason' | 'waitingReason' | 'jobWaitingReasons'
+        >
+      >,
+    includeInFlightJobs: boolean,
+    queueRevision = project._queueRevision
   ) {
     const assertSession = captureRequestSession(this.client.auth);
     const projectId = project.id;
+    let replayInFlight = project._queueRevision === queueRevision;
+    project._setQueueState(raw.waitingReason, raw.jobWaitingReasons, queueRevision);
+    let replayRevision = project._queueRevision;
     const stepCount = typeof raw.stepCount === 'number' ? raw.stepCount : project.params.steps;
     const jobs: Array<RawProject['completedWorkerJobs'][number] | RecoveredWorkerJob> = [
       ...(includeInFlightJobs ? raw.workerJobs || [] : []),
@@ -1750,6 +1813,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const replayedJobIds = new Set<string>();
 
     for (const job of jobs) {
+      // A live assignment, retry or queue update wins over an older snapshot,
+      // including one received while an earlier recovered result was downloading.
+      if (project._queueRevision !== replayRevision) replayInFlight = false;
       const imgID = (job as RecoveredWorkerJob).imgID || job.id;
       if (!imgID || replayedJobIds.has(imgID)) continue;
       replayedJobIds.add(imgID);
@@ -1757,10 +1823,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       const status = job.status as string;
       const worker = job.worker as { username?: string; name?: string } | undefined;
       const workerName = worker?.username || worker?.name || '';
+      const jobIndex = typeof job.jobIndex === 'number' ? job.jobIndex : undefined;
 
       if (status === 'jobCompleted') {
         if (local?.finished) continue;
-        await this.handleJobResult({
+        this.clearJobQueueState(project, imgID, jobIndex);
+        const result = this.handleJobResult({
           jobID: projectId,
           imgID,
           ...(typeof job.performedSteps === 'number'
@@ -1786,11 +1854,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             ? jobProvenanceFromResult(job.result as Partial<JobResultData>)
             : {})
         });
+        replayRevision = project._queueRevision;
+        await result;
         assertSession();
+        if (jobIndex !== undefined) project.job(imgID)?._update({ jobIndex });
         continue;
       }
       if (status === 'jobError') {
         if (local?.finished) continue;
+        this.clearJobQueueState(project, imgID, jobIndex);
         const reason = typeof job.reason === 'string' && job.reason ? job.reason : 'genfailure';
         this.handleJobError({
           jobID: projectId,
@@ -1799,21 +1871,39 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           error: reason,
           error_message: reason === 'sensitiveContent' ? 'Sensitive content detected.' : reason
         });
+        if (jobIndex !== undefined) project.job(imgID)?._update({ jobIndex });
+        replayRevision = project._queueRevision;
         continue;
       }
-      if (!includeInFlightJobs || isRecoveredJobFinished(status) || local?.finished) continue;
+      if (
+        !includeInFlightJobs ||
+        !replayInFlight ||
+        isRecoveredJobFinished(status) ||
+        local?.finished
+      )
+        continue;
       if (status === 'assigned' || status === 'initiatingModel') {
-        this.handleJobState({ type: 'initiatingModel', jobID: projectId, imgID, workerName });
+        this.handleJobState({
+          type: 'initiatingModel',
+          jobID: projectId,
+          imgID,
+          workerName,
+          jobIndex
+        });
+        replayRevision = project._queueRevision;
       } else if (status === 'jobStarted' || status === 'jobProgress') {
-        this.handleJobState({ type: 'jobStarted', jobID: projectId, imgID, workerName });
+        this.handleJobState({ type: 'jobStarted', jobID: projectId, imgID, workerName, jobIndex });
+        replayRevision = project._queueRevision;
         const performedSteps = typeof job.performedSteps === 'number' ? job.performedSteps : 0;
         if (performedSteps > 0 || typeof stepCount === 'number') {
-          await this.handleJobProgress({
+          const progress = this.handleJobProgress({
             jobID: projectId,
             imgID,
             step: performedSteps,
             ...(typeof stepCount === 'number' ? { stepCount } : {})
           });
+          replayRevision = project._queueRevision;
+          await progress;
           assertSession();
         }
       }

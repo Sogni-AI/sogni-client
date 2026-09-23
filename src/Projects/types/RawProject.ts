@@ -1,7 +1,10 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types.js';
 import type { JobProvenance } from './JobProvenance.js';
+import type { WaitingReason, JobWaitingReason } from './WaitingReason.js';
 
 export interface RawProject {
+  waitingReason?: WaitingReason | null;
+  jobWaitingReasons?: JobWaitingReason[];
   id: string;
   SID: number;
   artist: Account;
@@ -61,6 +64,8 @@ export interface Account {
 }
 
 export interface RawJob {
+  waitingReason?: WaitingReason | null;
+  jobIndex?: number;
   id: string;
   SID: string;
   imgID?: string;

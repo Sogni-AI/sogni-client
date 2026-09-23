@@ -13,7 +13,8 @@ import { AuthManager } from '../../lib/AuthManager/index.js';
 import { captureRequestSession } from '../../lib/requestSession.js';
 import {
   normalizeSocketEventSubscriptionUpdate,
-  serializeSocketEventSubscriptions
+  serializeSocketEventSubscriptions,
+  resolveProjectQueueSubscription
 } from './eventSubscriptions.js';
 import type {
   SocketEventSubscriptionInput,
@@ -43,6 +44,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   connectionAttribution?: NormalizedConnectionAttribution;
   baseUrl: string;
   socketEventSubscriptions?: SocketEventSubscriptions;
+  private projectQueueSubscription = true;
   private socket: WebSocket | null = null;
   private _supernetType: SupernetType;
   private _pingInterval: NodeJS.Timeout | null = null;
@@ -88,20 +90,48 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     this.appId = appId;
     this.appSource = appSource?.trim() || undefined;
     this.connectionAttribution = normalizeConnectionAttribution(connectionAttribution);
-    this.socketEventSubscriptions = socketEventSubscriptions;
+    this.projectQueueSubscription = resolveProjectQueueSubscription(true, {
+      subscriptions: socketEventSubscriptions
+    });
+    this.socketEventSubscriptions = {
+      ...socketEventSubscriptions,
+      projectQueue: this.projectQueueSubscription
+    };
     this.baseUrl = _baseUrl.toString();
     this._supernetType = supernetType;
     // Mirror the server's authoritative subscriptions snapshot so reconnects keep any
     // runtime updates applied via `setSocketEventSubscriptions` after the initial connect.
     this.on('socketEventSubscriptionsUpdated', (payload) => {
       if (payload && payload.socketEventSubscriptions) {
-        this.socketEventSubscriptions = { ...payload.socketEventSubscriptions };
+        this._applySocketEventSubscriptions(payload.socketEventSubscriptions);
       }
     });
   }
 
   get supernetType(): SupernetType {
     return this._supernetType;
+  }
+
+  /** @internal */
+  _applySocketEventSubscriptions(subscriptions: SocketEventSubscriptions) {
+    if (typeof subscriptions.projectQueue === 'boolean')
+      this.projectQueueSubscription = subscriptions.projectQueue;
+    this.socketEventSubscriptions = {
+      ...subscriptions,
+      projectQueue: this.projectQueueSubscription
+    };
+  }
+
+  /** @internal */
+  _rememberSocketEventSubscriptionUpdate(update: SocketEventSubscriptionInput) {
+    this.projectQueueSubscription = resolveProjectQueueSubscription(
+      this.projectQueueSubscription,
+      normalizeSocketEventSubscriptionUpdate(update)
+    );
+    this.socketEventSubscriptions = {
+      ...this.socketEventSubscriptions,
+      projectQueue: this.projectQueueSubscription
+    };
   }
 
   get isConnected(): boolean {
@@ -221,6 +251,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
 
   async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
     const normalizedUpdate = normalizeSocketEventSubscriptionUpdate(update);
+    this._rememberSocketEventSubscriptionUpdate(normalizedUpdate);
     await this.send('setSocketEventSubscriptions', normalizedUpdate);
   }
 

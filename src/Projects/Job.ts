@@ -11,6 +11,7 @@ import { getEnhacementStrength, isSegmentationModel } from './utils/index.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
 import type { JobProvenance } from './types/JobProvenance.js';
+import type { WaitingReason } from './types/WaitingReason.js';
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -126,6 +127,7 @@ function etaProgressPercent(
  * @inline
  */
 export interface JobData {
+  waitingReason?: WaitingReason | null;
   id: string;
   projectId: string;
   status: JobStatus;
@@ -241,6 +243,11 @@ class Job extends DataEntity<JobData, JobEventMap> {
 
   get projectId() {
     return this.data.projectId;
+  }
+
+  /** Current server-provided reason when this result is queued. */
+  get waitingReason() {
+    return this.data.waitingReason;
   }
 
   /**
@@ -584,6 +591,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
    * @param delta
    */
   _update(delta: Partial<JobData>) {
+    const queueOnly = Object.keys(delta).every((key) => key === 'waitingReason');
+    if (delta.status && delta.status !== 'pending') delta = { ...delta, waitingReason: null };
     if (has(delta, 'eta')) {
       // Keeping etaSeconds for backwards compatibility
       if (delta.eta) {
@@ -594,6 +603,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       }
     }
     super._update(delta);
+    if (queueOnly) return;
     if (this.status === 'processing') {
       this._startRuntimeTimeout();
     } else if (this.finished) {

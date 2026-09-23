@@ -261,6 +261,18 @@ limit is active. Never persist it as policy, infer a threshold from it, or use
 it to authorize work. Live `subscriptionLimitNotice` socket events are opt-in
 through `socketEventSubscriptions` or `setSocketEventSubscriptions()`.
 
+Current project queue explanations subscribe automatically on supported servers.
+Listen with `sogni.projects.on('queueChanged', ({ projectId, waitingReason,
+jobWaitingReasons }) => ...)`, or read the same fields on `Project` and its
+serialized snapshot. Display each server message as plain text. The complete
+per-result list uses zero-based `jobIndex`; `imgID` is optional until assignment,
+and removed entries clear earlier reasons. Known pending Jobs also expose
+`waitingReason`. Partially running batches can retain queued results without a
+project status change. Prefer these details over the legacy worker-only
+`queueStatus` estimate; a free slot does not promise immediate processing.
+Older servers provide no explanation. Set `{ projectQueue: false }` to opt out;
+a runtime subscription reset disables this optional stream until re-enabled.
+
 Plan pricing, included features and models, usage allowances, fair-use
 thresholds, and other limits are subject to change at Sogni AI's discretion,
 subject to applicable law. Treat `getSubscriptionPlans()` and the checkout

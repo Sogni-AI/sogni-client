@@ -126,6 +126,8 @@ identity on every run.
 
 ### Subscription Entitlements
 
+Current queue explanations arrive through `sogni.projects.on('queueChanged', ({ projectId, waitingReason, jobWaitingReasons }) => ...)` and the same `Project` getters. Display `waitingReason.message` as plain text. The complete per-result list uses zero-based `jobIndex`, with optional `imgID` assigned later; removed entries clear old reasons. Prefer these current server details to the legacy worker-only `queueStatus` estimate. A partially running batch can still have queued results. Supported servers stream these details automatically; `{ projectQueue: false }` opts out, and a subscription reset disables the stream. Older servers provide no explanation.
+
 ```javascript
 const plans = await sogni.account.getSubscriptionPlans(); // [{ planId, tier, term, interval, priceUsd, displayName }]
 const subscription = await sogni.account.refreshSubscription(); // unwraps data.subscription

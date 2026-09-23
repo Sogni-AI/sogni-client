@@ -76,6 +76,8 @@ import {
   WorldGenerationReceiptRequest
 } from './Projects/types/index.js';
 import type { JobProvenance } from './Projects/types/JobProvenance.js';
+export type { WaitingReason, JobWaitingReason } from './Projects/types/WaitingReason.js';
+export type { ProjectQueueChanged } from './Projects/types/events.js';
 import type {
   AvailableLorasParams,
   LoraCatalog,
@@ -535,6 +537,8 @@ export interface SogniClientConfig {
    * `{ modelAvailability: false }` to opt out of `swarmModels` and `swarmLLMModels` updates.
    * Subscription limit notices are opt-in; set `{ subscriptionLimitNotice: true }` when the
    * client needs user-facing queue, concurrency, or fair-use updates.
+   * Current project queue details subscribe automatically. Set `{ projectQueue: false }`
+   * to opt out; a runtime subscription reset also disables this optional stream.
    */
   socketEventSubscriptions?: SocketEventSubscriptions;
   /**

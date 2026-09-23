@@ -483,6 +483,11 @@ export type SocketEventSubscriptionsUpdatedData = {
 };
 
 export type SocketEventMap = {
+  projectQueue: {
+    jobID: string;
+    waitingReason?: import('../../Projects/types/WaitingReason.js').WaitingReason | null;
+    jobWaitingReasons?: import('../../Projects/types/WaitingReason.js').JobWaitingReason[];
+  };
   /**
    * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
    */
@@ -612,6 +617,7 @@ export type RecoveredWorkerJobStatus =
  * for legacy native clients and must not be used to distinguish jobs.
  */
 export interface RecoveredWorkerJob {
+  waitingReason?: import('../../Projects/types/WaitingReason.js').WaitingReason | null;
   id: string;
   SID?: number | string;
   imgID: string;
@@ -664,6 +670,8 @@ export interface RecoveredWorkerJob {
  * client that lost its local state can rebuild the prompt and parameters.
  */
 export interface RecoveredProject {
+  waitingReason?: import('../../Projects/types/WaitingReason.js').WaitingReason | null;
+  jobWaitingReasons?: import('../../Projects/types/WaitingReason.js').JobWaitingReason[];
   id: string;
   SID?: number;
   /** App instance (`appId`) that created the project. Newer socket builds only. */

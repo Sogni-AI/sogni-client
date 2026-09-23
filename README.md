@@ -177,6 +177,23 @@ await sogni.setSocketEventSubscriptions({
 
 Runtime subscription changes made via `setSocketEventSubscriptions` are remembered locally and re-applied on every reconnect, so a long-lived client only needs to express its preference once.
 
+Current project queue explanations subscribe automatically on supported servers. Use the dedicated event for explanations about subscription slots, payment confirmation, or worker availability:
+
+```typescript
+sogni.projects.on('queueChanged', ({ projectId, waitingReason, jobWaitingReasons }) => {
+  console.info(projectId, waitingReason?.message ?? '');
+  // Each entry identifies one queued result by its zero-based jobIndex.
+  // imgID is optional until a worker assigns it.
+  for (const entry of jobWaitingReasons) {
+    console.info(entry.jobIndex, entry.waitingReason.message);
+  }
+});
+```
+
+The same current fields are available on `Project.waitingReason`, `Project.jobWaitingReasons`, and their serialized snapshot; known pending jobs also expose `Job.waitingReason`. The result list is complete, so removed entries clear earlier explanations. These details also cover the remaining queued results in a partially running batch, without changing its status or creating jobs early. Display messages as plain text. Prefer them to `queueStatus` when explaining a wait: the older worker estimate does not account for subscription or payment constraints. Older servers provide no explanation, and a free slot does not promise immediate processing.
+
+Set `socketEventSubscriptions: { projectQueue: false }` to opt out. A runtime subscription reset disables this optional stream; subscribe again with `{ projectQueue: true }` if needed.
+
 User-facing subscription limit notices are opt-in. Enable the event when a client needs live queue, concurrency, or fair-use messaging:
 
 ```typescript

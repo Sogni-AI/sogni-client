@@ -7,6 +7,12 @@ import getUUID from '../lib/getUUID.js';
 import { RawJob, RawProject } from './types/RawProject.js';
 import ProjectsApi from './index.js';
 import { Logger } from '../lib/DefaultLogger.js';
+import {
+  normalizeWaitingReason,
+  normalizeJobWaitingReasons,
+  type WaitingReason,
+  type JobWaitingReason
+} from './types/WaitingReason.js';
 
 // If project is not finished and had no updates for 2 minutes, force refresh
 const PROJECT_TIMEOUT = 2 * 60 * 1000;
@@ -46,6 +52,8 @@ const PROJECT_STATUS_MAP: Record<RawProject['status'], ProjectStatus> = {
  * @inline
  */
 export interface ProjectData {
+  waitingReason?: WaitingReason | null;
+  jobWaitingReasons?: JobWaitingReason[];
   id: string;
   startedAt: Date;
   params: ProjectParams;
@@ -63,7 +71,8 @@ export interface ProjectData {
    */
   estimatedStartAt?: Date;
   /**
-   * `'no-workers'` when nothing currently connected can run this project's model.
+   * Worker availability estimate, excluding account limits. Prefer `waitingReason`
+   * for the server's current explanation of queued work.
    */
   queueStatus?: 'waiting' | 'no-workers';
   error?: ErrorData;
@@ -100,6 +109,8 @@ export interface ProjectOptions {
 }
 
 class Project extends DataEntity<ProjectData, ProjectEventMap> {
+  /** Increments when live activity supersedes an in-flight queue snapshot. @internal */
+  _queueRevision = 0;
   private _jobs: Job[] = [];
   private _lastEmitedProgress = -1;
   private readonly _api: ProjectsApi;
@@ -114,6 +125,8 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       startedAt: new Date(),
       params: data,
       queuePosition: -1,
+      waitingReason: null,
+      jobWaitingReasons: [],
       status: 'pending'
     });
 
@@ -207,12 +220,78 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   }
 
   /**
-   * `'no-workers'` when nothing currently connected can run this project's model, in which
-   * case {@link Project.estimatedStartAt} is undefined and the project is waiting for a
-   * worker to come online rather than for the queue to drain.
+   * Worker availability estimate, excluding account limits. Prefer
+   * {@link Project.waitingReason} when explaining why results are queued.
    */
   get queueStatus() {
     return this.data.queueStatus;
+  }
+
+  /** Current explanation for remaining queued results, including a partially running batch. */
+  get waitingReason() {
+    return this.data.waitingReason;
+  }
+
+  /** Complete current queue details by zero-based result index; does not create Jobs. */
+  get jobWaitingReasons() {
+    return this.data.jobWaitingReasons || [];
+  }
+
+  /** @internal */
+  _setQueueState(rawReason: unknown, rawJobs: unknown, expectedRevision?: number) {
+    if (expectedRevision !== undefined && expectedRevision !== this._queueRevision) return false;
+    let waitingReason = this.finished ? null : normalizeWaitingReason(rawReason);
+    const jobWaitingReasons = this.finished
+      ? []
+      : normalizeJobWaitingReasons(rawJobs, this.params.numberOfMedia).filter((row) => {
+          const known = this.jobs.find(
+            (job) =>
+              (row.imgID && row.imgID.toUpperCase() === job.id.toUpperCase()) ||
+              job.jobIndex === row.jobIndex
+          );
+          return !known || known.status === 'pending';
+        });
+    if (Array.isArray(rawJobs) && rawJobs.length > 0)
+      waitingReason = jobWaitingReasons[0]?.waitingReason || null;
+    const changed =
+      JSON.stringify([this.waitingReason ?? null, this.jobWaitingReasons]) !==
+      JSON.stringify([waitingReason, jobWaitingReasons]);
+    for (const job of this.jobs) {
+      const next =
+        job.status !== 'pending'
+          ? null
+          : jobWaitingReasons.find(
+              (row) =>
+                (row.imgID && row.imgID.toUpperCase() === job.id.toUpperCase()) ||
+                job.jobIndex === row.jobIndex
+            )?.waitingReason || null;
+      if (JSON.stringify(job.waitingReason ?? null) !== JSON.stringify(next))
+        job._update({ waitingReason: next });
+    }
+    if (changed) {
+      this._queueRevision += 1;
+      this._update({ waitingReason, jobWaitingReasons });
+      this._api._emitQueueChanged(this);
+    }
+    return changed;
+  }
+
+  /** @internal */
+  _update(delta: Partial<ProjectData>) {
+    const clearingQueue = Boolean(
+      delta.status &&
+      ['completed', 'failed', 'canceled'].includes(delta.status) &&
+      (this.waitingReason || this.jobWaitingReasons.length)
+    );
+    if (delta.status && ['completed', 'failed', 'canceled'].includes(delta.status)) {
+      this._queueRevision += 1;
+      delta = { ...delta, waitingReason: null, jobWaitingReasons: [] };
+      this.jobs.forEach((job) => {
+        if (job.waitingReason) job._update({ waitingReason: null });
+      });
+    }
+    super._update(delta);
+    if (clearingQueue) this._api._emitQueueChanged(this);
   }
 
   /**
@@ -483,7 +562,9 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    * @internal
    */
   async _syncToServer() {
+    const queueRevision = this._queueRevision;
     const data = await this._api.get(this.id);
+    this._setQueueState(data.waitingReason, data.jobWaitingReasons, queueRevision);
     const jobData = data.completedWorkerJobs.reduce((acc: Record<string, RawJob>, job) => {
       const jobId = job.imgID || getUUID();
       acc[jobId] = job;
