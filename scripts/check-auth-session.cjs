@@ -9,9 +9,13 @@ const TokenAuthManager = require('../dist/lib/AuthManager/TokenAuthManager.js').
 const CookieAuthManager = require('../dist/lib/AuthManager/CookieAuthManager.js').default;
 const ApiKeyAuthManager = require('../dist/lib/AuthManager/ApiKeyAuthManager.js').default;
 const RestClient = require('../dist/lib/RestClient.js').default;
+const ApiClient = require('../dist/ApiClient/index.js').default;
 const AccountApi = require('../dist/Account/index.js').default;
 const CurrentAccount = require('../dist/Account/CurrentAccount.js').default;
+const ProjectsApi = require('../dist/Projects/index.js').default;
 const { captureRequestSession } = require('../dist/lib/requestSession.js');
+const BrowserWebSocketClient =
+  require('../dist/ApiClient/WebSocketClient/BrowserWebSocketClient/index.js').default;
 
 const LOGGER = { debug() {}, info() {}, warn() {}, error() {} };
 const BASE_URL = 'https://auth.example.test';
@@ -296,6 +300,234 @@ async function main() {
       }
     );
 
+    await check('a delayed balance response body cannot refill the next account', async () => {
+      const auth = new ApiKeyAuthManager(LOGGER);
+      await auth.authenticate('test-key-a');
+      const body = deferred();
+      const readingBody = deferred();
+      global.fetch = async (url) =>
+        String(url).includes('/balance')
+          ? {
+              status: 200,
+              ok: true,
+              text: () => {
+                readingBody.resolve();
+                return body.promise;
+              }
+            }
+          : response(meData(ACCOUNT_B));
+      const rest = new RestClient(BASE_URL, auth, LOGGER);
+      const account = accountFixture(auth, rest.get.bind(rest));
+      const result = account.refreshBalance();
+      const rejected = assert.rejects(result, SESSION_CHANGED);
+      await readingBody.promise;
+      await auth.authenticate('test-key-b');
+      await tick();
+      body.resolve(JSON.stringify({ data: { spark: { settled: 'old-balance' } } }));
+      await rejected;
+      assert.equal(account.currentAccount.walletAddress, ACCOUNT_B);
+      assert.notEqual(account.currentAccount.balance.spark?.settled, 'old-balance');
+    });
+
+    await check(
+      'a delayed 401 body cannot clear credentials signed in after its headers',
+      async () => {
+        const auth = new ApiKeyAuthManager(LOGGER);
+        await auth.authenticate('test-key-a');
+        const body = deferred();
+        const readingBody = deferred();
+        global.fetch = async () => ({
+          status: 401,
+          ok: false,
+          headers: new Headers(),
+          text: () => {
+            readingBody.resolve();
+            return body.promise;
+          }
+        });
+        const rest = new RestClient(BASE_URL, auth, LOGGER);
+        const rejected = assert.rejects(rest.get('/v1/account/me'), SESSION_CHANGED);
+        await readingBody.promise;
+        assert.equal(auth.isAuthenticated, false);
+        await auth.authenticate('test-key-b');
+        body.resolve(JSON.stringify({ status: 'error', message: 'Unauthorized' }));
+        await rejected;
+        assert.equal(await auth.backup(), 'test-key-b');
+      }
+    );
+
+    await check('a delayed logout 401 cannot sign out a newer account', async () => {
+      const auth = new ApiKeyAuthManager(LOGGER);
+      await auth.authenticate('test-key-a');
+      const body = deferred();
+      const readingBody = deferred();
+      global.fetch = async (url) =>
+        String(url).includes('/logout')
+          ? {
+              status: 401,
+              ok: false,
+              headers: new Headers(),
+              text: () => {
+                readingBody.resolve();
+                return body.promise;
+              }
+            }
+          : response(meData(ACCOUNT_B));
+      const rest = new RestClient(BASE_URL, auth, LOGGER);
+      const account = accountFixture(auth, rest.get.bind(rest));
+      account.client.rest.post = rest.post.bind(rest);
+      const rejected = assert.rejects(account.logout(), SESSION_CHANGED);
+      await readingBody.promise;
+      assert.equal(auth.isAuthenticated, false);
+      await auth.authenticate('test-key-b');
+      body.resolve(JSON.stringify({ status: 'error', message: 'Unauthorized' }));
+      await rejected;
+      assert.equal(await auth.backup(), 'test-key-b');
+    });
+
+    await check('ordinary logout 401 remains successful and REST keeps its status', async () => {
+      const auth = new ApiKeyAuthManager(LOGGER);
+      await auth.authenticate('test-key-a');
+      global.fetch = async () => response({}, 401);
+      const rest = new RestClient(BASE_URL, auth, LOGGER);
+      const account = accountFixture(auth, rest.get.bind(rest));
+      account.client.rest.post = rest.post.bind(rest);
+      await account.logout();
+      assert.equal(auth.isAuthenticated, false);
+      await assert.rejects(rest.get('/v1/account/me'), (error) => error.status === 401);
+    });
+
+    await check('same-session token renewal does not discard a response body', async () => {
+      const auth = new TokenAuthManager(BASE_URL, LOGGER);
+      await auth.authenticate(tokens(ACCOUNT_A, 'before-body'));
+      const body = deferred();
+      const readingBody = deferred();
+      global.fetch = async () => ({
+        status: 200,
+        ok: true,
+        text: () => {
+          readingBody.resolve();
+          return body.promise;
+        }
+      });
+      const rest = new RestClient(BASE_URL, auth, LOGGER);
+      const result = rest.get('/v1/account/me');
+      await readingBody.promise;
+      await auth.authenticate(tokens(ACCOUNT_A, 'after-body'));
+      body.resolve(JSON.stringify({ data: meData(ACCOUNT_A) }));
+      assert.equal((await result).data.walletAddress, ACCOUNT_A);
+    });
+
+    await check(
+      'disposing during token renewal cannot restore credentials or open a socket',
+      async () => {
+        const api = new ApiClient({
+          baseUrl: BASE_URL,
+          socketUrl: BASE_URL,
+          appId: 'dispose-session-test',
+          authType: 'token',
+          disableSocket: true,
+          networkType: 'fast',
+          logger: LOGGER
+        });
+        await api.auth.authenticate(tokens(ACCOUNT_A, 'before-dispose'));
+        // Let the current access token expire while its refresh token remains valid.
+        api.auth._tokenExpiresAt = new Date(0);
+        const renewal = deferred();
+        const started = deferred();
+        global.fetch = async () => {
+          started.resolve();
+          return renewal.promise;
+        };
+        const connecting = api.socket.connect();
+        const rejected = assert.rejects(connecting, SESSION_CHANGED);
+        await started.promise;
+        api.dispose();
+        renewal.resolve(response(tokens(ACCOUNT_A, 'after-dispose')));
+        await rejected;
+        assert.equal(api.auth.isAuthenticated, false);
+        assert.equal(await api.auth.backup(), null);
+        assert.equal(api.socket.isConnected, false);
+      }
+    );
+
+    await check('disposing clears account state and pending project reconciliation', async () => {
+      const api = new ApiClient({
+        baseUrl: BASE_URL,
+        socketUrl: BASE_URL,
+        appId: 'dispose-project-test',
+        authType: 'apiKey',
+        disableSocket: true,
+        networkType: 'fast',
+        logger: LOGGER
+      });
+      const account = new AccountApi({ client: api, eip712: {} });
+      const projects = new ProjectsApi({ client: api, eip712: {} });
+      let fetches = 0;
+      global.fetch = async () => {
+        fetches += 1;
+        return response(meData(ACCOUNT_A));
+      };
+      try {
+        await api.auth.authenticate('test-key-a');
+        await tick();
+        assert.equal(account.currentAccount.walletAddress, ACCOUNT_A);
+        account.currentAccount._update({ email: 'account-a@example.test' });
+        projects._scheduleRecheck(0);
+        projects.handleServerConnected();
+        const beforeDispose = fetches;
+        api.dispose();
+        const disposedSession = api.auth.sessionVersion;
+        api.dispose();
+        assert.equal(api.auth.sessionVersion, disposedSession, 'disposal is idempotent');
+        assert.equal(account.currentAccount.walletAddress, undefined);
+        assert.equal(account.currentAccount.email, undefined);
+        assert.equal(projects._recheckTimer, null);
+        assert.equal(projects._authenticatedTimer, null);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        assert.equal(fetches, beforeDispose, 'disposed project timers issue no requests');
+      } finally {
+        clearTimeout(projects._recheckTimer);
+        clearTimeout(projects._authenticatedTimer);
+        api.dispose();
+      }
+    });
+
+    await check('a reconnect rejected after disposal cannot schedule another timer', async () => {
+      const api = new ApiClient({
+        baseUrl: BASE_URL,
+        socketUrl: BASE_URL,
+        appId: 'dispose-reconnect-test',
+        authType: 'token',
+        disableSocket: true,
+        networkType: 'fast',
+        logger: LOGGER
+      });
+      await api.auth.authenticate(tokens(ACCOUNT_A, 'before-reconnect'));
+      api.auth._tokenExpiresAt = new Date(0);
+      const renewal = deferred();
+      const started = deferred();
+      global.fetch = async () => {
+        started.resolve();
+        return renewal.promise;
+      };
+      try {
+        api._disableSocket = false;
+        api._scheduleReconnect();
+        await started.promise;
+        api.dispose();
+        renewal.resolve(response(tokens(ACCOUNT_A, 'after-dispose')));
+        await tick();
+        await tick();
+        assert.equal(api._reconnectTimer, null);
+        assert.equal(api.auth.isAuthenticated, false);
+        assert.equal(api.socket.isConnected, false);
+      } finally {
+        api._clearReconnect();
+        api.dispose();
+      }
+    });
+
     await check(
       'superseded event-driven account.me refresh is handled without an unhandled rejection',
       async () => {
@@ -379,6 +611,125 @@ async function main() {
         assert.equal(await checkAuth, false);
         assert.equal(client.currentAccount.walletAddress, ACCOUNT_B);
         assert.ok(auth.isAuthenticated);
+      }
+    );
+
+    await check(
+      'initial cookie discovery does not retry across a peer account replacement',
+      async () => {
+        const auth = new CookieAuthManager(LOGGER);
+        const pending = deferred();
+        let calls = 0;
+        const client = checkAuthFixture(auth, async () => {
+          calls++;
+          return pending.promise;
+        });
+        const checking = SogniClient.prototype.checkAuth.call(client);
+        auth._invalidateSession();
+        auth._setSessionIdentity(ACCOUNT_B);
+        await auth.authenticate();
+        client.currentAccount._update({ walletAddress: ACCOUNT_B });
+        pending.resolve({ data: meData(ACCOUNT_A) });
+        assert.equal(await checking, false);
+        assert.equal(calls, 1);
+        assert.equal(client.currentAccount.walletAddress, ACCOUNT_B);
+      }
+    );
+
+    await check('cold cookie tabs both finish their initial account check', async () => {
+      const clients = [];
+      try {
+        const authA = new CookieAuthManager(LOGGER);
+        const authB = new CookieAuthManager(LOGGER);
+        clients.push(
+          new BrowserWebSocketClient(BASE_URL, authA, 'cold-session-test', 'fast', LOGGER)
+        );
+        await clients[0].coordinator.isReady();
+        clients.push(
+          new BrowserWebSocketClient(BASE_URL, authB, 'cold-session-test', 'fast', LOGGER)
+        );
+        await clients[1].coordinator.isReady();
+        const pending = deferred();
+        const started = deferred();
+        let callsB = 0;
+        global.fetch = async (url) => {
+          if (String(url).includes('tab-b') && ++callsB === 1) {
+            started.resolve();
+            return pending.promise;
+          }
+          return response(meData(ACCOUNT_A));
+        };
+        const restA = new RestClient('https://tab-a.example.test', authA, LOGGER);
+        const restB = new RestClient('https://tab-b.example.test', authB, LOGGER);
+        const clientA = checkAuthFixture(authA, restA.get.bind(restA));
+        const clientB = checkAuthFixture(authB, restB.get.bind(restB));
+        const firstB = SogniClient.prototype.checkAuth.call(clientB);
+        await started.promise;
+        const peerAuthenticated = new Promise((resolve) => authB.once('updated', resolve));
+        assert.equal(await SogniClient.prototype.checkAuth.call(clientA), true);
+        await peerAuthenticated;
+        pending.resolve(response(meData(ACCOUNT_A)));
+        assert.equal(await firstB, true);
+        assert.equal(clientB.currentAccount.walletAddress, ACCOUNT_A);
+        assert.equal(callsB, 2, 'the joined session is checked again before applying an identity');
+      } finally {
+        for (const client of clients) {
+          clearInterval(client.coordinator.heartbeatTimer);
+          clearInterval(client.coordinator.primaryCheckTimer);
+          client.coordinator.channel.close();
+          client.socketClient.disconnect();
+        }
+      }
+    });
+    await check(
+      'peer logout invalidates a cold tab account lookup without restoring either tab',
+      async () => {
+        const authA = new CookieAuthManager(LOGGER);
+        authA._setSessionIdentity(ACCOUNT_A);
+        await authA.authenticate();
+        const authB = new CookieAuthManager(LOGGER);
+        const clients = [];
+        try {
+          clients.push(new BrowserWebSocketClient(BASE_URL, authA, 'cold-logout', 'fast', LOGGER));
+          await clients[0].coordinator.isReady();
+          clients.push(new BrowserWebSocketClient(BASE_URL, authB, 'cold-logout', 'fast', LOGGER));
+          await clients[1].coordinator.isReady();
+          const body = deferred();
+          const readingBody = deferred();
+          global.fetch = async () => ({
+            status: 200,
+            ok: true,
+            text: () => {
+              readingBody.resolve();
+              return body.promise;
+            }
+          });
+          const rest = new RestClient(BASE_URL, authB, LOGGER);
+          const clientB = checkAuthFixture(authB, rest.get.bind(rest));
+          const checking = SogniClient.prototype.checkAuth.call(clientB);
+          await readingBody.promise;
+          const receivedLogout = new Promise((resolve) => {
+            clients[1].coordinator.channel.addEventListener('message', (event) => {
+              const message = event.data.message;
+              if (
+                message.type === 'broadcast' &&
+                message.payload.type === 'auth-state-changed' &&
+                message.payload.payload === false
+              )
+                resolve();
+            });
+          });
+          authA.clear();
+          await receivedLogout;
+          body.resolve(JSON.stringify({ data: meData(ACCOUNT_A) }));
+          assert.equal(await checking, false);
+          await tick();
+          assert.equal(authA.isAuthenticated, false);
+          assert.equal(authB.isAuthenticated, false);
+          assert.equal(clientB.currentAccount.walletAddress, undefined);
+        } finally {
+          for (const client of clients) client.dispose();
+        }
       }
     );
   } finally {

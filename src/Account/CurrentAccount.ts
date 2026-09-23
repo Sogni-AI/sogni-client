@@ -80,6 +80,7 @@ function getDefaults(): AccountData {
     },
     walletAddress: undefined,
     username: undefined,
+    email: undefined,
     subscription: undefined,
     freeSparkLocked: undefined,
     freeSparkUnlockPath: undefined

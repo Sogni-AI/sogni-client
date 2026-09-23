@@ -81,7 +81,20 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
       const response = await fetch(url, { ...init, signal: controller.signal });
       clearTimeout(timeoutId);
       assertSession();
-      return this.processResponse(response) as T;
+      // Clear a rejected sign-in before parsing, including non-JSON 401 pages.
+      // The response body then belongs to that signed-out session. A later
+      // sign-in must invalidate both successful results and API errors.
+      if (response.status === 401 && this.auth.isAuthenticated) {
+        this.auth.clear();
+        if (this.auth.isAuthenticated) assertSession();
+      }
+      const assertResponseSession = captureRequestSession(this.auth);
+      try {
+        return (await this.processResponse(response)) as T;
+      } finally {
+        // fetch resolves at the headers; reading the body can outlive this account.
+        assertResponseSession();
+      }
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
       throw fetchError;
@@ -89,13 +102,6 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   }
 
   private async processResponse(response: Response): Promise<JSONValue> {
-    // 401 means that the client instance is not authenticated, so we clear the
-    // authentication. Do this before parsing so we still clear on HTML error
-    // pages that the upstream sometimes serves on 401.
-    if (response.status === 401 && this.auth.isAuthenticated) {
-      this.auth.clear();
-    }
-
     // Read the body once as text so we can attempt JSON parse AND fall back to
     // surfacing the raw text in the thrown ApiError if it isn't JSON. This
     // matters because gateways (nginx, CloudFront, uWebSockets) return HTML

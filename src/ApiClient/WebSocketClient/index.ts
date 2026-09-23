@@ -49,6 +49,9 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   /** The socket the server has sent `authenticated` on, i.e. one that accepts work. */
   private _authenticatedSocket: WebSocket | null = null;
   private _connectionSessionVersion?: number;
+  private _connectPromise?: Promise<void>;
+  private _connectGeneration = 0;
+  private _disposed = false;
   private _openedAt = 0;
   /**
    * Set when the last close was recoverable while the session is
@@ -106,10 +109,23 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   async connect() {
-    const assertSession = captureRequestSession(this.auth);
-    if (this.socket) {
-      this.disconnect();
+    if (this._disposed) throw new Error('WebSocket client disposed');
+    if (this._connectPromise && this._connectionSessionVersion === this.auth.sessionVersion) {
+      return this._connectPromise;
     }
+    this.disconnect();
+    this._connectionSessionVersion = this.auth.sessionVersion;
+    const connection = this.openConnection(this._connectGeneration);
+    this._connectPromise = connection;
+    try {
+      await connection;
+    } finally {
+      if (this._connectPromise === connection) this._connectPromise = undefined;
+    }
+  }
+
+  private async openConnection(generation: number) {
+    const assertSession = captureRequestSession(this.auth);
     this._reconnectExpected = false;
     this._authenticatedSocket = null;
     const userAgent = `Sogni/${PROTOCOL_VERSION} (sogni-client) ${LIB_VERSION}`;
@@ -133,6 +149,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     url.searchParams.set('forceWorkerId', this._supernetType === 'fast' ? 'fast' : '');
     const params = await this.auth.socketOptions();
     assertSession();
+    if (generation !== this._connectGeneration) throw new Error('WebSocket connection cancelled');
     this._connectionSessionVersion = this.auth.sessionVersion;
     this.socket = new WebSocket(url.toString(), params);
     this.socket.onerror = this.handleError.bind(this);
@@ -143,6 +160,8 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   disconnect() {
+    this._connectGeneration += 1;
+    this._connectPromise = undefined;
     if (!this.socket) {
       return;
     }
@@ -161,6 +180,17 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     };
     this.stopPing();
     socket.close(1000, 'Client disconnected');
+  }
+
+  dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
+    this.disconnect();
+    this._reconnectExpected = false;
+    // Settle pending readiness waits before the owner removes socket listeners.
+    // The native close event arrives later, after teardown has finished.
+    this.emit('disconnected', { code: 1000, reason: 'Client disposed' });
+    this.removeAllListeners();
   }
 
   private startPing(socket: WebSocket) {
@@ -340,6 +370,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
       await this.connect();
     }
     await this.waitForConnection(remaining());
+    if (this._disposed) throw new Error('WebSocket client disposed');
     assertSession();
     // A suspended tab can resume after its timers' deadlines. Check the wall
     // clock again immediately before sending, even if authentication succeeded.

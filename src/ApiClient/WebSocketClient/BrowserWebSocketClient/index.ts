@@ -97,6 +97,8 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   // Also used so that a tab promoted to primary on legitimate primary death
   // actually rebinds its WebSocket (`handleRoleChange(true)`).
   private _wantConnected = false;
+  private _disposed = false;
+  private _unsubscribeAuth: () => void;
   private _sessionVersion?: number;
   private _sessionId: string | null = null;
   private _staleSessionIds = new Set<string>();
@@ -156,8 +158,8 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       },
       logger
     });
-    this.auth.on('updated', this.handleAuthUpdated.bind(this));
-    this.auth.on('sessionChanged', () => {
+    const offUpdated = this.auth.on('updated', this.handleAuthUpdated.bind(this));
+    const offSession = this.auth.on('sessionChanged', () => {
       this.syncSessionContext();
       this.coordinator.notify({
         type: 'auth-state-changed',
@@ -165,6 +167,10 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         sessionChanged: true
       });
     });
+    this._unsubscribeAuth = () => {
+      offUpdated();
+      offSession();
+    };
     this.socketClient.intercept(this.handleSocketEvent.bind(this));
     // Keep this tab's WrappedClient subscription state in sync with the server's authoritative
     // snapshot, even when this tab is currently a secondary. If we get promoted to primary, the
@@ -187,9 +193,11 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   async connect(): Promise<void> {
+    if (this._disposed) throw new Error('WebSocket client disposed');
     const assertSession = captureRequestSession(this.auth);
     this._wantConnected = true;
     await this.coordinator.isReady();
+    if (this._disposed) throw new Error('WebSocket client disposed');
     assertSession();
     this.syncSessionContext();
     if (this.coordinator.isPrimary) {
@@ -211,19 +219,34 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   async disconnect() {
+    if (this._disposed) return;
     this._wantConnected = false;
     await this.coordinator.isReady();
+    if (this._disposed) return;
     if (this.coordinator.isPrimary) {
       this.socketClient.disconnect();
     } else {
-      this.coordinator.sendMessage({
-        type: 'disconnect'
-      });
+      void this.coordinator
+        .sendMessage({
+          type: 'disconnect'
+        })
+        .catch((error) => this._logger.debug('Shared socket disconnect did not complete', error));
     }
+  }
+
+  dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
+    this._wantConnected = false;
+    this._unsubscribeAuth();
+    this.coordinator.dispose();
+    this.socketClient.dispose();
+    this.removeAllListeners();
   }
 
   async switchNetwork(supernetType: SupernetType): Promise<SupernetType> {
     await this.coordinator.isReady();
+    if (this._disposed) throw new Error('WebSocket client disposed');
     if (this.coordinator.isPrimary) {
       return this.socketClient.switchNetwork(supernetType);
     }
@@ -237,6 +260,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
 
   async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
     await this.coordinator.isReady();
+    if (this._disposed) throw new Error('WebSocket client disposed');
     if (this.coordinator.isPrimary) {
       return this.socketClient.setSocketEventSubscriptions(update);
     }
@@ -249,6 +273,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]): Promise<void> {
     const assertSession = captureRequestSession(this.auth);
     await this.coordinator.isReady();
+    if (this._disposed) throw new Error('WebSocket client disposed');
     assertSession();
     this.syncSessionContext();
     if (this.coordinator.isPrimary) {
@@ -275,6 +300,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   private async handleMessage(message: Message, deadline?: number) {
+    if (this._disposed) throw new Error('WebSocket client disposed');
     this._logger.debug('Received control message', message);
     switch (message.type) {
       case 'socket-send': {
@@ -371,6 +397,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   private async handleNotification(notification: Notification) {
+    if (this._disposed) return;
     this._logger.debug('Received notification', notification.type);
     switch (notification.type) {
       case 'session-context': {
@@ -401,7 +428,9 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         return;
       }
       case 'auth-state-changed': {
-        if (notification.sessionChanged) {
+        // A cold tab may still be discovering a cookie session. Even when its
+        // local boolean is false, a peer sign-out invalidates that pending /me.
+        if (notification.sessionChanged || (!notification.payload && !this.auth.isAuthenticated)) {
           this.auth._invalidateSession();
           this.syncSessionContext();
           if (notification.payload && this.auth instanceof CookieAuthManager) {
@@ -432,6 +461,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   private handleSocketEvent(eventType: keyof SocketEventMap, payload: any) {
+    if (this._disposed) return;
     if (this.coordinator.isPrimary) {
       this.syncSessionContext();
       if (eventType === 'balanceUpdate') {
@@ -477,6 +507,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   }
 
   private handleRoleChange(isPrimary: boolean) {
+    if (this._disposed) return;
     // Promoted to primary (e.g. previous primary died and we won the
     // re-election): if the consumer wants the session open, open the
     // underlying WebSocket. Without this, the new primary stays silent until

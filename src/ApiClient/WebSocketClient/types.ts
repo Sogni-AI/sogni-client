@@ -13,6 +13,7 @@ export interface IWebSocketClient extends RestClient<SocketEventMap> {
 
   connect(): Promise<void>;
   disconnect(): void;
+  dispose?(): void;
   send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]): Promise<void>;
   setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void>;
   switchNetwork(supernetType: SupernetType): Promise<SupernetType>;

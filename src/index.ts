@@ -685,22 +685,41 @@ export class SogniClient {
     if (!(auth instanceof CookieAuthManager)) {
       throw Error('This method should only be called when using cookie auth');
     }
-    const assertSession = captureRequestSession(auth);
-    try {
-      const res = await this.apiClient.rest.get<ApiResponse<MeData>>('/v1/account/me');
-      assertSession();
-      auth._setSessionIdentity(res.data.walletAddress.toLowerCase());
-      await auth.authenticate();
-      this.currentAccount._update({
-        username: res.data.username,
-        email: res.data.currentEmail,
-        walletAddress: res.data.walletAddress
-      });
-      return true;
-    } catch (e) {
-      this.apiClient.logger.info('Client is not authenticated');
-      return false;
+    const initialSession = auth.sessionVersion;
+    const initiallyUnknown = !auth.isAuthenticated && initialSession === 0;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const assertSession = captureRequestSession(auth);
+      try {
+        const res = await this.apiClient.rest.get<ApiResponse<MeData>>('/v1/account/me');
+        assertSession();
+        auth._setSessionIdentity(res.data.walletAddress.toLowerCase());
+        const authentication = auth.authenticate();
+        const assertAuthenticatedSession = captureRequestSession(auth);
+        await authentication;
+        assertAuthenticatedSession();
+        this.currentAccount._update({
+          username: res.data.username,
+          email: res.data.currentEmail,
+          walletAddress: res.data.walletAddress
+        });
+        return true;
+      } catch (e) {
+        // A peer can establish the first cookie session while this tab's /me
+        // is in flight. Verify that joined session afresh rather than reporting
+        // a sign-out. Known sessions and later account changes still reject.
+        if (
+          attempt === 0 &&
+          initiallyUnknown &&
+          auth.isAuthenticated &&
+          auth.sessionVersion === 1
+        ) {
+          continue;
+        }
+        this.apiClient.logger.info('Client is not authenticated');
+        return false;
+      }
     }
+    return false;
   }
 
   /**

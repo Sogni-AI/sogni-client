@@ -114,6 +114,7 @@ class ChannelCoordinator<M, N> {
   private readonly channel = new BroadcastChannel(CHANNEL_NAME);
 
   private _isPrimary = false;
+  private disposed = false;
   private callbacks: Callbacks<M, N>;
   private logger: Logger;
 
@@ -129,6 +130,10 @@ class ChannelCoordinator<M, N> {
   private primaryCheckTimer: NodeJS.Timeout | null = null;
   private readyCallback: () => void | null = () => {};
   private readonly readyPromise: Promise<void>;
+  private readonly handleBeforeUnload = () => {
+    this.priority = 0;
+    this.startElections();
+  };
 
   constructor({ callbacks, logger }: Options<M, N>) {
     this.readyPromise = new Promise((resolve) => {
@@ -147,10 +152,7 @@ class ChannelCoordinator<M, N> {
     this.startPrimaryMonitor();
     // Listen for tab closing to gracefully release primary role
     if (typeof window !== 'undefined') {
-      window.addEventListener('beforeunload', () => {
-        this.priority = 0;
-        this.startElections();
-      });
+      window.addEventListener('beforeunload', this.handleBeforeUnload);
     }
   }
 
@@ -166,7 +168,28 @@ class ChannelCoordinator<M, N> {
     return this.readyPromise;
   }
 
+  dispose() {
+    if (this.disposed) return;
+    this._isPrimary = false;
+    this.broadcast({ type: MessageType.ELECTION, payload: { priority: 0 } });
+    this.disposed = true;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('beforeunload', this.handleBeforeUnload);
+    }
+    this.electionInProgress = false;
+    this.stopHeartbeat();
+    if (this.primaryCheckTimer) clearInterval(this.primaryCheckTimer);
+    this.primaryCheckTimer = null;
+    this.readyCallback();
+    for (const callback of Object.values(this.ackCallbacks)) {
+      callback(new Error('WebSocket client disposed'));
+    }
+    this.ackCallbacks = {};
+    this.channel.close();
+  }
+
   private startElections() {
+    if (this.disposed) return;
     this.logger.debug(
       `Start primary elections, my priority is ${this.currentPriority}, tab visibility is ${isActiveTab}`
     );
@@ -210,7 +233,7 @@ class ChannelCoordinator<M, N> {
   }
 
   private finishElections() {
-    if (!this.electionInProgress) {
+    if (this.disposed || !this.electionInProgress) {
       return;
     }
     // Find highest priority
@@ -288,6 +311,7 @@ class ChannelCoordinator<M, N> {
   }
 
   private handleMessage(envelope: Envelope) {
+    if (this.disposed) return;
     const { senderId, recipientId, message } = envelope;
     const isForOtherClient = recipientId && recipientId !== this.id;
     if (senderId === this.id || isForOtherClient) {
@@ -383,6 +407,7 @@ class ChannelCoordinator<M, N> {
     Promise.resolve()
       .then(() => this.callbacks.onMessage(message.payload, deadline))
       .then(() => {
+        if (this.disposed) return;
         this.send(
           {
             type: MessageType.REQUEST_ACK,
@@ -392,6 +417,7 @@ class ChannelCoordinator<M, N> {
         );
       })
       .catch((error) => {
+        if (this.disposed) return;
         this.send(
           {
             type: MessageType.REQUEST_ACK,
@@ -415,6 +441,7 @@ class ChannelCoordinator<M, N> {
     recipientId?: string,
     ackTimeoutMs = ACK_TIMEOUT
   ): Promise<void> {
+    if (this.disposed) throw new Error('WebSocket client disposed');
     const envelope: Envelope = {
       id: getUUID(),
       senderId: this.id,
@@ -447,6 +474,7 @@ class ChannelCoordinator<M, N> {
   }
 
   private broadcast(message: Message) {
+    if (this.disposed) return '';
     const envelope: Envelope = {
       id: getUUID(),
       senderId: this.id,
@@ -458,8 +486,10 @@ class ChannelCoordinator<M, N> {
   }
 
   public async sendMessage(message: M, ackTimeoutMs = ACK_TIMEOUT): Promise<any> {
+    if (this.disposed) throw new Error('WebSocket client disposed');
     this.logger.debug(`Sending message to primary`, message);
     await this.ensureFreshPrimaryBeforeRequest();
+    if (this.disposed) throw new Error('WebSocket client disposed');
     if (this._isPrimary) {
       this.logger.debug(`Became primary before request delivery, handling locally`, message);
       return this.callbacks.onMessage(message);

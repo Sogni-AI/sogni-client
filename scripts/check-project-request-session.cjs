@@ -220,6 +220,42 @@ async function checkLateSubmission() {
 }
 
 async function checkRecoverySession() {
+  const originalSetTimeout = global.setTimeout;
+  const originalClearTimeout = global.clearTimeout;
+  const pendingTimers = new Set();
+  const { api: disposedApi, auth: disposedAuth, client: disposedClient } = await makeApi();
+  global.fetch = async () => ({ ok: true });
+  const disposedProject = await disposedApi.create(params);
+  try {
+    global.setTimeout = (callback, delay, ...args) => {
+      const timer = originalSetTimeout(callback, delay, ...args);
+      pendingTimers.add(timer);
+      return timer;
+    };
+    global.clearTimeout = (timer) => {
+      pendingTimers.delete(timer);
+      return originalClearTimeout(timer);
+    };
+    const listeners = disposedClient.listenerCount('connected');
+    assert.equal(
+      disposedApi._resubmitAfterReconnect(disposedProject.id, 'Server is restarting'),
+      true
+    );
+    assert.equal(pendingTimers.size, 1);
+    await changeAccount(disposedAuth);
+    assert.equal(pendingTimers.size, 0, 'session cleanup cancels the pending reconnect timeout');
+    assert.equal(
+      disposedClient.listenerCount('connected'),
+      listeners,
+      'session cleanup removes the pending reconnect listener'
+    );
+  } finally {
+    global.setTimeout = originalSetTimeout;
+    global.clearTimeout = originalClearTimeout;
+    for (const timer of pendingTimers) originalClearTimeout(timer);
+    disposedProject._dispose();
+    originalClearTimeout(disposedApi._recheckTimer);
+  }
   for (const mode of ['restart', 'undelivered']) {
     for (const switchAccount of [true, false]) {
       const { api, auth, client, sent } = await makeApi();

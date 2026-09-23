@@ -126,6 +126,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _onlineListener: (() => void) | null = null;
   private _disableSocket: boolean = false;
+  private _disposed = false;
 
   constructor({
     baseUrl,
@@ -229,16 +230,19 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }
 
   handleSocketConnecting() {
+    if (this._disposed) return;
     this.emit('connecting', { network: this.socket.supernetType });
   }
 
   handleSocketConnect({ network }: ServerConnectData) {
+    if (this._disposed) return;
     this._reconnectAttempt = 0;
     this._clearReconnect();
     this.emit('connected', { network });
   }
 
   handleSocketDisconnect(data: ServerDisconnectData) {
+    if (this._disposed) return;
     // If user is not authenticated, we don't need to reconnect
     if (!this.auth.isAuthenticated || data.code === 1000) {
       this._clearReconnect();
@@ -288,6 +292,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }
 
   private _scheduleReconnect() {
+    if (this._disposed) return;
     this._clearReconnect();
     const attempt = this._reconnectAttempt++;
     const base = Math.min(WS_RECONNECT_BASE_DELAY_MS * 2 ** attempt, WS_RECONNECT_MAX_DELAY_MS);
@@ -295,8 +300,9 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     this.handleSocketConnecting();
     const connect = () => {
       this._reconnectTimer = null;
-      if (!this.auth.isAuthenticated || this._disableSocket) return;
+      if (this._disposed || !this.auth.isAuthenticated || this._disableSocket) return;
       this.socket.connect().catch((error) => {
+        if (this._disposed) return;
         this.logger.warn('WebSocket reconnect attempt failed', error);
         this._scheduleReconnect();
       });
@@ -329,6 +335,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }
 
   handleAuthUpdated(isAuthenticated: boolean) {
+    if (this._disposed) return;
     if (!isAuthenticated) {
       this._clearReconnect();
       this.socket.disconnect();
@@ -345,12 +352,20 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
    * After calling this method, the client should not be used.
    */
   dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
     this._clearReconnect();
-    this._socket.disconnect();
+    // Invalidate preparation before removing the auth listeners that normally
+    // advance the session on clear(). A pending renewal must not revive it.
+    this._auth._invalidateSession();
+    if (this._socket.dispose) this._socket.dispose();
+    else this._socket.disconnect();
     this._socket.removeAllListeners();
-    this._auth.removeAllListeners();
     this.removeAllListeners();
+    // Account/project listeners still need the clear event to discard their
+    // state and timers. The browser transport has already stopped forwarding it.
     this._auth.clear();
+    this._auth.removeAllListeners();
   }
 }
 

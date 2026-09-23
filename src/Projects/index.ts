@@ -428,6 +428,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _requestSessions = new WeakMap<JobRequestRaw, () => void>();
   /** Projects waiting for a reconnect to be resubmitted on. */
   private _awaitingResubmit = new Set<string>();
+  private _resubmitWaiters = new Set<() => void>();
   /** When each resubmitted project was last sent, for the recently-created grace. */
   private _resubmittedAt = new Map<string, number>();
   /** Bumped on every transport loss; tells a frame sent before a drop from one sent after. */
@@ -550,6 +551,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this.projects.forEach((project) => project._dispose());
       this.projects = [];
       this._unadmittedRequests.clear();
+      for (const stopWaiting of this._resubmitWaiters) stopWaiting();
       this._awaitingResubmit.clear();
       this._resubmittedAt.clear();
       this._sentOnGeneration.clear();
@@ -1238,9 +1240,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // The refusal arrives just before the server closes this socket, so wait
     // for the next connection instead of writing into the closing one.
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const offConnected = this.client.on('connected', () => {
+    const stopWaiting = () => {
       offConnected();
       if (timer) clearTimeout(timer);
+      timer = null;
+      this._resubmitWaiters.delete(stopWaiting);
+    };
+    const offConnected = this.client.on('connected', () => {
+      stopWaiting();
       if (project.finished) {
         this._awaitingResubmit.delete(projectId);
         return;
@@ -1269,8 +1276,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       };
       void resubmit();
     });
+    this._resubmitWaiters.add(stopWaiting);
     timer = setTimeout(() => {
-      offConnected();
+      stopWaiting();
       fail(new Error('No connection to resubmit on'));
     }, RESUBMIT_RECONNECT_TIMEOUT_MS);
     return true;
