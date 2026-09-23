@@ -1,3 +1,10 @@
+# [5.56.0](https://github.com/Sogni-AI/sogni-client/compare/v5.55.0...v5.56.0) (2026-09-23)
+
+
+### Features
+
+* **video:** accept LoRAs on the MiniMax H3 audio-guide workflows ([2ad9987](https://github.com/Sogni-AI/sogni-client/commit/2ad9987c86e93494c364e058651f4e5133e91e55))
+
 # [5.55.0](https://github.com/Sogni-AI/sogni-client/compare/v5.54.2...v5.55.0) (2026-09-23)
 
 
