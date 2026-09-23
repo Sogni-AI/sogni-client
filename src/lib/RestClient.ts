@@ -3,6 +3,7 @@ import TypedEventEmitter, { EventMap } from './TypedEventEmitter.js';
 import { JSONValue } from '../types/json.js';
 import { Logger } from './DefaultLogger.js';
 import { AuthManager } from './AuthManager/index.js';
+import { captureRequestSession } from './requestSession.js';
 
 interface RestRequestInit extends RequestInit {
   timeoutMs?: number;
@@ -65,8 +66,10 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   }
 
   private async request<T = JSONValue>(url: string, options: RestRequestInit = {}): Promise<T> {
+    const assertSession = captureRequestSession(this.auth);
     const { timeoutMs = 30000, ...requestOptions } = options;
     const init = await this.auth.authenticateRequest(requestOptions);
+    assertSession();
 
     // Add a timeout to detect hanging requests
     const controller = new AbortController();
@@ -77,7 +80,21 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     try {
       const response = await fetch(url, { ...init, signal: controller.signal });
       clearTimeout(timeoutId);
-      return this.processResponse(response) as T;
+      assertSession();
+      // Clear a rejected sign-in before parsing, including non-JSON 401 pages.
+      // The response body then belongs to that signed-out session. A later
+      // sign-in must invalidate both successful results and API errors.
+      if (response.status === 401 && this.auth.isAuthenticated) {
+        this.auth.clear();
+        if (this.auth.isAuthenticated) assertSession();
+      }
+      const assertResponseSession = captureRequestSession(this.auth);
+      try {
+        return (await this.processResponse(response)) as T;
+      } finally {
+        // fetch resolves at the headers; reading the body can outlive this account.
+        assertResponseSession();
+      }
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
       throw fetchError;
@@ -85,13 +102,6 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   }
 
   private async processResponse(response: Response): Promise<JSONValue> {
-    // 401 means that the client instance is not authenticated, so we clear the
-    // authentication. Do this before parsing so we still clear on HTML error
-    // pages that the upstream sometimes serves on 401.
-    if (response.status === 401 && this.auth.isAuthenticated) {
-      this.auth.clear();
-    }
-
     // Read the body once as text so we can attempt JSON parse AND fall back to
     // surfacing the raw text in the thrown ApiError if it isn't JSON. This
     // matters because gateways (nginx, CloudFront, uWebSockets) return HTML

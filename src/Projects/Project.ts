@@ -288,8 +288,9 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     await this._api.cancel(this.id);
   }
 
-  /** Stop local watchdogs for a project that was never submitted. @internal */
-  _dispose() {
+  /** Stop local tracking, settling active completion waits when a session ends. @internal */
+  _dispose(error?: ErrorData) {
+    if (error && !this.finished) this._update({ status: 'failed', error });
     if (this._timeout) {
       clearInterval(this._timeout);
       this._timeout = null;

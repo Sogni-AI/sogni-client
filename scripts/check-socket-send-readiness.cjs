@@ -19,6 +19,8 @@ const { WebSocketServer } = require('ws');
 // the ApiClient <-> BrowserWebSocketClient import cycle.
 require('../dist/index.js');
 const WebSocketClient = require('../dist/ApiClient/WebSocketClient/index.js').default;
+const ApiKeyAuthManager = require('../dist/lib/AuthManager/ApiKeyAuthManager.js').default;
+const ApiClient = require('../dist/ApiClient/index.js').default;
 
 const SILENT_LOGGER = { info() {}, warn() {}, error() {}, debug() {} };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -66,6 +68,125 @@ function startServer() {
 }
 
 async function main() {
+  // Disposal must finish handshake waits before ApiClient removes their listeners.
+  {
+    const { wss, state, url } = startServer();
+    state.authDelayMs = 150;
+    const api = new ApiClient({
+      baseUrl: url(),
+      socketUrl: url(),
+      appId: 'DISPOSE-WAIT',
+      authType: 'apiKey',
+      disableSocket: true,
+      networkType: 'fast',
+      logger: SILENT_LOGGER
+    });
+    await api.auth.authenticate('local-test-key');
+    const originalSetInterval = global.setInterval;
+    const originalClearInterval = global.clearInterval;
+    const intervals = new Set();
+    global.setInterval = (...args) => {
+      const interval = originalSetInterval(...args);
+      intervals.add(interval);
+      return interval;
+    };
+    global.clearInterval = (interval) => {
+      intervals.delete(interval);
+      originalClearInterval(interval);
+    };
+    let rejection;
+    try {
+      const connected = new Promise((resolve) => api.once('connected', resolve));
+      rejection = assert.rejects(
+        api.socket.send('jobRequest', { jobID: 'DISPOSED' }, Date.now() + 300)
+      );
+      await connected;
+      api.dispose();
+      await sleep(20);
+      assert.equal(intervals.size, 0, 'dispose clears pending send readiness timers immediately');
+      await rejection;
+      assert.equal(state.received.length, 0);
+    } finally {
+      api.dispose();
+      if (rejection) await rejection;
+      for (const interval of intervals) originalClearInterval(interval);
+      global.setInterval = originalSetInterval;
+      global.clearInterval = originalClearInterval;
+      for (const socket of wss.clients) socket.terminate();
+      await new Promise((resolve) => wss.close(resolve));
+    }
+  }
+  // Concurrent first submissions share one connection, including its ping timer.
+  {
+    const { wss, state, url } = startServer();
+    const auth = new ApiKeyAuthManager(SILENT_LOGGER);
+    await auth.authenticate('local-test-key');
+    const client = new WebSocketClient(url(), auth, 'CONCURRENT', 'fast', SILENT_LOGGER);
+    const originalSetInterval = global.setInterval;
+    const originalClearInterval = global.clearInterval;
+    const intervals = new Set();
+    global.setInterval = (...args) => {
+      const interval = originalSetInterval(...args);
+      intervals.add(interval);
+      return interval;
+    };
+    global.clearInterval = (interval) => {
+      intervals.delete(interval);
+      originalClearInterval(interval);
+    };
+    try {
+      await Promise.all([
+        client.send('jobRequest', { jobID: 'FIRST' }),
+        client.send('jobRequest', { jobID: 'SECOND' })
+      ]);
+      await sleep(30);
+      assert.equal(state.connections, 1, 'first sends share a physical connection');
+      assert.deepEqual(state.received.map((item) => item.data.jobID).sort(), ['FIRST', 'SECOND']);
+      client.disconnect();
+      await sleep(30);
+      assert.equal(intervals.size, 0, 'disconnect leaves no orphan ping or readiness intervals');
+    } finally {
+      client.disconnect();
+      for (const interval of intervals) originalClearInterval(interval);
+      global.setInterval = originalSetInterval;
+      global.clearInterval = originalClearInterval;
+      for (const socket of wss.clients) socket.terminate();
+      await new Promise((resolve) => wss.close(resolve));
+    }
+  }
+
+  // A cancelled credential wait cannot reopen later or clear a newer connect.
+  {
+    const { wss, state, url } = startServer();
+    const resolvers = [];
+    const auth = makeAuth();
+    auth.socketOptions = () => new Promise((resolve) => resolvers.push(resolve));
+    const client = new WebSocketClient(url(), auth, 'CANCELLED-CONNECT', 'fast', SILENT_LOGGER);
+    try {
+      const oldConnect = client.connect();
+      const oldRejected = assert.rejects(oldConnect, /connection cancelled/);
+      client.disconnect();
+      const newConnect = client.connect();
+      resolvers[0]();
+      await oldRejected;
+      const sharedNewConnect = client.connect();
+      assert.equal(resolvers.length, 2, 'old completion cannot clear the newer credential wait');
+      resolvers[1]();
+      await Promise.all([newConnect, sharedNewConnect]);
+      await client.send('jobRequest', { jobID: 'CURRENT' });
+      await sleep(30);
+      assert.equal(state.connections, 1);
+      assert.deepEqual(
+        state.received.map((item) => item.data.jobID),
+        ['CURRENT']
+      );
+    } finally {
+      client.disconnect();
+      for (const socket of wss.clients) socket.terminate();
+      await new Promise((resolve) => wss.close(resolve));
+    }
+  }
+
   // 1. A send right after connect waits for `authenticated`; the frame is never
   //    written while the server would still drop it.
   {

@@ -14,6 +14,7 @@ class ApiKeyAuthManager extends AuthManagerBase<string | null> {
   }
 
   async authenticate(apiKey: string): Promise<void> {
+    this._setSessionIdentity(apiKey);
     this._apiKey = apiKey;
     this.emit('updated', true);
   }

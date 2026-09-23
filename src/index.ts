@@ -19,6 +19,7 @@ import type {
   SocketEventSubscriptionUpdate
 } from './ApiClient/WebSocketClient/eventSubscriptions.js';
 import { ApiConfig } from './ApiGroup.js';
+import { captureRequestSession } from './lib/requestSession.js';
 // Utils
 import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger.js';
 import EIP712Helper from './lib/EIP712Helper.js';
@@ -455,7 +456,11 @@ export type {
 };
 export type { SavedUpload, SavedUploadBinding } from './Projects/ReusableUploads.js';
 export type { ProjectLoraSource } from './Projects/types/RawProject.js';
-export type { PersonalLora, PersonalLoraLibrary, ImportPersonalLoraParams } from './Projects/PersonalLoras.js';
+export type {
+  PersonalLora,
+  PersonalLoraLibrary,
+  ImportPersonalLoraParams
+} from './Projects/PersonalLoras.js';
 export type { Pixal3dOrbitView } from './Projects/utils/index.js';
 
 export {
@@ -680,19 +685,41 @@ export class SogniClient {
     if (!(auth instanceof CookieAuthManager)) {
       throw Error('This method should only be called when using cookie auth');
     }
-    try {
-      const res = await this.apiClient.rest.get<ApiResponse<MeData>>('/v1/account/me');
-      await auth.authenticate();
-      this.currentAccount._update({
-        username: res.data.username,
-        email: res.data.currentEmail,
-        walletAddress: res.data.walletAddress
-      });
-      return true;
-    } catch (e) {
-      this.apiClient.logger.info('Client is not authenticated');
-      return false;
+    const initialSession = auth.sessionVersion;
+    const initiallyUnknown = !auth.isAuthenticated && initialSession === 0;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const assertSession = captureRequestSession(auth);
+      try {
+        const res = await this.apiClient.rest.get<ApiResponse<MeData>>('/v1/account/me');
+        assertSession();
+        auth._setSessionIdentity(res.data.walletAddress.toLowerCase());
+        const authentication = auth.authenticate();
+        const assertAuthenticatedSession = captureRequestSession(auth);
+        await authentication;
+        assertAuthenticatedSession();
+        this.currentAccount._update({
+          username: res.data.username,
+          email: res.data.currentEmail,
+          walletAddress: res.data.walletAddress
+        });
+        return true;
+      } catch (e) {
+        // A peer can establish the first cookie session while this tab's /me
+        // is in flight. Verify that joined session afresh rather than reporting
+        // a sign-out. Known sessions and later account changes still reject.
+        if (
+          attempt === 0 &&
+          initiallyUnknown &&
+          auth.isAuthenticated &&
+          auth.sessionVersion === 1
+        ) {
+          continue;
+        }
+        this.apiClient.logger.info('Client is not authenticated');
+        return false;
+      }
     }
+    return false;
   }
 
   /**

@@ -38,6 +38,7 @@ import {
 } from './types.js';
 import { apiErrorExtras, parseRetryAfterHeader } from '../lib/apiErrorFields.js';
 import getUUID from '../lib/getUUID.js';
+import { captureRequestSession } from '../lib/requestSession.js';
 import type ProjectsApi from '../Projects/index.js';
 import { mediaInputToInlineDataUri } from '../lib/mediaValidation.js';
 import { workloadAttributionToWireFields } from '../lib/attribution.js';
@@ -364,6 +365,22 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     this.client.socket.on('authenticated', this.handleSocketAuthenticated.bind(this));
     this.client.on('connecting', this.handleTransportLost.bind(this));
     this.client.on('disconnected', this.handleTransportClosed.bind(this));
+    let sessionVersion = this.client.auth?.sessionVersion;
+    const clearPreviousSession = () => {
+      if (sessionVersion === this.client.auth?.sessionVersion) return;
+      sessionVersion = this.client.auth?.sessionVersion;
+      for (const jobID of this.activeStreams.keys()) {
+        this.handleJobError({
+          jobID,
+          error: 'session_ended',
+          error_message: 'The account session ended before this chat request completed.'
+        } as LLMJobErrorData);
+      }
+      this.jobsAwaitingReconnect.clear();
+      this.clearTransportGraceTimer();
+    };
+    this.client.auth?.on('updated', clearPreviousSession);
+    this.client.auth?.on('sessionChanged', clearPreviousSession);
 
     // Set up the completions namespace (mimics OpenAI SDK structure)
     this.completions = {
@@ -383,7 +400,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
 
     // Set up the tools API (requires ProjectsApi for media generation).
     // When ProjectsApi is not provided, tool execution methods will throw at runtime.
-    this.tools = new ChatToolsApi(projects!);
+    this.tools = new ChatToolsApi(projects!, this.client.auth);
   }
 
   /** Available LLM models and their worker counts */
@@ -448,7 +465,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     think?: boolean;
     taskProfile?: 'general' | 'coding' | 'reasoning';
   }): Promise<LLMCostEstimation> {
+    const assertSession = captureRequestSession(this.client.auth);
     const normalizedMessages = await normalizeVisionMessages(params.messages);
+    assertSession();
     const tokenType = params.tokenType || 'sogni';
     const inputTokens = Math.ceil(
       JSON.stringify(this.stripImageDataForEstimation(normalizedMessages)).length / 4
@@ -575,11 +594,13 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private async createHostedCompletion(
     params: HostedChatCompletionParams
   ): Promise<HostedChatCompletionResult> {
+    const assertSession = captureRequestSession(this.client.auth);
     if (params.stream) {
       throw new Error('chat.hosted.create currently supports non-streaming requests only.');
     }
 
     const normalizedMessages = await normalizeVisionMessages(params.messages);
+    assertSession();
     const chatTemplateKwargs =
       params.chat_template_kwargs ?? this.buildChatTemplateKwargs(params.think);
     const appSource = params.app_source ?? params.appSource ?? this.client.appSource;
@@ -663,15 +684,45 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   }
 
   private async chatRunFetch(path: string, options: RequestInit = {}): Promise<Response> {
+    const assertSession = captureRequestSession(this.client.auth);
     const url = new URL(path, this.client.rest.baseUrl).toString();
-    const authenticated = await this.client.auth.authenticateRequest(options);
-    return fetch(url, authenticated);
+    const controller = new AbortController();
+    const cancelChangedSession = () => {
+      try {
+        assertSession();
+      } catch (error) {
+        controller.abort(error);
+      }
+    };
+    const cancelRequested = () => controller.abort(options.signal?.reason);
+    const offAuth = this.client.auth?.on('updated', cancelChangedSession);
+    const offSession = this.client.auth?.on('sessionChanged', cancelChangedSession);
+    if (options.signal?.aborted) cancelRequested();
+    else options.signal?.addEventListener('abort', cancelRequested, { once: true });
+    try {
+      const authenticated = await this.client.auth.authenticateRequest(options);
+      assertSession();
+      const response = await fetch(url, { ...authenticated, signal: controller.signal });
+      try {
+        assertSession();
+      } catch (error) {
+        void response.body?.cancel().catch(() => undefined);
+        throw error;
+      }
+      return response;
+    } finally {
+      offAuth?.();
+      offSession?.();
+      options.signal?.removeEventListener('abort', cancelRequested);
+    }
   }
 
   private async chatRunJson<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const assertSession = captureRequestSession(this.client.auth);
     const response = await this.chatRunFetch(path, options);
     if (!response.ok) {
       const text = await response.text();
+      assertSession();
       let payload: Record<string, unknown> | undefined;
       try {
         payload = text ? (JSON.parse(text) as Record<string, unknown>) : undefined;
@@ -712,7 +763,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       if (extras.details) err.details = extras.details;
       throw err;
     }
-    return (await response.json()) as T;
+    const body = (await response.json()) as T;
+    assertSession();
+    return body;
   }
 
   /**
@@ -821,6 +874,13 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     runId: string,
     options: StreamChatRunEventsOptions = {}
   ): AsyncIterableIterator<ChatRunEvent> {
+    const checkSession = captureRequestSession(this.client.auth);
+    const assertSession = () => {
+      checkSession();
+      if (options.signal?.aborted) {
+        throw options.signal.reason ?? new DOMException('The request was aborted', 'AbortError');
+      }
+    };
     const headers: Record<string, string> = { Accept: 'text/event-stream' };
     if (options.lastEventId !== undefined && Number.isFinite(options.lastEventId)) {
       headers['Last-Event-ID'] = String(options.lastEventId);
@@ -835,6 +895,18 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    const cancelChangedSession = () => {
+      try {
+        assertSession();
+      } catch {
+        // Cancel an idle read as well as rejecting buffered events. Merely
+        // checking after read() leaves callers waiting when no event arrives.
+        void reader.cancel().catch(() => undefined);
+      }
+    };
+    const offAuth = this.client.auth?.on('updated', cancelChangedSession);
+    const offSession = this.client.auth?.on('sessionChanged', cancelChangedSession);
+    options.signal?.addEventListener('abort', cancelChangedSession, { once: true });
 
     const findFrameBoundary = (source: string): { index: number; length: number } | null => {
       const lf = source.indexOf('\n\n');
@@ -862,8 +934,10 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     };
 
     try {
+      assertSession();
       while (true) {
         const { value, done } = await reader.read();
+        assertSession();
         if (done) {
           const remaining = buffer.trim();
           if (remaining) {
@@ -879,10 +953,17 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
           buffer = buffer.slice(boundary.index + boundary.length);
           boundary = findFrameBoundary(buffer);
           const parsed = yieldFrame(frame);
-          if (parsed) yield parsed;
+          if (parsed) {
+            assertSession();
+            yield parsed;
+          }
         }
       }
     } finally {
+      offAuth?.();
+      offSession?.();
+      options.signal?.removeEventListener('abort', cancelChangedSession);
+      await reader.cancel().catch(() => undefined);
       reader.releaseLock();
     }
   }
@@ -894,7 +975,19 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     params: ChatCompletionParams
   ): Promise<ChatStream | ChatCompletionResult> {
     const jobID = getUUID();
+    const checkSession = captureRequestSession(this.client.auth);
+    const assertSession = () => {
+      try {
+        checkSession();
+      } catch {
+        throw new ChatJobError('The account session ended before this chat request completed.', {
+          errorType: 'session_ended',
+          jobID
+        });
+      }
+    };
     const normalizedMessages = await normalizeVisionMessages(params.messages);
+    assertSession();
 
     // Build chat_template_kwargs from think parameter
     const chatTemplateKwargs = this.buildChatTemplateKwargs(params.think);
@@ -934,11 +1027,23 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     this.activeStreams.set(jobID, stream);
 
     // Send the job request via socket
+    let sendFailure: ChatJobError | undefined;
+    const offSendError = this.on('error', (error) => {
+      if (!params.stream && error.jobID === jobID) {
+        sendFailure = new ChatJobError(`${error.error}: ${error.message}`, {
+          code: error.errorCode,
+          errorType: error.error,
+          jobID
+        });
+      }
+    });
     this.unsentJobs.add(jobID);
     try {
       await this.client.socket.send('llmJobRequest', request as any);
+      assertSession();
     } catch (error: any) {
       this.activeStreams.delete(jobID);
+      assertSession();
       // Nothing reached the server, so nothing was charged: safe to send again.
       throw new ChatJobError(`${TRANSPORT_LOST_MESSAGE} (${error?.message || error})`, {
         errorType: 'transport_lost',
@@ -946,7 +1051,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
       });
     } finally {
       this.unsentJobs.delete(jobID);
+      offSendError();
     }
+    if (sendFailure) throw sendFailure;
 
     if (params.stream) {
       return stream;
@@ -999,6 +1106,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private async createCompletionWithAutoTools(
     params: ChatCompletionParams
   ): Promise<ChatCompletionResult> {
+    const assertSession = captureRequestSession(this.client.auth);
     const maxRounds = params.maxToolRounds || 5;
     const toolHistory: ToolHistoryEntry[] = [];
     let messages = [...params.messages];
@@ -1007,6 +1115,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const autoToolChildAttribution = this.createAutoToolChildAttribution(logicalOperation);
 
     for (let round = 0; round < maxRounds; round++) {
+      assertSession();
       const result = (await this.createSingleCompletion({
         ...params,
         messages,
@@ -1016,6 +1125,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         // Later rounds and tool/media work are compute children of that root.
         attribution: round === 0 ? logicalOperation : autoToolChildAttribution
       })) as ChatCompletionResult;
+      assertSession();
 
       // If model didn't request tools, return final result
       if (result.finishReason !== 'tool_calls' || !result.tool_calls?.length) {
@@ -1033,6 +1143,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         onToolCall: params.onToolCall,
         onToolProgress: params.onToolProgress
       });
+      assertSession();
       appendAutoToolMediaResults(mediaContext, toolResults);
 
       // Record history

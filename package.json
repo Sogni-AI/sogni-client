@@ -85,6 +85,8 @@
     "test:reusable-uploads": "npm run build && node scripts/check-reusable-uploads.cjs",
     "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
     "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",
+    "test:project-request-session": "npm run build && node scripts/check-project-request-session.cjs",
+    "test:auth-session": "npm run build && node scripts/check-auth-session.cjs",
     "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
     "test:project-recovery": "npm run build && node scripts/check-project-recovery.cjs",
     "test:chat-transport-recovery": "npm run build && node scripts/check-chat-transport-recovery.cjs",

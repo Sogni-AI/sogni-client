@@ -44,17 +44,26 @@ export default class ReusableUploads {
   // Bound hashing/upload memory even when a project has many reference files.
   private lanes: Promise<unknown>[] = [Promise.resolve(), Promise.resolve()];
   private nextLane = 0;
-  private session = 0;
+  private fallbackSession = 0;
+  private lastSession = -1;
   private availability?: { expiresAt: number; result: Promise<boolean> };
   private automaticSaveBlockedUntil = 0;
   private preparationFailures = new WeakSet<Error>();
   constructor(private readonly rest: RestClient) {
-    rest.auth?.on('updated', () => {
-      this.session += 1;
+    rest.auth?.on('updated', (authenticated) => {
+      if (!authenticated) this.fallbackSession += 1;
+    });
+  }
+
+  private get session(): number {
+    const session = this.rest.auth?.sessionVersion ?? this.fallbackSession;
+    if (session !== this.lastSession) {
+      this.lastSession = session;
       this.pending.clear();
       this.availability = undefined;
       this.automaticSaveBlockedUntil = 0;
-    });
+    }
+    return session;
   }
 
   private assertSession(session: number) {
@@ -62,6 +71,7 @@ export default class ReusableUploads {
   }
 
   private canAutomaticallySave(): Promise<boolean> {
+    const session = this.session;
     if (this.automaticSaveBlockedUntil > Date.now()) return Promise.resolve(false);
     if (this.availability && this.availability.expiresAt > Date.now())
       return this.availability.result;
@@ -69,6 +79,7 @@ export default class ReusableUploads {
       .get<ApiResponse<{ enabled: boolean }>>('/v1/assets/capabilities')
       .then((response) => response.data.enabled === true)
       .catch((error) => {
+        this.assertSession(session);
         if (error instanceof ApiError && [403, 404, 503].includes(error.status)) return false;
         this.availability = undefined;
         throw error;
@@ -232,8 +243,9 @@ export default class ReusableUploads {
     if (!contentType || !SUPPORTED_TYPES.has(contentType) || !size || size > 100 * 1024 * 1024)
       return false;
     const session = this.session;
-    if (!(await this.canAutomaticallySave())) return false;
+    const enabled = await this.canAutomaticallySave();
     this.assertSession(session);
+    if (!enabled) return false;
     try {
       const saved = await this.uploadInternal(
         file,
@@ -247,6 +259,7 @@ export default class ReusableUploads {
       await this.bind(saved.id, binding);
       return true;
     } catch (error) {
+      this.assertSession(session);
       if (error instanceof AutomaticSaveBlockedError) return false;
       // Fallback is permitted only before a transfer was prepared. Checksum,
       // storage-access and binding failures must surface before job submission.

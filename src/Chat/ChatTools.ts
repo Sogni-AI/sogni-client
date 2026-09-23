@@ -1,4 +1,6 @@
 import type ProjectsApi from '../Projects/index.js';
+import type { AuthManager } from '../lib/AuthManager/index.js';
+import { captureRequestSession } from '../lib/requestSession.js';
 import type { AvailableModel } from '../Projects/types/index.js';
 import { getMaxContextImages } from '../lib/validation.js';
 import {
@@ -155,12 +157,29 @@ function applyHostedImageOptions(
 
 class ChatToolsApi {
   private projects: ProjectsApi;
+  private requestSessions = new WeakMap<ToolExecutionOptions, () => void>();
 
-  constructor(projects: ProjectsApi) {
+  constructor(
+    projects: ProjectsApi,
+    private auth?: AuthManager
+  ) {
     this.projects = projects;
   }
 
   async execute(toolCall: ToolCall, options?: ToolExecutionOptions): Promise<ToolExecutionResult> {
+    options = { ...options };
+    const assertSession = captureRequestSession(this.auth);
+    const onProgress = options.onProgress;
+    if (onProgress)
+      options.onProgress = (progress) => {
+        try {
+          assertSession();
+        } catch {
+          return;
+        }
+        onProgress(progress);
+      };
+    this.requestSessions.set(options, assertSession);
     if (!this.projects) {
       throw new Error(
         'ChatToolsApi requires ProjectsApi. Ensure SogniClient was properly initialized via SogniClient.createInstance().'
@@ -185,22 +204,31 @@ class ChatToolsApi {
     try {
       assertHostedToolArguments(SogniTools.all, name, args);
 
+      let result: ToolExecutionResult;
       switch (name) {
         case 'generate_image':
-          return await this.executeImageGeneration(toolCall, args, options);
+          result = await this.executeImageGeneration(toolCall, args, options);
+          break;
         case 'edit_image':
-          return await this.executeImageEdit(toolCall, args, options);
+          result = await this.executeImageEdit(toolCall, args, options);
+          break;
         case 'generate_video':
-          return await this.executeVideoGeneration(toolCall, args, options);
+          result = await this.executeVideoGeneration(toolCall, args, options);
+          break;
         case 'sound_to_video':
-          return await this.executeSoundToVideo(toolCall, args, options);
+          result = await this.executeSoundToVideo(toolCall, args, options);
+          break;
         case 'video_to_video':
-          return await this.executeVideoToVideo(toolCall, args, options);
+          result = await this.executeVideoToVideo(toolCall, args, options);
+          break;
         case 'generate_music':
-          return await this.executeMusicGeneration(toolCall, args, options);
+          result = await this.executeMusicGeneration(toolCall, args, options);
+          break;
         default:
           return this.makeErrorResult(toolCall, `Unknown Sogni tool: ${name}`);
       }
+      assertSession();
+      return result;
     } catch (err) {
       const error = serializeUnknownError(err);
       return this.makeErrorResult(toolCall, error);
@@ -214,6 +242,7 @@ class ChatToolsApi {
       onToolProgress?: (toolCall: ToolCall, progress: ToolExecutionProgress) => void;
     }
   ): Promise<ToolExecutionResult[]> {
+    const assertSession = captureRequestSession(this.auth);
     const sogniToolCallCount = toolCalls.filter(hasDirectProjectDispatch).length;
     if (sogniToolCallCount > MAX_SOGNI_TOOL_CALLS_PER_ROUND) {
       throw new Error(
@@ -224,6 +253,7 @@ class ChatToolsApi {
     const results: ToolExecutionResult[] = [];
 
     for (const toolCall of toolCalls) {
+      assertSession();
       if (isSogniToolCall(toolCall)) {
         const execOptions: ToolExecutionOptions = {
           tokenType: options?.tokenType,
@@ -261,6 +291,7 @@ class ChatToolsApi {
       }
     }
 
+    assertSession();
     return results;
   }
 
@@ -288,11 +319,13 @@ class ChatToolsApi {
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
     options?.onProgress?.({ status: 'creating', percent: 0 });
+    if (options) this.requestSessions.get(options)?.();
 
     const project = await this.projects.create({
       ...projectParams,
       ...(options?.attribution ? { attribution: options.attribution } : {})
     } as any);
+    if (options) this.requestSessions.get(options)?.();
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let rejectQueueTimeout: ((error: Error) => void) | null = null;
@@ -379,6 +412,7 @@ class ChatToolsApi {
           armQueueTimeout();
         })
       ]);
+      if (options) this.requestSessions.get(options)?.();
 
       options?.onProgress?.({ status: 'completed', percent: 100, resultUrls });
 
@@ -399,6 +433,8 @@ class ChatToolsApi {
         })
       };
     } catch (err) {
+      // Do not send an old project's cancellation using a replacement account.
+      if (options) this.requestSessions.get(options)?.();
       try {
         await project.cancel();
       } catch {

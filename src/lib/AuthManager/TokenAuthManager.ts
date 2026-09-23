@@ -5,6 +5,7 @@ import isNodejs from '../isNodejs.js';
 import Cookie from 'js-cookie';
 import AuthManagerBase from './AuthManagerBase.js';
 import { ClientOptions } from 'ws';
+import { captureRequestSession } from '../requestSession.js';
 
 /**
  * Token object, containing the token and refresh token
@@ -23,6 +24,7 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
   private _refreshTokenExpiresAt: Date = new Date(0);
   private _baseUrl: string;
   private _renewTokenPromise?: Promise<string>;
+  private _renewTokenSession?: number;
 
   constructor(baseUrl: string, logger: Logger) {
     super(logger);
@@ -41,6 +43,7 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
   }
 
   async authenticate({ refreshToken, token }: TokenAuthData) {
+    if (token) this._setSessionIdentity(decodeToken(token).walletAddress.toLowerCase());
     // If there is a token, and it is not expired, authenticate with it
     if (token) {
       const { expiresAt } = decodeToken(token);
@@ -50,6 +53,10 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
       }
     }
     // If token is expired, try to renew it with the refresh token
+    // Requests started during this login must wait for these credentials, not
+    // reuse a still-valid token belonging to the previous account.
+    this._token = token || undefined;
+    this._tokenExpiresAt = token ? decodeToken(token).expiresAt : new Date(0);
     this._refreshToken = refreshToken;
     const { expiresAt: refreshExpiresAt } = decodeRefreshToken(refreshToken);
     this._refreshTokenExpiresAt = refreshExpiresAt;
@@ -110,14 +117,17 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
   }
 
   private async _renewTokenSafe(): Promise<string> {
-    if (this._renewTokenPromise) {
+    if (this._renewTokenPromise && this._renewTokenSession === this.sessionVersion) {
       return this._renewTokenPromise;
     }
-    this._renewTokenPromise = this._renewToken();
-    this._renewTokenPromise.finally(() => {
-      this._renewTokenPromise = undefined;
-    });
-    return this._renewTokenPromise;
+    const renewal = this._renewToken();
+    this._renewTokenPromise = renewal;
+    this._renewTokenSession = this.sessionVersion;
+    const clear = () => {
+      if (this._renewTokenPromise === renewal) this._renewTokenPromise = undefined;
+    };
+    void renewal.then(clear, clear);
+    return renewal;
   }
 
   private _updateTokens({ token, refreshToken }: { token: string; refreshToken: string }) {
@@ -125,6 +135,7 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
     if (this._token === token && this._refreshToken === refreshToken) {
       return;
     }
+    this._setSessionIdentity(decodeToken(token).walletAddress.toLowerCase());
     this._token = token;
     const { expiresAt } = decodeToken(token);
     this._tokenExpiresAt = expiresAt;
@@ -160,6 +171,7 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
   }
 
   private async _renewToken(): Promise<string> {
+    const assertSession = captureRequestSession(this);
     if (this._refreshTokenExpiresAt < new Date()) {
       throw new Error('Refresh token expired');
     }
@@ -175,6 +187,7 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
     // parse, prefer surfacing real HTTP status when an upstream gateway returns
     // an HTML error page instead of the generic "Failed to parse response".
     const rawText = await response.text();
+    assertSession();
     let parsedBody: any;
     let parseError: unknown;
     if (rawText) {
