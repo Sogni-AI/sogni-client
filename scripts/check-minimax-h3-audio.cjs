@@ -165,12 +165,11 @@ for (const [workflow, { baseId, constant, uploads }] of Object.entries(MODES)) {
       { generateAudio: false },
       new RegExp(`MiniMax H3 ${workflow} output always carries the uploaded audio`)
     );
-    for (const loraChanges of [
-      { loras: ['h3-realism-people'] },
-      { loraStrengths: [1] },
-      { loras: ['h3-realism-people'], loraStrengths: [0.8] }
-    ]) {
-      rejects(loraChanges, new RegExp(`MiniMax H3 ${workflow} does not support LoRAs`));
+    for (const loras of [['h3-realism-people'], ['personal-owned'], ['h3-realism-people', 'personal-owned']]) {
+      const loraStrengths = loras.map(() => 0.8);
+      const frame = keyFrame({ loras, loraStrengths });
+      assert.deepEqual(frame.loras, loras, `${modelId}: preserves LoRA order`);
+      assert.deepEqual(frame.loraStrengths, loraStrengths, `${modelId}: preserves LoRA strengths`);
     }
     rejects({ audioDuration: 10 }, /MiniMax H3 has no audioDuration input/);
     for (const audioStart of [-1, Number.NaN, Number.POSITIVE_INFINITY, '1']) {

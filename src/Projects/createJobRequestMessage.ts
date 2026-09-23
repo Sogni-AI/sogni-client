@@ -556,12 +556,6 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
     ) {
       invalid(`MiniMax H3 ${workflow} audioStart must be a number of seconds, 0 or greater.`);
     }
-    // No LoRA has been qualified on the audio-guide graphs.
-    const hasEntries = (value: unknown) =>
-      value !== undefined && !(Array.isArray(value) && value.length === 0);
-    if (hasEntries(params.loras) || hasEntries(params.loraStrengths)) {
-      invalid(`MiniMax H3 ${workflow} does not support LoRAs. Remove loras and loraStrengths.`);
-    }
   } else if (params.audioStart !== undefined) {
     invalid(
       'audioStart is supported only by the MiniMax H3 FastH3 audio-guide workflows (minimax-h3-fastvideo-int8_ia2v_turbo, minimax-h3-fastvideo-int8_flfa2v_turbo, minimax-h3-fastvideo-int8_a2v_turbo and their _2stage ids).'
