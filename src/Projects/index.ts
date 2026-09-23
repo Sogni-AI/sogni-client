@@ -548,7 +548,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const clearPreviousSession = () => {
       if (sessionVersion === this.client.auth?.sessionVersion) return;
       sessionVersion = this.client.auth?.sessionVersion;
-      this.projects.forEach((project) => project._dispose());
+      this.projects.forEach((project) =>
+        project._dispose({
+          code: 0,
+          message:
+            'This client stopped tracking the project because its account session ended. ' +
+            'The project may still be running. Check its original account before submitting again.'
+        })
+      );
       this.projects = [];
       this._unadmittedRequests.clear();
       for (const stopWaiting of this._resubmitWaiters) stopWaiting();

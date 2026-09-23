@@ -791,9 +791,17 @@ const project = await sogni.projects.create({
 If the SDK observes an account change or sign-out while the call is pending, it
 rejects with guidance for that stage. Routine token refresh does not interrupt
 preparation or reconnect recovery. A session change clears locally tracked
-projects and ignores recovery data from the previous session. In browser
-multi-tab mode, older open tabs may need to be reloaded
-before submitting; the error message identifies this case.
+projects and ignores recovery data from the previous session. Pending project
+completion waits and socket chat streams reject when the account session ends
+or the client is disposed. This ends local tracking; it does not cancel work
+already submitted to the server.
+
+In browser multi-tab mode, this SDK can share an unchanged account session with
+older open tabs without interrupting their work. Older tabs cannot identify
+which account started an in-flight request. After an observed sign-out or
+account replacement, reload those older tabs before submitting more work; the
+error message identifies this case. Tabs using the current SDK exchange session
+markers and can continue after signing in again.
 
 This check cannot cancel an upload already sent to its original presigned URL,
 or observe a cookie change before the browser reports it to the SDK. A request

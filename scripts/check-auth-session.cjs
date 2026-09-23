@@ -13,6 +13,8 @@ const ApiClient = require('../dist/ApiClient/index.js').default;
 const AccountApi = require('../dist/Account/index.js').default;
 const CurrentAccount = require('../dist/Account/CurrentAccount.js').default;
 const ProjectsApi = require('../dist/Projects/index.js').default;
+const Project = require('../dist/Projects/Project.js').default;
+const ChatApi = require('../dist/Chat/index.js').default;
 const { captureRequestSession } = require('../dist/lib/requestSession.js');
 const BrowserWebSocketClient =
   require('../dist/ApiClient/WebSocketClient/BrowserWebSocketClient/index.js').default;
@@ -492,6 +494,381 @@ async function main() {
         api.dispose();
       }
     });
+
+    await check('session end settles project and chat completion waits', async () => {
+      for (const end of ['logout', 'replace', 'dispose']) {
+        const api = new ApiClient({
+          baseUrl: BASE_URL,
+          socketUrl: BASE_URL,
+          appId: 'session-waits-test',
+          authType: 'apiKey',
+          disableSocket: true,
+          networkType: 'fast',
+          logger: LOGGER
+        });
+        await api.auth.authenticate('test-key-a');
+        const projects = new ProjectsApi({ client: api, eip712: {} });
+        const chat = new ChatApi({ client: api, eip712: {} });
+        api.socket.send = async () => {};
+        const project = new Project(
+          { modelId: 'test-model', positivePrompt: 'test', numberOfMedia: 1 },
+          { api: projects, logger: LOGGER }
+        );
+        projects.projects.push(project);
+        let projectSettled = false;
+        const projectWait = assert.rejects(project.waitForCompletion(), (error) => {
+          projectSettled = true;
+          return /session ended/.test(error.message) && /may still be running/.test(error.message);
+        });
+        const stream = await chat.completions.create({
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'test' }],
+          stream: true
+        });
+        let chatSettled = false;
+        const chatWait = assert.rejects(
+          (async () => {
+            for await (const chunk of stream) void chunk;
+          })(),
+          (error) => {
+            chatSettled = true;
+            return error.errorType === 'session_ended';
+          }
+        );
+        if (end === 'logout') api.auth.clear();
+        else if (end === 'replace') await api.auth.authenticate('test-key-b');
+        else api.dispose();
+        await tick();
+        assert.ok(projectSettled, `${end} settles project completion without a watchdog`);
+        assert.ok(chatSettled, `${end} settles chat completion without a timeout`);
+        await Promise.all([projectWait, chatWait]);
+        await assert.rejects(project.waitForCompletion(), (error) =>
+          /session ended/.test(error.message)
+        );
+        assert.equal(chat.activeStreams.size, 0);
+        assert.equal(projects.trackedProjects.length, 0);
+        api.dispose();
+      }
+    });
+
+    await check('same-account token refresh preserves pending project and chat work', async () => {
+      const auth = new TokenAuthManager(BASE_URL, LOGGER);
+      await auth.authenticate(tokens(ACCOUNT_A, 'before-chat-refresh'));
+      const socket = Object.assign(new EventEmitter(), { send: async () => {} });
+      const client = Object.assign(new EventEmitter(), { auth, socket, logger: LOGGER });
+      const projects = new ProjectsApi({ client, eip712: {} });
+      const chat = new ChatApi({ client, eip712: {} });
+      const project = new Project(
+        { modelId: 'test-model', positivePrompt: 'test', numberOfMedia: 1 },
+        { api: projects, logger: LOGGER }
+      );
+      projects.projects.push(project);
+      const stream = await chat.completions.create({
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'test' }],
+        stream: true
+      });
+      await auth.authenticate(tokens(ACCOUNT_A, 'after-chat-refresh'));
+      assert.equal(projects.trackedProjects[0], project);
+      assert.equal(project.finished, false);
+      assert.equal(chat.activeStreams.size, 1);
+      socket.emit('jobTokens', { jobID: stream.jobID, content: 'continued' });
+      socket.emit('llmJobResult', { jobID: stream.jobID, timeTaken: 1 });
+      let content = '';
+      for await (const chunk of stream) content += chunk.content;
+      assert.equal(content, 'continued');
+      auth.clear();
+    });
+
+    await check('chat preparation never submits under a replacement account', async () => {
+      for (const surface of ['socket', 'hosted', 'estimate']) {
+        const auth = new ApiKeyAuthManager(LOGGER);
+        await auth.authenticate('test-key-a');
+        const socket = Object.assign(new EventEmitter(), {
+          send: async () => {
+            throw Error('Unexpected submit');
+          },
+          get: async () => {
+            throw Error('Unexpected estimate');
+          }
+        });
+        const client = Object.assign(new EventEmitter(), {
+          auth,
+          socket,
+          rest: {
+            post: async () => {
+              throw Error('Unexpected hosted submit');
+            }
+          },
+          logger: LOGGER
+        });
+        const chat = new ChatApi({ client, eip712: {} });
+        const params = { model: 'test-model', messages: [{ role: 'user', content: 'test' }] };
+        const pending =
+          surface === 'socket'
+            ? chat.completions.create(params)
+            : surface === 'hosted'
+              ? chat.hosted.create(params)
+              : chat.estimateCost(params);
+        const rejected = assert.rejects(
+          pending,
+          surface === 'socket'
+            ? (error) => error.errorType === 'session_ended' && !error.retryable
+            : SESSION_CHANGED
+        );
+        await auth.authenticate('test-key-b');
+        await rejected;
+        assert.equal(chat.activeStreams.size, 0);
+      }
+    });
+
+    await check(
+      'chat send awaiting an ACK settles a session change before installing result listeners',
+      async () => {
+        const auth = new ApiKeyAuthManager(LOGGER);
+        await auth.authenticate('test-key-a');
+        const sending = deferred();
+        const ready = deferred();
+        const socket = Object.assign(new EventEmitter(), {
+          send: () => {
+            ready.resolve();
+            return sending.promise;
+          }
+        });
+        const client = Object.assign(new EventEmitter(), { auth, socket, logger: LOGGER });
+        const chat = new ChatApi({ client, eip712: {} });
+        const pending = chat.completions.create({
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'test' }]
+        });
+        const rejected = assert.rejects(
+          pending,
+          (error) => error.errorType === 'session_ended' && !error.retryable
+        );
+        await ready.promise;
+        await auth.authenticate('test-key-b');
+        sending.resolve();
+        await rejected;
+        assert.equal(chat.activeStreams.size, 0);
+      }
+    );
+
+    await check(
+      'chat tools cannot start delayed media or a later tool under another account',
+      async () => {
+        const auth = new ApiKeyAuthManager(LOGGER);
+        await auth.authenticate('test-key-a');
+        const socket = new EventEmitter();
+        const client = Object.assign(new EventEmitter(), { auth, socket, logger: LOGGER });
+        const projects = {
+          create: async () => {
+            throw Error('Unexpected media submit');
+          }
+        };
+        const chat = new ChatApi({ client, eip712: {} }, projects);
+        const selecting = deferred();
+        chat.tools.selectModel = () => selecting.promise;
+        const tool = {
+          id: 'tool-1',
+          type: 'function',
+          function: { name: 'generate_image', arguments: JSON.stringify({ prompt: 'test' }) }
+        };
+        const pending = chat.tools.execute(tool);
+        await tick();
+        await auth.authenticate('test-key-b');
+        selecting.resolve('test-model');
+        const result = await pending;
+        assert.equal(result.success, false);
+        assert.match(result.content, SESSION_CHANGED);
+        const callback = deferred();
+        const called = deferred();
+        const sequence = chat.tools.executeAll(
+          [{ id: 'custom', type: 'function', function: { name: 'custom', arguments: '{}' } }, tool],
+          {
+            onToolCall: () => {
+              called.resolve();
+              return callback.promise;
+            }
+          }
+        );
+        const rejected = assert.rejects(sequence, SESSION_CHANGED);
+        await called.promise;
+        await auth.authenticate('test-key-c');
+        callback.resolve('done');
+        await rejected;
+      }
+    );
+
+    await check(
+      'durable chat rejects delayed JSON and buffered SSE from another account',
+      async () => {
+        const auth = new ApiKeyAuthManager(LOGGER);
+        await auth.authenticate('test-key-a');
+        const socket = new EventEmitter();
+        const client = Object.assign(new EventEmitter(), {
+          auth,
+          socket,
+          rest: { baseUrl: BASE_URL },
+          logger: LOGGER
+        });
+        const chat = new ChatApi({ client, eip712: {} });
+        const body = deferred();
+        const reading = deferred();
+        global.fetch = async () => ({
+          ok: true,
+          json: () => {
+            reading.resolve();
+            return body.promise;
+          }
+        });
+        const pending = chat.runs.get('old-run');
+        const rejected = assert.rejects(pending, SESSION_CHANGED);
+        await reading.promise;
+        await auth.authenticate('test-key-b');
+        body.resolve({ status: 'success', data: { run: { id: 'old-run' } } });
+        await rejected;
+        global.fetch = async () => new Response('data: {"id":1}\n\ndata: {"id":2}\n\n');
+        const events = chat.runs.streamEvents('test-run');
+        assert.equal((await events.next()).value.id, 1);
+        await auth.authenticate('test-key-c');
+        await assert.rejects(events.next(), SESSION_CHANGED);
+      }
+    );
+
+    await check(
+      'nonstream chat surfaces an admission error received before the send ACK',
+      async () => {
+        const auth = new ApiKeyAuthManager(LOGGER);
+        await auth.authenticate('test-key-a');
+        const sending = deferred();
+        const ready = deferred();
+        const socket = Object.assign(new EventEmitter(), {
+          send: (_type, request) => {
+            ready.resolve(request);
+            return sending.promise;
+          }
+        });
+        const client = Object.assign(new EventEmitter(), { auth, socket, logger: LOGGER });
+        const chat = new ChatApi({ client, eip712: {} });
+        const pending = chat.completions.create({
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'test' }]
+        });
+        const rejected = assert.rejects(
+          pending,
+          (error) => error.code === 4080 && /test denial/.test(error.message)
+        );
+        const request = await ready.promise;
+        socket.emit('llmJobError', {
+          jobID: request.jobID,
+          error: 'test_denial',
+          error_code: 4080,
+          error_message: 'test denial'
+        });
+        sending.resolve();
+        await rejected;
+        assert.equal(chat.activeStreams.size, 0);
+      }
+    );
+
+    await check(
+      'durable chat cancels a request waiting for HTTP headers on session change',
+      async () => {
+        const auth = new ApiKeyAuthManager(LOGGER);
+        await auth.authenticate('test-key-a');
+        const socket = new EventEmitter();
+        const client = Object.assign(new EventEmitter(), {
+          auth,
+          socket,
+          rest: { baseUrl: BASE_URL },
+          logger: LOGGER
+        });
+        const chat = new ChatApi({ client, eip712: {} });
+        const fetching = deferred();
+        global.fetch = async (_url, options) =>
+          new Promise((_resolve, reject) => {
+            options.signal.addEventListener('abort', () => reject(options.signal.reason));
+            fetching.resolve();
+          });
+        const stream = chat.runs.streamEvents('waiting-for-headers');
+        const rejected = assert.rejects(stream.next(), SESSION_CHANGED);
+        await fetching.promise;
+        await auth.authenticate('test-key-b');
+        await rejected;
+      }
+    );
+
+    await check(
+      'an idle durable chat event stream stops when its account session ends',
+      async () => {
+        const auth = new TokenAuthManager(BASE_URL, LOGGER);
+        await auth.authenticate(tokens(ACCOUNT_A, 'idle-stream-before-refresh'));
+        const socket = new EventEmitter();
+        const client = Object.assign(new EventEmitter(), {
+          auth,
+          socket,
+          rest: { baseUrl: BASE_URL },
+          logger: LOGGER
+        });
+        const chat = new ChatApi({ client, eip712: {} });
+        let cancelled = false;
+        global.fetch = async () =>
+          new Response(
+            new ReadableStream({
+              cancel() {
+                cancelled = true;
+              }
+            })
+          );
+        const stream = chat.runs.streamEvents('idle-run');
+        let settled = false;
+        const pending = stream.next();
+        const rejected = assert.rejects(pending, (error) => {
+          settled = true;
+          return SESSION_CHANGED.test(error.message);
+        });
+        await tick();
+        await auth.authenticate(tokens(ACCOUNT_A, 'idle-stream-after-refresh'));
+        assert.equal(cancelled, false, 'same-account token refresh leaves SSE open');
+        auth.clear();
+        await tick();
+        assert.equal(cancelled, true);
+        assert.equal(settled, true, 'no server event is needed to end the pending read');
+        await rejected;
+      }
+    );
+
+    await check(
+      'caller cancellation still aborts durable chat after HTTP headers arrive',
+      async () => {
+        const auth = new ApiKeyAuthManager(LOGGER);
+        await auth.authenticate('test-key-a');
+        const socket = new EventEmitter();
+        const client = Object.assign(new EventEmitter(), {
+          auth,
+          socket,
+          rest: { baseUrl: BASE_URL },
+          logger: LOGGER
+        });
+        const chat = new ChatApi({ client, eip712: {} });
+        let cancelled = false;
+        global.fetch = async () =>
+          new Response(
+            new ReadableStream({
+              cancel() {
+                cancelled = true;
+              }
+            })
+          );
+        const abort = new AbortController();
+        const stream = chat.runs.streamEvents('caller-cancelled', { signal: abort.signal });
+        const rejected = assert.rejects(stream.next(), (error) => error.name === 'AbortError');
+        await tick();
+        abort.abort();
+        await rejected;
+        assert.equal(cancelled, true);
+      }
+    );
 
     await check('a reconnect rejected after disposal cannot schedule another timer', async () => {
       const api = new ApiClient({

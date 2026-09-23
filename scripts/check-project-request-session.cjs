@@ -576,20 +576,46 @@ async function checkBrowserForwarding() {
     payload: { type: 'jobRequest', data: { jobID: 'refresh' } }
   });
   assert.equal(forwards, 1, 'same-account refresh preserves shared-session requests');
+  await ready.handleMessage({
+    type: 'socket-send',
+    payload: { type: 'jobRequest', data: { jobID: 'old-sdk' } }
+  });
+  assert.equal(forwards, 2, 'published peers can submit in the unchanged account session');
+  await changeAccount(auth);
   await assert.rejects(
     ready.handleMessage({
       type: 'socket-send',
-      payload: { type: 'jobRequest', data: { jobID: 'old-sdk' } }
+      payload: { type: 'jobRequest', data: { jobID: 'ambiguous-old-sdk' } }
     }),
-    /Reload your other Sogni tabs/
+    /Reload this tab/
   );
 
   const oldPrimary = browserStub(auth, false);
   oldPrimary._sessionId = null;
   oldPrimary.connect = async () => {}; // Old primary does not supply session context.
+  oldPrimary.coordinator.sendMessage = async () => {};
+  await oldPrimary.send('jobRequest', { jobID: 'mixed-version' });
+  oldPrimary._legacySessionUnsafe = true;
   await assert.rejects(
     oldPrimary.send('jobRequest', { jobID: 'mixed-version' }),
-    /Reload your other Sogni tabs/
+    /older Sogni version/
+  );
+
+  const relogged = browserStub(auth, false);
+  relogged._sessionId = null;
+  relogged._legacySessionUnsafe = true;
+  relogged.connect = async () => {
+    relogged._sessionId = 'verified-current-session';
+  };
+  let control;
+  relogged.coordinator.sendMessage = async (message) => {
+    control = message;
+  };
+  await relogged.send('cancelJob', { jobID: 'current-account-project' });
+  assert.equal(
+    control.sessionId,
+    'verified-current-session',
+    'current tabs discover context for control sends after re-login'
   );
 
   const follower = browserStub(auth, false);

@@ -104,6 +104,10 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   private _staleSessionIds = new Set<string>();
   private _sessionRequestId?: string;
   private _contextRequest?: Promise<void>;
+  // Published peers do not attach session markers. They can share this initial
+  // session, but cannot prove ownership after a sign-out or account replacement.
+  private _legacySessionVersion?: number;
+  private _legacySessionUnsafe = false;
   private _supernetType: SupernetType;
   // Last balanceUpdate the primary observed. Socket events are only forwarded
   // to secondaries live, so a tab that joins after the balance arrived would
@@ -185,7 +189,10 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   get isConnected() {
     return this.coordinator.isPrimary
       ? this.socketClient.isConnected
-      : this._wantConnected && !!this._sessionId;
+      : this._wantConnected &&
+          (!!this._sessionId ||
+            (!this._legacySessionUnsafe &&
+              this._legacySessionVersion === this.auth.sessionVersion));
   }
 
   get supernetType() {
@@ -212,6 +219,9 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       this._contextRequest = request;
       try {
         await request;
+        if (!this._sessionId && !this._legacySessionUnsafe) {
+          this._legacySessionVersion = this.auth.sessionVersion;
+        }
       } finally {
         if (this._contextRequest === request) this._contextRequest = undefined;
       }
@@ -280,11 +290,13 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       // send() connects when needed and waits out a reconnect in progress.
       return this.socketClient.send(messageType, data);
     }
-    if (messageType === 'jobRequest' && !this._sessionId) {
+    if (!this._sessionId) {
       await this.connect();
       assertSession();
-      if (!this._sessionId) {
-        throw new Error('Reload your other Sogni tabs, then reload this tab and submit again.');
+      if (!this._sessionId && this._legacySessionUnsafe) {
+        throw new Error(
+          'Your account changed while another tab is using an older Sogni version. Reload that tab, then submit again.'
+        );
       }
     }
     // The primary may wait out a reconnect before it can send, so the ACK has
@@ -293,7 +305,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       {
         type: 'socket-send',
         payload: { type: messageType, data },
-        ...(messageType === 'jobRequest' && this._sessionId ? { sessionId: this._sessionId } : {})
+        ...(this._sessionId ? { sessionId: this._sessionId } : {})
       },
       REQUEST_ACK_TIMEOUT_MS
     );
@@ -305,10 +317,10 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
     switch (message.type) {
       case 'socket-send': {
         this.syncSessionContext();
-        if (message.payload.type === 'jobRequest' && !message.sessionId) {
-          throw new Error('Reload your other Sogni tabs, then reload this tab and submit again.');
+        if (!message.sessionId && this._legacySessionUnsafe) {
+          throw new Error('Your account changed. Reload this tab before submitting more requests.');
         }
-        if (message.payload.type === 'jobRequest' && message.sessionId !== this._sessionId) {
+        if (message.sessionId && message.sessionId !== this._sessionId) {
           throw new Error('The account changed. Submit this request again.');
         }
         return this.socketClient.send(message.payload.type, message.payload.data, deadline);
@@ -413,7 +425,15 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       }
       case 'socket-event': {
         this.syncSessionContext();
-        if (!notification.sessionId || this._staleSessionIds.has(notification.sessionId)) return;
+        if (!notification.sessionId) {
+          // Legacy primary replay can arrive before its connect ACK. The
+          // local auth epoch gates both that replay and subsequent live events.
+          if (!this._legacySessionUnsafe && this._wantConnected && this.auth.isAuthenticated) {
+            this.emit(notification.payload.type, notification.payload.data);
+          }
+          return;
+        }
+        if (this._staleSessionIds.has(notification.sessionId)) return;
         if (notification.sessionId !== this._sessionId) {
           // A tab promoted before learning the old context creates a fresh
           // marker. Verify it through our own request before accepting events.
@@ -495,11 +515,15 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   private syncSessionContext() {
     const version = this.auth.sessionVersion;
     if (version !== this._sessionVersion) {
+      if (this._sessionVersion !== undefined && this._sessionVersion > 0) {
+        this._legacySessionUnsafe = true;
+      }
       if (this._sessionId) this._staleSessionIds.add(this._sessionId);
       this._sessionVersion = version;
       this._sessionId = null;
       this._sessionRequestId = undefined;
       this._contextRequest = undefined;
+      this._legacySessionVersion = undefined;
       this._lastBalanceUpdate = null;
       this._lastSubscriptionEntitlement = null;
     }
