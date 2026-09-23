@@ -1,3 +1,10 @@
+# [5.55.0](https://github.com/Sogni-AI/sogni-client/compare/v5.54.2...v5.55.0) (2026-09-23)
+
+
+### Features
+
+* **projects:** expose current queue explanations ([0794d91](https://github.com/Sogni-AI/sogni-client/commit/0794d912fea1a026f0c44f1d190aa4a94f81e4d1))
+
 ## [5.54.2](https://github.com/Sogni-AI/sogni-client/compare/v5.54.1...v5.54.2) (2026-09-23)
 
 
