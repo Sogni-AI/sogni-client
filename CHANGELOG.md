@@ -1,3 +1,12 @@
+## [5.54.2](https://github.com/Sogni-AI/sogni-client/compare/v5.54.1...v5.54.2) (2026-09-23)
+
+
+### Bug Fixes
+
+* **auth:** isolate creation and recovery across account sessions ([a4b6387](https://github.com/Sogni-AI/sogni-client/commit/a4b63876f3e0fa5eaa7fb90c83accf4c30782b7c))
+* **client:** preserve mixed-tab and pending request workflows ([449f8a4](https://github.com/Sogni-AI/sogni-client/commit/449f8a47af816b0a5ad16ba6fafa015bd686bbaa))
+* **client:** preserve request ownership through connection changes ([5a16f9e](https://github.com/Sogni-AI/sogni-client/commit/5a16f9ec59cf891b48fc5638fb37bcd60142e79b))
+
 ## [5.54.1](https://github.com/Sogni-AI/sogni-client/compare/v5.54.0...v5.54.1) (2026-09-21)
 
 
