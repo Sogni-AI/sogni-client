@@ -1065,6 +1065,7 @@ When creating video projects, you can specify:
 - `referenceVideoDurations` - Optional MiniMax H3 r2v duration hints in `[referenceVideo, ...referenceVideos]` order for early client-side validation; Socket probes the uploaded files and uses measured durations for pricing and admission
 - `referenceAudio` - Reference audio for sound-to-video workflows (s2v, ia2v, flfa2v, a2v)
 - `referenceImageEnd` - Last frame for i2v, flf2v and the MiniMax H3 FastH3 flfa2v audio-guide workflow
+- `keyframes` - MiniMax H3 i2v and flf2v only (every tier, `isMinimaxH3KeyframeModel()`): up to `MINIMAX_H3_MAX_KEYFRAMES` (8) `{ image, frameIndex }` stills pinned between the first and last frame. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2`, each frame used once; pass `frames` or `duration`. The first and last frames stay `referenceImage` / `referenceImageEnd`. Describe in the prompt what happens at each keyframe's time; keyframes are not `<Picture N>` references. Images upload to `contextImage1..N` in array order
 - `referenceImageUrls` - Loose image context URLs for Seedance, Happy Horse, and Wan 3; Wan 3 accepts up to 10
 - `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `referenceAudioUrls` - Loose audio context URLs for Seedance and Wan 3; Wan 3 accepts up to 5

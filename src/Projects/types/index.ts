@@ -172,6 +172,22 @@ export interface BaseProjectParams {
 export type InputMedia = File | Buffer | Blob | boolean;
 
 /**
+ * One MiniMax H3 intermediate keyframe: a still image pinned at a chosen frame
+ * between the first and last frame. See `VideoProjectParams.keyframes`.
+ */
+export interface MinimaxH3Keyframe {
+  /** The still image the video passes through at `frameIndex`. */
+  image: InputMedia;
+  /**
+   * 0-based pixel frame at 24 fps where `image` is pinned; convert seconds with
+   * `Math.round(seconds * 24)`. An integer from 1 to `frames - 2` of the job's
+   * frame count: frame 0 and the last frame belong to `referenceImage` and
+   * `referenceImageEnd`.
+   */
+  frameIndex: number;
+}
+
+/**
  * Video-specific parameters for video workflows (t2v, i2v, s2v, ia2v, a2v, animate).
  * Only applicable when using video models like wan_v2.2-14b-fp8_t2v or ltx25-22b-int8_t2v_distilled.
  * Includes frame count, fps, shift, and reference assets (image, audio, video).
@@ -247,6 +263,22 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   using the `_2stage` model id and that canvas.
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
  *   requires at least one of them. The `flf2v` model requires both.
+ *
+ * #### MiniMax H3 intermediate keyframes (`i2v`, `flf2v`)
+ * - `keyframes` pins up to 8 still images at chosen frames between the first
+ *   and last frame. The `i2v` and `flf2v` ids of every tier accept it (Standard,
+ *   Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage;
+ *   `isMinimaxH3KeyframeModel()`); every other model rejects a non-empty list.
+ * - Each entry is `{ image, frameIndex }`. `frameIndex` is the 0-based pixel
+ *   frame at 24 fps (`Math.round(seconds * 24)`): an integer from 1 to
+ *   `frames - 2` of the job's grid frame count, with no frame used twice. Pass
+ *   `frames` or `duration` so that count is known.
+ * - The first and last frames stay `referenceImage` / `referenceImageEnd` with
+ *   the rules above; `contextImages` stays r2v-only.
+ * - The prompt should describe what happens at each keyframe's time. Keyframes
+ *   are not `<Picture N>` references: only the first and last frame are.
+ * - `keyframes[i].image` uploads to `contextImage<i+1>` and the request carries
+ *   `keyframeFrameIndices` in the same order.
  *
  * #### MiniMax H3 FastH3 audio guide (`ia2v`, `flfa2v`, `a2v`)
  * - An uploaded `referenceAudio` drives the video from frame 0 in three modes:
@@ -480,6 +512,24 @@ export interface VideoProjectParams extends BaseProjectParams {
    * pin. Its second reference image is the next entry in `contextImages`.
    */
   referenceImageEnd?: InputMedia;
+  /**
+   * MiniMax H3 intermediate keyframes: up to 8 still images, each pinned at a
+   * chosen frame between the first and last frame. Accepted only by the H3
+   * image-to-video (`i2v`) and first/last-frame (`flf2v`) model ids
+   * (`isMinimaxH3KeyframeModel()`); any other model rejects a non-empty list, and
+   * an empty list is the same as omitting the field.
+   *
+   * `frameIndex` is the 0-based pixel frame at 24 fps (`Math.round(seconds * 24)`),
+   * an integer from 1 to `frames - 2` of the job's grid frame count, and every
+   * entry needs its own frame and an image. The job must pass `frames` or
+   * `duration` so that count is known. The first and last frames stay
+   * `referenceImage` / `referenceImageEnd`, which keep their usual rules.
+   *
+   * Describe in the prompt what happens at each keyframe's time; keyframes are
+   * not `<Picture N>` references. `keyframes[i].image` uploads to
+   * `contextImage<i+1>`, in array order.
+   */
+  keyframes?: MinimaxH3Keyframe[];
   /**
    * Reference audio for audio-driven video workflows (s2v, ia2v, flfa2v, a2v).
    *

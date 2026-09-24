@@ -1049,6 +1049,19 @@ For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
 `referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids
 still require both anchors.
 
+INTERMEDIATE KEYFRAMES (H3 I2V and FLF2V ids of every tier: Standard, Balanced,
+LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage; `isMinimaxH3KeyframeModel()`):
+`keyframes: [{ image, frameIndex }]` pins up to `MINIMAX_H3_MAX_KEYFRAMES` (8)
+still images between the first and last frame. `frameIndex` is the 0-based frame
+at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2` of the
+job's grid frame count, each frame used once, so pass `frames` or `duration`.
+The first and last frames stay `referenceImage` / `referenceImageEnd`, and
+`contextImages` stays R2V-only. Every other model rejects a non-empty list; an
+empty list is ignored. `keyframes[i].image` uploads to `contextImage<i+1>` in
+array order and the indices travel as `keyframeFrameIndices`. Describe in the
+prompt what happens at each keyframe's time; keyframes are not `<Picture N>`
+references.
+
 FASTH3 AUDIO GUIDE (`minimax-h3-fastvideo-int8_ia2v_turbo`,
 `minimax-h3-fastvideo-int8_flfa2v_turbo`, `minimax-h3-fastvideo-int8_a2v_turbo`
 and their `_turbo_2stage` ids): an uploaded `referenceAudio` drives the video
@@ -2120,6 +2133,7 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceVideos?: (File | Buffer | Blob)[];  // MiniMax H3 r2v video references 2-3
   referenceVideoDurations?: number[];  // Optional H3 r2v preflight hints; Socket measures uploaded videos authoritatively
   contextImages?: (File | Buffer | Blob)[];  // MiniMax H3 r2v reference images 2-9
+  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3 i2v/flf2v: up to 8 stills at 0-based frames 1..frames-2
   referenceImageUrls?: string[];  // Seedance and HappyHorse only
   referenceVideoUrls?: string[];  // Seedance only
   referenceAudioUrls?: string[];  // Seedance only
@@ -2567,6 +2581,7 @@ interface VideoProjectParams extends BaseProjectParams {
   teacacheThreshold?: number;
   referenceImage?: File | Buffer | Blob;
   referenceImageEnd?: File | Buffer | Blob;
+  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3 i2v/flf2v only
   referenceAudio?: File | Buffer | Blob;
   referenceVideo?: File | Buffer | Blob;
   audioStart?: number;

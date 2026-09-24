@@ -53,6 +53,7 @@
  *   node workflow_minimax_h3_video.mjs --mode i2v --end-image finish.jpg
  *   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --end-image finish.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
+ *   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg --keyframe middle.jpg@96 --keyframe turn.jpg@6s
  *   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-fasth3-t2v-turbo
  *   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --model minimax-h3-fasth3-i2v-turbo-2stage
  *   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
@@ -61,7 +62,7 @@
  *   node workflow_minimax_h3_video.mjs --mode t2v --no-audio        # Strip audio before upload
  */
 
-import { SogniClient } from '../dist/index.js';
+import { SogniClient, MINIMAX_H3_MAX_KEYFRAMES, isMinimaxH3KeyframeModel } from '../dist/index.js';
 import * as fs from 'node:fs';
 import { pipeline } from 'node:stream';
 import { promisify } from 'node:util';
@@ -825,6 +826,27 @@ function parseCliNumber(value, optionName) {
   return parsed;
 }
 
+/**
+ * Parse one --keyframe value: `<path>@<frame>` (a 0-based frame index at 24fps)
+ * or `<path>@<seconds>s` (rounded to the nearest frame). Splits on the last `@`,
+ * so a path that contains one still works.
+ */
+function parseKeyframeArg(value) {
+  const at = value.lastIndexOf('@');
+  const position = at > 0 ? value.slice(at + 1).trim() : '';
+  if (!position) {
+    throw new Error(
+      `--keyframe requires <path>@<frame> or <path>@<seconds>s; received ${JSON.stringify(value)}`
+    );
+  }
+  const imagePath = value.slice(0, at);
+  if (/s$/i.test(position)) {
+    const seconds = parseCliNumber(position.slice(0, -1), '--keyframe seconds');
+    return { path: imagePath, frameIndex: Math.round(seconds * MINIMAX_H3_FPS) };
+  }
+  return { path: imagePath, frameIndex: parseCliInteger(position, '--keyframe frame') };
+}
+
 function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
@@ -834,6 +856,7 @@ function parseArgs() {
     modelKey: null,
     image: null,
     endImage: null,
+    keyframes: [],
     refImages: [],
     refVideos: [],
     refAudios: [],
@@ -883,6 +906,8 @@ function parseArgs() {
       options.image = args[++i];
     } else if ((arg === '--end-image' || arg === '--last-image') && args[i + 1]) {
       options.endImage = args[++i];
+    } else if (arg === '--keyframe' && args[i + 1]) {
+      options.keyframes.push(parseKeyframeArg(args[++i]));
     } else if (arg === '--ref-image' && args[i + 1]) {
       options.refImages.push(args[++i]);
     } else if (arg === '--ref-video' && args[i + 1]) {
@@ -966,6 +991,7 @@ Usage:
   node workflow_minimax_h3_video.mjs --mode i2v --end-image finish.jpg
   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --end-image finish.jpg
   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
+  node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg --keyframe middle.jpg@96 --keyframe turn.jpg@6s
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-balanced
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-turbo
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-fasth3-t2v-turbo
@@ -1010,6 +1036,10 @@ Options:
                           end in -balanced or -turbo; FastH3 keys include -fasth3-)
   --image <path>          First-frame reference image (i2v, flf2v)
   --end-image <path>      Last-frame reference image (i2v, flf2v)
+  --keyframe <path>@<frame>
+                          Intermediate keyframe (i2v, flf2v; repeatable up to ${MINIMAX_H3_MAX_KEYFRAMES}): pin
+                          the image at a 0-based frame at 24fps, 1 to frames-2;
+                          <path>@<seconds>s rounds seconds*24 to the nearest frame
   --ref-image <path>      Reference image (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES})
   --ref-video <path>      Reference video (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_VIDEOS})
   --ref-audio <path>      Reference audio (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_AUDIOS})
@@ -1055,6 +1085,18 @@ Prompt format:
   Keep dialogue and music out of
   overall_soundscape. Use non_diegetic_music: N/A when there is no audience-only
   score. State exclusions inside the positive prompt; H3 has no negative field.
+
+Intermediate keyframes (--keyframe, --mode i2v or flf2v):
+  Each --keyframe pins a still image at one frame between the first and last
+  frame: <path>@<frame> takes a 0-based frame index at 24fps, and
+  <path>@<seconds>s takes seconds (5s is frame 120). Frames run from 1 to
+  frames-2 (1-190 at the default 8s / 192 frames), each used once, up to
+  ${MINIMAX_H3_MAX_KEYFRAMES} keyframes. The first and last frames stay --image and --end-image.
+  Keyframe images get the same canvas preparation as the other frames.
+
+  Write the prompt so it says what happens at each keyframe's time. Keyframes are
+  not <Picture N> references: the alignment line still names only the first and
+  last frame.
 
 Multi-reference video (--mode r2v):
   Ref2VA conditions on labelled reference material instead of frame anchors.
@@ -1211,6 +1253,28 @@ async function main() {
     );
     process.exit(1);
   }
+  // Intermediate keyframes belong to the H3 i2v and flf2v ids only.
+  if (OPTIONS.keyframes.length) {
+    if (!isMinimaxH3KeyframeModel(modelConfig.id)) {
+      console.error(
+        `Error: --keyframe needs --mode i2v or --mode flf2v; ${modelConfig.id} does not take intermediate keyframes.`
+      );
+      process.exit(1);
+    }
+    if (OPTIONS.keyframes.length > MINIMAX_H3_MAX_KEYFRAMES) {
+      console.error(
+        `Error: MiniMax H3 accepts at most ${MINIMAX_H3_MAX_KEYFRAMES} keyframes; got ${OPTIONS.keyframes.length} --keyframe values.`
+      );
+      process.exit(1);
+    }
+    if (!OPTIONS.printPrompt) {
+      const missing = OPTIONS.keyframes.find(({ path }) => !fs.existsSync(path));
+      if (missing) {
+        console.error(`Error: keyframe image not found: ${missing.path}`);
+        process.exit(1);
+      }
+    }
+  }
 
   if (OPTIONS.mode === 'flf2v' && !OPTIONS.printPrompt) {
     OPTIONS.image = await pickImageFile(OPTIONS.image, 'first-frame image');
@@ -1339,6 +1403,30 @@ async function main() {
   }
   // Effective duration of the rendered video, used by L2VA/FL2VA alignment lines.
   const effectiveDuration = OPTIONS.frames / MINIMAX_H3_FPS;
+  // Keyframes sit strictly between the first frame (0) and the last (frames - 1).
+  // The SDK checks this too; failing here saves the cost estimate and login.
+  const usedKeyframes = new Set();
+  for (const { path, frameIndex } of OPTIONS.keyframes) {
+    if (frameIndex < 1 || frameIndex > OPTIONS.frames - 2) {
+      console.error(
+        `Error: keyframe ${path} is at frame ${frameIndex}; a ${OPTIONS.frames}-frame video takes keyframes at frames 1-${OPTIONS.frames - 2}. Use --image and --end-image for the first and last frames.`
+      );
+      process.exit(1);
+    }
+    if (usedKeyframes.has(frameIndex)) {
+      console.error(
+        `Error: two keyframes use frame ${frameIndex}; each keyframe needs its own frame.`
+      );
+      process.exit(1);
+    }
+    usedKeyframes.add(frameIndex);
+  }
+  const keyframeSummary = OPTIONS.keyframes
+    .map(
+      ({ path, frameIndex }) =>
+        `${path} @ frame ${frameIndex} (${(frameIndex / MINIMAX_H3_FPS).toFixed(2)}s)`
+    )
+    .join(', ');
   const framePromptMode = resolveFramePromptMode(OPTIONS.mode, !!OPTIONS.image, !!OPTIONS.endImage);
 
   const soundtrackedVideoIndices =
@@ -1448,6 +1536,9 @@ async function main() {
     );
     console.log(OPTIONS.prompt);
     console.log('\n--- end of prompt ---');
+    if (keyframeSummary) {
+      console.log(`\nKeyframes (describe what happens at each time): ${keyframeSummary}`);
+    }
     if (promptWarnings.length) {
       console.log('\n⚠️  Prompt review:');
       promptWarnings.forEach((warning) => console.log(`   - ${warning}`));
@@ -1567,6 +1658,7 @@ async function main() {
     // to the numbered slots the worker packs into ref_images.
     let referenceImage;
     let referenceImageEnd;
+    let keyframes;
     let contextImages;
     let referenceVideo;
     let referenceVideos;
@@ -1589,6 +1681,15 @@ async function main() {
     }
     if (OPTIONS.endImage) {
       referenceImageEnd = await prepareImage(OPTIONS.endImage, 'Last frame');
+    }
+    // Intermediate keyframes get the same canvas preparation as the endpoints.
+    if (OPTIONS.keyframes.length) {
+      keyframes = [];
+      for (const [index, { path, frameIndex }] of OPTIONS.keyframes.entries()) {
+        const label = `Keyframe ${index + 1} at frame ${frameIndex}`;
+        const seconds = (frameIndex / MINIMAX_H3_FPS).toFixed(2);
+        keyframes.push({ image: await prepareImage(path, `${label} (${seconds}s)`), frameIndex });
+      }
     }
     if (OPTIONS.refImages.length) {
       const prepared = [];
@@ -1673,6 +1774,7 @@ async function main() {
       Model: modelConfig.name,
       Workflow: OPTIONS.mode,
       ...referenceSummary,
+      ...(keyframeSummary ? { Keyframes: keyframeSummary } : {}),
       Resolution: `${OPTIONS.width}x${OPTIONS.height}`,
       Duration: `${effectiveDuration.toFixed(2)}s`,
       FPS: `${OPTIONS.fps} (fixed)`,
@@ -1791,6 +1893,7 @@ async function main() {
       projectParams.loraStrengths = OPTIONS.loraStrengths;
     }
     if (referenceImageEnd) projectParams.referenceImageEnd = referenceImageEnd;
+    if (keyframes) projectParams.keyframes = keyframes;
     if (contextImages) projectParams.contextImages = contextImages;
     if (referenceVideo) projectParams.referenceVideo = referenceVideo;
     if (referenceVideos?.length) projectParams.referenceVideos = referenceVideos;

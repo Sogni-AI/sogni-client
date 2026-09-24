@@ -73,6 +73,7 @@ import {
   getVideoAssetRequirements,
   getVideoContextImageSlots,
   getPixal3dOrbitViewSlots,
+  getMinimaxH3KeyframeSlots,
   getMinimaxH3ReferenceAudioSlots,
   getMinimaxH3ReferenceVideoSlots,
   getVideoWorkflowType,
@@ -2448,6 +2449,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // the model, the entries, and the 9-image ceiling.
     await Promise.all(
       getVideoContextImageSlots(data).map(({ slot, media }) =>
+        typeof media === 'boolean'
+          ? undefined
+          : this.uploadContextImage(project.id, (slot - 1) as ContextImageIndex, media)
+      )
+    );
+    // MiniMax H3 i2v/flf2v intermediate keyframes, uploaded to contextImage1..N
+    // in caller order with no referenceImage offset: those workflows carry their
+    // first and last frames as referenceImage/referenceImageEnd and reject
+    // contextImages, so the numbered slots belong to the keyframes.
+    // createJobRequestMessage has already checked the model, the entries and the
+    // frame indices.
+    await Promise.all(
+      getMinimaxH3KeyframeSlots(data).map(({ slot, media }) =>
         typeof media === 'boolean'
           ? undefined
           : this.uploadContextImage(project.id, (slot - 1) as ContextImageIndex, media)

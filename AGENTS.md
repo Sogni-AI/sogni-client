@@ -364,6 +364,8 @@ const urls = await project.waitForCompletion();
 |----------|---------------|-----------------|
 | Text-to-Video | `*_t2v*` | None |
 | Image-to-Video | `*_i2v*` | `referenceImage` (and/or `referenceImageEnd`) |
+| First/Last-Frame Video | `*_flf2v*` (MiniMax H3) | `referenceImage` + `referenceImageEnd` |
+| MiniMax H3 intermediate keyframes | H3 `*_i2v*` / `*_flf2v*` only (`isMinimaxH3KeyframeModel`) | optional `keyframes: [{ image, frameIndex }]`, up to 8; `frameIndex` is a 0-based 24 fps frame from 1 to `frames - 2`; images upload to `contextImage1..N` in order |
 | Reference-to-Video | `*_r2v*` (Happy Horse) | 1-9 images via `referenceImage`/`referenceImageUrls` |
 | Video-to-Video | `*_v2v*` (LTX-2.3) | `referenceVideo` + `controlNet` |
 | Sound-to-Video | `*_s2v*` (WAN only) | `referenceImage` + `referenceAudio` |

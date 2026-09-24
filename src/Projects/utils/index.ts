@@ -490,6 +490,27 @@ export function isMinimaxH3ReferenceModel(modelId: string): boolean {
 }
 
 /**
+ * Most intermediate `keyframes` one MiniMax H3 i2v or flf2v request accepts.
+ */
+export const MINIMAX_H3_MAX_KEYFRAMES = 8;
+
+/**
+ * Check if a model ID accepts MiniMax H3 intermediate `keyframes`: still images
+ * the worker pins (ComfyUI `MiniMaxH3AddGuide`) at chosen frames between the
+ * first and last frame.
+ *
+ * These are the image-to-video (`i2v`) and first/last-frame (`flf2v`) workflows
+ * on every tier: Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3
+ * Two-Stage, ten ids in all. Text-to-video, `r2v` and the FastH3 audio guide
+ * (`ia2v`, `flfa2v`, `a2v`) do not accept keyframes.
+ */
+export function isMinimaxH3KeyframeModel(modelId: string): boolean {
+  if (!isMinimaxH3Model(modelId)) return false;
+  const workflow = getVideoWorkflowType(modelId);
+  return workflow === 'i2v' || workflow === 'flf2v';
+}
+
+/**
  * Check if a model ID is an external API-backed video model.
  *
  * These vendor families share the external API routing path: Spark-only
@@ -959,6 +980,42 @@ export function getVideoContextImageSlots(
   if (!Array.isArray(contextImages) || contextImages.length === 0) return [];
   const offset = params.referenceImage ? 1 : 0;
   return contextImages.map((media, index) => ({ slot: offset + index + 1, media }));
+}
+
+/**
+ * One MiniMax H3 intermediate keyframe, resolved to the upload slot that carries it.
+ */
+export interface MinimaxH3KeyframeSlot {
+  /**
+   * 1-based `contextImage<slot>` upload slot, matching the `hasContextImage<slot>`
+   * keyFrame flag.
+   */
+  slot: number;
+  /** The caller-supplied image. */
+  media: InputMedia;
+  /** 0-based pixel frame (24 fps) the image is pinned at. */
+  frameIndex: number;
+}
+
+/**
+ * Resolve MiniMax H3 `keyframes` onto the numbered `contextImage<n>` upload
+ * slots: `keyframes[i]` travels in `contextImage<i+1>`, in caller order and with
+ * no offset. Unlike r2v's `contextImages` (see `getVideoContextImageSlots`),
+ * keyframes never shift past `referenceImage`: the i2v and flf2v workflows carry
+ * their first and last frames as `referenceImage` / `referenceImageEnd` and
+ * reject `contextImages`, so the numbered slots belong to the keyframes alone.
+ * The worker pairs `contextImage<i+1>` with `keyframeFrameIndices[i]`.
+ */
+export function getMinimaxH3KeyframeSlots(
+  params: Pick<VideoProjectParams, 'keyframes'>
+): MinimaxH3KeyframeSlot[] {
+  const keyframes = params.keyframes;
+  if (!Array.isArray(keyframes)) return [];
+  return keyframes.map((keyframe, index) => ({
+    slot: index + 1,
+    media: keyframe?.image,
+    frameIndex: keyframe?.frameIndex
+  }));
 }
 
 /**

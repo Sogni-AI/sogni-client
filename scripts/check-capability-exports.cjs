@@ -81,6 +81,13 @@ assert.equal(sdk.isAudioModel(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), false);
 assert.equal(sdk.isVideoModel(sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID), false);
 assert.equal(sdk.isAudioModel(sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID), false);
 
+// MiniMax H3 intermediate keyframes: consumers ask which ids take them and how many.
+assert.equal(sdk.MINIMAX_H3_MAX_KEYFRAMES, 8);
+assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-fl2va-fp8_i2v'), true);
+assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-fastvideo-int8_flf2v_turbo_2stage'), true);
+assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-fastvideo-int8_flfa2v_turbo'), false);
+assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-ref2va-fp8_r2v'), false);
+
 console.log('SDK capability export checks passed');
 
 for (const name of ['imageTo3d', 'removeBackground', 'segmentImage']) assert.ok(sdk.SogniTools[name]?.function?.name);

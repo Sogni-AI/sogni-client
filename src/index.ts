@@ -30,6 +30,7 @@ import {
   MINIMAX_H3_FASTH3_A2V_MODEL_ID,
   MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID,
   MINIMAX_H3_FASTH3_IA2V_MODEL_ID,
+  MINIMAX_H3_MAX_KEYFRAMES,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
   PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
   PIXAL3D_ORBIT_VIEW_SLOTS,
@@ -37,6 +38,7 @@ import {
   getMinimaxH3FramesForAudioDuration,
   getPixal3dOrbitViewSlots,
   isMinimaxH3AudioGuideModel,
+  isMinimaxH3KeyframeModel,
   isAudioModel,
   isModelArtifactModel,
   isPixal3dModel,
@@ -73,6 +75,7 @@ import {
   EstimateRequest,
   CostEstimation,
   InputMedia,
+  MinimaxH3Keyframe,
   WorldGenerationReceiptRequest
 } from './Projects/types/index.js';
 import type { JobProvenance } from './Projects/types/JobProvenance.js';
@@ -331,6 +334,7 @@ export type {
   ErrorData,
   ImageProjectParams,
   ImageOutputFormat,
+  MinimaxH3Keyframe,
   Pixal3dGenerationOptions,
   Pixal3dMultiViewImages,
   Pixal3dTemplateVariant,
@@ -481,6 +485,7 @@ export {
   MINIMAX_H3_FASTH3_A2V_MODEL_ID,
   MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID,
   MINIMAX_H3_FASTH3_IA2V_MODEL_ID,
+  MINIMAX_H3_MAX_KEYFRAMES,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
   PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
   PIXAL3D_ORBIT_VIEW_SLOTS,
@@ -488,6 +493,7 @@ export {
   getMinimaxH3FramesForAudioDuration,
   getPixal3dOrbitViewSlots,
   isMinimaxH3AudioGuideModel,
+  isMinimaxH3KeyframeModel,
   isAudioModel,
   isModelArtifactModel,
   isPixal3dModel,

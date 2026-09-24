@@ -45,16 +45,19 @@ import {
   isMinimaxH3BalancedModel,
   isMinimaxH3ReferenceModel,
   isMinimaxH3AudioGuideModel,
+  isMinimaxH3KeyframeModel,
   isExternalApiVideoModel,
   usesReferenceMask,
   countMinimaxH3References,
   getVideoContextImageSlots,
+  getMinimaxH3KeyframeSlots,
   getMinimaxH3ReferenceVideoSlots,
   getMinimaxH3ReferenceAudioSlots,
   MINIMAX_H3_MAX_REFERENCE_IMAGES,
   MINIMAX_H3_MAX_REFERENCE_VIDEOS,
   MINIMAX_H3_MAX_REFERENCE_AUDIOS,
   MINIMAX_H3_MAX_REFERENCE_FILES,
+  MINIMAX_H3_MAX_KEYFRAMES,
   MINIMAX_H3_MIN_DURATION,
   MINIMAX_H3_MAX_DURATION,
   MINIMAX_H3_DIMENSION_STEP,
@@ -160,6 +163,7 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
     throw new ApiError(400, { status: 'error', errorCode: 0, message: exportError });
   }
   validateVideoContextImages(params);
+  validateVideoKeyframes(params);
   validateVideoReferenceArrays(params);
 
   if (isHappyhorseModel(params.modelId)) {
@@ -337,6 +341,90 @@ function validateVideoContextImages(params: VideoProjectParams): void {
         'contextImages must not contain empty entries. Reference ordinals follow array position, so a hole would renumber every later reference.'
     });
   }
+}
+
+function keyframeError(message: string): never {
+  throw new ApiError(400, { status: 'error', errorCode: 0, message });
+}
+
+/**
+ * The offending value quoted in a keyframe error. The Python SDK formats it the
+ * same way, so both SDKs raise byte-identical messages.
+ */
+function describeKeyframeValue(value: unknown): string {
+  if (value === undefined || value === null) return 'nothing';
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  if (typeof value === 'string') return JSON.stringify(value);
+  return Array.isArray(value) ? 'an array' : 'an object';
+}
+
+/**
+ * MiniMax H3 intermediate `keyframes` shape check.
+ *
+ * Only the H3 i2v and flf2v model ids accept keyframes, and an empty list means
+ * none. Like the contextImages check, this runs before the external-API
+ * families return early, so no vendor model can carry keyframes past it. Frame
+ * indices are checked in `applyMinimaxH3Keyframes`, once the job's frame count
+ * is resolved.
+ */
+function validateVideoKeyframes(params: VideoProjectParams): void {
+  const keyframes: unknown = params.keyframes;
+  if (keyframes === undefined || keyframes === null) return;
+  if (Array.isArray(keyframes) && keyframes.length === 0) return;
+  if (!isMinimaxH3KeyframeModel(params.modelId)) {
+    keyframeError(
+      'keyframes is supported only by the MiniMax H3 image-to-video and first/last-frame workflows (i2v and flf2v model ids).'
+    );
+  }
+  if (!Array.isArray(keyframes)) {
+    keyframeError('keyframes must be an array of { image, frameIndex } entries.');
+  }
+  if (keyframes.length > MINIMAX_H3_MAX_KEYFRAMES) {
+    keyframeError(
+      `keyframes accepts at most ${MINIMAX_H3_MAX_KEYFRAMES} entries (got ${keyframes.length}).`
+    );
+  }
+  keyframes.forEach((keyframe: unknown, index: number) => {
+    const image =
+      keyframe && typeof keyframe === 'object'
+        ? (keyframe as { image?: unknown }).image
+        : undefined;
+    if (!image) keyframeError(`keyframes[${index}].image is required.`);
+  });
+}
+
+/**
+ * Check MiniMax H3 keyframe frame indices against the job's resolved frame
+ * count, then write the wire fields: `hasContextImage<i+1>` for every entry and
+ * `keyframeFrameIndices` in the same order. `validateVideoKeyframes` has already
+ * checked the model and the entries.
+ */
+function applyMinimaxH3Keyframes(keyFrame: Record<string, any>, params: VideoProjectParams) {
+  const slots = getMinimaxH3KeyframeSlots(params);
+  if (!slots.length) return;
+  if (keyFrame.frames === undefined || keyFrame.frames === null) {
+    keyframeError('keyframes need the video length: pass frames or duration.');
+  }
+  const frames = Number(keyFrame.frames);
+  const lastIndex = frames - 2;
+  const used = new Set<number>();
+  for (const { slot, frameIndex } of slots) {
+    if (!Number.isInteger(frameIndex) || frameIndex < 1 || frameIndex > lastIndex) {
+      keyframeError(
+        `keyframes[${slot - 1}].frameIndex must be an integer between 1 and ${lastIndex} for a ${frames}-frame video (got ${describeKeyframeValue(frameIndex)}); use referenceImage and referenceImageEnd for the first and last frames.`
+      );
+    }
+    if (used.has(frameIndex)) {
+      keyframeError(`keyframes must use different frames; frame ${frameIndex} is used twice.`);
+    }
+    used.add(frameIndex);
+  }
+  for (const { slot } of slots) {
+    keyFrame[`hasContextImage${slot}`] = true;
+  }
+  keyFrame.keyframeFrameIndices = slots.map(({ frameIndex }) => frameIndex);
 }
 
 function validateVideoReferenceArrays(params: VideoProjectParams): void {
@@ -1594,6 +1682,9 @@ function applyVideoParams(
     const fps = params.fps ?? (isWan3Model(params.modelId) ? 30 : 24);
     keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
   }
+  // MiniMax H3 intermediate keyframes: frame indices are checked against the
+  // frame count resolved just above, from `frames` or `duration`.
+  applyMinimaxH3Keyframes(keyFrame, params);
   if (params.shift !== undefined) {
     keyFrame.shift = params.shift;
   }
