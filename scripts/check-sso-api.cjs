@@ -175,6 +175,96 @@ async function run() {
     assert.equal(data.username, 'newuser');
   }
 
+  // ── ssoSignup + password: derived wallet, nonce, EIP-712 signature, token email ──
+  {
+    const client = makeStubClient();
+    const calls = [];
+    client.rest.post = async (endpoint, body) => {
+      calls.push({ endpoint, body });
+      if (endpoint === '/v1/account/nonce') {
+        return { status: 'success', data: { nonce: 'NONCE-1' } };
+      }
+      return { status: 'success', data: { token: 't3', refreshToken: 'r3', username: 'pwuser' } };
+    };
+    const signed = [];
+    const api = new AccountApi({
+      client,
+      eip712: {
+        async signTypedData(wallet, type, value) {
+          signed.push({ address: wallet.address, type, value });
+          return '0xSIGNED';
+        }
+      }
+    });
+    const payload = Buffer.from(JSON.stringify({ sub: 'g-1', email: 'Person@Example.com' }))
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    const idToken = `eyJhbGciOiJSUzI1NiJ9.${payload}.sig`;
+    const expectedAddress = api.getWallet('pwuser', 'correct horse battery').address;
+
+    const data = await api.ssoSignup(
+      { provider: 'google', idToken, username: 'pwuser', password: 'correct horse battery' },
+      true
+    );
+    assert.equal(data.username, 'pwuser');
+    assert.deepEqual(
+      calls.map((c) => c.endpoint),
+      ['/v1/account/nonce', '/v1/account/sso/signup'],
+      'nonce must be fetched for the derived wallet before signup'
+    );
+    assert.deepEqual(calls[0].body, { walletAddress: expectedAddress });
+    assert.deepEqual(signed, [
+      {
+        address: expectedAddress,
+        type: 'signup',
+        value: {
+          appid: 'sso-test-appid',
+          username: 'pwuser',
+          email: 'Person@Example.com',
+          subscribe: 0,
+          walletAddress: expectedAddress,
+          nonce: 'NONCE-1'
+        }
+      }
+    ]);
+    assert.deepEqual(calls[1].body, {
+      appid: 'sso-test-appid',
+      provider: 'google',
+      idToken,
+      username: 'pwuser',
+      subscribe: 0,
+      appSource: 'sdk-test',
+      referralCode: undefined,
+      rememberMe: true,
+      email: 'Person@Example.com',
+      walletAddress: expectedAddress,
+      signature: '0xSIGNED'
+    });
+
+    // Without a password nothing about the wire format changes.
+    calls.length = 0;
+    await api.ssoSignup({ provider: 'google', idToken, username: 'pwuser' });
+    assert.deepEqual(calls.map((c) => c.endpoint), ['/v1/account/sso/signup']);
+    assert.equal('walletAddress' in calls[0].body, false);
+    assert.equal('signature' in calls[0].body, false);
+
+    // A token without an email claim cannot set a password — fail before any call.
+    calls.length = 0;
+    const noEmail = `eyJhbGciOiJSUzI1NiJ9.${Buffer.from('{"sub":"a-1"}').toString('base64url')}.sig`;
+    await assert.rejects(
+      api.ssoSignup({ provider: 'apple', idToken: noEmail, username: 'pwuser', password: 'x'.repeat(8) }),
+      /no email address/
+    );
+    assert.equal(calls.length, 0);
+
+    const { readIdTokenEmail } = require('../dist/Account/index.js');
+    assert.equal(readIdTokenEmail(idToken), 'Person@Example.com');
+    assert.equal(readIdTokenEmail('not-a-jwt'), undefined);
+    assert.equal(readIdTokenEmail(noEmail), undefined);
+  }
+
   // ── ssoLink: endpoint + currentAccount.authMethods update ─────────────────
   {
     const { api, client } = makeApi();

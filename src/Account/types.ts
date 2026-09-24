@@ -43,6 +43,15 @@ export interface SsoSignupParams {
   idToken: string;
   /** Sogni username to create, 4-20 characters. Validate with {@link AccountApi.validateUsername} first. */
   username: string;
+  /**
+   * Also set a password for the new account. The wallet is then derived from
+   * username+password on the device, exactly as {@link AccountApi.create} does, and
+   * the account is created as a username & password account with this provider's
+   * sign-in enabled from the start — instead of a Google/Apple-only account with a
+   * custodial wallet. The first session is a password session. Only possible at
+   * signup: a Google/Apple-only account can never add a password later.
+   */
+  password?: string;
   subscribe?: boolean;
   referralCode?: string;
   /**

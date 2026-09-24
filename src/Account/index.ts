@@ -36,6 +36,7 @@ import {
 } from './subscription.types.js';
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
+import { base64Decode } from '../lib/base64.js';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import CurrentAccount from './CurrentAccount.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
@@ -544,23 +545,35 @@ class AccountApi extends ApiGroup {
    * {@link ssoLogin} attempt failed with (errorCode 105) — the token is only
    * consumed by a successful login/signup.
    *
+   * Pass `password` to also set a password: the account is then a username &
+   * password account (wallet derived on the device, as in {@link create}) with
+   * this provider's sign-in enabled from the start, and the session returned is a
+   * password session. This choice exists only at signup.
+   *
    * @example Signup after a 105 login miss
    * ```typescript
    * await sogni.account.ssoSignup({ provider: 'google', idToken: credential, username: 'newuser' });
    * ```
+   *
+   * @example Signup that also sets a password
+   * ```typescript
+   * await sogni.account.ssoSignup({ provider: 'google', idToken: credential, username: 'newuser', password });
+   * ```
    */
   async ssoSignup(params: SsoSignupParams, rememberMe = false): Promise<SsoSignupData> {
-    const { provider, idToken, username, subscribe, referralCode, appSource } = params;
+    const { provider, idToken, username, password, subscribe, referralCode, appSource } = params;
     const resolvedAppSource = appSource?.trim() || this.client.appSource;
+    const subscribeFlag = subscribe ? 1 : 0;
     const res = await this.client.rest.post<ApiResponse<SsoSignupData>>('/v1/account/sso/signup', {
       appid: this.client.appId,
       provider,
       idToken,
       username,
-      subscribe: subscribe ? 1 : 0,
+      subscribe: subscribeFlag,
       ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
       referralCode,
-      rememberMe
+      rememberMe,
+      ...(password ? await this.signSsoSignup(username, password, idToken, subscribeFlag) : {})
     });
     const auth = this.client.auth;
     if (auth instanceof TokenAuthManager) {
@@ -569,6 +582,32 @@ class AccountApi extends ApiGroup {
       await auth.authenticate();
     }
     return res.data;
+  }
+
+  /**
+   * Password variant of {@link ssoSignup}: derive the wallet from username+password,
+   * fetch its nonce and sign the same EIP-712 signup payload {@link create} signs.
+   * The signed email is the token's `email` claim — the server accepts only the
+   * identity provider's verified email there.
+   */
+  private async signSsoSignup(username: string, password: string, idToken: string, subscribe: number) {
+    const email = readIdTokenEmail(idToken);
+    if (!email) {
+      throw new Error(
+        'The identity provider token carries no email address, so a password cannot be set for this signup'
+      );
+    }
+    const wallet = this.getWallet(username, password);
+    const nonce = await this.getNonce(wallet.address);
+    const signature = await this.eip712.signTypedData(wallet, 'signup', {
+      appid: this.client.appId,
+      username,
+      email,
+      subscribe,
+      walletAddress: wallet.address,
+      nonce
+    });
+    return { email, walletAddress: wallet.address, signature };
   }
 
   /**
@@ -1199,6 +1238,26 @@ class AccountApi extends ApiGroup {
    */
   async refreshSubscription(): Promise<SubscriptionEntitlementSnapshot> {
     return this.getSubscriptionStatus();
+  }
+}
+
+/**
+ * The `email` claim of an identity provider ID token (JWT), read WITHOUT verifying
+ * it — the server verifies the token; the client only needs the email to sign the
+ * signup payload with it. Returns undefined when the token has no email claim.
+ */
+export function readIdTokenEmail(idToken: string): string | undefined {
+  const segment = idToken.split('.')[1];
+  if (!segment) {
+    return undefined;
+  }
+  try {
+    const base64 = segment.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(base64Decode(padded)) as { email?: unknown };
+    return typeof payload.email === 'string' && payload.email ? payload.email : undefined;
+  } catch {
+    return undefined;
   }
 }
 
