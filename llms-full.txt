@@ -1054,13 +1054,26 @@ LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage; `isMinimaxH3KeyframeModel()`)
 `keyframes: [{ image, frameIndex }]` pins up to `MINIMAX_H3_MAX_KEYFRAMES` (8)
 still images between the first and last frame. `frameIndex` is the 0-based frame
 at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2` of the
-job's grid frame count, each frame used once, so pass `frames` or `duration`.
-The first and last frames stay `referenceImage` / `referenceImageEnd`, and
-`contextImages` stays R2V-only. Every other model rejects a non-empty list; an
-empty list is ignored. `keyframes[i].image` uploads to `contextImage<i+1>` in
-array order and the indices travel as `keyframeFrameIndices`. Describe in the
-prompt what happens at each keyframe's time; keyframes are not `<Picture N>`
-references.
+job's frame count, each frame used once. Pass `frames` from the H3 grid (124,
+141, 158, 175, 192, ... 362; `124 + n*17`) so that count is exact. `duration`
+also works but snaps to the grid (`duration: 6` renders 141 frames, not 144);
+`calculateVideoFrames(modelId, seconds, 24)` returns the count a duration
+resolves to. The first and last frames stay `referenceImage` /
+`referenceImageEnd`, and `contextImages` stays R2V-only. Every other model
+rejects a non-empty list; an empty list is ignored. `keyframes[i].image` uploads
+to `contextImage<i+1>` in array order and the indices travel as
+`keyframeFrameIndices`. If no worker serving the model can pin keyframes yet,
+the job is refused with error code `4100`.
+
+Prompts for keyframes: H3 never sees the keyframe images as references. They
+are not `<Picture N>` images, and the alignment line still names only the first
+and last frame, so the prompt must describe what each keyframe shows at its
+time. When a keyframe changes the framing, camera angle, location or light,
+start a new shot (a hard cut) at its time: `[Shot N] At MM:SS.mmm, ...`, where
+the time is `frameIndex / 24` seconds (frame 144 is `00:06.000`). Two
+differently framed or lit stills inside one continuous shot cross-fade into each
+other, and a shot described differently from its still can flash the still for
+a single frame.
 
 FASTH3 AUDIO GUIDE (`minimax-h3-fastvideo-int8_ia2v_turbo`,
 `minimax-h3-fastvideo-int8_flfa2v_turbo`, `minimax-h3-fastvideo-int8_a2v_turbo`
@@ -2133,7 +2146,7 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceVideos?: (File | Buffer | Blob)[];  // MiniMax H3 r2v video references 2-3
   referenceVideoDurations?: number[];  // Optional H3 r2v preflight hints; Socket measures uploaded videos authoritatively
   contextImages?: (File | Buffer | Blob)[];  // MiniMax H3 r2v reference images 2-9
-  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3 i2v/flf2v: up to 8 stills at 0-based frames 1..frames-2
+  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3 i2v/flf2v: up to 8 stills at 0-based frames 1..frames-2; pass frames
   referenceImageUrls?: string[];  // Seedance and HappyHorse only
   referenceVideoUrls?: string[];  // Seedance only
   referenceAudioUrls?: string[];  // Seedance only
@@ -2146,7 +2159,7 @@ VIDEO-SPECIFIC PARAMETERS:
   trimEndFrame?: boolean;
   controlNet?: VideoControlNetParams;  // LTX-2.3 only
   upscaleResolution?: 1080 | 1440;  // FlashVSR upscale only: output short edge
-  frames?: number;           // FlashVSR upscale: optional; must equal the source's frame count if sent
+  frames?: number;           // Exact frame count (MiniMax H3: 124 + n*17; pass it with keyframes); FlashVSR upscale: optional, must equal the source's count
   outputFormat?: 'mp4';
 }
 ```

@@ -1091,12 +1091,18 @@ Intermediate keyframes (--keyframe, --mode i2v or flf2v):
   frame: <path>@<frame> takes a 0-based frame index at 24fps, and
   <path>@<seconds>s takes seconds (5s is frame 120). Frames run from 1 to
   frames-2 (1-190 at the default 8s / 192 frames), each used once, up to
-  ${MINIMAX_H3_MAX_KEYFRAMES} keyframes. The first and last frames stay --image and --end-image.
-  Keyframe images get the same canvas preparation as the other frames.
+  ${MINIMAX_H3_MAX_KEYFRAMES} keyframes. Use --frames to set the length exactly; --duration snaps to
+  the frame grid (6s is 141 frames). The first and last frames stay --image
+  and --end-image. Keyframe images get the same canvas preparation as the
+  other frames.
 
-  Write the prompt so it says what happens at each keyframe's time. Keyframes are
-  not <Picture N> references: the alignment line still names only the first and
-  last frame.
+  H3 never sees the keyframe images as references, so the prompt must say what
+  each keyframe shows at its time. Keyframes are not <Picture N> references: the
+  alignment line still names only the first and last frame. When a keyframe
+  changes the framing, camera angle, location or light, start a new shot at its
+  time ("[Shot N] At MM:SS.mmm, ..." at frame/24 seconds): two differently
+  framed or lit stills inside one continuous shot cross-fade, and a shot
+  described differently from its still can flash the still for a single frame.
 
 Multi-reference video (--mode r2v):
   Ref2VA conditions on labelled reference material instead of frame anchors.
@@ -1408,8 +1414,12 @@ async function main() {
   const usedKeyframes = new Set();
   for (const { path, frameIndex } of OPTIONS.keyframes) {
     if (frameIndex < 1 || frameIndex > OPTIONS.frames - 2) {
+      const anchorHint =
+        frameIndex === 0 || frameIndex === OPTIONS.frames - 1
+          ? ' Use --image and --end-image for the first and last frames.'
+          : '';
       console.error(
-        `Error: keyframe ${path} is at frame ${frameIndex}; a ${OPTIONS.frames}-frame video takes keyframes at frames 1-${OPTIONS.frames - 2}. Use --image and --end-image for the first and last frames.`
+        `Error: keyframe ${path} is at frame ${frameIndex}; a ${OPTIONS.frames}-frame video takes keyframes at frames 1-${OPTIONS.frames - 2}.${anchorHint}`
       );
       process.exit(1);
     }
@@ -1537,7 +1547,9 @@ async function main() {
     console.log(OPTIONS.prompt);
     console.log('\n--- end of prompt ---');
     if (keyframeSummary) {
-      console.log(`\nKeyframes (describe what happens at each time): ${keyframeSummary}`);
+      console.log(
+        `\nKeyframes (describe each at its time; cut to a new shot where framing or light changes): ${keyframeSummary}`
+      );
     }
     if (promptWarnings.length) {
       console.log('\n⚠️  Prompt review:');

@@ -13,10 +13,14 @@
  *   caller that count), and every validation error matches the Python SDK word
  *   for word;
  * - projects.create uploads each keyframe image to its slot, and a refused
- *   request uploads and sends nothing.
+ *   request uploads and sends nothing;
+ * - the H3 example's help tells keyframe users to set --frames and to cut to a
+ *   new shot where a keyframe changes framing or light.
  */
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const { EventEmitter } = require('node:events');
+const path = require('node:path');
 const createJobRequestMessage = require('../dist/Projects/createJobRequestMessage.js').default;
 const sdk = require('../dist/index.js');
 const {
@@ -560,6 +564,19 @@ async function checkMinimaxH3KeyframeUploads() {
   assert.deepEqual(refused.uploads, []);
   assert.equal(refused.client.socket.sent.length, 0);
 }
+
+// The example's help carries the prompt rules users need: H3 never sees the
+// keyframe images, and a framing or lighting change needs a hard cut.
+const help = spawnSync(
+  process.execPath,
+  [path.join(__dirname, '..', 'examples', 'workflow_minimax_h3_video.mjs'), '--help'],
+  { cwd: path.join(__dirname, '..'), encoding: 'utf8' }
+);
+assert.equal(help.status, 0, help.stderr || help.stdout);
+assert.match(help.stdout, /Use --frames to set the length exactly/);
+assert.match(help.stdout, /6s is 141 frames/);
+assert.match(help.stdout, /H3 never sees the keyframe images as references/);
+assert.match(help.stdout, /changes the framing, camera angle, location or light, start a new shot/);
 
 checkMinimaxH3KeyframeUploads()
   .then(() => console.log('MiniMax H3 keyframe checks passed'))

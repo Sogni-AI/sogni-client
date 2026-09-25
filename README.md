@@ -1054,7 +1054,7 @@ When creating video projects, you can specify:
 
 - `duration` - Duration in seconds. WAN 2.2 supports 1-10s, Wan 3 supports 2-30s, LTX 2.5 supports 2-20s, LTX 2.3 supports 4-20s, Seedance 2.0 supports 4-15s, and Seedance 2.5 supports 4-30s.
 - `fps` - Frames per second. WAN 2.2 supports 16/32 output, Wan 3 is fixed at 30fps, LTX 2.x supports 1-60 native FPS, and Seedance is fixed at 24fps.
-- `frames` - Number of frames. Prefer `duration`; the SDK calculates model-correct frame counts.
+- `frames` - Number of frames. Prefer `duration`; the SDK calculates model-correct frame counts, and `calculateVideoFrames(modelId, seconds, fps)` returns the count a duration resolves to. Pass `frames` when positions inside the clip must be exact, as with MiniMax H3 `keyframes` (H3 takes 124, 141, 158, … 362)
 - `width` - Video width in pixels
 - `height` - Video height in pixels
 - `steps` - Increase inference steps to increase quality
@@ -1065,7 +1065,7 @@ When creating video projects, you can specify:
 - `referenceVideoDurations` - Optional MiniMax H3 r2v duration hints in `[referenceVideo, ...referenceVideos]` order for early client-side validation; Socket probes the uploaded files and uses measured durations for pricing and admission
 - `referenceAudio` - Reference audio for sound-to-video workflows (s2v, ia2v, flfa2v, a2v)
 - `referenceImageEnd` - Last frame for i2v, flf2v and the MiniMax H3 FastH3 flfa2v audio-guide workflow
-- `keyframes` - MiniMax H3 i2v and flf2v only (every tier, `isMinimaxH3KeyframeModel()`): up to `MINIMAX_H3_MAX_KEYFRAMES` (8) `{ image, frameIndex }` stills pinned between the first and last frame. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2`, each frame used once; pass `frames` or `duration`. The first and last frames stay `referenceImage` / `referenceImageEnd`. Describe in the prompt what happens at each keyframe's time; keyframes are not `<Picture N>` references. Images upload to `contextImage1..N` in array order
+- `keyframes` - MiniMax H3 i2v and flf2v only (every tier, `isMinimaxH3KeyframeModel()`): up to `MINIMAX_H3_MAX_KEYFRAMES` (8) `{ image, frameIndex }` stills pinned between the first and last frame. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2`, each frame used once. Pass `frames` from the H3 grid (124, 141, 158, … 362) so the count is exact: `duration` snaps to the grid (`duration: 6` renders 141 frames, not 144). The first and last frames stay `referenceImage` / `referenceImageEnd`. H3 never sees the keyframe images as references (they are not `<Picture N>` images), so the prompt must describe what each keyframe shows at its time. When a keyframe changes the framing, camera angle, location or light, start a new shot (a hard cut) in the prompt at its time: two differently framed or lit stills inside one continuous shot cross-fade, and a shot described differently from its still can flash the still for a single frame. Images upload to `contextImage1..N` in array order. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100`
 - `referenceImageUrls` - Loose image context URLs for Seedance, Happy Horse, and Wan 3; Wan 3 accepts up to 10
 - `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `referenceAudioUrls` - Loose audio context URLs for Seedance and Wan 3; Wan 3 accepts up to 5

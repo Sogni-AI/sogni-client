@@ -176,13 +176,16 @@ export type InputMedia = File | Buffer | Blob | boolean;
  * between the first and last frame. See `VideoProjectParams.keyframes`.
  */
 export interface MinimaxH3Keyframe {
-  /** The still image the video passes through at `frameIndex`. */
+  /**
+   * The still image the video passes through at `frameIndex`. H3 never sees it
+   * as a reference, so the prompt must describe what it shows at that time.
+   */
   image: InputMedia;
   /**
    * 0-based pixel frame at 24 fps where `image` is pinned; convert seconds with
    * `Math.round(seconds * 24)`. An integer from 1 to `frames - 2` of the job's
-   * frame count: frame 0 and the last frame belong to `referenceImage` and
-   * `referenceImageEnd`.
+   * frame count (pass `frames` so that count is exact): frame 0 and the last
+   * frame belong to `referenceImage` and `referenceImageEnd`.
    */
   frameIndex: number;
 }
@@ -271,14 +274,24 @@ export interface MinimaxH3Keyframe {
  *   `isMinimaxH3KeyframeModel()`); every other model rejects a non-empty list.
  * - Each entry is `{ image, frameIndex }`. `frameIndex` is the 0-based pixel
  *   frame at 24 fps (`Math.round(seconds * 24)`): an integer from 1 to
- *   `frames - 2` of the job's grid frame count, with no frame used twice. Pass
- *   `frames` or `duration` so that count is known.
+ *   `frames - 2` of the job's frame count, with no frame used twice.
+ * - Pass `frames` from the grid (124, 141, 158, ... 362) so that count is
+ *   exact. `duration` also works but snaps to the grid (`duration: 6` renders
+ *   141 frames, not 144); `calculateVideoFrames(modelId, seconds, 24)` returns
+ *   the count a duration resolves to.
  * - The first and last frames stay `referenceImage` / `referenceImageEnd` with
  *   the rules above; `contextImages` stays r2v-only.
- * - The prompt should describe what happens at each keyframe's time. Keyframes
- *   are not `<Picture N>` references: only the first and last frame are.
+ * - H3 never sees the keyframe images as references: they are not
+ *   `<Picture N>` images, and only the first and last frame are. The prompt
+ *   must describe what each keyframe shows at its time.
+ * - When a keyframe changes the framing, camera angle, location or light, the
+ *   prompt must start a new shot (a hard cut, `[Shot N] At MM:SS.mmm, ...`) at
+ *   its time, `frameIndex / 24` seconds. Two differently framed or lit stills
+ *   inside one continuous shot cross-fade into each other, and a shot described
+ *   differently from its still can flash the still for a single frame.
  * - `keyframes[i].image` uploads to `contextImage<i+1>` and the request carries
- *   `keyframeFrameIndices` in the same order.
+ *   `keyframeFrameIndices` in the same order. If no worker serving the model
+ *   can pin keyframes yet, the job is refused with error code 4100.
  *
  * #### MiniMax H3 FastH3 audio guide (`ia2v`, `flfa2v`, `a2v`)
  * - An uploaded `referenceAudio` drives the video from frame 0 in three modes:
@@ -372,9 +385,12 @@ export interface VideoProjectParams extends BaseProjectParams {
   /** FlashVSR processing speed. Defaults to stable (More Stable). */
   processingSpeed?: 'stable' | 'faster';
   /**
-   * Number of frames to generate.
-   * @deprecated Use duration instead. When using duration, the SDK automatically
-   * calculates the correct frame count based on the model type.
+   * Number of frames to generate. Most requests pass `duration` instead and let
+   * the SDK calculate the model-correct count (`calculateVideoFrames()` returns
+   * it). Pass `frames` when positions inside the clip must be exact, as with
+   * MiniMax H3 `keyframes`, whose `frameIndex` values must fit the count; H3
+   * takes `124 + n*17` (124, 141, 158, ... 362). When both are passed,
+   * `duration` wins, except on FlashVSR upscales.
    */
   frames?: number;
   /**
@@ -390,7 +406,9 @@ export interface VideoProjectParams extends BaseProjectParams {
    * - HappyHorse: `duration * 24 + 1`
    * - Wan 3: `duration * 30 + 1`
    * - MiniMax H3: `duration * 24` snapped to the `124 + n*17` grid and clamped
-   *   to 124-362 frames (always 24fps generation, and no `+1` term)
+   *   to 124-362 frames (always 24fps generation, and no `+1` term), so
+   *   `duration: 6` renders 141 frames. Pass `frames` instead when MiniMax H3
+   *   `keyframes` need an exact count.
    */
   duration?: number;
   /**
@@ -520,14 +538,25 @@ export interface VideoProjectParams extends BaseProjectParams {
    * an empty list is the same as omitting the field.
    *
    * `frameIndex` is the 0-based pixel frame at 24 fps (`Math.round(seconds * 24)`),
-   * an integer from 1 to `frames - 2` of the job's grid frame count, and every
-   * entry needs its own frame and an image. The job must pass `frames` or
-   * `duration` so that count is known. The first and last frames stay
-   * `referenceImage` / `referenceImageEnd`, which keep their usual rules.
+   * an integer from 1 to `frames - 2` of the job's frame count, and every entry
+   * needs its own frame and an image. Pass `frames` from the H3 grid (124, 141,
+   * 158, ... 362) so that count is exact: `duration` snaps to the grid
+   * (`duration: 6` renders 141 frames, not 144), and
+   * `calculateVideoFrames(modelId, seconds, 24)` returns the count a duration
+   * resolves to. The first and last frames stay `referenceImage` /
+   * `referenceImageEnd`, which keep their usual rules.
    *
-   * Describe in the prompt what happens at each keyframe's time; keyframes are
-   * not `<Picture N>` references. `keyframes[i].image` uploads to
-   * `contextImage<i+1>`, in array order.
+   * H3 never sees the keyframe images as references (they are not
+   * `<Picture N>` images), so the prompt must describe what each one shows at
+   * its time. When a keyframe changes the framing, camera angle, location or
+   * light, start a new shot (a hard cut) at its time, `frameIndex / 24` seconds:
+   * two differently framed or lit stills inside one continuous shot cross-fade
+   * into each other, and a shot described differently from its still can flash
+   * the still for a single frame.
+   *
+   * `keyframes[i].image` uploads to `contextImage<i+1>`, in array order. If no
+   * worker serving the model can pin keyframes yet, the job is refused with
+   * error code 4100.
    */
   keyframes?: MinimaxH3Keyframe[];
   /**

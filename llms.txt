@@ -544,21 +544,30 @@ All 26 current workflow IDs are available through the Sogni projects API: four S
 
 For direct `projects.create()` calls, H3 I2V IDs accept `referenceImage`, `referenceImageEnd`, or both, with at least one required. Explicit FLF2V IDs require both anchors.
 
-Intermediate keyframes: the H3 I2V and FLF2V IDs of every tier (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage; `isMinimaxH3KeyframeModel(modelId)`) also accept `keyframes`, up to `MINIMAX_H3_MAX_KEYFRAMES` (8) still images pinned between the first and last frame. Each entry is `{ image, frameIndex }`: `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2` of the job's grid frame count, with no frame used twice, so pass `frames` or `duration`. The first and last frames stay `referenceImage` / `referenceImageEnd` with the rules above, and `contextImages` stays R2V-only. Every other model rejects a non-empty `keyframes`; an empty list is ignored. The SDK uploads `keyframes[i].image` to `contextImage<i+1>` in array order and sends the indices as `keyframeFrameIndices`. Describe in the prompt what happens at each keyframe's time; keyframes are not `<Picture N>` references, so the alignment line still names only the first and last frame.
+Intermediate keyframes: the H3 I2V and FLF2V IDs of every tier (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage; `isMinimaxH3KeyframeModel(modelId)`) also accept `keyframes`, up to `MINIMAX_H3_MAX_KEYFRAMES` (8) still images pinned between the first and last frame. Each entry is `{ image, frameIndex }`: `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2` of the job's frame count, with no frame used twice. Pass `frames` from the H3 grid (124, 141, 158, 175, 192, … 362; `124 + n*17`) so that count is exact. `duration` also works but snaps to the grid (`duration: 6` renders 141 frames, not 144); `calculateVideoFrames(modelId, seconds, 24)` returns the count a duration resolves to. The first and last frames stay `referenceImage` / `referenceImageEnd` with the rules above, and `contextImages` stays R2V-only. Every other model rejects a non-empty `keyframes`; an empty list is ignored. The SDK uploads `keyframes[i].image` to `contextImage<i+1>` in array order and sends the indices as `keyframeFrameIndices`. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100`.
+
+Writing the prompt for keyframes:
+
+- H3 never sees the keyframe images as references. They are not `<Picture N>` images, and the alignment line still names only the first and last frame, so the prompt must describe what each keyframe shows at its time.
+- When a keyframe changes the framing, camera angle, location or light, start a new shot (a hard cut) at its time: `[Shot N] At MM:SS.mmm, ...`, where the time is `frameIndex / 24` seconds (frame 144 is `00:06.000`). Two differently framed or lit stills inside one continuous shot cross-fade into each other, and a shot described differently from its still can flash the still for a single frame.
 
 ```javascript
+// 192 frames (8 s): frame 0 is referenceImage, frame 191 is referenceImageEnd.
+// flf2vPrompt describes keyframe 1 inside [Shot 1] at 00:02.500 and starts
+// [Shot 2] At 00:06.000 with the new camera angle keyframe 2 shows.
 const project = await sogni.projects.create({
   type: 'video',
   network: 'fast',
   modelId: 'minimax-h3-fastvideo-int8_flf2v_turbo',
-  positivePrompt: flf2vPrompt, // says what happens at 2.5 s and 5 s
+  positivePrompt: flf2vPrompt,
+  numberOfMedia: 1,
   referenceImage: firstFrame,
   referenceImageEnd: lastFrame,
   keyframes: [
-    { image: middleStill, frameIndex: Math.round(2.5 * 24) }, // frame 60
-    { image: laterStill, frameIndex: 120 }
+    { image: sameShotStill, frameIndex: 60 }, // 2.5 s, same framing and light as Shot 1
+    { image: newAngleStill, frameIndex: 144 } // 6 s, new camera angle: the prompt cuts here
   ],
-  duration: 8, // 192 frames, so frameIndex may be 1-190
+  frames: 192, // on the 124 + n*17 grid, so frameIndex may be 1-190
   width: 1344,
   height: 768,
   steps: 4,
