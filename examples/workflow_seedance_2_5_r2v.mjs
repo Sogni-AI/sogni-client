@@ -16,6 +16,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials } from './credentials.mjs';
+import { CONFIRM_VENDOR_SPEND_FLAG, confirmVendorSpend } from './vendor-spend.mjs';
 
 const DEFAULT_ENDPOINT = 'https://api.sogni.ai';
 const DEFAULT_MODEL = 'seedance-2-5';
@@ -103,6 +104,7 @@ export function parseArgs(args = process.argv.slice(2)) {
     generateAudio: true,
     endpoint: process.env.SOGNI_REST_ENDPOINT || DEFAULT_ENDPOINT,
     dryRun: false,
+    confirmVendorSpend: false,
     watch: false,
     json: false,
     help: false
@@ -135,6 +137,7 @@ export function parseArgs(args = process.argv.slice(2)) {
     else if (arg === '--generate-audio') options.generateAudio = true;
     else if (arg === '--endpoint') options.endpoint = next().replace(/\/+$/, '');
     else if (arg === '--dry-run' || arg === '--no-execute') options.dryRun = true;
+    else if (arg === CONFIRM_VENDOR_SPEND_FLAG) options.confirmVendorSpend = true;
     else if (arg === '--watch') options.watch = true;
     else if (arg === '--json') options.json = true;
     else if (arg.startsWith('--')) throw new Error(`Unknown option: ${arg}`);
@@ -447,6 +450,7 @@ Options:
   --number <n>             Variations, 1-16 (default: 1)
   --no-audio               Request silent output
   --dry-run                Validate and print the request without uploading or generating
+  --confirm-vendor-spend   Acknowledge the Seedance vendor charge (required unless you confirm at the prompt)
   --watch                  Stream Creative Agent workflow events after starting
   --endpoint <url>         REST endpoint for local uploads
   --json                   Print raw result JSON
@@ -483,6 +487,7 @@ async function main() {
     return;
   }
   validateOptions(options);
+  if (!options.dryRun) await confirmVendorSpend(options.model, options.confirmVendorSpend);
   const credentials = options.dryRun ? {} : await loadCredentials();
   const urls = await resolveMediaUrls(credentials, options);
   const request =

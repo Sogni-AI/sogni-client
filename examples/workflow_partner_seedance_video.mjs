@@ -35,6 +35,7 @@ import {
   normalizeBillingMode,
   parseBillingModeArg
 } from './workflow-helpers.mjs';
+import { CONFIRM_VENDOR_SPEND_FLAG, confirmVendorSpend } from './vendor-spend.mjs';
 
 const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_REST_ENDPOINT = 'https://api.sogni.ai';
@@ -718,6 +719,7 @@ function parseArgs() {
     expandPrompt: true,
     target: undefined,
     execute: true,
+    confirmVendorSpend: false,
     tokenType: loadTokenTypePreference() || process.env.SOGNI_TOKEN_TYPE || 'spark',
     billingMode: defaultBillingMode(),
     estimate: true,
@@ -824,6 +826,8 @@ function parseArgs() {
       options.target = 'workflow';
     } else if (arg === '--no-execute' || arg === '--dry-run') {
       options.execute = false;
+    } else if (arg === CONFIRM_VENDOR_SPEND_FLAG) {
+      options.confirmVendorSpend = true;
     } else if (arg === '--token-type' && args[i + 1]) {
       options.tokenType = args[++i];
     } else if (arg === '--no-estimate') {
@@ -906,6 +910,7 @@ Options:
   --seed <n>             Seed
   --no-execute           Print or request a dry-run response without executing Sogni tools
   --dry-run              Alias for --no-execute
+  --confirm-vendor-spend Acknowledge the Seedance vendor charge for non-interactive runs
   --no-estimate          Skip the video cost-estimate request
   --inspect-workflow     Fetch the creative workflow record returned by chat/completions
   --llm-model <id>       Chat model (default: ${DEFAULT_LLM_MODEL})
@@ -1982,6 +1987,8 @@ async function main() {
       console.log('Generation cancelled.');
       return;
     }
+  } else if (options.execute) {
+    await confirmVendorSpend(toolArguments.model, options.confirmVendorSpend);
   }
 
   if (options.target === 'workflow') {
