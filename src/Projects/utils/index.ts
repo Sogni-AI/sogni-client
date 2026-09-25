@@ -490,7 +490,8 @@ export function isMinimaxH3ReferenceModel(modelId: string): boolean {
 }
 
 /**
- * Most intermediate `keyframes` one MiniMax H3 i2v or flf2v request accepts.
+ * Most intermediate `keyframes` one MiniMax H3 request accepts, and the number
+ * of `keyframeImage<n>` upload slots.
  */
 export const MINIMAX_H3_MAX_KEYFRAMES = 8;
 
@@ -499,15 +500,23 @@ export const MINIMAX_H3_MAX_KEYFRAMES = 8;
  * the worker pins (ComfyUI `MiniMaxH3AddGuide`) at chosen frames between the
  * first and last frame.
  *
- * These are the image-to-video (`i2v`) and first/last-frame (`flf2v`) workflows
- * on every tier: Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3
- * Two-Stage, ten ids in all. Text-to-video, `r2v` and the FastH3 audio guide
- * (`ia2v`, `flfa2v`, `a2v`) do not accept keyframes.
+ * Every MiniMax H3 workflow except text-to-video accepts them, 21 ids in all:
+ * - image-to-video (`i2v`) and first/last-frame (`flf2v`) on every tier
+ *   (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage);
+ * - the FastH3 Sound to Video audio guide (`ia2v`, `flfa2v`, `a2v`, one-stage
+ *   and two-stage; `isMinimaxH3AudioGuideModel`);
+ * - Ref2VA Reference to Video (`r2v`: Standard, Turbo, Balanced and both
+ *   two-stage ids; `isMinimaxH3ReferenceModel`).
  */
 export function isMinimaxH3KeyframeModel(modelId: string): boolean {
   if (!isMinimaxH3Model(modelId)) return false;
   const workflow = getVideoWorkflowType(modelId);
-  return workflow === 'i2v' || workflow === 'flf2v';
+  return (
+    workflow === 'i2v' ||
+    workflow === 'flf2v' ||
+    workflow === 'r2v' ||
+    isMinimaxH3AudioGuideModel(modelId)
+  );
 }
 
 /**
@@ -995,8 +1004,8 @@ export function getVideoContextImageSlots(
  */
 export interface MinimaxH3KeyframeSlot {
   /**
-   * 1-based `contextImage<slot>` upload slot, matching the `hasContextImage<slot>`
-   * keyFrame flag.
+   * 1-based `keyframeImage<slot>` upload slot, matching the
+   * `hasKeyframeImage<slot>` keyFrame flag.
    */
   slot: number;
   /** The caller-supplied image. */
@@ -1006,13 +1015,12 @@ export interface MinimaxH3KeyframeSlot {
 }
 
 /**
- * Resolve MiniMax H3 `keyframes` onto the numbered `contextImage<n>` upload
- * slots: `keyframes[i]` travels in `contextImage<i+1>`, in caller order and with
- * no offset. Unlike r2v's `contextImages` (see `getVideoContextImageSlots`),
- * keyframes never shift past `referenceImage`: the i2v and flf2v workflows carry
- * their first and last frames as `referenceImage` / `referenceImageEnd` and
- * reject `contextImages`, so the numbered slots belong to the keyframes alone.
- * The worker pairs `contextImage<i+1>` with `keyframeFrameIndices[i]`.
+ * Resolve MiniMax H3 `keyframes` onto their own numbered upload slots:
+ * `keyframes[i]` travels in `keyframeImage<i+1>` (1-8), in caller order and with
+ * no offset. The slots are separate from `contextImage<n>`, so a Ref2VA request
+ * carries its reference images (`referenceImage` plus `contextImages`, see
+ * `getVideoContextImageSlots`) and its keyframes together without renumbering
+ * either. The worker pairs `keyframeImage<i+1>` with `keyframeFrameIndices[i]`.
  */
 export function getMinimaxH3KeyframeSlots(
   params: Pick<VideoProjectParams, 'keyframes'>

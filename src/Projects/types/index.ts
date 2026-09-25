@@ -184,8 +184,9 @@ export interface MinimaxH3Keyframe {
   /**
    * 0-based pixel frame at 24 fps where `image` is pinned; convert seconds with
    * `Math.round(seconds * 24)`. An integer from 1 to `frames - 2` of the job's
-   * frame count (pass `frames` so that count is exact): frame 0 and the last
-   * frame belong to `referenceImage` and `referenceImageEnd`.
+   * frame count (pass `frames` so that count is exact). Frame 0 and the last
+   * frame are never keyframes: where a workflow can set them, they are
+   * `referenceImage` and `referenceImageEnd`.
    */
   frameIndex: number;
 }
@@ -267,11 +268,13 @@ export interface MinimaxH3Keyframe {
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
  *   requires at least one of them. The `flf2v` model requires both.
  *
- * #### MiniMax H3 intermediate keyframes (`i2v`, `flf2v`)
+ * #### MiniMax H3 intermediate keyframes (every workflow except `t2v`)
  * - `keyframes` pins up to 8 still images at chosen frames between the first
- *   and last frame. The `i2v` and `flf2v` ids of every tier accept it (Standard,
- *   Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage;
- *   `isMinimaxH3KeyframeModel()`); every other model rejects a non-empty list.
+ *   and last frame. 21 ids accept it (`isMinimaxH3KeyframeModel()`): `i2v` and
+ *   `flf2v` on every tier (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and
+ *   FastH3 Two-Stage), the six FastH3 Sound to Video ids (`ia2v`, `flfa2v`,
+ *   `a2v`, one- and two-stage) and the five Ref2VA `r2v` ids. Text-to-video and
+ *   every other model reject a non-empty list.
  * - Each entry is `{ image, frameIndex }`. `frameIndex` is the 0-based pixel
  *   frame at 24 fps (`Math.round(seconds * 24)`): an integer from 1 to
  *   `frames - 2` of the job's frame count, with no frame used twice.
@@ -279,19 +282,27 @@ export interface MinimaxH3Keyframe {
  *   exact. `duration` also works but snaps to the grid (`duration: 6` renders
  *   141 frames, not 144); `calculateVideoFrames(modelId, seconds, 24)` returns
  *   the count a duration resolves to.
- * - The first and last frames stay `referenceImage` / `referenceImageEnd` with
- *   the rules above; `contextImages` stays r2v-only.
- * - H3 never sees the keyframe images as references: they are not
- *   `<Picture N>` images, and only the first and last frame are. The prompt
- *   must describe what each keyframe shows at its time.
+ * - Frame 0 and the last frame are never keyframes. `i2v`, `flf2v` and `flfa2v`
+ *   set them with `referenceImage` / `referenceImageEnd` under the rules above,
+ *   `ia2v` sets frame 0 with `referenceImage`, and `a2v` and `r2v` cannot pin
+ *   them. Each workflow keeps its own uploads, and `contextImages` stays
+ *   r2v-only.
+ * - H3 never sees the keyframe images as references, so the prompt must
+ *   describe what each keyframe shows at its time. Keyframes are never
+ *   labelled: the `i2v`/`flf2v` alignment line names only the first and last
+ *   frame, and on `r2v` `<Picture N>` and `<Subject N>` refer to the
+ *   references only. On Sound to Video the audio drives the performance, and
+ *   keyframes pin how it looks at their times.
  * - When a keyframe changes the framing, camera angle, location or light, the
  *   prompt must start a new shot (a hard cut, `[Shot N] At MM:SS.mmm, ...`) at
  *   its time, `frameIndex / 24` seconds. Two differently framed or lit stills
  *   inside one continuous shot cross-fade into each other, and a shot described
  *   differently from its still can flash the still for a single frame.
- * - `keyframes[i].image` uploads to `contextImage<i+1>` and the request carries
- *   `keyframeFrameIndices` in the same order. If no worker serving the model
- *   can pin keyframes yet, the job is refused with error code 4100.
+ * - `keyframes[i].image` uploads to its own `keyframeImage<i+1>` slot and the
+ *   request carries `keyframeFrameIndices` in the same order; `r2v` references
+ *   keep their `referenceImage` / `contextImage<n>` slots in the same request.
+ *   If no worker serving the model can pin keyframes yet, the job is refused
+ *   with error code 4100.
  *
  * #### MiniMax H3 FastH3 audio guide (`ia2v`, `flfa2v`, `a2v`)
  * - An uploaded `referenceAudio` drives the video from frame 0 in three modes:
@@ -532,10 +543,11 @@ export interface VideoProjectParams extends BaseProjectParams {
   referenceImageEnd?: InputMedia;
   /**
    * MiniMax H3 intermediate keyframes: up to 8 still images, each pinned at a
-   * chosen frame between the first and last frame. Accepted only by the H3
-   * image-to-video (`i2v`) and first/last-frame (`flf2v`) model ids
-   * (`isMinimaxH3KeyframeModel()`); any other model rejects a non-empty list, and
-   * an empty list is the same as omitting the field.
+   * chosen frame between the first and last frame. Accepted by every MiniMax H3
+   * workflow except text-to-video, 21 ids (`isMinimaxH3KeyframeModel()`):
+   * image-to-video (`i2v`), first/last-frame (`flf2v`), Sound to Video (`ia2v`,
+   * `flfa2v`, `a2v`) and Reference to Video (`r2v`). Any other model rejects a
+   * non-empty list, and an empty list is the same as omitting the field.
    *
    * `frameIndex` is the 0-based pixel frame at 24 fps (`Math.round(seconds * 24)`),
    * an integer from 1 to `frames - 2` of the job's frame count, and every entry
@@ -543,20 +555,25 @@ export interface VideoProjectParams extends BaseProjectParams {
    * 158, ... 362) so that count is exact: `duration` snaps to the grid
    * (`duration: 6` renders 141 frames, not 144), and
    * `calculateVideoFrames(modelId, seconds, 24)` returns the count a duration
-   * resolves to. The first and last frames stay `referenceImage` /
-   * `referenceImageEnd`, which keep their usual rules.
+   * resolves to. Frame 0 and the last frame are never keyframes: `i2v`, `flf2v`
+   * and `flfa2v` set them with `referenceImage` / `referenceImageEnd`, `ia2v`
+   * sets frame 0 with `referenceImage`, and `a2v` and `r2v` cannot pin them.
+   * Every workflow keeps its own upload rules.
    *
-   * H3 never sees the keyframe images as references (they are not
-   * `<Picture N>` images), so the prompt must describe what each one shows at
-   * its time. When a keyframe changes the framing, camera angle, location or
+   * H3 never sees the keyframe images as references, so the prompt must describe
+   * what each one shows at its time. Keyframes are never labelled: on `r2v`,
+   * `<Picture N>` and `<Subject N>` refer to the references only. On Sound to
+   * Video the audio drives the performance, and keyframes pin how it looks at
+   * their times. When a keyframe changes the framing, camera angle, location or
    * light, start a new shot (a hard cut) at its time, `frameIndex / 24` seconds:
    * two differently framed or lit stills inside one continuous shot cross-fade
    * into each other, and a shot described differently from its still can flash
    * the still for a single frame.
    *
-   * `keyframes[i].image` uploads to `contextImage<i+1>`, in array order. If no
-   * worker serving the model can pin keyframes yet, the job is refused with
-   * error code 4100.
+   * `keyframes[i].image` uploads to its own `keyframeImage<i+1>` slot, in array
+   * order, so an `r2v` request carries its references (`referenceImage`,
+   * `contextImages`) and its keyframes together. If no worker serving the model
+   * can pin keyframes yet, the job is refused with error code 4100.
    */
   keyframes?: MinimaxH3Keyframe[];
   /**
@@ -1135,6 +1152,14 @@ export type ImageUrlParams = {
     | 'contextImage14'
     | 'contextImage15'
     | 'contextImage16'
+    | 'keyframeImage1'
+    | 'keyframeImage2'
+    | 'keyframeImage3'
+    | 'keyframeImage4'
+    | 'keyframeImage5'
+    | 'keyframeImage6'
+    | 'keyframeImage7'
+    | 'keyframeImage8'
     | 'referenceImage'
     | 'referenceImageEnd'
     | 'referenceMask';

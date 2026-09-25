@@ -85,8 +85,9 @@ assert.equal(sdk.isAudioModel(sdk.BIREFNET_BACKGROUND_REMOVAL_MODEL_ID), false);
 assert.equal(sdk.MINIMAX_H3_MAX_KEYFRAMES, 8);
 assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-fl2va-fp8_i2v'), true);
 assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-fastvideo-int8_flf2v_turbo_2stage'), true);
-assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-fastvideo-int8_flfa2v_turbo'), false);
-assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-ref2va-fp8_r2v'), false);
+assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-fastvideo-int8_flfa2v_turbo'), true);
+assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-ref2va-fp8_r2v'), true);
+assert.equal(sdk.isMinimaxH3KeyframeModel('minimax-h3-fl2va-fp8_t2v'), false);
 
 console.log('SDK capability export checks passed');
 

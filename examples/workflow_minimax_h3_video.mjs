@@ -54,6 +54,7 @@
  *   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --end-image finish.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg --keyframe middle.jpg@96 --keyframe turn.jpg@6s
+ *   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --keyframe rooftop.jpg@120
  *   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-fasth3-t2v-turbo
  *   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --model minimax-h3-fasth3-i2v-turbo-2stage
  *   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
@@ -992,6 +993,7 @@ Usage:
   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --end-image finish.jpg
   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg --keyframe middle.jpg@96 --keyframe turn.jpg@6s
+  node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --keyframe rooftop.jpg@120
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-balanced
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-turbo
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-fasth3-t2v-turbo
@@ -1037,7 +1039,7 @@ Options:
   --image <path>          First-frame reference image (i2v, flf2v)
   --end-image <path>      Last-frame reference image (i2v, flf2v)
   --keyframe <path>@<frame>
-                          Intermediate keyframe (i2v, flf2v; repeatable up to ${MINIMAX_H3_MAX_KEYFRAMES}): pin
+                          Intermediate keyframe (i2v, flf2v, r2v; repeatable up to ${MINIMAX_H3_MAX_KEYFRAMES}): pin
                           the image at a 0-based frame at 24fps, 1 to frames-2;
                           <path>@<seconds>s rounds seconds*24 to the nearest frame
   --ref-image <path>      Reference image (r2v, repeatable up to ${MINIMAX_H3_MAX_REFERENCE_IMAGES})
@@ -1086,23 +1088,25 @@ Prompt format:
   overall_soundscape. Use non_diegetic_music: N/A when there is no audience-only
   score. State exclusions inside the positive prompt; H3 has no negative field.
 
-Intermediate keyframes (--keyframe, --mode i2v or flf2v):
+Intermediate keyframes (--keyframe, --mode i2v, flf2v or r2v):
   Each --keyframe pins a still image at one frame between the first and last
   frame: <path>@<frame> takes a 0-based frame index at 24fps, and
   <path>@<seconds>s takes seconds (5s is frame 120). Frames run from 1 to
   frames-2 (1-190 at the default 8s / 192 frames), each used once, up to
   ${MINIMAX_H3_MAX_KEYFRAMES} keyframes. Use --frames to set the length exactly; --duration snaps to
-  the frame grid (6s is 141 frames). The first and last frames stay --image
-  and --end-image. Keyframe images get the same canvas preparation as the
-  other frames.
+  the frame grid (6s is 141 frames). In i2v and flf2v the first and last frames
+  stay --image and --end-image; r2v cannot pin frame 0 or the last frame.
+  Keyframe images get the same canvas preparation as the other frames.
 
   H3 never sees the keyframe images as references, so the prompt must say what
-  each keyframe shows at its time. Keyframes are not <Picture N> references: the
-  alignment line still names only the first and last frame. When a keyframe
-  changes the framing, camera angle, location or light, start a new shot at its
-  time ("[Shot N] At MM:SS.mmm, ..." at frame/24 seconds): two differently
-  framed or lit stills inside one continuous shot cross-fade, and a shot
-  described differently from its still can flash the still for a single frame.
+  each keyframe shows at its time. Keyframes are never labelled: in i2v and
+  flf2v the alignment line still names only the first and last frame, and in
+  r2v <Picture N> and <Subject N> refer to the --ref-* references only. When a
+  keyframe changes the framing, camera angle, location or light, start a new
+  shot at its time ("[Shot N] At MM:SS.mmm, ..." at frame/24 seconds): two
+  differently framed or lit stills inside one continuous shot cross-fade, and a
+  shot described differently from its still can flash the still for a single
+  frame.
 
 Multi-reference video (--mode r2v):
   Ref2VA conditions on labelled reference material instead of frame anchors.
@@ -1145,9 +1149,10 @@ Multi-reference video (--mode r2v):
     non_diegetic_music:
 
   Use <Subject N> for reusable visible content abstracted from a reference.
-  Reserve standalone <Picture N> for concrete keyframes or composition anchors;
-  a still used only for identity, wardrobe, environment, or style should be the
-  provenance inside a <Subject N> definition. Use <Video N> for whole-video
+  Reserve standalone <Picture N> for a reference used as a concrete keyframe or
+  composition anchor (--keyframe images are never labelled); a still used only
+  for identity, wardrobe, environment, or style should be the provenance inside
+  a <Subject N> definition. Use <Video N> for whole-video
   structure and <Audio N> for copied or referenced audio. Keep every label's
   meaning stable across all six sections.
 
@@ -1259,11 +1264,11 @@ async function main() {
     );
     process.exit(1);
   }
-  // Intermediate keyframes belong to the H3 i2v and flf2v ids only.
+  // Intermediate keyframes belong to every H3 mode here except t2v.
   if (OPTIONS.keyframes.length) {
     if (!isMinimaxH3KeyframeModel(modelConfig.id)) {
       console.error(
-        `Error: --keyframe needs --mode i2v or --mode flf2v; ${modelConfig.id} does not take intermediate keyframes.`
+        `Error: --keyframe needs --mode i2v, flf2v or r2v; ${modelConfig.id} does not take intermediate keyframes.`
       );
       process.exit(1);
     }
@@ -1415,9 +1420,11 @@ async function main() {
   for (const { path, frameIndex } of OPTIONS.keyframes) {
     if (frameIndex < 1 || frameIndex > OPTIONS.frames - 2) {
       const anchorHint =
-        frameIndex === 0 || frameIndex === OPTIONS.frames - 1
-          ? ' Use --image and --end-image for the first and last frames.'
-          : '';
+        frameIndex !== 0 && frameIndex !== OPTIONS.frames - 1
+          ? ''
+          : OPTIONS.mode === 'r2v'
+            ? ` r2v cannot pin frames 0 and ${OPTIONS.frames - 1}.`
+            : ' Use --image and --end-image for the first and last frames.';
       console.error(
         `Error: keyframe ${path} is at frame ${frameIndex}; a ${OPTIONS.frames}-frame video takes keyframes at frames 1-${OPTIONS.frames - 2}.${anchorHint}`
       );
@@ -1667,7 +1674,8 @@ async function main() {
     // The image slots mean different things per mode. In i2v/flf2v they are
     // frame anchors. In r2v there are no anchors at all: reference 1 goes to
     // referenceImage and references 2-9 to contextImages, which the SDK uploads
-    // to the numbered slots the worker packs into ref_images.
+    // to the numbered slots the worker packs into ref_images. Keyframes travel
+    // in their own keyframeImage slots in every mode, so r2v can carry both.
     let referenceImage;
     let referenceImageEnd;
     let keyframes;

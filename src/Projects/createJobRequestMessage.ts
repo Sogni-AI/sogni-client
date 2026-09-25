@@ -311,10 +311,11 @@ function validateSeedanceTaskType(params: VideoProjectParams): void {
  *
  * The field is the video counterpart of the image-project field of the same
  * name and belongs to exactly one video workflow: MiniMax H3 r2v is the only
- * Comfy-native multi-reference video model. The H3 i2v and flf2v workflows also
- * fill the numbered `contextImage<n>` upload slots, but only with intermediate
- * `keyframes` (see `validateVideoKeyframes`), never with `contextImages`. Runs
- * before the external-API families are dispatched, since those return early.
+ * Comfy-native multi-reference video model, and no other video workflow reads
+ * the numbered `contextImage<n>` upload slots. MiniMax H3 intermediate
+ * `keyframes` travel in their own `keyframeImage<n>` slots, so an r2v request
+ * can carry both. Runs before the external-API families are dispatched, since
+ * those return early.
  */
 function validateVideoContextImages(params: VideoProjectParams): void {
   if (params.contextImages === undefined) return;
@@ -364,11 +365,12 @@ function describeKeyframeValue(value: unknown): string {
 /**
  * MiniMax H3 intermediate `keyframes` shape check.
  *
- * Only the H3 i2v and flf2v model ids accept keyframes, and an empty list means
- * none. Like the contextImages check, this runs before the external-API
- * families return early, so no vendor model can carry keyframes past it. Frame
- * indices are checked in `applyMinimaxH3Keyframes`, once the job's frame count
- * is resolved.
+ * Only the H3 i2v, flf2v, Sound to Video (ia2v, flfa2v, a2v) and Reference to
+ * Video (r2v) model ids accept keyframes (`isMinimaxH3KeyframeModel`), and an
+ * empty list means none. Like the contextImages check, this runs before the
+ * external-API families return early, so no vendor model can carry keyframes
+ * past it. Frame indices are checked in `applyMinimaxH3Keyframes`, once the
+ * job's frame count is resolved.
  */
 function validateVideoKeyframes(params: VideoProjectParams): void {
   const keyframes: unknown = params.keyframes;
@@ -376,7 +378,7 @@ function validateVideoKeyframes(params: VideoProjectParams): void {
   if (Array.isArray(keyframes) && keyframes.length === 0) return;
   if (!isMinimaxH3KeyframeModel(params.modelId)) {
     keyframeError(
-      `keyframes is supported only by the MiniMax H3 image-to-video and first/last-frame workflows (i2v and flf2v model ids); ${params.modelId} does not accept keyframes.`
+      `keyframes is supported only by the MiniMax H3 image-to-video, first/last-frame, Sound to Video and Reference to Video workflows (i2v, flf2v, ia2v, flfa2v, a2v and r2v model ids); ${params.modelId} does not accept keyframes.`
     );
   }
   if (!Array.isArray(keyframes)) {
@@ -400,8 +402,26 @@ function validateVideoKeyframes(params: VideoProjectParams): void {
 }
 
 /**
+ * What a keyframe error suggests when a caller aims at frame 0 or the last
+ * frame. Only workflows with first/last-frame inputs can show those frames;
+ * ia2v has a first frame only, and a2v and r2v have neither.
+ */
+function keyframeEdgeHint(modelId: string, frames: number): string {
+  switch (getVideoWorkflowType(modelId)) {
+    case 'i2v':
+    case 'flf2v':
+    case 'flfa2v':
+      return 'use referenceImage and referenceImageEnd for the first and last frames';
+    case 'ia2v':
+      return `use referenceImage for the first frame, and the last frame (${frames - 1}) cannot be pinned`;
+    default:
+      return `frames 0 and ${frames - 1} cannot be pinned`;
+  }
+}
+
+/**
  * Check MiniMax H3 keyframe frame indices against the job's resolved frame
- * count, then write the wire fields: `hasContextImage<i+1>` for every entry and
+ * count, then write the wire fields: `hasKeyframeImage<i+1>` for every entry and
  * `keyframeFrameIndices` in the same order. `validateVideoKeyframes` has already
  * checked the model and the entries.
  *
@@ -427,10 +447,10 @@ function applyMinimaxH3Keyframes(
   const used = new Set<number>();
   for (const { slot, frameIndex } of slots) {
     if (!Number.isInteger(frameIndex) || frameIndex < 1 || frameIndex > lastIndex) {
-      // Point at the anchors only when the caller aimed at the first or last frame.
+      // Explain the edge frames only when the caller aimed at one of them.
       const anchorHint =
         frameIndex === 0 || frameIndex === frames - 1
-          ? '; use referenceImage and referenceImageEnd for the first and last frames'
+          ? `; ${keyframeEdgeHint(params.modelId, frames)}`
           : '';
       keyframeError(
         `keyframes[${slot - 1}].frameIndex must be an integer between 1 and ${lastIndex} for ${video} (got ${describeKeyframeValue(frameIndex)})${anchorHint}.`
@@ -442,7 +462,7 @@ function applyMinimaxH3Keyframes(
     used.add(frameIndex);
   }
   for (const { slot } of slots) {
-    keyFrame[`hasContextImage${slot}`] = true;
+    keyFrame[`hasKeyframeImage${slot}`] = true;
   }
   keyFrame.keyframeFrameIndices = slots.map(({ frameIndex }) => frameIndex);
 }

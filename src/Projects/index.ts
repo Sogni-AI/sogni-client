@@ -112,6 +112,12 @@ import {
  */
 type ContextImageIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
+/**
+ * 1-based MiniMax H3 `keyframeImage<n>` upload slot, one per intermediate
+ * keyframe (`MINIMAX_H3_MAX_KEYFRAMES`).
+ */
+type KeyframeImageSlot = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 // The LoRA catalog changes whenever a LoRA is published or a strength range is
 // retuned, and the server serves it `no-cache` for exactly that reason. Five
@@ -2454,17 +2460,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           : this.uploadContextImage(project.id, (slot - 1) as ContextImageIndex, media)
       )
     );
-    // MiniMax H3 i2v/flf2v intermediate keyframes, uploaded to contextImage1..N
-    // in caller order with no referenceImage offset: those workflows carry their
-    // first and last frames as referenceImage/referenceImageEnd and reject
-    // contextImages, so the numbered slots belong to the keyframes.
-    // createJobRequestMessage has already checked the model, the entries and the
-    // frame indices.
+    // MiniMax H3 intermediate keyframes, uploaded to their own keyframeImage1..N
+    // slots in caller order, apart from the contextImage slots r2v references
+    // use. createJobRequestMessage has already checked the model, the entries
+    // and the frame indices.
     await Promise.all(
       getMinimaxH3KeyframeSlots(data).map(({ slot, media }) =>
         typeof media === 'boolean'
           ? undefined
-          : this.uploadContextImage(project.id, (slot - 1) as ContextImageIndex, media)
+          : this.uploadKeyframeImage(project.id, slot as KeyframeImageSlot, media)
       )
     );
     if (data?.referenceImageEnd && data.referenceImageEnd !== true) {
@@ -3016,6 +3020,44 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return imageId;
   }
 
+  /**
+   * Upload one MiniMax H3 intermediate keyframe image to its `keyframeImage<slot>`
+   * slot.
+   * @internal
+   */
+  private async uploadKeyframeImage(
+    projectId: string,
+    slot: KeyframeImageSlot,
+    file: File | Buffer | Blob
+  ) {
+    const imageId = getUUID();
+    const type = `keyframeImage${slot}` as const;
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
+    const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type })) return imageId;
+    assertSession();
+    const presignedUrl = await this.uploadUrl({ imageId, jobId: projectId, type, contentType });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: toFetchBody(file),
+      headers
+    });
+    assertSession();
+    if (!res.ok) {
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: `Failed to upload keyframe image ${slot}`
+      });
+    }
+    return imageId;
+  }
+
   // ============================================
   // VIDEO WORKFLOW UPLOADS (WAN 2.2)
   // ============================================
@@ -3467,7 +3509,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *     specific request.
    *   - type: Asset role. Supported values include `'referenceImage'`,
    *     `'referenceImageEnd'`, `'startingImage'`, `'cnImage'`,
-   *     `'contextImage1'`..`'contextImage16'`, `'preview'`, `'complete'`.
+   *     `'contextImage1'`..`'contextImage16'`, `'keyframeImage1'`..`'keyframeImage8'`
+   *     (MiniMax H3 intermediate keyframes), `'preview'`, `'complete'`.
    *   - contentType: Optional MIME type the caller will `PUT` (e.g.
    *     `"image/png"`). Forwarded so the storage layer can pin the
    *     Content-Type on the presigned URL.
@@ -3644,7 +3687,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * This table describes the first upload slot only. MiniMax H3 r2v also uses
    * `contextImages`, `referenceVideos`, and `referenceAudios`; callers should
    * read those fields on `VideoProjectParams` for the multi-reference limits.
-   * The MiniMax H3 `i2v` and `flf2v` ids also accept optional intermediate
+   * Every MiniMax H3 id except text-to-video also accepts optional intermediate
    * `keyframes`, which the table does not list: `isMinimaxH3KeyframeModel()`
    * tells which ids take them, and `VideoProjectParams.keyframes` gives the rules.
    *
