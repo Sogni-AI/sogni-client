@@ -2484,12 +2484,13 @@ const results = await Promise.all(projects.map((p) => p.waitForCompletion()));
 IMAGE ENHANCEMENT:
 
 ```javascript
-// After a job completes, enhance it
-const enhancedProject = await job.enhance('medium', {
-  // Optional overrides
-  steps: 30
+// After an image job completes, re-render it with Krea 2 Turbo at the same size.
+// 'light' repaints the least of the image, 'heavy' the most.
+const quote = await sogni.projects.estimateEnhancementCost('medium', 'spark', { width: 1024, height: 1024 });
+const enhancedUrl = await job.enhance('medium', {
+  // Optional overrides: positivePrompt, stylePrompt, tokenType
+  positivePrompt: 'same scene, sharper detail'
 });
-const enhancedUrls = await enhancedProject.waitForCompletion();
 ```
 
 TOKEN MANAGEMENT:

@@ -2856,11 +2856,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Estimate image enhancement cost
-   * @param strength
+   * Estimate the cost of `job.enhance(strength)`.
+   * @param strength - enhancement strength, as passed to `job.enhance()`
    * @param tokenType
+   * @param size - the image's width and height; omitted, the enhancer's default size is quoted
    */
-  async estimateEnhancementCost(strength: EnhancementStrength, tokenType: TokenType = 'spark') {
+  async estimateEnhancementCost(
+    strength: EnhancementStrength,
+    tokenType: TokenType = 'spark',
+    size?: { width: number; height: number }
+  ) {
     return this.estimateCost({
       network: enhancementDefaults.network,
       tokenType,
@@ -2869,7 +2874,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       stepCount: enhancementDefaults.steps,
       previewCount: 0,
       cnEnabled: false,
-      startingImageStrength: getEnhacementStrength(strength)
+      // Guide influence, exactly as job.enhance() submits it: light keeps the most.
+      startingImageStrength: 1 - getEnhacementStrength(strength),
+      ...(size ? { width: size.width, height: size.height } : {})
     });
   }
 

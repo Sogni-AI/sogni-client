@@ -64,6 +64,8 @@ jobs:
         run: node scripts/check-job-reassignment.cjs
       - name: Run SAM 3 image-segment checks
         run: node scripts/check-sam3-image-segment.cjs
+      - name: Run image enhancement checks
+        run: node scripts/check-enhancement.cjs
       - name: Run personal LoRA library checks
         run: node scripts/check-personal-loras.cjs
       - name: Run Pixal3D artifact checks

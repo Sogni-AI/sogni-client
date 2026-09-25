@@ -53,14 +53,20 @@ const RUNTIME_LIMIT_ETA_MULTIPLIER = 6;
 /** Absolute ceiling, so "never occupy a worker indefinitely" still holds. */
 const RUNTIME_LIMIT_MAX_MS = 12 * HOUR_MS;
 
+/**
+ * Enhancement re-renders a finished image with Krea 2 Turbo image-to-image at
+ * its tier's default 8 steps. FLUX.1 [schnell] was the enhancer until
+ * 2026-09: its Comfy workflow had no image input, so every enhancement ignored
+ * the source image, and the Supernet now refuses Schnell guide images.
+ */
 export const enhancementDefaults = {
   network: 'fast' as SupernetType,
-  modelId: 'flux1-schnell-fp8',
+  modelId: 'krea2_turbo_fp8_scaled',
   positivePrompt: '',
   negativePrompt: '',
   stylePrompt: '',
   startingImageStrength: 0.5,
-  steps: 5,
+  steps: 8,
   guidance: 1,
   numberOfMedia: 1,
   numberOfPreviews: 0
@@ -702,9 +708,33 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
-   * Enhance the image using the Flux model. This method will create a new project with the
-   * enhancement parameters and use the result image of the current job as the starting image.
-   * @param strength - how much freedom the model has to change the image.
+   * The parent render's canvas as explicit dimensions. The enhancer is a different model
+   * from the parent, and models do not share size-preset ids, so a preset is resolved
+   * against the parent's own model. Undefined when the parent used its model's default size.
+   */
+  private async enhancementSize(): Promise<{ width: number; height: number } | undefined> {
+    const params = this._project.params;
+    if (params.type !== 'image') return undefined;
+    const preset = params.sizePreset;
+    if (!preset || preset === 'custom') {
+      return params.width && params.height
+        ? { width: params.width, height: params.height }
+        : undefined;
+    }
+    const network = params.network || enhancementDefaults.network;
+    const presets = await this._api.getSizePresets(network, params.modelId);
+    const match = presets.find((p) => p.id === preset);
+    if (!match) {
+      throw new Error(`Size preset "${preset}" is not available for ${params.modelId}`);
+    }
+    return { width: match.width, height: match.height };
+  }
+
+  /**
+   * Enhance the image with Krea 2 Turbo (`enhancementDefaults`). This creates a new
+   * project at the same size, using the result image of the current job as the starting image.
+   * @param strength - how much freedom the model has to change the image: `light` repaints
+   * the least (denoise 0.15), `heavy` the most (0.49).
    * @param overrides - optional parameters to override original prompt, style or token type.
    */
   async enhance(
@@ -717,7 +747,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
     // A segmentation result reports `type === 'image'` and would otherwise sail
     // through the guard above, then be submitted as the starting image of a
-    // paid Flux render. A mask PNG (or its cut-out) has no prompt-to-pixels
+    // paid enhancement render. A mask PNG (or its cut-out) has no prompt-to-pixels
     // relationship to enhance, so this spends real Spark on a nonsense render.
     if (isSegmentationModel(parentProjectParams.modelId)) {
       throw new Error('Enhancement is not available for segmentation masks');
@@ -734,6 +764,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       this._enhancementProject.off('updated', this.handleEnhancementUpdate);
       this._enhancementProject = null;
     }
+    const size = await this.enhancementSize();
     const imageData = await this.getResultData();
     const project = await this._api.create({
       type: 'image',
@@ -744,7 +775,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       seed: this.seed ?? this._project.params.seed,
       startingImage: imageData,
       startingImageStrength: 1 - getEnhacementStrength(strength),
-      sizePreset: parentProjectParams.sizePreset
+      ...(size ? { sizePreset: 'custom', width: size.width, height: size.height } : {})
     });
     this._enhancementProject = project;
     this._enhancementProject.on('updated', this.handleEnhancementUpdate);
