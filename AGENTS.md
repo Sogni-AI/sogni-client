@@ -365,7 +365,7 @@ const urls = await project.waitForCompletion();
 | Text-to-Video | `*_t2v*` | None |
 | Image-to-Video | `*_i2v*` | `referenceImage` (and/or `referenceImageEnd`) |
 | First/Last-Frame Video | `*_flf2v*` (MiniMax H3) | `referenceImage` + `referenceImageEnd` |
-| MiniMax H3 intermediate keyframes | H3 `*_i2v*` / `*_flf2v*` only (`isMinimaxH3KeyframeModel`) | optional `keyframes: [{ image, frameIndex }]`, up to 8; `frameIndex` is a 0-based 24 fps frame from 1 to `frames - 2` (pass `frames`: `duration` snaps to the 124 + n*17 grid); images upload to `contextImage1..N` in order; the prompt must describe each keyframe and cut to a new shot where framing or light changes (see `llms.txt`) |
+| MiniMax H3 intermediate keyframes | every H3 id except `*_t2v*`: `*_i2v*`, `*_flf2v*`, `*_ia2v*`, `*_flfa2v*`, `*_a2v*`, `*_r2v*` (`isMinimaxH3KeyframeModel`, 21 ids) | optional `keyframes: [{ image, frameIndex }]`, up to 8, alongside the workflow's own uploads; `frameIndex` is a 0-based 24 fps frame from 1 to `frames - 2` (pass `frames`: `duration` snaps to the 124 + n*17 grid); images upload to `keyframeImage1..N` in order (r2v references keep their `contextImage` slots); the prompt must describe each keyframe, never label it, and cut to a new shot where framing or light changes (see `llms.txt`) |
 | Reference-to-Video | `*_r2v*` (Happy Horse) | 1-9 images via `referenceImage`/`referenceImageUrls` |
 | Video-to-Video | `*_v2v*` (LTX-2.3) | `referenceVideo` + `controlNet` |
 | Sound-to-Video | `*_s2v*` (WAN only) | `referenceImage` + `referenceAudio` |

@@ -1049,26 +1049,35 @@ For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
 `referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids
 still require both anchors.
 
-INTERMEDIATE KEYFRAMES (H3 I2V and FLF2V ids of every tier: Standard, Balanced,
-LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage; `isMinimaxH3KeyframeModel()`):
+INTERMEDIATE KEYFRAMES (every H3 workflow except T2V, 21 ids;
+`isMinimaxH3KeyframeModel()`): I2V and FLF2V on every tier (Standard, Balanced,
+LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage), the six FastH3 Sound to
+Video ids (IA2V, FLFA2V, A2V, one- and two-stage) and the five Ref2VA R2V ids.
 `keyframes: [{ image, frameIndex }]` pins up to `MINIMAX_H3_MAX_KEYFRAMES` (8)
-still images between the first and last frame. `frameIndex` is the 0-based frame
-at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2` of the
-job's frame count, each frame used once. Pass `frames` from the H3 grid (124,
-141, 158, 175, 192, ... 362; `124 + n*17`) so that count is exact. `duration`
-also works but snaps to the grid (`duration: 6` renders 141 frames, not 144);
-`calculateVideoFrames(modelId, seconds, 24)` returns the count a duration
-resolves to. The first and last frames stay `referenceImage` /
-`referenceImageEnd`, and `contextImages` stays R2V-only. Every other model
-rejects a non-empty list; an empty list is ignored. `keyframes[i].image` uploads
-to `contextImage<i+1>` in array order and the indices travel as
-`keyframeFrameIndices`. If no worker serving the model can pin keyframes yet,
-the job is refused with error code `4100`.
+still images between the first and last frame, alongside the workflow's own
+uploads. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds *
+24)`), an integer from 1 to `frames - 2` of the job's frame count, each frame
+used once. Pass `frames` from the H3 grid (124, 141, 158, 175, 192, ... 362;
+`124 + n*17`) so that count is exact. `duration` also works but snaps to the
+grid (`duration: 6` renders 141 frames, not 144); `calculateVideoFrames(modelId,
+seconds, 24)` returns the count a duration resolves to. Frame 0 and the last
+frame are never keyframes: I2V, FLF2V and FLFA2V set them with `referenceImage`
+/ `referenceImageEnd`, IA2V sets frame 0 with `referenceImage`, and A2V and R2V
+cannot pin them. `contextImages` stays R2V-only. T2V and every non-H3 model
+reject a non-empty list; an empty list is ignored. `keyframes[i].image` uploads
+to its own `keyframeImage<i+1>` slot in array order and the indices travel as
+`keyframeFrameIndices`, so an R2V request carries its references
+(`referenceImage`, `contextImages`, which keep their slots) and its keyframes
+together. If no worker serving the model can pin keyframes yet, the job is
+refused with error code `4100`.
 
-Prompts for keyframes: H3 never sees the keyframe images as references. They
-are not `<Picture N>` images, and the alignment line still names only the first
-and last frame, so the prompt must describe what each keyframe shows at its
-time. When a keyframe changes the framing, camera angle, location or light,
+Prompts for keyframes: H3 never sees the keyframe images as references, so the
+prompt must describe what each keyframe shows at its time. Keyframes are never
+labelled: the I2V/FLF2V alignment line still names only the first and last
+frame, and on R2V `<Picture N>` and `<Subject N>` refer to the references only.
+On Sound to Video the uploaded audio drives the performance and keyframes pin
+how it looks at their times. When a keyframe changes the framing, camera angle,
+location or light,
 start a new shot (a hard cut) at its time: `[Shot N] At MM:SS.mmm, ...`, where
 the time is `frameIndex / 24` seconds (frame 144 is `00:06.000`). Two
 differently framed or lit stills inside one continuous shot cross-fade into each
@@ -1080,7 +1089,8 @@ FASTH3 AUDIO GUIDE (`minimax-h3-fastvideo-int8_ia2v_turbo`,
 and their `_turbo_2stage` ids): an uploaded `referenceAudio` drives the video
 from frame 0. IA2V also requires `referenceImage` (first frame), FLFA2V requires
 `referenceImage` and `referenceImageEnd` (first and last frame), and A2V takes
-no image; each refuses any upload it does not take. The output keeps the
+no image; each refuses any upload it does not take, and all six also accept
+intermediate `keyframes` (above). The output keeps the
 uploaded audio, trimmed to the video length; optional `audioStart` (seconds, 0
 or greater) offsets it. These ids reject `generateAudio: false`,
 `audioDuration`, and LoRAs (`loras` / `loraStrengths`). Size a request to the
@@ -1266,8 +1276,9 @@ visual reference (image or video) is required; audio alone is rejected.
 Ref2VA uses six sections in exact order: `subject_definitions`, `summary`,
 `retention_analysis`, `detailed_description`, `overall_soundscape`, and
 `non_diegetic_music`. Use `<Subject N>` for reusable visible content abstracted
-from a reference. Reserve standalone `<Picture N>` for a concrete keyframe or
-composition anchor; a still used only for identity, wardrobe, environment, or
+from a reference. Reserve standalone `<Picture N>` for a reference image used
+as a concrete keyframe or composition anchor (MiniMax's wording; images passed
+in `keyframes` are never labelled); a still used only for identity, wardrobe, environment, or
 style belongs in a `<Subject N>` definition. `<Video N>` represents whole-video
 structure and `<Audio N>` represents copied or referenced audio. Keep labels
 stable across all sections. `summary` begins with official task types such as
@@ -2146,7 +2157,7 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceVideos?: (File | Buffer | Blob)[];  // MiniMax H3 r2v video references 2-3
   referenceVideoDurations?: number[];  // Optional H3 r2v preflight hints; Socket measures uploaded videos authoritatively
   contextImages?: (File | Buffer | Blob)[];  // MiniMax H3 r2v reference images 2-9
-  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3 i2v/flf2v: up to 8 stills at 0-based frames 1..frames-2; pass frames
+  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v: up to 8 stills at 0-based frames 1..frames-2; pass frames
   referenceImageUrls?: string[];  // Seedance and HappyHorse only
   referenceVideoUrls?: string[];  // Seedance only
   referenceAudioUrls?: string[];  // Seedance only
@@ -2594,7 +2605,7 @@ interface VideoProjectParams extends BaseProjectParams {
   teacacheThreshold?: number;
   referenceImage?: File | Buffer | Blob;
   referenceImageEnd?: File | Buffer | Blob;
-  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3 i2v/flf2v only
+  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v
   referenceAudio?: File | Buffer | Blob;
   referenceVideo?: File | Buffer | Blob;
   audioStart?: number;
