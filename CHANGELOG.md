@@ -1,3 +1,10 @@
+## [5.56.1](https://github.com/Sogni-AI/sogni-client/compare/v5.56.0...v5.56.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **enhance:** enhance with Krea 2 Turbo instead of FLUX.1 schnell ([1b3ffa9](https://github.com/Sogni-AI/sogni-client/commit/1b3ffa95a7a34c85137afec9c67a820d4c5e30f2))
+
 # [5.56.0](https://github.com/Sogni-AI/sogni-client/compare/v5.55.0...v5.56.0) (2026-09-23)
 
 
