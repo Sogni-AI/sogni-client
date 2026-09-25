@@ -282,6 +282,12 @@ export type JobResultData = {
   lastFrameUrl?: string;
   lastFrameKey?: string;
   outputFormat?: string;
+  /**
+   * Files the worker uploaded for this result, as the worker reported them.
+   * The SDK reads `contentType` to pick the download endpoint for a result
+   * whose project it does not track.
+   */
+  artifacts?: Array<{ contentType?: string; success?: boolean }>;
   /** Allowlisted worker result receipt persisted by the socket. */
   result?: Record<string, unknown>;
   /**

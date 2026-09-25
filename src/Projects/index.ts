@@ -75,11 +75,15 @@ import {
   getMinimaxH3ReferenceAudioSlots,
   getMinimaxH3ReferenceVideoSlots,
   getVideoWorkflowType,
+  asResultMediaKind,
   isAudioModel,
   isModelArtifactModel,
   isMinimaxH3ReferenceModel,
   isSegmentationModel,
   isVideoModel,
+  resultMediaEvidence,
+  type ResultMediaEvidence,
+  type ResultMediaKind,
   usesReferenceMask
 } from './utils/index.js';
 import { TokenType } from '../types/token.js';
@@ -478,11 +482,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * falls back to model ID prefix check if models aren't loaded yet.
    */
   isVideoModelId(modelId: string): boolean {
-    const model = this._supportedModels.data?.find((m) => m.id === modelId);
-    if (model) {
-      return model.media === 'video';
-    }
-    // Fallback to prefix check if models not loaded
+    const media = this._catalogMediaKind(modelId);
+    if (media) return media === 'video';
+    // The catalog is not loaded, does not list the model, or gives it no kind.
     return isVideoModel(modelId);
   }
 
@@ -492,10 +494,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * falls back to model ID prefix check if models aren't loaded yet.
    */
   isAudioModelId(modelId: string): boolean {
-    const model = this._supportedModels.data?.find((m) => m.id === modelId);
-    if (model) {
-      return model.media === 'audio';
-    }
+    const media = this._catalogMediaKind(modelId);
+    if (media) return media === 'audio';
     return isAudioModel(modelId);
   }
 
@@ -514,8 +514,79 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   isModelArtifactModelId(modelId: string): boolean {
     if (isModelArtifactModel(modelId)) return true;
+    return this._catalogMediaKind(modelId) === 'model';
+  }
+
+  /**
+   * The media kind the loaded catalog declares for a model, or `undefined`
+   * when the catalog is not loaded, does not list the model, or lists it with
+   * no kind this SDK knows. A missing kind is no evidence; it never reads as
+   * `image`.
+   */
+  private _catalogMediaKind(modelId: string): ResultMediaKind | undefined {
     const model = this._supportedModels.data?.find((m) => m.id === modelId);
-    return model ? model.media === 'model' : false;
+    return asResultMediaKind(model?.media);
+  }
+
+  /**
+   * What a finished job's result is, from the evidence this client holds,
+   * strongest first: the Pixal3D artifact rule, the catalog's media kind, the
+   * SDK's own model-id knowledge, what the result frame says it uploaded, and
+   * finally the type the project was created with. Returns `undefined` when
+   * none of these says anything, which is the case for a result that arrives
+   * for a project this client does not track and whose frame names no kind.
+   *
+   * @internal
+   */
+  _resultMediaKind(evidence: {
+    modelId?: string;
+    projectType?: string;
+    result?: ResultMediaEvidence;
+  }): ResultMediaKind | undefined {
+    const { modelId } = evidence;
+    if (modelId) {
+      if (isModelArtifactModel(modelId)) return 'model';
+      const catalog = this._catalogMediaKind(modelId);
+      if (catalog) return catalog;
+      if (isVideoModel(modelId)) return 'video';
+      if (isAudioModel(modelId)) return 'audio';
+    }
+    if (evidence.result) return evidence.result.kind;
+    return asResultMediaKind(evidence.projectType);
+  }
+
+  /**
+   * Mint a signed download URL for a finished job's result from the endpoint
+   * its kind needs: images from `/v1/image/downloadUrl`, video, audio and 3D
+   * artifacts from `/v1/media/downloadUrl`.
+   *
+   * @internal
+   */
+  async _mintResultUrl(target: {
+    projectId: string;
+    jobId: string;
+    kind: ResultMediaKind;
+    audioContentType?: string;
+    imageContentType?: string;
+  }): Promise<string> {
+    const { projectId, jobId, kind } = target;
+    if (kind === 'image') {
+      return this.downloadUrl({
+        jobId: projectId,
+        imageId: jobId,
+        type: 'complete',
+        ...(target.imageContentType ? { contentType: target.imageContentType } : {})
+      });
+    }
+    return this.mediaDownloadUrl({
+      jobId: projectId,
+      id: jobId,
+      type: 'complete',
+      ...(kind === 'audio' && target.audioContentType
+        ? { contentType: target.audioContentType }
+        : {}),
+      ...(kind === 'model' ? { contentType: 'model/gltf-binary' } : {})
+    });
   }
 
   constructor(config: ApiConfig) {
@@ -753,32 +824,33 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
     // If no resultUrl provided and NSFW check passes, generate download URL
     if (!downloadUrl && passNSFWCheck && !data.userCanceled) {
-      // Use media endpoint for video/audio models, image endpoint for image models
-      const isVideo = project && this.isVideoModelId(project.params.modelId);
-      const isAudio = project && this.isAudioModelId(project.params.modelId);
-      const isModelArtifact = project && this.isModelArtifactModelId(project.params.modelId);
-      const isMedia = isVideo || isAudio || isModelArtifact;
-      try {
-        if (isMedia) {
-          downloadUrl = await this.mediaDownloadUrl({
-            jobId: data.jobID,
-            id: data.imgID,
-            type: 'complete',
-            ...(isAudio && project ? { contentType: getAudioContentType(project) } : {}),
-            ...(isModelArtifact ? { contentType: 'model/gltf-binary' } : {})
+      const result = resultMediaEvidence(data);
+      const kind = this._resultMediaKind({
+        modelId: project?.params.modelId,
+        projectType: project?.params.type,
+        result
+      });
+      if (!kind) {
+        // A result for a project this client does not track (another tab's, or
+        // one recovery has not rebuilt yet) whose frame names no kind. Reading
+        // it as an image sent every such video and audio result to the image
+        // endpoint; the client that tracks the project mints its own URL.
+        this.client.logger.debug(
+          `No media kind for result ${data.jobID}/${data.imgID}; not requesting a download URL`
+        );
+      } else {
+        try {
+          downloadUrl = await this._mintResultUrl({
+            projectId: data.jobID,
+            jobId: data.imgID,
+            kind,
+            audioContentType: project ? getAudioContentType(project) : result?.contentType,
+            imageContentType: project ? getImageContentType(project) : undefined
           });
-        } else {
-          const imageContentType = project ? getImageContentType(project) : undefined;
-          downloadUrl = await this.downloadUrl({
-            jobId: data.jobID,
-            imageId: data.imgID,
-            type: 'complete',
-            ...(imageContentType ? { contentType: imageContentType } : {})
-          });
+        } catch (error: any) {
+          this.client.logger.error('Failed to generate download URL for job result');
+          this.client.logger.error(error);
         }
-      } catch (error: any) {
-        this.client.logger.error('Failed to generate download URL for job result');
-        this.client.logger.error(error);
       }
     }
 

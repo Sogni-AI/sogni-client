@@ -173,6 +173,90 @@ export function isModelArtifactModel(modelId: string): boolean {
 }
 
 /**
+ * What a finished job's result is, which decides the download endpoint: an
+ * `image` comes from `/v1/image/downloadUrl`, everything else from
+ * `/v1/media/downloadUrl`.
+ */
+export type ResultMediaKind = 'image' | 'video' | 'audio' | 'model';
+
+const RESULT_MEDIA_KINDS: ReadonlySet<string> = new Set(['image', 'video', 'audio', 'model']);
+
+/**
+ * Narrow a declared kind (a catalog `media` value, a project `type`) to a
+ * result kind. Anything else, including a missing value, is no evidence and
+ * returns `undefined`; it never reads as `image`.
+ */
+export function asResultMediaKind(value: unknown): ResultMediaKind | undefined {
+  return typeof value === 'string' && RESULT_MEDIA_KINDS.has(value)
+    ? (value as ResultMediaKind)
+    : undefined;
+}
+
+/** Evidence a result frame itself carries about what the job produced. */
+export interface ResultMediaEvidence {
+  kind: ResultMediaKind;
+  /** Content type of the uploaded result, when the frame names one. */
+  contentType?: string;
+}
+
+function resultMediaKindFromContentType(contentType: string): ResultMediaKind | undefined {
+  const type = contentType.split(';')[0].trim().toLowerCase();
+  if (type.startsWith('video/')) return 'video';
+  if (type.startsWith('audio/')) return 'audio';
+  if (type.startsWith('model/')) return 'model';
+  if (type.startsWith('image/')) return 'image';
+  return undefined;
+}
+
+const OUTPUT_FORMAT_EVIDENCE: ReadonlyMap<string, ResultMediaEvidence> = new Map<
+  string,
+  ResultMediaEvidence
+>([
+  ['mp4', { kind: 'video' }],
+  ['mov', { kind: 'video' }],
+  ['mp3', { kind: 'audio', contentType: 'audio/mpeg' }],
+  ['wav', { kind: 'audio', contentType: 'audio/wav' }],
+  ['flac', { kind: 'audio', contentType: 'audio/flac' }],
+  ['glb', { kind: 'model', contentType: 'model/gltf-binary' }],
+  ['png', { kind: 'image' }],
+  ['jpg', { kind: 'image' }],
+  ['jpeg', { kind: 'image' }],
+  ['webp', { kind: 'image' }]
+]);
+
+/** A media artifact beside a still is the result; the still is incidental. */
+const ARTIFACT_KIND_PRECEDENCE: readonly ResultMediaKind[] = ['model', 'video', 'audio', 'image'];
+
+/**
+ * What a `jobResult` frame says the job produced, or `undefined` when it says
+ * nothing. ComfyUI workers list each uploaded artifact with its content type,
+ * and partner-model results name an output format. A frame with neither (a Mac
+ * worker's result, for one) is no evidence, and must not be read as an image.
+ */
+export function resultMediaEvidence(data: {
+  artifacts?: unknown;
+  outputFormat?: unknown;
+}): ResultMediaEvidence | undefined {
+  const byKind = new Map<ResultMediaKind, string>();
+  if (Array.isArray(data.artifacts)) {
+    for (const artifact of data.artifacts) {
+      if (!artifact || typeof artifact !== 'object') continue;
+      const { contentType, success } = artifact as { contentType?: unknown; success?: unknown };
+      if (success === false || typeof contentType !== 'string') continue;
+      const kind = resultMediaKindFromContentType(contentType);
+      if (kind && !byKind.has(kind)) byKind.set(kind, contentType.trim());
+    }
+  }
+  const kind = ARTIFACT_KIND_PRECEDENCE.find((candidate) => byKind.has(candidate));
+  if (kind) return { kind, contentType: byKind.get(kind) };
+  if (typeof data.outputFormat === 'string') {
+    const evidence = OUTPUT_FORMAT_EVIDENCE.get(data.outputFormat.trim().toLowerCase());
+    if (evidence) return { ...evidence };
+  }
+  return undefined;
+}
+
+/**
  * Check if a model performs image segmentation rather than generation.
  *
  * Segmentation returns a lossless mask PNG the same size as the source, not a

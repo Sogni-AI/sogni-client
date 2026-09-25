@@ -56,9 +56,7 @@ async function main() {
       project: { params: { ...params, seed: 42 } },
       logger: { debug() {} },
       api: {
-        isVideoModelId: () => false,
-        isAudioModelId: () => false,
-        isModelArtifactModelId: () => false,
+        _resultMediaKind: () => 'image',
         create: async (value) => {
           enhanced = value;
           return { on() {}, waitForCompletion: async () => ['image-url'] };

@@ -368,13 +368,15 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
-   * Media type produced by this job's model
+   * Media type produced by this job's model. When neither the model catalog
+   * nor the SDK knows the model, this is the type the project was created with.
    */
   get type(): 'image' | 'video' | 'audio' | 'model' {
-    if (this._api.isVideoModelId(this._project.params.modelId)) return 'video';
-    if (this._api.isAudioModelId(this._project.params.modelId)) return 'audio';
-    if (this._api.isModelArtifactModelId(this._project.params.modelId)) return 'model';
-    return 'image';
+    const params = this._project.params;
+    return (
+      this._api._resultMediaKind({ modelId: params.modelId, projectType: params.type }) ??
+      params.type
+    );
   }
 
   get enhancedImage() {
@@ -425,6 +427,17 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
   }
 
+  /** Ask the API for this job's result URL on the endpoint its media type needs. */
+  private _mintResultUrl(): Promise<string> {
+    return this._api._mintResultUrl({
+      projectId: this.projectId,
+      jobId: this.id,
+      kind: this.type,
+      audioContentType: this._audioContentType,
+      imageContentType: this._imageContentType
+    });
+  }
+
   /**
    * Get the result URL of the job. This method will make a request to the API to get signed URL.
    * IMPORTANT: URL expires after 30 minutes, so make sure to download the result as soon as possible.
@@ -437,23 +450,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
     if (this.data.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
-    let url: string;
-    if (this.type === 'video' || this.type === 'audio' || this.type === 'model') {
-      url = await this._api.mediaDownloadUrl({
-        jobId: this.projectId,
-        id: this.id,
-        type: 'complete',
-        ...(this.type === 'audio' ? { contentType: this._audioContentType } : {}),
-        ...(this.type === 'model' ? { contentType: 'model/gltf-binary' } : {})
-      });
-    } else {
-      url = await this._api.downloadUrl({
-        jobId: this.projectId,
-        imageId: this.id,
-        type: 'complete',
-        ...(this._imageContentType ? { contentType: this._imageContentType } : {})
-      });
-    }
+    const url = await this._mintResultUrl();
     this._update({ resultUrl: url });
     return url;
   }
@@ -568,22 +565,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       !(data.triggeredNSFWFilter === true && data.nsfwDetected !== true)
     ) {
       try {
-        if (this.type === 'video' || this.type === 'audio' || this.type === 'model') {
-          delta.resultUrl = await this._api.mediaDownloadUrl({
-            jobId: this.projectId,
-            id: this.id,
-            type: 'complete',
-            ...(this.type === 'audio' ? { contentType: this._audioContentType } : {}),
-            ...(this.type === 'model' ? { contentType: 'model/gltf-binary' } : {})
-          });
-        } else {
-          delta.resultUrl = await this._api.downloadUrl({
-            jobId: this.projectId,
-            imageId: this.id,
-            type: 'complete',
-            ...(this._imageContentType ? { contentType: this._imageContentType } : {})
-          });
-        }
+        delta.resultUrl = await this._mintResultUrl();
       } catch (error) {
         this._logger.error(error);
       }
