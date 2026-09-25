@@ -76,6 +76,8 @@ jobs:
         run: node scripts/check-flashvsr-video.cjs
       - name: Run capability export checks
         run: node scripts/check-capability-exports.cjs
+      - name: Run MiniMax H3 keyframe checks
+        run: node scripts/check-minimax-h3-keyframes.cjs
       - name: Run GPT Image 2.5 checks
         run: node scripts/check-gpt-image-25.cjs
       - name: Run image export and strength checks

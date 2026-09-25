@@ -81,6 +81,7 @@
     "test:minimax-h3-balanced": "npm run build && node scripts/check-minimax-h3-balanced.cjs",
     "test:minimax-h3-two-stage": "npm run build && node scripts/check-minimax-h3-two-stage.cjs",
     "test:minimax-h3-audio": "npm run build && node scripts/check-minimax-h3-audio.cjs",
+    "test:minimax-h3-keyframes": "npm run build && node scripts/check-minimax-h3-keyframes.cjs",
     "test:lora-catalog": "npm run build && node scripts/check-lora-catalog.cjs",
     "test:personal-loras": "npm run build && node scripts/check-personal-loras.cjs",
     "test:reusable-uploads": "npm run build && node scripts/check-reusable-uploads.cjs",
