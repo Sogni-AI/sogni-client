@@ -581,6 +581,12 @@ export function getMinimaxH3FramesForAudioDuration(audioDurationSeconds: number)
 /**
  * Calculate the frame count for a given duration and fps based on the video model.
  *
+ * This is the count `projects.create()` sends when a video request passes
+ * `duration` instead of `frames`, so it tells a caller how long the video will
+ * be before submitting. Use it to position MiniMax H3 `keyframes`, whose
+ * `frameIndex` must fall inside the resolved count:
+ * `calculateVideoFrames('minimax-h3-fl2va-fp8_i2v', 6, 24)` is 141, not 144.
+ *
  * ## Standard Behavior (LTX 2.x, Seedance, and future models)
  * - Generate at the actual specified FPS (no interpolation)
  * - Formula: duration * fps + 1
@@ -588,7 +594,8 @@ export function getMinimaxH3FramesForAudioDuration(audioDurationSeconds: number)
  *
  * ## MiniMax H3
  * - Fixed 24fps generation; the fps argument is ignored
- * - Frame count must follow the pattern: 124 + n*17, clamped to 124-362
+ * - `duration * 24`, rounded, then snapped to the nearest `124 + n*17` value
+ *   and clamped to 124-362 (124, 141, 158, ... 362)
  * - Note there is no `+1` here: 124 frames is exactly 5.167s, not 5.125s
  *
  * ## Legacy Behavior (WAN 2.2 only)
@@ -600,8 +607,9 @@ export function getMinimaxH3FramesForAudioDuration(audioDurationSeconds: number)
  * @param duration - Duration in seconds
  * @param fps - Frames per second (ignored for WAN models which always use 16fps
  *   and for MiniMax H3 which always uses 24fps)
- * @param minFrames - Minimum frame count (optional, defaults to 17)
- * @param maxFrames - Maximum frame count (optional, defaults to model-specific limits)
+ * @param minFrames - Optional lower bound on the returned frame count
+ * @param maxFrames - Optional upper bound on the returned frame count (MiniMax H3
+ *   keeps its bounds on the frame grid)
  * @returns The calculated frame count
  */
 export function calculateVideoFrames(
@@ -1011,7 +1019,9 @@ export function getMinimaxH3KeyframeSlots(
 ): MinimaxH3KeyframeSlot[] {
   const keyframes = params.keyframes;
   if (!Array.isArray(keyframes)) return [];
-  return keyframes.map((keyframe, index) => ({
+  // Array.from, not map: map keeps the holes of a sparse array, which would
+  // drop those slots instead of reporting them as entries without an image.
+  return Array.from(keyframes, (keyframe, index) => ({
     slot: index + 1,
     media: keyframe?.image,
     frameIndex: keyframe?.frameIndex

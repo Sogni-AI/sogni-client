@@ -9,14 +9,19 @@
  * - keyframes[i].image rides in contextImage<i+1> (caller order, no
  *   referenceImage offset) and keyframeFrameIndices keeps the same order;
  * - frame indices are checked against the frame count resolved from frames or
- *   duration, and every validation error matches the Python SDK word for word;
+ *   duration (calculateVideoFrames, exported from the package root, tells a
+ *   caller that count), and every validation error matches the Python SDK word
+ *   for word;
  * - projects.create uploads each keyframe image to its slot, and a refused
  *   request uploads and sends nothing.
  */
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const createJobRequestMessage = require('../dist/Projects/createJobRequestMessage.js').default;
+const sdk = require('../dist/index.js');
 const {
+  calculateVideoFrames,
+  getMinimaxH3KeyframeSlots,
   getVideoWorkflowType,
   isMinimaxH3BalancedModel,
   isMinimaxH3KeyframeModel,
@@ -137,8 +142,18 @@ const contextImageFlags = (keyFrame) =>
   Object.keys(keyFrame).filter((key) => key.startsWith('hasContextImage'));
 const keyframeError = (params, message) =>
   assert.throws(() => keyframeRequest(params), { message }, message);
-const frameIndexError = (index, frames, got) =>
-  `keyframes[${index}].frameIndex must be an integer between 1 and ${frames - 2} for a ${frames}-frame video (got ${got}); use referenceImage and referenceImageEnd for the first and last frames.`;
+// The frame error names the count a duration resolved to, and points at
+// referenceImage / referenceImageEnd only for frame 0 or the last frame.
+const frameIndexError = (index, frames, got, { duration, anchor = false } = {}) => {
+  const video =
+    duration === undefined
+      ? `a ${frames}-frame video`
+      : `the ${frames}-frame video that duration ${duration} resolves to`;
+  const hint = anchor
+    ? '; use referenceImage and referenceImageEnd for the first and last frames'
+    : '';
+  return `keyframes[${index}].frameIndex must be an integer between 1 and ${frames - 2} for ${video} (got ${got})${hint}.`;
+};
 
 // i2v with only a first frame and one keyframe (duration 10 resolves 243 frames).
 const i2vKeyframes = keyframeRequest(
@@ -197,13 +212,19 @@ for (const modelId of minimaxH3KeyframeModelIds) {
 
 // Frames resolve from duration (8 s is 192 frames) or from an explicit frames.
 const durationKeyframes = keyframeRequest(
-  keyframeParams(minimaxH3ModelIds.i2v, { duration: 8, keyframes: [{ image: true, frameIndex: 190 }] })
+  keyframeParams(minimaxH3ModelIds.i2v, {
+    duration: 8,
+    keyframes: [{ image: true, frameIndex: 190 }]
+  })
 );
 assert.equal(durationKeyframes.frames, 192);
 assert.deepEqual(durationKeyframes.keyframeFrameIndices, [190]);
 keyframeError(
-  keyframeParams(minimaxH3ModelIds.i2v, { duration: 8, keyframes: [{ image: true, frameIndex: 191 }] }),
-  frameIndexError(0, 192, 191)
+  keyframeParams(minimaxH3ModelIds.i2v, {
+    duration: 8,
+    keyframes: [{ image: true, frameIndex: 191 }]
+  }),
+  frameIndexError(0, 192, '191', { duration: 8, anchor: true })
 );
 const framesKeyframes = keyframeRequest(
   keyframeParams(minimaxH3ModelIds.flf2v, {
@@ -215,8 +236,76 @@ const framesKeyframes = keyframeRequest(
 assert.equal(framesKeyframes.frames, 124);
 assert.deepEqual(framesKeyframes.keyframeFrameIndices, [122]);
 
+// A duration snaps to the 124 + n*17 grid, so 6 s is 141 frames, not 144, and
+// the error says so. calculateVideoFrames is the public way to see that count.
+assert.equal(sdk.calculateVideoFrames, calculateVideoFrames);
+for (const [seconds, frames] of [
+  [124 / 24, 124],
+  [6, 141],
+  [6.5, 158],
+  [8, 192],
+  [10, 243],
+  [362 / 24, 362]
+]) {
+  assert.equal(sdk.calculateVideoFrames(minimaxH3ModelIds.i2v, seconds, 24), frames, `${seconds}s`);
+  assert.equal(
+    keyframeRequest(
+      keyframeParams(minimaxH3ModelIds.i2v, {
+        duration: seconds,
+        keyframes: [{ image: true, frameIndex: frames - 2 }]
+      })
+    ).frames,
+    frames,
+    `${seconds}s`
+  );
+}
+keyframeError(
+  keyframeParams(minimaxH3ModelIds.i2v, {
+    duration: 6,
+    keyframes: [{ image: true, frameIndex: 144 }]
+  }),
+  'keyframes[0].frameIndex must be an integer between 1 and 139 for the 141-frame video that duration 6 resolves to (got 144).'
+);
+keyframeError(
+  keyframeParams(minimaxH3ModelIds.i2v, {
+    duration: 6.5,
+    keyframes: [{ image: true, frameIndex: 158 }]
+  }),
+  frameIndexError(0, 158, '158', { duration: '6.5' })
+);
+// With frames, the error names the count directly; frame 0 and the last frame
+// point at the anchors, and any other out-of-range frame does not.
+keyframeError(
+  keyframeParams(minimaxH3ModelIds.flf2v, {
+    duration: undefined,
+    frames: 141,
+    keyframes: [{ image: true, frameIndex: 140 }]
+  }),
+  'keyframes[0].frameIndex must be an integer between 1 and 139 for a 141-frame video (got 140); use referenceImage and referenceImageEnd for the first and last frames.'
+);
+for (const [frameIndex, anchor] of [
+  [0, true],
+  [140, true],
+  [141, false],
+  [-1, false],
+  [150, false]
+]) {
+  keyframeError(
+    keyframeParams(minimaxH3ModelIds.flf2v, {
+      duration: undefined,
+      frames: 141,
+      keyframes: [{ image: true, frameIndex }]
+    }),
+    frameIndexError(0, 141, String(frameIndex), { anchor })
+  );
+}
+
 // An empty list is no keyframes, on any model: no flags and no indices.
-for (const modelId of [minimaxH3ModelIds.i2v, minimaxH3ModelIds.t2v, minimaxH3TwoStageModelIds.flf2v]) {
+for (const modelId of [
+  minimaxH3ModelIds.i2v,
+  minimaxH3ModelIds.t2v,
+  minimaxH3TwoStageModelIds.flf2v
+]) {
   const keyFrame = keyframeRequest(
     keyframeParams(modelId, {
       keyframes: [],
@@ -227,9 +316,14 @@ for (const modelId of [minimaxH3ModelIds.i2v, minimaxH3ModelIds.t2v, minimaxH3Tw
   assert.equal('keyframeFrameIndices' in keyFrame, false, modelId);
 }
 
-// Every other model refuses keyframes, vendor families included.
-const keyframesWrongModel =
-  'keyframes is supported only by the MiniMax H3 image-to-video and first/last-frame workflows (i2v and flf2v model ids).';
+// Every other model refuses keyframes, vendor families included, and the error
+// names the model it refused.
+const keyframesWrongModel = (modelId) =>
+  `keyframes is supported only by the MiniMax H3 image-to-video and first/last-frame workflows (i2v and flf2v model ids); ${modelId} does not accept keyframes.`;
+assert.equal(
+  keyframesWrongModel('ltx23-22b-fp8_i2v_distilled'),
+  'keyframes is supported only by the MiniMax H3 image-to-video and first/last-frame workflows (i2v and flf2v model ids); ltx23-22b-fp8_i2v_distilled does not accept keyframes.'
+);
 for (const modelId of [
   ...minimaxH3NonKeyframeModelIds,
   'ltx23-22b-fp8_i2v_distilled',
@@ -245,13 +339,13 @@ for (const modelId of [
       referenceImage: true,
       keyframes: [{ image: true, frameIndex: 60 }]
     },
-    keyframesWrongModel
+    keyframesWrongModel(modelId)
   );
 }
 // The model check comes first, even for a malformed list.
 keyframeError(
   { ...minimaxH3Params, keyframes: { image: true, frameIndex: 60 } },
-  keyframesWrongModel
+  keyframesWrongModel(minimaxH3ModelIds.t2v)
 );
 
 // Each shape and frame error, word for word (the Python SDK matches them).
@@ -283,26 +377,42 @@ for (const [keyframes, message] of [
       { image: undefined, frameIndex: 61 }
     ],
     'keyframes[1].image is required.'
-  ]
+  ],
+  // A hole in a sparse array is an entry without an image, not a skipped one.
+  [[, { image: true, frameIndex: 60 }], 'keyframes[0].image is required.'],
+  [
+    [{ image: true, frameIndex: 60 }, , { image: true, frameIndex: 90 }],
+    'keyframes[1].image is required.'
+  ],
+  [new Array(2), 'keyframes[0].image is required.']
 ]) {
   keyframeError(keyframeParams(minimaxH3ModelIds.flf2v, { keyframes }), message);
 }
-for (const [frameIndex, got] of [
-  [0, '0'],
-  [242, '242'],
+// Slot resolution visits holes too, so no later slot number shifts.
+assert.deepEqual(getMinimaxH3KeyframeSlots({ keyframes: [, { image: true, frameIndex: 60 }] }), [
+  { slot: 1, media: undefined, frameIndex: undefined },
+  { slot: 2, media: true, frameIndex: 60 }
+]);
+// minimaxH3Params asks for duration 10, which resolves 243 frames.
+for (const [frameIndex, got, anchor = false] of [
+  [0, '0', true],
+  [242, '242', true],
+  [243, '243'],
   [-5, '-5'],
   [2.5, '2.5'],
   [Number.NaN, 'NaN'],
   ['60', '"60"'],
+  ['0', '"0"'],
   [undefined, 'nothing'],
   [null, 'nothing'],
   [true, 'true'],
+  [false, 'false'],
   [[60], 'an array'],
   [{ at: 60 }, 'an object']
 ]) {
   keyframeError(
     keyframeParams(minimaxH3ModelIds.i2v, { keyframes: [{ image: true, frameIndex }] }),
-    frameIndexError(0, 243, got)
+    frameIndexError(0, 243, got, { duration: 10, anchor })
   );
 }
 keyframeError(
@@ -322,7 +432,7 @@ keyframeError(
       { image: true, frameIndex: 300 }
     ]
   }),
-  frameIndexError(1, 243, '300')
+  frameIndexError(1, 243, '300', { duration: 10 })
 );
 keyframeError(
   keyframeParams(minimaxH3ModelIds.i2v, {
@@ -445,7 +555,7 @@ async function checkMinimaxH3KeyframeUploads() {
         referenceImage: Buffer.from('first'),
         keyframes: [{ image: Buffer.from('late'), frameIndex: 243 }]
       }),
-    { message: frameIndexError(0, 243, '243') }
+    { message: frameIndexError(0, 243, '243', { duration: 10 }) }
   );
   assert.deepEqual(refused.uploads, []);
   assert.equal(refused.client.socket.sent.length, 0);

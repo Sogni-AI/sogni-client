@@ -3644,6 +3644,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * This table describes the first upload slot only. MiniMax H3 r2v also uses
    * `contextImages`, `referenceVideos`, and `referenceAudios`; callers should
    * read those fields on `VideoProjectParams` for the multi-reference limits.
+   * The MiniMax H3 `i2v` and `flf2v` ids also accept optional intermediate
+   * `keyframes`, which the table does not list: `isMinimaxH3KeyframeModel()`
+   * tells which ids take them, and `VideoProjectParams.keyframes` gives the rules.
    *
    * @param {string} modelId - The identifier of the video model to retrieve the configuration for.
    * @return {Object} The video asset configuration object where key is asset field and value is

@@ -311,9 +311,10 @@ function validateSeedanceTaskType(params: VideoProjectParams): void {
  *
  * The field is the video counterpart of the image-project field of the same
  * name and belongs to exactly one video workflow: MiniMax H3 r2v is the only
- * Comfy-native multi-reference video model, and no other video workflow reads
- * the numbered `contextImage<n>` upload slots. Runs before the external-API
- * families are dispatched, since those return early.
+ * Comfy-native multi-reference video model. The H3 i2v and flf2v workflows also
+ * fill the numbered `contextImage<n>` upload slots, but only with intermediate
+ * `keyframes` (see `validateVideoKeyframes`), never with `contextImages`. Runs
+ * before the external-API families are dispatched, since those return early.
  */
 function validateVideoContextImages(params: VideoProjectParams): void {
   if (params.contextImages === undefined) return;
@@ -375,7 +376,7 @@ function validateVideoKeyframes(params: VideoProjectParams): void {
   if (Array.isArray(keyframes) && keyframes.length === 0) return;
   if (!isMinimaxH3KeyframeModel(params.modelId)) {
     keyframeError(
-      'keyframes is supported only by the MiniMax H3 image-to-video and first/last-frame workflows (i2v and flf2v model ids).'
+      `keyframes is supported only by the MiniMax H3 image-to-video and first/last-frame workflows (i2v and flf2v model ids); ${params.modelId} does not accept keyframes.`
     );
   }
   if (!Array.isArray(keyframes)) {
@@ -386,13 +387,16 @@ function validateVideoKeyframes(params: VideoProjectParams): void {
       `keyframes accepts at most ${MINIMAX_H3_MAX_KEYFRAMES} entries (got ${keyframes.length}).`
     );
   }
-  keyframes.forEach((keyframe: unknown, index: number) => {
+  // An index loop, not forEach: forEach skips the holes of a sparse array, and a
+  // hole is an entry without an image.
+  for (let index = 0; index < keyframes.length; index += 1) {
+    const keyframe: unknown = keyframes[index];
     const image =
       keyframe && typeof keyframe === 'object'
         ? (keyframe as { image?: unknown }).image
         : undefined;
     if (!image) keyframeError(`keyframes[${index}].image is required.`);
-  });
+  }
 }
 
 /**
@@ -400,8 +404,15 @@ function validateVideoKeyframes(params: VideoProjectParams): void {
  * count, then write the wire fields: `hasContextImage<i+1>` for every entry and
  * `keyframeFrameIndices` in the same order. `validateVideoKeyframes` has already
  * checked the model and the entries.
+ *
+ * `framesDuration` is the caller's `duration` when the frame count was resolved
+ * from it, so a frame error can say which count that duration snapped to.
  */
-function applyMinimaxH3Keyframes(keyFrame: Record<string, any>, params: VideoProjectParams) {
+function applyMinimaxH3Keyframes(
+  keyFrame: Record<string, any>,
+  params: VideoProjectParams,
+  framesDuration?: number
+) {
   const slots = getMinimaxH3KeyframeSlots(params);
   if (!slots.length) return;
   if (keyFrame.frames === undefined || keyFrame.frames === null) {
@@ -409,11 +420,20 @@ function applyMinimaxH3Keyframes(keyFrame: Record<string, any>, params: VideoPro
   }
   const frames = Number(keyFrame.frames);
   const lastIndex = frames - 2;
+  const video =
+    framesDuration === undefined
+      ? `a ${frames}-frame video`
+      : `the ${frames}-frame video that duration ${framesDuration} resolves to`;
   const used = new Set<number>();
   for (const { slot, frameIndex } of slots) {
     if (!Number.isInteger(frameIndex) || frameIndex < 1 || frameIndex > lastIndex) {
+      // Point at the anchors only when the caller aimed at the first or last frame.
+      const anchorHint =
+        frameIndex === 0 || frameIndex === frames - 1
+          ? '; use referenceImage and referenceImageEnd for the first and last frames'
+          : '';
       keyframeError(
-        `keyframes[${slot - 1}].frameIndex must be an integer between 1 and ${lastIndex} for a ${frames}-frame video (got ${describeKeyframeValue(frameIndex)}); use referenceImage and referenceImageEnd for the first and last frames.`
+        `keyframes[${slot - 1}].frameIndex must be an integer between 1 and ${lastIndex} for ${video} (got ${describeKeyframeValue(frameIndex)})${anchorHint}.`
       );
     }
     if (used.has(frameIndex)) {
@@ -1653,6 +1673,8 @@ function applyVideoParams(
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
   }
+  // The duration the frame count was resolved from, when it was.
+  let framesDuration: number | undefined;
   if (
     params.duration !== undefined &&
     !(isVideoUpscaleModel(params.modelId) && params.frames !== undefined)
@@ -1681,10 +1703,11 @@ function applyVideoParams(
     // - Seedance / HappyHorse: fixed 24fps external API generation
     const fps = params.fps ?? (isWan3Model(params.modelId) ? 30 : 24);
     keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
+    framesDuration = duration;
   }
   // MiniMax H3 intermediate keyframes: frame indices are checked against the
   // frame count resolved just above, from `frames` or `duration`.
-  applyMinimaxH3Keyframes(keyFrame, params);
+  applyMinimaxH3Keyframes(keyFrame, params, framesDuration);
   if (params.shift !== undefined) {
     keyFrame.shift = params.shift;
   }
