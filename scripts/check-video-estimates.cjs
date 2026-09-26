@@ -63,6 +63,7 @@ async function estimate(projects, overrides = {}) {
 async function main() {
   const client = new ClientStub();
   const projects = new ProjectsApi({ client, eip712: {} });
+  const query0 = () => new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
 
   await estimate(projects);
   assert.equal(
@@ -174,6 +175,15 @@ async function main() {
   const combined = new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
   assert.equal(combined.get('hasVideoInput'), '1');
   assert.equal(combined.get('referenceImageCount'), '5');
+
+  // MiniMax H3 keyframes: the count reaches the endpoint (the first two are included server-side);
+  // a keyframes list is counted; none sent adds no parameter.
+  await estimate(projects, { model: 'minimax-h3-fastvideo-int8_ia2v_turbo', steps: 4, keyframeCount: 8 });
+  assert.equal(query0().get('keyframeCount'), '8', 'keyframeCount must reach the estimate endpoint');
+  await estimate(projects, { model: 'minimax-h3-fastvideo-int8_ia2v_turbo', steps: 4, keyframes: [{}, {}, {}] });
+  assert.equal(query0().get('keyframeCount'), '3', 'a keyframes list must be priced by its length');
+  await estimate(projects, { model: 'minimax-h3-fastvideo-int8_ia2v_turbo', steps: 4, keyframeCount: 0 });
+  assert.equal(query0().has('keyframeCount'), false, 'no keyframes must add no parameter');
 
   await estimate(projects, { referenceImageCount: Number.NaN });
   assert.equal(

@@ -1288,6 +1288,14 @@ export interface VideoEstimateRequest {
   /** Number of reference videos included in a MiniMax H3 r2v estimate. */
   referenceVideoCount?: number;
   /**
+   * Number of intermediate keyframes a MiniMax H3 job will pin (0-8). The first two are
+   * included; each extra keyframe adds output time at the job's per-second rate: 0.75 s on
+   * FastH3, 0.3 s on every other tier. When omitted, `keyframes.length` is used if given.
+   */
+  keyframeCount?: number;
+  /** The job's `keyframes`; only their count is used, to price them. */
+  keyframes?: readonly unknown[];
+  /**
    * Combined duration of MiniMax H3 r2v reference-video input, in seconds.
    * The estimate bills it at the selected output resolution/tier rate.
    */

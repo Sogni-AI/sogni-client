@@ -3370,6 +3370,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - referenceImageCount: Number of image references submitted by the estimated job.
    *   - referenceVideoCount: Number of video references submitted by a MiniMax H3 r2v job.
    *   - referenceVideoDurationSeconds: Combined duration of MiniMax H3 r2v video input.
+   *   - keyframeCount / keyframes: MiniMax H3 intermediate keyframes (0-8). The first two are
+   *     included; each extra keyframe adds 0.75 s of output time on FastH3 and 0.3 s on other tiers.
    * @return {Promise<Object>} Returns an object containing the estimated costs for the video in different units:
    *   - token: Cost in tokens.
    *   - usd: Cost in USD.
@@ -3430,6 +3432,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         'referenceVideoDurationSeconds',
         String(params.referenceVideoDurationSeconds as number)
       );
+    }
+    const keyframeCount =
+      params.keyframeCount ?? (Array.isArray(params.keyframes) ? params.keyframes.length : undefined);
+    if (Number.isFinite(keyframeCount) && (keyframeCount as number) > 0) {
+      query.set('keyframeCount', String(Math.floor(keyframeCount as number)));
     }
     // Unpinned, the job renders on the connection's network, so quote that one.
     const network = params.network ?? this._currentNetworkType;
