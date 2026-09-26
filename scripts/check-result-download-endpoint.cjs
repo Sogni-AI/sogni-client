@@ -18,7 +18,11 @@ const assert = require('node:assert/strict');
 const ProjectsApi = require('../dist/Projects/index.js').default;
 const Project = require('../dist/Projects/Project.js').default;
 const { ApiError } = require('../dist/ApiClient/index.js');
-const { resultMediaEvidence } = require('../dist/Projects/utils/index.js');
+const {
+  resultMediaEvidence,
+  isVideoModel,
+  isAudioModel
+} = require('../dist/Projects/utils/index.js');
 
 const SILENT_LOGGER = { info() {}, warn() {}, error() {}, debug() {} };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -369,7 +373,27 @@ function checkResultMediaEvidence() {
   );
 }
 
+/**
+ * Live media models whose ids the fallback guess used to misread as images when the
+ * catalog was not loaded (checked against socket.sogni.ai/api/v1/models/list, 2026-09-25).
+ */
+function checkModelIdFallbackKnowsLiveMediaIds() {
+  assert.equal(isVideoModel('wan_v2.2-14b-fp8_s2v'), true);
+  assert.equal(isVideoModel('wan_v2.2-14b-fp8_s2v_lightx2v'), true);
+  for (const id of [
+    'qwen3_tts_1.7b_custom_voice_bf16',
+    'qwen3_tts_1.7b_voice_clone_bf16',
+    'qwen3_tts_1.7b_voice_design_bf16'
+  ]) {
+    assert.equal(isAudioModel(id), true, id);
+    assert.equal(isVideoModel(id), false, id);
+  }
+  assert.equal(isAudioModel('flux1-schnell-fp8'), false);
+  assert.equal(isVideoModel('flux1-schnell-fp8'), false);
+}
+
 async function main() {
+  checkModelIdFallbackKnowsLiveMediaIds();
   checkResultMediaEvidence();
   await checkUntrackedWithoutEvidenceAsksNothing();
   await checkUntrackedResultUsesFrameEvidence();

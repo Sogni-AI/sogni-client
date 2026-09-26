@@ -24,6 +24,7 @@ const WAN_VIDEO_MODEL_IDS = new Set([
   'wan_v2.2-14b-fp8_i2v',
   'wan_v2.2-14b-fp8_t2v_lightx2v',
   'wan_v2.2-14b-fp8_i2v_lightx2v',
+  'wan_v2.2-14b-fp8_s2v',
   'wan_v2.2-14b-fp8_s2v_lightx2v',
   'wan_v2.2-14b-fp8_animate-move_lightx2v',
   'wan_v2.2-14b-fp8_animate-replace_lightx2v'
@@ -109,7 +110,11 @@ export function isVideoUpscaleModel(modelId: string): boolean {
  * Audio models produce MP3 output by default.
  */
 export function isAudioModel(modelId: string): boolean {
-  return modelId.startsWith('ace_step') || modelId === 'minimax_music3';
+  return (
+    modelId.startsWith('ace_step') ||
+    modelId.startsWith('qwen3_tts_') ||
+    modelId === 'minimax_music3'
+  );
 }
 
 /** Canonical id of the single-image (front view only) image-to-3D reconstruction workflow. */
