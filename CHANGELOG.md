@@ -1,3 +1,11 @@
+## [5.56.2](https://github.com/Sogni-AI/sogni-client/compare/v5.56.1...v5.56.2) (2026-09-26)
+
+
+### Bug Fixes
+
+* **projects:** pick the result download endpoint from evidence, not an image default ([3f3dd42](https://github.com/Sogni-AI/sogni-client/commit/3f3dd42ead83f7f11772b27b1967dbd765db9860))
+* **projects:** switch to the media endpoint once when the API says a result is media ([c80446f](https://github.com/Sogni-AI/sogni-client/commit/c80446f259c9dd13a1f0301f126f1f9009bd5876))
+
 ## [5.56.1](https://github.com/Sogni-AI/sogni-client/compare/v5.56.0...v5.56.1) (2026-09-25)
 
 
