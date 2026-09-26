@@ -54,6 +54,7 @@
  *   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --end-image finish.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --image start.jpg --end-image end.jpg
  *   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-fasth3-t2v-turbo
+ *   node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --model minimax-h3-fasth3-i2v-turbo-2stage
  *   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
  *   node workflow_minimax_h3_video.mjs --mode flf2v --print-prompt  # Print prompt, do not submit
  *   node workflow_minimax_h3_video.mjs --mode t2v --prompt-file my_prompt.txt
@@ -962,6 +963,7 @@ Usage:
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-balanced
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-t2v-turbo
   node workflow_minimax_h3_video.mjs --mode t2v --model minimax-h3-fasth3-t2v-turbo
+  node workflow_minimax_h3_video.mjs --mode i2v --image start.jpg --model minimax-h3-fasth3-i2v-turbo-2stage
   node workflow_minimax_h3_video.mjs --mode r2v --ref-image face.jpg --ref-image jacket.jpg --ref-image street.jpg
   node workflow_minimax_h3_video.mjs --mode r2v --ref-video camera-move.mp4
   node workflow_minimax_h3_video.mjs --mode r2v --model minimax-h3-r2v-2stage --ref-video camera-move.mp4
@@ -979,6 +981,8 @@ Fixed model parameters (not configurable):
   LightX2V FL2VA Turbo: fps 24, steps 4, guidance 1, server-selected sampler, scheduler simple
   FastH3 Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
                 (FastVideo VSA T2V/I2V/FLF2V only; no R2V mode)
+  FastH3 Two-Stage: the same FastH3 T2V/I2V/FLF2V request on its -2stage key,
+                delivered at twice the canvas (1344x768 -> 2688x1536)
   Ref2VA Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
   Ref2VA Two-Stage: the Standard (minimax-h3-r2v-2stage, 20 steps) or Balanced
                 (minimax-h3-r2v-balanced-2stage, 8 steps) R2V recipe on its own id;

@@ -1908,6 +1908,10 @@ export const MODELS = {
     'minimax-h3-fasth3-t2v-turbo': createMinimaxH3FastH3Model('t2v'),
     'minimax-h3-fasth3-i2v-turbo': createMinimaxH3FastH3Model('i2v'),
     'minimax-h3-fasth3-flf2v-turbo': createMinimaxH3FastH3Model('flf2v'),
+    // Two-stage FastH3: the same request delivered at twice the canvas (1344x768 -> 2688x1536 2K).
+    'minimax-h3-fasth3-t2v-turbo-2stage': createMinimaxH3FastH3Model('t2v', { twoStage: true }),
+    'minimax-h3-fasth3-i2v-turbo-2stage': createMinimaxH3FastH3Model('i2v', { twoStage: true }),
+    'minimax-h3-fasth3-flf2v-turbo-2stage': createMinimaxH3FastH3Model('flf2v', { twoStage: true }),
     'minimax-h3-t2v-turbo': {
       id: 'minimax-h3-fl2va-fp8_t2v_turbo',
       name: 'MiniMax H3 FL2VA FP8 Turbo T2V',
