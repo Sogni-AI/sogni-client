@@ -100,9 +100,14 @@ import type {
   RecoveredWorkerJob
 } from './ApiClient/WebSocketClient/events.js';
 import type {
+  ListRecentProjectsOptions,
   ProjectLookupStatus,
   ProjectResolution,
-  ProjectStatusSnapshot
+  ProjectResult,
+  ProjectResultJob,
+  ProjectStatusSnapshot,
+  RecentProject,
+  RecentProjectJob
 } from './Projects/index.js';
 import {
   PROJECT_LOST_ORIGINAL_CODE,
@@ -447,10 +452,15 @@ export type {
 
 export type {
   CompletedRecoveredProject,
+  ListRecentProjectsOptions,
   ProjectLookupStatus,
   ProjectRecoverySnapshot,
   ProjectResolution,
+  ProjectResult,
+  ProjectResultJob,
   ProjectStatusSnapshot,
+  RecentProject,
+  RecentProjectJob,
   ProjectSyncReason,
   ProjectSyncResult,
   RecoveredProject,
@@ -652,6 +662,11 @@ export class SogniClient {
   private constructor(config: ApiConfig) {
     this.account = new AccountApi(config);
     this.projects = new ProjectsApi(config);
+    // An API-key session learns its address from the socket's authenticated
+    // frame; before that arrives, `me()` answers it.
+    this.projects._setAccountAddressResolver(
+      async () => this.account.currentAccount.walletAddress || (await this.account.me()).walletAddress
+    );
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
     this.workflows = new CreativeWorkflowsApi(config);

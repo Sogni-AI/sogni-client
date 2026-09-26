@@ -525,6 +525,30 @@ when they finish.
 Recovery is per app instance: the server hands projects back to the `appId` that created them, so
 persist your `appId` (browsers: `localStorage`) and reuse it across reloads.
 
+#### Results after you stopped waiting
+
+The socket holds a project that finished while its client was disconnected for one hour. A client
+that restarts, or a script or agent that exits before its projects finish, can still collect them:
+
+- `sogni.projects.getResult(id)` returns a project's state and its renders at any time: while it is
+  queued (with the server's `waitingReason`, which says whether the account's own plan concurrency is
+  holding it or it is waiting for a worker) and after it finished, with signed download URLs for the
+  completed renders. Pass `{ kind: 'video' }` (or `image`, `audio`, `model`) when you know what it
+  produces and the model is not in this client's catalog.
+- `sogni.projects.listRecent({ since })` lists this account's recently completed media projects,
+  newest first, from the durable history (up to 7 days back, 24 hours by default), including ones
+  that finished while no client was connected.
+
+```typescript
+for (const project of await sogni.projects.listRecent({ since: Date.now() - 6 * 3600_000 })) {
+  const result = await sogni.projects.getResult(project.id);
+  for (const job of result.jobs) if (job.url) console.log(project.modelName, job.url);
+}
+
+const pending = await sogni.projects.getResult(projectId);
+if (!pending.finished) console.log(pending.status, pending.waitingReason?.message);
+```
+
 ### Project parameters
 
 Here is a full list of project parameters that you can use:

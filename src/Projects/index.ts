@@ -62,6 +62,7 @@ import {
 } from './types/events.js';
 import getUUID from '../lib/getUUID.js';
 import { RawProject } from './types/RawProject.js';
+import type { WaitingReason } from './types/WaitingReason.js';
 import ErrorData from '../types/ErrorData.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 import Cache from '../lib/Cache.js';
@@ -422,6 +423,118 @@ export type ProjectStatusSnapshot = Partial<
 };
 
 const IN_FLIGHT_LOOKUP_STATUSES: ReadonlySet<string> = new Set(['pending', 'queued', 'processing']);
+
+/**
+ * One render of a project returned by {@link ProjectsApi.getResult}.
+ */
+export interface ProjectResultJob {
+  /** The render's result id (the `imgID` of its events). */
+  id: string;
+  /**
+   * `completed`, `failed` or `canceled` once it has finished; otherwise the
+   * worker job's in-flight status (`queued`, `assigned`, `jobStarted`, ...).
+   */
+  status: string;
+  /** Why a failed or cancelled render ended, e.g. `genfailure` or `artistCanceled`. */
+  reason?: string;
+  /** What the result is, when it is known. */
+  kind?: ResultMediaKind;
+  /** Signed download URL for a completed render's media. It expires; fetch a new one when it does. */
+  url?: string;
+  /**
+   * Why a completed render has no `url`: `sensitiveContent` when the Sensitive
+   * Content Filter withheld it, `unknownMediaKind` when neither the model nor
+   * the result says what media it is, `downloadUrlFailed` when the API refused
+   * or failed to sign one (retry later).
+   */
+  urlUnavailable?: 'sensitiveContent' | 'unknownMediaKind' | 'downloadUrlFailed';
+  /** Seed the render used, when recorded. */
+  seed?: number;
+}
+
+/**
+ * One of this account's projects as {@link ProjectsApi.getResult} sees it:
+ * its current state, why it is still waiting if it is, and every render with
+ * a download URL for the ones that completed.
+ */
+export interface ProjectResult {
+  id: string;
+  status: ProjectLookupStatus;
+  /** `true` for `completed`, `failed` and `canceled`. */
+  finished: boolean;
+  modelId?: string;
+  /**
+   * While it is still queued: the server's explanation, e.g. the account's own
+   * plan concurrency limit (`concurrency_limit`, `model_concurrency_limit`)
+   * rather than a shortage of workers (`no_workers`). Absent when the server
+   * did not report one.
+   */
+  waitingReason?: WaitingReason | null;
+  jobs: ProjectResultJob[];
+}
+
+/** A render of a project returned by {@link ProjectsApi.listRecent}. */
+export interface RecentProjectJob {
+  /** The render's result id; pass the project id to {@link ProjectsApi.getResult} for its URL. */
+  id: string;
+  status: string;
+  /** The Sensitive Content Filter withheld this render's media. */
+  sensitiveContentWithheld: boolean;
+  /** Milliseconds since the epoch. */
+  finishedAt?: number;
+}
+
+/** A project returned by {@link ProjectsApi.listRecent}. */
+export interface RecentProject {
+  id: string;
+  modelId?: string;
+  modelName?: string;
+  /** The app that submitted it, when recorded (e.g. `sogni-creative-agent-skill`). */
+  appSource?: string;
+  /** When its latest render finished, in milliseconds since the epoch. */
+  finishedAt?: number;
+  jobs: RecentProjectJob[];
+}
+
+export interface ListRecentProjectsOptions {
+  /**
+   * Oldest finish time to include, as a `Date` or milliseconds since the epoch.
+   * Defaults to 24 hours ago. The history keeps 7 days, so anything older is
+   * read as 7 days ago.
+   */
+  since?: Date | number;
+  /** Renders to read, 1-100 (default 50). Projects are grouped from these. */
+  limit?: number;
+  /** Only projects submitted by this app source. */
+  appSource?: string;
+}
+
+const RECENT_PROJECTS_DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
+// The history API refuses a media-only lookup reaching back more than 7 days;
+// stay a minute inside it so a slow clock cannot turn a 7-day request into a 400.
+const RECENT_PROJECTS_MAX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000 - 60 * 1000;
+
+interface RecentJobRecord {
+  id: string;
+  imgID?: string | null;
+  status?: string;
+  reason?: string;
+  endTime?: number;
+  triggeredNSFWFilter?: boolean;
+  nsfwDetected?: boolean;
+  parentRequest?: {
+    id?: string;
+    appSource?: string;
+    model?: { id?: string; name?: string };
+  };
+}
+
+/** A worker job's status in the names {@link ProjectResultJob} uses. */
+function resultJobStatus(job: { status?: string; reason?: string }): string {
+  if (job.status === 'jobCompleted') return 'completed';
+  if (job.status === 'jobError') return job.reason === 'artistCanceled' ? 'canceled' : 'failed';
+  return job.status || 'unknown';
+}
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -2442,6 +2555,189 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       `/v2/projects/${encodeURIComponent(projectId)}`
     );
     return data.project;
+  }
+
+  /**
+   * State and results of one of this account's projects by id, whenever it is
+   * asked: while it is queued or rendering, and after it finished, including
+   * one that finished while this client was offline, or after it stopped
+   * waiting, or long after the socket stopped holding it for a reconnect.
+   *
+   * Completed renders come back with signed download URLs, minted the same way
+   * a live result's are. A queued project carries the server's `waitingReason`,
+   * which says whether it is held by the account's own plan concurrency or is
+   * waiting for a worker. Needs an authenticated client; another account's or
+   * an unknown project rejects with a 404 `ApiError`.
+   *
+   * @example
+   * ```ts
+   * const result = await sogni.projects.getResult(projectId);
+   * if (result.finished) {
+   *   for (const job of result.jobs) if (job.url) console.log(job.url);
+   * } else {
+   *   console.log(result.status, result.waitingReason?.message);
+   * }
+   * ```
+   * @param projectId
+   * @param options.kind - What the project produces, when the caller knows it
+   *   (`image`, `video`, `audio`, `model`). Used only when neither the model
+   *   catalog nor the stored result says, so a URL is never minted from the
+   *   wrong endpoint.
+   */
+  async getResult(
+    projectId: string,
+    options: { kind?: ResultMediaKind } = {}
+  ): Promise<ProjectResult> {
+    const assertSession = captureRequestSession(this.client.auth);
+    const snapshot = await this.getStatus(projectId);
+    assertSession();
+    const modelId = snapshot.model?.id;
+    // The stored record's model carries its media type even though ProjectModel does not declare it.
+    const recordType = (snapshot.model as { type?: unknown } | undefined)?.type;
+    const projectType = typeof recordType === 'string' ? recordType : undefined;
+    const jobs: ProjectResultJob[] = [];
+    const seen = new Set<string>();
+    for (const job of [...(snapshot.completedWorkerJobs || []), ...(snapshot.workerJobs || [])]) {
+      const id = job.imgID || job.id;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const status = resultJobStatus(job);
+      const entry: ProjectResultJob = { id, status };
+      if (status !== 'completed' && job.reason) entry.reason = job.reason;
+      if (typeof job.seedUsed === 'number' && job.seedUsed >= 0) entry.seed = job.seedUsed;
+      if (status === 'completed') {
+        // Same rule as a live result: withheld only when the filter fired and
+        // no advisory label says the media was delivered anyway.
+        if (job.triggeredNSFWFilter === true && job.nsfwDetected !== true) {
+          entry.urlUnavailable = 'sensitiveContent';
+        } else if (typeof job.resultUrl === 'string' && job.resultUrl) {
+          entry.url = job.resultUrl;
+        } else {
+          const result = resultMediaEvidence({
+            ...(job.result || {}),
+            outputFormat: job.outputFormat ?? job.result?.outputFormat
+          });
+          const kind = this._resultMediaKind({ modelId, projectType, result }) ?? options.kind;
+          if (!kind) {
+            entry.urlUnavailable = 'unknownMediaKind';
+          } else {
+            entry.kind = kind;
+            try {
+              entry.url = await this._mintResultUrl({
+                projectId: snapshot.id,
+                jobId: id,
+                kind,
+                audioContentType: result?.contentType
+              });
+            } catch (error) {
+              this.client.logger.error(`Failed to sign a download URL for ${snapshot.id}/${id}`);
+              this.client.logger.error(error);
+              entry.urlUnavailable = 'downloadUrlFailed';
+            }
+            assertSession();
+          }
+        }
+      }
+      jobs.push(entry);
+    }
+    return {
+      id: snapshot.id,
+      status: snapshot.status,
+      finished: snapshot.finished,
+      ...(modelId ? { modelId } : {}),
+      ...(snapshot.waitingReason !== undefined ? { waitingReason: snapshot.waitingReason } : {}),
+      jobs
+    };
+  }
+
+  /**
+   * This account's recently completed projects that produced media, newest
+   * first, read from the durable history rather than the socket. It includes
+   * projects that finished while no client was connected, and ones the socket
+   * has stopped holding for a reconnect (it keeps a finished project for one
+   * hour). Pass a project's id to {@link getResult} for its download URLs.
+   *
+   * Reaches back at most 7 days. Needs a signed-in account.
+   *
+   * @example
+   * ```ts
+   * const recent = await sogni.projects.listRecent({ since: Date.now() - 6 * 3600_000 });
+   * for (const project of recent) {
+   *   const result = await sogni.projects.getResult(project.id);
+   * }
+   * ```
+   */
+  async listRecent(options: ListRecentProjectsOptions = {}): Promise<RecentProject[]> {
+    const assertSession = captureRequestSession(this.client.auth);
+    const address = await this._resolveAccountAddress();
+    assertSession();
+    if (!address) {
+      throw new Error('listRecent needs a signed-in account');
+    }
+    const now = Date.now();
+    const requestedSince =
+      options.since instanceof Date
+        ? options.since.getTime()
+        : typeof options.since === 'number'
+          ? options.since
+          : now - RECENT_PROJECTS_DEFAULT_WINDOW_MS;
+    const since = Math.max(requestedSince, now - RECENT_PROJECTS_MAX_WINDOW_MS);
+    const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 50)));
+    const { data } = await this.client.rest.get<ApiResponse<{ jobs: RecentJobRecord[] }>>(
+      '/v1/jobs/list',
+      {
+        role: 'artist',
+        address,
+        state: 'completed',
+        mediaOnly: true,
+        since,
+        limit,
+        ...(options.appSource ? { appSource: options.appSource } : {})
+      }
+    );
+    assertSession();
+    const projects = new Map<string, RecentProject>();
+    for (const job of data?.jobs || []) {
+      const projectId = job.parentRequest?.id;
+      if (!projectId) continue;
+      let project = projects.get(projectId);
+      if (!project) {
+        project = {
+          id: projectId,
+          ...(job.parentRequest?.model?.id ? { modelId: job.parentRequest.model.id } : {}),
+          ...(job.parentRequest?.model?.name ? { modelName: job.parentRequest.model.name } : {}),
+          ...(job.parentRequest?.appSource ? { appSource: job.parentRequest.appSource } : {}),
+          jobs: []
+        };
+        projects.set(projectId, project);
+      }
+      const finishedAt = typeof job.endTime === 'number' && job.endTime > 0 ? job.endTime : undefined;
+      project.jobs.push({
+        id: job.imgID || job.id,
+        status: resultJobStatus(job),
+        sensitiveContentWithheld: job.triggeredNSFWFilter === true && job.nsfwDetected !== true,
+        ...(finishedAt ? { finishedAt } : {})
+      });
+      if (finishedAt && (!project.finishedAt || finishedAt > project.finishedAt)) {
+        project.finishedAt = finishedAt;
+      }
+    }
+    return [...projects.values()].sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0));
+  }
+
+  private _accountAddress?: () => Promise<string | undefined>;
+
+  /**
+   * How {@link listRecent} learns the signed-in account's address. Set by
+   * `SogniClient`, which owns the account.
+   * @internal
+   */
+  _setAccountAddressResolver(resolve: () => Promise<string | undefined>) {
+    this._accountAddress = resolve;
+  }
+
+  private async _resolveAccountAddress(): Promise<string | undefined> {
+    return this._accountAddress ? this._accountAddress() : undefined;
   }
 
   /**
