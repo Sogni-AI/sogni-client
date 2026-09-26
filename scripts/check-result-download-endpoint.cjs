@@ -5,7 +5,8 @@
  * `/v1/media/downloadUrl`. The SDK used to read "no evidence" as "image": a
  * result for a project it did not track (another tab's, with `multiInstance`)
  * and a model whose catalog entry had no media kind both went to the image
- * endpoint, which cannot serve a video or audio result.
+ * endpoint, which answers a provable video or audio result with 404 "This
+ * result is media, not an image; request it from /v1/media/downloadUrl".
  *
  * Runs against compiled `dist/` output, like the sibling check-* scripts.
  */
@@ -16,12 +17,18 @@ const assert = require('node:assert/strict');
 
 const ProjectsApi = require('../dist/Projects/index.js').default;
 const Project = require('../dist/Projects/Project.js').default;
+const { ApiError } = require('../dist/ApiClient/index.js');
 const { resultMediaEvidence } = require('../dist/Projects/utils/index.js');
 
 const SILENT_LOGGER = { info() {}, warn() {}, error() {}, debug() {} };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const IMAGE_PATH = '/v1/image/downloadUrl';
 const MEDIA_PATH = '/v1/media/downloadUrl';
+const MEDIA_REFUSAL = new ApiError(404, {
+  status: 'error',
+  errorCode: 122,
+  message: 'This result is media, not an image; request it from /v1/media/downloadUrl'
+});
 
 class Emitter {
   constructor() {
@@ -277,6 +284,77 @@ async function checkImageBehaviourUnchanged() {
   stopTimers(api);
 }
 
+// The API's "This result is media" 404 switches to the media endpoint once, and
+// the image endpoint is never asked for that result again, even when the media
+// request fails and the URL is requested later.
+async function checkMediaRefusalSwitchesOnce() {
+  let mediaFails = true;
+  const { api, socket, calls, completed } = makeHarness({
+    catalog: [{ id: 'flux1-schnell-fp8', name: 'Flux', SID: 1, tier: 't', media: 'image' }],
+    respond(path, query) {
+      if (path === IMAGE_PATH) throw MEDIA_REFUSAL;
+      if (mediaFails) throw new ApiError(500, { status: 'error', errorCode: 1, message: 'boom' });
+      return `https://cdn.test${path}/${query.jobId}/${query.id}`;
+    }
+  });
+  const project = track(api, { type: 'image', modelId: 'flux1-schnell-fp8' });
+  await deliver(socket, result(project.id, 'IMG-M'));
+  assert.deepEqual(
+    calls.map((call) => call.path),
+    [IMAGE_PATH, MEDIA_PATH],
+    'one image request, then one media request'
+  );
+  assert.deepEqual(calls[1].query, { jobId: project.id, id: 'IMG-M', type: 'complete' });
+  assert.equal(completed[0].resultUrl, null, 'a failed media request leaves no URL');
+
+  mediaFails = false;
+  const job = project.job('IMG-M');
+  const url = await job.getResultUrl();
+  assert.equal(url, `https://cdn.test${MEDIA_PATH}/${project.id}/IMG-M`);
+  assert.deepEqual(
+    calls.map((call) => call.path),
+    [IMAGE_PATH, MEDIA_PATH, MEDIA_PATH],
+    'a later request goes straight to the media endpoint'
+  );
+  stopTimers(api);
+
+  // The fallback delivers the URL on the first try when the media endpoint answers.
+  const second = makeHarness({
+    respond(path, query) {
+      if (path === IMAGE_PATH) throw MEDIA_REFUSAL;
+      return `https://cdn.test${path}/${query.jobId}/${query.id}`;
+    }
+  });
+  await deliver(
+    second.socket,
+    result('OTHER-TAB-3', 'IMG-X', { artifacts: [{ contentType: 'image/png', success: true }] })
+  );
+  assert.deepEqual(
+    second.calls.map((call) => call.path),
+    [IMAGE_PATH, MEDIA_PATH]
+  );
+  assert.equal(second.completed[0].resultUrl, `https://cdn.test${MEDIA_PATH}/OTHER-TAB-3/IMG-X`);
+}
+
+// Any other image failure is surfaced as before and never retried on the media
+// endpoint, which would sign a key for a file that does not exist.
+async function checkOtherImageFailureDoesNotFallBack() {
+  const { api, socket, calls, completed } = makeHarness({
+    catalog: [{ id: 'flux1-schnell-fp8', name: 'Flux', SID: 1, tier: 't', media: 'image' }],
+    respond() {
+      throw new ApiError(404, { status: 'error', errorCode: 122, message: 'Download not found' });
+    }
+  });
+  const project = track(api, { type: 'image', modelId: 'flux1-schnell-fp8' });
+  await deliver(socket, result(project.id, 'IMG-N'));
+  assert.deepEqual(
+    calls.map((call) => call.path),
+    [IMAGE_PATH]
+  );
+  assert.equal(completed[0].resultUrl, null);
+  stopTimers(api);
+}
+
 function checkResultMediaEvidence() {
   assert.equal(resultMediaEvidence({}), undefined);
   assert.equal(resultMediaEvidence({ outputFormat: 'constructor' }), undefined);
@@ -298,6 +376,8 @@ async function main() {
   await checkCatalogEntryWithoutMediaKind();
   await checkUnknownModelUsesProjectType();
   await checkImageBehaviourUnchanged();
+  await checkMediaRefusalSwitchesOnce();
+  await checkOtherImageFailureDoesNotFallBack();
   console.log('Result download endpoint checks passed');
 }
 

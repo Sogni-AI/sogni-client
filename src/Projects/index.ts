@@ -127,6 +127,29 @@ const DEFAULT_LORA_CONSTRAINTS: LoraConstraints = {
   maxStrength: 100
 };
 const GARBAGE_COLLECT_TIMEOUT = 30000;
+/**
+ * How many results the image endpoint reported as media are remembered, so a
+ * later URL request for one goes straight to the media endpoint. Bounded so a
+ * long-lived client cannot grow it without limit.
+ */
+const MEDIA_RESULT_MEMORY = 1000;
+
+/**
+ * The image download endpoint's answer for a result that is provably video or
+ * audio: 404 "This result is media, not an image; request it from
+ * /v1/media/downloadUrl". Any other image failure is not this and must not be
+ * retried on the media endpoint.
+ */
+function isMediaResultRefusal(error: unknown): boolean {
+  const candidate = error as {
+    status?: unknown;
+    message?: unknown;
+    payload?: { message?: unknown };
+  };
+  if (!candidate || candidate.status !== 404) return false;
+  const message = candidate.payload?.message ?? candidate.message;
+  return typeof message === 'string' && message.includes('/v1/media/downloadUrl');
+}
 
 const JOB_PROVENANCE_HASH_FIELDS = [
   'sha256',
@@ -450,6 +473,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private _awaitingReassignment = new WeakSet<Job>();
   /**
+   * Results (`<projectId>/<jobId>`) the image endpoint reported as media. Their
+   * URLs come from the media endpoint only; the image endpoint is not asked
+   * for them again.
+   */
+  private _mediaResultIds = new Set<string>();
+  /**
    * Recovery timings. Overridable so regression scripts can run the flow in
    * milliseconds instead of seconds.
    * @internal
@@ -560,6 +589,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * its kind needs: images from `/v1/image/downloadUrl`, video, audio and 3D
    * artifacts from `/v1/media/downloadUrl`.
    *
+   * When the image endpoint answers that the result is media, this asks the
+   * media endpoint once and remembers the result, so the image endpoint is
+   * never asked for it again. Any other failure is thrown unchanged.
+   *
    * @internal
    */
   async _mintResultUrl(target: {
@@ -570,13 +603,22 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     imageContentType?: string;
   }): Promise<string> {
     const { projectId, jobId, kind } = target;
-    if (kind === 'image') {
-      return this.downloadUrl({
-        jobId: projectId,
-        imageId: jobId,
-        type: 'complete',
-        ...(target.imageContentType ? { contentType: target.imageContentType } : {})
-      });
+    const key = `${projectId}/${jobId}`;
+    if (kind === 'image' && !this._mediaResultIds.has(key)) {
+      try {
+        return await this.downloadUrl({
+          jobId: projectId,
+          imageId: jobId,
+          type: 'complete',
+          ...(target.imageContentType ? { contentType: target.imageContentType } : {})
+        });
+      } catch (error) {
+        if (!isMediaResultRefusal(error)) throw error;
+        this._rememberMediaResult(key);
+        this.client.logger.debug(
+          `Image endpoint reported result ${key} as media; requesting it from the media endpoint`
+        );
+      }
     }
     return this.mediaDownloadUrl({
       jobId: projectId,
@@ -587,6 +629,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         : {}),
       ...(kind === 'model' ? { contentType: 'model/gltf-binary' } : {})
     });
+  }
+
+  private _rememberMediaResult(key: string) {
+    this._mediaResultIds.delete(key);
+    this._mediaResultIds.add(key);
+    if (this._mediaResultIds.size > MEDIA_RESULT_MEMORY) {
+      const oldest = this._mediaResultIds.values().next().value;
+      if (oldest !== undefined) this._mediaResultIds.delete(oldest);
+    }
   }
 
   constructor(config: ApiConfig) {
