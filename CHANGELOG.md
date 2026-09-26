@@ -1,3 +1,10 @@
+## [5.56.3](https://github.com/Sogni-AI/sogni-client/compare/v5.56.2...v5.56.3) (2026-09-26)
+
+
+### Bug Fixes
+
+* **projects:** know the live Wan sound-to-video and Qwen3 TTS ids as media ([f621acb](https://github.com/Sogni-AI/sogni-client/commit/f621acb974de81659a958b594f0a5c52c4d957e4))
+
 ## [5.56.2](https://github.com/Sogni-AI/sogni-client/compare/v5.56.1...v5.56.2) (2026-09-26)
 
 
