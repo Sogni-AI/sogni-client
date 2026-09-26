@@ -1,3 +1,10 @@
+# [5.57.0](https://github.com/Sogni-AI/sogni-client/compare/v5.56.3...v5.57.0) (2026-09-26)
+
+
+### Features
+
+* **projects:** fetch a project's results by id and list recent completed projects ([89cd46d](https://github.com/Sogni-AI/sogni-client/commit/89cd46d4991fcddc83737d2abc3a0106d3734660))
+
 ## [5.56.3](https://github.com/Sogni-AI/sogni-client/compare/v5.56.2...v5.56.3) (2026-09-26)
 
 

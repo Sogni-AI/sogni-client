@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "5.56.3",
+  "version": "5.57.0",
   "engines": {
     "node": ">=22"
   },
