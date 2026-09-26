@@ -590,7 +590,13 @@ function validateSourceAudioPolicy(prompt, policy, audioCount) {
  */
 function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
   const warnings = [];
-  const beats = findTimedBeats(prompt);
+  // Shot markers are read from the timeline field only: Ref2VA's
+  // retention_analysis cites shots too ("appears in [Shot 1], [Shot 2]").
+  const timeline = fieldValue(
+    prompt,
+    mode === 'r2v' ? 'detailed_description' : 'integrated_multimodal_description'
+  );
+  const beats = findTimedBeats(timeline);
 
   const baseFields = [
     'integrated_multimodal_description',
@@ -629,16 +635,16 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
       'FL2VA requires its exact first/last-frame alignment instruction as the first line.'
     );
   }
-  if (!prompt.includes('[Shot 1]')) {
+  if (!timeline.includes('[Shot 1]')) {
     warnings.push('The main description must begin its timeline with [Shot 1] and no timestamp.');
   }
-  if (/\[Shot 1\]\s+At\s+/.test(prompt)) {
+  if (/\[Shot 1\]\s+At\s+/.test(timeline)) {
     warnings.push('[Shot 1] must not have a timestamp.');
   }
   if (/<\|[^>]+\|>/.test(prompt)) {
     warnings.push('Do not author tokenizer-internal <|...|> controls; use <d>, </d>, <scenetrans>, and <cutoff>.');
   }
-  const shotMatches = [...prompt.matchAll(/\[Shot\s+(\d+)\](?:\s+At\s+(\d{2}):(\d{2})\.(\d{3}),)?/g)];
+  const shotMatches = [...timeline.matchAll(/\[Shot\s+(\d+)\](?:\s+At\s+(\d{2}):(\d{2})\.(\d{3}),)?/g)];
   shotMatches.forEach((match, index) => {
     if (Number(match[1]) !== index + 1) {
       warnings.push('Shot numbers must be contiguous and start at [Shot 1].');
