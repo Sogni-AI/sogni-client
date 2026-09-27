@@ -1071,18 +1071,33 @@ to its own `keyframeImage<i+1>` slot in array order and the indices travel as
 together. If no worker serving the model can pin keyframes yet, the job is
 refused with error code `4100`. MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 
-Prompts for keyframes: H3 never sees the keyframe images as references, so the
-prompt must describe what each keyframe shows at its time. Keyframes are never
-labelled: the I2V/FLF2V alignment line still names only the first and last
-frame, and on R2V `<Picture N>` and `<Subject N>` refer to the references only.
-On Sound to Video the uploaded audio drives the performance and keyframes pin
-how it looks at their times. When a keyframe changes the framing, camera angle,
-location or light,
-start a new shot (a hard cut) at its time: `[Shot N] At MM:SS.mmm, ...`, where
-the time is `frameIndex / 24` seconds (frame 144 is `00:06.000`). Two
-differently framed or lit stills inside one continuous shot cross-fade into each
-other, and a shot described differently from its still can flash the still for
-a single frame.
+Prompts for keyframes (MiniMax's keyframe format): name each keyframe
+`<Picture N>`, numbered in time order after the workflow's own pictures: after
+the first frame `<Picture 1>` on I2V and IA2V (after the last frame
+`<Picture 1>` on a last-frame-only I2V job), after `<Picture 1>` (first) and
+`<Picture 2>` (last) on FLF2V and FLFA2V, from `<Picture 1>` on A2V, and after
+the last reference image `<Picture N>` on R2V. Keyframes are still not
+references and never count toward the reference limits. I2V, FLF2V and Sound to
+Video prompts open with one alignment line listing every picture at its mark
+(`frameIndex / 24` seconds, two decimals; a last frame at the clip's end), in
+time order, each credited to the shot on screen there: `How the reference
+pictures align with the target video — Picture 1 (from Shot 1) aligns with the
+0.00-second mark of the target video; Picture 2 (from Shot 2) aligns with the
+2.88-second mark of the target video.` The shot where a keyframe lands says
+"the shot's keyframe corresponds to `<Picture N>`". R2V adds
+`<Picture N> is the keyframe of [Shot M], showing ...` to
+`subject_definitions`, `keyframe completion` to the summary tasks, and
+`<Picture N> ([Shot M] keyframe): fully_preserved - ...` to
+`retention_analysis`. H3's text encoder never sees the keyframe images (they
+only pin frames), so the prompt must still describe what each keyframe shows at
+its time. On Sound to Video the uploaded audio drives the performance and
+keyframes pin how it looks at their times. When a keyframe changes the framing,
+camera angle, location or light, start a new shot (a hard cut) at its time:
+`[Shot N] At MM:SS.mmm, the camera cuts to ..., whose keyframe corresponds to
+<Picture N>.`, where the time is `frameIndex / 24` seconds (frame 144 is
+`00:06.000`). Two differently framed or lit stills inside one continuous shot
+cross-fade into each other, and a shot described differently from its still can
+flash the still for a single frame.
 
 FASTH3 AUDIO GUIDE (`minimax-h3-fastvideo-int8_ia2v_turbo`,
 `minimax-h3-fastvideo-int8_flfa2v_turbo`, `minimax-h3-fastvideo-int8_a2v_turbo`
@@ -1277,8 +1292,8 @@ Ref2VA uses six sections in exact order: `subject_definitions`, `summary`,
 `retention_analysis`, `detailed_description`, `overall_soundscape`, and
 `non_diegetic_music`. Use `<Subject N>` for reusable visible content abstracted
 from a reference. Reserve standalone `<Picture N>` for a reference image used
-as a concrete keyframe or composition anchor (MiniMax's wording; images passed
-in `keyframes` are never labelled); a still used only for identity, wardrobe, environment, or
+as a concrete keyframe or composition anchor (MiniMax's wording; each image
+passed in `keyframes` is one, numbered after the reference images); a still used only for identity, wardrobe, environment, or
 style belongs in a `<Subject N>` definition. `<Video N>` represents whole-video
 structure and `<Audio N>` represents copied or referenced audio. Keep labels
 stable across all sections. `summary` begins with official task types such as

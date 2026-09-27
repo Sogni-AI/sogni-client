@@ -702,10 +702,11 @@ async function checkMinimaxH3KeyframeUploads() {
   }
 }
 
-// The example's help carries the prompt rules users need: H3 never sees the
-// keyframe images, and a framing or lighting change needs a hard cut. Read the
-// source rather than running it: the examples' own dependencies are not
-// installed in CI.
+// The example's help carries the prompt rules users need: each keyframe is a
+// <Picture N> named in MiniMax's keyframe format, H3's text encoder never sees
+// the keyframe images so the prompt describes them, and a framing or lighting
+// change needs a hard cut. Read the source rather than running it: the
+// examples' own dependencies are not installed in CI.
 const exampleSource = fs.readFileSync(
   path.join(__dirname, '..', 'examples', 'workflow_minimax_h3_video.mjs'),
   'utf8'
@@ -713,15 +714,20 @@ const exampleSource = fs.readFileSync(
 assert.match(exampleSource, /--mode i2v, flf2v or r2v/);
 assert.match(exampleSource, /Use --frames to set the length exactly/);
 assert.match(exampleSource, /6s is 141 frames/);
-assert.match(exampleSource, /H3 never sees the keyframe images as references/);
+assert.match(exampleSource, /Name each keyframe <Picture N>, numbered in time order after the mode's own\s+pictures/);
+assert.match(exampleSource, /H3's text encoder never sees the keyframe images/);
+assert.match(
+  exampleSource,
+  /Picture 1 \(from\s+Shot 1\) aligns with the 0\.00-second mark of the target video; Picture 2\s+\(from Shot 2\) aligns with the 2\.88-second mark/
+);
+assert.match(exampleSource, /"<Picture N> is the keyframe of \[Shot M\], showing \.\.\."/);
+assert.match(exampleSource, /"<Picture N> \(\[Shot M\] keyframe\): fully_preserved - \.\.\."/);
 assert.match(
   exampleSource,
   /changes the framing, camera angle, location or light, start a new\s+shot/
 );
-assert.match(
-  exampleSource,
-  /r2v <Picture N> and <Subject N> refer to the --ref-\* references only/
-);
+assert.match(exampleSource, /whose\s+keyframe corresponds to <Picture N>/);
+assert.doesNotMatch(exampleSource, /never labelled|never sees the keyframe images as references/);
 
 checkMinimaxH3KeyframeUploads()
   .then(() => console.log('MiniMax H3 keyframe checks passed'))

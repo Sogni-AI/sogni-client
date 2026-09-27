@@ -166,6 +166,60 @@ function flf2vAlignmentLine(durationSeconds, finalShotIndex = 1) {
   );
 }
 
+/**
+ * The <Picture N> number of the first --keyframe: keyframes are numbered in
+ * time order after the mode's own pictures (the first frame in i2v, the last
+ * frame in l2v, both in flf2v, the --ref-image pictures in r2v).
+ * @param {string} mode - i2v, l2v, flf2v, or r2v prompt contract
+ * @param {number} referenceImages - Attached r2v reference images
+ * @returns {number} The first keyframe's picture number
+ */
+function firstKeyframePicture(mode, referenceImages = 0) {
+  if (mode === 'r2v') return referenceImages + 1;
+  return mode === 'flf2v' ? 3 : 2;
+}
+
+/**
+ * MiniMax's alignment line for an i2v, l2v or flf2v job with keyframes: every
+ * picture at its mark (frame / 24 seconds, two decimals), in time order, each
+ * credited to the shot on screen there according to the prompt's own
+ * "[Shot N] At MM:SS.mmm," cuts.
+ * @param {string} mode - i2v, l2v, or flf2v prompt contract
+ * @param {number[]} frameIndices - The keyframes' frames
+ * @param {number} durationSeconds - Effective duration, the last frame's mark
+ * @param {string} prompt - The prompt whose cuts credit each picture's shot
+ * @returns {string} The alignment line
+ */
+function keyframeAlignmentLine(mode, frameIndices, durationSeconds, prompt) {
+  const cuts = [...prompt.matchAll(/\[Shot\s+(\d+)\]\s+At\s+(\d{2}):(\d{2})\.(\d{3}),/g)].map(
+    (match) => ({
+      shot: Number(match[1]),
+      seconds: Number(match[2]) * 60 + Number(match[3]) + Number(match[4]) / 1000
+    })
+  );
+  // Half a frame of slack: a cut written at a keyframe's own clock is a cut at it.
+  const shotAt = (seconds) =>
+    cuts.filter((cut) => cut.seconds <= seconds + 0.5 / MINIMAX_H3_FPS).at(-1)?.shot ?? 1;
+  const first = firstKeyframePicture(mode);
+  const pictures = [
+    ...(mode === 'l2v' ? [] : [{ picture: 1, seconds: 0 }]),
+    ...[...frameIndices]
+      .sort((left, right) => left - right)
+      .map((frame, index) => ({ picture: first + index, seconds: frame / MINIMAX_H3_FPS })),
+    ...(mode === 'i2v' ? [] : [{ picture: mode === 'flf2v' ? 2 : 1, seconds: durationSeconds }])
+  ];
+  return (
+    'How the reference pictures align with the target video — ' +
+    pictures
+      .map(
+        ({ picture, seconds }) =>
+          `Picture ${picture} (from Shot ${shotAt(seconds)}) aligns with the ${seconds.toFixed(2)}-second mark of the target video`
+      )
+      .join('; ') +
+    '.'
+  );
+}
+
 // ============================================
 // Example prompts: official MiniMax Context-IR
 // ============================================
@@ -588,10 +642,12 @@ function validateSourceAudioPolicy(prompt, policy, audioCount) {
  * @param {number} [references.images] - Reference images attached
  * @param {number} [references.videos] - Reference videos attached
  * @param {number} [references.audios] - Reference audio clips attached
+ * @param {number[]} [keyframeFrames] - The --keyframe frames
  * @returns {string[]} Warnings, empty when nothing looks off
  */
-function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
+function reviewPrompt(prompt, durationSeconds, mode, references = {}, keyframeFrames = []) {
   const warnings = [];
+  const keyframed = keyframeFrames.length > 0;
   // Shot markers are read from the timeline field only: Ref2VA's
   // retention_analysis cites shots too ("appears in [Shot 1], [Shot 2]").
   const timeline = fieldValue(
@@ -620,11 +676,12 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
         : `H3 Base requires these fields in order: ${baseFields.join(', ')}.`
     );
   }
-  if (mode === 'i2v' && !prompt.startsWith(`${I2V_ALIGNMENT_LINE}\n\n`)) {
+  if (mode === 'i2v' && !keyframed && !prompt.startsWith(`${I2V_ALIGNMENT_LINE}\n\n`)) {
     warnings.push('I2VA requires its exact image-alignment instruction as the first line.');
   }
   if (
     mode === 'l2v' &&
+    !keyframed &&
     !prompt.startsWith('How the reference pictures align with the target video — <Picture 1> ')
   ) {
     warnings.push('L2VA requires its exact last-frame alignment instruction as the first line.');
@@ -637,6 +694,41 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
       'FL2VA requires its exact first/last-frame alignment instruction as the first line.'
     );
   }
+  // Keyframes are <Picture N> in MiniMax's keyframe format. Base modes list
+  // each one in the alignment line; r2v gives each a picture entry and a
+  // retention entry. H3's text encoder never sees keyframe images, so the shot
+  // where each lands must name it and describe what it shows.
+  const alignment = prompt.split('\n', 1)[0];
+  [...keyframeFrames]
+    .sort((left, right) => left - right)
+    .forEach((frame, index) => {
+      const picture = firstKeyframePicture(mode, references.images ?? 0) + index;
+      const at = `frame ${frame}, ${(frame / MINIMAX_H3_FPS).toFixed(2)}s`;
+      if (
+        (mode === 'i2v' || mode === 'l2v' || mode === 'flf2v') &&
+        !(alignment.startsWith('How the reference pictures align with the target video — ') &&
+          alignment.includes(`Picture ${picture} (from Shot `))
+      ) {
+        warnings.push(
+          `The first line must be the alignment line listing every picture at its mark, keyframe Picture ${picture} (${at}) included.`
+        );
+      }
+      if (!timeline.includes(`<Picture ${picture}>`)) {
+        warnings.push(
+          `Keyframe <Picture ${picture}> (${at}) is never named: write "the shot's keyframe corresponds to <Picture ${picture}>" where it lands and describe what it shows.`
+        );
+      }
+      if (mode === 'r2v' && !prompt.includes(`<Picture ${picture}> is the keyframe of [Shot `)) {
+        warnings.push(
+          `subject_definitions needs "<Picture ${picture}> is the keyframe of [Shot M], showing ..." for the keyframe at ${at}.`
+        );
+      }
+      if (mode === 'r2v' && !prompt.includes(`<Picture ${picture}> ([Shot `)) {
+        warnings.push(
+          `retention_analysis needs "<Picture ${picture}> ([Shot M] keyframe): fully_preserved - ..." for the keyframe at ${at}.`
+        );
+      }
+    });
   if (!timeline.includes('[Shot 1]')) {
     warnings.push('The main description must begin its timeline with [Shot 1] and no timestamp.');
   }
@@ -700,6 +792,9 @@ function reviewPrompt(prompt, durationSeconds, mode, references = {}) {
       }
       if (new Set(tasks).size !== tasks.length) {
         warnings.push('Ref2VA summary task types must not be repeated.');
+      }
+      if (keyframed && !tasks.includes('keyframe completion')) {
+        warnings.push('With keyframes the summary tasks include keyframe completion, as in [reference generation + keyframe completion].');
       }
       if (tasks.includes('video editing') && !taskPrefix[2].startsWith('The target video is an edited version of <Video 1>.')) {
         warnings.push('A video-editing summary must begin "The target video is an edited version of <Video 1>."');
@@ -1098,15 +1193,30 @@ Intermediate keyframes (--keyframe, --mode i2v, flf2v or r2v):
   stay --image and --end-image; r2v cannot pin frame 0 or the last frame.
   Keyframe images get the same canvas preparation as the other frames.
 
-  H3 never sees the keyframe images as references, so the prompt must say what
-  each keyframe shows at its time. Keyframes are never labelled: in i2v and
-  flf2v the alignment line still names only the first and last frame, and in
-  r2v <Picture N> and <Subject N> refer to the --ref-* references only. When a
+  Name each keyframe <Picture N>, numbered in time order after the mode's own
+  pictures: after the first frame <Picture 1> in i2v (after the last frame
+  <Picture 1> when only --end-image is set), after <Picture 1> and <Picture 2>
+  in flf2v, and after the last --ref-image <Picture N> in r2v. Keyframes are
+  still not references. In i2v and flf2v the prompt opens with one alignment
+  line listing every picture at its mark (frame/24 seconds), in time order:
+  "How the reference pictures align with the target video — Picture 1 (from
+  Shot 1) aligns with the 0.00-second mark of the target video; Picture 2
+  (from Shot 2) aligns with the 2.88-second mark of the target video; ...".
+  The example builds that line from your cuts when the prompt has none. In r2v
+  add "<Picture N> is the keyframe of [Shot M], showing ..." to
+  subject_definitions, keyframe completion to the summary tasks, and
+  "<Picture N> ([Shot M] keyframe): fully_preserved - ..." to
+  retention_analysis.
+
+  H3's text encoder never sees the keyframe images (they only pin frames), so
+  the prompt must still say what each keyframe shows at its time. When a
   keyframe changes the framing, camera angle, location or light, start a new
-  shot at its time ("[Shot N] At MM:SS.mmm, ..." at frame/24 seconds): two
-  differently framed or lit stills inside one continuous shot cross-fade, and a
-  shot described differently from its still can flash the still for a single
-  frame.
+  shot at its time ("[Shot N] At MM:SS.mmm, the camera cuts to ..., whose
+  keyframe corresponds to <Picture N>" at frame/24 seconds): two differently
+  framed or lit stills inside one continuous shot cross-fade, and a shot
+  described differently from its still can flash the still for a single frame.
+  A keyframe that keeps the framing stays in its shot, which says "the shot's
+  keyframe corresponds to <Picture N>" where that moment arrives.
 
 Multi-reference video (--mode r2v):
   Ref2VA conditions on labelled reference material instead of frame anchors.
@@ -1149,10 +1259,10 @@ Multi-reference video (--mode r2v):
     non_diegetic_music:
 
   Use <Subject N> for reusable visible content abstracted from a reference.
-  Reserve standalone <Picture N> for a reference used as a concrete keyframe or
-  composition anchor (--keyframe images are never labelled); a still used only
-  for identity, wardrobe, environment, or style should be the provenance inside
-  a <Subject N> definition. Use <Video N> for whole-video
+  Reserve standalone <Picture N> for a concrete keyframe or composition anchor
+  (each --keyframe image is one, numbered after the --ref-image pictures); a
+  still used only for identity, wardrobe, environment, or style should be the
+  provenance inside a <Subject N> definition. Use <Video N> for whole-video
   structure and <Audio N> for copied or referenced audio. Keep every label's
   meaning stable across all six sections.
 
@@ -1438,13 +1548,16 @@ async function main() {
     }
     usedKeyframes.add(frameIndex);
   }
-  const keyframeSummary = OPTIONS.keyframes
+  const framePromptMode = resolveFramePromptMode(OPTIONS.mode, !!OPTIONS.image, !!OPTIONS.endImage);
+  const keyframeFrames = OPTIONS.keyframes.map(({ frameIndex }) => frameIndex);
+  // Keyframes are <Picture N>, numbered in time order after the mode's pictures.
+  const keyframeSummary = [...OPTIONS.keyframes]
+    .sort((left, right) => left.frameIndex - right.frameIndex)
     .map(
-      ({ path, frameIndex }) =>
-        `${path} @ frame ${frameIndex} (${(frameIndex / MINIMAX_H3_FPS).toFixed(2)}s)`
+      ({ path, frameIndex }, index) =>
+        `<Picture ${firstKeyframePicture(framePromptMode, OPTIONS.refImages.length) + index}> ${path} @ frame ${frameIndex} (${(frameIndex / MINIMAX_H3_FPS).toFixed(2)}s)`
     )
     .join(', ');
-  const framePromptMode = resolveFramePromptMode(OPTIONS.mode, !!OPTIONS.image, !!OPTIONS.endImage);
 
   const soundtrackedVideoIndices =
     OPTIONS.mode === 'r2v' ? await detectSoundtrackedReferenceVideos(OPTIONS.refVideos) : [];
@@ -1525,22 +1638,34 @@ async function main() {
   } else if (OPTIONS.mode === 'i2v' || OPTIONS.mode === 'flf2v') {
     // MiniMax requires the mode-specific alignment instruction as the first line.
     // Preserve the caller's body byte-for-byte and prepend only when absent.
-    const alignmentLine =
-      framePromptMode === 'i2v'
+    // With keyframes the line lists every picture at its mark, so a caller's
+    // own "How the reference pictures align ..." line is kept as written.
+    const alignmentLine = keyframeFrames.length
+      ? keyframeAlignmentLine(framePromptMode, keyframeFrames, effectiveDuration, OPTIONS.prompt)
+      : framePromptMode === 'i2v'
         ? I2V_ALIGNMENT_LINE
         : framePromptMode === 'l2v'
           ? l2vAlignmentLine(effectiveDuration)
           : flf2vAlignmentLine(effectiveDuration);
-    if (!OPTIONS.prompt.startsWith(alignmentLine)) {
+    const hasAlignmentLine = keyframeFrames.length
+      ? OPTIONS.prompt.startsWith('How the reference pictures align with the target video — ')
+      : OPTIONS.prompt.startsWith(alignmentLine);
+    if (!hasAlignmentLine) {
       OPTIONS.prompt = `${alignmentLine}\n\n${OPTIONS.prompt}`;
     }
   }
 
-  const promptWarnings = reviewPrompt(OPTIONS.prompt, effectiveDuration, framePromptMode, {
-    images: OPTIONS.refImages.length,
-    videos: OPTIONS.refVideos.length,
-    audios: OPTIONS.refAudios.length + soundtrackedVideoIndices.length
-  });
+  const promptWarnings = reviewPrompt(
+    OPTIONS.prompt,
+    effectiveDuration,
+    framePromptMode,
+    {
+      images: OPTIONS.refImages.length,
+      videos: OPTIONS.refVideos.length,
+      audios: OPTIONS.refAudios.length + soundtrackedVideoIndices.length
+    },
+    keyframeFrames
+  );
   const sourceAudioErrors = validateSourceAudioPolicy(
     OPTIONS.prompt,
     OPTIONS.sourceAudioPolicy,
@@ -1555,7 +1680,7 @@ async function main() {
     console.log('\n--- end of prompt ---');
     if (keyframeSummary) {
       console.log(
-        `\nKeyframes (describe each at its time; cut to a new shot where framing or light changes): ${keyframeSummary}`
+        `\nKeyframes (name each <Picture N> and describe it at its time; cut to a new shot where framing or light changes): ${keyframeSummary}`
       );
     }
     if (promptWarnings.length) {

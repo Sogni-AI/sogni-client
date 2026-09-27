@@ -177,8 +177,9 @@ export type InputMedia = File | Buffer | Blob | boolean;
  */
 export interface MinimaxH3Keyframe {
   /**
-   * The still image the video passes through at `frameIndex`. H3 never sees it
-   * as a reference, so the prompt must describe what it shows at that time.
+   * The still image the video passes through at `frameIndex`. The prompt names
+   * it `<Picture N>` and describes what it shows at that time: H3's text
+   * encoder never sees the image, which only pins the frame.
    */
   image: InputMedia;
   /**
@@ -287,15 +288,29 @@ export interface MinimaxH3Keyframe {
  *   `ia2v` sets frame 0 with `referenceImage`, and `a2v` and `r2v` cannot pin
  *   them. Each workflow keeps its own uploads, and `contextImages` stays
  *   r2v-only.
- * - H3 never sees the keyframe images as references, so the prompt must
- *   describe what each keyframe shows at its time. Keyframes are never
- *   labelled: the `i2v`/`flf2v` alignment line names only the first and last
- *   frame, and on `r2v` `<Picture N>` and `<Subject N>` refer to the
- *   references only. On Sound to Video the audio drives the performance, and
- *   keyframes pin how it looks at their times.
+ * - The prompt names each keyframe `<Picture N>` (MiniMax's keyframe format),
+ *   numbered in time order after the workflow's own pictures: after the first
+ *   frame on `i2v` and `ia2v` (after the last frame on a last-frame-only `i2v`
+ *   job), after the first and last frames on `flf2v` and `flfa2v`, from
+ *   `<Picture 1>` on `a2v`, and after the reference images on `r2v`.
+ *   Keyframes still never count as references.
+ * - `i2v`, `flf2v` and Sound to Video prompts open with one alignment line
+ *   listing every picture at its mark, in time order: `How the reference
+ *   pictures align with the target video — Picture 1 (from Shot 1) aligns with
+ *   the 0.00-second mark of the target video; Picture 2 (from Shot 2) aligns
+ *   with the 2.88-second mark of the target video.` The shot where a keyframe
+ *   lands says "the shot's keyframe corresponds to `<Picture N>`". `r2v` adds
+ *   `<Picture N> is the keyframe of [Shot M], showing ...` to
+ *   `subject_definitions`, `keyframe completion` to the summary tasks and
+ *   `<Picture N> ([Shot M] keyframe): fully_preserved - ...` to
+ *   `retention_analysis`.
+ * - H3's text encoder never sees the keyframe images, so the prompt must still
+ *   describe what each keyframe shows at its time. On Sound to Video the audio
+ *   drives the performance, and keyframes pin how it looks at their times.
  * - When a keyframe changes the framing, camera angle, location or light, the
- *   prompt must start a new shot (a hard cut, `[Shot N] At MM:SS.mmm, ...`) at
- *   its time, `frameIndex / 24` seconds. Two differently framed or lit stills
+ *   prompt must start a new shot (a hard cut, `[Shot N] At MM:SS.mmm, the
+ *   camera cuts to ..., whose keyframe corresponds to <Picture N>.`) at its
+ *   time, `frameIndex / 24` seconds. Two differently framed or lit stills
  *   inside one continuous shot cross-fade into each other, and a shot described
  *   differently from its still can flash the still for a single frame.
  * - `keyframes[i].image` uploads to its own `keyframeImage<i+1>` slot and the
@@ -560,11 +575,14 @@ export interface VideoProjectParams extends BaseProjectParams {
    * sets frame 0 with `referenceImage`, and `a2v` and `r2v` cannot pin them.
    * Every workflow keeps its own upload rules.
    *
-   * H3 never sees the keyframe images as references, so the prompt must describe
-   * what each one shows at its time. Keyframes are never labelled: on `r2v`,
-   * `<Picture N>` and `<Subject N>` refer to the references only. On Sound to
-   * Video the audio drives the performance, and keyframes pin how it looks at
-   * their times. When a keyframe changes the framing, camera angle, location or
+   * The prompt names each keyframe `<Picture N>`, numbered in time order after
+   * the workflow's own pictures (the first and last frames, or the `r2v`
+   * reference images), lists it in the alignment line (`r2v`: a keyframe entry,
+   * the `keyframe completion` task and a retention entry), and describes what
+   * it shows at its time, since H3's text encoder never sees the keyframe
+   * images. Keyframes still never count as references. On Sound to Video the
+   * audio drives the performance, and keyframes pin how it looks at their
+   * times. When a keyframe changes the framing, camera angle, location or
    * light, start a new shot (a hard cut) at its time, `frameIndex / 24` seconds:
    * two differently framed or lit stills inside one continuous shot cross-fade
    * into each other, and a shot described differently from its still can flash
