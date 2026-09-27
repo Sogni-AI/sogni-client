@@ -20,8 +20,8 @@
  *   new shot where a keyframe changes framing or light.
  */
 const assert = require('node:assert/strict');
-const { spawnSync } = require('node:child_process');
 const { EventEmitter } = require('node:events');
+const fs = require('node:fs');
 const path = require('node:path');
 const createJobRequestMessage = require('../dist/Projects/createJobRequestMessage.js').default;
 const sdk = require('../dist/index.js');
@@ -703,22 +703,25 @@ async function checkMinimaxH3KeyframeUploads() {
 }
 
 // The example's help carries the prompt rules users need: H3 never sees the
-// keyframe images, and a framing or lighting change needs a hard cut.
-const help = spawnSync(
-  process.execPath,
-  [path.join(__dirname, '..', 'examples', 'workflow_minimax_h3_video.mjs'), '--help'],
-  { cwd: path.join(__dirname, '..'), encoding: 'utf8' }
+// keyframe images, and a framing or lighting change needs a hard cut. Read the
+// source rather than running it: the examples' own dependencies are not
+// installed in CI.
+const exampleSource = fs.readFileSync(
+  path.join(__dirname, '..', 'examples', 'workflow_minimax_h3_video.mjs'),
+  'utf8'
 );
-assert.equal(help.status, 0, help.stderr || help.stdout);
-assert.match(help.stdout, /--mode i2v, flf2v or r2v/);
-assert.match(help.stdout, /Use --frames to set the length exactly/);
-assert.match(help.stdout, /6s is 141 frames/);
-assert.match(help.stdout, /H3 never sees the keyframe images as references/);
+assert.match(exampleSource, /--mode i2v, flf2v or r2v/);
+assert.match(exampleSource, /Use --frames to set the length exactly/);
+assert.match(exampleSource, /6s is 141 frames/);
+assert.match(exampleSource, /H3 never sees the keyframe images as references/);
 assert.match(
-  help.stdout,
+  exampleSource,
   /changes the framing, camera angle, location or light, start a new\s+shot/
 );
-assert.match(help.stdout, /r2v <Picture N> and <Subject N> refer to the --ref-\* references only/);
+assert.match(
+  exampleSource,
+  /r2v <Picture N> and <Subject N> refer to the --ref-\* references only/
+);
 
 checkMinimaxH3KeyframeUploads()
   .then(() => console.log('MiniMax H3 keyframe checks passed'))
