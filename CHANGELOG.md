@@ -1,3 +1,10 @@
+## [5.58.1](https://github.com/Sogni-AI/sogni-client/compare/v5.58.0...v5.58.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* **minimax-h3:** name keyframes as <Picture N> in the prompt guidance ([db85ad7](https://github.com/Sogni-AI/sogni-client/commit/db85ad709e6764c9b0b8fe3da60e18edccff69f2))
+
 # [5.58.0](https://github.com/Sogni-AI/sogni-client/compare/v5.57.0...v5.58.0) (2026-09-27)
 
 
