@@ -1,3 +1,18 @@
+# [5.58.0](https://github.com/Sogni-AI/sogni-client/compare/v5.57.0...v5.58.0) (2026-09-27)
+
+
+### Bug Fixes
+
+* **test:** read the H3 example help from source in the keyframe check ([af210ad](https://github.com/Sogni-AI/sogni-client/commit/af210ade9443e731ae0663c1fb12236e6a36d513))
+
+
+### Features
+
+* **video:** add MiniMax H3 intermediate keyframes to i2v and flf2v ([17eaa1f](https://github.com/Sogni-AI/sogni-client/commit/17eaa1f40bccf395bd49dce3eed3b1d5bc7517e5))
+* **video:** export calculateVideoFrames and sharpen MiniMax H3 keyframe errors ([33372d5](https://github.com/Sogni-AI/sogni-client/commit/33372d5859a07329b361f9ecaa0765e2e7107621))
+* **video:** extend MiniMax H3 keyframes to Sound to Video and Ref2VA on their own slots ([72799d9](https://github.com/Sogni-AI/sogni-client/commit/72799d9d1601d9c820a7ec2d61a4cd583448237e))
+* **video:** quote MiniMax H3 keyframes in estimateVideoCost ([58ab77d](https://github.com/Sogni-AI/sogni-client/commit/58ab77d90e7f6d925b86fbbdb3dfaa7f41793ac8))
+
 # [5.57.0](https://github.com/Sogni-AI/sogni-client/compare/v5.56.3...v5.57.0) (2026-09-26)
 
 
