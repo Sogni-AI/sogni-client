@@ -443,10 +443,19 @@ const project = await sogni.projects.create({
     strength: 0.8,
     mode: 'balanced',
     guidanceStart: 0,
-    guidanceEnd: 1
+    guidanceEnd: 1,
+    preprocess: true // pose-reference.png is a photo; the worker extracts the pose skeleton
   }
 });
 ```
+
+CONTROLNET PREPROCESS:
+
+- `preprocess: true`: the image is an ordinary photo; the worker generates the control map matching `name`
+  (edges for canny, a depth map for depth, a pose skeleton for openpose, and so on).
+- `preprocess` omitted or `false` (default): the image is used as the control map as-is. Use this for ready-made
+  depth maps, pose skeletons, edge maps and scribbles.
+- Only affects the Stable Diffusion ControlNet types. instantid, inpaint and instrp2p always use the image as given.
 
 CONTROLNET TYPES:
 
@@ -2669,6 +2678,7 @@ interface ControlNetParams {
   mode?: ControlNetMode;
   guidanceStart?: number;
   guidanceEnd?: number;
+  preprocess?: boolean; // true = worker makes the control map from a photo; default false = image is the map
 }
 
 type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer';

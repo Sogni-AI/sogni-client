@@ -42,6 +42,11 @@ export interface ControlNetParamsRaw {
   controlMode?: 0 | 1 | 2;
   controlGuidanceStart?: number;
   controlGuidanceEnd?: number;
+  /**
+   * Sent only as `true`: the worker makes the control map from the uploaded image.
+   * Omitted: the uploaded image is the control map.
+   */
+  preprocess?: true;
 }
 
 /**
@@ -88,6 +93,19 @@ export interface ControlNetParams {
    * Must be greater than guidanceStart
    */
   guidanceEnd?: number;
+  /**
+   * Make the control map from `image` on the worker. Default `false`.
+   *
+   * - `true`: `image` is an ordinary photo. The worker generates the control map that matches `name`
+   *   from it (edges for `canny`, a depth map for `depth`, a pose skeleton for `openpose`, and so on).
+   *   Use this for ordinary photos.
+   * - `false` or omitted: `image` is used as the control map as-is, exactly as before this option existed.
+   *   Use this for ready-made depth maps, pose skeletons, edge maps and scribbles.
+   *
+   * Only affects the Stable Diffusion ControlNet types. InstantID always uses the face photo as given,
+   * and `inpaint` / `instrp2p` always use the image as given.
+   */
+  preprocess?: boolean;
 }
 
 /**

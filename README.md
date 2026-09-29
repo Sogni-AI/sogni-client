@@ -910,6 +910,10 @@ To use ControlNet in your project, you need to provide `controlNet` object with 
   - `cn_priority` - the controlnet model has more impact than the prompt
 - `guidanceStart` - step when ControlNet first applied, 0 means first step, 1 means last step. Must be less than guidanceEnd
 - `guidanceEnd` - step when ControlNet last applied, 0 means first step, 1 means last step. Must be greater than guidanceStart
+- `preprocess` - `true` makes the worker generate the control map from `image`, so you can pass an ordinary photo
+  (edges for `canny`, a depth map for `depth`, a pose skeleton for `openpose`, and so on). Default `false` uses `image`
+  as the control map as-is: pass ready-made depth maps, pose skeletons, edge maps and scribbles this way. Only affects
+  the Stable Diffusion ControlNet types; `instantid`, `inpaint` and `instrp2p` always use the image as given.
 
 Example:
 
@@ -926,6 +930,26 @@ const project = await sogni.projects.create({
   controlNet: {
     name: 'instrp2p',
     image: cnImage
+  }
+});
+```
+
+Example with an ordinary photo, letting the worker make the depth map:
+
+```javascript
+const photo = fs.readFileSync('./living-room.jpg');
+const project = await sogni.projects.create({
+  type: 'image',
+  network: 'fast',
+  modelId: 'coreml-cyberrealistic_v70_768',
+  numberOfMedia: 1,
+  positivePrompt: 'a cozy cabin interior, warm evening light',
+  steps: 20,
+  guidance: 7.5,
+  controlNet: {
+    name: 'depth',
+    image: photo,
+    preprocess: true
   }
 });
 ```
@@ -958,6 +982,7 @@ export interface ControlNetParams {
   mode?: ControlNetMode;
   guidanceStart?: number;
   guidanceEnd?: number;
+  preprocess?: boolean;
 }
 ```
 

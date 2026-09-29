@@ -1187,6 +1187,15 @@ function getControlNet(params: ControlNetParams): ControlNetParamsRaw[] {
       propertyName: 'guidanceEnd'
     });
   }
+  if (params.preprocess !== undefined) {
+    if (typeof params.preprocess !== 'boolean') {
+      throw new Error('controlNet.preprocess must be a boolean');
+    }
+    // Sent only when true, so requests without it stay identical to before.
+    if (params.preprocess) {
+      cn.preprocess = true;
+    }
+  }
   return [cn];
 }
 

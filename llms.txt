@@ -221,10 +221,15 @@ errors stop project submission. Older servers retain ordinary project uploads.
     name: 'canny' | 'depth' | 'openpose' | 'lineart' | ...,
     image: imageBuffer,
     strength: 0.8,
-    mode: 'balanced' | 'prompt_priority' | 'cn_priority'
+    mode: 'balanced' | 'prompt_priority' | 'cn_priority',
+    preprocess: true // worker makes the control map from a photo; omit to pass a ready-made map
   }
 }
 ```
+
+`preprocess: true` turns an ordinary photo into the control map on the worker. Omitted or `false`, the image is
+used as the control map as-is (ready-made depth maps, pose skeletons, edge maps, scribbles). InstantID, `inpaint`
+and `instrp2p` always use the image as given.
 
 ### Notable Image Models
 
