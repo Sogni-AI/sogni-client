@@ -24,8 +24,10 @@ import {
   defaultBillingMode,
   parseBillingModeArg
 } from './workflow-helpers.mjs';
+import { CONFIRM_VENDOR_SPEND_FLAG, confirmVendorSpend } from './vendor-spend.mjs';
 
-const DEFAULT_IMAGE_MODEL = 'gpt-image-2';
+// Our own GPU model by default; vendor models such as gpt-image-2 need --confirm-vendor-spend.
+const DEFAULT_IMAGE_MODEL = 'krea-2-turbo';
 const DEFAULT_VIDEO_MODEL = 'ltx23';
 
 function parseArgs() {
@@ -48,7 +50,8 @@ function parseArgs() {
     events: undefined,
     stream: undefined,
     cancel: undefined,
-    watch: false
+    watch: false,
+    confirmVendorSpend: false
   };
 
   const positional = [];
@@ -72,6 +75,8 @@ function parseArgs() {
       options.cancel = args[++i];
     } else if (arg === '--watch') {
       options.watch = true;
+    } else if (arg === CONFIRM_VENDOR_SPEND_FLAG) {
+      options.confirmVendorSpend = true;
     } else if (arg === '--video-prompt' && args[i + 1]) {
       options.videoPrompt = args[++i];
     } else if (arg === '--negative-prompt' && args[i + 1]) {
@@ -123,6 +128,8 @@ Options:
   --image-model <model>   Creative-agent image model selector (default: ${DEFAULT_IMAGE_MODEL})
   --video-model <model>   Creative-agent video model selector (default: ${DEFAULT_VIDEO_MODEL})
                           Try: ltx23 or wan22
+  --confirm-vendor-spend  Acknowledge the vendor charge when either model is a
+                          third-party vendor model (e.g. gpt-image-2)
   --number <n>            Number of outputs (default: 1)
   --seed <n>              Seed
   --token-type <type>     spark or sogni (default from .env or spark)
@@ -224,6 +231,7 @@ async function main() {
       throw new Error('Prompt is required.');
     }
 
+    await confirmVendorSpend([options.imageModel, options.videoModel], options.confirmVendorSpend);
     console.log('Starting durable generated-keyframe video workflow...\n');
     const workflow = await sogni.workflows.start({
       tokenType: options.tokenType,

@@ -44,11 +44,13 @@ export {
 export type BackboneMediaType = 'image' | 'video' | 'audio';
 
 export type VideoWorkflow =
+  | 'upscale'
   | 't2v'
   | 'i2v'
   | 'flf2v'
   | 's2v'
   | 'ia2v'
+  | 'flfa2v'
   | 'a2v'
   | 'v2v'
   | 'r2v'
@@ -89,6 +91,8 @@ export interface SelectedBackboneModel {
 export const PREFERRED_MODEL_IDS = {
   image: {
     gptImage2: 'gpt-image-2',
+    gptImage25Sunburst: 'gpt-image-2.5-sunburst',
+    gptImage25Flare: 'gpt-image-2.5-flare',
     flux1Schnell: 'flux1-schnell-fp8',
     chromaFlash: 'chroma-v.46-flash_fp8',
     zTurbo: 'z_image_turbo_bf16',
@@ -140,10 +144,23 @@ export const PREFERRED_MODEL_IDS = {
     minimaxH3FastH3TurboT2v: 'minimax-h3-fastvideo-int8_t2v_turbo',
     minimaxH3FastH3TurboI2v: 'minimax-h3-fastvideo-int8_i2v_turbo',
     minimaxH3FastH3TurboFlf2v: 'minimax-h3-fastvideo-int8_flf2v_turbo',
+    minimaxH3FastH3TurboIa2v: 'minimax-h3-fastvideo-int8_ia2v_turbo',
+    minimaxH3FastH3TurboFlfa2v: 'minimax-h3-fastvideo-int8_flfa2v_turbo',
+    minimaxH3FastH3TurboA2v: 'minimax-h3-fastvideo-int8_a2v_turbo',
+    minimaxH3FastH3TwoStageT2v: 'minimax-h3-fastvideo-int8_t2v_turbo_2stage',
+    minimaxH3FastH3TwoStageI2v: 'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
+    minimaxH3FastH3TwoStageFlf2v: 'minimax-h3-fastvideo-int8_flf2v_turbo_2stage',
+    minimaxH3FastH3TwoStageIa2v: 'minimax-h3-fastvideo-int8_ia2v_turbo_2stage',
+    minimaxH3FastH3TwoStageFlfa2v: 'minimax-h3-fastvideo-int8_flfa2v_turbo_2stage',
+    minimaxH3FastH3TwoStageA2v: 'minimax-h3-fastvideo-int8_a2v_turbo_2stage',
     minimaxH3BalancedT2v: 'minimax-h3-fl2va-fp8_t2v_balanced',
     minimaxH3BalancedI2v: 'minimax-h3-fl2va-fp8_i2v_balanced',
     minimaxH3BalancedFlf2v: 'minimax-h3-fl2va-fp8_flf2v_balanced',
     minimaxH3BalancedR2v: 'minimax-h3-ref2va-fp8_r2v_balanced',
+    // Two-stage reference-to-video: the Standard or Balanced R2V request on its
+    // own id, rendered on the half canvas and delivered at 2x.
+    minimaxH3TwoStageR2v: 'minimax-h3-ref2va-fp8_r2v_2stage',
+    minimaxH3BalancedTwoStageR2v: 'minimax-h3-ref2va-fp8_r2v_balanced_2stage',
     animateMove: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
@@ -177,6 +194,7 @@ const GPT_IMAGE_MODEL_ALIASES = [
   'gpt-2-image',
   'gptimage2',
   'gpt-image2',
+  'gpt-image-2.0',
   'gpt-image-2'
 ];
 
@@ -187,10 +205,20 @@ function normalizeSelectorKey(value: string): string {
     .replace(/[_\s]+/g, '-');
 }
 
+const GPT_IMAGE_25_SELECTORS: Record<string, string> = {
+  'gpt-image-2.5-sunburst': PREFERRED_MODEL_IDS.image.gptImage25Sunburst,
+  'gpt-image-2.5-flare': PREFERRED_MODEL_IDS.image.gptImage25Flare,
+  'gpt-image-2.5': PREFERRED_MODEL_IDS.image.gptImage25Flare,
+  'gpt-image2.5': PREFERRED_MODEL_IDS.image.gptImage25Flare,
+  sunburst: PREFERRED_MODEL_IDS.image.gptImage25Sunburst,
+  flare: PREFERRED_MODEL_IDS.image.gptImage25Flare
+};
+
 const IMAGE_MODEL_SELECTORS: Record<string, string> = {
   ...Object.fromEntries(
     GPT_IMAGE_MODEL_ALIASES.map((alias) => [alias, PREFERRED_MODEL_IDS.image.gptImage2])
   ),
+  ...GPT_IMAGE_25_SELECTORS,
   'z-turbo': 'z_image_turbo_bf16',
   'krea-2-turbo': 'krea2_turbo_fp8_scaled',
   'krea2-turbo': 'krea2_turbo_fp8_scaled',
@@ -228,6 +256,7 @@ const EDIT_IMAGE_MODEL_SELECTORS: Record<string, string> = {
   ...Object.fromEntries(
     GPT_IMAGE_MODEL_ALIASES.map((alias) => [alias, PREFERRED_MODEL_IDS.image.gptImage2])
   ),
+  ...GPT_IMAGE_25_SELECTORS,
   'qwen-lightning': 'qwen_image_edit_2511_fp8_lightning',
   qwen: 'qwen_image_edit_2511_fp8',
   'krea-2-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
@@ -256,11 +285,15 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-t2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v,
   'minimax-h3-fasth3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboT2v,
   'minimax-h3-fasth3-t2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboT2v,
+  'minimax-h3-fasth3-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageT2v,
+  'minimax-h3-fasth3-t2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageT2v,
   'minimax-h3-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedT2v,
   'minimax-h3-t2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedT2v,
   'minimax-h3-r2v': PREFERRED_MODEL_IDS.video.minimaxH3R2v,
   'minimax-h3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v,
   'minimax-h3-r2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedR2v,
+  'minimax-h3-r2v-2stage': PREFERRED_MODEL_IDS.video.minimaxH3TwoStageR2v,
+  'minimax-h3-r2v-balanced-2stage': PREFERRED_MODEL_IDS.video.minimaxH3BalancedTwoStageR2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseT2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseT2v,
   wan3: PREFERRED_MODEL_IDS.video.wan3,
@@ -286,12 +319,17 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-fasth3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboI2v,
   'minimax-h3-fasth3-i2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboI2v,
   'minimax-h3-fasth3-flf2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboFlf2v,
+  'minimax-h3-fasth3-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageI2v,
+  'minimax-h3-fasth3-i2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageI2v,
+  'minimax-h3-fasth3-flf2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageFlf2v,
   'minimax-h3-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedI2v,
   'minimax-h3-i2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedI2v,
   'minimax-h3-flf2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedFlf2v,
   'minimax-h3-r2v': PREFERRED_MODEL_IDS.video.minimaxH3R2v,
   'minimax-h3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboR2v,
   'minimax-h3-r2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedR2v,
+  'minimax-h3-r2v-2stage': PREFERRED_MODEL_IDS.video.minimaxH3TwoStageR2v,
+  'minimax-h3-r2v-balanced-2stage': PREFERRED_MODEL_IDS.video.minimaxH3BalancedTwoStageR2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse-1.1-i2v': PREFERRED_MODEL_IDS.video.happyhorseI2v,
@@ -321,6 +359,15 @@ const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'ltx25-a2v': PREFERRED_MODEL_IDS.video.ltx25A2vDistilled,
   'ltx23-ia2v': PREFERRED_MODEL_IDS.video.ia2v,
   'ltx23-a2v': PREFERRED_MODEL_IDS.video.a2v,
+  // MiniMax H3 FastH3 audio guide. These live here rather than with the image
+  // selectors because only the audio-bearing tool can supply the required
+  // referenceAudio. The two-stage selectors mirror the FastH3 two-stage naming.
+  'minimax-h3-fasth3-ia2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboIa2v,
+  'minimax-h3-fasth3-flfa2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboFlfa2v,
+  'minimax-h3-fasth3-a2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboA2v,
+  'minimax-h3-fasth3-ia2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageIa2v,
+  'minimax-h3-fasth3-flfa2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageFlfa2v,
+  'minimax-h3-fasth3-a2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageA2v,
   wan3: PREFERRED_MODEL_IDS.video.wan3,
   'wan3.0': PREFERRED_MODEL_IDS.video.wan3,
   'wan3-video': PREFERRED_MODEL_IDS.video.wan3
@@ -507,6 +554,8 @@ export function serializeUnknownError(error: unknown, fallback = 'Unknown error'
 export function isEditImageModel(modelId: string): boolean {
   return (
     modelId === PREFERRED_MODEL_IDS.image.gptImage2 ||
+    modelId === PREFERRED_MODEL_IDS.image.gptImage25Sunburst ||
+    modelId === PREFERRED_MODEL_IDS.image.gptImage25Flare ||
     isQwenImageEditModel(modelId) ||
     isKreaIdentityEditModel(modelId)
   );
@@ -573,12 +622,8 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
   }
-  // Seedance Mini and 2.5 cap at 720p; the retired Fast id keeps the same cap. Only full Seedance 2.0 goes higher.
-  if (
-    modelId === 'seedance-2-0-mini' ||
-    modelId === 'seedance-2-0-fast' ||
-    modelId === 'seedance-2-5'
-  ) {
+  // Seedance Mini and the retired Fast id cap at 720p. Seedance 2.0 and 2.5 default to 1080p.
+  if (modelId === 'seedance-2-0-mini' || modelId === 'seedance-2-0-fast') {
     return { width: 1280, height: 720, fps: 24 };
   }
   if (isSeedance || isHappyhorse) {

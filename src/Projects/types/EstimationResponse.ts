@@ -4,6 +4,11 @@ export interface EstimationResponse {
   quote: Quote;
   /** Present only when the server has enough live samples for this exact model/settings combination. */
   benchmark?: Benchmark;
+  /**
+   * Share of the caller's daily fair-use capacity the project would draw, sent
+   * only to a signed-in subscriber whose plan covers the project on Fast.
+   */
+  dailyFairUse?: { pct: number };
 }
 
 export interface Benchmark {

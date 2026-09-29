@@ -1,4 +1,7 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
+import { MessageDeliveryUncertainError } from '../ApiClient/WebSocketClient/requestDelivery.js';
+import ReusableUploads from './ReusableUploads.js';
+import { captureRequestSession } from '../lib/requestSession.js';
 import {
   AvailableModel,
   EnhancementStrength,
@@ -22,6 +25,7 @@ import {
   JobETAData,
   JobProgressData,
   JobResultData,
+  JobRetryData,
   JobStateData,
   type ProjectRecoverySnapshot,
   type RecoveredProject,
@@ -35,7 +39,10 @@ import {
   isRecoveredJobFinished,
   projectParamsFromRecoveredProject
 } from './recovery.js';
-import createJobRequestMessage from './createJobRequestMessage.js';
+import createJobRequestMessage, {
+  type JobRequestRaw,
+  rejectRetiredOutputScale
+} from './createJobRequestMessage.js';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import { EstimationResponse } from './types/EstimationResponse.js';
 import {
@@ -44,6 +51,7 @@ import {
   LoraCatalogEntry,
   LoraConstraints
 } from './types/LoraCatalog.js';
+import PersonalLoras from './PersonalLoras.js';
 import {
   type CompletedRecoveredProject,
   JobEvent,
@@ -54,28 +62,35 @@ import {
 } from './types/events.js';
 import getUUID from '../lib/getUUID.js';
 import { RawProject } from './types/RawProject.js';
+import type { WaitingReason } from './types/WaitingReason.js';
 import ErrorData from '../types/ErrorData.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 import Cache from '../lib/Cache.js';
-import { enhancementDefaults } from './Job.js';
+import Job, { enhancementDefaults } from './Job.js';
 import {
   calculateVideoFrames,
   getEnhacementStrength,
   getVideoAssetRequirements,
   getVideoContextImageSlots,
+  getPixal3dOrbitViewSlots,
+  getMinimaxH3KeyframeSlots,
   getMinimaxH3ReferenceAudioSlots,
   getMinimaxH3ReferenceVideoSlots,
   getVideoWorkflowType,
+  asResultMediaKind,
   isAudioModel,
   isModelArtifactModel,
   isMinimaxH3ReferenceModel,
   isSegmentationModel,
   isVideoModel,
+  resultMediaEvidence,
+  type ResultMediaEvidence,
+  type ResultMediaKind,
   usesReferenceMask
 } from './utils/index.js';
 import { TokenType } from '../types/token.js';
 import type { JobProvenance } from './types/JobProvenance.js';
-import { getMaxContextImages, validateSampler } from '../lib/validation.js';
+import { getMaxContextImages, validateSampler, isGptImageModel } from '../lib/validation.js';
 import ModelTiersRaw, {
   isAudioTier,
   isComfyImageTier,
@@ -97,6 +112,12 @@ import {
  */
 type ContextImageIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
+/**
+ * 1-based MiniMax H3 `keyframeImage<n>` upload slot, one per intermediate
+ * keyframe (`MINIMAX_H3_MAX_KEYFRAMES`).
+ */
+type KeyframeImageSlot = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
 const sizePresetCache = new Cache<SizePreset[]>(10 * 60 * 1000);
 // The LoRA catalog changes whenever a LoRA is published or a strength range is
 // retuned, and the server serves it `no-cache` for exactly that reason. Five
@@ -114,6 +135,29 @@ const DEFAULT_LORA_CONSTRAINTS: LoraConstraints = {
   maxStrength: 100
 };
 const GARBAGE_COLLECT_TIMEOUT = 30000;
+/**
+ * How many results the image endpoint reported as media are remembered, so a
+ * later URL request for one goes straight to the media endpoint. Bounded so a
+ * long-lived client cannot grow it without limit.
+ */
+const MEDIA_RESULT_MEMORY = 1000;
+
+/**
+ * The image download endpoint's answer for a result that is provably video or
+ * audio: 404 "This result is media, not an image; request it from
+ * /v1/media/downloadUrl". Any other image failure is not this and must not be
+ * retried on the media endpoint.
+ */
+function isMediaResultRefusal(error: unknown): boolean {
+  const candidate = error as {
+    status?: unknown;
+    message?: unknown;
+    payload?: { message?: unknown };
+  };
+  if (!candidate || candidate.status !== 404) return false;
+  const message = candidate.payload?.message ?? candidate.message;
+  return typeof message === 'string' && message.includes('/v1/media/downloadUrl');
+}
 
 const JOB_PROVENANCE_HASH_FIELDS = [
   'sha256',
@@ -319,6 +363,14 @@ const AUTHENTICATED_GRACE_MS = 1500;
  * as missing.
  */
 const RECENTLY_CREATED_GRACE_MS = 5000;
+/**
+ * Close code the socket also sends as a project `jobError` when a request
+ * reaches it while it is shutting down: the project was never admitted
+ * (nothing queued, nothing charged) and can be sent again after reconnect.
+ */
+const SERVER_RESTARTING_ERROR_CODE = 1001;
+/** How long a rejected-while-restarting project waits for a connection to resubmit on. */
+const RESUBMIT_RECONNECT_TIMEOUT_MS = 60000;
 /** Retries for the REST lookup of a project the socket no longer lists. */
 const MISSING_PROJECT_ATTEMPTS = 4;
 const MISSING_PROJECT_RETRY_MS = 2500;
@@ -327,29 +379,225 @@ const MISSING_PROJECT_RETRY_MS = 2500;
  * Outcome of looking up a project the last snapshot did not list.
  *
  * - `finished`: the REST API has the completed record.
+ * - `terminal`: the owner's status lookup confirms failure or cancellation;
+ *   the full result record can be absent. Only snapshot fields are available.
  * - `active`: the socket lists it after all (it was registered after the
- *   snapshot was taken); wait for live events.
- * - `lost`: neither the socket nor the REST API know it.
- * - `unknown`: a transport error prevented a verdict; nothing was changed.
+ *   snapshot was taken), or the owner's live lookup reports it pending, queued
+ *   or processing; wait for live events.
+ * - `lost`: neither the socket, the REST API nor the live lookup know it.
+ * - `unknown`: a transport error prevented a verdict, or a successful completion
+ *   is waiting for its full result record; nothing was changed.
  */
 export type ProjectResolution =
   | { state: 'finished'; project: RawProject }
+  | {
+      state: 'terminal';
+      project: ProjectStatusSnapshot & { status: 'failed' | 'canceled'; finished: true };
+    }
   | { state: 'active' }
   | { state: 'lost' }
   | { state: 'unknown'; error: unknown };
 
+/**
+ * Lifecycle state reported by {@link ProjectsApi.getStatus}. These are the
+ * server's normalized names, not the raw `RawProject.status` values: `pending`
+ * (awaiting authorization), `queued`, `processing`, and the finished states
+ * `completed`, `failed` and `canceled`.
+ */
+export type ProjectLookupStatus =
+  | 'pending'
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'canceled';
+
+/**
+ * One of the caller's own projects as the live lookup reports it. Only `id`,
+ * `status`, `finished` and the two job arrays are guaranteed; the remaining
+ * {@link RawProject} fields can be absent for a project whose full record the
+ * server has not stored yet.
+ */
+export type ProjectStatusSnapshot = Partial<
+  Omit<RawProject, 'status' | 'workerJobs' | 'completedWorkerJobs'>
+> & {
+  id: string;
+  status: ProjectLookupStatus;
+  /** `true` for `completed`, `failed` and `canceled`. */
+  finished: boolean;
+  workerJobs: RawProject['workerJobs'];
+  completedWorkerJobs: RawProject['completedWorkerJobs'];
+};
+
+const IN_FLIGHT_LOOKUP_STATUSES: ReadonlySet<string> = new Set(['pending', 'queued', 'processing']);
+
+/**
+ * One render of a project returned by {@link ProjectsApi.getResult}.
+ */
+export interface ProjectResultJob {
+  /** The render's result id (the `imgID` of its events). */
+  id: string;
+  /**
+   * `completed`, `failed` or `canceled` once it has finished; otherwise the
+   * worker job's in-flight status (`queued`, `assigned`, `jobStarted`, ...).
+   */
+  status: string;
+  /** Why a failed or cancelled render ended, e.g. `genfailure` or `artistCanceled`. */
+  reason?: string;
+  /** What the result is, when it is known. */
+  kind?: ResultMediaKind;
+  /** Signed download URL for a completed render's media. It expires; fetch a new one when it does. */
+  url?: string;
+  /**
+   * Why a completed render has no `url`: `sensitiveContent` when the Sensitive
+   * Content Filter withheld it, `unknownMediaKind` when neither the model nor
+   * the result says what media it is, `downloadUrlFailed` when the API refused
+   * or failed to sign one (retry later).
+   */
+  urlUnavailable?: 'sensitiveContent' | 'unknownMediaKind' | 'downloadUrlFailed';
+  /** Seed the render used, when recorded. */
+  seed?: number;
+}
+
+/**
+ * One of this account's projects as {@link ProjectsApi.getResult} sees it:
+ * its current state, why it is still waiting if it is, and every render with
+ * a download URL for the ones that completed.
+ */
+export interface ProjectResult {
+  id: string;
+  status: ProjectLookupStatus;
+  /** `true` for `completed`, `failed` and `canceled`. */
+  finished: boolean;
+  modelId?: string;
+  /**
+   * While it is still queued: the server's explanation, e.g. the account's own
+   * plan concurrency limit (`concurrency_limit`, `model_concurrency_limit`)
+   * rather than a shortage of workers (`no_workers`). Absent when the server
+   * did not report one.
+   */
+  waitingReason?: WaitingReason | null;
+  jobs: ProjectResultJob[];
+}
+
+/** A render of a project returned by {@link ProjectsApi.listRecent}. */
+export interface RecentProjectJob {
+  /** The render's result id; pass the project id to {@link ProjectsApi.getResult} for its URL. */
+  id: string;
+  status: string;
+  /** The Sensitive Content Filter withheld this render's media. */
+  sensitiveContentWithheld: boolean;
+  /** Milliseconds since the epoch. */
+  finishedAt?: number;
+}
+
+/** A project returned by {@link ProjectsApi.listRecent}. */
+export interface RecentProject {
+  id: string;
+  modelId?: string;
+  modelName?: string;
+  /** The app that submitted it, when recorded (e.g. `sogni-creative-agent-skill`). */
+  appSource?: string;
+  /** When its latest render finished, in milliseconds since the epoch. */
+  finishedAt?: number;
+  jobs: RecentProjectJob[];
+}
+
+export interface ListRecentProjectsOptions {
+  /**
+   * Oldest finish time to include, as a `Date` or milliseconds since the epoch.
+   * Defaults to 24 hours ago. The history keeps 7 days, so anything older is
+   * read as 7 days ago.
+   */
+  since?: Date | number;
+  /** Renders to read, 1-100 (default 50). Projects are grouped from these. */
+  limit?: number;
+  /** Only projects submitted by this app source. */
+  appSource?: string;
+}
+
+const RECENT_PROJECTS_DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
+// The history API refuses a media-only lookup reaching back more than 7 days;
+// stay a minute inside it so a slow clock cannot turn a 7-day request into a 400.
+const RECENT_PROJECTS_MAX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000 - 60 * 1000;
+
+interface RecentJobRecord {
+  id: string;
+  imgID?: string | null;
+  status?: string;
+  reason?: string;
+  endTime?: number;
+  triggeredNSFWFilter?: boolean;
+  nsfwDetected?: boolean;
+  parentRequest?: {
+    id?: string;
+    appSource?: string;
+    model?: { id?: string; name?: string };
+  };
+}
+
+/** A worker job's status in the names {@link ProjectResultJob} uses. */
+function resultJobStatus(job: { status?: string; reason?: string }): string {
+  if (job.status === 'jobCompleted') return 'completed';
+  if (job.status === 'jobError') return job.reason === 'artistCanceled' ? 'canceled' : 'failed';
+  return job.status || 'unknown';
+}
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 class ProjectsApi extends ApiGroup<ProjectApiEvents> {
+  private _personalLoras?: PersonalLoras;
+  /** Import, inspect, discover, and remove the signed-in account's personal LoRAs. */
+  get personalLoras(): PersonalLoras {
+    return (this._personalLoras ??= new PersonalLoras(this.client.rest));
+  }
+  private _assets?: ReusableUploads;
+  /** Manage subscriber uploads once and reuse them across projects. */
+  get assets(): ReusableUploads {
+    return (this._assets ??= new ReusableUploads(this.client.rest));
+  }
   private _availableModels: AvailableModel[] = [];
   private _currentNetworkType: SupernetType | null = null;
   private projects: Project[] = [];
+  private _preparingSessions = new Map<string, () => void>();
   private cancellationRequests = new Map<string, Promise<void>>();
   private transportDisconnected = false;
   private _connectedAt = 0;
   private _authenticatedTimer: ReturnType<typeof setTimeout> | null = null;
   private _syncChain: Promise<unknown> = Promise.resolve();
   private _recoveredCompletedIds = new Set<string>();
+  private _recheckTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Requests sent but not yet acknowledged by any server frame. Kept so a
+   * request the socket refused while restarting can be sent again unchanged.
+   */
+  private _unadmittedRequests = new Map<string, JobRequestRaw>();
+  private _requestSessions = new WeakMap<JobRequestRaw, () => void>();
+  /** Projects waiting for a reconnect to be resubmitted on. */
+  private _awaitingResubmit = new Set<string>();
+  private _resubmitWaiters = new Set<() => void>();
+  /** When each resubmitted project was last sent, for the recently-created grace. */
+  private _resubmittedAt = new Map<string, number>();
+  /** Bumped on every transport loss; tells a frame sent before a drop from one sent after. */
+  private _transportGeneration = 0;
+  /**
+   * The transport generation each request was written on, for requests whose
+   * send completed. A request written on a connection that has since dropped
+   * and that the server never saw died with that connection.
+   */
+  private _sentOnGeneration = new Map<string, number>();
+  /**
+   * Renders the server announced it moved to another worker (`jobRetry`), still
+   * waiting for that worker's first frame. Only consulted when a frame arrives
+   * with no `jobIndex` to match on; see {@link ProjectsApi.findReassignedJob}.
+   */
+  private _awaitingReassignment = new WeakSet<Job>();
+  /**
+   * Results (`<projectId>/<jobId>`) the image endpoint reported as media. Their
+   * URLs come from the media endpoint only; the image endpoint is not asked
+   * for them again.
+   */
+  private _mediaResultIds = new Set<string>();
   /**
    * Recovery timings. Overridable so regression scripts can run the flow in
    * milliseconds instead of seconds.
@@ -383,11 +631,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * falls back to model ID prefix check if models aren't loaded yet.
    */
   isVideoModelId(modelId: string): boolean {
-    const model = this._supportedModels.data?.find((m) => m.id === modelId);
-    if (model) {
-      return model.media === 'video';
-    }
-    // Fallback to prefix check if models not loaded
+    const media = this._catalogMediaKind(modelId);
+    if (media) return media === 'video';
+    // The catalog is not loaded, does not list the model, or gives it no kind.
     return isVideoModel(modelId);
   }
 
@@ -397,10 +643,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * falls back to model ID prefix check if models aren't loaded yet.
    */
   isAudioModelId(modelId: string): boolean {
-    const model = this._supportedModels.data?.find((m) => m.id === modelId);
-    if (model) {
-      return model.media === 'audio';
-    }
+    const media = this._catalogMediaKind(modelId);
+    if (media) return media === 'audio';
     return isAudioModel(modelId);
   }
 
@@ -419,8 +663,101 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   isModelArtifactModelId(modelId: string): boolean {
     if (isModelArtifactModel(modelId)) return true;
+    return this._catalogMediaKind(modelId) === 'model';
+  }
+
+  /**
+   * The media kind the loaded catalog declares for a model, or `undefined`
+   * when the catalog is not loaded, does not list the model, or lists it with
+   * no kind this SDK knows. A missing kind is no evidence; it never reads as
+   * `image`.
+   */
+  private _catalogMediaKind(modelId: string): ResultMediaKind | undefined {
     const model = this._supportedModels.data?.find((m) => m.id === modelId);
-    return model ? model.media === 'model' : false;
+    return asResultMediaKind(model?.media);
+  }
+
+  /**
+   * What a finished job's result is, from the evidence this client holds,
+   * strongest first: the Pixal3D artifact rule, the catalog's media kind, the
+   * SDK's own model-id knowledge, what the result frame says it uploaded, and
+   * finally the type the project was created with. Returns `undefined` when
+   * none of these says anything, which is the case for a result that arrives
+   * for a project this client does not track and whose frame names no kind.
+   *
+   * @internal
+   */
+  _resultMediaKind(evidence: {
+    modelId?: string;
+    projectType?: string;
+    result?: ResultMediaEvidence;
+  }): ResultMediaKind | undefined {
+    const { modelId } = evidence;
+    if (modelId) {
+      if (isModelArtifactModel(modelId)) return 'model';
+      const catalog = this._catalogMediaKind(modelId);
+      if (catalog) return catalog;
+      if (isVideoModel(modelId)) return 'video';
+      if (isAudioModel(modelId)) return 'audio';
+    }
+    if (evidence.result) return evidence.result.kind;
+    return asResultMediaKind(evidence.projectType);
+  }
+
+  /**
+   * Mint a signed download URL for a finished job's result from the endpoint
+   * its kind needs: images from `/v1/image/downloadUrl`, video, audio and 3D
+   * artifacts from `/v1/media/downloadUrl`.
+   *
+   * When the image endpoint answers that the result is media, this asks the
+   * media endpoint once and remembers the result, so the image endpoint is
+   * never asked for it again. Any other failure is thrown unchanged.
+   *
+   * @internal
+   */
+  async _mintResultUrl(target: {
+    projectId: string;
+    jobId: string;
+    kind: ResultMediaKind;
+    audioContentType?: string;
+    imageContentType?: string;
+  }): Promise<string> {
+    const { projectId, jobId, kind } = target;
+    const key = `${projectId}/${jobId}`;
+    if (kind === 'image' && !this._mediaResultIds.has(key)) {
+      try {
+        return await this.downloadUrl({
+          jobId: projectId,
+          imageId: jobId,
+          type: 'complete',
+          ...(target.imageContentType ? { contentType: target.imageContentType } : {})
+        });
+      } catch (error) {
+        if (!isMediaResultRefusal(error)) throw error;
+        this._rememberMediaResult(key);
+        this.client.logger.debug(
+          `Image endpoint reported result ${key} as media; requesting it from the media endpoint`
+        );
+      }
+    }
+    return this.mediaDownloadUrl({
+      jobId: projectId,
+      id: jobId,
+      type: 'complete',
+      ...(kind === 'audio' && target.audioContentType
+        ? { contentType: target.audioContentType }
+        : {}),
+      ...(kind === 'model' ? { contentType: 'model/gltf-binary' } : {})
+    });
+  }
+
+  private _rememberMediaResult(key: string) {
+    this._mediaResultIds.delete(key);
+    this._mediaResultIds.add(key);
+    if (this._mediaResultIds.size > MEDIA_RESULT_MEMORY) {
+      const oldest = this._mediaResultIds.values().next().value;
+      if (oldest !== undefined) this._mediaResultIds.delete(oldest);
+    }
   }
 
   constructor(config: ApiConfig) {
@@ -429,15 +766,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
     this.client.socket.on('swarmModels', this.handleSwarmModels.bind(this));
     this.client.socket.on('jobState', this.handleJobState.bind(this));
+    this.client.socket.on('projectQueue', this.handleProjectQueue.bind(this));
     this.client.socket.on('jobProgress', this.handleJobProgress.bind(this));
     this.client.socket.on('jobETA', this.handleJobETA.bind(this));
     this.client.socket.on('jobError', this.handleJobError.bind(this));
+    this.client.socket.on('jobRetry', this.handleJobRetry.bind(this));
     this.client.socket.on('jobResult', (data: any) => {
       this.handleJobResult(data).catch((err) => {
         this.client.logger.error('Error in handleJobResult:', err);
       });
     });
-    // Listen to the server disconnect event
+    // Listen to the server disconnect event. `connecting` is a recoverable
+    // drop (the client is reconnecting); `disconnected` is terminal.
+    this.client.on('connecting', this.handleTransportLost.bind(this));
     this.client.on('disconnected', this.handleServerDisconnected.bind(this));
     this.client.on('connected', this.handleServerConnected.bind(this));
     this.client.socket.on('authenticated', (data: AuthenticatedData) => {
@@ -446,6 +787,33 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // Listen to project and job events and update project and job instances
     this.on('project', this.handleProjectEvent.bind(this));
     this.on('job', this.handleJobEvent.bind(this));
+    let sessionVersion = this.client.auth?.sessionVersion;
+    const clearPreviousSession = () => {
+      if (sessionVersion === this.client.auth?.sessionVersion) return;
+      sessionVersion = this.client.auth?.sessionVersion;
+      this.projects.forEach((project) =>
+        project._dispose({
+          code: 0,
+          message:
+            'This client stopped tracking the project because its account session ended. ' +
+            'The project may still be running. Check its original account before submitting again.'
+        })
+      );
+      this.projects = [];
+      this._unadmittedRequests.clear();
+      for (const stopWaiting of this._resubmitWaiters) stopWaiting();
+      this._awaitingResubmit.clear();
+      this._resubmittedAt.clear();
+      this._sentOnGeneration.clear();
+      this._recoveredCompletedIds.clear();
+      this._syncChain = Promise.resolve();
+      this.cancellationRequests.clear();
+      this._clearAuthenticatedTimer();
+      if (this._recheckTimer) clearTimeout(this._recheckTimer);
+      this._recheckTimer = null;
+    };
+    this.client.auth?.on('updated', clearPreviousSession);
+    this.client.auth?.on('sessionChanged', clearPreviousSession);
   }
 
   /**
@@ -510,6 +878,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private handleJobState(data: JobStateData) {
+    this._unadmittedRequests.delete(data.jobID);
     switch (data.type) {
       case 'queued': {
         const estimatedStartSeconds =
@@ -564,6 +933,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private async handleJobProgress(data: JobProgressData) {
+    const assertSession = captureRequestSession(this.client.auth);
     const event: JobEvent = {
       type: 'progress',
       projectId: data.jobID,
@@ -582,14 +952,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         jobId: data.jobID,
         imageId: data.imgID,
         type: 'preview'
-      }).then((url) => {
-        this.emit('job', {
-          type: 'preview',
-          projectId: data.jobID,
-          jobId: data.imgID,
-          url
+      })
+        .then((url) => {
+          assertSession();
+          this.emit('job', {
+            type: 'preview',
+            projectId: data.jobID,
+            jobId: data.imgID,
+            url
+          });
+        })
+        .catch((error) => {
+          this.client.logger.debug('Project preview did not complete', error);
         });
-      });
     }
   }
 
@@ -603,7 +978,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private async handleJobResult(data: JobResultData) {
+    const assertSession = captureRequestSession(this.client.auth);
     const project = this.projects.find((p) => p.id === data.jobID);
+    if (project) this.clearJobQueueState(project, data.imgID);
     // `triggeredNSFWFilter` means the server withheld the media, so there is
     // nothing to mint a URL for. `nsfwDetected` is the opposite case: a signal
     // fired on a render the artist asked for with the filter off, the media
@@ -618,35 +995,37 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
     // If no resultUrl provided and NSFW check passes, generate download URL
     if (!downloadUrl && passNSFWCheck && !data.userCanceled) {
-      // Use media endpoint for video/audio models, image endpoint for image models
-      const isVideo = project && this.isVideoModelId(project.params.modelId);
-      const isAudio = project && this.isAudioModelId(project.params.modelId);
-      const isModelArtifact = project && this.isModelArtifactModelId(project.params.modelId);
-      const isMedia = isVideo || isAudio || isModelArtifact;
-      try {
-        if (isMedia) {
-          downloadUrl = await this.mediaDownloadUrl({
-            jobId: data.jobID,
-            id: data.imgID,
-            type: 'complete',
-            ...(isAudio && project ? { contentType: getAudioContentType(project) } : {}),
-            ...(isModelArtifact ? { contentType: 'model/gltf-binary' } : {})
+      const result = resultMediaEvidence(data);
+      const kind = this._resultMediaKind({
+        modelId: project?.params.modelId,
+        projectType: project?.params.type,
+        result
+      });
+      if (!kind) {
+        // A result for a project this client does not track (another tab's, or
+        // one recovery has not rebuilt yet) whose frame names no kind. Reading
+        // it as an image sent every such video and audio result to the image
+        // endpoint; the client that tracks the project mints its own URL.
+        this.client.logger.debug(
+          `No media kind for result ${data.jobID}/${data.imgID}; not requesting a download URL`
+        );
+      } else {
+        try {
+          downloadUrl = await this._mintResultUrl({
+            projectId: data.jobID,
+            jobId: data.imgID,
+            kind,
+            audioContentType: project ? getAudioContentType(project) : result?.contentType,
+            imageContentType: project ? getImageContentType(project) : undefined
           });
-        } else {
-          const imageContentType = project ? getImageContentType(project) : undefined;
-          downloadUrl = await this.downloadUrl({
-            jobId: data.jobID,
-            imageId: data.imgID,
-            type: 'complete',
-            ...(imageContentType ? { contentType: imageContentType } : {})
-          });
+        } catch (error: any) {
+          this.client.logger.error('Failed to generate download URL for job result');
+          this.client.logger.error(error);
         }
-      } catch (error: any) {
-        this.client.logger.error('Failed to generate download URL for job result');
-        this.client.logger.error(error);
       }
     }
 
+    assertSession();
     // Update the job directly with the result URL to prevent duplicate API calls
     let performedStepCount = data.performedStepCount;
     let seed = data.lastSeed !== undefined ? Number(data.lastSeed) : undefined;
@@ -666,6 +1045,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           step: performedStepCount,
           seed,
           resultUrl: downloadUrl,
+          lastFrameUrl: data.lastFrameUrl,
+          lastFrameKey: data.lastFrameKey,
+          outputFormat: data.outputFormat,
           // Unchanged meaning: the server withheld the media. The label for
           // media that WAS delivered is `nsfwDetected`, deliberately kept out of
           // this flag so upgrading the SDK changes no existing app's behaviour.
@@ -689,6 +1071,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       ...(typeof performedStepCount === 'number' ? { steps: performedStepCount } : {}),
       ...(typeof seed === 'number' && Number.isFinite(seed) ? { seed } : {}),
       resultUrl: downloadUrl,
+      lastFrameUrl: data.lastFrameUrl,
+      outputFormat: data.outputFormat,
       isNSFW: Boolean(data.triggeredNSFWFilter),
       nsfwDetected: data.nsfwDetected === true,
       nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
@@ -699,6 +1083,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private handleJobError(data: JobErrorData) {
     const errorCode = Number(data.error);
+    if (
+      !data.imgID &&
+      errorCode === SERVER_RESTARTING_ERROR_CODE &&
+      this._resubmitAfterReconnect(data.jobID, data.error_message)
+    ) {
+      return;
+    }
+    this._unadmittedRequests.delete(data.jobID);
     let error: ErrorData;
     if (!isNaN(errorCode)) {
       error = {
@@ -734,6 +1126,128 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
   }
 
+  /**
+   * The server gave up on this render's worker and put the SAME render back in
+   * the queue for another one, inside the same project.
+   *
+   * Handled entirely inside the SDK's own state and never emitted as a job
+   * event: surfaced as a job error it would fail a single-media project outright,
+   * which is exactly the render the server-side retry exists to save. The job
+   * goes back to waiting, and the next worker's first frame reclaims it by
+   * `jobIndex` (see {@link ProjectsApi.findReassignedJob}).
+   */
+  private handleJobRetry(data: JobRetryData) {
+    const project = data?.jobID && this.projects.find((p) => p.id === data.jobID);
+    if (!project || project.finished) return;
+    const jobIndex = typeof data.jobIndex === 'number' ? data.jobIndex : undefined;
+    const job =
+      (data.imgID ? project.job(data.imgID) : undefined) ??
+      (jobIndex !== undefined ? project.jobs.find((j) => j.jobIndex === jobIndex) : undefined);
+    if (!job || job.finished) return;
+    this.clearJobQueueState(project, job.id, jobIndex ?? job.jobIndex);
+    this._awaitingReassignment.add(job);
+    ProjectsApi.resetJobForNewAttempt(job, { status: 'pending', jobIndex });
+  }
+
+  /**
+   * The existing job a render that moved to another worker should come back to.
+   *
+   * A reassigned render keeps its place in the project but not its identity: the
+   * new worker mints a fresh `imgID`, which is what the SDK reports as `jobId`.
+   * The server moves renders on several paths -- a worker that failed, one that
+   * disconnected and never reclaimed its render, a personal LoRA that went away
+   * -- and only the failure path announces itself with `jobRetry`, so the match
+   * cannot rely on that frame alone.
+   *
+   * `jobIndex` is the render's stable position in the project and rides every
+   * `initiating` / `started` frame: an unfinished job already holding that index
+   * IS this render under the id its previous worker gave it. With no index on
+   * either side, the match falls back to a render explicitly announced as
+   * waiting, and only when it is the only one, so a frame can never take a
+   * sibling's job.
+   */
+  private findReassignedJob(project: Project, event: JobEvent): Job | undefined {
+    const unfinished = project.jobs.filter((job) => !job.finished);
+    if (!unfinished.length) return undefined;
+    const jobIndex = 'jobIndex' in event ? event.jobIndex : undefined;
+    if (typeof jobIndex === 'number') {
+      const byIndex = unfinished.find((job) => job.jobIndex === jobIndex);
+      if (byIndex) return byIndex;
+    }
+    const waiting = unfinished.filter(
+      (job) => this._awaitingReassignment.has(job) && job.jobIndex === undefined
+    );
+    return waiting.length === 1 ? waiting[0] : undefined;
+  }
+
+  /**
+   * Put a job back to the start of a render.
+   *
+   * Every number the abandoned worker reported described work that no longer
+   * exists. `step` in particular only ever moves forward (progress frames take a
+   * running maximum), so leaving it would pin the new attempt to the old one's
+   * high-water mark.
+   *
+   * The runtime budget is stopped as well. It is deliberately never reset by
+   * progress -- the first processing transition is the hard start of ONE worker
+   * job -- but a reassigned render is a different worker job. Left running, the
+   * departed worker's deadline expires during the queue wait and
+   * `_handleJobRuntimeTimeout` cancels the whole project on the server, retry
+   * included. The next processing transition arms a fresh deadline.
+   */
+  private static resetJobForNewAttempt(
+    job: Job,
+    { status, jobIndex }: { status?: 'pending'; jobIndex?: number } = {}
+  ) {
+    job._stopRuntimeTimeout();
+    job._update({
+      ...(status ? { status } : {}),
+      ...(jobIndex !== undefined ? { jobIndex } : {}),
+      step: 0,
+      workerName: undefined,
+      previewUrl: undefined,
+      externalProgress: undefined,
+      eta: undefined,
+      etaStartedAt: undefined,
+      etaSeconds: undefined,
+      etaRange: undefined
+    });
+  }
+
+  private handleProjectQueue(data: SocketEventMap['projectQueue']) {
+    const project = this.projects.find((item) => item.id === data?.jobID);
+    if (!project || project.finished) return;
+    project._queueRevision += 1;
+    project._setQueueState(data.waitingReason, data.jobWaitingReasons);
+  }
+
+  /** @internal */
+  _emitQueueChanged(project: Project) {
+    this.emit('queueChanged', {
+      projectId: project.id,
+      waitingReason: project.waitingReason ?? null,
+      jobWaitingReasons: project.jobWaitingReasons
+    });
+  }
+
+  private clearJobQueueState(
+    project: Project,
+    jobId: string,
+    jobIndex = project.job(jobId)?.jobIndex
+  ) {
+    project._queueRevision += 1;
+    const remaining = project.jobWaitingReasons.filter(
+      (row) =>
+        row.imgID?.toUpperCase() !== jobId.toUpperCase() &&
+        (jobIndex === undefined || row.jobIndex !== jobIndex)
+    );
+    if (
+      remaining.length !== project.jobWaitingReasons.length ||
+      project.waitingReason?.reason === 'payment_pending'
+    )
+      project._setQueueState(remaining[0]?.waitingReason ?? null, remaining);
+  }
+
   private handleProjectEvent(event: ProjectEvent) {
     let project = this.projects.find((p) => p.id === event.projectId);
     if (!project) {
@@ -741,6 +1255,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     switch (event.type) {
       case 'queued':
+        // The server only reports a project as queued while none of its renders
+        // is on a worker, so any runtime budget still running belongs to a
+        // render that was taken off its worker -- a disconnect reclaim or a
+        // personal-LoRA requeue, neither of which announces itself. Left
+        // running, that deadline would expire during the queue wait and cancel
+        // the project on the server before the render is ever picked back up.
+        project.jobs.forEach((job) => {
+          if (!job.finished) job._stopRuntimeTimeout();
+        });
         project._update({
           status: 'queued',
           queuePosition: event.queuePosition,
@@ -763,6 +1286,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         });
     }
     if (project.finished) {
+      this._unadmittedRequests.delete(project.id);
+      this._resubmittedAt.delete(project.id);
+      this._sentOnGeneration.delete(project.id);
       // Sync project data with the server and remove it from the list after some time
       project._syncToServer().catch((e) => {
         // 404 errors are expected when project is still initializing
@@ -784,6 +1310,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     let job = project.job(event.jobId);
     if (!job) {
+      // A render the server moved to another worker comes back under that
+      // worker's new id. It already has a job -- the one its abandoned attempt
+      // was tracked in -- so it reclaims that one instead of adding a second,
+      // which would leave the project with more jobs than it requested and an
+      // orphan whose runtime budget later cancels the project.
+      const reassigned = this.findReassignedJob(project, event);
+      if (reassigned) {
+        this._awaitingReassignment.delete(reassigned);
+        ProjectsApi.resetJobForNewAttempt(reassigned);
+        reassigned._update({ id: event.jobId });
+        job = reassigned;
+      }
+    }
+    if (!job) {
       job = project._addJob({
         id: event.jobId,
         projectId: event.projectId,
@@ -793,6 +1333,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       });
     }
     // Any job-level event means a worker has taken this project, so the queue wait is over.
+    const jobIndex = 'jobIndex' in event ? event.jobIndex : job.jobIndex;
+    this.clearJobQueueState(project, event.jobId, jobIndex);
     // Leaving a stale estimate on the project would keep a "starts in ~2 min" label on
     // screen next to a job that is already rendering.
     if (project.estimatedStartAt !== undefined || project.queueStatus !== undefined) {
@@ -909,6 +1451,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         break;
       }
       case 'error':
+        // Terminal jobs cannot be failed again by a delayed worker frame or
+        // by the API notification of a cancellation already applied locally.
+        if (job.finished) break;
         job._update({ status: 'failed', error: event.error });
         // Check if project should also fail when a job fails
         // For video jobs (single image) or when all jobs have failed, propagate to project
@@ -925,17 +1470,134 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
   }
 
-  private handleServerDisconnected() {
+  private handleTransportLost() {
     this.transportDisconnected = true;
+    this._transportGeneration++;
     this._clearAuthenticatedTimer();
-    this._availableModels = [];
-    this.emit('availableModels', this._availableModels);
     // A transport gap is not a project failure. The server keeps rendering and
     // hands the project back on reconnect (same app-id), so keep the tracked
     // projects alive and quiet until then.
     this.projects.forEach((p) => {
-      if (!p.finished) p._keepAlive();
+      if (!p.finished) {
+        p._queueRevision += 1;
+        p._setQueueState(null, []);
+        p._keepAlive();
+      }
     });
+  }
+
+  private handleServerDisconnected() {
+    this.handleTransportLost();
+    this._availableModels = [];
+    this.emit('availableModels', this._availableModels);
+  }
+
+  /**
+   * The socket refused this project because it was shutting down, so it never
+   * ran and nothing was charged. Send the same request again once the client
+   * has reconnected, once per project. Returns `false` when the project cannot
+   * be resubmitted and the error should surface as usual.
+   */
+  private _resubmitAfterReconnect(projectId: string, message: string): boolean {
+    const request = this._unadmittedRequests.get(projectId);
+    const project = this.projects.find((p) => p.id === projectId);
+    if (!request || !project || project.finished) return false;
+    const assertSession =
+      this._requestSessions.get(request) ?? captureRequestSession(this.client.auth);
+    try {
+      assertSession();
+    } catch {
+      return false;
+    }
+    // One resubmit per project: a second refusal surfaces as an error.
+    this._unadmittedRequests.delete(projectId);
+    this._awaitingResubmit.add(projectId);
+    project._keepAlive();
+    this.client.logger.info(
+      `Project ${projectId} reached the server while it was restarting; resubmitting after reconnect`
+    );
+    const fail = (error: unknown) => {
+      this._awaitingResubmit.delete(projectId);
+      this.client.logger.warn(`Resubmitting project ${projectId} failed`, error);
+      try {
+        assertSession();
+      } catch {
+        return;
+      }
+      this.emit('project', {
+        type: 'error',
+        projectId,
+        error: { code: SERVER_RESTARTING_ERROR_CODE, message }
+      });
+    };
+    // The refusal arrives just before the server closes this socket, so wait
+    // for the next connection instead of writing into the closing one.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const stopWaiting = () => {
+      offConnected();
+      if (timer) clearTimeout(timer);
+      timer = null;
+      this._resubmitWaiters.delete(stopWaiting);
+    };
+    const offConnected = this.client.on('connected', () => {
+      stopWaiting();
+      if (project.finished) {
+        this._awaitingResubmit.delete(projectId);
+        return;
+      }
+      const sent = () => {
+        this._awaitingResubmit.delete(projectId);
+        this._resubmittedAt.set(projectId, Date.now());
+        this._unadmittedRequests.set(projectId, request);
+        project._keepAlive();
+        this._scheduleRecheck(this._recoveryTuning.recentlyCreatedGraceMs);
+      };
+      const resubmit = async () => {
+        try {
+          assertSession();
+          try {
+            await this.client.socket.send('jobRequest', request);
+          } catch (error) {
+            // A missing browser ACK may still have been sent: let the recheck decide.
+            if (!(error instanceof MessageDeliveryUncertainError)) throw error;
+          }
+          assertSession();
+          sent();
+        } catch (error) {
+          fail(error);
+        }
+      };
+      void resubmit();
+    });
+    this._resubmitWaiters.add(stopWaiting);
+    timer = setTimeout(() => {
+      stopWaiting();
+      fail(new Error('No connection to resubmit on'));
+    }, RESUBMIT_RECONNECT_TIMEOUT_MS);
+    return true;
+  }
+
+  /**
+   * Reconcile again once projects that were too new (or still being
+   * resubmitted) at the last sync can be judged. Without this a project whose
+   * request died with the old socket is only caught by the slow staleness
+   * watchdog, minutes later.
+   */
+  private _scheduleRecheck(delayMs: number) {
+    if (this._recheckTimer) clearTimeout(this._recheckTimer);
+    this._recheckTimer = setTimeout(
+      () => {
+        this._recheckTimer = null;
+        this.sync('recheck').catch((error) => {
+          this.client.logger.warn('Project recheck sync failed', error);
+        });
+      },
+      Math.max(0, delayMs) + 250
+    );
+  }
+
+  private _lastSubmittedAt(project: Project): number {
+    return Math.max(project.startedAt.getTime(), this._resubmittedAt.get(project.id) ?? 0);
   }
 
   private handleServerConnected() {
@@ -994,11 +1656,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * Results are also broadcast as the `projectsSynced` event.
    */
   async sync(reason: ProjectSyncReason = 'manual'): Promise<ProjectSyncResult> {
+    const assertSession = captureRequestSession(this.client.auth);
     const requestedAt = Date.now();
+    const queueRevisions = this.captureQueueRevisions();
     const body = await this.client.socket.get<ProjectRecoverySnapshot>(
       '/api/v1/artist/projects/sync',
       { appId: this.client.appId }
     );
+    assertSession();
     const snapshot: ProjectRecoverySnapshot = {
       activeProjects: Array.isArray(body?.activeProjects) ? body.activeProjects : [],
       unclaimedCompletedProjects: Array.isArray(body?.unclaimedCompletedProjects)
@@ -1006,7 +1671,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         : [],
       ...(typeof body?.serverTime === 'number' ? { serverTime: body.serverTime } : {})
     };
-    return this._queueSync(snapshot, reason, requestedAt);
+    return this._queueSync(snapshot, reason, requestedAt, queueRevisions);
   }
 
   /**
@@ -1051,18 +1716,22 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     projectIds: string[],
     options: { attempts?: number; delayMs?: number } = {}
   ): Promise<Record<string, ProjectResolution>> {
+    const assertSession = captureRequestSession(this.client.auth);
     const attempts = Math.max(1, options.attempts ?? this._recoveryTuning.missingProjectAttempts);
     const delayMs = options.delayMs ?? this._recoveryTuning.missingProjectRetryMs;
     const result: Record<string, ProjectResolution> = {};
     let pending = Array.from(new Set(projectIds));
     for (let attempt = 0; attempt < attempts && pending.length; attempt++) {
       if (attempt > 0) await sleep(delayMs);
+      assertSession();
       const stillMissing: string[] = [];
       for (const id of pending) {
         try {
           const project = await this.get(id);
+          assertSession();
           result[id] = { state: 'finished', project };
         } catch (error: any) {
+          assertSession();
           if (error?.status === 404) {
             stillMissing.push(id);
           } else {
@@ -1075,22 +1744,144 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (pending.length) {
       // Last word goes to the socket: a project that reached the server after
       // the snapshot was taken is in flight, not lost. `null` means the list
-      // could not be fetched, in which case the REST verdict stands.
+      // could not be fetched.
       const live = await this._listActiveProjectIds();
+      assertSession();
+      // Before failing anything, ask the owner-scoped live lookup. It can
+      // confirm an active project or a terminal failure/cancellation without
+      // a full record. A successful completion still needs its result record
+      // and stays unverified until that arrives. Anything else, including
+      // an unauthenticated client or an older API without the lookup, keeps the
+      // `lost` verdict.
+      const unlisted = pending.filter((id) => !live?.includes(id));
+      const checks = new Map(
+        await Promise.all(
+          unlisted.map(async (id) => [id, await this._lookupUnlistedProject(id)] as const)
+        )
+      );
+      assertSession();
       for (const id of pending) {
-        result[id] = live?.includes(id) ? { state: 'active' } : { state: 'lost' };
+        if (live?.includes(id)) {
+          result[id] = { state: 'active' };
+          continue;
+        }
+        const check = checks.get(id);
+        if (check) {
+          result[id] = check;
+          continue;
+        }
+        // Nothing on the server knows it. A request that died with a dropped
+        // connection is sent again; one just (re)sent is still being admitted.
+        result[id] =
+          (await this._resendUndelivered(id)) || this._recentlyResubmitted(id)
+            ? { state: 'active' }
+            : { state: 'lost' };
+        assertSession();
       }
     }
     return result;
   }
 
+  /**
+   * Send a request again, once, when it was written on a connection that then
+   * dropped and no server frame, snapshot or lookup has ever mentioned it. A
+   * frame written into a dead socket can never arrive later, so this cannot run
+   * the generation twice. Requests whose delivery is merely uncertain (a
+   * missing cross-tab ACK) never qualify: the primary tab may still send them.
+   */
+  private async _resendUndelivered(projectId: string): Promise<boolean> {
+    const request = this._unadmittedRequests.get(projectId);
+    const sentOn = this._sentOnGeneration.get(projectId);
+    const project = this.projects.find((p) => p.id === projectId);
+    if (
+      !request ||
+      sentOn === undefined ||
+      sentOn >= this._transportGeneration ||
+      this.transportDisconnected ||
+      this._resubmittedAt.has(projectId) ||
+      this._awaitingResubmit.has(projectId) ||
+      (project && project.finished)
+    ) {
+      return false;
+    }
+    const assertSession =
+      this._requestSessions.get(request) ?? captureRequestSession(this.client.auth);
+    try {
+      assertSession();
+      // Claimed before the await so a concurrent lookup cannot send it twice.
+      this._resubmittedAt.set(projectId, Date.now());
+      this._sentOnGeneration.delete(projectId);
+      this.client.logger.info(
+        `Project ${projectId} was sent on a connection that dropped before the server received it; resubmitting`
+      );
+      try {
+        await this.client.socket.send('jobRequest', request);
+      } catch (error) {
+        if (!(error instanceof MessageDeliveryUncertainError)) throw error;
+      }
+      assertSession();
+    } catch (error) {
+      this.client.logger.warn(`Resubmitting project ${projectId} failed`, error);
+      return false;
+    }
+    this._resubmittedAt.set(projectId, Date.now());
+    this._sentOnGeneration.set(projectId, this._transportGeneration);
+    project?._keepAlive();
+    this._scheduleRecheck(this._recoveryTuning.recentlyCreatedGraceMs);
+    return true;
+  }
+
+  /** Resubmitted within the recently-created grace: the server may not list it yet. */
+  private _recentlyResubmitted(projectId: string): boolean {
+    const at = this._resubmittedAt.get(projectId);
+    return at !== undefined && Date.now() - at < this._recoveryTuning.recentlyCreatedGraceMs;
+  }
+
+  /**
+   * Second opinion for a project neither the terminal REST record nor the live
+   * socket list knows. Returns `undefined` when the lookup cannot vouch for it.
+   */
+  private async _lookupUnlistedProject(projectId: string): Promise<ProjectResolution | undefined> {
+    try {
+      const project = await this.getStatus(projectId);
+      if (project?.id !== projectId) return undefined;
+      if (!project.finished && IN_FLIGHT_LOOKUP_STATUSES.has(project.status)) {
+        return { state: 'active' };
+      }
+      if (project.finished && (project.status === 'failed' || project.status === 'canceled')) {
+        return {
+          state: 'terminal',
+          project: { ...project, status: project.status, finished: true }
+        };
+      }
+      if (project.finished) {
+        return {
+          state: 'unknown',
+          error: new Error('The project finished but its full record is not available yet')
+        };
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Serialize syncs so two snapshots never interleave their replays. */
+  private captureQueueRevisions() {
+    return new Map(this.projects.map((project) => [project.id, project._queueRevision]));
+  }
+
   private _queueSync(
     snapshot: ProjectRecoverySnapshot,
     reason: ProjectSyncReason,
-    requestedAt: number
+    requestedAt: number,
+    queueRevisions = this.captureQueueRevisions()
   ): Promise<ProjectSyncResult> {
-    const run = () => this._reconcile(snapshot, reason, requestedAt);
+    const assertSession = captureRequestSession(this.client.auth);
+    const run = () => {
+      assertSession();
+      return this._reconcile(snapshot, reason, requestedAt, assertSession, queueRevisions);
+    };
     const next = this._syncChain.then(run, run);
     this._syncChain = next.catch(() => undefined);
     return next;
@@ -1099,7 +1890,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private async _reconcile(
     snapshot: ProjectRecoverySnapshot,
     reason: ProjectSyncReason,
-    requestedAt: number
+    requestedAt: number,
+    assertSession = captureRequestSession(this.client.auth),
+    queueRevisions = this.captureQueueRevisions()
   ): Promise<ProjectSyncResult> {
     const result: ProjectSyncResult = {
       reason,
@@ -1116,15 +1909,18 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     for (const recovered of snapshot.activeProjects) {
       if (!recovered?.id || isLLMRecoveredProject(recovered) || seen.has(recovered.id)) continue;
       seen.add(recovered.id);
+      this._unadmittedRequests.delete(recovered.id);
       const tracked = this.projects.find((p) => p.id === recovered.id);
       if (tracked) {
         if (tracked.finished) continue;
-        await this._replayRecoveredProject(tracked, recovered);
+        await this._replayRecoveredProject(tracked, recovered, queueRevisions.get(tracked.id) ?? 0);
+        assertSession();
         result.active.push(recovered.id);
       } else {
         const project = this._rehydrateProject(recovered);
         this.projects.push(project);
         await this._replayRecoveredProject(project, recovered);
+        assertSession();
         result.recoveredActive.push(recovered);
       }
     }
@@ -1135,7 +1931,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       const tracked = this.projects.find((p) => p.id === recovered.id);
       if (tracked) {
         if (tracked.finished) continue;
-        await this._replayRecoveredProject(tracked, recovered);
+        await this._replayRecoveredProject(tracked, recovered, queueRevisions.get(tracked.id) ?? 0);
+        assertSession();
         result.completed.push(recovered.id);
       } else if (!this._recoveredCompletedIds.has(recovered.id)) {
         // The sync route is read-only, so the same finished project can show up
@@ -1144,6 +1941,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         const project = this._rehydrateProject(recovered);
         this.projects.push(project);
         await this._replayRecoveredProject(project, recovered);
+        assertSession();
         result.recoveredCompleted.push({ ...recovered, resultUrls: project.resultUrls });
       }
     }
@@ -1151,19 +1949,39 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // Tracked, unfinished projects the server did not mention: either they
     // finished (and the socket has already posted them to the REST API) or they
     // are gone. Projects created moments ago may simply not be registered yet.
-    const missing = this.projects.filter(
-      (p) =>
-        !p.finished &&
-        !seen.has(p.id) &&
-        p.startedAt.getTime() <= requestedAt - this._recoveryTuning.recentlyCreatedGraceMs
+    const graceMs = this._recoveryTuning.recentlyCreatedGraceMs;
+    const unlisted = this.projects.filter((p) => !p.finished && !seen.has(p.id));
+    const missing = unlisted.filter(
+      (p) => !this._awaitingResubmit.has(p.id) && this._lastSubmittedAt(p) <= requestedAt - graceMs
     );
+    // Awaiting-resubmit projects schedule their own recheck once re-sent.
+    const deferred = unlisted.filter(
+      (p) => !missing.includes(p) && !this._awaitingResubmit.has(p.id)
+    );
+    if (deferred.length) {
+      const judgeableAt = Math.max(...deferred.map((p) => this._lastSubmittedAt(p) + graceMs));
+      this._scheduleRecheck(judgeableAt - Date.now());
+    }
     if (missing.length) {
       const resolved = await this.resolveMissing(missing.map((p) => p.id));
+      assertSession();
       for (const project of missing) {
         if (project.finished) continue; // a live event beat the lookup
         const resolution = resolved[project.id];
         if (resolution?.state === 'finished') {
           await this._replayRawProject(project, resolution.project, false);
+          assertSession();
+          result.completed.push(project.id);
+        } else if (resolution?.state === 'terminal') {
+          await this._replayRawProject(
+            project,
+            {
+              ...resolution.project,
+              status: resolution.project.status === 'failed' ? 'errored' : 'cancelled'
+            },
+            false
+          );
+          assertSession();
           result.completed.push(project.id);
         } else if (resolution?.state === 'active') {
           project._keepAlive();
@@ -1177,6 +1995,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       }
     }
 
+    assertSession();
     if (result.recoveredActive.length) {
       this.emit('activeProjectsRecovered', result.recoveredActive);
     }
@@ -1196,8 +2015,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
   }
 
-  private _replayRecoveredProject(project: Project, recovered: RecoveredProject) {
-    return this._replayRawProject(project, recovered as unknown as RawProject, true);
+  private _replayRecoveredProject(
+    project: Project,
+    recovered: RecoveredProject,
+    queueRevision = project._queueRevision
+  ) {
+    return this._replayRawProject(project, recovered as unknown as RawProject, true, queueRevision);
   }
 
   /**
@@ -1208,8 +2031,23 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * connection would have delivered. Nothing is ever downgraded: a job or
    * project already finished locally ignores an older in-flight state.
    */
-  private async _replayRawProject(project: Project, raw: RawProject, includeInFlightJobs: boolean) {
+  private async _replayRawProject(
+    project: Project,
+    raw: Pick<RawProject, 'status' | 'completedWorkerJobs'> &
+      Partial<
+        Pick<
+          RawProject,
+          'workerJobs' | 'stepCount' | 'reason' | 'waitingReason' | 'jobWaitingReasons'
+        >
+      >,
+    includeInFlightJobs: boolean,
+    queueRevision = project._queueRevision
+  ) {
+    const assertSession = captureRequestSession(this.client.auth);
     const projectId = project.id;
+    let replayInFlight = project._queueRevision === queueRevision;
+    project._setQueueState(raw.waitingReason, raw.jobWaitingReasons, queueRevision);
+    let replayRevision = project._queueRevision;
     const stepCount = typeof raw.stepCount === 'number' ? raw.stepCount : project.params.steps;
     const jobs: Array<RawProject['completedWorkerJobs'][number] | RecoveredWorkerJob> = [
       ...(includeInFlightJobs ? raw.workerJobs || [] : []),
@@ -1218,6 +2056,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const replayedJobIds = new Set<string>();
 
     for (const job of jobs) {
+      // A live assignment, retry or queue update wins over an older snapshot,
+      // including one received while an earlier recovered result was downloading.
+      if (project._queueRevision !== replayRevision) replayInFlight = false;
       const imgID = (job as RecoveredWorkerJob).imgID || job.id;
       if (!imgID || replayedJobIds.has(imgID)) continue;
       replayedJobIds.add(imgID);
@@ -1225,10 +2066,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       const status = job.status as string;
       const worker = job.worker as { username?: string; name?: string } | undefined;
       const workerName = worker?.username || worker?.name || '';
+      const jobIndex = typeof job.jobIndex === 'number' ? job.jobIndex : undefined;
 
       if (status === 'jobCompleted') {
         if (local?.finished) continue;
-        await this.handleJobResult({
+        this.clearJobQueueState(project, imgID, jobIndex);
+        const result = this.handleJobResult({
           jobID: projectId,
           imgID,
           ...(typeof job.performedSteps === 'number'
@@ -1237,6 +2080,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           ...(typeof job.seedUsed === 'number' ? { lastSeed: String(job.seedUsed) } : {}),
           triggeredNSFWFilter: Boolean(job.triggeredNSFWFilter),
           userCanceled: job.reason === 'artistCanceled',
+          lastFrameUrl: (typeof job.lastFrameUrl === 'string'
+            ? job.lastFrameUrl
+            : (job.result as Record<string, unknown> | undefined)?.lastFrameUrl) as
+            | string
+            | undefined,
+          outputFormat: (typeof job.outputFormat === 'string'
+            ? job.outputFormat
+            : (job.result as Record<string, unknown> | undefined)?.outputFormat) as
+            | string
+            | undefined,
           ...(typeof job.resultUrl === 'string' && job.resultUrl
             ? { resultUrl: job.resultUrl }
             : {}),
@@ -1244,10 +2097,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             ? jobProvenanceFromResult(job.result as Partial<JobResultData>)
             : {})
         });
+        replayRevision = project._queueRevision;
+        await result;
+        assertSession();
+        if (jobIndex !== undefined) project.job(imgID)?._update({ jobIndex });
         continue;
       }
       if (status === 'jobError') {
         if (local?.finished) continue;
+        this.clearJobQueueState(project, imgID, jobIndex);
         const reason = typeof job.reason === 'string' && job.reason ? job.reason : 'genfailure';
         this.handleJobError({
           jobID: projectId,
@@ -1256,21 +2114,40 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           error: reason,
           error_message: reason === 'sensitiveContent' ? 'Sensitive content detected.' : reason
         });
+        if (jobIndex !== undefined) project.job(imgID)?._update({ jobIndex });
+        replayRevision = project._queueRevision;
         continue;
       }
-      if (!includeInFlightJobs || isRecoveredJobFinished(status) || local?.finished) continue;
+      if (
+        !includeInFlightJobs ||
+        !replayInFlight ||
+        isRecoveredJobFinished(status) ||
+        local?.finished
+      )
+        continue;
       if (status === 'assigned' || status === 'initiatingModel') {
-        this.handleJobState({ type: 'initiatingModel', jobID: projectId, imgID, workerName });
+        this.handleJobState({
+          type: 'initiatingModel',
+          jobID: projectId,
+          imgID,
+          workerName,
+          jobIndex
+        });
+        replayRevision = project._queueRevision;
       } else if (status === 'jobStarted' || status === 'jobProgress') {
-        this.handleJobState({ type: 'jobStarted', jobID: projectId, imgID, workerName });
+        this.handleJobState({ type: 'jobStarted', jobID: projectId, imgID, workerName, jobIndex });
+        replayRevision = project._queueRevision;
         const performedSteps = typeof job.performedSteps === 'number' ? job.performedSteps : 0;
         if (performedSteps > 0 || typeof stepCount === 'number') {
-          await this.handleJobProgress({
+          const progress = this.handleJobProgress({
             jobID: projectId,
             imgID,
             step: performedSteps,
             ...(typeof stepCount === 'number' ? { stepCount } : {})
           });
+          replayRevision = project._queueRevision;
+          await progress;
+          assertSession();
         }
       }
     }
@@ -1281,7 +2158,23 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this.handleJobState({ type: 'jobCompleted', jobID: projectId });
         break;
       case 'errored': {
-        const reason = typeof raw.reason === 'string' && raw.reason ? raw.reason : 'genfailure';
+        // This lifecycle marker says all attempts ended, not that they succeeded.
+        const reason =
+          typeof raw.reason === 'string' && raw.reason && raw.reason !== 'allJobsCompleted'
+            ? raw.reason
+            : 'genfailure';
+        // Compact status records omit jobs. Finish every attempt this client
+        // already knows before the parent settles and stops its watchdogs.
+        for (const job of project.jobs) {
+          if (job.finished) continue;
+          this.handleJobError({
+            jobID: projectId,
+            imgID: job.id,
+            isFromWorker: true,
+            error: reason,
+            error_message: reason
+          });
+        }
         this.handleJobError({
           jobID: projectId,
           isFromWorker: true,
@@ -1291,6 +2184,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         break;
       }
       case 'cancelled':
+        for (const job of project.jobs) {
+          if (job.finished) continue;
+          // Apply cancellation before notifying API listeners. The regular
+          // job error handler preserves this terminal status, so cancellation
+          // does not become a generation failure on the Job instance.
+          job._update({ status: 'canceled', error: undefined });
+          this.handleJobError({
+            jobID: projectId,
+            imgID: job.id,
+            isFromWorker: false,
+            error: 'artistCanceled',
+            error_message: 'artistCanceled'
+          });
+        }
         // Route through the regular error path so API-level listeners learn
         // about the cancellation too, then settle the instance on `canceled`.
         this.handleJobError({
@@ -1352,6 +2259,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param data
    */
   async create(data: ProjectParams): Promise<Project> {
+    const assertSession = captureRequestSession(this.client.auth);
+    const assertSubmissionSession = captureRequestSession(
+      this.client.auth,
+      'Your account changed while this request was being submitted. ' +
+        'It may still be running in your previous account. Check its creations before submitting again.'
+    );
+    let submissionStarted = false;
+    if (data.type === 'video') rejectRetiredOutputScale(data);
     // Segmentation is a one-source/one-mask utility workflow, SAM 3 and
     // BiRefNet alike. Normalize before Project construction so lifecycle
     // completion and result MIME use the same values as the serialized request.
@@ -1370,34 +2285,109 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (normalizedData.type === 'image' && isModelArtifactModel(normalizedData.modelId)) {
       normalizedData = { ...normalizedData, numberOfPreviews: 0 } as ProjectParams;
     }
-    const project = new Project({ ...normalizedData }, { api: this, logger: this.client.logger });
-    const modelOptions = await this.getModelOptions(normalizedData.modelId);
-    const requestParams = {
-      ...normalizedData,
-      appSource: normalizedData.appSource || this.client.appSource,
-      attribution: this.resolveWorkloadAttribution(normalizedData.attribution, project.id)
-    } as ProjectParams;
-    const request = createJobRequestMessage(project.id, requestParams, modelOptions);
-
-    switch (normalizedData.type) {
-      case 'image':
-        await this._processImageAssets(project, normalizedData);
-        break;
-      case 'video':
-        await this._processVideoAssets(project, normalizedData);
-        this._annotateVideoAssetContentTypes(request, normalizedData);
-        break;
-      case 'audio':
-        await this._processAudioAssets(project, normalizedData);
-        this._annotateAudioAssetContentTypes(request, normalizedData);
-        break;
+    if (
+      normalizedData.type === 'image' &&
+      isGptImageModel(normalizedData.modelId) &&
+      normalizedData.gptImageMaskUrl?.startsWith('data:')
+    ) {
+      if (normalizedData.gptImageMask) {
+        throw new Error('Provide one GPT Image mask, not both media and URL');
+      }
+      const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(
+        normalizedData.gptImageMaskUrl
+      );
+      if (!match || match[1].length >= Math.ceil((50 * 1024 * 1024 * 4) / 3)) {
+        throw new Error('GPT Image mask must be a PNG data URI smaller than 50 MB');
+      }
+      const bytes = Uint8Array.from(atob(match[1]), (char) => char.charCodeAt(0));
+      normalizedData = {
+        ...normalizedData,
+        gptImageMask: new Blob([bytes], { type: 'image/png' }),
+        gptImageMaskUrl: undefined
+      };
     }
-    await this.client.socket.send('jobRequest', request);
-    this.projects.push(project);
-    return project;
+    const project = new Project({ ...normalizedData }, { api: this, logger: this.client.logger });
+    this._preparingSessions.set(project.id, assertSession);
+    try {
+      const modelOptions = await this.getModelOptions(normalizedData.modelId);
+      assertSession();
+      const requestParams = {
+        ...normalizedData,
+        appSource: normalizedData.appSource || this.client.appSource,
+        attribution: this.resolveWorkloadAttribution(normalizedData.attribution, project.id)
+      } as ProjectParams;
+      const request = createJobRequestMessage(project.id, requestParams, modelOptions);
+
+      switch (normalizedData.type) {
+        case 'image':
+          await this._processImageAssets(project, normalizedData);
+          break;
+        case 'video':
+          await this._processVideoAssets(project, normalizedData);
+          this._annotateVideoAssetContentTypes(request, normalizedData);
+          break;
+        case 'audio':
+          await this._processAudioAssets(project, normalizedData);
+          this._annotateAudioAssetContentTypes(request, normalizedData);
+          break;
+      }
+      // Recorded before sending: a refusal can arrive as soon as the frame lands.
+      assertSession();
+      this._unadmittedRequests.set(project.id, request);
+      this._requestSessions.set(request, assertSubmissionSession);
+      submissionStarted = true;
+      await this.client.socket.send('jobRequest', request);
+      assertSubmissionSession();
+      this._sentOnGeneration.set(project.id, this._transportGeneration);
+      return this._trackSubmitted(project);
+    } catch (error) {
+      let failure = error;
+      try {
+        (submissionStarted ? assertSubmissionSession : assertSession)();
+      } catch (sessionError) {
+        failure = sessionError;
+      }
+      if (failure instanceof MessageDeliveryUncertainError) {
+        // A missing browser ACK does not establish that jobRequest failed.
+        // Preserve the same project for live events and read-only recovery;
+        // neither report a definite creation failure nor submit another job.
+        const tracked = this._trackSubmitted(project);
+        if (tracked === project) this._scheduleRecheck(0);
+        return tracked;
+      }
+      this._unadmittedRequests.delete(project.id);
+      project._dispose();
+      throw failure;
+    } finally {
+      this._preparingSessions.delete(project.id);
+    }
+  }
+
+  private _assertPreparingSession(projectId: string) {
+    this._preparingSessions.get(projectId)?.();
+  }
+
+  /**
+   * Track a submitted project. A sync that ran while a secondary tab waited for
+   * its request to be forwarded may already have rebuilt this project from the
+   * server; events reach the first match, so keep that one and never two.
+   */
+  private _trackSubmitted(project: Project): Project {
+    const tracked = this.projects.find((candidate) => candidate.id === project.id);
+    if (!tracked) {
+      this.projects.push(project);
+      return project;
+    }
+    this._unadmittedRequests.delete(project.id);
+    this._sentOnGeneration.delete(project.id);
+    project._dispose();
+    return tracked;
   }
 
   private async _processImageAssets(project: Project, data: ImageProjectParams) {
+    if (data.gptImageMask && data.gptImageMask !== true) {
+      await this.uploadReferenceMask(project.id, data.gptImageMask);
+    }
     //Guide image
     if (data.startingImage && data.startingImage !== true) {
       await this.uploadGuideImage(project.id, data.startingImage);
@@ -1426,6 +2416,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         })
       );
     }
+
+    // Pixal3D multi-view orbit views use fixed contextImage slots (left 1, back
+    // 2, right 3); createJobRequestMessage has already refused them anywhere else.
+    await Promise.all(
+      getPixal3dOrbitViewSlots(data).map(({ slot, media }) =>
+        media === true
+          ? undefined
+          : this.uploadContextImage(project.id, (slot - 1) as ContextImageIndex, media)
+      )
+    );
   }
 
   /** Voice cloning is the only audio model that takes an upload. */
@@ -1458,6 +2458,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         typeof media === 'boolean'
           ? undefined
           : this.uploadContextImage(project.id, (slot - 1) as ContextImageIndex, media)
+      )
+    );
+    // MiniMax H3 intermediate keyframes, uploaded to their own keyframeImage1..N
+    // slots in caller order, apart from the contextImage slots r2v references
+    // use. createJobRequestMessage has already checked the model, the entries
+    // and the frame indices.
+    await Promise.all(
+      getMinimaxH3KeyframeSlots(data).map(({ slot, media }) =>
+        typeof media === 'boolean'
+          ? undefined
+          : this.uploadKeyframeImage(project.id, slot as KeyframeImageSlot, media)
       )
     );
     if (data?.referenceImageEnd && data.referenceImageEnd !== true) {
@@ -1533,6 +2544,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   /**
    * Get project by id, this API returns project data from the server only if the project is
    * completed or failed. If the project is still processing, it will throw 404 error.
+   * Use {@link getStatus} to see a project of your own while it is still queued or rendering.
    * @internal
    * @param projectId
    */
@@ -1541,6 +2553,209 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       `/v1/projects/${projectId}`
     );
     return data.project;
+  }
+
+  /**
+   * Current state of one of this account's projects, including while it is still
+   * queued or rendering (`GET /v2/projects/:id`).
+   *
+   * Unlike {@link get}, which answers only once a project has finished and 404s
+   * until then, this reads the owner-scoped live lookup, so it needs an
+   * authenticated client. Statuses use the normalized {@link ProjectLookupStatus}
+   * names, and `finished` is set for completed, failed and canceled projects.
+   * A project that belongs to another account, or does not exist, rejects with a
+   * 404 `ApiError`; a 503 means the server could not determine the state yet and
+   * the call can be retried.
+   * @param projectId
+   */
+  async getStatus(projectId: string): Promise<ProjectStatusSnapshot> {
+    const { data } = await this.client.rest.get<ApiResponse<{ project: ProjectStatusSnapshot }>>(
+      `/v2/projects/${encodeURIComponent(projectId)}`
+    );
+    return data.project;
+  }
+
+  /**
+   * State and results of one of this account's projects by id, whenever it is
+   * asked: while it is queued or rendering, and after it finished, including
+   * one that finished while this client was offline, or after it stopped
+   * waiting, or long after the socket stopped holding it for a reconnect.
+   *
+   * Completed renders come back with signed download URLs, minted the same way
+   * a live result's are. A queued project carries the server's `waitingReason`,
+   * which says whether it is held by the account's own plan concurrency or is
+   * waiting for a worker. Needs an authenticated client; another account's or
+   * an unknown project rejects with a 404 `ApiError`.
+   *
+   * @example
+   * ```ts
+   * const result = await sogni.projects.getResult(projectId);
+   * if (result.finished) {
+   *   for (const job of result.jobs) if (job.url) console.log(job.url);
+   * } else {
+   *   console.log(result.status, result.waitingReason?.message);
+   * }
+   * ```
+   * @param projectId
+   * @param options.kind - What the project produces, when the caller knows it
+   *   (`image`, `video`, `audio`, `model`). Used only when neither the model
+   *   catalog nor the stored result says, so a URL is never minted from the
+   *   wrong endpoint.
+   */
+  async getResult(
+    projectId: string,
+    options: { kind?: ResultMediaKind } = {}
+  ): Promise<ProjectResult> {
+    const assertSession = captureRequestSession(this.client.auth);
+    const snapshot = await this.getStatus(projectId);
+    assertSession();
+    const modelId = snapshot.model?.id;
+    // The stored record's model carries its media type even though ProjectModel does not declare it.
+    const recordType = (snapshot.model as { type?: unknown } | undefined)?.type;
+    const projectType = typeof recordType === 'string' ? recordType : undefined;
+    const jobs: ProjectResultJob[] = [];
+    const seen = new Set<string>();
+    for (const job of [...(snapshot.completedWorkerJobs || []), ...(snapshot.workerJobs || [])]) {
+      const id = job.imgID || job.id;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const status = resultJobStatus(job);
+      const entry: ProjectResultJob = { id, status };
+      if (status !== 'completed' && job.reason) entry.reason = job.reason;
+      if (typeof job.seedUsed === 'number' && job.seedUsed >= 0) entry.seed = job.seedUsed;
+      if (status === 'completed') {
+        // Same rule as a live result: withheld only when the filter fired and
+        // no advisory label says the media was delivered anyway.
+        if (job.triggeredNSFWFilter === true && job.nsfwDetected !== true) {
+          entry.urlUnavailable = 'sensitiveContent';
+        } else if (typeof job.resultUrl === 'string' && job.resultUrl) {
+          entry.url = job.resultUrl;
+        } else {
+          const result = resultMediaEvidence({
+            ...(job.result || {}),
+            outputFormat: job.outputFormat ?? job.result?.outputFormat
+          });
+          const kind = this._resultMediaKind({ modelId, projectType, result }) ?? options.kind;
+          if (!kind) {
+            entry.urlUnavailable = 'unknownMediaKind';
+          } else {
+            entry.kind = kind;
+            try {
+              entry.url = await this._mintResultUrl({
+                projectId: snapshot.id,
+                jobId: id,
+                kind,
+                audioContentType: result?.contentType
+              });
+            } catch (error) {
+              this.client.logger.error(`Failed to sign a download URL for ${snapshot.id}/${id}`);
+              this.client.logger.error(error);
+              entry.urlUnavailable = 'downloadUrlFailed';
+            }
+            assertSession();
+          }
+        }
+      }
+      jobs.push(entry);
+    }
+    return {
+      id: snapshot.id,
+      status: snapshot.status,
+      finished: snapshot.finished,
+      ...(modelId ? { modelId } : {}),
+      ...(snapshot.waitingReason !== undefined ? { waitingReason: snapshot.waitingReason } : {}),
+      jobs
+    };
+  }
+
+  /**
+   * This account's recently completed projects that produced media, newest
+   * first, read from the durable history rather than the socket. It includes
+   * projects that finished while no client was connected, and ones the socket
+   * has stopped holding for a reconnect (it keeps a finished project for one
+   * hour). Pass a project's id to {@link getResult} for its download URLs.
+   *
+   * Reaches back at most 7 days. Needs a signed-in account.
+   *
+   * @example
+   * ```ts
+   * const recent = await sogni.projects.listRecent({ since: Date.now() - 6 * 3600_000 });
+   * for (const project of recent) {
+   *   const result = await sogni.projects.getResult(project.id);
+   * }
+   * ```
+   */
+  async listRecent(options: ListRecentProjectsOptions = {}): Promise<RecentProject[]> {
+    const assertSession = captureRequestSession(this.client.auth);
+    const address = await this._resolveAccountAddress();
+    assertSession();
+    if (!address) {
+      throw new Error('listRecent needs a signed-in account');
+    }
+    const now = Date.now();
+    const requestedSince =
+      options.since instanceof Date
+        ? options.since.getTime()
+        : typeof options.since === 'number'
+          ? options.since
+          : now - RECENT_PROJECTS_DEFAULT_WINDOW_MS;
+    const since = Math.max(requestedSince, now - RECENT_PROJECTS_MAX_WINDOW_MS);
+    const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 50)));
+    const { data } = await this.client.rest.get<ApiResponse<{ jobs: RecentJobRecord[] }>>(
+      '/v1/jobs/list',
+      {
+        role: 'artist',
+        address,
+        state: 'completed',
+        mediaOnly: true,
+        since,
+        limit,
+        ...(options.appSource ? { appSource: options.appSource } : {})
+      }
+    );
+    assertSession();
+    const projects = new Map<string, RecentProject>();
+    for (const job of data?.jobs || []) {
+      const projectId = job.parentRequest?.id;
+      if (!projectId) continue;
+      let project = projects.get(projectId);
+      if (!project) {
+        project = {
+          id: projectId,
+          ...(job.parentRequest?.model?.id ? { modelId: job.parentRequest.model.id } : {}),
+          ...(job.parentRequest?.model?.name ? { modelName: job.parentRequest.model.name } : {}),
+          ...(job.parentRequest?.appSource ? { appSource: job.parentRequest.appSource } : {}),
+          jobs: []
+        };
+        projects.set(projectId, project);
+      }
+      const finishedAt = typeof job.endTime === 'number' && job.endTime > 0 ? job.endTime : undefined;
+      project.jobs.push({
+        id: job.imgID || job.id,
+        status: resultJobStatus(job),
+        sensitiveContentWithheld: job.triggeredNSFWFilter === true && job.nsfwDetected !== true,
+        ...(finishedAt ? { finishedAt } : {})
+      });
+      if (finishedAt && (!project.finishedAt || finishedAt > project.finishedAt)) {
+        project.finishedAt = finishedAt;
+      }
+    }
+    return [...projects.values()].sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0));
+  }
+
+  private _accountAddress?: () => Promise<string | undefined>;
+
+  /**
+   * How {@link listRecent} learns the signed-in account's address. Set by
+   * `SogniClient`, which owns the account.
+   * @internal
+   */
+  _setAccountAddressResolver(resolve: () => Promise<string | undefined>) {
+    this._accountAddress = resolve;
+  }
+
+  private async _resolveAccountAddress(): Promise<string | undefined> {
+    return this._accountAddress ? this._accountAddress() : undefined;
   }
 
   /**
@@ -1678,7 +2893,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadGuideImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'startingImage' }))
+      return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1687,11 +2908,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -1704,7 +2927,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private async uploadCNImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'cnImage' }))
+      return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1713,11 +2942,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -1751,7 +2982,18 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       | 14
       | 15
       | 16;
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
+    if (
+      await this.assets.tryBindFile(file, contentType, {
+        projectId,
+        type: `contextImage${imageIndex}`
+      })
+    )
+      return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1761,16 +3003,56 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const body = toFetchBody(file);
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body,
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
         errorCode: 0,
         message: `Failed to upload context image ${index}`
+      });
+    }
+    return imageId;
+  }
+
+  /**
+   * Upload one MiniMax H3 intermediate keyframe image to its `keyframeImage<slot>`
+   * slot.
+   * @internal
+   */
+  private async uploadKeyframeImage(
+    projectId: string,
+    slot: KeyframeImageSlot,
+    file: File | Buffer | Blob
+  ) {
+    const imageId = getUUID();
+    const type = `keyframeImage${slot}` as const;
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
+    const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type })) return imageId;
+    assertSession();
+    const presignedUrl = await this.uploadUrl({ imageId, jobId: projectId, type, contentType });
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
+    const res = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: toFetchBody(file),
+      headers
+    });
+    assertSession();
+    if (!res.ok) {
+      throw new ApiError(res.status, {
+        status: 'error',
+        errorCode: 0,
+        message: `Failed to upload keyframe image ${slot}`
       });
     }
     return imageId;
@@ -1786,7 +3068,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceImage(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceImage' }))
+      return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1795,11 +3083,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -1816,7 +3106,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceMask(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceMask' }))
+      return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1825,11 +3121,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -1846,7 +3144,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private async uploadReferenceImageEnd(projectId: string, file: File | Buffer | Blob) {
     const imageId = getUUID();
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceImageEnd' }))
+      return imageId;
+    assertSession();
     const presignedUrl = await this.uploadUrl({
       imageId,
       jobId: projectId,
@@ -1855,11 +3159,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     });
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -1877,7 +3183,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @internal
    */
   private async uploadReferenceAudio(projectId: string, file: File | Buffer | Blob, id?: string) {
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceAudio', id }))
+      return;
+    assertSession();
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
       type: 'referenceAudio',
@@ -1888,11 +3200,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (contentType) {
       headers['Content-Type'] = contentType;
     }
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -1908,7 +3222,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @internal
    */
   private async uploadReferenceVideo(projectId: string, file: File | Buffer | Blob, id?: string) {
+    const assertSession =
+      this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
+    assertSession();
     const contentType = getFileContentType(file);
+    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceVideo', id }))
+      return;
+    assertSession();
     const presignedUrl = await this.mediaUploadUrl({
       jobId: projectId,
       type: 'referenceVideo',
@@ -1919,11 +3239,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (contentType) {
       headers['Content-Type'] = contentType;
     }
+    assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
       body: toFetchBody(file),
       headers
     });
+    assertSession();
     if (!res.ok) {
       throw new ApiError(res.status, {
         status: 'error',
@@ -1956,7 +3278,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     sampler,
     contextImages,
     gptImageQuality,
-    outputFormat
+    outputFormat,
+    billingMode
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const modelOptions = await this.getModelOptions(model);
@@ -1991,6 +3314,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const queryParams = new URLSearchParams();
     if (gptImageQuality) queryParams.set('gptImageQuality', gptImageQuality);
     if (outputFormat) queryParams.set('outputFormat', outputFormat);
+    if (billingMode) queryParams.set('billingMode', billingMode);
     const query = queryParams.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}${query ? `?${query}` : ''}`
@@ -2001,16 +3325,22 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       spark: r.quote.project.costInSpark,
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
-      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec
+      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
+      dailyFairUsePct: r.dailyFairUse?.pct
     };
   }
 
   /**
-   * Estimate image enhancement cost
-   * @param strength
+   * Estimate the cost of `job.enhance(strength)`.
+   * @param strength - enhancement strength, as passed to `job.enhance()`
    * @param tokenType
+   * @param size - the image's width and height; omitted, the enhancer's default size is quoted
    */
-  async estimateEnhancementCost(strength: EnhancementStrength, tokenType: TokenType = 'spark') {
+  async estimateEnhancementCost(
+    strength: EnhancementStrength,
+    tokenType: TokenType = 'spark',
+    size?: { width: number; height: number }
+  ) {
     return this.estimateCost({
       network: enhancementDefaults.network,
       tokenType,
@@ -2019,7 +3349,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       stepCount: enhancementDefaults.steps,
       previewCount: 0,
       cnEnabled: false,
-      startingImageStrength: getEnhacementStrength(strength)
+      // Guide influence, exactly as job.enhance() submits it: light keeps the most.
+      startingImageStrength: 1 - getEnhacementStrength(strength),
+      ...(size ? { width: size.width, height: size.height } : {})
     });
   }
 
@@ -2038,6 +3370,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - referenceImageCount: Number of image references submitted by the estimated job.
    *   - referenceVideoCount: Number of video references submitted by a MiniMax H3 r2v job.
    *   - referenceVideoDurationSeconds: Combined duration of MiniMax H3 r2v video input.
+   *   - keyframeCount / keyframes: MiniMax H3 intermediate keyframes (0-8). The first two are
+   *     included; each extra keyframe adds 0.75 s of output time on FastH3 and 0.3 s on other tiers.
    * @return {Promise<Object>} Returns an object containing the estimated costs for the video in different units:
    *   - token: Cost in tokens.
    *   - usd: Cost in USD.
@@ -2045,6 +3379,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - sogni: Cost in Sogni.
    */
   async estimateVideoCost(params: VideoEstimateRequest) {
+    rejectRetiredOutputScale(params);
     const frames = params.frames
       ? params.frames
       : calculateVideoFrames(params.model, params.duration, params.fps);
@@ -2070,6 +3405,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       params.hasVideoInput === true ||
       Boolean(params.referenceVideo) ||
       (Array.isArray(params.referenceVideoUrls) && params.referenceVideoUrls.length > 0);
+    if (params.sourceWidth !== undefined && params.sourceHeight !== undefined) {
+      query.set('sourceWidth', String(params.sourceWidth));
+      query.set('sourceHeight', String(params.sourceHeight));
+    }
     if (hasVideoInput) {
       query.set('hasVideoInput', '1');
     }
@@ -2094,6 +3433,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         String(params.referenceVideoDurationSeconds as number)
       );
     }
+    const keyframeCount =
+      params.keyframeCount ?? (Array.isArray(params.keyframes) ? params.keyframes.length : undefined);
+    if (Number.isFinite(keyframeCount) && (keyframeCount as number) > 0) {
+      query.set('keyframeCount', String(Math.floor(keyframeCount as number)));
+    }
+    // Unpinned, the job renders on the connection's network, so quote that one.
+    const network = params.network ?? this._currentNetworkType;
+    if (network) query.set('network', network);
+    if (params.billingMode) query.set('billingMode', params.billingMode);
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-video/estimate/${path}${queryString ? `?${queryString}` : ''}`
@@ -2104,7 +3452,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       spark: r.quote.project.costInSpark,
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
-      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec
+      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
+      dailyFairUsePct: r.dailyFairUse?.pct
     };
   }
 
@@ -2128,8 +3477,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       params.numberOfMedia
     ];
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
+    const query = new URLSearchParams();
+    // Unpinned, the job renders on the connection's network, so quote that one.
+    const network = params.network ?? this._currentNetworkType;
+    if (network) query.set('network', network);
+    if (params.billingMode) query.set('billingMode', params.billingMode);
+    const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
-      `/api/v1/job-audio/estimate/${path}`
+      `/api/v1/job-audio/estimate/${path}${queryString ? `?${queryString}` : ''}`
     );
     return {
       token: r.quote.project.costInToken,
@@ -2137,7 +3492,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       spark: r.quote.project.costInSpark,
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
-      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec
+      estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
+      dailyFairUsePct: r.dailyFairUse?.pct
     };
   }
 
@@ -2160,7 +3516,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *     specific request.
    *   - type: Asset role. Supported values include `'referenceImage'`,
    *     `'referenceImageEnd'`, `'startingImage'`, `'cnImage'`,
-   *     `'contextImage1'`..`'contextImage16'`, `'preview'`, `'complete'`.
+   *     `'contextImage1'`..`'contextImage16'`, `'keyframeImage1'`..`'keyframeImage8'`
+   *     (MiniMax H3 intermediate keyframes), `'preview'`, `'complete'`.
    *   - contentType: Optional MIME type the caller will `PUT` (e.g.
    *     `"image/png"`). Forwarded so the storage layer can pin the
    *     Content-Type on the presigned URL.
@@ -2168,10 +3525,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   upload the image bytes to. Short-lived; use immediately.
    */
   async uploadUrl(params: ImageUrlParams) {
+    this._assertPreparingSession(params.jobId);
     const r = await this.client.rest.get<ApiResponse<{ uploadUrl: string }>>(
       `/v1/image/uploadUrl`,
       params
     );
+    this._assertPreparingSession(params.jobId);
     return r.data.uploadUrl;
   }
 
@@ -2335,6 +3694,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * This table describes the first upload slot only. MiniMax H3 r2v also uses
    * `contextImages`, `referenceVideos`, and `referenceAudios`; callers should
    * read those fields on `VideoProjectParams` for the multi-reference limits.
+   * Every MiniMax H3 id except text-to-video also accepts optional intermediate
+   * `keyframes`, which the table does not list: `isMinimaxH3KeyframeModel()`
+   * tells which ids take them, and `VideoProjectParams.keyframes` gives the rules.
    *
    * @param {string} modelId - The identifier of the video model to retrieve the configuration for.
    * @return {Object} The video asset configuration object where key is asset field and value is
@@ -2441,6 +3803,22 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @param params.forceRefresh - bypass the cache
    */
   async availableLoras(params: AvailableLorasParams = {}): Promise<LoraCatalog> {
+    if (params.includePersonal) {
+      const catalog = await this.availableLoras({ ...params, includePersonal: false });
+      const personal = await this.personalLoras.catalog();
+      return {
+        ...catalog,
+        loras: [
+          ...catalog.loras,
+          ...personal.loras.filter(
+            (row) => !params.modelId || row.modelIds.includes(params.modelId)
+          )
+        ],
+        models: [
+          ...new Set([...catalog.models, ...deriveLoraCapableModelIds(personal.loras)])
+        ].sort()
+      };
+    }
     const { modelId, forceRefresh } = params;
     const cacheKey = modelId ?? '';
     const cached = loraCatalogCache.read(cacheKey);
@@ -2481,6 +3859,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * ```
    */
   async getLora(loraId: string): Promise<LoraCatalogEntry | undefined> {
+    if (loraId.startsWith('personal-')) {
+      const { loras } = await this.personalLoras.catalog();
+      return loras.find((row) => row.loraId === loraId);
+    }
     const { loras } = await this.availableLoras();
     return loras.find((lora) => lora.loraId === loraId);
   }

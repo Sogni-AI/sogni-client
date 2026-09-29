@@ -39,6 +39,24 @@ export interface SocketEventSubscriptionUpdate {
   enabled?: boolean;
 }
 
+/** Keep queue-update preference across acknowledgements from older servers. @internal */
+export function resolveProjectQueueSubscription(
+  current: boolean,
+  update: SocketEventSubscriptionUpdate
+): boolean {
+  const isQueue = (name: unknown) =>
+    typeof name === 'string' && name.replace(/[^a-z]/gi, '').toLowerCase() === 'projectqueue';
+  let enabled = update.reset === true ? false : current;
+  if (isQueue(update.event) && typeof update.enabled === 'boolean') enabled = update.enabled;
+  for (const [name, value] of Object.entries(update.subscriptions || {})) {
+    if (isQueue(name) && typeof value === 'boolean') enabled = value;
+  }
+  const containsQueue = (value: unknown) => (Array.isArray(value) ? value : [value]).some(isQueue);
+  if (containsQueue(update.subscribe)) enabled = true;
+  if (containsQueue(update.unsubscribe)) enabled = false;
+  return enabled;
+}
+
 export type SocketEventSubscriptionInput = SocketEventSubscriptions | SocketEventSubscriptionUpdate;
 
 const UPDATE_KEYS = new Set([

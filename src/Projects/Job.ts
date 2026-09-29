@@ -11,6 +11,7 @@ import { getEnhacementStrength, isSegmentationModel } from './utils/index.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
 import type { JobProvenance } from './types/JobProvenance.js';
+import type { WaitingReason } from './types/WaitingReason.js';
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -52,14 +53,20 @@ const RUNTIME_LIMIT_ETA_MULTIPLIER = 6;
 /** Absolute ceiling, so "never occupy a worker indefinitely" still holds. */
 const RUNTIME_LIMIT_MAX_MS = 12 * HOUR_MS;
 
+/**
+ * Enhancement re-renders a finished image with Krea 2 Turbo image-to-image at
+ * its tier's default 8 steps. FLUX.1 [schnell] was the enhancer until
+ * 2026-09: its Comfy workflow had no image input, so every enhancement ignored
+ * the source image, and the Supernet now refuses Schnell guide images.
+ */
 export const enhancementDefaults = {
   network: 'fast' as SupernetType,
-  modelId: 'flux1-schnell-fp8',
+  modelId: 'krea2_turbo_fp8_scaled',
   positivePrompt: '',
   negativePrompt: '',
   stylePrompt: '',
   startingImageStrength: 0.5,
-  steps: 5,
+  steps: 8,
   guidance: 1,
   numberOfMedia: 1,
   numberOfPreviews: 0
@@ -126,6 +133,7 @@ function etaProgressPercent(
  * @inline
  */
 export interface JobData {
+  waitingReason?: WaitingReason | null;
   id: string;
   projectId: string;
   status: JobStatus;
@@ -145,6 +153,9 @@ export interface JobData {
   userCanceled?: boolean;
   previewUrl?: string;
   resultUrl?: string | null;
+  lastFrameUrl?: string;
+  lastFrameKey?: string;
+  outputFormat?: string;
   provenance?: JobProvenance;
   error?: ErrorData;
   positivePrompt?: string;
@@ -202,6 +213,9 @@ class Job extends DataEntity<JobData, JobEventMap> {
         nsfwDetected: rawJob.nsfwDetected === true,
         nsfwSources: rawJob.nsfwSources ? [...rawJob.nsfwSources] : undefined,
         resultUrl: directResultUrlFromRawJob(rawJob),
+        lastFrameUrl: rawJob.lastFrameUrl ?? (rawJob.result?.lastFrameUrl as string | undefined),
+        lastFrameKey: rawJob.lastFrameKey ?? (rawJob.result?.lastFrameKey as string | undefined),
+        outputFormat: rawJob.outputFormat ?? (rawJob.result?.outputFormat as string | undefined),
         provenance: rawJob.result
       },
       options
@@ -235,6 +249,11 @@ class Job extends DataEntity<JobData, JobEventMap> {
 
   get projectId() {
     return this.data.projectId;
+  }
+
+  /** Current server-provided reason when this result is queued. */
+  get waitingReason() {
+    return this.data.waitingReason;
   }
 
   /**
@@ -289,6 +308,23 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.data.previewUrl;
   }
 
+  /** Exported final-frame image URL, when requested. */
+  get lastFrameUrl() {
+    return this.data.lastFrameUrl;
+  }
+
+  /** Refresh the signed URL for an exported final frame. */
+  async getLastFrameUrl(): Promise<string> {
+    const url = await this._api.mediaDownloadUrl({
+      jobId: this.projectId,
+      id: this.id,
+      type: 'complete',
+      artifact: 'lastFrame'
+    });
+    this._update({ lastFrameUrl: url });
+    return url;
+  }
+
   /**
    * URL to the result image, could be null if the job was canceled or triggered NSFW filter while
    * it was not disabled explicitly.
@@ -332,13 +368,15 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
-   * Media type produced by this job's model
+   * Media type produced by this job's model. When neither the model catalog
+   * nor the SDK knows the model, this is the type the project was created with.
    */
   get type(): 'image' | 'video' | 'audio' | 'model' {
-    if (this._api.isVideoModelId(this._project.params.modelId)) return 'video';
-    if (this._api.isAudioModelId(this._project.params.modelId)) return 'audio';
-    if (this._api.isModelArtifactModelId(this._project.params.modelId)) return 'model';
-    return 'image';
+    const params = this._project.params;
+    return (
+      this._api._resultMediaKind({ modelId: params.modelId, projectType: params.type }) ??
+      params.type
+    );
   }
 
   get enhancedImage() {
@@ -389,6 +427,17 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
   }
 
+  /** Ask the API for this job's result URL on the endpoint its media type needs. */
+  private _mintResultUrl(): Promise<string> {
+    return this._api._mintResultUrl({
+      projectId: this.projectId,
+      jobId: this.id,
+      kind: this.type,
+      audioContentType: this._audioContentType,
+      imageContentType: this._imageContentType
+    });
+  }
+
   /**
    * Get the result URL of the job. This method will make a request to the API to get signed URL.
    * IMPORTANT: URL expires after 30 minutes, so make sure to download the result as soon as possible.
@@ -401,23 +450,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
     if (this.data.status !== 'completed') {
       throw new Error('Job is not completed yet');
     }
-    let url: string;
-    if (this.type === 'video' || this.type === 'audio' || this.type === 'model') {
-      url = await this._api.mediaDownloadUrl({
-        jobId: this.projectId,
-        id: this.id,
-        type: 'complete',
-        ...(this.type === 'audio' ? { contentType: this._audioContentType } : {}),
-        ...(this.type === 'model' ? { contentType: 'model/gltf-binary' } : {})
-      });
-    } else {
-      url = await this._api.downloadUrl({
-        jobId: this.projectId,
-        imageId: this.id,
-        type: 'complete',
-        ...(this._imageContentType ? { contentType: this._imageContentType } : {})
-      });
-    }
+    const url = await this._mintResultUrl();
     this._update({ resultUrl: url });
     return url;
   }
@@ -458,6 +491,14 @@ class Job extends DataEntity<JobData, JobEventMap> {
    */
   get workerName() {
     return this.data.workerName;
+  }
+
+  /**
+   * This render's position in its project. Unlike `id`, which each worker mints
+   * afresh, it stays the same when the server moves the render to another worker.
+   */
+  get jobIndex() {
+    return this.data.jobIndex;
   }
 
   /**
@@ -504,7 +545,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
       isNSFW: data.triggeredNSFWFilter,
       nsfwDetected: data.nsfwDetected === true,
       ...(data.nsfwSources ? { nsfwSources: [...data.nsfwSources] } : {}),
-      ...(data.result ? { provenance: data.result } : {})
+      ...(data.result ? { provenance: data.result } : {}),
+      lastFrameUrl: data.lastFrameUrl ?? (data.result?.lastFrameUrl as string | undefined),
+      lastFrameKey: data.lastFrameKey ?? (data.result?.lastFrameKey as string | undefined),
+      outputFormat: data.outputFormat ?? (data.result?.outputFormat as string | undefined)
     };
     if (JOB_STATUS_MAP[data.status]) {
       delta.status = JOB_STATUS_MAP[data.status];
@@ -521,22 +565,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       !(data.triggeredNSFWFilter === true && data.nsfwDetected !== true)
     ) {
       try {
-        if (this.type === 'video' || this.type === 'audio' || this.type === 'model') {
-          delta.resultUrl = await this._api.mediaDownloadUrl({
-            jobId: this.projectId,
-            id: this.id,
-            type: 'complete',
-            ...(this.type === 'audio' ? { contentType: this._audioContentType } : {}),
-            ...(this.type === 'model' ? { contentType: 'model/gltf-binary' } : {})
-          });
-        } else {
-          delta.resultUrl = await this._api.downloadUrl({
-            jobId: this.projectId,
-            imageId: this.id,
-            type: 'complete',
-            ...(this._imageContentType ? { contentType: this._imageContentType } : {})
-          });
-        }
+        delta.resultUrl = await this._mintResultUrl();
       } catch (error) {
         this._logger.error(error);
       }
@@ -550,6 +579,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
    * @param delta
    */
   _update(delta: Partial<JobData>) {
+    const queueOnly = Object.keys(delta).every((key) => key === 'waitingReason');
+    if (delta.status && delta.status !== 'pending') delta = { ...delta, waitingReason: null };
     if (has(delta, 'eta')) {
       // Keeping etaSeconds for backwards compatibility
       if (delta.eta) {
@@ -560,6 +591,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       }
     }
     super._update(delta);
+    if (queueOnly) return;
     if (this.status === 'processing') {
       this._startRuntimeTimeout();
     } else if (this.finished) {
@@ -610,11 +642,18 @@ class Job extends DataEntity<JobData, JobEventMap> {
     // the hard start time for this actual worker job.
     if (this._runtimeTimeout || this.finished) return;
     const limitMs = this._runtimeLimitMs();
-    this._runtimeTimeout = setTimeout(() => {
+    const handle = setTimeout(() => {
+      // Only the budget this job is currently running may act. A job that the
+      // server moved to another worker keeps this same instance and is
+      // `processing` again under its new attempt, so status alone cannot tell
+      // the departed worker's budget from the live one -- and acting on the
+      // stale one cancels the whole project on the server, retry included.
+      if (this._runtimeTimeout !== handle) return;
       this._runtimeTimeout = null;
       if (this.status !== 'processing' || this._project.finished) return;
       this._project._handleJobRuntimeTimeout(this, limitMs);
     }, limitMs);
+    this._runtimeTimeout = handle;
   }
 
   private handleUpdated(keys: string[]) {
@@ -651,9 +690,33 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
-   * Enhance the image using the Flux model. This method will create a new project with the
-   * enhancement parameters and use the result image of the current job as the starting image.
-   * @param strength - how much freedom the model has to change the image.
+   * The parent render's canvas as explicit dimensions. The enhancer is a different model
+   * from the parent, and models do not share size-preset ids, so a preset is resolved
+   * against the parent's own model. Undefined when the parent used its model's default size.
+   */
+  private async enhancementSize(): Promise<{ width: number; height: number } | undefined> {
+    const params = this._project.params;
+    if (params.type !== 'image') return undefined;
+    const preset = params.sizePreset;
+    if (!preset || preset === 'custom') {
+      return params.width && params.height
+        ? { width: params.width, height: params.height }
+        : undefined;
+    }
+    const network = params.network || enhancementDefaults.network;
+    const presets = await this._api.getSizePresets(network, params.modelId);
+    const match = presets.find((p) => p.id === preset);
+    if (!match) {
+      throw new Error(`Size preset "${preset}" is not available for ${params.modelId}`);
+    }
+    return { width: match.width, height: match.height };
+  }
+
+  /**
+   * Enhance the image with Krea 2 Turbo (`enhancementDefaults`). This creates a new
+   * project at the same size, using the result image of the current job as the starting image.
+   * @param strength - how much freedom the model has to change the image: `light` repaints
+   * the least (denoise 0.15), `heavy` the most (0.49).
    * @param overrides - optional parameters to override original prompt, style or token type.
    */
   async enhance(
@@ -666,7 +729,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
     }
     // A segmentation result reports `type === 'image'` and would otherwise sail
     // through the guard above, then be submitted as the starting image of a
-    // paid Flux render. A mask PNG (or its cut-out) has no prompt-to-pixels
+    // paid enhancement render. A mask PNG (or its cut-out) has no prompt-to-pixels
     // relationship to enhance, so this spends real Spark on a nonsense render.
     if (isSegmentationModel(parentProjectParams.modelId)) {
       throw new Error('Enhancement is not available for segmentation masks');
@@ -683,6 +746,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
       this._enhancementProject.off('updated', this.handleEnhancementUpdate);
       this._enhancementProject = null;
     }
+    const size = await this.enhancementSize();
     const imageData = await this.getResultData();
     const project = await this._api.create({
       type: 'image',
@@ -690,10 +754,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
       positivePrompt: overrides.positivePrompt || this._project.params.positivePrompt,
       stylePrompt: overrides.stylePrompt || this._project.params.stylePrompt,
       tokenType: overrides.tokenType || this._project.params.tokenType,
-      seed: this.seed || this._project.params.seed,
+      seed: this.seed ?? this._project.params.seed,
       startingImage: imageData,
       startingImageStrength: 1 - getEnhacementStrength(strength),
-      sizePreset: parentProjectParams.sizePreset
+      ...(size ? { sizePreset: 'custom', width: size.width, height: size.height } : {})
     });
     this._enhancementProject = project;
     this._enhancementProject.on('updated', this.handleEnhancementUpdate);

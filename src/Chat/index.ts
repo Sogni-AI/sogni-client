@@ -1,10 +1,13 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { ApiError } from '../ApiClient/index.js';
 import {
+  AuthenticatedData,
   JobTokensData,
   LLMJobResultData,
   LLMJobErrorData
 } from '../ApiClient/WebSocketClient/events.js';
+import type { ApiClientEvents } from '../ApiClient/events.js';
+import ErrorCode from '../ApiClient/WebSocketClient/ErrorCode.js';
 import ChatJobError, { extractChatJobErrorFields } from './ChatJobError.js';
 import ChatStream from './ChatStream.js';
 import ChatToolsApi from './ChatTools.js';
@@ -33,11 +36,24 @@ import {
   ToolExecutionResult,
   ToolHistoryEntry
 } from './types.js';
+import { apiErrorExtras, parseRetryAfterHeader } from '../lib/apiErrorFields.js';
 import getUUID from '../lib/getUUID.js';
+import { captureRequestSession } from '../lib/requestSession.js';
 import type ProjectsApi from '../Projects/index.js';
 import { mediaInputToInlineDataUri } from '../lib/mediaValidation.js';
 import { workloadAttributionToWireFields } from '../lib/attribution.js';
 import type { WorkloadAttributionInput } from '../types/attribution.js';
+
+/**
+ * How long a stream that was open when the socket dropped may stay silent
+ * before it is failed as `transport_lost`. The server keeps an in-flight LLM job
+ * for 30 s after its artist disconnects and rebinds it if the same app-id
+ * returns; after that the job is gone. Newer servers answer sooner by listing
+ * the surviving jobs in the `authenticated` frame.
+ */
+const LLM_TRANSPORT_GRACE_MS = 35000;
+const TRANSPORT_LOST_MESSAGE =
+  'The connection to Sogni dropped and this request did not survive it. Send it again.';
 
 const MAX_VISION_IMAGE_COUNT = 20;
 const MAX_VISION_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -257,6 +273,17 @@ export interface ChatApiEvents {
  */
 class ChatApi extends ApiGroup<ChatApiEvents> {
   private activeStreams = new Map<string, ChatStream>();
+  /** Jobs whose request has not reached the socket yet (`send` may be waiting out a reconnect). */
+  private unsentJobs = new Set<string>();
+  /** Jobs that were in flight when the transport dropped and have not been confirmed alive since. */
+  private jobsAwaitingReconnect = new Set<string>();
+  private transportGraceTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Transport-recovery timing. Overridable so regression scripts can run the
+   * flow in milliseconds.
+   * @internal
+   */
+  _transportTuning = { graceMs: LLM_TRANSPORT_GRACE_MS };
   private availableLLMModels: Record<string, LLMModelInfo> = {};
 
   /**
@@ -308,10 +335,16 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     get: (runId: string) => Promise<ChatRunRecord>;
     cancel: (runId: string, reason?: string) => Promise<ChatRunRecord>;
     /**
-     * Resume a run that paused with `run_awaiting_cost_confirmation`.
-     * Pass the user's decision (confirm or cancel) and optional
-     * override args. The cloud either dispatches the paused tool
-     * (confirm) or short-circuits with a cancelled tool result.
+     * Resume a run paused for cost approval (`status: 'waiting_for_user'`,
+     * `waiting.reason: 'cost_approval_required'`). Pass the user's decision
+     * and optional override args. The cloud either dispatches the paused
+     * tool calls (confirm) or short-circuits them with a cancelled result.
+     *
+     * To confirm, send `toolCallId` and `acceptedCostPreview` from
+     * `run.waiting.details` (or `payload.details` on the
+     * `run_waiting_for_user` event) after showing the preview to the user.
+     * The server rejects a confirm without the preview (HTTP 400) or with a
+     * stale one (HTTP 409). Cancel needs only `toolCallId`.
      */
     confirmCost: (runId: string, params: ConfirmChatRunCostParams) => Promise<ChatRunRecord>;
     streamEvents: (
@@ -329,6 +362,25 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     this.client.socket.on('llmJobError', this.handleJobError.bind(this));
     this.client.socket.on('jobState', this.handleJobState.bind(this));
     this.client.socket.on('swarmLLMModels', this.handleSwarmLLMModels.bind(this));
+    this.client.socket.on('authenticated', this.handleSocketAuthenticated.bind(this));
+    this.client.on('connecting', this.handleTransportLost.bind(this));
+    this.client.on('disconnected', this.handleTransportClosed.bind(this));
+    let sessionVersion = this.client.auth?.sessionVersion;
+    const clearPreviousSession = () => {
+      if (sessionVersion === this.client.auth?.sessionVersion) return;
+      sessionVersion = this.client.auth?.sessionVersion;
+      for (const jobID of this.activeStreams.keys()) {
+        this.handleJobError({
+          jobID,
+          error: 'session_ended',
+          error_message: 'The account session ended before this chat request completed.'
+        } as LLMJobErrorData);
+      }
+      this.jobsAwaitingReconnect.clear();
+      this.clearTransportGraceTimer();
+    };
+    this.client.auth?.on('updated', clearPreviousSession);
+    this.client.auth?.on('sessionChanged', clearPreviousSession);
 
     // Set up the completions namespace (mimics OpenAI SDK structure)
     this.completions = {
@@ -348,7 +400,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
 
     // Set up the tools API (requires ProjectsApi for media generation).
     // When ProjectsApi is not provided, tool execution methods will throw at runtime.
-    this.tools = new ChatToolsApi(projects!);
+    this.tools = new ChatToolsApi(projects!, this.client.auth);
   }
 
   /** Available LLM models and their worker counts */
@@ -413,7 +465,9 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     think?: boolean;
     taskProfile?: 'general' | 'coding' | 'reasoning';
   }): Promise<LLMCostEstimation> {
+    const assertSession = captureRequestSession(this.client.auth);
     const normalizedMessages = await normalizeVisionMessages(params.messages);
+    assertSession();
     const tokenType = params.tokenType || 'sogni';
     const inputTokens = Math.ceil(
       JSON.stringify(this.stripImageDataForEstimation(normalizedMessages)).length / 4
@@ -540,11 +594,13 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private async createHostedCompletion(
     params: HostedChatCompletionParams
   ): Promise<HostedChatCompletionResult> {
+    const assertSession = captureRequestSession(this.client.auth);
     if (params.stream) {
       throw new Error('chat.hosted.create currently supports non-streaming requests only.');
     }
 
     const normalizedMessages = await normalizeVisionMessages(params.messages);
+    assertSession();
     const chatTemplateKwargs =
       params.chat_template_kwargs ?? this.buildChatTemplateKwargs(params.think);
     const appSource = params.app_source ?? params.appSource ?? this.client.appSource;
@@ -628,15 +684,45 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   }
 
   private async chatRunFetch(path: string, options: RequestInit = {}): Promise<Response> {
+    const assertSession = captureRequestSession(this.client.auth);
     const url = new URL(path, this.client.rest.baseUrl).toString();
-    const authenticated = await this.client.auth.authenticateRequest(options);
-    return fetch(url, authenticated);
+    const controller = new AbortController();
+    const cancelChangedSession = () => {
+      try {
+        assertSession();
+      } catch (error) {
+        controller.abort(error);
+      }
+    };
+    const cancelRequested = () => controller.abort(options.signal?.reason);
+    const offAuth = this.client.auth?.on('updated', cancelChangedSession);
+    const offSession = this.client.auth?.on('sessionChanged', cancelChangedSession);
+    if (options.signal?.aborted) cancelRequested();
+    else options.signal?.addEventListener('abort', cancelRequested, { once: true });
+    try {
+      const authenticated = await this.client.auth.authenticateRequest(options);
+      assertSession();
+      const response = await fetch(url, { ...authenticated, signal: controller.signal });
+      try {
+        assertSession();
+      } catch (error) {
+        void response.body?.cancel().catch(() => undefined);
+        throw error;
+      }
+      return response;
+    } finally {
+      offAuth?.();
+      offSession?.();
+      options.signal?.removeEventListener('abort', cancelRequested);
+    }
   }
 
   private async chatRunJson<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const assertSession = captureRequestSession(this.client.auth);
     const response = await this.chatRunFetch(path, options);
     if (!response.ok) {
       const text = await response.text();
+      assertSession();
       let payload: Record<string, unknown> | undefined;
       try {
         payload = text ? (JSON.parse(text) as Record<string, unknown>) : undefined;
@@ -662,11 +748,24 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
           limitation: extracted.limitation
         });
       }
-      const err = new Error(message);
-      (err as { status?: number }).status = response.status;
+      const err = new Error(message) as Error & {
+        status?: number;
+        retryAfter?: number;
+        details?: Record<string, unknown>;
+      };
+      err.status = response.status;
+      // Same contract as ApiError: the server's wait in seconds (body first,
+      // then the Retry-After header) and any structured context it attached.
+      const extras = apiErrorExtras(payload);
+      const retryAfter =
+        extras.retryAfter ?? parseRetryAfterHeader(response.headers.get('retry-after'));
+      if (retryAfter !== undefined) err.retryAfter = retryAfter;
+      if (extras.details) err.details = extras.details;
       throw err;
     }
-    return (await response.json()) as T;
+    const body = (await response.json()) as T;
+    assertSession();
+    return body;
   }
 
   /**
@@ -734,11 +833,13 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   }
 
   /**
-   * Resume a chat run that emitted `run_awaiting_cost_confirmation`.
-   * Posts the user's decision (confirm/cancel + optional override
-   * args) and returns the updated run record. Errors with HTTP 4xx
-   * when the run isn't in `waiting_for_user` state or the
-   * `toolCallId` doesn't match the pending tool.
+   * Resume a chat run paused for cost approval. Posts the user's decision
+   * (confirm/cancel + optional override args) and returns the updated run
+   * record. `acceptedCostPreview` is forwarded exactly as the caller passed
+   * it; the SDK never reads the current preview and accepts it on the
+   * user's behalf. Errors with HTTP 4xx when the run isn't awaiting cost
+   * approval, the `toolCallId` doesn't match the pending tool, or a confirm
+   * is missing or carries a stale `acceptedCostPreview`.
    */
   private async confirmChatRunCost(
     runId: string,
@@ -747,14 +848,17 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const body: Record<string, unknown> = {
       tool_call_id: params.toolCallId,
       decision: params.decision,
+      ...(params.acceptedCostPreview ? { acceptedCostPreview: params.acceptedCostPreview } : {}),
       ...(params.overrides ? { overrides: params.overrides } : {}),
       ...(params.reason ? { reason: params.reason } : {})
     };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (params.idempotencyKey) headers['Idempotency-Key'] = params.idempotencyKey;
     const response = await this.chatRunJson<{ status: string; data: { run: ChatRunRecord } }>(
       `/v1/chat/runs/${encodeURIComponent(runId)}/confirm-cost`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body)
       }
     );
@@ -770,6 +874,13 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     runId: string,
     options: StreamChatRunEventsOptions = {}
   ): AsyncIterableIterator<ChatRunEvent> {
+    const checkSession = captureRequestSession(this.client.auth);
+    const assertSession = () => {
+      checkSession();
+      if (options.signal?.aborted) {
+        throw options.signal.reason ?? new DOMException('The request was aborted', 'AbortError');
+      }
+    };
     const headers: Record<string, string> = { Accept: 'text/event-stream' };
     if (options.lastEventId !== undefined && Number.isFinite(options.lastEventId)) {
       headers['Last-Event-ID'] = String(options.lastEventId);
@@ -784,6 +895,18 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    const cancelChangedSession = () => {
+      try {
+        assertSession();
+      } catch {
+        // Cancel an idle read as well as rejecting buffered events. Merely
+        // checking after read() leaves callers waiting when no event arrives.
+        void reader.cancel().catch(() => undefined);
+      }
+    };
+    const offAuth = this.client.auth?.on('updated', cancelChangedSession);
+    const offSession = this.client.auth?.on('sessionChanged', cancelChangedSession);
+    options.signal?.addEventListener('abort', cancelChangedSession, { once: true });
 
     const findFrameBoundary = (source: string): { index: number; length: number } | null => {
       const lf = source.indexOf('\n\n');
@@ -811,8 +934,10 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     };
 
     try {
+      assertSession();
       while (true) {
         const { value, done } = await reader.read();
+        assertSession();
         if (done) {
           const remaining = buffer.trim();
           if (remaining) {
@@ -828,10 +953,17 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
           buffer = buffer.slice(boundary.index + boundary.length);
           boundary = findFrameBoundary(buffer);
           const parsed = yieldFrame(frame);
-          if (parsed) yield parsed;
+          if (parsed) {
+            assertSession();
+            yield parsed;
+          }
         }
       }
     } finally {
+      offAuth?.();
+      offSession?.();
+      options.signal?.removeEventListener('abort', cancelChangedSession);
+      await reader.cancel().catch(() => undefined);
       reader.releaseLock();
     }
   }
@@ -843,7 +975,19 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     params: ChatCompletionParams
   ): Promise<ChatStream | ChatCompletionResult> {
     const jobID = getUUID();
+    const checkSession = captureRequestSession(this.client.auth);
+    const assertSession = () => {
+      try {
+        checkSession();
+      } catch {
+        throw new ChatJobError('The account session ended before this chat request completed.', {
+          errorType: 'session_ended',
+          jobID
+        });
+      }
+    };
     const normalizedMessages = await normalizeVisionMessages(params.messages);
+    assertSession();
 
     // Build chat_template_kwargs from think parameter
     const chatTemplateKwargs = this.buildChatTemplateKwargs(params.think);
@@ -883,7 +1027,33 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     this.activeStreams.set(jobID, stream);
 
     // Send the job request via socket
-    await this.client.socket.send('llmJobRequest', request as any);
+    let sendFailure: ChatJobError | undefined;
+    const offSendError = this.on('error', (error) => {
+      if (!params.stream && error.jobID === jobID) {
+        sendFailure = new ChatJobError(`${error.error}: ${error.message}`, {
+          code: error.errorCode,
+          errorType: error.error,
+          jobID
+        });
+      }
+    });
+    this.unsentJobs.add(jobID);
+    try {
+      await this.client.socket.send('llmJobRequest', request as any);
+      assertSession();
+    } catch (error: any) {
+      this.activeStreams.delete(jobID);
+      assertSession();
+      // Nothing reached the server, so nothing was charged: safe to send again.
+      throw new ChatJobError(`${TRANSPORT_LOST_MESSAGE} (${error?.message || error})`, {
+        errorType: 'transport_lost',
+        jobID
+      });
+    } finally {
+      this.unsentJobs.delete(jobID);
+      offSendError();
+    }
+    if (sendFailure) throw sendFailure;
 
     if (params.stream) {
       return stream;
@@ -936,6 +1106,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private async createCompletionWithAutoTools(
     params: ChatCompletionParams
   ): Promise<ChatCompletionResult> {
+    const assertSession = captureRequestSession(this.client.auth);
     const maxRounds = params.maxToolRounds || 5;
     const toolHistory: ToolHistoryEntry[] = [];
     let messages = [...params.messages];
@@ -944,6 +1115,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     const autoToolChildAttribution = this.createAutoToolChildAttribution(logicalOperation);
 
     for (let round = 0; round < maxRounds; round++) {
+      assertSession();
       const result = (await this.createSingleCompletion({
         ...params,
         messages,
@@ -953,6 +1125,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         // Later rounds and tool/media work are compute children of that root.
         attribution: round === 0 ? logicalOperation : autoToolChildAttribution
       })) as ChatCompletionResult;
+      assertSession();
 
       // If model didn't request tools, return final result
       if (result.finishReason !== 'tool_calls' || !result.tool_calls?.length) {
@@ -970,6 +1143,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
         onToolCall: params.onToolCall,
         onToolProgress: params.onToolProgress
       });
+      assertSession();
       appendAutoToolMediaResults(mediaContext, toolResults);
 
       // Record history
@@ -1019,9 +1193,76 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     };
   }
 
+  /**
+   * The socket dropped and a reconnect is scheduled. The server may keep each
+   * in-flight job and hand it back (same app-id, inside its grace window), or it
+   * may be gone (the socket restarted). Wait for the reconnect to say which;
+   * never wait longer than the server would have kept the job.
+   */
+  private handleTransportLost(): void {
+    for (const jobID of this.activeStreams.keys()) {
+      if (!this.unsentJobs.has(jobID)) this.jobsAwaitingReconnect.add(jobID);
+    }
+    if (this.jobsAwaitingReconnect.size && !this.transportGraceTimer) {
+      this.transportGraceTimer = setTimeout(() => {
+        this.transportGraceTimer = null;
+        this.failJobsAwaitingReconnect();
+      }, this._transportTuning.graceMs);
+    }
+  }
+
+  private handleTransportClosed(data: ApiClientEvents['disconnected']): void {
+    // A tab handoff keeps the app-id alive on another tab, which forwards this
+    // job's events; treat it like a reconnect. Any other terminal close ends
+    // the session, and no event will ever finish these streams.
+    this.handleTransportLost();
+    if (data?.code !== ErrorCode.SWITCH_CONNECTION) this.failJobsAwaitingReconnect();
+  }
+
+  private handleSocketAuthenticated(data: AuthenticatedData): void {
+    if (!this.jobsAwaitingReconnect.size || !Array.isArray(data?.activeLLMJobIDs)) return;
+    const live = new Set(data.activeLLMJobIDs.map((id) => String(id).toUpperCase()));
+    const gone: string[] = [];
+    for (const jobID of this.jobsAwaitingReconnect) {
+      if (!live.has(jobID.toUpperCase())) gone.push(jobID);
+    }
+    this.jobsAwaitingReconnect.clear();
+    this.clearTransportGraceTimer();
+    gone.forEach((jobID) => this.failTransportLost(jobID));
+  }
+
+  private failJobsAwaitingReconnect(): void {
+    const jobIDs = Array.from(this.jobsAwaitingReconnect);
+    this.jobsAwaitingReconnect.clear();
+    this.clearTransportGraceTimer();
+    jobIDs.forEach((jobID) => this.failTransportLost(jobID));
+  }
+
+  private failTransportLost(jobID: string): void {
+    this.handleJobError({
+      jobID,
+      error: 'transport_lost',
+      error_message: TRANSPORT_LOST_MESSAGE
+    } as LLMJobErrorData);
+  }
+
+  /** The job produced a frame, so it survived the gap; stop watching it. */
+  private markJobAlive(jobID: string): void {
+    if (!this.jobsAwaitingReconnect.delete(jobID)) return;
+    if (!this.jobsAwaitingReconnect.size) this.clearTransportGraceTimer();
+  }
+
+  private clearTransportGraceTimer(): void {
+    if (this.transportGraceTimer) {
+      clearTimeout(this.transportGraceTimer);
+      this.transportGraceTimer = null;
+    }
+  }
+
   private handleJobTokens(data: JobTokensData): void {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
+    this.markJobAlive(data.jobID);
 
     const chunk: ChatCompletionChunk = {
       jobID: data.jobID,
@@ -1039,6 +1280,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private handleJobResult(data: LLMJobResultData): void {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
+    this.markJobAlive(data.jobID);
 
     // Update worker name from result if available (may contain proper username/nftTokenId)
     if (data.workerName) {
@@ -1063,6 +1305,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private handleJobState(data: any): void {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
+    this.markJobAlive(data.jobID);
 
     // Track worker name on the stream for inclusion in finalResult
     if (data.workerName) {
@@ -1093,6 +1336,7 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   private handleJobError(data: LLMJobErrorData): void {
     const stream = this.activeStreams.get(data.jobID);
     if (!stream) return;
+    this.markJobAlive(data.jobID);
 
     // Capture worker name if available (worker may have been assigned before error)
     if (data.workerName) {

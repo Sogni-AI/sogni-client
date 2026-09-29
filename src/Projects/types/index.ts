@@ -3,6 +3,7 @@ import { ControlNetParams, VideoControlNetParams } from './ControlNetParams.js';
 import { TokenType } from '../../types/token.js';
 import type { WorkloadAttributionInput } from '../../types/attribution.js';
 
+/** Existing receipt wire contract. Recipe selection belongs to the calling application. */
 export type WorldGenerationReceiptRequest =
   | {
       stage: 'target_still';
@@ -46,9 +47,25 @@ export interface SizePreset {
 }
 
 export type ImageOutputFormat = 'png' | 'jpg' | 'webp';
-export type GptImageQuality = 'low' | 'medium' | 'high' | 'auto' | 'standard' | 'hd';
-export type GptImageBackground = 'opaque' | 'auto';
-export type VideoOutputFormat = 'mp4';
+/**
+ * GPT Image quality preset. `xhigh` and `max` need GPT Image 2.5.
+ *
+ * `'auto'` is retired and rejected at the SDK boundary: Sogni never lets the
+ * provider settle quality after the quote, so every request names the concrete
+ * value it is quoted, charged and rendered at. It stays in this union only
+ * because removing it would be a breaking type change for every consumer.
+ */
+export type GptImageQuality =
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max'
+  | 'auto'
+  | 'standard'
+  | 'hd';
+export type GptImageBackground = 'opaque' | 'auto' | 'transparent';
+export type VideoOutputFormat = 'mp4' | 'mov';
 export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
 export type BillingMode = 'auto' | 'subscription' | 'tokens';
 
@@ -112,9 +129,9 @@ export interface BaseProjectParams {
    */
   appSource?: string;
   /**
-   * Hash receipt requested by the Sogni World pipeline. The worker verifies
-   * these hashes against the original uploaded frame bytes before echoing an
-   * attestation. This is accepted only for `appSource: "sogni-world"`.
+   * Optional input-hash receipt for compatible services. The SDK validates
+   * and serializes its shape; model eligibility and application authorization
+   * are decided by the service. Retains its existing wire name for compatibility.
    */
   worldGenerationReceipt?: WorldGenerationReceiptRequest;
   /**
@@ -153,6 +170,26 @@ export interface BaseProjectParams {
 }
 
 export type InputMedia = File | Buffer | Blob | boolean;
+
+/**
+ * One MiniMax H3 intermediate keyframe: a still image pinned at a chosen frame
+ * between the first and last frame. See `VideoProjectParams.keyframes`.
+ */
+export interface MinimaxH3Keyframe {
+  /**
+   * The still image the video passes through at `frameIndex`. H3 never sees it
+   * as a reference, so the prompt must describe what it shows at that time.
+   */
+  image: InputMedia;
+  /**
+   * 0-based pixel frame at 24 fps where `image` is pinned; convert seconds with
+   * `Math.round(seconds * 24)`. An integer from 1 to `frames - 2` of the job's
+   * frame count (pass `frames` so that count is exact). Frame 0 and the last
+   * frame are never keyframes: where a workflow can set them, they are
+   * `referenceImage` and `referenceImageEnd`.
+   */
+  frameIndex: number;
+}
 
 /**
  * Video-specific parameters for video workflows (t2v, i2v, s2v, ia2v, a2v, animate).
@@ -213,8 +250,76 @@ export type InputMedia = File | Buffer | Blob | boolean;
  *   uses its fixed 4-step sampling path.
  * - Frames follow `124 + n*17` from 124 through 362. Dimensions use a 32px
  *   grid, with a 1344px per-axis limit and a 1032192-pixel canvas limit.
+ * - FastH3 Two-Stage
+ *   (`minimax-h3-fastvideo-int8_{t2v,i2v,flf2v,ia2v,flfa2v,a2v}_turbo_2stage`)
+ *   takes exactly the request of the matching FastH3 Turbo ID
+ *   (`minimax-h3-fastvideo-int8_*_turbo`) and delivers the clip at twice the
+ *   canvas width and height with the same length and audio. Send the chosen
+ *   aspect at a 384px short edge for 720p (672x384 delivers 1344x768), at a
+ *   544px short edge for 1080p (960x544 delivers 1920x1088), or the 768p canvas
+ *   for 2K (1344x768 delivers 2688x1536). Quote it with `estimateVideoCost`
+ *   using the `_2stage` model id and that canvas.
+ * - Ref2VA Two-Stage (`minimax-h3-ref2va-fp8_r2v_2stage`, Standard, and
+ *   `minimax-h3-ref2va-fp8_r2v_balanced_2stage`, Balanced) takes exactly the
+ *   request of its one-stage `r2v` ID (references, steps, sampling, LoRAs) and
+ *   delivers the clip at twice the canvas, with the same 384/544/768 px canvas
+ *   choices as the FastH3 Two-Stage IDs. Quote it with `estimateVideoCost`
+ *   using the `_2stage` model id and that canvas.
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
  *   requires at least one of them. The `flf2v` model requires both.
+ *
+ * #### MiniMax H3 intermediate keyframes (every workflow except `t2v`)
+ * - `keyframes` pins up to 8 still images at chosen frames between the first
+ *   and last frame. 21 ids accept it (`isMinimaxH3KeyframeModel()`): `i2v` and
+ *   `flf2v` on every tier (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and
+ *   FastH3 Two-Stage), the six FastH3 Sound to Video ids (`ia2v`, `flfa2v`,
+ *   `a2v`, one- and two-stage) and the five Ref2VA `r2v` ids. Text-to-video and
+ *   every other model reject a non-empty list.
+ * - Each entry is `{ image, frameIndex }`. `frameIndex` is the 0-based pixel
+ *   frame at 24 fps (`Math.round(seconds * 24)`): an integer from 1 to
+ *   `frames - 2` of the job's frame count, with no frame used twice.
+ * - Pass `frames` from the grid (124, 141, 158, ... 362) so that count is
+ *   exact. `duration` also works but snaps to the grid (`duration: 6` renders
+ *   141 frames, not 144); `calculateVideoFrames(modelId, seconds, 24)` returns
+ *   the count a duration resolves to.
+ * - Frame 0 and the last frame are never keyframes. `i2v`, `flf2v` and `flfa2v`
+ *   set them with `referenceImage` / `referenceImageEnd` under the rules above,
+ *   `ia2v` sets frame 0 with `referenceImage`, and `a2v` and `r2v` cannot pin
+ *   them. Each workflow keeps its own uploads, and `contextImages` stays
+ *   r2v-only.
+ * - H3 never sees the keyframe images as references, so the prompt must
+ *   describe what each keyframe shows at its time. Keyframes are never
+ *   labelled: the `i2v`/`flf2v` alignment line names only the first and last
+ *   frame, and on `r2v` `<Picture N>` and `<Subject N>` refer to the
+ *   references only. On Sound to Video the audio drives the performance, and
+ *   keyframes pin how it looks at their times.
+ * - When a keyframe changes the framing, camera angle, location or light, the
+ *   prompt must start a new shot (a hard cut, `[Shot N] At MM:SS.mmm, ...`) at
+ *   its time, `frameIndex / 24` seconds. Two differently framed or lit stills
+ *   inside one continuous shot cross-fade into each other, and a shot described
+ *   differently from its still can flash the still for a single frame.
+ * - `keyframes[i].image` uploads to its own `keyframeImage<i+1>` slot and the
+ *   request carries `keyframeFrameIndices` in the same order; `r2v` references
+ *   keep their `referenceImage` / `contextImage<n>` slots in the same request.
+ *   If no worker serving the model can pin keyframes yet, the job is refused
+ *   with error code 4100.
+ *
+ * #### MiniMax H3 FastH3 audio guide (`ia2v`, `flfa2v`, `a2v`)
+ * - An uploaded `referenceAudio` drives the video from frame 0 in three modes:
+ *   `minimax-h3-fastvideo-int8_ia2v_turbo` (plus a first-frame
+ *   `referenceImage`), `..._flfa2v_turbo` (plus `referenceImage` and
+ *   `referenceImageEnd`) and `..._a2v_turbo` (audio and prompt only). Each
+ *   mode requires exactly its uploads and rejects any other.
+ * - Each has a two-stage id (`..._turbo_2stage`) that takes the same request
+ *   and delivers twice the canvas, like the other FastH3 two-stage ids.
+ * - The output always carries the uploaded audio, so `generateAudio: false` is
+ *   rejected. `audioStart` (seconds, 0 or greater) offsets the audio window; the
+ *   window length is always the video length, so `audioDuration` is rejected.
+ * - Fixed 4-step FastH3 sampling on the same frame and canvas grids as the other
+ *   H3 ids. LoRAs are not supported: `loras` / `loraStrengths` are rejected.
+ * - Size a request to its audio with `getMinimaxH3FramesForAudioDuration()`.
+ * - Every other H3 id rejects `referenceAudio` except `r2v`, where it is a
+ *   labelled reference rather than a driving track, and rejects `audioStart`.
  *
  * #### MiniMax H3 `r2v` (Ref2VA) multi-reference video
  * - `minimax-h3-ref2va-fp8_r2v` (standard) and
@@ -281,9 +386,22 @@ export type Wan3Ratio = 'adaptive' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
   /**
-   * Number of frames to generate.
-   * @deprecated Use duration instead. When using duration, the SDK automatically
-   * calculates the correct frame count based on the model type.
+   * FlashVSR delivery resolution on the shorter edge. Source timing and audio are preserved.
+   * With a FlashVSR `referenceVideo`, `frames`, `fps`, `width` and `height` may be omitted: the
+   * server adopts the verified source's values. Values that are sent must match the source.
+   */
+  upscaleResolution?: 1080 | 1440;
+  /** FlashVSR detail preference. Defaults to stable (More Stable). */
+  detailPreference?: 'stable' | 'sharper';
+  /** FlashVSR processing speed. Defaults to stable (More Stable). */
+  processingSpeed?: 'stable' | 'faster';
+  /**
+   * Number of frames to generate. Most requests pass `duration` instead and let
+   * the SDK calculate the model-correct count (`calculateVideoFrames()` returns
+   * it). Pass `frames` when positions inside the clip must be exact, as with
+   * MiniMax H3 `keyframes`, whose `frameIndex` values must fit the count; H3
+   * takes `124 + n*17` (124, 141, 158, ... 362). When both are passed,
+   * `duration` wins, except on FlashVSR upscales.
    */
   frames?: number;
   /**
@@ -299,7 +417,9 @@ export interface VideoProjectParams extends BaseProjectParams {
    * - HappyHorse: `duration * 24 + 1`
    * - Wan 3: `duration * 30 + 1`
    * - MiniMax H3: `duration * 24` snapped to the `124 + n*17` grid and clamped
-   *   to 124-362 frames (always 24fps generation, and no `+1` term)
+   *   to 124-362 frames (always 24fps generation, and no `+1` term), so
+   *   `duration: 6` renders 141 frames. Pass `frames` instead when MiniMax H3
+   *   `keyframes` need an exact count.
    */
   duration?: number;
   /**
@@ -414,14 +534,54 @@ export interface VideoProjectParams extends BaseProjectParams {
    *
    * Required, together with `referenceImage`, for the MiniMax H3 `flf2v`
    * workflow (`minimax-h3-fl2va-fp8_flf2v`), which always interpolates between
-   * two anchor frames.
+   * two anchor frames, and for the FastH3 audio-guide `flfa2v` workflow
+   * (`minimax-h3-fastvideo-int8_flfa2v_turbo`), which adds a driving audio.
    *
    * Rejected by the MiniMax H3 `r2v` workflow, which has no closing frame to
    * pin. Its second reference image is the next entry in `contextImages`.
    */
   referenceImageEnd?: InputMedia;
   /**
-   * Reference audio for audio-driven video workflows (s2v, ia2v, a2v).
+   * MiniMax H3 intermediate keyframes: up to 8 still images, each pinned at a
+   * chosen frame between the first and last frame. Accepted by every MiniMax H3
+   * workflow except text-to-video, 21 ids (`isMinimaxH3KeyframeModel()`):
+   * image-to-video (`i2v`), first/last-frame (`flf2v`), Sound to Video (`ia2v`,
+   * `flfa2v`, `a2v`) and Reference to Video (`r2v`). Any other model rejects a
+   * non-empty list, and an empty list is the same as omitting the field.
+   *
+   * `frameIndex` is the 0-based pixel frame at 24 fps (`Math.round(seconds * 24)`),
+   * an integer from 1 to `frames - 2` of the job's frame count, and every entry
+   * needs its own frame and an image. Pass `frames` from the H3 grid (124, 141,
+   * 158, ... 362) so that count is exact: `duration` snaps to the grid
+   * (`duration: 6` renders 141 frames, not 144), and
+   * `calculateVideoFrames(modelId, seconds, 24)` returns the count a duration
+   * resolves to. Frame 0 and the last frame are never keyframes: `i2v`, `flf2v`
+   * and `flfa2v` set them with `referenceImage` / `referenceImageEnd`, `ia2v`
+   * sets frame 0 with `referenceImage`, and `a2v` and `r2v` cannot pin them.
+   * Every workflow keeps its own upload rules.
+   *
+   * H3 never sees the keyframe images as references, so the prompt must describe
+   * what each one shows at its time. Keyframes are never labelled: on `r2v`,
+   * `<Picture N>` and `<Subject N>` refer to the references only. On Sound to
+   * Video the audio drives the performance, and keyframes pin how it looks at
+   * their times. When a keyframe changes the framing, camera angle, location or
+   * light, start a new shot (a hard cut) at its time, `frameIndex / 24` seconds:
+   * two differently framed or lit stills inside one continuous shot cross-fade
+   * into each other, and a shot described differently from its still can flash
+   * the still for a single frame.
+   *
+   * `keyframes[i].image` uploads to its own `keyframeImage<i+1>` slot, in array
+   * order, so an `r2v` request carries its references (`referenceImage`,
+   * `contextImages`) and its keyframes together. If no worker serving the model
+   * can pin keyframes yet, the job is refused with error code 4100.
+   */
+  keyframes?: MinimaxH3Keyframe[];
+  /**
+   * Reference audio for audio-driven video workflows (s2v, ia2v, flfa2v, a2v).
+   *
+   * Required by the MiniMax H3 FastH3 audio-guide workflows (`ia2v`, `flfa2v`,
+   * `a2v`; `minimax-h3-fastvideo-int8_*_turbo` and `..._turbo_2stage`), whose
+   * output carries this audio trimmed to the video length.
    *
    * On the MiniMax H3 `r2v` workflow this is standalone reference audio 1 - a
    * voice or soundtrack the prompt assigns a job to, not a track the video is
@@ -482,7 +642,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   audioIdentityStrength?: number;
   /**
-   * Audio start position in seconds for audio-driven workflows (s2v, ia2v, a2v).
+   * Audio start position in seconds for audio-driven workflows (s2v, ia2v, flfa2v, a2v).
    * Specifies where to begin reading from the audio file.
    * Default: 0
    */
@@ -589,9 +749,11 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   lastFrameStrength?: number;
   /**
-   * Output video format. For now only 'mp4' is supported, defaults to 'mp4'.
+   * Output video format. Defaults to 'mp4'; 'mov' is supported by Seedance 2.5.
    */
   outputFormat?: VideoOutputFormat;
+  /** Seedance 2.5: export a separate final-frame image, available as job.lastFrameUrl. */
+  returnLastFrame?: boolean;
   /**
    * SAM2 click coordinates for subject detection in animate-replace workflows.
    * Array of {x, y} coordinate objects indicating where the subject is located
@@ -667,26 +829,30 @@ export interface Sam3ImagePrompt {
 }
 
 /**
- * Pixal3D image-to-3D generation options. Every one may only REDUCE work: each
- * maximum is the shipped default, so the flat price is a guaranteed upper bound
- * and a smaller value simply costs less to produce.
+ * Which Pixal3D reconstruction graph to run.
+ *
+ * ComfyUI registers one graph under the single-view workflow id
+ * (`pixal3d_int8_i23d`). `i23d-birefnet` isolates the subject with BiRefNet and
+ * takes no prompt. Leave it unset to let the worker choose that shipped default.
+ * The multi-view id (`pixal3d_multiview_int8_i23d`) has no selector.
+ */
+export type Pixal3dTemplateVariant = 'i23d-birefnet';
+
+/**
+ * Pixal3D image-to-3D generation options, accepted by both `pixal3d_int8_i23d`
+ * and `pixal3d_multiview_int8_i23d`. `textureSize`, `meshTargetFaces`,
+ * `normalMapSize` and `ambientOcclusionSize` may only REDUCE work: each maximum
+ * is the shipped default, so a smaller value simply costs less to produce.
+ * `shapeResolution` defaults to 1024; 1536 is a priced step up.
  *
  * `meshTargetFaces` is the one most worth setting. The 700,000-triangle default
  * is far heavier than a real-time engine wants, so asking for less yields a
  * more useful asset.
  */
-/**
- * Which Pixal3D reconstruction graph to run.
- *
- * ComfyUI registers one graph under the workflow id. `i23d-birefnet` isolates
- * the subject with BiRefNet and takes no prompt. Leave it unset to let the
- * worker choose that shipped default.
- */
-export type Pixal3dTemplateVariant = 'i23d-birefnet';
-
 export interface Pixal3dGenerationOptions {
   /**
    * Which reconstruction graph to run. Unset means the worker's own default.
+   * Only `pixal3d_int8_i23d` accepts it.
    */
   templateVariant?: Pixal3dTemplateVariant;
   /** Base-colour bake and UV atlas resolution, 1024 to 4096. Default 4096. */
@@ -697,8 +863,37 @@ export interface Pixal3dGenerationOptions {
   normalMapSize?: number;
   /** Ambient occlusion map resolution, 256 to 1024. Default 1024. */
   ambientOcclusionSize?: number;
-  /** Sparse-latent upsampling resolution, 1024 to 1536. Default 1536. */
+  /** Sparse-latent upsampling resolution, 1024 or 1536. Default 1024; 1536 costs more. */
   shapeResolution?: number;
+}
+
+/**
+ * Orbit views for Pixal3D multi-view reconstruction
+ * (`pixal3d_multiview_int8_i23d`). `startingImage` is the FRONT view and is
+ * required; each orbit view is optional and any subset may be sent. Every view
+ * must show the same object at the same height, 90 degrees apart around it at
+ * eye level, like a character turnaround sheet.
+ *
+ * Views are named from the subject's own point of view, not the viewer's:
+ *
+ * - `leftViewImage`: the subject turned so ITS OWN LEFT SIDE faces the camera
+ *   (the subject faces screen-left). Uploaded as `contextImage1`.
+ * - `backViewImage`: the subject seen from behind. Uploaded as `contextImage2`.
+ * - `rightViewImage`: the subject turned so ITS OWN RIGHT SIDE faces the camera
+ *   (the subject faces screen-right). Uploaded as `contextImage3`.
+ *
+ * Swapping left and right builds a model turned 180 degrees. Some turnaround
+ * templates label the photo of the subject's right side "left"; follow the
+ * definitions above, not those labels. `pixal3d_int8_i23d` and every other
+ * model refuse these fields, and both Pixal3D ids refuse `contextImages`.
+ */
+export interface Pixal3dMultiViewImages {
+  /** Subject's own left side toward the camera (subject faces screen-left). */
+  leftViewImage?: InputMedia;
+  /** Subject seen from behind. */
+  backViewImage?: InputMedia;
+  /** Subject's own right side toward the camera (subject faces screen-right). */
+  rightViewImage?: InputMedia;
 }
 
 /** One SAM3 selection: a concept instance, or a candidate for one click. */
@@ -713,14 +908,16 @@ export interface Sam3Selection {
   included: boolean;
 }
 
-export interface ImageProjectParams extends BaseProjectParams, Pixal3dGenerationOptions {
+export interface ImageProjectParams
+  extends BaseProjectParams, Pixal3dGenerationOptions, Pixal3dMultiViewImages {
   type: 'image';
   /**
    * Number of previews to generate. Note that previews affect project cost
    */
   numberOfPreviews?: number;
   /**
-   * Starting image for img2img workflows.
+   * Starting image for img2img workflows. For Pixal3D it is the source image,
+   * and for `pixal3d_multiview_int8_i23d` the required FRONT view.
    * Supported types:
    * `File` - file object from input[type=file]
    * `Buffer` - Node.js buffer object with image data
@@ -792,18 +989,26 @@ export interface ImageProjectParams extends BaseProjectParams, Pixal3dGeneration
    */
   controlNet?: ControlNetParams;
   /**
-   * Output format. Can be 'png' or 'jpg'. Defaults to 'png'.
+   * Output format: 'png', 'jpg', or 'webp'. Defaults to 'png'.
    */
   outputFormat?: ImageOutputFormat;
+  /** Embed the generation prompt/settings in worker image metadata. Defaults to true. */
+  embedPromptMetadata?: boolean;
   /**
-   * GPT Image 2 quality preset. Only used by external OpenAI image models.
+   * GPT Image quality preset (2.5 also supports xhigh/max). Only used by external OpenAI image models.
    * Defaults to 'medium'.
    */
   gptImageQuality?: GptImageQuality;
   /**
-   * GPT Image 2 background mode. Only used by external OpenAI image models.
+   * GPT Image background mode (transparency requires 2.5 and PNG/WebP). Only used by external OpenAI image models.
    */
   gptImageBackground?: GptImageBackground;
+  /** JPEG/WebP compression (0–100). Omit for PNG. */
+  gptImageOutputCompression?: number;
+  /** PNG alpha mask URL or data URI matching contextImages[0]. Transparent regions are edited. */
+  gptImageMaskUrl?: string;
+  /** PNG alpha mask, uploaded in the referenceMask asset slot for durable replay. */
+  gptImageMask?: InputMedia;
 }
 
 export interface AudioProjectParams extends BaseProjectParams {
@@ -947,6 +1152,14 @@ export type ImageUrlParams = {
     | 'contextImage14'
     | 'contextImage15'
     | 'contextImage16'
+    | 'keyframeImage1'
+    | 'keyframeImage2'
+    | 'keyframeImage3'
+    | 'keyframeImage4'
+    | 'keyframeImage5'
+    | 'keyframeImage6'
+    | 'keyframeImage7'
+    | 'keyframeImage8'
     | 'referenceImage'
     | 'referenceImageEnd'
     | 'referenceMask';
@@ -961,6 +1174,8 @@ export type MediaUrlParams = {
   id?: string;
   jobId: string;
   type: 'complete' | 'preview' | 'referenceAudio' | 'referenceVideo';
+  /** Select a separately exported final-frame image from a completed video. */
+  artifact?: 'lastFrame';
   contentType?: string;
 };
 
@@ -1034,9 +1249,18 @@ export interface EstimateRequest {
    * Output format, when estimating models with format-specific request metadata.
    */
   outputFormat?: ImageOutputFormat;
+  /**
+   * Billing intent of the job being quoted. 'tokens' opts out of plan coverage,
+   * so the estimate carries no `dailyFairUsePct`.
+   * @default 'auto'
+   */
+  billingMode?: BillingMode;
 }
 
 export interface VideoEstimateRequest {
+  /** FlashVSR source geometry for an estimate. The server verifies the uploaded file at admission. */
+  sourceWidth?: number;
+  sourceHeight?: number;
   tokenType: TokenType;
   model: string;
   width: number;
@@ -1064,6 +1288,14 @@ export interface VideoEstimateRequest {
   /** Number of reference videos included in a MiniMax H3 r2v estimate. */
   referenceVideoCount?: number;
   /**
+   * Number of intermediate keyframes a MiniMax H3 job will pin (0-8). The first two are
+   * included; each extra keyframe adds output time at the job's per-second rate: 0.75 s on
+   * FastH3, 0.3 s on every other tier. When omitted, `keyframes.length` is used if given.
+   */
+  keyframeCount?: number;
+  /** The job's `keyframes`; only their count is used, to price them. */
+  keyframes?: readonly unknown[];
+  /**
    * Combined duration of MiniMax H3 r2v reference-video input, in seconds.
    * The estimate bills it at the selected output resolution/tier rate.
    */
@@ -1076,6 +1308,18 @@ export interface VideoEstimateRequest {
    * Optional estimate-only signal: non-empty list implies Seedance video-input pricing.
    */
   referenceVideoUrls?: string[];
+  /**
+   * Network the job will render on. A Relaxed render never draws on the plan's
+   * daily fair-use capacity, so its estimate carries no `dailyFairUsePct`.
+   * Defaults to the network the connection is on.
+   */
+  network?: SupernetType;
+  /**
+   * Billing intent of the job being quoted. 'tokens' opts out of plan coverage,
+   * so the estimate carries no `dailyFairUsePct`.
+   * @default 'auto'
+   */
+  billingMode?: BillingMode;
 }
 
 export interface AudioEstimateRequest {
@@ -1084,6 +1328,18 @@ export interface AudioEstimateRequest {
   duration: number;
   steps: number;
   numberOfMedia: number;
+  /**
+   * Network the job will render on. A Relaxed render never draws on the plan's
+   * daily fair-use capacity, so its estimate carries no `dailyFairUsePct`.
+   * Defaults to the network the connection is on.
+   */
+  network?: SupernetType;
+  /**
+   * Billing intent of the job being quoted. 'tokens' opts out of plan coverage,
+   * so the estimate carries no `dailyFairUsePct`.
+   * @default 'auto'
+   */
+  billingMode?: BillingMode;
 }
 
 /**
@@ -1112,6 +1368,13 @@ export interface CostEstimation {
    * wait benchmark is available.
    */
   estimatedTotalSeconds?: number;
+  /**
+   * Share of the signed-in subscriber's daily fair-use capacity this project
+   * would draw, as a percentage to one decimal (0 for a project under 0.05%).
+   * Present only when the plan covers the project on the Fast network; absent
+   * for guests, premium-vendor models, token billing, trials and Relaxed.
+   */
+  dailyFairUsePct?: number;
 }
 
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';
@@ -1128,13 +1391,17 @@ export type EnhancementStrength = 'light' | 'medium' | 'heavy';
  * `VIDEO_WORKFLOW_ASSETS.r2v` directly.
  * `flf2v` (first-and-last-frame-to-video) is the MiniMax H3 workflow that
  * interpolates between two required anchor images.
+ * `flfa2v` (first-and-last-frame + audio to video) is the MiniMax H3 FastH3
+ * audio-guide workflow that adds a required driving `referenceAudio` to them.
  */
 export type VideoWorkflowType =
+  | 'upscale'
   | 't2v'
   | 'i2v'
   | 'flf2v'
   | 's2v'
   | 'ia2v'
+  | 'flfa2v'
   | 'a2v'
   | 'v2v'
   | 'r2v'

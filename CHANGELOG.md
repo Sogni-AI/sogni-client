@@ -1,3 +1,307 @@
+# [5.58.0](https://github.com/Sogni-AI/sogni-client/compare/v5.57.0...v5.58.0) (2026-09-27)
+
+
+### Bug Fixes
+
+* **test:** read the H3 example help from source in the keyframe check ([af210ad](https://github.com/Sogni-AI/sogni-client/commit/af210ade9443e731ae0663c1fb12236e6a36d513))
+
+
+### Features
+
+* **video:** add MiniMax H3 intermediate keyframes to i2v and flf2v ([17eaa1f](https://github.com/Sogni-AI/sogni-client/commit/17eaa1f40bccf395bd49dce3eed3b1d5bc7517e5))
+* **video:** export calculateVideoFrames and sharpen MiniMax H3 keyframe errors ([33372d5](https://github.com/Sogni-AI/sogni-client/commit/33372d5859a07329b361f9ecaa0765e2e7107621))
+* **video:** extend MiniMax H3 keyframes to Sound to Video and Ref2VA on their own slots ([72799d9](https://github.com/Sogni-AI/sogni-client/commit/72799d9d1601d9c820a7ec2d61a4cd583448237e))
+* **video:** quote MiniMax H3 keyframes in estimateVideoCost ([58ab77d](https://github.com/Sogni-AI/sogni-client/commit/58ab77d90e7f6d925b86fbbdb3dfaa7f41793ac8))
+
+# [5.57.0](https://github.com/Sogni-AI/sogni-client/compare/v5.56.3...v5.57.0) (2026-09-26)
+
+
+### Features
+
+* **projects:** fetch a project's results by id and list recent completed projects ([89cd46d](https://github.com/Sogni-AI/sogni-client/commit/89cd46d4991fcddc83737d2abc3a0106d3734660))
+
+## [5.56.3](https://github.com/Sogni-AI/sogni-client/compare/v5.56.2...v5.56.3) (2026-09-26)
+
+
+### Bug Fixes
+
+* **projects:** know the live Wan sound-to-video and Qwen3 TTS ids as media ([f621acb](https://github.com/Sogni-AI/sogni-client/commit/f621acb974de81659a958b594f0a5c52c4d957e4))
+
+## [5.56.2](https://github.com/Sogni-AI/sogni-client/compare/v5.56.1...v5.56.2) (2026-09-26)
+
+
+### Bug Fixes
+
+* **projects:** pick the result download endpoint from evidence, not an image default ([3f3dd42](https://github.com/Sogni-AI/sogni-client/commit/3f3dd42ead83f7f11772b27b1967dbd765db9860))
+* **projects:** switch to the media endpoint once when the API says a result is media ([c80446f](https://github.com/Sogni-AI/sogni-client/commit/c80446f259c9dd13a1f0301f126f1f9009bd5876))
+
+## [5.56.1](https://github.com/Sogni-AI/sogni-client/compare/v5.56.0...v5.56.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **enhance:** enhance with Krea 2 Turbo instead of FLUX.1 schnell ([1b3ffa9](https://github.com/Sogni-AI/sogni-client/commit/1b3ffa95a7a34c85137afec9c67a820d4c5e30f2))
+
+# [5.56.0](https://github.com/Sogni-AI/sogni-client/compare/v5.55.0...v5.56.0) (2026-09-23)
+
+
+### Features
+
+* **video:** accept LoRAs on the MiniMax H3 audio-guide workflows ([2ad9987](https://github.com/Sogni-AI/sogni-client/commit/2ad9987c86e93494c364e058651f4e5133e91e55))
+
+# [5.55.0](https://github.com/Sogni-AI/sogni-client/compare/v5.54.2...v5.55.0) (2026-09-23)
+
+
+### Features
+
+* **projects:** expose current queue explanations ([0794d91](https://github.com/Sogni-AI/sogni-client/commit/0794d912fea1a026f0c44f1d190aa4a94f81e4d1))
+
+## [5.54.2](https://github.com/Sogni-AI/sogni-client/compare/v5.54.1...v5.54.2) (2026-09-23)
+
+
+### Bug Fixes
+
+* **auth:** isolate creation and recovery across account sessions ([a4b6387](https://github.com/Sogni-AI/sogni-client/commit/a4b63876f3e0fa5eaa7fb90c83accf4c30782b7c))
+* **client:** preserve mixed-tab and pending request workflows ([449f8a4](https://github.com/Sogni-AI/sogni-client/commit/449f8a47af816b0a5ad16ba6fafa015bd686bbaa))
+* **client:** preserve request ownership through connection changes ([5a16f9e](https://github.com/Sogni-AI/sogni-client/commit/5a16f9ec59cf891b48fc5638fb37bcd60142e79b))
+
+## [5.54.1](https://github.com/Sogni-AI/sogni-client/compare/v5.54.0...v5.54.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* **images:** preserve metadata opt-out and zero-valued controls ([b0195b6](https://github.com/Sogni-AI/sogni-client/commit/b0195b6fb16e493feba94b155efc74bdaa276076))
+
+# [5.54.0](https://github.com/Sogni-AI/sogni-client/compare/v5.53.1...v5.54.0) (2026-09-20)
+
+
+### Features
+
+* **errors:** surface retryAfter and details on REST errors, and make reseed idempotent ([684f1bf](https://github.com/Sogni-AI/sogni-client/commit/684f1bf5baaa96ab0ef60ee8b3bc4c8c69644905))
+
+## [5.53.1](https://github.com/Sogni-AI/sogni-client/compare/v5.53.0...v5.53.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* **projects:** resend requests lost to a socket drop instead of failing them ([0d9fbee](https://github.com/Sogni-AI/sogni-client/commit/0d9fbee8b48aa3a73e18420d52691ac109806c4f))
+
+# [5.53.0](https://github.com/Sogni-AI/sogni-client/compare/v5.52.1...v5.53.0) (2026-09-19)
+
+
+### Features
+
+* **projects:** return the daily fair-use share on cost estimates ([62594b1](https://github.com/Sogni-AI/sogni-client/commit/62594b1c67021015a69711081a2e668dee9514e7))
+
+## [5.52.1](https://github.com/Sogni-AI/sogni-client/compare/v5.52.0...v5.52.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **browser:** preserve project submissions across socket reconnects ([#25](https://github.com/Sogni-AI/sogni-client/issues/25)) ([d65916e](https://github.com/Sogni-AI/sogni-client/commit/d65916e8a1ed38154c92d3237e2f4d937fa2c5da))
+
+# [5.52.0](https://github.com/Sogni-AI/sogni-client/compare/v5.51.1...v5.52.0) (2026-09-18)
+
+
+### Features
+
+* **minimax-h3:** add the two-stage Reference to Video model selectors ([b9abcce](https://github.com/Sogni-AI/sogni-client/commit/b9abccede408f1cfcc30f4b26b9d686c32e50afc))
+
+## [5.51.1](https://github.com/Sogni-AI/sogni-client/compare/v5.51.0...v5.51.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* **chat:** send the accepted cost preview when confirming a chat run ([548fa9e](https://github.com/Sogni-AI/sogni-client/commit/548fa9e64b91e8d4c01bb7fe405bf0ea6d6a6e51))
+
+# [5.51.0](https://github.com/Sogni-AI/sogni-client/compare/v5.50.1...v5.51.0) (2026-09-16)
+
+
+### Features
+
+* **projects:** expose personal LoRAs and hosted media tools ([201d0e0](https://github.com/Sogni-AI/sogni-client/commit/201d0e051b10a50d523094cfe169a204b9105452))
+
+## [5.50.1](https://github.com/Sogni-AI/sogni-client/compare/v5.50.0...v5.50.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* **projects:** recover terminal failures without full records ([6608600](https://github.com/Sogni-AI/sogni-client/commit/66086003414f27d3f2b874a230bf5e830e4c9f92))
+* **projects:** settle known jobs during terminal recovery ([8f5cd0e](https://github.com/Sogni-AI/sogni-client/commit/8f5cd0e23627a20ca8fa9275daf0ccd3415ebc81))
+
+# [5.50.0](https://github.com/Sogni-AI/sogni-client/compare/v5.49.1...v5.50.0) (2026-09-14)
+
+
+### Features
+
+* **hosted-tools:** pin protocol alpha.42 for the FastH3 audio-guide sound_to_video selectors ([6b4e6fe](https://github.com/Sogni-AI/sogni-client/commit/6b4e6fe61a5fe9f02158bf1a5fd857b644b28970))
+
+## [5.49.1](https://github.com/Sogni-AI/sogni-client/compare/v5.49.0...v5.49.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* **projects:** drop the retired 720p two-stage FastH3 ids ([7e9745a](https://github.com/Sogni-AI/sogni-client/commit/7e9745a077446bcd9fd4c4f7ef88505c9866e33e))
+
+# [5.49.0](https://github.com/Sogni-AI/sogni-client/compare/v5.48.1...v5.49.0) (2026-09-14)
+
+
+### Features
+
+* **projects:** add MiniMax H3 FastH3 audio-guide video modes ([59872a3](https://github.com/Sogni-AI/sogni-client/commit/59872a3247d9d4ac825c62af97a9132ad4fa05ec))
+* **projects:** add Pixal3D multi-view image-to-3D reconstruction ([5d34a25](https://github.com/Sogni-AI/sogni-client/commit/5d34a25f978dc04245f42cc4731312c2176b8d15))
+
+## [5.48.1](https://github.com/Sogni-AI/sogni-client/compare/v5.48.0...v5.48.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* **deps:** align the published protocol and tool snapshots ([d78b78f](https://github.com/Sogni-AI/sogni-client/commit/d78b78f624fa4375170a96a7f10f0d4274077d6d))
+
+# [5.48.0](https://github.com/Sogni-AI/sogni-client/compare/v5.47.0...v5.48.0) (2026-09-14)
+
+
+### Bug Fixes
+
+* **rest:** surface a plain-text error body instead of the HTTP reason phrase ([2f76203](https://github.com/Sogni-AI/sogni-client/commit/2f762037bad19fd93af6d79d68dd9bc2fb002cf1))
+
+
+### Features
+
+* **projects:** recognize the MiniMax H3 FastH3 two-stage 720p model ids ([8fe8e22](https://github.com/Sogni-AI/sogni-client/commit/8fe8e228d9e8d1ce529947ab16aec4282bb2d96d))
+* **video:** add seedance 2.5 export options ([bb10c17](https://github.com/Sogni-AI/sogni-client/commit/bb10c17872046e9bf46d6eda423e3d5f84e61180))
+
+# [5.47.0](https://github.com/Sogni-AI/sogni-client/compare/v5.46.0...v5.47.0) (2026-09-13)
+
+
+### Bug Fixes
+
+* **projects:** finish upload fallback and submission cleanup ([9f9db15](https://github.com/Sogni-AI/sogni-client/commit/9f9db156ff7d338716c56008b909d8d20cb961d9))
+* **projects:** refuse a retired outputScale instead of silently dropping it ([4b8e7b7](https://github.com/Sogni-AI/sogni-client/commit/4b8e7b730bdda7b51c440d750290a425d1a80f77))
+
+
+### Features
+
+* **chat:** route the MiniMax H3 FastH3 two-stage hosted selectors ([c7b87e5](https://github.com/Sogni-AI/sogni-client/commit/c7b87e5c6b83e83350bc263b023f4278d052e6f7))
+* **projects:** integrate FastH3 two-stage SDK contracts ([36165ac](https://github.com/Sogni-AI/sogni-client/commit/36165acfe576cd3747f881ce1a7e35f140c9bac2))
+* **projects:** move MiniMax H3 two-stage output to its own model ids ([2283184](https://github.com/Sogni-AI/sogni-client/commit/22831841e1cc51d639e0af5a6593e20bbac58f6d))
+
+# [5.46.0](https://github.com/Sogni-AI/sogni-client/compare/v5.45.0...v5.46.0) (2026-09-12)
+
+
+### Features
+
+* **projects:** keep a render the server moves to another worker in its own job ([e3e49fc](https://github.com/Sogni-AI/sogni-client/commit/e3e49fc6e29b275227c6295bf6c8a75e0baa6e79)), closes [hi#water](https://github.com/hi/issues/water)
+
+# [5.45.0](https://github.com/Sogni-AI/sogni-client/compare/v5.44.1...v5.45.0) (2026-09-12)
+
+
+### Bug Fixes
+
+* **deps:** bump sogni-protocol to 1.0.0-alpha.39 for the H3 2K option ([e4c58bd](https://github.com/Sogni-AI/sogni-client/commit/e4c58bd9edf8731aa565819488f4d6940b4b4240))
+
+
+### Features
+
+* **projects:** add outputScale for MiniMax H3 2K delivery ([fa0d9ef](https://github.com/Sogni-AI/sogni-client/commit/fa0d9ef9246ceefb023915d04ed119170388e900))
+
+## [5.44.1](https://github.com/Sogni-AI/sogni-client/compare/v5.44.0...v5.44.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **examples:** support SAM boxes and validate prompt combinations ([d65db77](https://github.com/Sogni-AI/sogni-client/commit/d65db77decf00ca1d41d17a1608e0c12ec7ba8f7))
+* **socket:** redact transport diagnostics before logging ([73ceee9](https://github.com/Sogni-AI/sogni-client/commit/73ceee9a7dbd48924bd17d62f2dc2458cd8c9190))
+
+# [5.44.0](https://github.com/Sogni-AI/sogni-client/compare/v5.43.0...v5.44.0) (2026-09-11)
+
+
+### Features
+
+* **chat:** sync hosted FlashVSR options from protocol alpha.37 ([e94baea](https://github.com/Sogni-AI/sogni-client/commit/e94baea0d0a87559bf13f25373c8892ce050407f))
+
+# [5.43.0](https://github.com/Sogni-AI/sogni-client/compare/v5.42.0...v5.43.0) (2026-09-11)
+
+
+### Features
+
+* **socket:** recover requests and chat streams across socket restarts ([248c618](https://github.com/Sogni-AI/sogni-client/commit/248c618c8d85d4ed74a1c82e65b1b98d2778c842))
+
+# [5.42.0](https://github.com/Sogni-AI/sogni-client/compare/v5.41.0...v5.42.0) (2026-09-11)
+
+
+### Features
+
+* **projects:** reuse private subscriber uploads across projects ([938e8a4](https://github.com/Sogni-AI/sogni-client/commit/938e8a4d9716706530be4586ee324490f6374b01))
+
+# [5.41.0](https://github.com/Sogni-AI/sogni-client/compare/v5.40.0...v5.41.0) (2026-09-11)
+
+
+### Features
+
+* **projects:** add GPT Image 2.5 Sunburst and Flare ([5fa58d0](https://github.com/Sogni-AI/sogni-client/commit/5fa58d0ab0bc49965f3d708532e3de146b33a670))
+
+# [5.40.0](https://github.com/Sogni-AI/sogni-client/compare/v5.39.1...v5.40.0) (2026-09-11)
+
+
+### Features
+
+* **projects:** add FlashVSR detail, speed and seed options ([be8b5be](https://github.com/Sogni-AI/sogni-client/commit/be8b5be9025606c7f1f29e17fbe322942649c4f8))
+
+## [5.39.1](https://github.com/Sogni-AI/sogni-client/compare/v5.39.0...v5.39.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **deps:** bump @sogni-ai/sogni-protocol to 1.0.0-alpha.35 ([103510e](https://github.com/Sogni-AI/sogni-client/commit/103510e3fe6769653c1b2e9d49d6ecfcbe7cb8e9))
+
+# [5.39.0](https://github.com/Sogni-AI/sogni-client/compare/v5.38.0...v5.39.0) (2026-09-11)
+
+
+### Bug Fixes
+
+* **projects:** leave FlashVSR clip length to the server ([b589d2a](https://github.com/Sogni-AI/sogni-client/commit/b589d2a213c8654d45273fc54786ca25b5b7a860))
+
+
+### Features
+
+* **projects:** add getStatus live lookup and consult it before declaring a project lost ([484d797](https://github.com/Sogni-AI/sogni-client/commit/484d7976d372184e3823b1ee2711cab80f3a7a0a))
+
+# [5.38.0](https://github.com/Sogni-AI/sogni-client/compare/v5.37.1...v5.38.0) (2026-09-11)
+
+
+### Bug Fixes
+
+* **deps:** lock @sogni-ai/sogni-protocol 1.0.0-alpha.34 from the registry ([9606173](https://github.com/Sogni-AI/sogni-client/commit/96061734ae210f49c9f4ad05ecaa85e0a023f42d))
+* **rest:** omit unset query params instead of sending "undefined" ([270aa84](https://github.com/Sogni-AI/sogni-client/commit/270aa84ae960f999b5a12bc98dec936599c5a6be))
+
+
+### Features
+
+* **chat:** sync the hosted upscale_video tool from protocol alpha.34 ([7f232a9](https://github.com/Sogni-AI/sogni-client/commit/7f232a95e1c816cde0c8345657ef6c19d925a064))
+
+## [5.37.1](https://github.com/Sogni-AI/sogni-client/compare/v5.37.0...v5.37.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **projects:** let FlashVSR adopt the verified source timing ([1333b95](https://github.com/Sogni-AI/sogni-client/commit/1333b958f82c17010848f8f384edb80d7e377e82))
+* **workflows:** include upscale_image in hosted workflow tool names ([d0939a0](https://github.com/Sogni-AI/sogni-client/commit/d0939a02fa5fe602ebb572da898a152eae21e8ef))
+
+# [5.37.0](https://github.com/Sogni-AI/sogni-client/compare/v5.36.3...v5.37.0) (2026-09-10)
+
+
+### Features
+
+* **projects:** add FlashVSR promptless video upscaling ([374fb6f](https://github.com/Sogni-AI/sogni-client/commit/374fb6f9efa9a9da08814b24a0c6c2037204538a))
+
+## [5.36.3](https://github.com/Sogni-AI/sogni-client/compare/v5.36.2...v5.36.3) (2026-09-10)
+
+
+### Bug Fixes
+
+* **workflows:** serialize the content filter preference ([db0c187](https://github.com/Sogni-AI/sogni-client/commit/db0c187be57dc0a7bce0e54764c800c6e4391304))
+
 ## [5.36.2](https://github.com/Sogni-AI/sogni-client/compare/v5.36.1...v5.36.2) (2026-09-09)
 
 

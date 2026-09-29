@@ -24,6 +24,7 @@ const WAN_VIDEO_MODEL_IDS = new Set([
   'wan_v2.2-14b-fp8_i2v',
   'wan_v2.2-14b-fp8_t2v_lightx2v',
   'wan_v2.2-14b-fp8_i2v_lightx2v',
+  'wan_v2.2-14b-fp8_s2v',
   'wan_v2.2-14b-fp8_s2v_lightx2v',
   'wan_v2.2-14b-fp8_animate-move_lightx2v',
   'wan_v2.2-14b-fp8_animate-replace_lightx2v'
@@ -51,11 +52,22 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fastvideo-int8_t2v_turbo',
   'minimax-h3-fastvideo-int8_i2v_turbo',
   'minimax-h3-fastvideo-int8_flf2v_turbo',
+  'minimax-h3-fastvideo-int8_t2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_flf2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_ia2v_turbo',
+  'minimax-h3-fastvideo-int8_flfa2v_turbo',
+  'minimax-h3-fastvideo-int8_a2v_turbo',
+  'minimax-h3-fastvideo-int8_ia2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_flfa2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_a2v_turbo_2stage',
   'minimax-h3-ref2va-fp8_r2v_turbo',
   'minimax-h3-fl2va-fp8_t2v_balanced',
   'minimax-h3-fl2va-fp8_i2v_balanced',
   'minimax-h3-fl2va-fp8_flf2v_balanced',
-  'minimax-h3-ref2va-fp8_r2v_balanced'
+  'minimax-h3-ref2va-fp8_r2v_balanced',
+  'minimax-h3-ref2va-fp8_r2v_2stage',
+  'minimax-h3-ref2va-fp8_r2v_balanced_2stage'
 ]);
 
 export function getEnhacementStrength(strength: EnhancementStrength): number {
@@ -81,8 +93,16 @@ export function isVideoModel(modelId: string): boolean {
     isSeedanceModel(modelId) ||
     isHappyhorseModel(modelId) ||
     isWan3Model(modelId) ||
-    isMinimaxH3Model(modelId)
+    isMinimaxH3Model(modelId) ||
+    isVideoUpscaleModel(modelId)
   );
+}
+
+/** Standalone, promptless enhancement of a finished video. */
+export const FLASHVSR_VIDEO_UPSCALE_MODEL_ID = 'flashvsr_v1.1_tiny_long_bf16';
+
+export function isVideoUpscaleModel(modelId: string): boolean {
+  return modelId === FLASHVSR_VIDEO_UPSCALE_MODEL_ID;
 }
 
 /**
@@ -90,11 +110,61 @@ export function isVideoModel(modelId: string): boolean {
  * Audio models produce MP3 output by default.
  */
 export function isAudioModel(modelId: string): boolean {
-  return modelId.startsWith('ace_step') || modelId === 'minimax_music3';
+  return (
+    modelId.startsWith('ace_step') ||
+    modelId.startsWith('qwen3_tts_') ||
+    modelId === 'minimax_music3'
+  );
 }
 
-/** Canonical id of the prompt-guided image-to-3D reconstruction workflow. */
+/** Canonical id of the single-image (front view only) image-to-3D reconstruction workflow. */
 export const PIXAL3D_IMAGE_TO_3D_MODEL_ID = 'pixal3d_int8_i23d';
+
+/**
+ * Canonical id of the multi-view image-to-3D reconstruction workflow: a
+ * required front view (`startingImage`) plus any of the optional
+ * `leftViewImage`, `backViewImage` and `rightViewImage` orbit views.
+ */
+export const PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID = 'pixal3d_multiview_int8_i23d';
+
+/** Check if a model ID is one of the Pixal3D image-to-3D workflows. */
+export function isPixal3dModel(modelId: string): boolean {
+  return (
+    modelId === PIXAL3D_IMAGE_TO_3D_MODEL_ID || modelId === PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID
+  );
+}
+
+/** Check if a model ID is the Pixal3D workflow that accepts orbit views. */
+export function isPixal3dMultiViewModel(modelId: string): boolean {
+  return modelId === PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID;
+}
+
+/**
+ * Pixal3D multi-view orbit views and the `contextImage<slot>` upload each one
+ * travels in. The slots are the worker's asset keys, so the order is fixed:
+ * left is `contextImage1`, back is `contextImage2`, right is `contextImage3`.
+ */
+export const PIXAL3D_ORBIT_VIEW_SLOTS = {
+  leftViewImage: 1,
+  backViewImage: 2,
+  rightViewImage: 3
+} as const;
+
+export type Pixal3dOrbitView = keyof typeof PIXAL3D_ORBIT_VIEW_SLOTS;
+
+/**
+ * The orbit views supplied on a request, each with its 1-based
+ * `contextImage<slot>` upload slot. Views left unset are omitted, so any subset
+ * keeps its own slot rather than being renumbered.
+ */
+export function getPixal3dOrbitViewSlots(
+  params: Partial<Record<Pixal3dOrbitView, InputMedia | undefined>>
+): { view: Pixal3dOrbitView; slot: 1 | 2 | 3; media: Exclude<InputMedia, false> }[] {
+  return (Object.keys(PIXAL3D_ORBIT_VIEW_SLOTS) as Pixal3dOrbitView[]).flatMap((view) => {
+    const media = params[view];
+    return media ? [{ view, slot: PIXAL3D_ORBIT_VIEW_SLOTS[view], media }] : [];
+  });
+}
 
 /** Canonical id of the SAM 3 interactive image-segmentation workflow. */
 export const SAM3_IMAGE_SEGMENT_MODEL_ID = 'sam3_image_segment_bf16';
@@ -105,6 +175,90 @@ export const BIREFNET_BACKGROUND_REMOVAL_MODEL_ID = 'birefnet_image_background_r
 /** Check if a model returns a downloadable 3D model artifact. */
 export function isModelArtifactModel(modelId: string): boolean {
   return modelId.startsWith('pixal3d_');
+}
+
+/**
+ * What a finished job's result is, which decides the download endpoint: an
+ * `image` comes from `/v1/image/downloadUrl`, everything else from
+ * `/v1/media/downloadUrl`.
+ */
+export type ResultMediaKind = 'image' | 'video' | 'audio' | 'model';
+
+const RESULT_MEDIA_KINDS: ReadonlySet<string> = new Set(['image', 'video', 'audio', 'model']);
+
+/**
+ * Narrow a declared kind (a catalog `media` value, a project `type`) to a
+ * result kind. Anything else, including a missing value, is no evidence and
+ * returns `undefined`; it never reads as `image`.
+ */
+export function asResultMediaKind(value: unknown): ResultMediaKind | undefined {
+  return typeof value === 'string' && RESULT_MEDIA_KINDS.has(value)
+    ? (value as ResultMediaKind)
+    : undefined;
+}
+
+/** Evidence a result frame itself carries about what the job produced. */
+export interface ResultMediaEvidence {
+  kind: ResultMediaKind;
+  /** Content type of the uploaded result, when the frame names one. */
+  contentType?: string;
+}
+
+function resultMediaKindFromContentType(contentType: string): ResultMediaKind | undefined {
+  const type = contentType.split(';')[0].trim().toLowerCase();
+  if (type.startsWith('video/')) return 'video';
+  if (type.startsWith('audio/')) return 'audio';
+  if (type.startsWith('model/')) return 'model';
+  if (type.startsWith('image/')) return 'image';
+  return undefined;
+}
+
+const OUTPUT_FORMAT_EVIDENCE: ReadonlyMap<string, ResultMediaEvidence> = new Map<
+  string,
+  ResultMediaEvidence
+>([
+  ['mp4', { kind: 'video' }],
+  ['mov', { kind: 'video' }],
+  ['mp3', { kind: 'audio', contentType: 'audio/mpeg' }],
+  ['wav', { kind: 'audio', contentType: 'audio/wav' }],
+  ['flac', { kind: 'audio', contentType: 'audio/flac' }],
+  ['glb', { kind: 'model', contentType: 'model/gltf-binary' }],
+  ['png', { kind: 'image' }],
+  ['jpg', { kind: 'image' }],
+  ['jpeg', { kind: 'image' }],
+  ['webp', { kind: 'image' }]
+]);
+
+/** A media artifact beside a still is the result; the still is incidental. */
+const ARTIFACT_KIND_PRECEDENCE: readonly ResultMediaKind[] = ['model', 'video', 'audio', 'image'];
+
+/**
+ * What a `jobResult` frame says the job produced, or `undefined` when it says
+ * nothing. ComfyUI workers list each uploaded artifact with its content type,
+ * and partner-model results name an output format. A frame with neither (a Mac
+ * worker's result, for one) is no evidence, and must not be read as an image.
+ */
+export function resultMediaEvidence(data: {
+  artifacts?: unknown;
+  outputFormat?: unknown;
+}): ResultMediaEvidence | undefined {
+  const byKind = new Map<ResultMediaKind, string>();
+  if (Array.isArray(data.artifacts)) {
+    for (const artifact of data.artifacts) {
+      if (!artifact || typeof artifact !== 'object') continue;
+      const { contentType, success } = artifact as { contentType?: unknown; success?: unknown };
+      if (success === false || typeof contentType !== 'string') continue;
+      const kind = resultMediaKindFromContentType(contentType);
+      if (kind && !byKind.has(kind)) byKind.set(kind, contentType.trim());
+    }
+  }
+  const kind = ARTIFACT_KIND_PRECEDENCE.find((candidate) => byKind.has(candidate));
+  if (kind) return { kind, contentType: byKind.get(kind) };
+  if (typeof data.outputFormat === 'string') {
+    const evidence = OUTPUT_FORMAT_EVIDENCE.get(data.outputFormat.trim().toLowerCase());
+    if (evidence) return { ...evidence };
+  }
+  return undefined;
 }
 
 /**
@@ -183,7 +337,7 @@ export function isLtx2Model(modelId: string): boolean {
  * 24fps. Duration and resolution differ by generation:
  * - `seedance-2-0` / `-mini`: 4-15 second clips; the full model goes up to 4K
  *   while Mini caps at 720p.
- * - `seedance-2-5`: 4-30 second clips, 480p/720p only (no 1080p, no 4K).
+ * - `seedance-2-5`: 4-30 second clips at 480p/720p/1080p (no 4K).
  */
 export function isSeedanceModel(modelId: string): boolean {
   return SEEDANCE_VIDEO_MODEL_IDS.has(modelId);
@@ -240,12 +394,29 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  * - Ref2VA: `minimax-h3-ref2va-fp8_r2v` (the multi-reference workflow)
  * - FL2VA Turbo: the same three FL2VA ids with a `_turbo` suffix
  * - FastH3 Turbo: three FastVideo INT8 FL2VA workflows with a `_turbo` suffix
+ * - FastH3 audio guide: `minimax-h3-fastvideo-int8_ia2v_turbo` (first frame +
+ *   uploaded audio), `..._flfa2v_turbo` (first and last frame + uploaded audio)
+ *   and `..._a2v_turbo` (uploaded audio only); see `isMinimaxH3AudioGuideModel`
+ * - FastH3 Two-Stage: each of the six FastH3 ids above with a `_turbo_2stage`
+ *   suffix. The request is identical to the FastH3 id (canvas, frames, 4 steps,
+ *   Euler/simple, inputs, LoRAs), but the clip is delivered at exactly twice the
+ *   canvas width and height: a 672x384 canvas delivers 1344x768 (720p), a
+ *   960x544 canvas delivers 1920x1088 (1080p) and the 1344x768 canvas delivers
+ *   2688x1536 (2K). Price it with `estimateVideoCost` using the `_2stage` id.
  * - Ref2VA Turbo: `minimax-h3-ref2va-fp8_r2v_turbo`
  * - FL2VA Balanced: the same three FL2VA ids with a `_balanced` suffix
  * - Ref2VA Balanced: `minimax-h3-ref2va-fp8_r2v_balanced`
+ * - Ref2VA Two-Stage: `minimax-h3-ref2va-fp8_r2v_2stage` (Standard, 20 steps)
+ *   and `minimax-h3-ref2va-fp8_r2v_balanced_2stage` (Balanced, 8 steps). The
+ *   request is identical to the one-stage R2V id of the same tier (canvas,
+ *   frames, steps, sampling, references, LoRAs), and the clip is delivered at
+ *   exactly twice the canvas, with the same 384/544/768 px canvas choices as
+ *   the FastH3 two-stage ids. Price it with `estimateVideoCost` using the
+ *   `_2stage` id.
  *
- * All H3 paths share fixed 24fps, guidance 1, the `124 + n*17` frame grid,
- * and jointly generated 32kHz stereo audio. Standard H3 uses 20 steps;
+ * All H3 paths share fixed 24fps, guidance 1, and the `124 + n*17` frame grid.
+ * Every path except the FastH3 audio guide generates 32kHz stereo audio
+ * jointly; audio-guide output carries the uploaded audio instead. Standard H3 uses 20 steps;
  * Balanced uses qualified fixed 8-step acceleration: LightX2V for FL2VA and
  * Larry v4 for Ref2VA; each Turbo family uses its own 4-step distillation LoRA.
  */
@@ -256,28 +427,57 @@ export function isMinimaxH3Model(modelId: string): boolean {
 /**
  * Check if a model ID is one of the 4-step MiniMax H3 Turbo workflows.
  * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its dedicated r2v Turbo LoRA.
+ * FastH3 covers t2v/i2v/flf2v and the ia2v/flfa2v/a2v audio guide, and its
+ * two-stage ids share its 4-step sampling.
  */
 export function isMinimaxH3TurboModel(modelId: string): boolean {
   return (
-    /^minimax-h3-(?:fl2va-fp8|fastvideo-int8)_(?:t2v|i2v|flf2v)_turbo$/.test(modelId) ||
+    /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_turbo$/.test(modelId) ||
+    /^minimax-h3-fastvideo-int8_(?:t2v|i2v|flf2v)_turbo(?:_2stage(?:_720p)?)?$/.test(modelId) ||
+    /^minimax-h3-fastvideo-int8_(?:ia2v|flfa2v|a2v)_turbo(?:_2stage)?$/.test(modelId) ||
     modelId === 'minimax-h3-ref2va-fp8_r2v_turbo'
   );
 }
 
+/** MiniMax H3 FastH3 first-frame image + uploaded audio to video. */
+export const MINIMAX_H3_FASTH3_IA2V_MODEL_ID = 'minimax-h3-fastvideo-int8_ia2v_turbo';
+/** MiniMax H3 FastH3 first and last frame + uploaded audio to video. */
+export const MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID = 'minimax-h3-fastvideo-int8_flfa2v_turbo';
+/** MiniMax H3 FastH3 uploaded audio (and prompt) to video. */
+export const MINIMAX_H3_FASTH3_A2V_MODEL_ID = 'minimax-h3-fastvideo-int8_a2v_turbo';
+
+/**
+ * Check if a model ID is a MiniMax H3 FastH3 audio-guide workflow: `ia2v`
+ * (`referenceImage` + `referenceAudio`), `flfa2v` (`referenceImage` +
+ * `referenceImageEnd` + `referenceAudio`) or `a2v` (`referenceAudio` only),
+ * each at the standard size (`..._turbo`) or two-stage (`..._turbo_2stage`).
+ *
+ * The uploaded audio drives the video from frame 0 and is trimmed to the video
+ * length (`frames / 24` seconds, starting at the optional `audioStart`), and
+ * the output always carries it: `generateAudio: false` and `audioDuration` are
+ * rejected. LoRAs are not supported on these graphs.
+ */
+export function isMinimaxH3AudioGuideModel(modelId: string): boolean {
+  return /^minimax-h3-fastvideo-int8_(?:ia2v|flfa2v|a2v)_turbo(?:_2stage)?$/.test(modelId);
+}
+
 /**
  * Check if a model ID is one of the 8-step MiniMax H3 Balanced workflows.
- * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching Larry v4 adapter for r2v.
+ * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching Larry v4 adapter for
+ * r2v, on its one-stage and two-stage (`..._r2v_balanced_2stage`) ids alike.
  */
 export function isMinimaxH3BalancedModel(modelId: string): boolean {
   return (
     /^minimax-h3-fl2va-fp8_(?:t2v|i2v|flf2v)_balanced$/.test(modelId) ||
-    modelId === 'minimax-h3-ref2va-fp8_r2v_balanced'
+    modelId === 'minimax-h3-ref2va-fp8_r2v_balanced' ||
+    modelId === 'minimax-h3-ref2va-fp8_r2v_balanced_2stage'
   );
 }
 
 /**
  * Check if a model ID is the MiniMax H3 Ref2VA multi-reference workflow
- * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, or `..._r2v_balanced`).
+ * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, `..._r2v_balanced`, or the
+ * two-stage `..._r2v_2stage` and `..._r2v_balanced_2stage`).
  *
  * This is the only MiniMax H3 workflow that conditions on more than two input
  * files, and the only video workflow of any family that carries reference
@@ -287,6 +487,36 @@ export function isMinimaxH3BalancedModel(modelId: string): boolean {
  */
 export function isMinimaxH3ReferenceModel(modelId: string): boolean {
   return isMinimaxH3Model(modelId) && getVideoWorkflowType(modelId) === 'r2v';
+}
+
+/**
+ * Most intermediate `keyframes` one MiniMax H3 request accepts, and the number
+ * of `keyframeImage<n>` upload slots.
+ */
+export const MINIMAX_H3_MAX_KEYFRAMES = 8;
+
+/**
+ * Check if a model ID accepts MiniMax H3 intermediate `keyframes`: still images
+ * the worker pins (ComfyUI `MiniMaxH3AddGuide`) at chosen frames between the
+ * first and last frame.
+ *
+ * Every MiniMax H3 workflow except text-to-video accepts them, 21 ids in all:
+ * - image-to-video (`i2v`) and first/last-frame (`flf2v`) on every tier
+ *   (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage);
+ * - the FastH3 Sound to Video audio guide (`ia2v`, `flfa2v`, `a2v`, one-stage
+ *   and two-stage; `isMinimaxH3AudioGuideModel`);
+ * - Ref2VA Reference to Video (`r2v`: Standard, Turbo, Balanced and both
+ *   two-stage ids; `isMinimaxH3ReferenceModel`).
+ */
+export function isMinimaxH3KeyframeModel(modelId: string): boolean {
+  if (!isMinimaxH3Model(modelId)) return false;
+  const workflow = getVideoWorkflowType(modelId);
+  return (
+    workflow === 'i2v' ||
+    workflow === 'flf2v' ||
+    workflow === 'r2v' ||
+    isMinimaxH3AudioGuideModel(modelId)
+  );
 }
 
 /**
@@ -333,7 +563,38 @@ export const MINIMAX_H3_MIN_DURATION = MINIMAX_H3_MIN_FRAMES / MINIMAX_H3_FPS;
 export const MINIMAX_H3_MAX_DURATION = MINIMAX_H3_MAX_FRAMES / MINIMAX_H3_FPS;
 
 /**
+ * Smallest valid MiniMax H3 frame count that covers an audio clip.
+ *
+ * Returns the first `124 + n*17` value at or above `audioDurationSeconds * 24`,
+ * clamped to 124-362. Use it to size a MiniMax H3 FastH3 audio-guide request
+ * (`isMinimaxH3AudioGuideModel`) to its uploaded audio: clips shorter than 124/24 s still render 124
+ * frames, and clips longer than 362/24 s are cut at 362 frames (offset the
+ * window with `audioStart`).
+ *
+ * @param audioDurationSeconds - Length of the driving audio, in seconds (> 0)
+ * @returns A frame count to pass as `frames`
+ */
+export function getMinimaxH3FramesForAudioDuration(audioDurationSeconds: number): number {
+  if (!Number.isFinite(audioDurationSeconds) || audioDurationSeconds <= 0) {
+    throw new RangeError('Audio duration must be a finite number of seconds greater than 0.');
+  }
+  // The epsilon keeps exact grid durations (e.g. 141/24 s) from rounding up a step.
+  const neededFrames = Math.ceil(audioDurationSeconds * MINIMAX_H3_FPS - 1e-6);
+  const steps = Math.max(
+    0,
+    Math.ceil((neededFrames - MINIMAX_H3_BASE_FRAMES) / MINIMAX_H3_FRAME_STEP)
+  );
+  return Math.min(MINIMAX_H3_MAX_FRAMES, MINIMAX_H3_BASE_FRAMES + steps * MINIMAX_H3_FRAME_STEP);
+}
+
+/**
  * Calculate the frame count for a given duration and fps based on the video model.
+ *
+ * This is the count `projects.create()` sends when a video request passes
+ * `duration` instead of `frames`, so it tells a caller how long the video will
+ * be before submitting. Use it to position MiniMax H3 `keyframes`, whose
+ * `frameIndex` must fall inside the resolved count:
+ * `calculateVideoFrames('minimax-h3-fl2va-fp8_i2v', 6, 24)` is 141, not 144.
  *
  * ## Standard Behavior (LTX 2.x, Seedance, and future models)
  * - Generate at the actual specified FPS (no interpolation)
@@ -342,7 +603,8 @@ export const MINIMAX_H3_MAX_DURATION = MINIMAX_H3_MAX_FRAMES / MINIMAX_H3_FPS;
  *
  * ## MiniMax H3
  * - Fixed 24fps generation; the fps argument is ignored
- * - Frame count must follow the pattern: 124 + n*17, clamped to 124-362
+ * - `duration * 24`, rounded, then snapped to the nearest `124 + n*17` value
+ *   and clamped to 124-362 (124, 141, 158, ... 362)
  * - Note there is no `+1` here: 124 frames is exactly 5.167s, not 5.125s
  *
  * ## Legacy Behavior (WAN 2.2 only)
@@ -354,8 +616,9 @@ export const MINIMAX_H3_MAX_DURATION = MINIMAX_H3_MAX_FRAMES / MINIMAX_H3_FPS;
  * @param duration - Duration in seconds
  * @param fps - Frames per second (ignored for WAN models which always use 16fps
  *   and for MiniMax H3 which always uses 24fps)
- * @param minFrames - Minimum frame count (optional, defaults to 17)
- * @param maxFrames - Maximum frame count (optional, defaults to model-specific limits)
+ * @param minFrames - Optional lower bound on the returned frame count
+ * @param maxFrames - Optional upper bound on the returned frame count (MiniMax H3
+ *   keeps its bounds on the frame grid)
  * @returns The calculated frame count
  */
 export function calculateVideoFrames(
@@ -367,7 +630,10 @@ export function calculateVideoFrames(
 ): number {
   let frames: number;
 
-  if (isWanModel(modelId)) {
+  if (isVideoUpscaleModel(modelId)) {
+    // Upscaling preserves the source frame count; never append or snap frames.
+    frames = Math.round(duration * fps);
+  } else if (isWanModel(modelId)) {
     // WAN 2.2: Always generates at 16fps, fps param is for post-render interpolation only
     // This is legacy behavior specific to WAN models
     frames = Math.round(duration * 16) + 1;
@@ -420,6 +686,7 @@ export function calculateVideoFrames(
  */
 export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   if (!modelId) return null;
+  if (isVideoUpscaleModel(modelId)) return 'upscale';
 
   const isWan = isWanModel(modelId);
   const isLtx2 = isLtx2Model(modelId);
@@ -445,16 +712,23 @@ export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   }
 
   // MiniMax H3 model ids carry the workflow as an underscore suffix on a
-  // checkpoint name: minimax-h3-fl2va-fp8_t2v / _i2v / _flf2v and
-  // minimax-h3-ref2va-fp8_r2v.
+  // checkpoint name: minimax-h3-fl2va-fp8_t2v / _i2v / _flf2v,
+  // minimax-h3-ref2va-fp8_r2v, and the FastH3 audio guide
+  // minimax-h3-fastvideo-int8_ia2v / _flfa2v / _a2v.
   //
   // Every suffix is matched with its leading underscore, which is what keeps
   // the checkpoint segment out of the match: 'ref2va' contains a bare 'f2v' and
-  // 'fl2va' a bare 'l2v', but neither contains '_t2v', '_i2v', '_flf2v', or
-  // '_r2v'. Check the longer '_flf2v' before '_i2v'/'_t2v', and check '_r2v'
-  // up front so a future suffix cannot shadow it.
+  // 'fl2va' a bare 'l2v', but neither contains '_t2v', '_i2v', '_flf2v',
+  // '_ia2v', '_flfa2v', '_a2v', or '_r2v'. '_flfa2v' contains none of the other
+  // suffixes ('_flf2v' needs '2' after 'flf'; '_a2v' needs '_' before 'a'), and
+  // '_ia2v' does not contain '_a2v' either, so each audio suffix is its own
+  // test. Check the longer '_flf2v' before '_i2v'/'_t2v', and check '_r2v' up
+  // front so a future suffix cannot shadow it.
   if (isMinimaxH3) {
     if (modelId.includes('_r2v')) return 'r2v';
+    if (modelId.includes('_flfa2v')) return 'flfa2v';
+    if (modelId.includes('_ia2v')) return 'ia2v';
+    if (modelId.includes('_a2v')) return 'a2v';
     if (modelId.includes('_flf2v')) return 'flf2v';
     if (modelId.includes('_i2v')) return 'i2v';
     if (modelId.includes('_t2v')) return 't2v';
@@ -502,6 +776,14 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
   NonNullable<VideoWorkflowType>,
   Record<VideoAssetKey, AssetRequirement>
 > = {
+  upscale: {
+    referenceImage: 'forbidden',
+    referenceImageEnd: 'forbidden',
+    referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'forbidden',
+    referenceVideo: 'required',
+    referenceMask: 'forbidden'
+  },
   t2v: {
     referenceImage: 'forbidden',
     referenceImageEnd: 'forbidden',
@@ -525,6 +807,16 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
     referenceImage: 'required',
     referenceImageEnd: 'required',
     referenceAudio: 'forbidden',
+    referenceAudioIdentity: 'forbidden',
+    referenceVideo: 'forbidden',
+    referenceMask: 'forbidden'
+  },
+  flfa2v: {
+    // MiniMax H3 FastH3 first and last frame + uploaded audio: both anchors
+    // and the driving audio are required.
+    referenceImage: 'required',
+    referenceImageEnd: 'required',
+    referenceAudio: 'required',
     referenceAudioIdentity: 'forbidden',
     referenceVideo: 'forbidden',
     referenceMask: 'forbidden'
@@ -705,6 +997,43 @@ export function getVideoContextImageSlots(
   if (!Array.isArray(contextImages) || contextImages.length === 0) return [];
   const offset = params.referenceImage ? 1 : 0;
   return contextImages.map((media, index) => ({ slot: offset + index + 1, media }));
+}
+
+/**
+ * One MiniMax H3 intermediate keyframe, resolved to the upload slot that carries it.
+ */
+export interface MinimaxH3KeyframeSlot {
+  /**
+   * 1-based `keyframeImage<slot>` upload slot, matching the
+   * `hasKeyframeImage<slot>` keyFrame flag.
+   */
+  slot: number;
+  /** The caller-supplied image. */
+  media: InputMedia;
+  /** 0-based pixel frame (24 fps) the image is pinned at. */
+  frameIndex: number;
+}
+
+/**
+ * Resolve MiniMax H3 `keyframes` onto their own numbered upload slots:
+ * `keyframes[i]` travels in `keyframeImage<i+1>` (1-8), in caller order and with
+ * no offset. The slots are separate from `contextImage<n>`, so a Ref2VA request
+ * carries its reference images (`referenceImage` plus `contextImages`, see
+ * `getVideoContextImageSlots`) and its keyframes together without renumbering
+ * either. The worker pairs `keyframeImage<i+1>` with `keyframeFrameIndices[i]`.
+ */
+export function getMinimaxH3KeyframeSlots(
+  params: Pick<VideoProjectParams, 'keyframes'>
+): MinimaxH3KeyframeSlot[] {
+  const keyframes = params.keyframes;
+  if (!Array.isArray(keyframes)) return [];
+  // Array.from, not map: map keeps the holes of a sparse array, which would
+  // drop those slots instead of reporting them as entries without an image.
+  return Array.from(keyframes, (keyframe, index) => ({
+    slot: index + 1,
+    media: keyframe?.image,
+    frameIndex: keyframe?.frameIndex
+  }));
 }
 
 /**

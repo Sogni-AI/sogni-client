@@ -16,10 +16,11 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials } from './credentials.mjs';
+import { CONFIRM_VENDOR_SPEND_FLAG, confirmVendorSpend } from './vendor-spend.mjs';
 
 const DEFAULT_ENDPOINT = 'https://api.sogni.ai';
 const DEFAULT_MODEL = 'seedance-2-5';
-const DEFAULT_RESOLUTION = '720p';
+const DEFAULT_RESOLUTION = '1080p';
 const TASK_TYPES = new Set(['reference', 'edit', 'extend']);
 const LAYERS = new Set(['direct', 'creative-agent']);
 
@@ -27,8 +28,8 @@ const MODEL_CONFIG = {
   'seedance-2-5': {
     hostedSelector: 'seedance2-5',
     maxDuration: 30,
-    resolutions: ['480p', '720p'],
-    defaultResolution: '720p',
+    resolutions: ['480p', '720p', '1080p'],
+    defaultResolution: '1080p',
     limits: { images: 30, videos: 10, audios: 10, total: 50 },
     supportsTaskType: true,
     audioOnlyReference: true
@@ -103,6 +104,7 @@ export function parseArgs(args = process.argv.slice(2)) {
     generateAudio: true,
     endpoint: process.env.SOGNI_REST_ENDPOINT || DEFAULT_ENDPOINT,
     dryRun: false,
+    confirmVendorSpend: false,
     watch: false,
     json: false,
     help: false
@@ -135,6 +137,7 @@ export function parseArgs(args = process.argv.slice(2)) {
     else if (arg === '--generate-audio') options.generateAudio = true;
     else if (arg === '--endpoint') options.endpoint = next().replace(/\/+$/, '');
     else if (arg === '--dry-run' || arg === '--no-execute') options.dryRun = true;
+    else if (arg === CONFIRM_VENDOR_SPEND_FLAG) options.confirmVendorSpend = true;
     else if (arg === '--watch') options.watch = true;
     else if (arg === '--json') options.json = true;
     else if (arg.startsWith('--')) throw new Error(`Unknown option: ${arg}`);
@@ -439,13 +442,15 @@ Options:
   --duration <seconds>     4-30 for 2.5; 4-15 for the 2.0 family (default: 5)
                            Required for direct edit and must equal @Video1's source duration.
                            For extend, this is the new continuation duration.
-  --resolution <tier>     480p or 720p for 2.5 (default: 720p)
+  --resolution <tier>     480p, 720p, or 1080p for 2.5 (default: 1080p)
+                          Seedance 2.0 also supports 4k.
   --image <path|https>     Loose image reference; repeatable as @Image1, @Image2, ...
   --video <path|https>     Video reference; repeatable as @Video1, @Video2, ...
   --audio <path|https>     Loose audio reference; repeatable as @Audio1, @Audio2, ...
   --number <n>             Variations, 1-16 (default: 1)
   --no-audio               Request silent output
   --dry-run                Validate and print the request without uploading or generating
+  --confirm-vendor-spend   Acknowledge the Seedance vendor charge (required unless you confirm at the prompt)
   --watch                  Stream Creative Agent workflow events after starting
   --endpoint <url>         REST endpoint for local uploads
   --json                   Print raw result JSON
@@ -482,6 +487,7 @@ async function main() {
     return;
   }
   validateOptions(options);
+  if (!options.dryRun) await confirmVendorSpend(options.model, options.confirmVendorSpend);
   const credentials = options.dryRun ? {} : await loadCredentials();
   const urls = await resolveMediaUrls(credentials, options);
   const request =

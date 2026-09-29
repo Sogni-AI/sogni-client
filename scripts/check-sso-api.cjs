@@ -246,7 +246,10 @@ async function run() {
     // Without a password nothing about the wire format changes.
     calls.length = 0;
     await api.ssoSignup({ provider: 'google', idToken, username: 'pwuser' });
-    assert.deepEqual(calls.map((c) => c.endpoint), ['/v1/account/sso/signup']);
+    assert.deepEqual(
+      calls.map((c) => c.endpoint),
+      ['/v1/account/sso/signup']
+    );
     assert.equal('walletAddress' in calls[0].body, false);
     assert.equal('signature' in calls[0].body, false);
 
@@ -254,7 +257,12 @@ async function run() {
     calls.length = 0;
     const noEmail = `eyJhbGciOiJSUzI1NiJ9.${Buffer.from('{"sub":"a-1"}').toString('base64url')}.sig`;
     await assert.rejects(
-      api.ssoSignup({ provider: 'apple', idToken: noEmail, username: 'pwuser', password: 'x'.repeat(8) }),
+      api.ssoSignup({
+        provider: 'apple',
+        idToken: noEmail,
+        username: 'pwuser',
+        password: 'x'.repeat(8)
+      }),
       /no email address/
     );
     assert.equal(calls.length, 0);
@@ -316,6 +324,60 @@ async function run() {
     assert.equal(acct.auth, undefined);
     assert.equal(acct.isSsoSession, false);
     assert.equal(acct.authMethods, undefined);
+  }
+
+  // ── cookie sessions: every sign-in names its account before authenticating ──
+  // (a merge once moved login()'s identity line into ssoLogin, where no wallet
+  // exists — password login silently lost it and SSO login stopped compiling)
+  {
+    const CookieAuthManager = require('../dist/lib/AuthManager/CookieAuthManager.js').default;
+    const identityOf = (auth) => auth._sessionIdentity;
+    const sessionToken = (addr) =>
+      [
+        Buffer.from('{"alg":"HS256","typ":"JWT"}').toString('base64url'),
+        Buffer.from(JSON.stringify({ addr, env: 'test', iat: 1, exp: 4102444800 })).toString(
+          'base64url'
+        ),
+        'sig'
+      ].join('.');
+    const cookieApi = (respond) => {
+      const client = makeStubClient();
+      client.auth = new CookieAuthManager(client.logger);
+      client.rest.post = async (endpoint, body) => respond(endpoint, body);
+      const api = new AccountApi({
+        client,
+        eip712: { signTypedData: async () => '0xSIGNED' }
+      });
+      return { api, auth: client.auth };
+    };
+
+    // Password login: identity = the password-derived wallet.
+    {
+      const { api, auth } = cookieApi((endpoint) =>
+        endpoint === '/v1/account/nonce'
+          ? { status: 'success', data: { nonce: 'N' } }
+          : { status: 'success', data: { token: 't', refreshToken: 'r', username: 'pw' } }
+      );
+      const expected = api.getWallet('pw', 'secret123').address.toLowerCase();
+      await api.login('pw', 'secret123');
+      assert.equal(identityOf(auth), expected, 'password login must name its wallet');
+      assert.equal(auth.isAuthenticated, true);
+    }
+
+    // SSO login and signup: identity = the account the session token names.
+    for (const [method, call] of [
+      ['ssoLogin', (api) => api.ssoLogin('google', 'ID', true)],
+      ['ssoSignup', (api) => api.ssoSignup({ provider: 'google', idToken: 'ID', username: 'u' })]
+    ]) {
+      const addr = '0xAbCdEf0000000000000000000000000000000001';
+      const { api, auth } = cookieApi(() => ({
+        status: 'success',
+        data: { token: sessionToken(addr), refreshToken: 'r', username: 'u' }
+      }));
+      await call(api);
+      assert.equal(identityOf(auth), addr.toLowerCase(), `${method} must name the token's account`);
+      assert.equal(auth.isAuthenticated, true, `${method} must authenticate the cookie session`);
+    }
   }
 
   console.log('check-sso-api: all assertions passed');

@@ -35,6 +35,7 @@ import {
   normalizeBillingMode,
   parseBillingModeArg
 } from './workflow-helpers.mjs';
+import { CONFIRM_VENDOR_SPEND_FLAG, confirmVendorSpend } from './vendor-spend.mjs';
 
 const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_REST_ENDPOINT = 'https://api.sogni.ai';
@@ -262,18 +263,18 @@ function supportsMiniTier(mode) {
 
 function selectedTierLabel(options) {
   const modelId = selectedModelId(options);
+  if (modelId === 'seedance-2-5') return 'Seedance 2.5';
   if (modelId.includes('mini')) return 'Seedance 2.0 Mini';
   return 'Seedance 2.0';
 }
 
 function dimensionPresets(options) {
   const modelId = selectedModelId(options);
-  const lowerResolution = modelId.includes('mini') || modelId === 'seedance-2-5';
-  if (lowerResolution) {
+  if (modelId.includes('mini')) {
     return [
       {
         label: 'Landscape 16:9 - 1280x720',
-        description: 'Default for Seedance 2.5 and Mini, both 720p-capped.',
+        description: 'Default for the lower-cost Seedance Mini tier.',
         width: 1280,
         height: 720
       },
@@ -287,6 +288,40 @@ function dimensionPresets(options) {
         label: 'Square - 720x720',
         description: 'Compact square output within the 720p tier cap.',
         width: 720,
+        height: 720
+      },
+      {
+        label: 'Custom size',
+        description: 'Enter width and height manually.',
+        custom: true
+      }
+    ];
+  }
+
+  if (modelId === 'seedance-2-5') {
+    return [
+      {
+        label: 'Landscape 16:9 - 1920x1080',
+        description: 'Default Seedance 2.5 1080p widescreen output.',
+        width: 1920,
+        height: 1080
+      },
+      {
+        label: 'Vertical 9:16 - 1080x1920',
+        description: 'Seedance 2.5 1080p portrait output for reels and shorts.',
+        width: 1080,
+        height: 1920
+      },
+      {
+        label: 'Square - 1080x1080',
+        description: 'Seedance 2.5 square output at the 1080p tier.',
+        width: 1080,
+        height: 1080
+      },
+      {
+        label: 'Landscape draft - 1280x720',
+        description: 'Lower-resolution Seedance 2.5 iteration.',
+        width: 1280,
         height: 720
       },
       {
@@ -684,6 +719,7 @@ function parseArgs() {
     expandPrompt: true,
     target: undefined,
     execute: true,
+    confirmVendorSpend: false,
     tokenType: loadTokenTypePreference() || process.env.SOGNI_TOKEN_TYPE || 'spark',
     billingMode: defaultBillingMode(),
     estimate: true,
@@ -790,6 +826,8 @@ function parseArgs() {
       options.target = 'workflow';
     } else if (arg === '--no-execute' || arg === '--dry-run') {
       options.execute = false;
+    } else if (arg === CONFIRM_VENDOR_SPEND_FLAG) {
+      options.confirmVendorSpend = true;
     } else if (arg === '--token-type' && args[i + 1]) {
       options.tokenType = args[++i];
     } else if (arg === '--no-estimate') {
@@ -836,7 +874,7 @@ Modes:
 
 Seedance models:
   seedance-2-0            seedance-2-0-mini
-  seedance-2-5            (480p/720p only, 4-30s clips, first+last frame)
+  seedance-2-5            (480p/720p/1080p, 4-30s clips, first+last frame)
 
 Options:
   --interactive           Run the guided Seedance workflow setup
@@ -872,6 +910,7 @@ Options:
   --seed <n>             Seed
   --no-execute           Print or request a dry-run response without executing Sogni tools
   --dry-run              Alias for --no-execute
+  --confirm-vendor-spend Acknowledge the Seedance vendor charge for non-interactive runs
   --no-estimate          Skip the video cost-estimate request
   --inspect-workflow     Fetch the creative workflow record returned by chat/completions
   --llm-model <id>       Chat model (default: ${DEFAULT_LLM_MODEL})
@@ -919,8 +958,8 @@ function validateOptions(options) {
   validateRangeOption(options.audioIdentityStrength, '--audio-identity-strength', 0, 10);
   validateNonNegativeOption(options.audioStart, '--audio-start');
   validateNonNegativeOption(options.videoStart, '--video-start');
-  if (modelId === 'seedance-2-5' && Math.max(options.width ?? 0, options.height ?? 0) > 1280) {
-    throw new Error('Seedance 2.5 output is capped at the 720p tier (maximum dimension 1280).');
+  if (modelId === 'seedance-2-5' && Math.max(options.width ?? 0, options.height ?? 0) > 1920) {
+    throw new Error('Seedance 2.5 output is capped at the 1080p tier (maximum dimension 1920).');
   }
   validateMediaOptions(options, modelId);
 }
@@ -1047,7 +1086,7 @@ function selectedModelId(options) {
 
 function defaultDimensions(options) {
   const modelId = selectedModelId(options);
-  const lowerResolution = modelId.includes('mini') || modelId === 'seedance-2-5';
+  const lowerResolution = modelId.includes('mini');
   return {
     width: options.width || (lowerResolution ? 1280 : 1920),
     height: options.height || (lowerResolution ? 720 : 1080)
@@ -1948,6 +1987,8 @@ async function main() {
       console.log('Generation cancelled.');
       return;
     }
+  } else if (options.execute) {
+    await confirmVendorSpend(toolArguments.model, options.confirmVendorSpend);
   }
 
   if (options.target === 'workflow') {

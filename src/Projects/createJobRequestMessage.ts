@@ -18,6 +18,7 @@ import {
 import {
   validateNumber,
   validateCustomImageSize,
+  validateGptImageOptions,
   validateVideoSize,
   validateTeacacheThreshold,
   isComfyModel,
@@ -30,6 +31,7 @@ import {
   getVideoWorkflowType,
   getVideoAssetRequirements,
   isVideoModel,
+  isVideoUpscaleModel,
   calculateVideoFrames,
   isLtx2Model,
   isWanAnimateModel,
@@ -42,16 +44,20 @@ import {
   isMinimaxH3TurboModel,
   isMinimaxH3BalancedModel,
   isMinimaxH3ReferenceModel,
+  isMinimaxH3AudioGuideModel,
+  isMinimaxH3KeyframeModel,
   isExternalApiVideoModel,
   usesReferenceMask,
   countMinimaxH3References,
   getVideoContextImageSlots,
+  getMinimaxH3KeyframeSlots,
   getMinimaxH3ReferenceVideoSlots,
   getMinimaxH3ReferenceAudioSlots,
   MINIMAX_H3_MAX_REFERENCE_IMAGES,
   MINIMAX_H3_MAX_REFERENCE_VIDEOS,
   MINIMAX_H3_MAX_REFERENCE_AUDIOS,
   MINIMAX_H3_MAX_REFERENCE_FILES,
+  MINIMAX_H3_MAX_KEYFRAMES,
   MINIMAX_H3_MIN_DURATION,
   MINIMAX_H3_MAX_DURATION,
   MINIMAX_H3_DIMENSION_STEP,
@@ -61,7 +67,13 @@ import {
   MINIMAX_H3_MAX_FRAMES,
   MINIMAX_H3_FRAME_STEP,
   MINIMAX_H3_BASE_FRAMES,
-  isSegmentationModel
+  isSegmentationModel,
+  isPixal3dModel,
+  isPixal3dMultiViewModel,
+  getPixal3dOrbitViewSlots,
+  PIXAL3D_ORBIT_VIEW_SLOTS,
+  PIXAL3D_IMAGE_TO_3D_MODEL_ID,
+  PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID
 } from './utils/index.js';
 import { ApiError } from '../ApiClient/index.js';
 import {
@@ -74,24 +86,21 @@ import { workloadAttributionToWireFields } from '../lib/attribution.js';
 
 const SAM3_IMAGE_SEGMENT_WORKFLOW_ID = 'sam3_image_segment_bf16';
 const BIREFNET_BACKGROUND_REMOVAL_WORKFLOW_ID = 'birefnet_image_background_removal_fp16';
-const PIXAL3D_WORKFLOW_ID = 'pixal3d_int8_i23d';
+const PIXAL3D_WORKFLOW_ID = PIXAL3D_IMAGE_TO_3D_MODEL_ID;
 // The sole graph ComfyUI's workflows/image/manifest.json registers under the
-// Pixal3D workflow id. This is a closed list, not a passthrough:
+// single-view Pixal3D workflow id (the multi-view id has one graph and no
+// selector). This is a closed list, not a passthrough:
 // `templateVariant` is the worker's generic template selector, so
 // an open one would let a caller aim a paid job at any graph a worker carries.
 const PIXAL3D_DEFAULT_TEMPLATE_VARIANT = 'i23d-birefnet';
-const PIXAL3D_TEMPLATE_VARIANTS: Pixal3dTemplateVariant[] = [
-  PIXAL3D_DEFAULT_TEMPLATE_VARIANT
-];
-const WORLD_TARGET_STILL_MODEL_ID = 'krea2_identity_edit_sogni_v0_3_alpha';
-const WORLD_TRANSITION_MODEL_ID = 'minimax-h3-fastvideo-int8_flf2v_turbo';
+const PIXAL3D_TEMPLATE_VARIANTS: Pixal3dTemplateVariant[] = [PIXAL3D_DEFAULT_TEMPLATE_VARIANT];
 const MAX_SAM3_POINTS = 32;
 const MAX_SAM3_BOXES = 16;
 const MAX_SAM3_TEXT_LENGTH = 240;
 const MAX_SAM3_INSTANCES = 16;
-// Pixal3D reduce-only options. Each max is the shipped default, so a request
-// can only ever ask for less work than the flat price already covers; the
-// socket and the worker both clamp again.
+// Pixal3D options, shared by the single-view and multi-view workflows. Four are
+// reduce-only (each max is the shipped default); shapeResolution defaults to
+// 1024 and 1536 is a priced step up. The socket and the worker both clamp again.
 const PIXAL3D_REDUCE_ONLY_LIMITS: Record<string, { min: number; max: number }> = {
   textureSize: { min: 1024, max: 4096 },
   meshTargetFaces: { min: 5000, max: 700000 },
@@ -100,16 +109,10 @@ const PIXAL3D_REDUCE_ONLY_LIMITS: Record<string, { min: number; max: number }> =
   shapeResolution: { min: 1024, max: 1536 }
 };
 
-function normalizeWorldGenerationReceipt(params: ProjectParams) {
-  const receipt = params.worldGenerationReceipt;
+// Keep the existing receipt wire shape. Applications select their generation
+// recipe; the service decides which requests are eligible for a receipt.
+function normalizeWorldGenerationReceipt(receipt: ProjectParams['worldGenerationReceipt']) {
   if (!receipt) return undefined;
-  if (params.appSource !== 'sogni-world') {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: 'worldGenerationReceipt requires appSource "sogni-world".'
-    });
-  }
   const hash = (value: unknown, field: string) => {
     if (typeof value !== 'string' || !/^[a-f0-9]{64}$/i.test(value)) {
       throw new ApiError(400, {
@@ -121,13 +124,6 @@ function normalizeWorldGenerationReceipt(params: ProjectParams) {
     return value.toLowerCase();
   };
   if (receipt.stage === 'target_still') {
-    if (params.modelId !== WORLD_TARGET_STILL_MODEL_ID) {
-      throw new ApiError(400, {
-        status: 'error',
-        errorCode: 0,
-        message: `The target_still receipt requires ${WORLD_TARGET_STILL_MODEL_ID}.`
-      });
-    }
     return {
       stage: receipt.stage,
       sourceImageSha256: hash(receipt.sourceImageSha256, 'sourceImageSha256'),
@@ -135,13 +131,6 @@ function normalizeWorldGenerationReceipt(params: ProjectParams) {
     };
   }
   if (receipt.stage === 'transition') {
-    if (params.modelId !== WORLD_TRANSITION_MODEL_ID) {
-      throw new ApiError(400, {
-        status: 'error',
-        errorCode: 0,
-        message: `The transition receipt requires ${WORLD_TRANSITION_MODEL_ID}.`
-      });
-    }
     return {
       stage: receipt.stage,
       firstFrameSha256: hash(receipt.firstFrameSha256, 'firstFrameSha256'),
@@ -160,7 +149,21 @@ function normalizeWorldGenerationReceipt(params: ProjectParams) {
  * Throws an error if required assets are missing or forbidden assets are provided.
  */
 function validateVideoWorkflowAssets(params: VideoProjectParams): void {
+  const exportError =
+    params.outputFormat !== undefined && !['mp4', 'mov'].includes(params.outputFormat)
+      ? 'Video outputFormat must be mp4 or mov.'
+      : params.outputFormat === 'mov' && !isSeedance25Model(params.modelId)
+        ? 'MOV output is supported only by Seedance 2.5.'
+        : params.returnLastFrame !== undefined && typeof params.returnLastFrame !== 'boolean'
+          ? 'returnLastFrame must be a boolean.'
+          : params.returnLastFrame === true && !isSeedance25Model(params.modelId)
+            ? 'Last-frame export is supported only by Seedance 2.5.'
+            : undefined;
+  if (exportError) {
+    throw new ApiError(400, { status: 'error', errorCode: 0, message: exportError });
+  }
   validateVideoContextImages(params);
+  validateVideoKeyframes(params);
   validateVideoReferenceArrays(params);
 
   if (isHappyhorseModel(params.modelId)) {
@@ -309,8 +312,10 @@ function validateSeedanceTaskType(params: VideoProjectParams): void {
  * The field is the video counterpart of the image-project field of the same
  * name and belongs to exactly one video workflow: MiniMax H3 r2v is the only
  * Comfy-native multi-reference video model, and no other video workflow reads
- * the numbered `contextImage<n>` upload slots. Runs before the external-API
- * families are dispatched, since those return early.
+ * the numbered `contextImage<n>` upload slots. MiniMax H3 intermediate
+ * `keyframes` travel in their own `keyframeImage<n>` slots, so an r2v request
+ * can carry both. Runs before the external-API families are dispatched, since
+ * those return early.
  */
 function validateVideoContextImages(params: VideoProjectParams): void {
   if (params.contextImages === undefined) return;
@@ -338,6 +343,128 @@ function validateVideoContextImages(params: VideoProjectParams): void {
         'contextImages must not contain empty entries. Reference ordinals follow array position, so a hole would renumber every later reference.'
     });
   }
+}
+
+function keyframeError(message: string): never {
+  throw new ApiError(400, { status: 'error', errorCode: 0, message });
+}
+
+/**
+ * The offending value quoted in a keyframe error. The Python SDK formats it the
+ * same way, so both SDKs raise byte-identical messages.
+ */
+function describeKeyframeValue(value: unknown): string {
+  if (value === undefined || value === null) return 'nothing';
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  if (typeof value === 'string') return JSON.stringify(value);
+  return Array.isArray(value) ? 'an array' : 'an object';
+}
+
+/**
+ * MiniMax H3 intermediate `keyframes` shape check.
+ *
+ * Only the H3 i2v, flf2v, Sound to Video (ia2v, flfa2v, a2v) and Reference to
+ * Video (r2v) model ids accept keyframes (`isMinimaxH3KeyframeModel`), and an
+ * empty list means none. Like the contextImages check, this runs before the
+ * external-API families return early, so no vendor model can carry keyframes
+ * past it. Frame indices are checked in `applyMinimaxH3Keyframes`, once the
+ * job's frame count is resolved.
+ */
+function validateVideoKeyframes(params: VideoProjectParams): void {
+  const keyframes: unknown = params.keyframes;
+  if (keyframes === undefined || keyframes === null) return;
+  if (Array.isArray(keyframes) && keyframes.length === 0) return;
+  if (!isMinimaxH3KeyframeModel(params.modelId)) {
+    keyframeError(
+      `keyframes is supported only by the MiniMax H3 image-to-video, first/last-frame, Sound to Video and Reference to Video workflows (i2v, flf2v, ia2v, flfa2v, a2v and r2v model ids); ${params.modelId} does not accept keyframes.`
+    );
+  }
+  if (!Array.isArray(keyframes)) {
+    keyframeError('keyframes must be an array of { image, frameIndex } entries.');
+  }
+  if (keyframes.length > MINIMAX_H3_MAX_KEYFRAMES) {
+    keyframeError(
+      `keyframes accepts at most ${MINIMAX_H3_MAX_KEYFRAMES} entries (got ${keyframes.length}).`
+    );
+  }
+  // An index loop, not forEach: forEach skips the holes of a sparse array, and a
+  // hole is an entry without an image.
+  for (let index = 0; index < keyframes.length; index += 1) {
+    const keyframe: unknown = keyframes[index];
+    const image =
+      keyframe && typeof keyframe === 'object'
+        ? (keyframe as { image?: unknown }).image
+        : undefined;
+    if (!image) keyframeError(`keyframes[${index}].image is required.`);
+  }
+}
+
+/**
+ * What a keyframe error suggests when a caller aims at frame 0 or the last
+ * frame. Only workflows with first/last-frame inputs can show those frames;
+ * ia2v has a first frame only, and a2v and r2v have neither.
+ */
+function keyframeEdgeHint(modelId: string, frames: number): string {
+  switch (getVideoWorkflowType(modelId)) {
+    case 'i2v':
+    case 'flf2v':
+    case 'flfa2v':
+      return 'use referenceImage and referenceImageEnd for the first and last frames';
+    case 'ia2v':
+      return `use referenceImage for the first frame, and the last frame (${frames - 1}) cannot be pinned`;
+    default:
+      return `frames 0 and ${frames - 1} cannot be pinned`;
+  }
+}
+
+/**
+ * Check MiniMax H3 keyframe frame indices against the job's resolved frame
+ * count, then write the wire fields: `hasKeyframeImage<i+1>` for every entry and
+ * `keyframeFrameIndices` in the same order. `validateVideoKeyframes` has already
+ * checked the model and the entries.
+ *
+ * `framesDuration` is the caller's `duration` when the frame count was resolved
+ * from it, so a frame error can say which count that duration snapped to.
+ */
+function applyMinimaxH3Keyframes(
+  keyFrame: Record<string, any>,
+  params: VideoProjectParams,
+  framesDuration?: number
+) {
+  const slots = getMinimaxH3KeyframeSlots(params);
+  if (!slots.length) return;
+  if (keyFrame.frames === undefined || keyFrame.frames === null) {
+    keyframeError('keyframes need the video length: pass frames or duration.');
+  }
+  const frames = Number(keyFrame.frames);
+  const lastIndex = frames - 2;
+  const video =
+    framesDuration === undefined
+      ? `a ${frames}-frame video`
+      : `the ${frames}-frame video that duration ${framesDuration} resolves to`;
+  const used = new Set<number>();
+  for (const { slot, frameIndex } of slots) {
+    if (!Number.isInteger(frameIndex) || frameIndex < 1 || frameIndex > lastIndex) {
+      // Explain the edge frames only when the caller aimed at one of them.
+      const anchorHint =
+        frameIndex === 0 || frameIndex === frames - 1
+          ? `; ${keyframeEdgeHint(params.modelId, frames)}`
+          : '';
+      keyframeError(
+        `keyframes[${slot - 1}].frameIndex must be an integer between 1 and ${lastIndex} for ${video} (got ${describeKeyframeValue(frameIndex)})${anchorHint}.`
+      );
+    }
+    if (used.has(frameIndex)) {
+      keyframeError(`keyframes must use different frames; frame ${frameIndex} is used twice.`);
+    }
+    used.add(frameIndex);
+  }
+  for (const { slot } of slots) {
+    keyFrame[`hasKeyframeImage${slot}`] = true;
+  }
+  keyFrame.keyframeFrameIndices = slots.map(({ frameIndex }) => frameIndex);
 }
 
 function validateVideoReferenceArrays(params: VideoProjectParams): void {
@@ -460,6 +587,25 @@ function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {
   }
 }
 
+export const RETIRED_OUTPUT_SCALE_MESSAGE =
+  'outputScale is no longer supported. For MiniMax H3 1080p or 2K output use the two-stage model ids minimax-h3-fastvideo-int8_t2v_turbo_2stage, minimax-h3-fastvideo-int8_i2v_turbo_2stage or minimax-h3-fastvideo-int8_flf2v_turbo_2stage.';
+
+/**
+ * outputScale is retired: MiniMax H3 1080p and 2K output are the two-stage model
+ * ids, and the socket refuses any request or estimate that carries the field.
+ * It is gone from the types, so this only catches untyped callers — and fails
+ * them before any request instead of silently delivering the standard size.
+ */
+export function rejectRetiredOutputScale(params: object): void {
+  if ((params as { outputScale?: unknown }).outputScale !== undefined) {
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: RETIRED_OUTPUT_SCALE_MESSAGE
+    });
+  }
+}
+
 function validateMinimaxH3Params(params: VideoProjectParams): void {
   if (!isMinimaxH3Model(params.modelId)) return;
 
@@ -515,6 +661,33 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
         'MiniMax H3 dimensions must use a 32px grid, stay at or below 1344px per axis, and fit within 1,032,192 pixels.'
       );
     }
+  }
+  // The worker derives the audio window from frames/24, so a caller-sent
+  // audioDuration would be ignored.
+  if (params.audioDuration !== undefined) {
+    invalid(
+      'MiniMax H3 has no audioDuration input. Set frames or duration; the uploaded audio is trimmed to the video length.'
+    );
+  }
+  if (isMinimaxH3AudioGuideModel(params.modelId)) {
+    const workflow = getVideoWorkflowType(params.modelId);
+    if (params.generateAudio === false) {
+      invalid(
+        `MiniMax H3 ${workflow} output always carries the uploaded audio. Omit generateAudio or set it to true.`
+      );
+    }
+    if (
+      params.audioStart !== undefined &&
+      (typeof params.audioStart !== 'number' ||
+        !Number.isFinite(params.audioStart) ||
+        params.audioStart < 0)
+    ) {
+      invalid(`MiniMax H3 ${workflow} audioStart must be a number of seconds, 0 or greater.`);
+    }
+  } else if (params.audioStart !== undefined) {
+    invalid(
+      'audioStart is supported only by the MiniMax H3 FastH3 audio-guide workflows (minimax-h3-fastvideo-int8_ia2v_turbo, minimax-h3-fastvideo-int8_flfa2v_turbo, minimax-h3-fastvideo-int8_a2v_turbo and their _2stage ids).'
+    );
   }
 }
 
@@ -1210,7 +1383,13 @@ function applyImageParams(
   if (params.startingImage) {
     keyFrame.hasStartingImage = true;
     keyFrame.strengthIsEnabled = true;
-    keyFrame.strength = 1 - (Number(params.startingImageStrength) || 0.5);
+    keyFrame.strength =
+      1 -
+      validateNumber(params.startingImageStrength ?? 0.5, {
+        min: 0,
+        max: 1,
+        propertyName: 'startingImageStrength'
+      });
   }
 
   if (params.modelId === SAM3_IMAGE_SEGMENT_WORKFLOW_ID) {
@@ -1239,8 +1418,40 @@ function applyImageParams(
   } else if (params.applyMask !== undefined) {
     throw new Error(`applyMask is only supported by ${BIREFNET_BACKGROUND_REMOVAL_WORKFLOW_ID}`);
   }
-  if (params.modelId === PIXAL3D_WORKFLOW_ID && !params.startingImage) {
-    throw new Error('Pixal3D reconstruction requires startingImage');
+  if (isPixal3dModel(params.modelId) && !params.startingImage) {
+    throw new Error(
+      isPixal3dMultiViewModel(params.modelId)
+        ? 'Pixal3D multi-view reconstruction requires startingImage (the front view)'
+        : 'Pixal3D reconstruction requires startingImage'
+    );
+  }
+  // Pixal3D multi-view orbit views travel in fixed contextImage slots (left 1,
+  // back 2, right 3). Any subset is allowed. The single-view graph has no input
+  // for them, so it refuses them rather than charging for images it ignores,
+  // and both Pixal3D ids refuse generic contextImages, whose slots carry no view.
+  if (isPixal3dModel(params.modelId) && params.contextImages?.some(Boolean)) {
+    throw new Error(
+      isPixal3dMultiViewModel(params.modelId)
+        ? `${PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID} takes its orbit views as leftViewImage, backViewImage and rightViewImage, not contextImages`
+        : `${PIXAL3D_WORKFLOW_ID} reconstructs from startingImage alone and does not support contextImages; use ${PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID} for more views`
+    );
+  }
+  for (const view of Object.keys(PIXAL3D_ORBIT_VIEW_SLOTS)) {
+    const value = (params as Record<string, any>)[view];
+    if (value === undefined) continue;
+    if (!isPixal3dMultiViewModel(params.modelId)) {
+      throw new Error(
+        params.modelId === PIXAL3D_WORKFLOW_ID
+          ? `${PIXAL3D_WORKFLOW_ID} reconstructs from startingImage alone and ignores ${view}; use ${PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID} for orbit views`
+          : `${view} is only supported by ${PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID}`
+      );
+    }
+    if (!value) {
+      throw new Error(`${view} must be an image; leave it unset to omit that view`);
+    }
+  }
+  for (const { slot } of getPixal3dOrbitViewSlots(params)) {
+    keyFrame[`hasContextImage${slot}`] = true;
   }
   // Which of the two Pixal3D graphs to run. Unset is not the same as naming the
   // default: a worker resolves only the variants its own manifest declares, so
@@ -1258,8 +1469,10 @@ function applyImageParams(
   for (const [key, limit] of Object.entries(PIXAL3D_REDUCE_ONLY_LIMITS)) {
     const requested = (params as Record<string, any>)[key];
     if (requested === undefined) continue;
-    if (params.modelId !== PIXAL3D_WORKFLOW_ID) {
-      throw new Error(`${key} is only supported by ${PIXAL3D_WORKFLOW_ID}`);
+    if (!isPixal3dModel(params.modelId)) {
+      throw new Error(
+        `${key} is only supported by ${PIXAL3D_WORKFLOW_ID} and ${PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID}`
+      );
     }
     if (!Number.isSafeInteger(requested) || requested < limit.min || requested > limit.max) {
       throw new Error(`${key} must be an integer from ${limit.min} to ${limit.max}`);
@@ -1288,13 +1501,53 @@ function applyImageParams(
       propertyName: 'Height'
     });
   }
+  validateGptImageOptions(params);
+  if (params.gptImageMask) {
+    keyFrame.hasReferenceMask = true;
+    keyFrame.referenceMaskContentType = 'image/png';
+  }
+  if (params.gptImageMaskUrl !== undefined) {
+    keyFrame.gptImageMaskUrl = params.gptImageMaskUrl;
+  }
   if (params.gptImageQuality !== undefined) {
     keyFrame.gptImageQuality = params.gptImageQuality;
   }
   if (params.gptImageBackground !== undefined) {
     keyFrame.gptImageBackground = params.gptImageBackground;
   }
+  if (params.gptImageOutputCompression !== undefined) {
+    keyFrame.gptImageOutputCompression = params.gptImageOutputCompression;
+  }
   return keyFrame;
+}
+
+const VIDEO_UPSCALE_TIMING_ERROR =
+  'Omit the source timing, or supply the source video’s exact frame count and frame rate.';
+
+/**
+ * FlashVSR source timing is optional. The server probes the uploaded video and
+ * adopts its exact frame count and frame rate when they are omitted; values a
+ * caller does send must describe the source and are checked against it.
+ *
+ * These are sanity checks only. The SDK sets no maximum frame count or clip
+ * length: the server's admission check is the one place that limit lives, and
+ * it refuses a source that is too long with a clear error.
+ */
+function validateVideoUpscaleTiming(params: VideoProjectParams): void {
+  const fps = params.fps === undefined ? undefined : Number(params.fps);
+  if (fps !== undefined && (!Number.isFinite(fps) || fps < 1 || fps > 60)) {
+    throw new Error(VIDEO_UPSCALE_TIMING_ERROR);
+  }
+  let frames = params.frames;
+  if (frames === undefined && params.duration !== undefined) {
+    // A duration identifies the source's frames only together with its exact rate.
+    if (fps === undefined) throw new Error(VIDEO_UPSCALE_TIMING_ERROR);
+    frames = Math.round(Number(params.duration) * fps);
+  }
+  if (frames === undefined) return;
+  if (!Number.isInteger(frames) || frames < 1) {
+    throw new Error(VIDEO_UPSCALE_TIMING_ERROR);
+  }
 }
 
 function applyVideoParams(
@@ -1310,6 +1563,47 @@ function applyVideoParams(
     });
   }
   validateVideoWorkflowAssets(params);
+  if (isVideoUpscaleModel(params.modelId)) {
+    if (
+      params.detailPreference != null &&
+      !['stable', 'sharper'].includes(params.detailPreference)
+    ) {
+      throw new Error('FlashVSR detailPreference must be stable or sharper.');
+    }
+    if (params.processingSpeed != null && !['stable', 'faster'].includes(params.processingSpeed)) {
+      throw new Error('FlashVSR processingSpeed must be stable or faster.');
+    }
+    const seed = params.seed ?? 0;
+    if (!Number.isInteger(seed) || seed < -1 || seed > 4294967295) {
+      throw new Error('FlashVSR seed must be -1 (random) or an integer from 0 through 4294967295.');
+    }
+    const resolution =
+      params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
+    if (![1080, 1440].includes(resolution))
+      throw new Error('Choose 1080p or 1440p for video upscaling.');
+    if (!params.referenceVideo) throw new Error('FlashVSR requires an uploaded referenceVideo.');
+    validateVideoUpscaleTiming(params);
+    if (params.positivePrompt?.trim() || params.negativePrompt?.trim())
+      throw new Error('FlashVSR is promptless.');
+    if (
+      params.teacacheThreshold != null ||
+      params.trimEndFrame ||
+      params.controlNet ||
+      params.videoStart != null ||
+      params.referenceVideoUrls?.length ||
+      params.referenceImageUrls?.length ||
+      params.referenceAudioUrls?.length ||
+      params.referenceFileUrl ||
+      params.referenceLinkUrl ||
+      params.generateAudio === false
+    ) {
+      throw new Error(
+        'Video upscaling preserves the complete source video and its audio; generation controls are unsupported.'
+      );
+    }
+    if (params.numberOfMedia !== 1) throw new Error('Upscale one source video per project.');
+  }
+  rejectRetiredOutputScale(params);
   validateMinimaxH3Params(params);
   const keyFrame: Record<string, any> = { ...inputKeyframe };
   if (params.referenceImage) {
@@ -1377,6 +1671,9 @@ function applyVideoParams(
   if (params.ratio !== undefined) {
     keyFrame.ratio = params.ratio;
   }
+  if (params.returnLastFrame !== undefined) {
+    keyFrame.returnLastFrame = params.returnLastFrame;
+  }
   if (params.seedanceTaskType !== undefined) {
     keyFrame.seedanceTaskType = params.seedanceTaskType;
   }
@@ -1396,30 +1693,41 @@ function applyVideoParams(
   if (params.frames !== undefined) {
     keyFrame.frames = params.frames;
   }
-  if (params.duration !== undefined) {
+  // The duration the frame count was resolved from, when it was.
+  let framesDuration: number | undefined;
+  if (
+    params.duration !== undefined &&
+    !(isVideoUpscaleModel(params.modelId) && params.frames !== undefined)
+  ) {
     // Minimum direct-SDK duration: MiniMax H3 5.167s (124 frames at 24fps,
     // the bottom of its frame grid), HappyHorse 3s, Seedance 4s, others 1s.
-    const minDuration = isMinimaxH3Model(params.modelId)
-      ? MINIMAX_H3_MIN_DURATION
-      : isWan3Model(params.modelId)
-        ? 2
-        : isHappyhorseModel(params.modelId)
-          ? 3
-          : isSeedanceModel(params.modelId)
-            ? 4
-            : 1;
-    const duration = validateVideoDuration(
-      params.duration,
-      minDuration,
-      getMaxVideoDuration(params.modelId)
-    );
+    const minDuration = isVideoUpscaleModel(params.modelId)
+      ? 1 / (params.fps ?? 24)
+      : isMinimaxH3Model(params.modelId)
+        ? MINIMAX_H3_MIN_DURATION
+        : isWan3Model(params.modelId)
+          ? 2
+          : isHappyhorseModel(params.modelId)
+            ? 3
+            : isSeedanceModel(params.modelId)
+              ? 4
+              : 1;
+    // FlashVSR has no client-side maximum: the server's admission check owns
+    // the longest source it accepts and refuses a longer one itself.
+    const duration = isVideoUpscaleModel(params.modelId)
+      ? validateNumber(params.duration, { min: minDuration, propertyName: 'Video duration' })
+      : validateVideoDuration(params.duration, minDuration, getMaxVideoDuration(params.modelId));
     // Use fps from params or default based on model type:
     // - WAN 2.2: fps doesn't affect frame count (always generates at 16fps)
     // - LTX 2.x: fps directly affects frame count (default 24fps if not specified)
     // - Seedance / HappyHorse: fixed 24fps external API generation
     const fps = params.fps ?? (isWan3Model(params.modelId) ? 30 : 24);
     keyFrame.frames = calculateVideoFrames(params.modelId, duration, fps);
+    framesDuration = duration;
   }
+  // MiniMax H3 intermediate keyframes: frame indices are checked against the
+  // frame count resolved just above, from `frames` or `duration`.
+  applyMinimaxH3Keyframes(keyFrame, params, framesDuration);
   if (params.shift !== undefined) {
     keyFrame.shift = params.shift;
   }
@@ -1490,6 +1798,17 @@ function applyVideoParams(
   keyFrame.comfySampler = validateSampler(params.sampler, options);
   keyFrame.comfyScheduler = validateScheduler(params.scheduler, options);
 
+  if (isVideoUpscaleModel(params.modelId)) {
+    keyFrame.upscaleResolution =
+      params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
+    keyFrame.steps = 1;
+    keyFrame.seed = params.seed ?? 0;
+    keyFrame.detailPreference = params.detailPreference ?? 'stable';
+    keyFrame.processingSpeed = params.processingSpeed ?? 'stable';
+    keyFrame.generateAudio = true;
+    keyFrame.interpolation = 'none';
+  }
+
   return keyFrame;
 }
 
@@ -1554,7 +1873,7 @@ function applyAudioParams(
 
 function createJobRequestMessage(id: string, params: ProjectParams, options: ModelOptions) {
   const template = getTemplate();
-  const worldGenerationReceipt = normalizeWorldGenerationReceipt(params);
+  const worldGenerationReceipt = normalizeWorldGenerationReceipt(params.worldGenerationReceipt);
   const negativePrompt =
     isImageParams(params) ||
     (isVideoParams(params) &&
@@ -1638,7 +1957,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     // No utility workflow has intermediate images to preview: segmentation
     // returns one mask and Pixal3D a 3D reconstruction.
     previews:
-      isSegmentationModel(params.modelId) || params.modelId === PIXAL3D_WORKFLOW_ID
+      isSegmentationModel(params.modelId) || isPixal3dModel(params.modelId)
         ? 0
         : isImageParams(params)
           ? params.numberOfPreviews || 0
@@ -1650,10 +1969,9 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     disableSafety: !!params.disableNSFWFilter,
     tokenType: params.tokenType,
     billingMode: params.billingMode,
-    outputFormat:
-      params.modelId === PIXAL3D_WORKFLOW_ID
-        ? 'glb'
-        : isSegmentationModel(params.modelId)
+    outputFormat: isPixal3dModel(params.modelId)
+      ? 'glb'
+      : isSegmentationModel(params.modelId)
         ? 'png'
         : params.outputFormat ||
           (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),
@@ -1662,6 +1980,12 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
 
   if (params.network) {
     jobRequest.network = params.network;
+  }
+  if (isImageParams(params) && params.embedPromptMetadata !== undefined) {
+    if (typeof params.embedPromptMetadata !== 'boolean') {
+      throw new Error('embedPromptMetadata must be a boolean');
+    }
+    jobRequest.embedPromptMetadata = params.embedPromptMetadata;
   }
   if (params.appSource) {
     jobRequest.appSource = params.appSource;

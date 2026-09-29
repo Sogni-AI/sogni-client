@@ -16,11 +16,10 @@
  * Spark/SOGNI in the meantime. During grace, `currentPeriodEnd` reflects when
  * the payment-retry window ends — not paid-through access.
  *
- * Canceling during a free trial ends Unlimited access immediately by default:
- * the server cuts the entitlement projection right away instead of letting the
- * trial run to its end date. A regular cancel-at-period-end keeps access until
- * `currentPeriodEnd`. Always rely on `active` for the entitlement decision
- * rather than the status string.
+ * Canceling during a free trial stops renewal and keeps trial access until
+ * its original `currentPeriodEnd`, with trial limits still in effect. The
+ * snapshot stays `trialing` with `cancelAtPeriodEnd: true` until expiry.
+ * Always rely on the server's `active` value for the entitlement decision.
  */
 export type SubscriptionStatus =
   | 'none'

@@ -27,6 +27,7 @@ Current public API anchors:
 - Socket-native LLM chat uses `sogni.chat.completions.create()`.
 - Durable creative workflows use `sogni.workflows`.
 - Project cost helpers are `sogni.projects.estimateCost()`, `estimateVideoCost()`, and `estimateAudioCost()`.
+- `sogni.projects.assets` manages private subscriber uploads (`upload`, `list`, `remove`, `bind`). Supported servers automatically reuse matching files passed to `projects.create()`; saved IDs do not replace file parameters.
 - `checkAuth()` is only for cookie-auth browser flows. API-key auth auto-authenticates during `createInstance()`, and token auth uses `login()` or `setTokens()`.
 - `ChatCompletionResult` is SDK-shaped (`content`, `role`, `finishReason`, `tool_calls`, `usage`, `cost`). Streaming chunks expose `chunk.content` and optional `chunk.tool_calls`.
 
@@ -71,7 +72,7 @@ Public chat and workflow media rules:
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, Wan 3, LTX-2.3, Seedance 2.0, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2 and 2.5, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, Wan 3, LTX-2.3, Seedance 2.0 and 2.5, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), promptless video upscaling (FlashVSR v1.1), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
 
 Choosing an image-edit model: pick by what the edit has to preserve, not by step count or quality tier. When a person or character must stay recognisable through the edit — style transfer, makeover, clothing or person swap, face swap, new pose or expression, character sheet — use Krea 2 Identity Edit (`krea2_identity_edit_v1_2`, or `dark_beast_krea2_identity_edit_v1_2` uncensored) with 1-2 context images. For general-purpose editing — photo transforms, in-image text, multi-person changes, combining up to 3 references — use a Qwen image-edit model. A higher-step general-purpose editor does not beat the identity model at a likeness task; it reinterprets the subject instead of preserving it. See `llms.txt` for parameters.
 
@@ -127,7 +128,7 @@ Generated artifacts:
 - `chat: ChatApi` - Unified chat namespace:
   - `chat.completions.create` - Socket-native synchronous chat
   - `chat.hosted.create` - Hosted synchronous chat via `/v1/chat/completions`
-  - `chat.runs.{create, get, cancel, streamEvents}` - Durable hosted chat runs via `/v1/chat/runs` with SSE replay
+  - `chat.runs.{create, get, cancel, confirmCost, streamEvents}` - Durable hosted chat runs via `/v1/chat/runs` with SSE replay; `confirmCost` echoes `waiting.details.costApprovalPreview` as `acceptedCostPreview`
   - `chat.tools` - Tool helpers (build, parse, validate)
 - `workflows: CreativeWorkflowsApi` - Durable explicit creative workflows via `/v1/creative-agent/workflows`
   - `workflows.{start, list, get, events, streamEvents, resume, reseed, cancel}`
@@ -233,6 +234,14 @@ The SDK supports two families of video models with **fundamentally different FPS
 - **Seedance** accepts image + video + audio references (up to 9 / 3 / 3, 12 total) via `referenceImage*` / `referenceImageUrls` / `referenceVideoUrls` / `referenceAudioUrls`. **Happy Horse** accepts **image-only** references (r2v takes 1-9 images via `referenceImage` / `referenceImageUrls`).
 - **Wan 3** is one fixed-30fps model for 2-30s T2V/I2V/FLF/R2V/A2V/IA2V generation. It accepts up to 10 loose images, 5 videos, and 5 audios, but native frame mode cannot mix with loose references. Video inputs are loose conditioning, not provider-backed edit/extend tasks.
 - Family predicates: `isSeedanceModel()`, `isHappyhorseModel()`, `isExternalApiVideoModel()` in `src/Projects/utils/index.ts`.
+
+### Video Upscaling (FlashVSR)
+
+**FlashVSR v1.1** (`FLASHVSR_VIDEO_UPSCALE_MODEL_ID`, `flashvsr_v1.1_tiny_long_bf16`) is a standalone, promptless upscale job, not a generation model:
+- Exactly one `referenceVideo`, `numberOfMedia: 1`, empty prompt; the SDK fixes steps to 1 and seed to 0 and rejects generation controls.
+- Output short edge is `upscaleResolution` (1080 or 1440); the aspect ratio, every frame, the exact (possibly fractional) fps, and the original audio are preserved.
+- Minimal call: `referenceVideo` + `upscaleResolution` + `numberOfMedia: 1` + empty prompt. `frames`, `fps`, `width` and `height` are optional; the server probes the upload and adopts the verified source values, and rejects only values a caller sent that conflict with the source. The SDK sets no frame-count or duration limit: the server enforces the maximum clip length and returns a clear error for a source that is too long. Estimates take the output size, the source's `frames`/`fps`, and `sourceWidth`/`sourceHeight`.
+- `isVideoUpscaleModel()` detects it; `getVideoWorkflowType()` returns `'upscale'`. Hosted chat/workflows expose it as the `upscale_video` tool.
 
 ### Key Files
 - `src/Projects/utils/index.ts` - `isWanModel()`, `isLtx2Model()`, `calculateVideoFrames()`
@@ -355,13 +364,17 @@ const urls = await project.waitForCompletion();
 |----------|---------------|-----------------|
 | Text-to-Video | `*_t2v*` | None |
 | Image-to-Video | `*_i2v*` | `referenceImage` (and/or `referenceImageEnd`) |
+| First/Last-Frame Video | `*_flf2v*` (MiniMax H3) | `referenceImage` + `referenceImageEnd` |
+| MiniMax H3 intermediate keyframes | every H3 id except `*_t2v*`: `*_i2v*`, `*_flf2v*`, `*_ia2v*`, `*_flfa2v*`, `*_a2v*`, `*_r2v*` (`isMinimaxH3KeyframeModel`, 21 ids) | optional `keyframes: [{ image, frameIndex }]`, up to 8, alongside the workflow's own uploads; `frameIndex` is a 0-based 24 fps frame from 1 to `frames - 2` (pass `frames`: `duration` snaps to the 124 + n*17 grid); images upload to `keyframeImage1..N` in order (r2v references keep their `contextImage` slots); the prompt must describe each keyframe, never label it, and cut to a new shot where framing or light changes (see `llms.txt`) |
 | Reference-to-Video | `*_r2v*` (Happy Horse) | 1-9 images via `referenceImage`/`referenceImageUrls` |
 | Video-to-Video | `*_v2v*` (LTX-2.3) | `referenceVideo` + `controlNet` |
 | Sound-to-Video | `*_s2v*` (WAN only) | `referenceImage` + `referenceAudio` |
-| Image+Audio-to-Video | `*_ia2v*` (LTX-2.3) | `referenceImage` + `referenceAudio` |
-| Audio-to-Video | `*_a2v*` (LTX-2.3) | `referenceAudio` |
+| Image+Audio-to-Video | `*_ia2v*` (LTX-2.3, MiniMax H3 FastH3) | `referenceImage` + `referenceAudio` |
+| First/Last-Frame+Audio-to-Video | `*_flfa2v*` (MiniMax H3 FastH3) | `referenceImage` + `referenceImageEnd` + `referenceAudio` |
+| Audio-to-Video | `*_a2v*` (LTX-2.3, MiniMax H3 FastH3) | `referenceAudio` |
 | Animate-Move | `*_animate-move*` | `referenceImage` + `referenceVideo` |
 | Animate-Replace | `*_animate-replace*` | `referenceImage` + `referenceVideo` |
+| Video Upscale | `flashvsr_*` | exactly one `referenceVideo` (promptless) |
 
 ## LLM Chat — Thinking Models & Tool Calling
 

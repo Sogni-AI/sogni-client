@@ -195,8 +195,10 @@ if (sogni.account.currentAccount.isUnlimited) {
 `currentAccount.isUnlimited` is true when the latest snapshot has `active:true`
 and `tier` is `unlimited` or `unlimited_pro`; the server keeps `active:true`
 through trials and cancel-at-period-end windows, with `currentPeriodEnd`
-reflecting the paid-through date. Canceling during a free trial is the
-exception: it ends Unlimited access immediately by default. A `grace_period`
+reflecting the paid-through date. Canceling during a free trial stops renewal
+and keeps trial access until its original `currentPeriodEnd`, with trial limits
+still in effect; the snapshot stays `trialing` with `cancelAtPeriodEnd:true`
+until expiry. A `grace_period`
 snapshot is never entitled and returns
 `active:false`: the provider (Apple billing grace / Google Play grace / Stripe
 retries) is retrying the renewal payment, unlimited render access is paused,

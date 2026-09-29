@@ -20,6 +20,9 @@ const assert = require('node:assert/strict');
 const ProjectsApi = require('../dist/Projects/index.js').default;
 const Project = require('../dist/Projects/Project.js').default;
 const { isProjectLostError } = require('../dist/Projects/recovery.js');
+const {
+  MessageDeliveryUncertainError
+} = require('../dist/ApiClient/WebSocketClient/requestDelivery.js');
 
 const SILENT_LOGGER = { info() {}, warn() {}, error() {}, debug() {} };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -432,6 +435,285 @@ async function main() {
     stopTimers(api);
   }
 
+  // 6d-6g. The owner-scoped lookup can confirm an in-flight project or a
+  //     terminal failure/cancellation without a full result record. Successful
+  //     completions still wait for that record so their media is not lost.
+  {
+    const liveLookup = async (answers) => {
+      const { api, socket, client, synced, apiEvents } = makeHarness();
+      const projects = {};
+      for (const key of Object.keys(answers)) projects[key] = await createTracked(api);
+      const v2Calls = [];
+      client.rest.get = (function (original) {
+        return async function (path, query) {
+          const match = path.match(/^\/v2\/projects\/(.+)$/);
+          if (match) {
+            const id = decodeURIComponent(match[1]);
+            v2Calls.push(id);
+            const key = Object.keys(projects).find((name) => projects[name].id === id);
+            const answer = answers[key];
+            if (answer instanceof Error) throw answer;
+            return { status: 'success', data: { project: { id, ...answer } } };
+          }
+          return original.call(this, path, query);
+        };
+      })(client.rest.get);
+      client.emit('connected', { network: 'fast' });
+      socket.emit('authenticated', {
+        clientType: 'artist',
+        activeProjects: [],
+        unclaimedCompletedProjects: []
+      });
+      await sleep(80);
+      return { api, projects, synced, v2Calls, apiEvents, socket, client };
+    };
+    const notFound = Object.assign(new Error('Not Found'), { status: 404 });
+    const unauthorized = Object.assign(new Error('Unauthorized'), { status: 401 });
+    const jobs = { workerJobs: [], completedWorkerJobs: [] };
+    const { api, projects, synced, v2Calls, apiEvents, socket, client } = await liveLookup({
+      queued: { status: 'queued', finished: false, ...jobs },
+      processing: { status: 'processing', finished: false, ...jobs },
+      gone: notFound,
+      anonymous: unauthorized,
+      settled: { status: 'completed', finished: true, ...jobs },
+      failed: {
+        status: 'failed',
+        finished: true,
+        statusOnly: true,
+        reason: 'allJobsCompleted',
+        ...jobs
+      },
+      canceled: { status: 'canceled', finished: true, statusOnly: true, ...jobs }
+    });
+    assert.deepEqual(
+      [...synced[0].active].sort(),
+      [projects.queued.id, projects.processing.id].sort(),
+      'a project the live lookup reports in flight is active, not lost'
+    );
+    assert.equal(projects.queued.status, 'pending', 'a queued project is never failed as lost');
+    assert.equal(projects.processing.status, 'pending');
+    assert.deepEqual(
+      [...synced[0].lost].sort(),
+      [projects.gone.id, projects.anonymous.id].sort(),
+      'a 404 or an unauthenticated lookup keeps the lost verdict'
+    );
+    assert.equal(projects.gone.status, 'failed');
+    assert.deepEqual(
+      synced[0].unverified,
+      [projects.settled.id],
+      'a successful answer without a stored record stays unverified'
+    );
+    assert.equal(projects.settled.status, 'pending', 'an unverified project is left untouched');
+    assert.deepEqual(
+      [...synced[0].completed].sort(),
+      [projects.failed.id, projects.canceled.id].sort(),
+      'known failures and cancellations are reconciled as finished'
+    );
+    assert.equal(projects.failed.status, 'failed');
+    assert.equal(projects.canceled.status, 'canceled');
+    assert.equal(projects.canceled.toJSON().error, undefined);
+    assert.equal(projects.failed.toJSON().error.originalCode, 'genfailure');
+    await assert.rejects(projects.failed.waitForCompletion());
+    await assert.rejects(projects.canceled.waitForCompletion());
+    const terminalEvents = () =>
+      apiEvents.filter(
+        (event) =>
+          event.kind === 'project' &&
+          event.type === 'error' &&
+          [projects.failed.id, projects.canceled.id].includes(event.projectId)
+      );
+    assert.equal(terminalEvents().length, 2, 'API listeners receive both terminal outcomes');
+    assert.equal(v2Calls.length, 7, 'one live lookup per unlisted project');
+    assert.ok(!client.rest.calls.some(({ path }) => path.includes('downloadUrl')));
+
+    // Stores without tracked Project instances can consume the compact status
+    // without invented model, cost, or result metadata.
+    const resolutions = await api.resolveMissing([projects.failed.id, projects.canceled.id]);
+    assert.equal(resolutions[projects.failed.id].state, 'terminal');
+    assert.equal(resolutions[projects.failed.id].project.status, 'failed');
+    assert.equal(resolutions[projects.failed.id].project.costActual, undefined);
+    assert.equal(resolutions[projects.canceled.id].state, 'terminal');
+    assert.equal(resolutions[projects.canceled.id].project.status, 'canceled');
+
+    socket.emit('authenticated', {
+      clientType: 'artist',
+      activeProjects: [],
+      unclaimedCompletedProjects: []
+    });
+    await sleep(80);
+    assert.equal(terminalEvents().length, 2, 'another sync never replays a settled outcome');
+    stopTimers(api);
+  }
+
+  // Compact outcomes must settle the jobs this client already saw. Their
+  // empty job arrays cannot repair those jobs through the full-record API.
+  for (const status of ['failed', 'canceled']) {
+    for (const hasCompletedJob of [false, true]) {
+      const { api, socket, client, apiEvents } = makeHarness();
+      const project = await createTracked(api, { numberOfMedia: hasCompletedJob ? 4 : 3 });
+      let projectFailures = 0;
+      let jobFailures = 0;
+      project.on('failed', () => projectFailures++);
+      project.on('jobFailed', () => jobFailures++);
+      const waiting = project.waitForCompletion().then(
+        () => assert.fail('a confirmed terminal failure must reject the completion wait'),
+        (error) => error
+      );
+      if (hasCompletedJob) {
+        await api.handleJobResult({
+          jobID: project.id,
+          imgID: 'DONE',
+          resultUrl: 'https://cdn.test/preserved.png',
+          triggeredNSFWFilter: false,
+          userCanceled: false
+        });
+      }
+      const completed = project.job('DONE')?.toJSON();
+      for (const [id, state] of [
+        ['RUNNING', 'processing'],
+        ['LOADING', 'initiating'],
+        ['RETRYING', 'pending']
+      ]) {
+        const job = project._addJob({
+          id,
+          projectId: project.id,
+          status: 'pending',
+          step: 1,
+          stepCount: 4
+        });
+        job._update({ status: state });
+        if (state === 'processing') assert.ok(job._runtimeTimeout, 'running jobs have a watchdog');
+      }
+      project._update({ status: 'processing' });
+      const originalGet = client.rest.get.bind(client.rest);
+      client.rest.get = async (path, query) => {
+        if (path === `/v2/projects/${project.id}`) {
+          return {
+            status: 'success',
+            data: {
+              project: {
+                id: project.id,
+                status,
+                finished: true,
+                reason: status === 'failed' ? 'allJobsCompleted' : 'artistCanceled',
+                workerJobs: [],
+                completedWorkerJobs: []
+              }
+            }
+          };
+        }
+        return originalGet(path, query);
+      };
+      const snapshot = { activeProjects: [], unclaimedCompletedProjects: [] };
+      const result = await api._queueSync(snapshot, 'manual', Date.now());
+      assert.equal(project.status, status);
+      assert.deepEqual(result.completed, [project.id]);
+      assert.equal(projectFailures, 1, 'the project failure lifecycle fires once');
+      assert.equal(jobFailures, status === 'failed' ? 3 : 0);
+      assert.ok((await waiting).message);
+      for (const job of project.jobs.filter((job) => job.id !== 'DONE')) {
+        assert.equal(job.status, status, `${job.id} must settle with its project`);
+        assert.equal(job.finished, true);
+        assert.equal(job._runtimeTimeout, null);
+        assert.equal(job.error?.originalCode, status === 'failed' ? 'genfailure' : undefined);
+      }
+      assert.deepEqual(project.job('DONE')?.toJSON(), completed);
+      assert.deepEqual(
+        project.resultUrls,
+        hasCompletedJob ? ['https://cdn.test/preserved.png'] : []
+      );
+      const jobErrors = () =>
+        apiEvents.filter((event) => event.kind === 'job' && event.type === 'error');
+      assert.equal(
+        jobErrors().length,
+        3,
+        'API job observers receive each missing terminal outcome'
+      );
+      assert.equal(
+        apiEvents.filter((event) => event.kind === 'project' && event.type === 'error').length,
+        1
+      );
+      await api._queueSync(snapshot, 'manual', Date.now());
+      assert.equal(jobErrors().length, 3, 'another sync does not repeat job terminal events');
+      assert.equal(projectFailures, 1);
+      // A delayed job error must not overwrite a confirmed cancellation or
+      // media that was already delivered before recovery.
+      for (const job of project.jobs) {
+        socket.emit('jobError', {
+          jobID: project.id,
+          imgID: job.id,
+          error: 'workerDisconnected',
+          error_message: 'Worker disconnected',
+          isFromWorker: true
+        });
+      }
+      assert.equal(project.status, status);
+      assert.deepEqual(project.job('DONE')?.toJSON(), completed);
+      assert.ok(project.jobs.every((job) => job.id === 'DONE' || job.status === status));
+      stopTimers(api);
+    }
+  }
+
+  // 6h. A project the socket lists is never looked up again.
+  {
+    const { api, socket, client, synced } = makeHarness();
+    const late = await createTracked(api);
+    api._listActiveProjectIds = async () => [late.id];
+    const v2Calls = [];
+    client.rest.get = (function (original) {
+      return async function (path, query) {
+        if (path.startsWith('/v2/projects/')) v2Calls.push(path);
+        return original.call(this, path, query);
+      };
+    })(client.rest.get);
+    client.emit('connected', { network: 'fast' });
+    socket.emit('authenticated', {
+      clientType: 'artist',
+      activeProjects: [],
+      unclaimedCompletedProjects: []
+    });
+    await sleep(60);
+    assert.deepEqual(synced[0].active, [late.id]);
+    assert.deepEqual(v2Calls, [], 'the socket list answers first');
+    stopTimers(api);
+  }
+
+  // 6i. getStatus reads the owner-scoped live lookup and returns it unchanged;
+  //     get() still reads the terminal record.
+  {
+    const { api, client } = makeHarness();
+    const seen = [];
+    client.rest.get = async (path) => {
+      seen.push(path);
+      if (path === '/v2/projects/A%2FB') {
+        return {
+          status: 'success',
+          data: {
+            project: {
+              id: 'A/B',
+              status: 'queued',
+              finished: false,
+              workerJobs: [],
+              completedWorkerJobs: []
+            }
+          }
+        };
+      }
+      throw Object.assign(new Error('Not Found'), { status: 404 });
+    };
+    const status = await api.getStatus('A/B');
+    assert.deepEqual(status, {
+      id: 'A/B',
+      status: 'queued',
+      finished: false,
+      workerJobs: [],
+      completedWorkerJobs: []
+    });
+    await assert.rejects(api.get('A/B'), (error) => error.status === 404);
+    assert.deepEqual(seen, ['/v2/projects/A%2FB', '/v1/projects/A/B'], 'get() keeps its v1 path');
+    stopTimers(api);
+  }
+
   // 6c. Cancelled while away reaches API-level listeners as an artistCanceled
   //     error and settles the instance on `canceled`.
   {
@@ -566,6 +848,271 @@ async function main() {
     assert.equal(elsewhere[0].appSource, 'sogni-ios');
     assert.equal(socket.getCalls.at(-1).query?.appId, undefined, 'queried across all app-ids');
     assert.equal(api.trackedProjects.length, 0, 'read-only: nothing becomes tracked');
+    stopTimers(api);
+  }
+
+  // 11. A recoverable drop (`connecting`, the socket-deploy path) defers
+  //     timeouts too; `disconnected` is only emitted for terminal closes.
+  {
+    const { api, client } = makeHarness();
+    await createTracked(api);
+    client.emit('connecting', { network: 'fast' });
+    assert.equal(api._shouldDeferProjectTimeouts(), true, 'timeouts defer while reconnecting');
+    client.emit('connected', { network: 'fast' });
+    assert.equal(api._shouldDeferProjectTimeouts(), false, 'timeouts resume on reconnect');
+    stopTimers(api);
+  }
+
+  // 12. A request refused while the socket restarts (jobError 1001, no imgID)
+  //     is not a failure: it is sent again, unchanged, on the next connection.
+  {
+    const { api, socket, client, apiEvents } = makeHarness();
+    const project = await createTracked(api);
+    const request = { jobID: project.id, keyFrames: [{ modelID: 'flux1-schnell-fp8' }] };
+    api._unadmittedRequests.set(project.id, request);
+    socket.emit('jobError', {
+      jobID: project.id,
+      isFromWorker: false,
+      error: '1001',
+      error_message: 'Server is restarting'
+    });
+    assert.equal(project.status, 'pending', 'a refusal during restart does not fail the project');
+    assert.equal(socket.sent.length, 0, 'nothing is written into the closing socket');
+    client.emit('connecting', { network: 'fast' });
+    client.emit('connected', { network: 'fast' });
+    await sleep(10);
+    assert.deepEqual(socket.sent, [{ type: 'jobRequest', data: request }], 'resubmitted once');
+    assert.equal(
+      apiEvents.filter((e) => e.kind === 'project' && e.type === 'error').length,
+      0,
+      'no error surfaced'
+    );
+    // A second refusal is not retried again: it surfaces.
+    api._unadmittedRequests.delete(project.id);
+    socket.emit('jobError', {
+      jobID: project.id,
+      isFromWorker: false,
+      error: '1001',
+      error_message: 'Server is restarting'
+    });
+    assert.equal(project.status, 'failed', 'a request with nothing left to resubmit fails');
+    if (api._recheckTimer) clearTimeout(api._recheckTimer);
+    stopTimers(api);
+  }
+
+  // 13. A project too new to judge at the reconnect sync is re-checked once the
+  //     grace ends, instead of waiting minutes for the staleness watchdog.
+  {
+    const { api, socket, client, synced } = makeHarness({
+      syncSnapshot: { activeProjects: [], unclaimedCompletedProjects: [] }
+    });
+    api._recoveryTuning.recentlyCreatedGraceMs = 40;
+    const project = await createTracked(api);
+    project.data.startedAt = new Date();
+    client.emit('connected', { network: 'fast' });
+    socket.emit('authenticated', {
+      clientType: 'artist',
+      activeProjects: [],
+      unclaimedCompletedProjects: []
+    });
+    await sleep(20);
+    assert.equal(synced.length, 1);
+    assert.deepEqual(synced[0].lost, [], 'too new to judge on the first sync');
+    await sleep(400);
+    const recheck = synced.find((r) => r.reason === 'recheck');
+    assert.ok(recheck, 'a recheck sync ran after the grace');
+    assert.deepEqual(recheck.lost, [project.id], 'the recheck resolves it');
+    stopTimers(api);
+  }
+
+  // 14. A missing cross-tab ACK is ambiguous. Keep the original project ID,
+  //     recover its status, and never submit a replacement generation.
+  for (const admitted of [true, false]) {
+    const snapshot = { activeProjects: [], unclaimedCompletedProjects: [] };
+    const { api, socket, synced } = makeHarness({ syncSnapshot: snapshot });
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    socket.send = async (type, data) => {
+      socket.sent.push({ type, data });
+      if (admitted) {
+        snapshot.activeProjects.push(
+          recoveredProject(data.jobID, {
+            workerJobs: [inFlightJob(data.jobID, 'ACK-LOST-IMG', 2)]
+          })
+        );
+      }
+      throw new MessageDeliveryUncertainError();
+    };
+    const project = await api.create({
+      type: 'image',
+      modelId: 'flux1-schnell-fp8',
+      numberOfMedia: 1,
+      positivePrompt: 'a lighthouse at dusk',
+      steps: 4
+    });
+    assert.equal(project.id, socket.sent[0].data.jobID, 'keep the submitted ID');
+    assert.equal(api.trackedProjects[0], project, 'caller and recovery share the instance');
+    assert.equal(project.status, 'pending', 'a lost ACK alone is not a failure');
+    await sleep(350);
+    assert.equal(synced.at(-1).reason, 'recheck', 'status recovery runs automatically');
+    assert.equal(socket.sent.length, 1, 'recovery does not send a replacement request');
+    if (admitted) {
+      assert.equal(project.status, 'processing');
+      assert.equal(project.job('ACK-LOST-IMG').step, 2, 'progress resumes on the original project');
+    } else {
+      assert.equal(project.status, 'failed', 'absence confirmed by recovery becomes a failure');
+      assert.deepEqual(synced.at(-1).lost, [project.id]);
+    }
+    stopTimers(api);
+  }
+
+  // 15. A definitive send error still rejects create() and discards the local
+  //     request. Only the missing-ACK error takes the recovery path.
+  {
+    const { api, socket } = makeHarness();
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    socket.send = async () => {
+      throw new Error('WebSocket connection failed');
+    };
+    await assert.rejects(
+      api.create({
+        type: 'image',
+        modelId: 'flux1-schnell-fp8',
+        numberOfMedia: 1,
+        positivePrompt: 'a lighthouse at dusk',
+        steps: 4
+      }),
+      /connection failed/
+    );
+    assert.equal(api.trackedProjects.length, 0);
+    assert.equal(api._unadmittedRequests.size, 0);
+    assert.equal(api._recheckTimer, null);
+  }
+
+  // 16. A resubmit after a server restart goes through the same cross-tab send.
+  //     A missing ACK there is just as ambiguous: no error, recovery decides.
+  {
+    const { api, socket, client, apiEvents } = makeHarness({
+      syncSnapshot: { activeProjects: [], unclaimedCompletedProjects: [] }
+    });
+    const project = await createTracked(api);
+    const request = { jobID: project.id, keyFrames: [{ modelID: 'flux1-schnell-fp8' }] };
+    api._unadmittedRequests.set(project.id, request);
+    socket.send = async (type, data) => {
+      socket.sent.push({ type, data });
+      throw new MessageDeliveryUncertainError();
+    };
+    socket.emit('jobError', {
+      jobID: project.id,
+      isFromWorker: false,
+      error: '1001',
+      error_message: 'Server is restarting'
+    });
+    client.emit('connecting', { network: 'fast' });
+    client.emit('connected', { network: 'fast' });
+    await sleep(10);
+    assert.equal(socket.sent.length, 1, 'resubmitted once');
+    assert.equal(project.status, 'pending', 'an unconfirmed resubmit is not a failure');
+    assert.equal(
+      apiEvents.filter((e) => e.kind === 'project' && e.type === 'error').length,
+      0,
+      'no error surfaced'
+    );
+    assert.equal(api._awaitingResubmit.has(project.id), false);
+    assert.ok(api._recheckTimer, 'status recovery is scheduled');
+    clearTimeout(api._recheckTimer);
+    stopTimers(api);
+  }
+
+  // 17. A sync that rebuilt the project while its request was still being
+  //     forwarded must not leave two tracked projects with one ID.
+  for (const uncertain of [false, true]) {
+    const { api, socket } = makeHarness();
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    let rebuilt;
+    socket.send = async (type, data) => {
+      rebuilt = api._rehydrateProject(recoveredProject(data.jobID, { workerJobs: [] }));
+      api.projects.push(rebuilt);
+      if (uncertain) throw new MessageDeliveryUncertainError();
+    };
+    const project = await api.create({
+      type: 'image',
+      modelId: 'flux1-schnell-fp8',
+      numberOfMedia: 1,
+      positivePrompt: 'a lighthouse at dusk',
+      steps: 4
+    });
+    assert.equal(project, rebuilt, 'the caller gets the instance that receives events');
+    assert.equal(api.trackedProjects.filter((p) => p.id === project.id).length, 1);
+    assert.equal(api._unadmittedRequests.size, 0, 'the stored request is released');
+    if (api._recheckTimer) clearTimeout(api._recheckTimer);
+    stopTimers(api);
+  }
+
+  // 18. A request written on a connection that dropped before the server read
+  //     it is unknown everywhere after the reconnect. It is sent again, once,
+  //     instead of failing as lost; a second disappearance does fail. With no
+  //     drop in between, absence still means lost and nothing is resent.
+  for (const scenario of ['admitted-after-resend', 'lost-again', 'no-drop']) {
+    const snapshot = { activeProjects: [], unclaimedCompletedProjects: [] };
+    const { api, socket, client, synced, apiEvents } = makeHarness({ syncSnapshot: snapshot });
+    api.getModelOptions = async () => ({
+      type: 'image',
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    socket.send = async (type, data) => {
+      socket.sent.push({ type, data });
+      if (scenario === 'admitted-after-resend' && socket.sent.length === 2) {
+        snapshot.activeProjects.push(recoveredProject(data.jobID, { workerJobs: [] }));
+      }
+    };
+    const project = await api.create({
+      type: 'image',
+      modelId: 'flux1-schnell-fp8',
+      numberOfMedia: 1,
+      positivePrompt: 'a lighthouse at dusk',
+      steps: 4
+    });
+    if (scenario === 'no-drop') {
+      await api.sync('manual');
+      assert.equal(socket.sent.length, 1, 'no drop: nothing is resent');
+      assert.equal(project.status, 'failed', 'no drop: absence is still a loss');
+      assert.ok(isProjectLostError(project.error));
+      stopTimers(api);
+      continue;
+    }
+    client.emit('connecting', { network: 'fast' });
+    client.emit('connected', { network: 'fast' });
+    await sleep(80);
+    assert.equal(socket.sent.length, 2, 'the dropped request is sent once more');
+    assert.deepEqual(socket.sent[1], socket.sent[0], 'unchanged, same project ID');
+    assert.equal(synced[0].lost.length, 0, 'the reconnect sync does not declare it lost');
+    await sleep(400);
+    if (scenario === 'admitted-after-resend') {
+      assert.notEqual(project.status, 'failed', 'the resent project runs');
+      assert.equal(
+        apiEvents.filter((e) => e.kind === 'project' && e.type === 'error').length,
+        0,
+        'no error surfaced'
+      );
+    } else {
+      assert.equal(socket.sent.length, 2, 'only one resend per project');
+      assert.equal(project.status, 'failed', 'a resent request that vanishes again is lost');
+      assert.ok(isProjectLostError(project.error));
+    }
+    if (api._recheckTimer) clearTimeout(api._recheckTimer);
     stopTimers(api);
   }
 

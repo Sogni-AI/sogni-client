@@ -1,6 +1,12 @@
 import type ProjectsApi from '../Projects/index.js';
+import type { AuthManager } from '../lib/AuthManager/index.js';
+import { captureRequestSession } from '../lib/requestSession.js';
 import type { AvailableModel } from '../Projects/types/index.js';
 import { getMaxContextImages } from '../lib/validation.js';
+import {
+  getMinimaxH3FramesForAudioDuration,
+  isMinimaxH3AudioGuideModel
+} from '../Projects/utils/index.js';
 import { mediaInputToInlineDataUri, parseInlineMediaDataUri } from '../lib/mediaValidation.js';
 import type { MediaType } from '../lib/mediaValidation.js';
 import {
@@ -139,18 +145,41 @@ function applyHostedImageOptions(
   const gptImageQuality = getStringArg(args.gpt_image_quality ?? args.gptImageQuality);
   if (gptImageQuality) projectParams.gptImageQuality = gptImageQuality.toLowerCase();
 
+  if (args.mask_image_url != null) projectParams.gptImageMaskUrl = args.mask_image_url;
+  const background = getStringArg(args.gpt_image_background ?? args.gptImageBackground);
+  if (background) projectParams.gptImageBackground = background.toLowerCase();
+  const compression = args.gpt_image_output_compression ?? args.gptImageOutputCompression;
+  if (compression != null) projectParams.gptImageOutputCompression = compression;
+
   const outputFormat = normalizeImageOutputFormat(args.output_format ?? args.outputFormat);
   if (outputFormat) projectParams.outputFormat = outputFormat;
 }
 
 class ChatToolsApi {
   private projects: ProjectsApi;
+  private requestSessions = new WeakMap<ToolExecutionOptions, () => void>();
 
-  constructor(projects: ProjectsApi) {
+  constructor(
+    projects: ProjectsApi,
+    private auth?: AuthManager
+  ) {
     this.projects = projects;
   }
 
   async execute(toolCall: ToolCall, options?: ToolExecutionOptions): Promise<ToolExecutionResult> {
+    options = { ...options };
+    const assertSession = captureRequestSession(this.auth);
+    const onProgress = options.onProgress;
+    if (onProgress)
+      options.onProgress = (progress) => {
+        try {
+          assertSession();
+        } catch {
+          return;
+        }
+        onProgress(progress);
+      };
+    this.requestSessions.set(options, assertSession);
     if (!this.projects) {
       throw new Error(
         'ChatToolsApi requires ProjectsApi. Ensure SogniClient was properly initialized via SogniClient.createInstance().'
@@ -175,22 +204,31 @@ class ChatToolsApi {
     try {
       assertHostedToolArguments(SogniTools.all, name, args);
 
+      let result: ToolExecutionResult;
       switch (name) {
         case 'generate_image':
-          return await this.executeImageGeneration(toolCall, args, options);
+          result = await this.executeImageGeneration(toolCall, args, options);
+          break;
         case 'edit_image':
-          return await this.executeImageEdit(toolCall, args, options);
+          result = await this.executeImageEdit(toolCall, args, options);
+          break;
         case 'generate_video':
-          return await this.executeVideoGeneration(toolCall, args, options);
+          result = await this.executeVideoGeneration(toolCall, args, options);
+          break;
         case 'sound_to_video':
-          return await this.executeSoundToVideo(toolCall, args, options);
+          result = await this.executeSoundToVideo(toolCall, args, options);
+          break;
         case 'video_to_video':
-          return await this.executeVideoToVideo(toolCall, args, options);
+          result = await this.executeVideoToVideo(toolCall, args, options);
+          break;
         case 'generate_music':
-          return await this.executeMusicGeneration(toolCall, args, options);
+          result = await this.executeMusicGeneration(toolCall, args, options);
+          break;
         default:
           return this.makeErrorResult(toolCall, `Unknown Sogni tool: ${name}`);
       }
+      assertSession();
+      return result;
     } catch (err) {
       const error = serializeUnknownError(err);
       return this.makeErrorResult(toolCall, error);
@@ -204,6 +242,7 @@ class ChatToolsApi {
       onToolProgress?: (toolCall: ToolCall, progress: ToolExecutionProgress) => void;
     }
   ): Promise<ToolExecutionResult[]> {
+    const assertSession = captureRequestSession(this.auth);
     const sogniToolCallCount = toolCalls.filter(hasDirectProjectDispatch).length;
     if (sogniToolCallCount > MAX_SOGNI_TOOL_CALLS_PER_ROUND) {
       throw new Error(
@@ -214,6 +253,7 @@ class ChatToolsApi {
     const results: ToolExecutionResult[] = [];
 
     for (const toolCall of toolCalls) {
+      assertSession();
       if (isSogniToolCall(toolCall)) {
         const execOptions: ToolExecutionOptions = {
           tokenType: options?.tokenType,
@@ -251,6 +291,7 @@ class ChatToolsApi {
       }
     }
 
+    assertSession();
     return results;
   }
 
@@ -278,11 +319,13 @@ class ChatToolsApi {
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
     options?.onProgress?.({ status: 'creating', percent: 0 });
+    if (options) this.requestSessions.get(options)?.();
 
     const project = await this.projects.create({
       ...projectParams,
       ...(options?.attribution ? { attribution: options.attribution } : {})
     } as any);
+    if (options) this.requestSessions.get(options)?.();
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let rejectQueueTimeout: ((error: Error) => void) | null = null;
@@ -369,6 +412,7 @@ class ChatToolsApi {
           armQueueTimeout();
         })
       ]);
+      if (options) this.requestSessions.get(options)?.();
 
       options?.onProgress?.({ status: 'completed', percent: 100, resultUrls });
 
@@ -381,11 +425,16 @@ class ChatToolsApi {
           success: true,
           media_type: mediaType,
           urls: resultUrls,
+          ...(project.jobs.some((job) => job.lastFrameUrl)
+            ? { lastFrameUrls: project.jobs.map((job) => job.lastFrameUrl ?? null) }
+            : {}),
           model: modelId,
           prompt
         })
       };
     } catch (err) {
+      // Do not send an old project's cancellation using a replacement account.
+      if (options) this.requestSessions.get(options)?.();
       try {
         await project.cancel();
       } catch {
@@ -463,8 +512,14 @@ class ChatToolsApi {
       filter: isEditImageModel
     });
     const maxContextImages = getMaxContextImages(modelId);
+    // A model never receives more references than it accepts; none are dropped.
+    if (inputUrls.length > maxContextImages) {
+      throw new Error(
+        `${modelId} accepts at most ${maxContextImages} reference images; this request supplies ${inputUrls.length}`
+      );
+    }
     const contextImages = await Promise.all(
-      inputUrls.slice(0, maxContextImages).map(
+      inputUrls.map(
         (url) =>
           parseInlineMediaDataUri(url, 'image', {
             maxBytes: MAX_INPUT_MEDIA_BYTES.image
@@ -590,6 +645,8 @@ class ChatToolsApi {
 
     const projectParams: Record<string, unknown> = {
       type: 'video' as const,
+      ...(args.outputFormat !== undefined ? { outputFormat: args.outputFormat } : {}),
+      ...(args.returnLastFrame !== undefined ? { returnLastFrame: args.returnLastFrame } : {}),
       modelId,
       positivePrompt: args.prompt as string,
       numberOfMedia: getVariationCount(args, options),
@@ -733,43 +790,114 @@ class ChatToolsApi {
     }
 
     const hasReferenceImage = isNonEmptyString(args.reference_image_url);
-    const workflows: VideoWorkflow[] = hasReferenceImage ? ['ia2v', 's2v'] : ['a2v'];
-    const preferredModelIds = hasReferenceImage
-      ? [PREFERRED_MODEL_IDS.video.ia2v, PREFERRED_MODEL_IDS.video.s2v]
-      : [PREFERRED_MODEL_IDS.video.a2v];
+    const hasReferenceImageEnd = isNonEmptyString(args.reference_image_end_url);
+    if (hasReferenceImageEnd && !hasReferenceImage) {
+      throw new Error(
+        'sound_to_video reference_image_end_url needs reference_image_url as the first frame'
+      );
+    }
+    // The supplied images pick the audio mode: first and last frame (flfa2v,
+    // MiniMax H3 FastH3 only), first frame (ia2v/s2v; LTX preferred), or none
+    // (a2v; LTX preferred).
+    const workflows: VideoWorkflow[] = hasReferenceImageEnd
+      ? ['flfa2v']
+      : hasReferenceImage
+        ? ['ia2v', 's2v']
+        : ['a2v'];
+    const preferredModelIds = hasReferenceImageEnd
+      ? [PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboFlfa2v]
+      : hasReferenceImage
+        ? [PREFERRED_MODEL_IDS.video.ia2v, PREFERRED_MODEL_IDS.video.s2v]
+        : [PREFERRED_MODEL_IDS.video.a2v];
+    const requestedModel = resolveHostedToolModelSelector('sound_to_video', args);
+    // An explicitly chosen H3 audio mode must match the supplied images rather
+    // than quietly rendering on another model.
+    if (requestedModel && isMinimaxH3AudioGuideModel(requestedModel)) {
+      const requestedWorkflow = getVideoWorkflowType(requestedModel);
+      if (!requestedWorkflow || !workflows.includes(requestedWorkflow)) {
+        const needs =
+          requestedWorkflow === 'flfa2v'
+            ? 'reference_image_url and reference_image_end_url'
+            : requestedWorkflow === 'ia2v'
+              ? 'reference_image_url and no reference_image_end_url'
+              : 'no reference images';
+        throw new Error(`${requestedModel} (MiniMax H3 ${requestedWorkflow}) needs ${needs}`);
+      }
+    }
     const modelId = await this.selectModel({
       mediaType: 'video',
-      requestedModel: resolveHostedToolModelSelector('sound_to_video', args),
+      requestedModel,
       workflows,
       preferredModelIds
     });
     const defaults = getVideoDefaults(modelId);
     const duration = asFiniteNumber(args.duration) ?? 5;
-
-    const projectParams: Record<string, unknown> = {
-      type: 'video' as const,
-      modelId,
-      positivePrompt: args.prompt as string,
-      numberOfMedia: getVariationCount(args, options),
-      referenceAudio: parseInlineMediaDataUri(args.reference_audio_url, 'audio', {
-        maxBytes: MAX_INPUT_MEDIA_BYTES.audio
-      }).blob,
-      width: (args.width as number) || defaults.width,
-      height: (args.height as number) || defaults.height,
-      fps: defaults.fps,
-      duration,
-      audioDuration: duration
+    const referenceAudio = parseInlineMediaDataUri(args.reference_audio_url, 'audio', {
+      maxBytes: MAX_INPUT_MEDIA_BYTES.audio
+    }).blob;
+    const generateAudio = asBooleanValue(args.generateAudio);
+    const exportOptions = {
+      ...(args.outputFormat !== undefined ? { outputFormat: args.outputFormat } : {}),
+      ...(args.returnLastFrame !== undefined ? { returnLastFrame: args.returnLastFrame } : {})
     };
 
-    if (isNonEmptyString(args.reference_image_url)) {
-      projectParams.referenceImage = parseInlineMediaDataUri(args.reference_image_url, 'image', {
-        maxBytes: MAX_INPUT_MEDIA_BYTES.image
-      }).blob;
+    let projectParams: Record<string, unknown>;
+    if (isMinimaxH3AudioGuideModel(modelId)) {
+      // The H3 audio guide runs on the 124 + n*17 grid at a fixed 24fps and
+      // trims the uploaded audio to the video length itself: it takes frames,
+      // not duration/audioDuration, and its output always keeps that audio.
+      if (generateAudio === false) {
+        throw new Error(
+          `${modelId} output always carries the uploaded audio; generateAudio: false is not supported`
+        );
+      }
+      projectParams = {
+        type: 'video' as const,
+        ...exportOptions,
+        modelId,
+        positivePrompt: args.prompt as string,
+        numberOfMedia: getVariationCount(args, options),
+        referenceAudio,
+        width: defaults.width,
+        height: defaults.height,
+        fps: 24,
+        frames: getMinimaxH3FramesForAudioDuration(duration)
+      };
+      const audioStart = args.audioStart ?? args.audio_start;
+      if (audioStart !== undefined) projectParams.audioStart = audioStart;
+    } else {
+      projectParams = {
+        type: 'video' as const,
+        ...exportOptions,
+        modelId,
+        positivePrompt: args.prompt as string,
+        numberOfMedia: getVariationCount(args, options),
+        referenceAudio,
+        width: (args.width as number) || defaults.width,
+        height: (args.height as number) || defaults.height,
+        fps: defaults.fps,
+        duration,
+        audioDuration: duration
+      };
+      if (args.audio_start !== undefined) projectParams.audioStart = args.audio_start;
+      if (generateAudio !== undefined) {
+        projectParams.generateAudio = generateAudio;
+      }
     }
-    if (args.audio_start !== undefined) projectParams.audioStart = args.audio_start;
-    const generateAudio = asBooleanValue(args.generateAudio);
-    if (generateAudio !== undefined) {
-      projectParams.generateAudio = generateAudio;
+
+    if (hasReferenceImage) {
+      projectParams.referenceImage = parseInlineMediaDataUri(
+        args.reference_image_url as string,
+        'image',
+        { maxBytes: MAX_INPUT_MEDIA_BYTES.image }
+      ).blob;
+    }
+    if (hasReferenceImageEnd) {
+      projectParams.referenceImageEnd = parseInlineMediaDataUri(
+        args.reference_image_end_url as string,
+        'image',
+        { maxBytes: MAX_INPUT_MEDIA_BYTES.image }
+      ).blob;
     }
     if (args.seed !== undefined) projectParams.seed = args.seed;
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
@@ -822,6 +950,8 @@ class ChatToolsApi {
 
     const projectParams: Record<string, unknown> = {
       type: 'video' as const,
+      ...(args.outputFormat !== undefined ? { outputFormat: args.outputFormat } : {}),
+      ...(args.returnLastFrame !== undefined ? { returnLastFrame: args.returnLastFrame } : {}),
       modelId,
       positivePrompt: args.prompt as string,
       numberOfMedia: getVariationCount(args, options),

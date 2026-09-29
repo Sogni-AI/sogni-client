@@ -3,6 +3,7 @@ import TypedEventEmitter, { EventMap } from './TypedEventEmitter.js';
 import { JSONValue } from '../types/json.js';
 import { Logger } from './DefaultLogger.js';
 import { AuthManager } from './AuthManager/index.js';
+import { captureRequestSession } from './requestSession.js';
 
 interface RestRequestInit extends RequestInit {
   timeoutMs?: number;
@@ -11,6 +12,29 @@ interface RestRequestInit extends RequestInit {
 interface RestPostOptions {
   timeoutMs?: number;
   headers?: Record<string, string>;
+}
+
+const PLAIN_TEXT_ERROR_MAX_LENGTH = 500;
+const ERROR_BODY_EXCERPT_LENGTH = 200;
+
+/**
+ * Message for a non-2xx response whose body is not a JSON object.
+ *
+ * A plain-text body is the server's own explanation (sogni-socket answers a held
+ * model with "MiniMax H3 Latent Upscaler (Community) will be available soon."), so
+ * it is the message. The HTTP reason phrase ("Bad Request") only labels an empty
+ * body or a gateway's HTML error page, which gets a short excerpt instead.
+ */
+function nonJsonErrorMessage(response: Response, rawText: string): string {
+  const body = rawText.replace(/\s+/g, ' ').trim();
+  const status = response.statusText || `HTTP ${response.status}`;
+  if (!body) return status;
+  if (!body.startsWith('<')) {
+    return body.length > PLAIN_TEXT_ERROR_MAX_LENGTH
+      ? `${body.slice(0, PLAIN_TEXT_ERROR_MAX_LENGTH)}…`
+      : body;
+  }
+  return `${status}: ${body.slice(0, ERROR_BODY_EXCERPT_LENGTH)}`;
 }
 
 class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
@@ -29,17 +53,23 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     return this._auth;
   }
 
-  private formatUrl(relativeUrl: string, query: Record<string, string> = {}): string {
+  private formatUrl(relativeUrl: string, query: Record<string, unknown> = {}): string {
     const url = new URL(relativeUrl, this.baseUrl);
     Object.keys(query).forEach((key) => {
-      url.searchParams.append(key, query[key]);
+      const value = query[key];
+      // Omit unset optional params: URLSearchParams would send the literal
+      // string "undefined", which the API reads as a real value.
+      if (value === undefined || value === null) return;
+      url.searchParams.append(key, String(value));
     });
     return url.toString();
   }
 
   private async request<T = JSONValue>(url: string, options: RestRequestInit = {}): Promise<T> {
+    const assertSession = captureRequestSession(this.auth);
     const { timeoutMs = 30000, ...requestOptions } = options;
     const init = await this.auth.authenticateRequest(requestOptions);
+    assertSession();
 
     // Add a timeout to detect hanging requests
     const controller = new AbortController();
@@ -50,7 +80,21 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     try {
       const response = await fetch(url, { ...init, signal: controller.signal });
       clearTimeout(timeoutId);
-      return this.processResponse(response) as T;
+      assertSession();
+      // Clear a rejected sign-in before parsing, including non-JSON 401 pages.
+      // The response body then belongs to that signed-out session. A later
+      // sign-in must invalidate both successful results and API errors.
+      if (response.status === 401 && this.auth.isAuthenticated) {
+        this.auth.clear();
+        if (this.auth.isAuthenticated) assertSession();
+      }
+      const assertResponseSession = captureRequestSession(this.auth);
+      try {
+        return (await this.processResponse(response)) as T;
+      } finally {
+        // fetch resolves at the headers; reading the body can outlive this account.
+        assertResponseSession();
+      }
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
       throw fetchError;
@@ -58,13 +102,6 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   }
 
   private async processResponse(response: Response): Promise<JSONValue> {
-    // 401 means that the client instance is not authenticated, so we clear the
-    // authentication. Do this before parsing so we still clear on HTML error
-    // pages that the upstream sometimes serves on 401.
-    if (response.status === 401 && this.auth.isAuthenticated) {
-      this.auth.clear();
-    }
-
     // Read the body once as text so we can attempt JSON parse AND fall back to
     // surfacing the raw text in the thrown ApiError if it isn't JSON. This
     // matters because gateways (nginx, CloudFront, uWebSockets) return HTML
@@ -85,20 +122,16 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
 
     if (!response.ok) {
       // Non-2xx. If body was JSON, surface its shape; otherwise synthesize an
-      // ApiErrorResponse from the HTTP status + a truncated body excerpt so
-      // callers and operators can see what came back.
+      // ApiErrorResponse so callers and operators can see what came back.
       const payload: ApiErrorResponse =
         parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)
           ? (parsedBody as unknown as ApiErrorResponse)
           : {
               status: 'error',
-              message:
-                response.statusText ||
-                `HTTP ${response.status}` +
-                  (rawText ? `: ${rawText.slice(0, 200).replace(/\s+/g, ' ').trim()}` : ''),
+              message: nonJsonErrorMessage(response, rawText),
               errorCode: response.status
             };
-      throw new ApiError(response.status, payload);
+      throw new ApiError(response.status, payload, response.headers.get('retry-after'));
     }
 
     // 2xx. JSON-parse failure here is genuinely unexpected (the server claimed
@@ -120,6 +153,10 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
 
   get<T = JSONValue>(path: string, query: Record<string, any> = {}): Promise<T> {
     return this.request<T>(this.formatUrl(path, query));
+  }
+
+  delete<T = JSONValue>(path: string): Promise<T> {
+    return this.request<T>(this.formatUrl(path), { method: 'DELETE' });
   }
 
   post<T = JSONValue>(

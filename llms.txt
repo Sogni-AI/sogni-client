@@ -126,13 +126,15 @@ identity on every run.
 
 ### Subscription Entitlements
 
+Current queue explanations arrive through `sogni.projects.on('queueChanged', ({ projectId, waitingReason, jobWaitingReasons }) => ...)` and the same `Project` getters. Display `waitingReason.message` as plain text. The complete per-result list uses zero-based `jobIndex`, with optional `imgID` assigned later; removed entries clear old reasons. Prefer these current server details to the legacy worker-only `queueStatus` estimate. A partially running batch can still have queued results. Supported servers stream these details automatically; `{ projectQueue: false }` opts out, and a subscription reset disables the stream. Older servers provide no explanation.
+
 ```javascript
 const plans = await sogni.account.getSubscriptionPlans(); // [{ planId, tier, term, interval, priceUsd, displayName }]
 const subscription = await sogni.account.refreshSubscription(); // unwraps data.subscription
 const isUnlimited = sogni.account.currentAccount.isUnlimited; // active && tier is unlimited/unlimited_pro
 ```
 
-`subscription.status` is one of `none`, `trialing`, `active`, `grace_period`, `past_due`, `paused`, `cancel_at_period_end`, `canceled`, `expired`, or `refunded`. Period dates are ISO strings. `isUnlimited` trusts the server's `active` entitlement flag: trialing and cancel-at-period-end snapshots stay entitled until the period ends — though canceling during a free trial ends Unlimited access immediately by default — but a `grace_period` snapshot is never entitled (`active:false`) — the provider is retrying the renewal payment, unlimited render access is paused, and render submissions under the plan return a specific error explaining the renewal retry; access resumes automatically once the renewal succeeds, and renders can still be paid with Spark/SOGNI in the meantime. The snapshot's effective period end during grace indicates the payment-retry window, not access. Pending plan changes surface as optional `scheduledTier`, `scheduledTerm`, and `scheduledChangeAt` (absent when no change is pending).
+`subscription.status` is one of `none`, `trialing`, `active`, `grace_period`, `past_due`, `paused`, `cancel_at_period_end`, `canceled`, `expired`, or `refunded`. Period dates are ISO strings. `isUnlimited` trusts the server's `active` entitlement flag: trialing and cancel-at-period-end snapshots stay entitled until the period ends — including a free trial canceled early, which keeps trial access and trial limits until its original `currentPeriodEnd` — but a `grace_period` snapshot is never entitled (`active:false`) — the provider is retrying the renewal payment, unlimited render access is paused, and render submissions under the plan return a specific error explaining the renewal retry; access resumes automatically once the renewal succeeds, and renders can still be paid with Spark/SOGNI in the meantime. The snapshot's effective period end during grace indicates the payment-retry window, not access. Pending plan changes surface as optional `scheduledTier`, `scheduledTerm`, and `scheduledChangeAt` (absent when no change is pending).
 
 Jobs explicitly submitted with `billingMode: 'subscription'` that the subscription cannot cover fail with `SUBSCRIPTION_ERROR_CODES` (exported from the package root): `4078` `NOT_ENTITLED` (no active subscription), `4079` `QUEUE_CAP` (subscription queue cap reached), `4080` `GRACE_RETRY` (billing-grace window — the renewal payment is being retried and unlimited access is paused until it succeeds). On `4080`, offer a "pay with Spark/SOGNI" fallback instead of auto-retrying in a loop.
 
@@ -201,6 +203,15 @@ Keep `appSource` as the stable product/integration ID. Agent wrappers may additi
 }
 ```
 
+### Reusable uploads
+
+Eligible subscribers on supported servers automatically reuse matching image,
+video and audio files across `projects.create()` calls. The saved library is
+private to the account. `sogni.projects.assets.upload(file, contentType, name)`,
+`.list()` and `.remove(id)` manage it; use returned limits and `expiresAt` in UI.
+Continue passing files to `projects.create()`, not saved-upload IDs. Verification
+errors stop project submission. Older servers retain ordinary project uploads.
+
 ### With ControlNet
 
 ```javascript
@@ -258,7 +269,59 @@ likeness task — it reinterprets the subject instead of preserving it. When an
 edit both preserves a likeness and needs general-purpose work, run the identity
 model first, then edit its output.
 
+### Image to 3D (Pixal3D)
+
+Pixal3D reconstructs one object as a textured GLB (`job.type === 'model'`, `job.resultUrl` is the GLB). There is no prompt: BiRefNet isolates the subject in each image. `pixal3d_int8_i23d` uses `startingImage` alone. `pixal3d_multiview_int8_i23d` uses `startingImage` as the required FRONT view plus any subset of `leftViewImage`, `backViewImage` and `rightViewImage`, uploaded as `contextImage1`, `contextImage2` and `contextImage3`. Views show the same object at the same height, 90 degrees apart at eye level. Name views from the subject's own point of view: `leftViewImage` is the subject turned so ITS OWN LEFT SIDE faces the camera (it faces screen-left), `rightViewImage` is its own right side toward the camera (it faces screen-right), `backViewImage` is seen from behind. Swapping left and right builds a model turned 180 degrees; some turnaround templates label the subject's right side "left", so do not follow those labels. The single-view id refuses orbit views, both ids refuse `contextImages`, and only the single-view id accepts `templateVariant`.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'pixal3d_multiview_int8_i23d',
+  positivePrompt: '',
+  startingImage: fs.readFileSync('./front.png'),
+  leftViewImage: fs.readFileSync('./left.png'),   // subject's own left side toward the camera
+  backViewImage: fs.readFileSync('./back.png'),
+  rightViewImage: fs.readFileSync('./right.png'), // subject's own right side toward the camera
+  numberOfMedia: 1,
+  network: 'fast',
+  tokenType: 'spark'
+});
+const [glbUrl] = await project.waitForCompletion();
+```
+
+Both ids take `textureSize` (1024-4096), `meshTargetFaces` (5000-700000), `normalMapSize` (512-2048) and `ambientOcclusionSize` (256-1024), each defaulting to its maximum and only reducing work, plus `shapeResolution` (1024 default; 1536 costs more).
+
 ---
+
+
+### Personal LoRA library
+
+Use the same account/API key as Sogni Web. Importing and generating require an active Unlimited subscription; listing and removing owned entries remain available after expiry. The server checks ownership, readiness, content-filter requirements, compatible models, and quotas on every request.
+
+```typescript
+const library = await sogni.projects.personalLoras.list();
+// Choose modelId from library.models; obtain the user's permission to use the file.
+const imported = await sogni.projects.personalLoras.import({
+  url: 'https://huggingface.co/author/repository/resolve/main/style.safetensors',
+  name: 'My style',
+  modelId: 'krea2_turbo_fp8_scaled',
+  rightsConfirmed: true,
+});
+const current = await sogni.projects.personalLoras.get(imported.id);
+// Importing is asynchronous. Poll get() until ready, rejected, or revoked;
+// queued, validating, and review are not usable yet. Surface reason/failureCode.
+const { loras } = await sogni.projects.availableLoras({
+  modelId: 'krea2_turbo_fp8_scaled', includePersonal: true,
+});
+// Pass a ready row.loraId in project.loras and row.ui.default in loraStrengths.
+// Respect its modelIds, requirements, and ui.nsfw content-filter requirement.
+// Removal is explicit:
+// await sogni.projects.personalLoras.remove(imported.id);
+```
+
+`personalLoras.catalog({modelId})` returns ready private catalog rows. `getLora('personal-…')` also reads the authenticated catalog. Personal catalog responses are never placed in the shared public cache. `forceRefresh` controls the public catalog; personal entries are always fetched again. Standard and non-audio FastH3 Two-Stage modes expose their compatible adapters through `modelIds`; audio-guided H3 modes do not support LoRAs.
+
+Hosted tools include `SogniTools.imageTo3d`, `SogniTools.removeBackground`, and `SogniTools.segmentImage`. Use `image_to_3d` with a front image and optional named `leftViewImageIndex`, `backViewImageIndex`, and `rightViewImageIndex`; its result has `mediaType: 'model'` and is a binary GLB. `generate_speech` supports `creativity` (0.1–2), `outputFormat` (`wav`, `mp3`, `flac`), and `seed`, alongside studio voices, reference-audio cloning, and voice design.
 
 ## 3. Video Generation (WAN 2.2)
 
@@ -444,7 +507,7 @@ const project = await sogni.projects.create({
 
 ### MiniMax H3, Balanced, LightX2V Turbo, and FastH3 Turbo (Sogni workers)
 
-MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. Standard H3 uses 20 steps, Balanced uses eight, and Turbo uses four. Existing `fl2va`/`ref2va` Turbo IDs are LightX2V; the three `fastvideo-int8` IDs are the separate FastVideo VSA FastH3 engine, fixed to Euler/simple. FastH3 supports T2V, I2V, and FLF2V only—there is no FastH3 R2V. All H3 variants use fixed 24fps, guidance 1, no negative prompt, the `124 + n*17` frame grid (124-362), and a 32px canvas grid capped at 1,032,192 pixels.
+MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. Standard H3 uses 20 steps, Balanced uses eight, and Turbo uses four. Existing `fl2va`/`ref2va` Turbo IDs are LightX2V; the `fastvideo-int8` IDs are the separate FastVideo VSA FastH3 engine, fixed to Euler/simple. FastH3 supports T2V, I2V, FLF2V, and the audio guide driven by an uploaded audio—IA2V (first frame + audio), FLFA2V (first and last frame + audio), and A2V (audio only)—each also as a Two-Stage ID; there is no FastH3 R2V. All H3 variants use fixed 24fps, guidance 1, no negative prompt, the `124 + n*17` frame grid (124-362), and a 32px canvas grid capped at 1,032,192 pixels.
 
 | Model ID                      | Mode                       | References                                                |
 | ----------------------------- | -------------------------- | --------------------------------------------------------- |
@@ -459,6 +522,17 @@ MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. S
 | `minimax-h3-fastvideo-int8_t2v_turbo` | FastH3 Turbo text-to-video | none |
 | `minimax-h3-fastvideo-int8_i2v_turbo` | FastH3 Turbo endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | `minimax-h3-fastvideo-int8_flf2v_turbo` | FastH3 Turbo first-and-last-frame video | both anchor images required |
+| `minimax-h3-fastvideo-int8_ia2v_turbo` | FastH3 Turbo image + uploaded audio to video | `referenceImage` (first frame) and `referenceAudio` (driving audio) both required |
+| `minimax-h3-fastvideo-int8_flfa2v_turbo` | FastH3 Turbo first and last frame + uploaded audio to video | `referenceImage`, `referenceImageEnd`, and `referenceAudio` all required |
+| `minimax-h3-fastvideo-int8_a2v_turbo` | FastH3 Turbo uploaded audio to video | `referenceAudio` only |
+| `minimax-h3-fastvideo-int8_t2v_turbo_2stage` | FastH3 Two-Stage text-to-video (2x canvas delivery) | none |
+| `minimax-h3-fastvideo-int8_i2v_turbo_2stage` | FastH3 Two-Stage endpoint-conditioned image-to-video (2x canvas delivery) | first frame, last frame, or both (at least one) |
+| `minimax-h3-fastvideo-int8_flf2v_turbo_2stage` | FastH3 Two-Stage first-and-last-frame video (2x canvas delivery) | both anchor images required |
+| `minimax-h3-fastvideo-int8_ia2v_turbo_2stage` | FastH3 Two-Stage image + uploaded audio to video (2x canvas delivery) | `referenceImage` and `referenceAudio` both required |
+| `minimax-h3-fastvideo-int8_flfa2v_turbo_2stage` | FastH3 Two-Stage first and last frame + uploaded audio to video (2x canvas delivery) | `referenceImage`, `referenceImageEnd`, and `referenceAudio` all required |
+| `minimax-h3-fastvideo-int8_a2v_turbo_2stage` | FastH3 Two-Stage uploaded audio to video (2x canvas delivery) | `referenceAudio` only |
+| `minimax-h3-ref2va-fp8_r2v_2stage` | Two-Stage reference-to-video, Standard 20 steps (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+| `minimax-h3-ref2va-fp8_r2v_balanced_2stage` | Two-Stage reference-to-video, Balanced 8 steps (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | `minimax-h3-fl2va-fp8_t2v_balanced` | Balanced text-to-video | none |
 | `minimax-h3-fl2va-fp8_i2v_balanced` | Balanced endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | `minimax-h3-fl2va-fp8_flf2v_balanced` | Balanced first-and-last-frame video | both anchor images required |
@@ -466,9 +540,48 @@ MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. S
 
 Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544. Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 
-All 15 current workflow IDs are available through the Sogni projects API: four Standard, four Balanced, four LightX2V Turbo, and three FastH3 Turbo modes.
+All 26 current workflow IDs are available through the Sogni projects API: four Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with generated audio, three audio-guide), six FastH3 Two-Stage modes, and two Ref2VA Two-Stage modes (Standard and Balanced).
 
-For direct `projects.create()` calls, H3 I2V IDs accept `referenceImage`, `referenceImageEnd`, or both, with at least one required. Explicit FLF2V IDs require both anchors. SDK creative-tool routing keeps `minimax-h3-turbo` mapped to LightX2V for compatibility and adds `minimax-h3-fasth3-turbo` (automatic T2V or I2V), `minimax-h3-fasth3-t2v-turbo`, `minimax-h3-fasth3-i2v-turbo`, and `minimax-h3-fasth3-flf2v-turbo` for FastH3.
+For direct `projects.create()` calls, H3 I2V IDs accept `referenceImage`, `referenceImageEnd`, or both, with at least one required. Explicit FLF2V IDs require both anchors.
+
+Intermediate keyframes: every H3 workflow except text-to-video accepts `keyframes`, 21 IDs in all (`isMinimaxH3KeyframeModel(modelId)`): I2V and FLF2V on every tier (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage), the six FastH3 Sound to Video IDs (IA2V, FLFA2V, A2V, one- and two-stage) and the five Ref2VA R2V IDs. Each request takes up to `MINIMAX_H3_MAX_KEYFRAMES` (8) still images pinned between the first and last frame, alongside the workflow's own uploads. Each entry is `{ image, frameIndex }`: `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2` of the job's frame count, with no frame used twice. Pass `frames` from the H3 grid (124, 141, 158, 175, 192, … 362; `124 + n*17`) so that count is exact. `duration` also works but snaps to the grid (`duration: 6` renders 141 frames, not 144); `calculateVideoFrames(modelId, seconds, 24)` returns the count a duration resolves to. Frame 0 and the last frame are never keyframes: I2V, FLF2V and FLFA2V set them with `referenceImage` / `referenceImageEnd` under the rules above, IA2V sets frame 0 with `referenceImage`, and A2V and R2V cannot pin them. `contextImages` stays R2V-only, and t2v and every non-H3 model reject a non-empty `keyframes`; an empty list is ignored. The SDK uploads `keyframes[i].image` to its own `keyframeImage<i+1>` slot in array order and sends the indices as `keyframeFrameIndices`, so an R2V request carries its references (`referenceImage`, `contextImages`, which keep their slots) and its keyframes together. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100`. MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
+
+Writing the prompt for keyframes:
+
+- H3 never sees the keyframe images as references, so the prompt must describe what each keyframe shows at its time. Keyframes are never labelled: the I2V/FLF2V alignment line still names only the first and last frame, and on R2V `<Picture N>` and `<Subject N>` refer to the references only.
+- On Sound to Video the uploaded audio drives the performance; keyframes pin how it looks at their times, so describe the look at each keyframe's time and let the audio carry timing and delivery.
+- When a keyframe changes the framing, camera angle, location or light, start a new shot (a hard cut) at its time: `[Shot N] At MM:SS.mmm, ...`, where the time is `frameIndex / 24` seconds (frame 144 is `00:06.000`). Two differently framed or lit stills inside one continuous shot cross-fade into each other, and a shot described differently from its still can flash the still for a single frame.
+
+```javascript
+// 192 frames (8 s): frame 0 is referenceImage, frame 191 is referenceImageEnd.
+// flf2vPrompt describes keyframe 1 inside [Shot 1] at 00:02.500 and starts
+// [Shot 2] At 00:06.000 with the new camera angle keyframe 2 shows.
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-fastvideo-int8_flf2v_turbo',
+  positivePrompt: flf2vPrompt,
+  numberOfMedia: 1,
+  referenceImage: firstFrame,
+  referenceImageEnd: lastFrame,
+  keyframes: [
+    { image: sameShotStill, frameIndex: 60 }, // 2.5 s, same framing and light as Shot 1
+    { image: newAngleStill, frameIndex: 144 } // 6 s, new camera angle: the prompt cuts here
+  ],
+  frames: 192, // on the 124 + n*17 grid, so frameIndex may be 1-190
+  width: 1344,
+  height: 768,
+  steps: 4,
+  guidance: 1,
+  tokenType: 'spark'
+});
+```
+
+The FastH3 audio guide (`minimax-h3-fastvideo-int8_ia2v_turbo`, `_flfa2v_turbo`, `_a2v_turbo`, and their `_turbo_2stage` IDs) drives the video with an uploaded `referenceAudio` from frame 0. IA2V also requires `referenceImage`, FLFA2V requires `referenceImage` and `referenceImageEnd`, A2V takes no image, and each refuses any upload it does not take; all six also accept intermediate `keyframes` (above). The output keeps the uploaded audio, trimmed to the video length and offset with optional `audioStart` (seconds, 0 or greater), so these IDs reject `generateAudio: false`, `audioDuration`, and LoRAs (`loras` / `loraStrengths`). `getMinimaxH3FramesForAudioDuration(seconds)` returns the smallest valid frame count covering the audio (124-362). `isMinimaxH3AudioGuideModel(modelId)` recognizes all six IDs. Every other H3 ID rejects `audioStart`, every H3 ID except R2V rejects `referenceAudio`, and every H3 ID rejects `audioDuration`.
+
+720p, 1080p and 2K MiniMax H3 two-stage output are the FastH3 Two-Stage model IDs (`minimax-h3-fastvideo-int8_t2v_turbo_2stage`, `_i2v_turbo_2stage`, `_flf2v_turbo_2stage`, `_ia2v_turbo_2stage`, `_flfa2v_turbo_2stage`, `_a2v_turbo_2stage`) and the Ref2VA Two-Stage IDs (`minimax-h3-ref2va-fp8_r2v_2stage`, Standard, and `minimax-h3-ref2va-fp8_r2v_balanced_2stage`, Balanced), not a request option. Each FastH3 ID takes exactly the request of its FastH3 Turbo ID (canvas, frames, 4 steps, Euler/simple, inputs, LoRAs), and each Ref2VA ID the request of its one-stage R2V ID (canvas, frames, 20 or 8 steps, references, LoRAs); the tier renders the canvas, then the worker enlarges it 2x and refines it, delivering exactly twice the canvas width and height with the same frame count, 24 fps timing and audio. For 720p send the chosen aspect at a 384 px short edge (672x384 → 1344x768; portrait 384x672 → 768x1344); for 1080p a 544 px short edge (960x544 → 1920x1088); for 2K the 768p canvas (1344x768 → 2688x1536). Price it with `estimateVideoCost` using the `_2stage` ID and that canvas. `projects.create()` and `estimateVideoCost()` throw before sending anything if the retired `outputScale` field is passed (the socket refuses it too), naming the two-stage IDs to use instead. Jobs record 720p output under the socket's own FastH3 Two-Stage 720p IDs (`minimax-h3-fastvideo-int8_t2v_turbo_2stage_720p`, `_i2v_turbo_2stage_720p`, `_flf2v_turbo_2stage_720p`): the socket files 384 px `_2stage` requests there, priced like one-stage FastH3, so job history and cost reports show those IDs. Callers do not need to send them.
+
+SDK creative-tool routing keeps `minimax-h3-turbo` mapped to LightX2V for compatibility and adds `minimax-h3-fasth3-turbo` (automatic T2V or I2V), `minimax-h3-fasth3-t2v-turbo`, `minimax-h3-fasth3-i2v-turbo`, and `minimax-h3-fasth3-flf2v-turbo` for FastH3, plus `minimax-h3-fasth3-turbo-2stage` (automatic T2V or I2V), `minimax-h3-fasth3-t2v-turbo-2stage`, `minimax-h3-fasth3-i2v-turbo-2stage`, and `minimax-h3-fasth3-flf2v-turbo-2stage` for FastH3 Two-Stage, and `minimax-h3-r2v-2stage` / `minimax-h3-r2v-balanced-2stage` for Ref2VA Two-Stage. On those hosted selectors `targetResolution` names the delivered class: `720` renders the 384 px canvas, `1080` the 544 px canvas, and `1440` (or omitted) the 768p canvas for 2K. For `sound_to_video`, `resolveHostedToolModelSelector()` maps `minimax-h3-fasth3-ia2v-turbo`, `minimax-h3-fasth3-flfa2v-turbo`, `minimax-h3-fasth3-a2v-turbo`, and their `-2stage` selectors to the audio-guide IDs (these selectors are not yet in the hosted tool schema). SDK `sound_to_video` tool execution picks the mode from the images supplied: `reference_image_url` plus `reference_image_end_url` selects FastH3 FLFA2V, `reference_image_url` alone keeps LTX IA2V preferred, and no image keeps LTX A2V preferred; when selection lands on an H3 audio-guide ID the request is sized to `duration` on the H3 frame grid.
 
 ```javascript
 const project = await sogni.projects.create({
@@ -489,9 +602,31 @@ const project = await sogni.projects.create({
 });
 ```
 
+Uploaded audio driving FastH3 (IA2V shown), sized to the audio. For first and last frame add `referenceImageEnd` and use `minimax-h3-fastvideo-int8_flfa2v_turbo`; for audio only drop `referenceImage` and use `minimax-h3-fastvideo-int8_a2v_turbo`; add `_2stage` to any of them for twice the canvas:
+
+```javascript
+import { getMinimaxH3FramesForAudioDuration } from '@sogni-ai/sogni-client';
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-fastvideo-int8_ia2v_turbo',
+  positivePrompt: 'The woman in the portrait sings the song to camera under warm stage light.',
+  referenceImage: imageBuffer, // first frame
+  referenceAudio: audioBuffer, // driving audio; the output keeps it
+  audioStart: 0,               // optional offset into the audio, seconds
+  frames: getMinimaxH3FramesForAudioDuration(audioSeconds), // 124-362 on the 17-frame grid
+  width: 1344,
+  height: 768,
+  steps: 4,
+  guidance: 1,
+  tokenType: 'spark'
+});
+```
+
 MiniMax's [official H3 prompt-writing skill](https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills/h3-prompt-writing) makes Context-IR part of the prompt contract. T2V, I2V, L2V, and FLF2V use `integrated_multimodal_description`, `overall_soundscape`, then `non_diegetic_music`, in that exact order. Frame-conditioned modes prepend their official image-alignment line. I2V anchors `<Picture 1>` at 0.00 seconds; L2V uses `How the reference pictures align with the target video — <Picture 1> (from [Shot N]) aligns with the S.SS-second mark of the target video.`; FLF2V aligns both endpoints. Use `[Shot 1]` without a timestamp, then `[Shot N] At MM:SS.mmm, ...` for later cuts. Speakers keep stable `(S1)` IDs and exact spoken words go in `<d>[Language] ...</d>`. Write the structural sections in English while preserving dialogue, lyrics, and visible text in their original language. Use `non_diegetic_music: N/A` when there is no audience-only score.
 
-Ref2VA (`_r2v`) is a separate checkpoint with no frame anchors, so `referenceImageEnd` is rejected. It runs on a Sogni worker, so every artist reference uses the normal S3 upload path: `referenceImage` plus `contextImages`, `referenceVideo` plus `referenceVideos`, and `referenceAudio` plus `referenceAudios`. Direct URL arrays are rejected. `referenceVideoDurations` is optional early-validation metadata in matching video order. If supplied, each hint must be 2-15 seconds and all hints may total at most 15 seconds; if omitted, project submission still proceeds. Socket always probes the uploaded files, overwrites caller claims, and uses measured durations for pricing and admission. At least one visual reference (image or video) is required; audio alone is rejected. Its prompt uses six ordered sections: `subject_definitions`, `summary`, `retention_analysis`, `detailed_description`, `overall_soundscape`, `non_diegetic_music`. Use `<Subject N>` for reusable visible content, `<Picture N>` only for concrete keyframes/composition anchors, `<Video N>` for whole-video structure, and `<Audio N>` for copied or referenced audio.
+Ref2VA (`_r2v`) is a separate checkpoint with no frame anchors, so `referenceImageEnd` is rejected; intermediate `keyframes` still work (see above) and never take a `<Picture N>` label. It runs on a Sogni worker, so every artist reference uses the normal S3 upload path: `referenceImage` plus `contextImages`, `referenceVideo` plus `referenceVideos`, and `referenceAudio` plus `referenceAudios`. Direct URL arrays are rejected. `referenceVideoDurations` is optional early-validation metadata in matching video order. If supplied, each hint must be 2-15 seconds and all hints may total at most 15 seconds; if omitted, project submission still proceeds. Socket always probes the uploaded files, overwrites caller claims, and uses measured durations for pricing and admission. At least one visual reference (image or video) is required; audio alone is rejected. Its prompt uses six ordered sections: `subject_definitions`, `summary`, `retention_analysis`, `detailed_description`, `overall_soundscape`, `non_diegetic_music`. Use `<Subject N>` for reusable visible content, `<Picture N>` only for concrete keyframes/composition anchors, `<Video N>` for whole-video structure, and `<Audio N>` for copied or referenced audio.
 
 ```javascript
 const project = await sogni.projects.create({
@@ -528,6 +663,51 @@ N/A`,
 ```
 
 See `examples/workflow_minimax_h3_video.mjs` for all four standard workflow IDs, including first-only I2VA, last-only L2VA, and dual-anchor FL2VA through I2V, plus the three Turbo model-key overrides. Turbo uses the same official T2V/I2V/L2V/FLF2V prompt contract as standard FL2VA.
+
+### FlashVSR Video Upscaling (promptless, Sogni workers)
+
+`FLASHVSR_VIDEO_UPSCALE_MODEL_ID` (`flashvsr_v1.1_tiny_long_bf16`) upscales one finished video to 1080p or 1440p on its short edge. It is a separate upscale job, not a generation model: no prompt, one `referenceVideo`, `numberOfMedia: 1`. The output keeps every source frame, the exact (including fractional, e.g. 24000/1001) frame rate, the full aspect ratio, and the original audio; nothing is trimmed, cropped, restyled, or interpolated. `getVideoWorkflowType(modelId)` returns `'upscale'` and `isVideoUpscaleModel(modelId)` detects it.
+
+Source limits: short edge at most 768px and about 1344x768 pixels overall (768x1344 in portrait), 1-60 fps, constant frame rate, SDR, square pixels with rotation applied, and 100 MB or less. The SDK sets no frame-count or duration limit: the server enforces the maximum clip length and refuses a source that is too long with a clear error. The output is at most twice the source size, so 1080p needs a source short edge of at least 540px and 1440p at least 720px.
+
+The minimal call is `referenceVideo` + `upscaleResolution` + `numberOfMedia: 1` + an empty prompt. You do not send the source's frame count, frame rate, or size: the server probes the uploaded file and uses its verified values. `frames`, `fps`, `width`, and `height` are optional; any you do send must match the verified source or the request is rejected.
+
+```javascript
+import fs from 'node:fs';
+import { FLASHVSR_VIDEO_UPSCALE_MODEL_ID } from '@sogni-ai/sogni-client';
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
+  positivePrompt: '',
+  numberOfMedia: 1,
+  referenceVideo: fs.readFileSync('./clip.mp4'),
+  upscaleResolution: 1440 // or 1080: the output's short edge
+});
+const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the original audio
+```
+
+To show a price first, estimate with the source's metadata (for example from ffprobe). The output size is the source scaled so its short edge equals the target, with both edges rounded to even pixels. The charge itself uses the verified source.
+
+```javascript
+// Source: 1280x720, 158 frames at 24 fps -> 1440p output is 2560x1440.
+const quote = await sogni.projects.estimateVideoCost({
+  tokenType: 'spark',
+  model: FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
+  width: 2560,
+  height: 1440,
+  frames: 158,
+  fps: 24,
+  duration: 158 / 24,
+  steps: 1,
+  numberOfMedia: 1,
+  sourceWidth: 1280,
+  sourceHeight: 720
+});
+```
+
+The SDK rejects prompts, TeaCache, trimming, control nets, reference URLs, other reference media, `generateAudio: false`, and `numberOfMedia` other than 1, and it fixes steps to 1. `detailPreference` (`stable` or `sharper`) and `processingSpeed` (`stable` or `faster`) default to `stable`, and `seed` defaults to 0 (`-1` asks for a random seed); only non-default values need Comfy worker 1.0.212 or newer, and none changes the price. Until a compatible worker is connected, the server refuses FlashVSR requests with "FlashVSR video upscaling is not available yet. Please try again later." Hosted chat and durable workflows expose the same operation as the promptless `upscale_video` tool.
 
 ---
 
@@ -602,6 +782,8 @@ const project = await sogni.projects.create({
 ## 7. LLM Text Generation
 
 The Sogni SDK supports LLM text generation via the Supernet. Socket-native chat uses `sogni.chat.completions.create()`. Hosted REST chat uses `sogni.chat.hosted.create()`. Direct synchronous hosted tool execution uses `sogni.chat.hosted.executeTool()`. Durable server-side chat runs use `sogni.chat.runs`.
+
+When a durable run pauses with `waiting.reason: 'cost_approval_required'`, show the user `run.waiting.details.costApprovalPreview` (also on the `run_waiting_for_user` event at `payload.details.costApprovalPreview`), then call `sogni.chat.runs.confirmCost(runId, { toolCallId: details.toolCallId, decision: 'confirm', acceptedCostPreview: details.costApprovalPreview, idempotencyKey })`. The server requires the unchanged preview to confirm (HTTP 400 without it, HTTP 409 if it expired or changed); `decision: 'cancel'` needs no preview. `idempotencyKey` is sent as the `Idempotency-Key` header.
 
 ### Chat Completion (Non-Streaming)
 
@@ -708,10 +890,11 @@ Combine LLM tool calling with Sogni's generation APIs to create media from natur
 - **Video-to-Video** — "Restyle this video as anime"
 - **Music Generation** — "Compose a jazz song about the rain"
 
-Canonical hosted creative-tool surface (`SogniTools.all`, 24 tools, executed server-side via `chat.hosted.create()` / `chat.runs.create()`):
+Canonical hosted creative-tool surface (`SogniTools.all`, 27 tools, executed server-side via `chat.hosted.create()` / `chat.runs.create()`):
 
-- `generate_image`, `edit_image`, `generate_video`, `generate_music`, `sound_to_video`, `video_to_video` (generation)
+- `generate_image`, `edit_image`, `generate_video`, `generate_music`, `generate_speech`, `sound_to_video`, `video_to_video` (generation)
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` (image-edit adapters)
+- `upscale_image`, `upscale_video` (promptless RTX VSR image and FlashVSR 1080p/1440p video upscaling; `upscale_video` takes one generated or uploaded video by `sourceVideoIndex` plus an optional `targetResolution` of 1080 or 1440, and optional `detailPreference`, `processingSpeed` and `seed`)
 - `animate_photo` (image-to-video with multi-source fan-out via `sourceImageIndices`; composed into one MP4 by default — opt out with `stitched: false`)
 - `stitch_video`, `orbit_video`, `dance_montage` (server-side composition into a single MP4)
 - `extend_video`, `replace_video_segment` (append or replace bounded windows; replacements can trim source windows with `replacementStartSeconds` / `replacementEndSeconds`)
@@ -733,6 +916,8 @@ The `workflow_text_chat_sogni_tools.mjs` example demonstrates the core image/vid
 
 Durable creative workflows: the SDK exposes persistent multi-step workflows through `sogni.workflows` (`start`, `list`, `get`, `events`, `streamEvents`, `resume`, `reseed`, `cancel`) backed by `/v1/creative-agent/workflows`. `start()` accepts either an inline `input` plan or a saved `workflowId` + `inputs`. Saved workflow templates are managed via `sogni.workflows.templates` (`list`, `get`, `create`, `update`, `delete`, `fork`). All endpoints use the SDK's active auth. See `workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage.
 
+REST errors and safe retries: a refused REST request throws `ApiError` (exported from the package root) with `status`, `message`, `payload`, and — when the server sent them — `retryAfter` (the wait in seconds, from the body or else the `Retry-After` header) and `details` (structured context, e.g. the active-workflow count behind a `409`). Durable chat runs put the same two fields on the error they throw. Wait at least `retryAfter` seconds before retrying; never retry a `429` immediately, and treat a `409` for too many active workflows as "wait for a workflow to finish". Pass `idempotencyKey` to `workflows.start()` and `workflows.reseed()` and reuse it when retrying a timed-out request, so the retry returns the first request's workflow instead of starting and billing another (a replayed reseed returns `idempotent: true`).
+
 Default generation models used by platform tools:
 | Tool | Model | Description |
 |------|-------|-------------|
@@ -741,6 +926,7 @@ Default generation models used by platform tools:
 | `generate_video` | ltx25-22b-int8_t2v_distilled / ltx25-22b-int8_i2v_distilled / LTX 2.3 rollback / Seedance selectors | Text-to-video or image-to-video |
 | `sound_to_video` | ltx25-22b-int8_a2v_distilled / ltx25-22b-int8_ia2v_distilled / LTX 2.3 rollback | Audio-driven video generation |
 | `video_to_video` | ltx25-22b-int8_v2v_distilled / ltx25-22b-int8_v2v_dev / LTX 2.3 rollback / Seedance / WAN animate | Video transformation / motion transfer |
+| `upscale_video` | flashvsr_v1.1_tiny_long_bf16 | Promptless 1080p/1440p video upscale preserving frames, frame rate, and audio |
 | `generate_music` | ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo, fast music |
 
 ---
@@ -832,6 +1018,16 @@ project.jobs[0].on('progress', ({ step, stepCount }) => {
 });
 ```
 
+### Status of a project by id
+
+```javascript
+// Your own project, including while it is queued or rendering (authenticated client).
+const { status, finished } = await sogni.projects.getStatus(projectId);
+// status: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
+```
+
+`sogni.projects.get(projectId)` returns only the stored record of a finished project and 404s while it is queued or rendering; use `getStatus()` to tell "still waiting" from "gone".
+
 ---
 
 ## 11. Discovering Models & Options
@@ -882,8 +1078,12 @@ console.log(cost.sogni, cost.usd);
 Use `estimateVideoCost()` for video jobs and `estimateAudioCost()` for audio jobs.
 For reference-to-video estimates, supply `referenceImageCount`, `referenceVideoCount`,
 and `referenceVideoDurationSeconds` for the assets the job will actually submit.
-MiniMax H3 bills reference-video duration at the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output;
-unrelated models ignore these fields.
+MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
+MiniMax H3 bills reference-video duration at the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output
+(on the two-stage Reference ids, reference video with 2K output is $0.13/s);
+unrelated models ignore these fields. Quote MiniMax H3 two-stage output with the `_2stage` model ID and the canvas the job renders (672x384, 960x544 or 1344x768). For a FlashVSR upscale estimate, pass the output `width`/`height`, the
+source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the
+verified uploaded source.
 
 ---
 
@@ -910,6 +1110,7 @@ interface VideoProjectParams {
   referenceImage?: File | Buffer | Blob;
   referenceAudio?: File | Buffer | Blob;
   referenceVideo?: File | Buffer | Blob;
+  upscaleResolution?: 1080 | 1440; // FlashVSR upscale only: output short edge
   // ... see llms-full.txt for complete list
 }
 

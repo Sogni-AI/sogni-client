@@ -177,6 +177,23 @@ await sogni.setSocketEventSubscriptions({
 
 Runtime subscription changes made via `setSocketEventSubscriptions` are remembered locally and re-applied on every reconnect, so a long-lived client only needs to express its preference once.
 
+Current project queue explanations subscribe automatically on supported servers. Use the dedicated event for explanations about subscription slots, payment confirmation, or worker availability:
+
+```typescript
+sogni.projects.on('queueChanged', ({ projectId, waitingReason, jobWaitingReasons }) => {
+  console.info(projectId, waitingReason?.message ?? '');
+  // Each entry identifies one queued result by its zero-based jobIndex.
+  // imgID is optional until a worker assigns it.
+  for (const entry of jobWaitingReasons) {
+    console.info(entry.jobIndex, entry.waitingReason.message);
+  }
+});
+```
+
+The same current fields are available on `Project.waitingReason`, `Project.jobWaitingReasons`, and their serialized snapshot; known pending jobs also expose `Job.waitingReason`. The result list is complete, so removed entries clear earlier explanations. These details also cover the remaining queued results in a partially running batch, without changing its status or creating jobs early. Display messages as plain text. Prefer them to `queueStatus` when explaining a wait: the older worker estimate does not account for subscription or payment constraints. Older servers provide no explanation, and a free slot does not promise immediate processing.
+
+Set `socketEventSubscriptions: { projectQueue: false }` to opt out. A runtime subscription reset disables this optional stream; subscribe again with `{ projectQueue: true }` if needed.
+
 User-facing subscription limit notices are opt-in. Enable the event when a client needs live queue, concurrency, or fair-use messaging:
 
 ```typescript
@@ -256,7 +273,7 @@ if (sogni.account.currentAccount.isUnlimited) {
 }
 ```
 
-`currentAccount.isUnlimited` is `true` when the latest entitlement snapshot has `active: true` and `tier` is either `unlimited` or `unlimited_pro`. The server keeps `active` true for entitled states until access actually ends: trials and cancel-at-period-end windows remain entitled, with `currentPeriodEnd` reflecting the paid-through date. Canceling during a free trial is the exception: it ends Unlimited access immediately by default, so the next snapshot reports `active: false`. A `grace_period` snapshot is never entitled and returns `active: false`: it means the provider (Apple billing grace / Google Play grace / Stripe retries) is retrying the renewal payment, and unlimited render access is paused while the retry is in progress — render submissions under the plan return a specific error from the platform explaining that the renewal payment is being retried and that unlimited access resumes once it succeeds. Renders can still be paid with Spark/SOGNI in the meantime, and unlimited access resumes automatically when the renewal succeeds. During grace the snapshot's effective period end indicates the payment-retry window, not access. Period dates are ISO timestamp strings.
+`currentAccount.isUnlimited` is `true` when the latest entitlement snapshot has `active: true` and `tier` is either `unlimited` or `unlimited_pro`. The server keeps `active` true for entitled states until access actually ends: trials and cancel-at-period-end windows remain entitled, with `currentPeriodEnd` reflecting the paid-through date. Canceling during a free trial stops renewal and keeps trial access until its original `currentPeriodEnd`, with trial limits still in effect: the snapshot stays `trialing` with `cancelAtPeriodEnd: true` and `active: true` until expiry. A `grace_period` snapshot is never entitled and returns `active: false`: it means the provider (Apple billing grace / Google Play grace / Stripe retries) is retrying the renewal payment, and unlimited render access is paused while the retry is in progress — render submissions under the plan return a specific error from the platform explaining that the renewal payment is being retried and that unlimited access resumes once it succeeds. Renders can still be paid with Spark/SOGNI in the meantime, and unlimited access resumes automatically when the renewal succeeds. During grace the snapshot's effective period end indicates the payment-retry window, not access. Period dates are ISO timestamp strings.
 
 A canceled-but-still-paid subscription carries `cancelAtPeriodEnd: true` and keeps access until `currentPeriodEnd`. When a downgrade or plan switch is scheduled for the next renewal, the snapshot may also carry `scheduledTier`, `scheduledTerm`, and `scheduledChangeAt` (ISO timestamp) — absent when no change is pending — so UIs can render "Your plan will change to X on date" messaging while the current tier keeps its benefits.
 
@@ -449,8 +466,55 @@ document.addEventListener('visibilitychange', () => {
 
 A project that the server no longer lists is looked up on the REST API (which only stores finished
 projects) a few times before it is declared lost; it then fails with an error where
-`isProjectLostError(error)` is `true`. Apps that persist project ids themselves can run the same
-lookup with `sogni.projects.resolveMissing(ids)`.
+`isProjectLostError(error)` is `true`. Before failing it, the SDK also asks the account's live
+project lookup, so a project that is only slow to be picked up stays active instead. Apps that
+persist project ids themselves can run the same lookup with `sogni.projects.resolveMissing(ids)`.
+
+When the status lookup confirms failure or cancellation without a full result record,
+`resolveMissing()` returns `state: 'terminal'` with a compact `project` snapshot whose status is
+`failed` or `canceled`. Apps with their own stores should finish any remaining jobs accordingly
+and preserve results already received; optional model and cost fields may be absent. Tracked
+`Project` instances receive the usual failure/cancellation events automatically. A successful
+completion without its full result record remains `unknown` until the result data is available.
+
+#### Socket server restarts
+
+A Sogni platform release restarts the socket server: every connection closes with code `1001`
+for a few seconds. The SDK is built so apps need no special handling for it:
+
+- `create()` and chat requests made during the gap wait (up to 30 seconds) for the reconnected,
+  authenticated socket instead of failing.
+- A project request that reached the server while it was shutting down is refused by id; the SDK
+  sends the same request again after reconnecting, once. Projects created moments before a
+  reconnect are re-checked when they become old enough to judge, rather than minutes later.
+- LLM jobs are not carried across a restart. The server refunds them, and a stream that was open
+  fails with a `ChatJobError` whose `retryable` is `true` (`errorType` `'server_restarting'` or
+  `'transport_lost'`) rather than waiting forever. After a plain network blip the server keeps the
+  job for 30 seconds and the stream simply continues. Re-issue retryable failures as new requests:
+
+```typescript
+import { isRetryableChatError } from '@sogni-ai/sogni-client';
+
+async function completeWithRetry(params) {
+  try {
+    return await sogni.chat.completions.create(params);
+  } catch (error) {
+    if (!isRetryableChatError(error)) throw error;
+    return sogni.chat.completions.create(params); // waits for the reconnect
+  }
+}
+```
+
+To read one of your own projects while it is still queued or rendering, use
+`sogni.projects.getStatus(id)`. It needs an authenticated client and returns normalized statuses
+(`pending`, `queued`, `processing`, `completed`, `failed`, `canceled`) with a `finished` flag.
+`sogni.projects.get(id)` is unchanged: it returns the stored record of a finished project and 404s
+until then.
+
+```typescript
+const { status, finished } = await sogni.projects.getStatus(projectId);
+if (!finished) console.log(`Still ${status}`);
+```
 
 The same snapshot also answers "is anything rendering elsewhere on this account?" — another tab in
 a different Sogni app, another device, a headless client. `sogni.projects.listProjectsElsewhere()`
@@ -460,6 +524,30 @@ when they finish.
 
 Recovery is per app instance: the server hands projects back to the `appId` that created them, so
 persist your `appId` (browsers: `localStorage`) and reuse it across reloads.
+
+#### Results after you stopped waiting
+
+The socket holds a project that finished while its client was disconnected for one hour. A client
+that restarts, or a script or agent that exits before its projects finish, can still collect them:
+
+- `sogni.projects.getResult(id)` returns a project's state and its renders at any time: while it is
+  queued (with the server's `waitingReason`, which says whether the account's own plan concurrency is
+  holding it or it is waiting for a worker) and after it finished, with signed download URLs for the
+  completed renders. Pass `{ kind: 'video' }` (or `image`, `audio`, `model`) when you know what it
+  produces and the model is not in this client's catalog.
+- `sogni.projects.listRecent({ since })` lists this account's recently completed media projects,
+  newest first, from the durable history (up to 7 days back, 24 hours by default), including ones
+  that finished while no client was connected.
+
+```typescript
+for (const project of await sogni.projects.listRecent({ since: Date.now() - 6 * 3600_000 })) {
+  const result = await sogni.projects.getResult(project.id);
+  for (const job of result.jobs) if (job.url) console.log(project.modelName, job.url);
+}
+
+const pending = await sogni.projects.getResult(projectId);
+if (!pending.finished) console.log(pending.status, pending.waitingReason?.message);
+```
 
 ### Project parameters
 
@@ -495,7 +583,8 @@ Here is a full list of project parameters that you can use:
 - `startingImage` - guide image in PNG format. Can be [File](https://developer.mozilla.org/en-US/docs/Web/API/File), [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) or [Buffer](https://nodejs.org/api/buffer.html)
 - `startingImageStrength` - strong effect of starting image should be. From 0 to 1, default 0.5.
 - `controlNet` - Stable Diffusion ControlNet parameters. See **ControlNets** section below for more info.
-- `outputFormat` - output image format. Can be `png`, `jpg`, or `webp` for GPT Image 2; most native image models support `png` or `jpg`. If not specified, `png` will be used.
+- `outputFormat` - output image format: `png`, `jpg`, or `webp`. The SDK defaults to `png`; worker availability determines support for each model and format.
+- `embedPromptMetadata` - whether worker images include the generation prompt and settings in their metadata. Defaults to `true`; pass `false` to omit them.
 
 TypeScript type definitions for project parameters can be found in [ProjectParams](https://sdk-docs.sogni.ai/interfaces/ProjectParams.html) docs.
 
@@ -737,6 +826,55 @@ const project = await sogni.projects.create({
 - Workers download a LoRA on first use, so the first render with an uncached one
   takes longer to start.
 
+### Reusable subscriber uploads
+
+`projects.create()` keeps preparation tied to the initiating sign-in session.
+If the SDK observes an account change or sign-out while the call is pending, it
+rejects with guidance for that stage. Routine token refresh does not interrupt
+preparation or reconnect recovery. A session change clears locally tracked
+projects and ignores recovery data from the previous session. Pending project
+completion waits and socket chat streams reject when the account session ends
+or the client is disposed. This ends local tracking; it does not cancel work
+already submitted to the server.
+
+In browser multi-tab mode, this SDK can share an unchanged account session with
+older open tabs without interrupting their work. Older tabs cannot identify
+which account started an in-flight request. After an observed sign-out or
+account replacement, reload those older tabs before submitting more work; the
+error message identifies this case. Tabs using the current SDK exchange session
+markers and can continue after signing in again.
+
+This check cannot cancel an upload already sent to its original presigned URL,
+or observe a cookie change before the browser reports it to the SDK. A request
+already submitted may still run under its original account; rejecting the
+pending call does not cancel that work.
+
+On servers that support saved uploads, eligible subscribers can reuse the same
+image, video or audio file across projects. Pass files to `projects.create()` as
+usual: the SDK checks for a previously saved copy before transferring bytes.
+Uploads remain private to the signed-in account. Older servers and accounts
+without this feature continue using ordinary project uploads.
+
+```javascript
+const saved = await sogni.projects.assets.upload(file, file.type, 'Product reference');
+const { assets, limits } = await sogni.projects.assets.list();
+console.log(saved.id, assets, limits);
+// Reusing the same file in later projects needs no repeat upload.
+// Removal does not remove inputs already copied into an existing project.
+await sogni.projects.assets.remove(saved.id);
+```
+
+Use the returned limits and `expiresAt` to display remaining storage and expiry.
+An expired entry can be removed even after the subscription ends. Explicit
+`assets.upload()` calls report errors; automatic project uploads fall back only
+when saved storage cannot be prepared. Transfer or verification failures stop
+project submission. Saved-upload IDs are not accepted in place of files in
+`projects.create()`; `assets.bind(id, { projectId, type, id? })` is available for
+clients that manage project IDs and input slots directly.
+
+Project history may include `byolUsed`, `personalLoras` public-source snapshots,
+and `reusedAssetCount`. Missing fields on older projects mean unknown, not zero.
+
 ### ControlNets
 
 **EXPERIMENTAL FEATURE:** This feature is still in development and may not work as expected. Use at your own risk.
@@ -821,6 +959,36 @@ export interface ControlNetParams {
 }
 ```
 
+
+### Personal LoRA library
+
+Use the same account/API key as Sogni Web. Importing and generating require an active Unlimited subscription; listing and removing owned entries remain available after expiry. The server checks ownership, readiness, content-filter requirements, compatible models, and quotas on every request.
+
+```typescript
+const library = await sogni.projects.personalLoras.list();
+// Choose modelId from library.models; obtain the user's permission to use the file.
+const imported = await sogni.projects.personalLoras.import({
+  url: 'https://huggingface.co/author/repository/resolve/main/style.safetensors',
+  name: 'My style',
+  modelId: 'krea2_turbo_fp8_scaled',
+  rightsConfirmed: true,
+});
+const current = await sogni.projects.personalLoras.get(imported.id);
+// Importing is asynchronous. Poll get() until ready, rejected, or revoked;
+// queued, validating, and review are not usable yet. Surface reason/failureCode.
+const { loras } = await sogni.projects.availableLoras({
+  modelId: 'krea2_turbo_fp8_scaled', includePersonal: true,
+});
+// Pass a ready row.loraId in project.loras and row.ui.default in loraStrengths.
+// Respect its modelIds, requirements, and ui.nsfw content-filter requirement.
+// Removal is explicit:
+// await sogni.projects.personalLoras.remove(imported.id);
+```
+
+`personalLoras.catalog({modelId})` returns ready private catalog rows. `getLora('personal-…')` also reads the authenticated catalog. Personal catalog responses are never placed in the shared public cache. `forceRefresh` controls the public catalog; personal entries are always fetched again. Standard and non-audio FastH3 Two-Stage modes expose their compatible adapters through `modelIds`; audio-guided H3 modes do not support LoRAs.
+
+Hosted tools include `SogniTools.imageTo3d`, `SogniTools.removeBackground`, and `SogniTools.segmentImage`. Use `image_to_3d` with a front image and optional named `leftViewImageIndex`, `backViewImageIndex`, and `rightViewImageIndex`; its result has `mediaType: 'model'` and is a binary GLB. `generate_speech` supports `creativity` (0.1–2), `outputFormat` (`wav`, `mp3`, `flac`), and `seed`, alongside studio voices, reference-audio cloning, and voice design.
+
 ## Video Generation (WAN 2.2, Wan 3, LTX-2.3, Seedance & Happy Horse)
 
 The Sogni SDK supports advanced video generation workflows powered by **Wan 2.2 14B FP8** models. These models are available on the `fast` network and support various video generation workflows.
@@ -865,11 +1033,15 @@ Example model IDs:
 - `ltx23-22b-fp8_v2v_distilled` (LTX-2.3 Video-to-Video ControlNet, fast)
 - `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-mini` (Seedance 2.0 Mini multimodal video, external API, 720p cap)
-- `seedance-2-5` (Seedance 2.5 multimodal video, external API, 480p/720p only, 4-30s, first+last frame)
+- `seedance-2-5` (Seedance 2.5 multimodal video, external API, 480p/720p/1080p, 4-30s, first+last frame)
 - `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
 - `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
 - `wan3.0-video` (Wan 3 unified multimodal video, external API, 2-30s, 480P/720P/1080P, fixed 30fps)
+- `minimax-h3-fastvideo-int8_ia2v_turbo` / `minimax-h3-fastvideo-int8_flfa2v_turbo` / `minimax-h3-fastvideo-int8_a2v_turbo` (MiniMax H3 FastH3 audio guide: an uploaded `referenceAudio` drives the video and is kept in the output, with a first frame, first and last frames, or no image; 124-362 frames, size with `getMinimaxH3FramesForAudioDuration()`; catalog and Personal H3 LoRAs are accepted as on the frame modes; no `generateAudio: false` or `audioDuration`)
+- `minimax-h3-fastvideo-int8_t2v_turbo_2stage` / `minimax-h3-fastvideo-int8_i2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flf2v_turbo_2stage` / `minimax-h3-fastvideo-int8_ia2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flfa2v_turbo_2stage` / `minimax-h3-fastvideo-int8_a2v_turbo_2stage` (MiniMax H3 FastH3 Two-Stage: the FastH3 Turbo request, delivered at twice the canvas with the same length and audio. 720p: the chosen aspect at a 384 px short edge, 672×384 → 1344×768. 1080p: a 544 px short edge, 960×544 → 1920×1088. 2K: the 768p canvas, 1344×768 → 2688×1536)
+- `minimax-h3-ref2va-fp8_r2v_2stage` / `minimax-h3-ref2va-fp8_r2v_balanced_2stage` (MiniMax H3 Two-Stage Reference-to-Video: the Standard 20-step or Balanced 8-step Ref2VA request, delivered at twice the canvas with the same length, audio and references; the same 384/544/768 px canvas choices as the FastH3 Two-Stage ids)
+- `flashvsr_v1.1_tiny_long_bf16` (FlashVSR v1.1 promptless 1080p/1440p video upscaling of one finished video)
 
 The repository does not bundle sample prompts or input media for the 10Eros model. Creators
 who choose to use it must provide their own prompt and image to
@@ -882,22 +1054,27 @@ When creating video projects, you can specify:
 
 - `duration` - Duration in seconds. WAN 2.2 supports 1-10s, Wan 3 supports 2-30s, LTX 2.5 supports 2-20s, LTX 2.3 supports 4-20s, Seedance 2.0 supports 4-15s, and Seedance 2.5 supports 4-30s.
 - `fps` - Frames per second. WAN 2.2 supports 16/32 output, Wan 3 is fixed at 30fps, LTX 2.x supports 1-60 native FPS, and Seedance is fixed at 24fps.
-- `frames` - Number of frames. Prefer `duration`; the SDK calculates model-correct frame counts.
+- `frames` - Number of frames. Prefer `duration`; the SDK calculates model-correct frame counts, and `calculateVideoFrames(modelId, seconds, fps)` returns the count a duration resolves to. Pass `frames` when positions inside the clip must be exact, as with MiniMax H3 `keyframes` (H3 takes 124, 141, 158, … 362)
 - `width` - Video width in pixels
 - `height` - Video height in pixels
 - `steps` - Increase inference steps to increase quality
 - `seed` - Random seed for reproducibility
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
-- `referenceVideo` - Reference video for animate and v2v workflows
+- `referenceVideo` - Reference video for animate and v2v workflows, and the source video for FlashVSR upscaling
+- `upscaleResolution` - FlashVSR only: output short edge, `1080` or `1440`
 - `referenceVideoDurations` - Optional MiniMax H3 r2v duration hints in `[referenceVideo, ...referenceVideos]` order for early client-side validation; Socket probes the uploaded files and uses measured durations for pricing and admission
-- `referenceAudio` - Reference audio for sound-to-video workflow
+- `referenceAudio` - Reference audio for sound-to-video workflows (s2v, ia2v, flfa2v, a2v)
+- `referenceImageEnd` - Last frame for i2v, flf2v and the MiniMax H3 FastH3 flfa2v audio-guide workflow
+- `keyframes` - Every MiniMax H3 workflow except t2v (21 ids, `isMinimaxH3KeyframeModel()`: i2v and flf2v on every tier, Sound to Video ia2v/flfa2v/a2v, and Ref2VA r2v): up to `MINIMAX_H3_MAX_KEYFRAMES` (8) `{ image, frameIndex }` stills pinned between the first and last frame. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2`, each frame used once. Pass `frames` from the H3 grid (124, 141, 158, … 362) so the count is exact: `duration` snaps to the grid (`duration: 6` renders 141 frames, not 144). Frame 0 and the last frame are never keyframes: i2v, flf2v and flfa2v set them with `referenceImage` / `referenceImageEnd`, ia2v sets frame 0 with `referenceImage`, and a2v and r2v cannot pin them. H3 never sees the keyframe images as references, so the prompt must describe what each keyframe shows at its time; keyframes are never labelled, and on r2v `<Picture N>` / `<Subject N>` refer to the references only. On Sound to Video the audio drives the performance and keyframes pin how it looks at their times. When a keyframe changes the framing, camera angle, location or light, start a new shot (a hard cut) in the prompt at its time: two differently framed or lit stills inside one continuous shot cross-fade, and a shot described differently from its still can flash the still for a single frame. Images upload to their own `keyframeImage1..N` slots in array order, so r2v sends its references (`referenceImage`, `contextImages`) and keyframes together. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100` MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 - `referenceImageUrls` - Loose image context URLs for Seedance, Happy Horse, and Wan 3; Wan 3 accepts up to 10
 - `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `referenceAudioUrls` - Loose audio context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `seedanceTaskType` - Seedance 2.5 loose-reference operation: `reference`, `edit`, or `extend`. Edit and extend require a reference video.
 - `hasVideoInput` - Estimate-only flag for `estimateVideoCost`; set this when estimating a canonical Seedance video-input job without passing `referenceVideo`/`referenceVideoUrls`
 - `referenceImageCount` - Optional estimate-only count of image references the video job will submit; models whose pricing does not use it ignore it
-- `referenceVideoCount` / `referenceVideoDurationSeconds` - Estimate-only MiniMax H3 r2v input metadata; reference-video seconds use the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output
+- `keyframeCount` / `keyframes` - Estimate-only count of MiniMax H3 intermediate keyframes (0-8). The first two are included; each extra keyframe adds output time at the job's per-second rate: 0.75 s on FastH3, 0.3 s on every other tier
+- `referenceVideoCount` / `referenceVideoDurationSeconds` - Estimate-only MiniMax H3 r2v input metadata; reference-video seconds use the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output. On the two-stage Reference ids, reference video with 2K output is $0.13/s
+- MiniMax H3 two-stage quotes (FastH3 and Ref2VA alike): call `estimateVideoCost` with the `_2stage` model id and the canvas the job renders (`672`×`384` for 720p, `960`×`544` for 1080p, `1344`×`768` for 2K). Two-stage output is a model id, not a request option; passing the retired `outputScale` throws before any request
 
 Seedance 2.0 can combine image, video, and audio reference assets in one external API request. Reference limits are up to 9 image assets, 3 video assets, 3 audio assets, and 12 asset files total. Text+audio without at least one image or video reference is not supported by Seedance. URL-array references must be HTTPS URLs that the vendor can fetch; local multi-reference files should be uploaded first, as shown in `examples/workflow_partner_seedance_video.mjs`. In prompts and creative briefs, refer to attachments by Seedance-style tags: `@Image1`, `@Video1`, and `@Audio1`, counted independently by modality in attachment order. Assign each useful reference a role, such as product identity, motion timing, camera path, edit rhythm, background music, or speech reference. Prefer positive preservation language like "maintain the same product silhouette and logo placement from @Image1"; exact readable text, logos, lip-sync, voice cloning, and real-human-reference behavior still need review. Seedance dispatch omits negative prompts; Wan 2.2 and LTX 2.3 video models can still use `negativePrompt`. Seedance jobs are Spark-only and should not use SOGNI token fallback.
 
@@ -1045,6 +1222,30 @@ const project = await sogni.projects.create({
 const videoUrls = await project.waitForCompletion();
 ```
 
+### Video Upscale Example (FlashVSR)
+
+`FLASHVSR_VIDEO_UPSCALE_MODEL_ID` (`flashvsr_v1.1_tiny_long_bf16`) upscales one finished video to 1080p or 1440p on its short edge. It is promptless and separate from video generation: it keeps every source frame, the exact frame rate (including fractional rates such as 24000/1001), the full aspect ratio, and the original audio, and it never trims, crops, restyles, or interpolates.
+
+Sources must be at most 768px on the short edge and about 1344×768 pixels overall (768×1344 in portrait), 1-60 fps at a constant frame rate, SDR, square pixels with rotation applied, and 100 MB or less. The SDK sets no frame-count or duration limit: the server enforces the maximum clip length and refuses a source that is too long with a clear error. The output is at most twice the source size, so 1080p needs a source short edge of at least 540px and 1440p at least 720px. You do not send the source's frame count, frame rate, or size: the server probes the upload and uses its verified values. `frames`, `fps`, `width`, and `height` are optional, and any you do send must match the source.
+
+```javascript
+import { FLASHVSR_VIDEO_UPSCALE_MODEL_ID } from '@sogni-ai/sogni-client';
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
+  positivePrompt: '',
+  numberOfMedia: 1,
+  referenceVideo: fs.readFileSync('./clip.mp4'),
+  upscaleResolution: 1440 // or 1080: the output's short edge
+});
+
+const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the original audio
+```
+
+To show a price first, call `estimateVideoCost()` with the output `width`/`height` (the source scaled so its short edge equals the target, both edges rounded to even pixels), the source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the verified source. In hosted chat and durable workflows, the same operation is the promptless `upscale_video` tool.
+
 ## LLM Text Generation & Tool Calling
 
 The Sogni SDK supports LLM text generation through the Sogni Supernet, providing an OpenAI-compatible chat completions API with streaming, multi-turn conversations, and tool calling (function calling).
@@ -1113,10 +1314,11 @@ const response = await sogni.chat.completions.create({
 
 ### Sogni Platform Tools — Generate Media via Chat
 
-Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes the full canonical hosted creative-tool surface through `SogniTools.all` (24 tools):
+Combine LLM intelligence with Sogni's media generation capabilities. The SDK exposes the full canonical hosted creative-tool surface through `SogniTools.all` (27 tools):
 
-- **Generation** — `generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`
+- **Generation** — `generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`, `generate_speech`
 - **Image adapters** — `restore_photo`, `apply_style`, `refine_result`, `change_angle`, `animate_photo` (image-to-video with multi-source fan-out)
+- **Upscaling** — `upscale_image` (promptless RTX VSR), `upscale_video` (promptless FlashVSR 1080p/1440p video upscale that keeps every frame, the frame rate, and the original audio)
 - **Video composition / post-production** — `stitch_video`, `orbit_video`, `dance_montage`, `extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`
 - **Synchronous composition and planning** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`
 
@@ -1212,6 +1414,37 @@ node examples/workflow_seedance_2_5_r2v.mjs "Edit @Video1" --task-type edit --vi
 node examples/workflow_seedance_2_5_r2v.mjs "Extend @Video1" --task-type extend --video https://cdn.example.com/source.mp4 --duration 8 --creative-agent --dry-run
 ```
 
+### Durable Chat Runs and Cost Approval
+
+`sogni.chat.runs` (`create`, `get`, `cancel`, `confirmCost`, `streamEvents`) wraps `/v1/chat/runs`, where the server drives the LLM and tool loop and the client can disconnect and reattach through SSE replay.
+
+A run can pause before paid tool calls with `status: 'waiting_for_user'` and `waiting.reason: 'cost_approval_required'`. The pause carries the paused `toolCallId` and a `costApprovalPreview` (`totalEstimatedCapacityUnits`, `tokenType`, `validityUntil`, and an optional `perToolBreakdown`) in `run.waiting.details`, and in `event.payload.details` on the `run_waiting_for_user` event. Show that preview to the user, then pass it back unchanged as `acceptedCostPreview`:
+
+```javascript
+const run = await sogni.chat.runs.get(runId);
+const details = run.waiting?.details;
+
+if (run.waiting?.reason === 'cost_approval_required' && details?.toolCallId) {
+  const preview = details.costApprovalPreview;
+  // askUserToApprove is your UI: show the preview and wait for the answer.
+  const approved = preview ? await askUserToApprove(preview) : false;
+
+  if (approved) {
+    await sogni.chat.runs.confirmCost(runId, {
+      toolCallId: details.toolCallId,
+      decision: 'confirm',
+      acceptedCostPreview: preview,
+      idempotencyKey: `confirm-${details.toolCallId}`
+    });
+  } else {
+    // Declining needs no preview.
+    await sogni.chat.runs.confirmCost(runId, { toolCallId: details.toolCallId, decision: 'cancel' });
+  }
+}
+```
+
+The server rejects a confirm without `acceptedCostPreview` (HTTP 400), and one whose preview has expired or no longer matches (HTTP 409); read the run again and ask the user to approve the new preview. The SDK never fills in the preview for you. `idempotencyKey` is sent as the `Idempotency-Key` header, so reuse it for duplicate submissions of the same decision. A pause without `costApprovalPreview`, such as one caused by running out of credits, cannot be confirmed; cancel it instead.
+
 ### Durable Creative Workflows (server-side)
 
 Long-running multi-step creative workflows can be persisted on the server and observed independently of the chat completion that started them. The SDK exposes these authenticated endpoints through `sogni.workflows`:
@@ -1222,7 +1455,7 @@ Long-running multi-step creative workflows can be persisted on the server and ob
 - `sogni.workflows.events(workflowId)` — poll event history
 - `sogni.workflows.streamEvents(workflowId, { after, lastEventId })` — SSE event stream with resume support
 - `sogni.workflows.resume(workflowId)` — resume a workflow paused in `waiting_for_user`
-- `sogni.workflows.reseed(workflowId, { seedOverrides })` — clone a completed/partial run with fresh seeds
+- `sogni.workflows.reseed(workflowId, { seedOverrides, idempotencyKey })` — clone a completed/partial run with fresh seeds
 - `sogni.workflows.cancel(workflowId)` — cooperative cancellation
 - `sogni.workflows.templates.{list, get, create, update, delete, fork}` — CRUD + fork for the saved workflow templates backing `start({ workflowId })`.
 
@@ -1275,11 +1508,136 @@ for await (const event of sogni.workflows.streamEvents(workflow.workflowId)) {
 }
 ```
 
+#### Retrying safely: `retryAfter`, `details`, and idempotency keys
+
+A refused REST request throws an `ApiError` (exported from the package root) with the HTTP `status`, the server's `message`, and the error body as `payload`. When the server says how long to wait — a `429`, or a `503` while it restarts — `error.retryAfter` carries that wait **in seconds**, read from the response body or, failing that, the `Retry-After` header. `error.details` carries any structured context the server attached, such as the active-workflow count behind a `409`. Both are absent when the server sent neither. Durable chat runs (`sogni.chat.runs`) put the same `retryAfter` and `details` on the error they throw.
+
+Wait at least `retryAfter` seconds before trying again; a request sent sooner is refused again. A `409` for too many active workflows clears when one of your workflows finishes, so wait for a completion (`streamEvents()` or `get()`) rather than re-sending the start.
+
+Pass `idempotencyKey` to `start()` and `reseed()` and reuse it when you retry a request that timed out or lost its connection. The retry returns the workflow the first request created instead of starting — and billing — another one. A reseed mints new random seeds, so use a new key for each take you actually want; a replayed reseed comes back with `idempotent: true`.
+
+```javascript
+import { ApiError } from '@sogni-ai/sogni-client';
+
+async function startWithRetry(params, attempts = 5) {
+  const idempotencyKey = crypto.randomUUID();
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await sogni.workflows.start({ ...params, idempotencyKey });
+    } catch (error) {
+      const canWait = error instanceof ApiError && error.retryAfter !== undefined;
+      if (!canWait || attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, error.retryAfter * 1000));
+    }
+  }
+}
+```
+
 See `examples/workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage. The underlying REST endpoints remain documented in the [LLM API durable workflows reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#durable-creative-agent-workflows).
 
 ## Code Examples
 
+### SAM 3 object selection
+
+SAM 3 (`sam3_image_segment_bf16`, SDK 5.31.0+) selects objects in an existing
+image using normalized include/exclude points, boxes, or a short text description.
+It returns one lossless black-and-white PNG mask at the original dimensions:
+white selects the object. It does not generate a replacement scene.
+
+```typescript
+const project = await sogni.projects.create({
+  type: 'image', modelId: 'sam3_image_segment_bf16',
+  positivePrompt: 'Select the indicated object.',
+  startingImage: originalImage, // File/Blob in browsers, Buffer in Node.js
+  sam3Prompt: {
+    points: [{ x: 0.45, y: 0.6, label: 'positive' },
+             { x: 0.1, y: 0.1, label: 'negative' }],
+    threshold: 0.5, multimask: true,
+  },
+  sizePreset: 'custom', width: originalWidth, height: originalHeight,
+  numberOfMedia: 1, numberOfPreviews: 0, steps: 1, guidance: 1,
+  outputFormat: 'png', network: 'fast', tokenType: 'spark',
+  disableNSFWFilter: false,
+});
+```
+
+Keep the source bytes and dimensions unchanged when mapping coordinates. Inspect
+the mask at full size before using it in an edit. Masks are selection guides;
+the original image and saved character reference images carry visual identity.
+Job provenance exposes source and output hashes for applications that need to
+verify a selection before accepting it.
+
+The runnable [SAM example](examples/workflow_sam3_segment.mjs) loads the usual
+example credentials, shows a live estimate, and writes an original-size review
+page with measured elapsed time and a receipt. Add `--run` to submit one paid job:
+
+```bash
+node examples/workflow_sam3_segment.mjs --source original.png --point 0.45,0.6
+node examples/workflow_sam3_segment.mjs --source original.png --point 0.45,0.6 --run
+node examples/workflow_sam3_segment.mjs --source original.png --text "lantern" --box 0.2,0.6,0.3,0.8 --run
+```
+
+A single point may select a small part, such as a lamp's flame or a vehicle's
+window. Inspect the native binary mask against the original. For the complete
+object, refine with a short `text` label and normalized `boxes`; SAM computes the
+actual boundary inside the supplied image. Text and point prompts cannot be
+combined. Limits are 240 text characters, 32 points or 16 boxes; point prompts
+accept at most one box. Do not turn the prompt box into a substitute object mask.
+
 The [examples](https://github.com/Sogni-AI/sogni-client/tree/main/examples) directory contains working examples for all workflows:
+
+### Pixal3D image to 3D
+
+Pixal3D reconstructs one object as a textured GLB model (base colour,
+metallic, roughness, normal and ambient-occlusion maps). It takes no prompt:
+BiRefNet isolates the subject in each image, so a plain background with the
+whole object in frame works best. The job's `type` is `'model'` and its
+`resultUrl` is the GLB.
+
+- `pixal3d_int8_i23d` reconstructs from one image, `startingImage`.
+- `pixal3d_multiview_int8_i23d` takes `startingImage` as the required FRONT
+  view plus any of three optional orbit views: `leftViewImage`,
+  `backViewImage` and `rightViewImage`. Views must show the same object at the
+  same height, 90 degrees apart around it at eye level, like a character
+  turnaround sheet.
+
+Views are named from the subject's own point of view, not the viewer's:
+
+| Field | What the image shows | Upload slot |
+|-------|----------------------|-------------|
+| `startingImage` | Front view (required) | `startingImage` |
+| `leftViewImage` | The subject turned so **its own left side** faces the camera (it faces screen-left) | `contextImage1` |
+| `backViewImage` | The subject seen from behind | `contextImage2` |
+| `rightViewImage` | The subject turned so **its own right side** faces the camera (it faces screen-right) | `contextImage3` |
+
+Swapping left and right builds a model turned 180 degrees. Some turnaround
+templates label the photo of the subject's right side "left"; follow the table,
+not those labels. The single-view model refuses orbit views, and both models
+refuse `contextImages`.
+
+```typescript
+const project = await sogni.projects.create({
+  type: 'image',
+  modelId: 'pixal3d_multiview_int8_i23d',
+  positivePrompt: '',
+  startingImage: front, // required
+  leftViewImage: left, // optional; any subset of the three orbit views
+  backViewImage: back,
+  rightViewImage: right,
+  numberOfMedia: 1,
+  meshTargetFaces: 200000, // optional
+  network: 'fast',
+  tokenType: 'spark'
+});
+const [glbUrl] = await project.waitForCompletion();
+```
+
+Both models accept the same options. `textureSize` (1024-4096),
+`meshTargetFaces` (5,000-700,000), `normalMapSize` (512-2048) and
+`ambientOcclusionSize` (256-1024) default to their maximum and only reduce
+work. Lower `meshTargetFaces` for a game-ready asset. `shapeResolution` is
+1024 by default, and 1536 costs more. `isPixal3dModel(modelId)`,
+`isPixal3dMultiViewModel(modelId)` and `PIXAL3D_ORBIT_VIEW_SLOTS` are exported.
 
 ### Image Workflow Examples
 
@@ -1326,7 +1684,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `wan_v2.2-14b-fp8_t2v_lightx2v`       | **Wan 2.2 T2V** - Text-to-video                          | Generate videos from text prompts                                                                            |
 | `seedance-2-0`                        | **Seedance 2.0** - 4K external API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-mini`                   | **Seedance 2.0 Mini** - 720p external API video          | Fastest, lower-cost 24fps Seedance video generation                                                          |
-| `seedance-2-5`                        | **Seedance 2.5** - 480p/720p external API video          | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs |
+| `seedance-2-5`                        | **Seedance 2.5** - up to 1080p external API video         | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs |
 | `dark_beast_z_image_turbo_v9_bf16`    | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                     |
 | `dark_beast_krea2_fp8`                | **Dark Beast KREA 2** - Community (uncensored)           | Uncensored Krea 2 fine-tune (2K output needs a 24GB+ VRAM worker)                                            |
 | `dark_beast_krea2_identity_edit_v1_2` | **Dark Beast Krea 2 Identity Edit** - Community          | Uncensored identity-preserving Krea 2 edit LoRA with 1-2 reference images                                    |

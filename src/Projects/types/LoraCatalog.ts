@@ -77,6 +77,10 @@ export interface LoraCatalogEntry {
 }
 
 export interface AvailableLorasParams {
+  /** Include ready personal imports. Requires authentication and an active subscription.
+   * Personal entries are fetched on every call and never enter the public catalog cache.
+   */
+  includePersonal?: boolean;
   /**
    * Restrict the catalog to the LoRAs one model accepts, e.g.
    * `krea2_turbo_fp8_scaled`. Omit for the whole catalog.

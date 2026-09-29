@@ -19,18 +19,34 @@ import type {
   SocketEventSubscriptionUpdate
 } from './ApiClient/WebSocketClient/eventSubscriptions.js';
 import { ApiConfig } from './ApiGroup.js';
+import { captureRequestSession } from './lib/requestSession.js';
 // Utils
 import { DefaultLogger, Logger, LogLevel } from './lib/DefaultLogger.js';
 import EIP712Helper from './lib/EIP712Helper.js';
 // Projects API
 import {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
+  MINIMAX_H3_FASTH3_A2V_MODEL_ID,
+  MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID,
+  MINIMAX_H3_FASTH3_IA2V_MODEL_ID,
+  MINIMAX_H3_MAX_KEYFRAMES,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
+  PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
+  PIXAL3D_ORBIT_VIEW_SLOTS,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
+  calculateVideoFrames,
+  getMinimaxH3FramesForAudioDuration,
+  getPixal3dOrbitViewSlots,
+  isMinimaxH3AudioGuideModel,
+  isMinimaxH3KeyframeModel,
   isAudioModel,
   isModelArtifactModel,
+  isPixal3dModel,
+  isPixal3dMultiViewModel,
   isSegmentationModel,
   isVideoModel,
+  isVideoUpscaleModel,
   requiresStartingImage
 } from './Projects/utils/index.js';
 import ProjectsApi from './Projects/index.js';
@@ -44,6 +60,7 @@ import {
   ImageProjectParams,
   ImageOutputFormat,
   Pixal3dGenerationOptions,
+  Pixal3dMultiViewImages,
   Pixal3dTemplateVariant,
   Sam3ImagePrompt,
   Sam3PromptBox,
@@ -59,9 +76,12 @@ import {
   EstimateRequest,
   CostEstimation,
   InputMedia,
+  MinimaxH3Keyframe,
   WorldGenerationReceiptRequest
 } from './Projects/types/index.js';
 import type { JobProvenance } from './Projects/types/JobProvenance.js';
+export type { WaitingReason, JobWaitingReason } from './Projects/types/WaitingReason.js';
+export type { ProjectQueueChanged } from './Projects/types/events.js';
 import type {
   AvailableLorasParams,
   LoraCatalog,
@@ -83,7 +103,16 @@ import type {
   RecoveredProject,
   RecoveredWorkerJob
 } from './ApiClient/WebSocketClient/events.js';
-import type { ProjectResolution } from './Projects/index.js';
+import type {
+  ListRecentProjectsOptions,
+  ProjectLookupStatus,
+  ProjectResolution,
+  ProjectResult,
+  ProjectResultJob,
+  ProjectStatusSnapshot,
+  RecentProject,
+  RecentProjectJob
+} from './Projects/index.js';
 import {
   PROJECT_LOST_ORIGINAL_CODE,
   isProjectLostError,
@@ -129,7 +158,11 @@ import {
 } from './Projects/types/ControlNetParams.js';
 // Chat API
 import ChatApi from './Chat/index.js';
-import ChatJobError, { ChatJobErrorFields } from './Chat/ChatJobError.js';
+import ChatJobError, {
+  ChatJobErrorFields,
+  isRetryableChatError,
+  RETRYABLE_CHAT_ERROR_TYPES
+} from './Chat/ChatJobError.js';
 import ChatStream from './Chat/ChatStream.js';
 import ChatToolsApi from './Chat/ChatTools.js';
 import {
@@ -139,9 +172,14 @@ import {
   ChatCompletionResult,
   ChatJobStateEvent,
   ChatResponseFormat,
+  ChatRunCostApprovalPreview,
+  ChatRunCostApprovalPreviewToolBreakdown,
   ChatRunEvent,
   ChatRunRecord,
   ChatRunStatus,
+  ChatRunWaitingDetails,
+  ChatRunWaitingState,
+  ConfirmChatRunCostParams,
   StartChatRunParams,
   StreamChatRunEventsOptions,
   ContentPart,
@@ -264,10 +302,15 @@ export type {
   ChatJobStateEvent,
   ChatMessage,
   ChatResponseFormat,
+  ChatRunCostApprovalPreview,
+  ChatRunCostApprovalPreviewToolBreakdown,
   ChatRunEvent,
   ChatRunRecord,
   ChatRunStatus,
+  ChatRunWaitingDetails,
+  ChatRunWaitingState,
   ChatTokenUsage,
+  ConfirmChatRunCostParams,
   StartChatRunParams,
   StreamChatRunEventsOptions,
   ContentPart,
@@ -304,7 +347,9 @@ export type {
   ErrorData,
   ImageProjectParams,
   ImageOutputFormat,
+  MinimaxH3Keyframe,
   Pixal3dGenerationOptions,
+  Pixal3dMultiViewImages,
   Pixal3dTemplateVariant,
   Sam3ImagePrompt,
   Sam3PromptBox,
@@ -430,26 +475,58 @@ export type {
 
 export type {
   CompletedRecoveredProject,
+  ListRecentProjectsOptions,
+  ProjectLookupStatus,
   ProjectRecoverySnapshot,
   ProjectResolution,
+  ProjectResult,
+  ProjectResultJob,
+  ProjectStatusSnapshot,
+  RecentProject,
+  RecentProjectJob,
   ProjectSyncReason,
   ProjectSyncResult,
   RecoveredProject,
   RecoveredWorkerJob
 };
+export type { SavedUpload, SavedUploadBinding } from './Projects/ReusableUploads.js';
+export type { ProjectLoraSource } from './Projects/types/RawProject.js';
+export type {
+  PersonalLora,
+  PersonalLoraLibrary,
+  ImportPersonalLoraParams
+} from './Projects/PersonalLoras.js';
+export type { Pixal3dOrbitView } from './Projects/utils/index.js';
 
 export {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
+  MINIMAX_H3_FASTH3_A2V_MODEL_ID,
+  MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID,
+  MINIMAX_H3_FASTH3_IA2V_MODEL_ID,
+  MINIMAX_H3_MAX_KEYFRAMES,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
+  PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
+  PIXAL3D_ORBIT_VIEW_SLOTS,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
+  calculateVideoFrames,
+  getMinimaxH3FramesForAudioDuration,
+  getPixal3dOrbitViewSlots,
+  isMinimaxH3AudioGuideModel,
+  isMinimaxH3KeyframeModel,
   isAudioModel,
   isModelArtifactModel,
+  isPixal3dModel,
+  isPixal3dMultiViewModel,
   isSegmentationModel,
   isVideoModel,
+  isVideoUpscaleModel,
   requiresStartingImage,
   ApiError,
   ApiKeyAuthManager,
   ChatJobError,
+  isRetryableChatError,
+  RETRYABLE_CHAT_ERROR_TYPES,
   ChatStream,
   ChatToolsApi,
   CreativeWorkflowsApi,
@@ -497,6 +574,8 @@ export interface SogniClientConfig {
    * `{ modelAvailability: false }` to opt out of `swarmModels` and `swarmLLMModels` updates.
    * Subscription limit notices are opt-in; set `{ subscriptionLimitNotice: true }` when the
    * client needs user-facing queue, concurrency, or fair-use updates.
+   * Current project queue details subscribe automatically. Set `{ projectQueue: false }`
+   * to opt out; a runtime subscription reset also disables this optional stream.
    */
   socketEventSubscriptions?: SocketEventSubscriptions;
   /**
@@ -610,6 +689,11 @@ export class SogniClient {
   private constructor(config: ApiConfig) {
     this.account = new AccountApi(config);
     this.projects = new ProjectsApi(config);
+    // An API-key session learns its address from the socket's authenticated
+    // frame; before that arrives, `me()` answers it.
+    this.projects._setAccountAddressResolver(
+      async () => this.account.currentAccount.walletAddress || (await this.account.me()).walletAddress
+    );
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
     this.workflows = new CreativeWorkflowsApi(config);
@@ -647,22 +731,44 @@ export class SogniClient {
     if (!(auth instanceof CookieAuthManager)) {
       throw Error('This method should only be called when using cookie auth');
     }
-    try {
-      const res = await this.apiClient.rest.get<ApiResponse<MeData>>('/v1/account/me');
-      await auth.authenticate();
-      this.currentAccount._update({
-        username: res.data.username,
-        email: res.data.currentEmail,
-        walletAddress: res.data.walletAddress,
-        // Session auth grade + available sign-in methods (see AccountApi.me).
-        auth: res.data.auth ?? 'password',
-        authMethods: res.data.authMethods
-      });
-      return true;
-    } catch (e) {
-      this.apiClient.logger.info('Client is not authenticated');
-      return false;
+    const initialSession = auth.sessionVersion;
+    const initiallyUnknown = !auth.isAuthenticated && initialSession === 0;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const assertSession = captureRequestSession(auth);
+      try {
+        const res = await this.apiClient.rest.get<ApiResponse<MeData>>('/v1/account/me');
+        assertSession();
+        auth._setSessionIdentity(res.data.walletAddress.toLowerCase());
+        const authentication = auth.authenticate();
+        const assertAuthenticatedSession = captureRequestSession(auth);
+        await authentication;
+        assertAuthenticatedSession();
+        this.currentAccount._update({
+          username: res.data.username,
+          email: res.data.currentEmail,
+          walletAddress: res.data.walletAddress,
+          // Session auth grade + available sign-in methods (see AccountApi.me).
+          auth: res.data.auth ?? 'password',
+          authMethods: res.data.authMethods
+        });
+        return true;
+      } catch (e) {
+        // A peer can establish the first cookie session while this tab's /me
+        // is in flight. Verify that joined session afresh rather than reporting
+        // a sign-out. Known sessions and later account changes still reject.
+        if (
+          attempt === 0 &&
+          initiallyUnknown &&
+          auth.isAuthenticated &&
+          auth.sessionVersion === 1
+        ) {
+          continue;
+        }
+        this.apiClient.logger.info('Client is not authenticated');
+        return false;
+      }
     }
+    return false;
   }
 
   /**

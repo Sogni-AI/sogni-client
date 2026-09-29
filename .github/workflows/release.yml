@@ -40,22 +40,50 @@ jobs:
         run: npm run test:model-options
       - name: Run attribution transport checks
         run: npm run test:attribution
+      - name: Run workflow content filter checks
+        run: node scripts/check-workflow-content-filter.cjs
       - name: Run REST-only client checks
         run: npm run test:rest-only
+      - name: Run REST error message checks
+        run: node scripts/check-rest-error-messages.cjs
+      - name: Run REST error retry-after checks
+        run: node scripts/check-rest-error-retry-after.cjs
       - name: Run project cancellation checks
         run: npm run test:project-cancellation
+      - name: Run account and project request session checks
+        run: node scripts/check-auth-session.cjs && node scripts/check-project-request-session.cjs
       - name: Run project recovery checks
         run: node scripts/check-project-recovery.cjs
+      - name: Run current queue detail checks
+        run: node scripts/check-queue-reasons.cjs
+      - name: Run browser request handoff and socket readiness checks
+        run: node scripts/check-browser-request-handoff.cjs && node scripts/check-socket-send-readiness.cjs
       - name: Run project liveness checks
         run: node scripts/check-project-liveness.cjs
+      - name: Run job reassignment checks
+        run: node scripts/check-job-reassignment.cjs
       - name: Run SAM 3 image-segment checks
         run: node scripts/check-sam3-image-segment.cjs
+      - name: Run image enhancement checks
+        run: node scripts/check-enhancement.cjs
+      - name: Run personal LoRA library checks
+        run: node scripts/check-personal-loras.cjs
       - name: Run Pixal3D artifact checks
         run: node scripts/check-pixal3d-artifact.cjs
       - name: Run BiRefNet background-removal checks
         run: node scripts/check-birefnet-background-removal.cjs
+      - name: Run FlashVSR video-upscale checks
+        run: node scripts/check-flashvsr-video.cjs
       - name: Run capability export checks
         run: node scripts/check-capability-exports.cjs
+      - name: Run MiniMax H3 keyframe checks
+        run: node scripts/check-minimax-h3-keyframes.cjs
+      - name: Run GPT Image 2.5 checks
+        run: node scripts/check-gpt-image-25.cjs
+      - name: Run image export and strength checks
+        run: node scripts/check-image-export-options.cjs
+      - name: Run result download endpoint checks
+        run: node scripts/check-result-download-endpoint.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

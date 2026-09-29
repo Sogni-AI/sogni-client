@@ -5,12 +5,16 @@ import { IWebSocketClient, SupernetType } from './types.js';
 import WebSocket, { CloseEvent, ErrorEvent, MessageEvent } from 'isomorphic-ws';
 import { base64Decode, base64Encode } from '../../lib/base64.js';
 import isNodejs from '../../lib/isNodejs.js';
+import { isNotRecoverable } from './ErrorCode.js';
 import { LIB_VERSION } from '../../version.js';
+import { SEND_READY_TIMEOUT_MS } from './requestDelivery.js';
 import { Logger } from '../../lib/DefaultLogger.js';
 import { AuthManager } from '../../lib/AuthManager/index.js';
+import { captureRequestSession } from '../../lib/requestSession.js';
 import {
   normalizeSocketEventSubscriptionUpdate,
-  serializeSocketEventSubscriptions
+  serializeSocketEventSubscriptions,
+  resolveProjectQueueSubscription
 } from './eventSubscriptions.js';
 import type {
   SocketEventSubscriptionInput,
@@ -26,15 +30,38 @@ const PROTOCOL_VERSION = '3.0.0';
 
 const PING_INTERVAL = 15000;
 
+/**
+ * The server drops frames that arrive before its `authenticated` handshake.
+ * Every current server sends that frame within milliseconds; if an open socket
+ * stays silent this long, send anyway rather than stall on an older server.
+ */
+const AUTHENTICATED_FALLBACK_MS = 10000;
+const READY_POLL_MS = 100;
+
 class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketClient {
   appId: string;
   appSource?: string;
   connectionAttribution?: NormalizedConnectionAttribution;
   baseUrl: string;
   socketEventSubscriptions?: SocketEventSubscriptions;
+  private projectQueueSubscription = true;
   private socket: WebSocket | null = null;
   private _supernetType: SupernetType;
   private _pingInterval: NodeJS.Timeout | null = null;
+  /** The socket the server has sent `authenticated` on, i.e. one that accepts work. */
+  private _authenticatedSocket: WebSocket | null = null;
+  private _connectionSessionVersion?: number;
+  private _connectPromise?: Promise<void>;
+  private _connectGeneration = 0;
+  private _disposed = false;
+  private _openedAt = 0;
+  /**
+   * Set when the last close was recoverable while the session is
+   * authenticated: the ApiClient owns the reconnect, so `send` waits for it
+   * instead of racing it with a connection of its own (which would also reset
+   * the reconnect backoff on every failed attempt).
+   */
+  private _reconnectExpected = false;
 
   constructor(
     baseUrl: string,
@@ -63,14 +90,20 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     this.appId = appId;
     this.appSource = appSource?.trim() || undefined;
     this.connectionAttribution = normalizeConnectionAttribution(connectionAttribution);
-    this.socketEventSubscriptions = socketEventSubscriptions;
+    this.projectQueueSubscription = resolveProjectQueueSubscription(true, {
+      subscriptions: socketEventSubscriptions
+    });
+    this.socketEventSubscriptions = {
+      ...socketEventSubscriptions,
+      projectQueue: this.projectQueueSubscription
+    };
     this.baseUrl = _baseUrl.toString();
     this._supernetType = supernetType;
     // Mirror the server's authoritative subscriptions snapshot so reconnects keep any
     // runtime updates applied via `setSocketEventSubscriptions` after the initial connect.
     this.on('socketEventSubscriptionsUpdated', (payload) => {
       if (payload && payload.socketEventSubscriptions) {
-        this.socketEventSubscriptions = { ...payload.socketEventSubscriptions };
+        this._applySocketEventSubscriptions(payload.socketEventSubscriptions);
       }
     });
   }
@@ -79,14 +112,52 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     return this._supernetType;
   }
 
+  /** @internal */
+  _applySocketEventSubscriptions(subscriptions: SocketEventSubscriptions) {
+    if (typeof subscriptions.projectQueue === 'boolean')
+      this.projectQueueSubscription = subscriptions.projectQueue;
+    this.socketEventSubscriptions = {
+      ...subscriptions,
+      projectQueue: this.projectQueueSubscription
+    };
+  }
+
+  /** @internal */
+  _rememberSocketEventSubscriptionUpdate(update: SocketEventSubscriptionInput) {
+    this.projectQueueSubscription = resolveProjectQueueSubscription(
+      this.projectQueueSubscription,
+      normalizeSocketEventSubscriptionUpdate(update)
+    );
+    this.socketEventSubscriptions = {
+      ...this.socketEventSubscriptions,
+      projectQueue: this.projectQueueSubscription
+    };
+  }
+
   get isConnected(): boolean {
-    return !!this.socket;
+    return !!this.socket && this._connectionSessionVersion === this.auth.sessionVersion;
   }
 
   async connect() {
-    if (this.socket) {
-      this.disconnect();
+    if (this._disposed) throw new Error('WebSocket client disposed');
+    if (this._connectPromise && this._connectionSessionVersion === this.auth.sessionVersion) {
+      return this._connectPromise;
     }
+    this.disconnect();
+    this._connectionSessionVersion = this.auth.sessionVersion;
+    const connection = this.openConnection(this._connectGeneration);
+    this._connectPromise = connection;
+    try {
+      await connection;
+    } finally {
+      if (this._connectPromise === connection) this._connectPromise = undefined;
+    }
+  }
+
+  private async openConnection(generation: number) {
+    const assertSession = captureRequestSession(this.auth);
+    this._reconnectExpected = false;
+    this._authenticatedSocket = null;
     const userAgent = `Sogni/${PROTOCOL_VERSION} (sogni-client) ${LIB_VERSION}`;
     const url = new URL(this.baseUrl);
     const isNotSecure = url.protocol === 'http:' || url.protocol === 'ws:';
@@ -107,6 +178,9 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     //At this point 'relaxed' does not work as expected, so we use 'fast' or empty
     url.searchParams.set('forceWorkerId', this._supernetType === 'fast' ? 'fast' : '');
     const params = await this.auth.socketOptions();
+    assertSession();
+    if (generation !== this._connectGeneration) throw new Error('WebSocket connection cancelled');
+    this._connectionSessionVersion = this.auth.sessionVersion;
     this.socket = new WebSocket(url.toString(), params);
     this.socket.onerror = this.handleError.bind(this);
     this.socket.onmessage = this.handleMessage.bind(this);
@@ -116,6 +190,8 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   disconnect() {
+    this._connectGeneration += 1;
+    this._connectPromise = undefined;
     if (!this.socket) {
       return;
     }
@@ -129,11 +205,22 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     // rethrown by EventEmitter, which takes the whole host process down. That is
     // reachable from any dispose() that lands before the handshake completes.
     // Log at debug, not error: tearing down a pending connection is expected.
-    socket.onerror = (e: ErrorEvent) => {
-      this._logger.debug('WebSocket error while closing:', e?.message ?? e);
+    socket.onerror = () => {
+      this._logger.debug('WebSocket error while closing a pending connection');
     };
     this.stopPing();
     socket.close(1000, 'Client disconnected');
+  }
+
+  dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
+    this.disconnect();
+    this._reconnectExpected = false;
+    // Settle pending readiness waits before the owner removes socket listeners.
+    // The native close event arrives later, after teardown has finished.
+    this.emit('disconnected', { code: 1000, reason: 'Client disposed' });
+    this.removeAllListeners();
   }
 
   private startPing(socket: WebSocket) {
@@ -164,38 +251,70 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
 
   async setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {
     const normalizedUpdate = normalizeSocketEventSubscriptionUpdate(update);
+    this._rememberSocketEventSubscriptionUpdate(normalizedUpdate);
     await this.send('setSocketEventSubscriptions', normalizedUpdate);
   }
 
+  /** The current socket is open and the server has accepted it for work. */
+  private isReadyForWork(): boolean {
+    return (
+      !!this.socket &&
+      this.socket.readyState === WebSocket.OPEN &&
+      this._authenticatedSocket === this.socket
+    );
+  }
+
   /**
-   * Ensure the WebSocket connection is open, waiting if necessary and throwing an error if it fails
+   * Wait until the socket can carry work. An open socket is not enough: the
+   * server drops frames that arrive before its `authenticated` handshake. A
+   * recoverable close (a socket deploy, a network blip) keeps the wait alive
+   * while the ApiClient reconnects, so work submitted during the gap goes out
+   * on the next connection instead of failing. A terminal close, a signed-out
+   * session, or the deadline ends it.
    * @private
    */
-  private async waitForConnection(): Promise<void> {
-    if (!this.socket) {
-      throw new Error('WebSocket not connected');
+  private waitForConnection(timeoutMs = SEND_READY_TIMEOUT_MS): Promise<void> {
+    if (this.isReadyForWork()) return Promise.resolve();
+    if (!this.socket && !this._reconnectExpected) {
+      return Promise.reject(new Error('WebSocket not connected'));
     }
-    if (this.socket.readyState === WebSocket.OPEN) {
-      return;
-    }
-    let attempts = 10;
-    while (this.socket?.readyState === WebSocket.CONNECTING) {
-      this._logger.info('Waiting for WebSocket connection...');
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      attempts--;
-      if (attempts === 0) {
-        this.disconnect();
-        throw new Error('WebSocket connection timeout');
-      }
-    }
-    //@ts-expect-error State may change between checks
-    if (this.socket?.readyState !== WebSocket.OPEN) {
-      this.disconnect();
-      throw new Error('WebSocket connection failed');
-    }
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        clearInterval(poll);
+        offAuthenticated();
+        offDisconnected();
+        if (error) reject(error);
+        else resolve();
+      };
+      const deadline = setTimeout(
+        () => finish(new Error('WebSocket connection timeout')),
+        timeoutMs
+      );
+      const poll = setInterval(() => {
+        if (this.isReadyForWork()) {
+          finish();
+        } else if (
+          this.socket?.readyState === WebSocket.OPEN &&
+          Date.now() - this._openedAt >= AUTHENTICATED_FALLBACK_MS
+        ) {
+          finish();
+        }
+      }, READY_POLL_MS);
+      const offAuthenticated = this.on('authenticated', () => {
+        if (this.isReadyForWork()) finish();
+      });
+      const offDisconnected = this.on('disconnected', () => {
+        if (!this._reconnectExpected) finish(new Error('WebSocket connection failed'));
+      });
+    });
   }
 
   private handleOpen() {
+    this._openedAt = Date.now();
     this.emit('connected', { network: this._supernetType });
   }
 
@@ -205,11 +324,14 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     socket.onmessage = null;
     socket.onopen = null;
     if (socket === this.socket || !this.socket) {
-      this._logger.info('WebSocket disconnected, cleanup', e);
+      this._logger.info('WebSocket disconnected, cleanup', { code: e.code, wasClean: e.wasClean });
       if (socket === this.socket) {
         this.stopPing();
         this.socket = null;
       }
+      this._authenticatedSocket = null;
+      this._reconnectExpected =
+        this.auth.isAuthenticated && !!e.code && e.code !== 1000 && !isNotRecoverable(e.code);
       this.emit('disconnected', {
         code: e.code,
         reason: e.reason
@@ -218,10 +340,18 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   private handleError(e: ErrorEvent) {
-    this._logger.error('WebSocket error:', e);
+    // Node's ws ErrorEvent retains the ClientRequest, including authentication
+    // headers. Never send the event, target, request, stack or raw message to a
+    // logger. Preserve only the bounded HTTP upgrade status when available.
+    const match =
+      typeof e.message === 'string'
+        ? /^Unexpected server response: (\d{3})$/.exec(e.message)
+        : null;
+    this._logger.error('WebSocket connection error', match ? { status: Number(match[1]) } : {});
   }
 
   private handleMessage(e: MessageEvent) {
+    const source = e.target;
     let dataPromise: Promise<string>;
     // In Node.js, e.data is a Buffer, while in browser it's a Blob
     if (isNodejs) {
@@ -232,6 +362,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     }
     dataPromise
       .then((str: string) => {
+        if (source !== this.socket || !this.isConnected) return;
         const data = JSON.parse(str);
         let payload = null;
         if (data.data) {
@@ -244,6 +375,9 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
           }
         });
         this._logger.debug('WebSocket:', data.type, payload);
+        if (data.type === 'authenticated' && source === this.socket) {
+          this._authenticatedSocket = this.socket;
+        }
         this.emit(data.type, payload);
       })
       .catch((err: any) => {
@@ -251,11 +385,27 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
       });
   }
 
-  async send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]) {
-    if (!this.isConnected) {
+  async send<T extends MessageType>(
+    messageType: T,
+    data: SocketMessageMap[T],
+    deadline = Date.now() + SEND_READY_TIMEOUT_MS
+  ) {
+    const assertSession = captureRequestSession(this.auth);
+    const remaining = () => {
+      const ms = deadline - Date.now();
+      if (ms <= 0) throw new Error('WebSocket connection timeout');
+      return ms;
+    };
+    remaining();
+    if (!this.isConnected && !this._reconnectExpected) {
       await this.connect();
     }
-    await this.waitForConnection();
+    await this.waitForConnection(remaining());
+    if (this._disposed) throw new Error('WebSocket client disposed');
+    assertSession();
+    // A suspended tab can resume after its timers' deadlines. Check the wall
+    // clock again immediately before sending, even if authentication succeeded.
+    remaining();
     this._logger.debug('WebSocket send:', messageType, data);
     this.socket!.send(
       JSON.stringify({ type: messageType, data: base64Encode(JSON.stringify(data)) })

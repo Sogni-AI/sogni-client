@@ -129,6 +129,14 @@ export interface AuthenticatedData {
    * socket. Held server-side for one hour; delivered here once.
    */
   unclaimedCompletedProjects: RecoveredProject[];
+  /**
+   * LLM job ids this app-id still has in flight after the handshake: jobs the
+   * server rebound to the new socket inside its reconnect grace window. A
+   * stream that was open across the gap and is missing here no longer exists
+   * on the server (for example the socket restarted). Carried by newer socket
+   * builds only; `undefined` means the server did not say.
+   */
+  activeLLMJobIDs?: string[];
   isMainnet: boolean;
   accountWasMigrated: boolean;
   /**
@@ -159,6 +167,32 @@ export type JobErrorData = {
   limitation?: string;
   /** Actionable fair-use details when `feature === 'monthly_fair_use'`. */
   fairUse?: SocketSubscriptionFairUseState | null;
+};
+
+/**
+ * One render attempt failed on its worker and the server put the SAME render
+ * back in the queue for a different one, inside the same project. The project is
+ * still running: nothing failed for the artist and nothing was charged.
+ *
+ * `imgID` names the ABANDONED attempt; the retry arrives later under a new id
+ * its next worker mints. The SDK reclaims the render's existing {@link Job} by
+ * `jobIndex` when that happens, so this frame is deliberately NOT surfaced as a
+ * job event -- as a job error it would fail a single-media project outright,
+ * which is precisely the render the retry exists to save. It is typed here for
+ * consumers that want to show that a render is being reassigned.
+ */
+export type JobRetryData = {
+  jobID: string;
+  /** The abandoned attempt's id. The retry arrives under a different one. */
+  imgID: string;
+  /** This render's position in the project; stable across the move. */
+  jobIndex?: number;
+  /** 1-based attempt that just failed; `maxAttempts` is the server's budget. */
+  attempt: number;
+  maxAttempts: number;
+  isFromWorker: boolean;
+  error: number | string;
+  error_message: string;
 };
 
 export type JobProgressData = {
@@ -245,6 +279,15 @@ export type JobResultData = {
   nsfwSources?: string[];
   resultUrl?: string;
   resultKey?: string;
+  lastFrameUrl?: string;
+  lastFrameKey?: string;
+  outputFormat?: string;
+  /**
+   * Files the worker uploaded for this result, as the worker reported them.
+   * The SDK reads `contentType` to pick the download endpoint for a result
+   * whose project it does not track.
+   */
+  artifacts?: Array<{ contentType?: string; success?: boolean }>;
   /** Allowlisted worker result receipt persisted by the socket. */
   result?: Record<string, unknown>;
   /**
@@ -446,6 +489,11 @@ export type SocketEventSubscriptionsUpdatedData = {
 };
 
 export type SocketEventMap = {
+  projectQueue: {
+    jobID: string;
+    waitingReason?: import('../../Projects/types/WaitingReason.js').WaitingReason | null;
+    jobWaitingReasons?: import('../../Projects/types/WaitingReason.js').JobWaitingReason[];
+  };
   /**
    * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
    */
@@ -468,6 +516,10 @@ export type SocketEventMap = {
    * @event WebSocketClient#jobError - Job error occurred
    */
   jobError: JobErrorData;
+  /**
+   * @event WebSocketClient#jobRetry - A render attempt failed and the server requeued it for another worker
+   */
+  jobRetry: JobRetryData;
   /**
    * @event WebSocketClient#jobProgress - Job progress update
    */
@@ -571,6 +623,7 @@ export type RecoveredWorkerJobStatus =
  * for legacy native clients and must not be used to distinguish jobs.
  */
 export interface RecoveredWorkerJob {
+  waitingReason?: import('../../Projects/types/WaitingReason.js').WaitingReason | null;
   id: string;
   SID?: number | string;
   imgID: string;
@@ -623,6 +676,8 @@ export interface RecoveredWorkerJob {
  * client that lost its local state can rebuild the prompt and parameters.
  */
 export interface RecoveredProject {
+  waitingReason?: import('../../Projects/types/WaitingReason.js').WaitingReason | null;
+  jobWaitingReasons?: import('../../Projects/types/WaitingReason.js').JobWaitingReason[];
   id: string;
   SID?: number;
   /** App instance (`appId`) that created the project. Newer socket builds only. */

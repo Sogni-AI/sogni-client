@@ -11,6 +11,7 @@ const ApiClient = require('../dist/ApiClient/index.js').default;
 const ChatApi = require('../dist/Chat/index.js').default;
 const CreativeWorkflowsApi = require('../dist/CreativeWorkflows/index.js').default;
 const ProjectsApi = require('../dist/Projects/index.js').default;
+const CookieAuthManager = require('../dist/lib/AuthManager/CookieAuthManager.js').default;
 
 class StubSocket {
   constructor() {
@@ -52,17 +53,14 @@ class StubClient {
         data: { uploadUrl: 'https://storage.example.test/presigned' }
       })
     };
-    this.auth = {
-      isAuthenticated: true,
-      authenticateRequest: async (options) => options,
-      clear: () => {}
-    };
     this.logger = {
       debug: () => {},
       info: () => {},
       warn: () => {},
       error: () => {}
     };
+    this.auth = new CookieAuthManager(this.logger);
+    void this.auth.authenticate();
   }
 
   on() {

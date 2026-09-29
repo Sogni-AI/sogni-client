@@ -6,6 +6,13 @@ import type {
   RecoveredProject
 } from '../../ApiClient/WebSocketClient/events.js';
 import type { JobProvenance } from './JobProvenance.js';
+import type { WaitingReason, JobWaitingReason } from './WaitingReason.js';
+
+/** Current queue details; does not change project or result status. */
+export interface ProjectQueueChanged extends ProjectEventBase {
+  waitingReason: WaitingReason | null;
+  jobWaitingReasons: JobWaitingReason[];
+}
 
 export type { JobPreparation } from '../../ApiClient/WebSocketClient/events.js';
 
@@ -22,8 +29,8 @@ export interface ProjectQueued extends ProjectEventBase {
    */
   estimatedStartSeconds?: number | null;
   /**
-   * `'no-workers'` when nothing currently connected can run this project's model, in which
-   * case `estimatedStartSeconds` is `null` and the project waits for a worker to come online.
+   * Worker availability estimate. Account limits are not part of this estimate;
+   * prefer the current project's `waitingReason` when explaining a wait.
    */
   queueStatus?: 'waiting' | 'no-workers';
 }
@@ -99,6 +106,8 @@ export interface JobCompleted extends JobEventBase {
    * it was not disabled by the user
    */
   resultUrl: string | null;
+  lastFrameUrl?: string;
+  outputFormat?: string;
   /**
    * A safety signal fired. Either the media was withheld (filter on, no
    * `resultUrl`) or it was delivered and merely labelled - see `nsfwDetected`.
@@ -140,7 +149,7 @@ export interface CompletedRecoveredProject extends RecoveredProject {
   resultUrls: string[];
 }
 
-export type ProjectSyncReason = 'authenticated' | 'connected' | 'manual';
+export type ProjectSyncReason = 'authenticated' | 'connected' | 'manual' | 'recheck';
 
 /**
  * Outcome of one reconciliation of local project state against the server
@@ -154,7 +163,7 @@ export interface ProjectSyncResult {
   snapshot: ProjectRecoverySnapshot;
   /** Tracked projects the server confirmed are still in flight. */
   active: string[];
-  /** Tracked projects confirmed finished (by the snapshot or the REST record) and updated in place. */
+  /** Tracked projects confirmed finished (including failed/canceled status lookups) and updated in place. */
   completed: string[];
   /**
    * Tracked projects the server no longer knows and the REST API has no record
@@ -170,6 +179,8 @@ export interface ProjectSyncResult {
 }
 
 export interface ProjectApiEvents {
+  /** Emitted after current queue details update, including partially running batches. */
+  queueChanged: ProjectQueueChanged;
   availableModels: AvailableModel[];
   project: ProjectEvent;
   job: JobEvent;

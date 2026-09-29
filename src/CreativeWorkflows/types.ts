@@ -24,12 +24,18 @@ export type CreativeWorkflowWaitingReason =
   | 'other';
 
 export type CreativeWorkflowHostedToolName =
+  | 'image_to_3d'
+  | 'remove_background'
+  | 'segment_image'
+  | 'generate_speech'
   | 'generate_image'
   | 'generate_video'
   | 'generate_music'
   | 'edit_image'
   | 'apply_style'
   | 'restore_photo'
+  | 'upscale_image'
+  | 'upscale_video'
   | 'refine_result'
   | 'animate_photo'
   | 'change_angle'
@@ -78,6 +84,8 @@ export interface CreativeWorkflowEvent {
 
 export interface CreativeWorkflowRecord {
   workflowId: string;
+  /** Safe Content Filter preference captured when the run started. Defaults to true. */
+  safeContentFilter?: boolean;
   title?: string;
   status?: CreativeWorkflowStatus;
   /** Why a `waiting_for_user` workflow is paused. */
@@ -167,6 +175,11 @@ export interface StartCreativeWorkflowParams {
   mediaReferences?: unknown[];
   maxEstimatedCapacityUnits?: number;
   confirmCost?: boolean;
+  /**
+   * Safe Content Filter preference for this run. Defaults to true.
+   * Resuming or reseeding a run preserves its original preference.
+   */
+  safeContentFilter?: boolean;
   /** @internal Undocumented compatibility alias. Use workflowId. */
   workflow_id?: string;
   /** @internal Undocumented compatibility alias. Use tokenType. */
@@ -183,6 +196,8 @@ export interface StartCreativeWorkflowParams {
   max_estimated_capacity_units?: number;
   /** @internal Undocumented compatibility alias. Use confirmCost. */
   confirm_cost?: boolean;
+  /** @internal Undocumented compatibility alias. Use safeContentFilter. */
+  safe_content_filter?: boolean;
 }
 
 export interface ResumeCreativeWorkflowParams {
@@ -225,6 +240,13 @@ export interface ReseedCreativeWorkflowParams {
   appSource?: string;
   /** Optional workload attribution overriding this client's defaults. */
   attribution?: WorkloadAttributionInput;
+  /**
+   * Makes the reseed safe to retry. A reseed mints fresh random seeds, so a
+   * retried request without a key starts a second, different take. With a key,
+   * a retry returns the take the first request started (`idempotent: true`).
+   * Use a new key for each take you want.
+   */
+  idempotencyKey?: string;
   /** @internal Undocumented compatibility alias. Use seedOverrides. */
   seed_overrides?: Record<string, number>;
   /** @internal Undocumented compatibility alias. Use tokenType. */
@@ -241,6 +263,8 @@ export interface ReseedCreativeWorkflowOptions {
 
 export interface ReseedCreativeWorkflowResult {
   workflow: CreativeWorkflowRecord;
+  /** `true` when this is the take an earlier request with the same `idempotencyKey` started. */
+  idempotent?: boolean;
   /**
    * The new run cloned from the source. Echoes the original run id plus
    * the step list with applied seed overrides.

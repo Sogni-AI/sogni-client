@@ -220,6 +220,170 @@ function checkTemplateVariantSelection() {
   );
 }
 
+// Pixal3D multi-view: the front view is startingImage and the orbit views travel
+// in fixed contextImage slots (left 1, back 2, right 3), any subset allowed. The
+// single-view graph has no input for them, so it refuses them.
+const MULTIVIEW_ID = 'pixal3d_multiview_int8_i23d';
+const VIEW_SLOTS = { leftViewImage: 1, backViewImage: 2, rightViewImage: 3 };
+
+function multiView(overrides = {}) {
+  return params({ modelId: MULTIVIEW_ID, positivePrompt: '', ...overrides });
+}
+
+function contextFlags(request) {
+  const keyFrame = request.keyFrames[0];
+  return [1, 2, 3, 4].map((slot) => keyFrame[`hasContextImage${slot}`]);
+}
+
+async function checkMultiView() {
+  const view = Buffer.from('view');
+  const all = { leftViewImage: view, backViewImage: view, rightViewImage: view };
+
+  const full = createJobRequestMessage(
+    'pixal3d-mv-full',
+    multiView({ ...all, numberOfPreviews: 4, meshTargetFaces: 200000, shapeResolution: 1536, seed: 7 }),
+    MODEL_OPTIONS
+  );
+  assert.equal(full.keyFrames[0].modelID, MULTIVIEW_ID);
+  assert.equal(full.outputFormat, 'glb', 'multi-view returns a GLB');
+  assert.equal(full.previews, 0, 'multi-view never requests previews');
+  assert.equal(full.keyFrames[0].hasStartingImage, true, 'front view is the starting image');
+  assert.deepEqual(contextFlags(full), [true, true, true, false]);
+  assert.equal(full.keyFrames[0].meshTargetFaces, 200000);
+  assert.equal(full.keyFrames[0].shapeResolution, 1536);
+  assert.equal('templateVariant' in full.keyFrames[0], false);
+
+  const frontOnly = createJobRequestMessage('pixal3d-mv-front', multiView(), MODEL_OPTIONS);
+  assert.deepEqual(contextFlags(frontOnly), [false, false, false, false], 'front view alone is valid');
+
+  // Any subset keeps each view in its own slot rather than renumbering.
+  for (const [viewName, slot] of Object.entries(VIEW_SLOTS)) {
+    const request = createJobRequestMessage(
+      `pixal3d-mv-${viewName}`,
+      multiView({ [viewName]: view }),
+      MODEL_OPTIONS
+    );
+    assert.deepEqual(
+      contextFlags(request),
+      [1, 2, 3, 4].map((index) => index === slot),
+      `${viewName} travels in contextImage${slot}`
+    );
+  }
+  assert.deepEqual(
+    contextFlags(
+      createJobRequestMessage(
+        'pixal3d-mv-left-right',
+        multiView({ leftViewImage: view, rightViewImage: true }),
+        MODEL_OPTIONS
+      )
+    ),
+    [true, false, true, false]
+  );
+
+  assert.throws(
+    () => createJobRequestMessage('pixal3d-mv-no-front', multiView({ ...all, startingImage: undefined }), MODEL_OPTIONS),
+    /Pixal3D multi-view reconstruction requires startingImage \(the front view\)/
+  );
+  for (const bad of [null, false, 0, '']) {
+    assert.throws(
+      () => createJobRequestMessage('pixal3d-mv-empty-view', multiView({ backViewImage: bad }), MODEL_OPTIONS),
+      /backViewImage must be an image; leave it unset to omit that view/,
+      `backViewImage ${JSON.stringify(bad)}`
+    );
+  }
+  assert.throws(
+    () => createJobRequestMessage('pixal3d-mv-context', multiView({ contextImages: [view] }), MODEL_OPTIONS),
+    /pixal3d_multiview_int8_i23d takes its orbit views as leftViewImage, backViewImage and rightViewImage, not contextImages/
+  );
+  assert.throws(
+    () =>
+      createJobRequestMessage(
+        'pixal3d-mv-variant',
+        multiView({ templateVariant: 'i23d-birefnet' }),
+        MODEL_OPTIONS
+      ),
+    /templateVariant is only supported by pixal3d_int8_i23d/
+  );
+  assert.throws(
+    () => createJobRequestMessage('pixal3d-mv-texture', multiView({ textureSize: 8192 }), MODEL_OPTIONS),
+    /textureSize must be an integer from 1024 to 4096/
+  );
+
+  // The single-view graph would ignore orbit views; refuse them before billing.
+  for (const viewName of Object.keys(VIEW_SLOTS)) {
+    assert.throws(
+      () => createJobRequestMessage('pixal3d-sv-view', params({ [viewName]: view }), MODEL_OPTIONS),
+      new RegExp(`pixal3d_int8_i23d reconstructs from startingImage alone and ignores ${viewName}`)
+    );
+    assert.throws(
+      () =>
+        createJobRequestMessage(
+          'krea-view',
+          params({ modelId: 'krea2_turbo_fp8_scaled', [viewName]: view }),
+          MODEL_OPTIONS
+        ),
+      new RegExp(`${viewName} is only supported by pixal3d_multiview_int8_i23d`)
+    );
+  }
+  assert.throws(
+    () => createJobRequestMessage('pixal3d-sv-context', params({ contextImages: [view] }), MODEL_OPTIONS),
+    /pixal3d_int8_i23d reconstructs from startingImage alone and does not support contextImages/
+  );
+  // Unset views are not views.
+  const singleUnset = createJobRequestMessage(
+    'pixal3d-sv-unset',
+    params({ leftViewImage: undefined, backViewImage: undefined, rightViewImage: undefined }),
+    MODEL_OPTIONS
+  );
+  assert.deepEqual(contextFlags(singleUnset), [false, false, false, false]);
+  assert.throws(
+    () => createJobRequestMessage('krea-mesh', params({ modelId: 'krea2_turbo_fp8_scaled', meshTargetFaces: 5000 }), MODEL_OPTIONS),
+    /meshTargetFaces is only supported by pixal3d_int8_i23d and pixal3d_multiview_int8_i23d/
+  );
+
+  // Uploads: front through the guide-image path, each view in its own slot.
+  const { client, projects } = newProjectsApi();
+  const uploads = [];
+  projects.uploadGuideImage = async (_projectId, file) => {
+    uploads.push(['startingImage', file.toString()]);
+  };
+  projects.uploadContextImage = async (_projectId, index, file) => {
+    uploads.push([`contextImage${index + 1}`, file.toString()]);
+  };
+  const project = await projects.create(
+    multiView({
+      startingImage: Buffer.from('front'),
+      backViewImage: Buffer.from('back'),
+      rightViewImage: Buffer.from('right')
+    })
+  );
+  assert.deepEqual(
+    uploads.sort(),
+    [
+      ['contextImage2', 'back'],
+      ['contextImage3', 'right'],
+      ['startingImage', 'front']
+    ],
+    'front, back and right upload to startingImage, contextImage2 and contextImage3'
+  );
+  const sent = client.socket.sent[0].data;
+  assert.equal(sent.outputFormat, 'glb');
+  assert.deepEqual(contextFlags(sent), [false, true, true, false]);
+  project._update({ status: 'failed', error: { code: 0, message: 'test cleanup' } });
+
+  // A refused single-view request uploads nothing.
+  const refused = newProjectsApi();
+  const refusedUploads = [];
+  refused.projects.uploadGuideImage = async () => refusedUploads.push('startingImage');
+  refused.projects.uploadContextImage = async () => refusedUploads.push('contextImage');
+  await assert.rejects(
+    () => refused.projects.create(params({ startingImage: Buffer.from('front'), leftViewImage: view })),
+    /ignores leftViewImage/
+  );
+  assert.deepEqual(refusedUploads, []);
+  assert.equal(refused.client.socket.sent.length, 0);
+}
+
 async function main() {
   const request = createJobRequestMessage('pixal3d-wire-test', params(), MODEL_OPTIONS);
   assert.equal(request.outputFormat, 'glb');
@@ -275,6 +439,7 @@ async function main() {
   checkCatalogCannotDowngradeArtifactModel();
   await checkPreviewsPinnedToZero();
   await checkRestDiscoveredJobGetsResultUrl();
+  await checkMultiView();
 
   console.log('Pixal3D SDK artifact checks passed');
 }

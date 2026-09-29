@@ -1,5 +1,6 @@
 import type { BillingMode } from '../Projects/types/index.js';
 import type { WorkloadAttributionInput } from '../types/attribution.js';
+import type { TokenType } from '../types/token.js';
 
 export interface ToolFunction {
   name: string;
@@ -368,6 +369,60 @@ export interface ChatRunEvent {
   payload?: Record<string, unknown>;
 }
 
+/** One paused paid tool call's share of a {@link ChatRunCostApprovalPreview}. */
+export interface ChatRunCostApprovalPreviewToolBreakdown {
+  toolCallId: string;
+  toolName: string;
+  capacityUnits: number;
+}
+
+/**
+ * Server-issued cost preview for a durable chat run paused with
+ * `waiting.reason === 'cost_approval_required'`.
+ *
+ * Read it from `run.waiting.details.costApprovalPreview` on a run snapshot
+ * (`chat.runs.get()`), or from `event.payload.details.costApprovalPreview` on
+ * the `run_waiting_for_user` event yielded by `chat.runs.streamEvents()`.
+ * Show it to the user, then pass the same object back unchanged as
+ * {@link ConfirmChatRunCostParams.acceptedCostPreview} to confirm.
+ */
+export interface ChatRunCostApprovalPreview {
+  /** Estimated total cost of the paused tool calls, in capacity units. */
+  totalEstimatedCapacityUnits: number;
+  /** Token type the paused work will be billed in. */
+  tokenType: TokenType;
+  /** ISO-8601 time after which the preview can no longer be confirmed. */
+  validityUntil: string;
+  /** Per-tool estimate for display. */
+  perToolBreakdown?: ChatRunCostApprovalPreviewToolBreakdown[];
+}
+
+/**
+ * Details attached to a durable chat run's waiting state. The typed fields are
+ * present on cost-approval pauses; other pause reasons may carry other keys.
+ */
+export interface ChatRunWaitingDetails {
+  /** Paused tool call id to send back as `ConfirmChatRunCostParams.toolCallId`. */
+  toolCallId?: string;
+  /** Every paid tool call held by this pause; one decision applies to all of them. */
+  pendingToolCallIds?: string[];
+  /**
+   * Cost preview to show the user and echo back as `acceptedCostPreview` when
+   * confirming. Absent when the pause cannot be confirmed (for example, when
+   * credits ran out); cancel the run instead.
+   */
+  costApprovalPreview?: ChatRunCostApprovalPreview;
+  [key: string]: unknown;
+}
+
+/** Why a durable chat run is in `waiting_for_user`, and what it needs. */
+export interface ChatRunWaitingState {
+  /** Pause reason, for example `'cost_approval_required'`. */
+  reason: string;
+  message?: string;
+  details?: ChatRunWaitingDetails;
+}
+
 export interface ChatRunRecord {
   runId: string;
   status: ChatRunStatus;
@@ -401,11 +456,7 @@ export interface ChatRunRecord {
     content?: string;
     finishReason?: string;
   };
-  waiting?: {
-    reason: string;
-    message?: string;
-    details?: Record<string, unknown>;
-  };
+  waiting?: ChatRunWaitingState;
   billingPreview?: unknown;
   billingPreviews?: unknown[];
   failureReason?: string;
@@ -481,18 +532,56 @@ export interface StartChatRunParams {
 }
 
 /**
- * Body of a `POST /v1/chat/runs/:id/confirm-cost` call. Resumes a run
- * that paused with `run_awaiting_cost_confirmation`.
+ * Body of a `POST /v1/chat/runs/:id/confirm-cost` call. Resumes a run that
+ * paused in `waiting_for_user` with `waiting.reason === 'cost_approval_required'`
+ * (announced by the `run_awaiting_cost_confirmation` and `run_waiting_for_user`
+ * events).
+ *
+ * To confirm, read the preview from the paused run and send it back:
+ *
+ * ```ts
+ * const run = await sogni.chat.runs.get(runId);
+ * const details = run.waiting?.details;
+ * // Show details.costApprovalPreview to the user before continuing.
+ * await sogni.chat.runs.confirmCost(runId, {
+ *   toolCallId: details!.toolCallId!,
+ *   decision: 'confirm',
+ *   acceptedCostPreview: details!.costApprovalPreview!,
+ *   idempotencyKey: `confirm-${details!.toolCallId}`
+ * });
+ * ```
  */
 export interface ConfirmChatRunCostParams {
-  /** Tool call id surfaced in the awaiting event. */
+  /**
+   * Paused tool call id: `run.waiting.details.toolCallId`, or `payload.toolCallId`
+   * on the `run_awaiting_cost_confirmation` event.
+   */
   toolCallId: string;
   /** Whether the caller approves the job. */
   decision: 'confirm' | 'cancel';
+  /**
+   * The cost preview the user approved, passed back unchanged. Required by the
+   * server when `decision` is `'confirm'` (the request fails with HTTP 400
+   * without it); not needed to cancel.
+   *
+   * Read it from `run.waiting.details.costApprovalPreview` (`chat.runs.get()`)
+   * or `event.payload.details.costApprovalPreview` on the `run_waiting_for_user`
+   * event. The SDK never fills this in for you: approving whatever preview is
+   * current without showing it to the user would bypass the approval. If the
+   * preview has expired or changed, the server answers HTTP 409; read the run
+   * again and ask the user to approve the new preview.
+   */
+  acceptedCostPreview?: ChatRunCostApprovalPreview;
   /** Optional override args the caller adjusted in the modal. */
   overrides?: Record<string, unknown>;
   /** Optional reason carried into audit logs. */
   reason?: string;
+  /**
+   * Sent as the `Idempotency-Key` header. Use one key per decision and reuse it
+   * for duplicate submissions (double-clicks, retried requests) so the server
+   * can treat a duplicate as success instead of a conflict.
+   */
+  idempotencyKey?: string;
 }
 
 export interface StreamChatRunEventsOptions {

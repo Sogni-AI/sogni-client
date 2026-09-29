@@ -1,7 +1,10 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types.js';
 import type { JobProvenance } from './JobProvenance.js';
+import type { WaitingReason, JobWaitingReason } from './WaitingReason.js';
 
 export interface RawProject {
+  waitingReason?: WaitingReason | null;
+  jobWaitingReasons?: JobWaitingReason[];
   id: string;
   SID: number;
   artist: Account;
@@ -22,6 +25,22 @@ export interface RawProject {
   txId: string;
   workerJobs: RawJob[];
   completedWorkerJobs: RawJob[];
+  /** Undefined on older projects whose BYOL usage was not recorded. */
+  byolUsed?: boolean;
+  personalLoras?: ProjectLoraSource[];
+  reusedAssetCount?: number;
+}
+
+/** Immutable public-source snapshot; deleting a library entry does not erase it. */
+export interface ProjectLoraSource {
+  loraId: string;
+  name: string;
+  provider: 'huggingface' | 'civitai';
+  sourceUrl: string;
+  sourceVersion: string;
+  sha256: string;
+  modelId: string;
+  strength?: number;
 }
 
 type RawProjectStatus =
@@ -45,6 +64,8 @@ export interface Account {
 }
 
 export interface RawJob {
+  waitingReason?: WaitingReason | null;
+  jobIndex?: number;
   id: string;
   SID: string;
   imgID?: string;
@@ -70,6 +91,9 @@ export interface RawJob {
   txId?: string;
   resultUrl?: string | null;
   resultKey?: string | null;
+  lastFrameUrl?: string;
+  lastFrameKey?: string;
+  outputFormat?: string;
   result?: JobProvenance & Record<string, unknown>;
 }
 

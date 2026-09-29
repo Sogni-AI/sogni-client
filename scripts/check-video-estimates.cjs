@@ -63,6 +63,7 @@ async function estimate(projects, overrides = {}) {
 async function main() {
   const client = new ClientStub();
   const projects = new ProjectsApi({ client, eip712: {} });
+  const query0 = () => new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
 
   await estimate(projects);
   assert.equal(
@@ -98,6 +99,74 @@ async function main() {
   assert.equal(h3VideoInput.get('referenceVideoCount'), '2');
   assert.equal(h3VideoInput.get('referenceVideoDurationSeconds'), '13.5');
 
+  // MiniMax H3 two-stage output is priced by its own model id on the canvas the
+  // job renders (768p for 2K, a 544 short edge for 1080p, a 384 short edge for
+  // 720p); nothing rides the query.
+  await estimate(projects, { model: 'minimax-h3-fastvideo-int8_t2v_turbo_2stage', steps: 4 });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_t2v_turbo_2stage/1344/768/141/24/4/1',
+    '2K pricing must be requested with the two-stage model id and the 768p canvas'
+  );
+  await estimate(projects, {
+    model: 'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
+    width: 960,
+    height: 544,
+    steps: 4
+  });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_i2v_turbo_2stage/960/544/141/24/4/1',
+    '1080p pricing must be requested with the two-stage model id and the 544 canvas'
+  );
+  await estimate(projects, {
+    model: 'minimax-h3-fastvideo-int8_flf2v_turbo_2stage',
+    width: 672,
+    height: 384,
+    steps: 4
+  });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_flf2v_turbo_2stage/672/384/141/24/4/1',
+    '720p pricing must be requested with the two-stage model id and the 384 canvas'
+  );
+  // Two-stage reference-to-video is priced the same way: its own id on the
+  // canvas the job renders, at its tier's own step count.
+  await estimate(projects, {
+    model: 'minimax-h3-ref2va-fp8_r2v_2stage',
+    width: 960,
+    height: 544,
+    steps: 20
+  });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-ref2va-fp8_r2v_2stage/960/544/141/24/20/1',
+    '1080p Standard R2V two-stage pricing must be requested with the two-stage model id and the 544 canvas'
+  );
+  await estimate(projects, { model: 'minimax-h3-ref2va-fp8_r2v_balanced_2stage', steps: 8 });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-ref2va-fp8_r2v_balanced_2stage/1344/768/141/24/8/1',
+    '2K Balanced R2V two-stage pricing must be requested with the two-stage model id and the 768p canvas'
+  );
+  // outputScale is retired: an untyped caller that still passes it (any value)
+  // is refused with the socket's wording before any estimate request is made.
+  const requestsBefore = client.socket.paths.length;
+  for (const outputScale of [2, 1, null]) {
+    await assert.rejects(
+      estimate(projects, { model: 'minimax-h3-fastvideo-int8_t2v_turbo', steps: 4, outputScale }),
+      (error) =>
+        error.status === 400 &&
+        error.message ===
+          'outputScale is no longer supported. For MiniMax H3 1080p or 2K output use the two-stage model ids minimax-h3-fastvideo-int8_t2v_turbo_2stage, minimax-h3-fastvideo-int8_i2v_turbo_2stage or minimax-h3-fastvideo-int8_flf2v_turbo_2stage.'
+    );
+  }
+  assert.equal(
+    client.socket.paths.length,
+    requestsBefore,
+    'a retired outputScale sends no request'
+  );
+
   await estimate(projects, {
     model: 'seedance-2-0',
     hasVideoInput: true,
@@ -107,6 +176,15 @@ async function main() {
   assert.equal(combined.get('hasVideoInput'), '1');
   assert.equal(combined.get('referenceImageCount'), '5');
 
+  // MiniMax H3 keyframes: the count reaches the endpoint (the first two are included server-side);
+  // a keyframes list is counted; none sent adds no parameter.
+  await estimate(projects, { model: 'minimax-h3-fastvideo-int8_ia2v_turbo', steps: 4, keyframeCount: 8 });
+  assert.equal(query0().get('keyframeCount'), '8', 'keyframeCount must reach the estimate endpoint');
+  await estimate(projects, { model: 'minimax-h3-fastvideo-int8_ia2v_turbo', steps: 4, keyframes: [{}, {}, {}] });
+  assert.equal(query0().get('keyframeCount'), '3', 'a keyframes list must be priced by its length');
+  await estimate(projects, { model: 'minimax-h3-fastvideo-int8_ia2v_turbo', steps: 4, keyframeCount: 0 });
+  assert.equal(query0().has('keyframeCount'), false, 'no keyframes must add no parameter');
+
   await estimate(projects, { referenceImageCount: Number.NaN });
   assert.equal(
     new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams.has(
@@ -115,6 +193,39 @@ async function main() {
     false,
     'invalid optional metadata must not corrupt a backwards-compatible estimate'
   );
+
+  // Daily fair-use share: the network the job renders on and an explicit token
+  // billing intent reach the socket, and its share comes back on the estimate.
+  const query = () => new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
+  await estimate(projects, { network: 'relaxed', billingMode: 'tokens' });
+  assert.equal(query().get('network'), 'relaxed');
+  assert.equal(query().get('billingMode'), 'tokens');
+  projects._currentNetworkType = 'fast';
+  await estimate(projects);
+  assert.equal(
+    query().get('network'),
+    'fast',
+    'an unpinned estimate quotes the connection network'
+  );
+  await projects.estimateAudioCost({
+    tokenType: 'spark',
+    model: 'audio-model',
+    duration: 30,
+    steps: 8,
+    numberOfMedia: 1
+  });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-audio/estimate/spark/audio-model/30/8/1?network=fast'
+  );
+  const shareSocket = client.socket.get.bind(client.socket);
+  client.socket.get = async (path) => ({
+    ...(await shareSocket(path)),
+    dailyFairUse: { pct: 0.4 }
+  });
+  assert.equal((await estimate(projects)).dailyFairUsePct, 0.4);
+  client.socket.get = shareSocket;
+  assert.equal((await estimate(projects)).dailyFairUsePct, undefined);
 
   console.log('Video estimate request checks passed');
 }

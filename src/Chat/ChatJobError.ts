@@ -1,6 +1,23 @@
 import { SUBSCRIPTION_ERROR_CODES, SubscriptionErrorCode } from '../types/ErrorData.js';
 import { SubscriptionPlanId } from '../Account/subscription.types.js';
 
+/**
+ * Error types for an LLM request that did not complete because the connection
+ * to Sogni was interrupted, not because of the request itself:
+ *
+ * - `server_restarting`: the socket server restarted (a platform release) and
+ *   refunded the request, or refused it while shutting down.
+ * - `transport_lost`: the request could not be sent, or it was in flight when
+ *   the socket dropped and the server no longer had it after reconnecting.
+ *
+ * Send the request again as a new request. The SDK waits for the reconnect
+ * before sending, so an immediate retry is fine.
+ */
+export const RETRYABLE_CHAT_ERROR_TYPES: readonly string[] = Object.freeze([
+  'server_restarting',
+  'transport_lost'
+]);
+
 /** Structured fields preserved from a failed chat/LLM job. */
 export interface ChatJobErrorFields {
   /**
@@ -103,6 +120,15 @@ export class ChatJobError extends Error {
   }
 
   /**
+   * `true` when the request was interrupted by the connection rather than
+   * rejected, so sending it again is expected to work. See
+   * {@link RETRYABLE_CHAT_ERROR_TYPES}.
+   */
+  get retryable(): boolean {
+    return !!this.errorType && RETRYABLE_CHAT_ERROR_TYPES.includes(this.errorType);
+  }
+
+  /**
    * The numeric subscription denial code when this failure is one of the
    * `SUBSCRIPTION_ERROR_CODES` (4078 / 4079 / 4080); `undefined` otherwise.
    */
@@ -112,6 +138,16 @@ export class ChatJobError extends Error {
     const known = Object.values(SUBSCRIPTION_ERROR_CODES) as number[];
     return known.includes(numeric) ? (numeric as SubscriptionErrorCode) : undefined;
   }
+}
+
+/**
+ * Whether `error` is a chat/LLM failure caused by the connection (see
+ * {@link RETRYABLE_CHAT_ERROR_TYPES}) that is safe to send again.
+ */
+export function isRetryableChatError(error: unknown): boolean {
+  if (error instanceof ChatJobError) return error.retryable;
+  const errorType = (error as { errorType?: unknown } | null)?.errorType;
+  return typeof errorType === 'string' && RETRYABLE_CHAT_ERROR_TYPES.includes(errorType);
 }
 
 /**

@@ -4,6 +4,7 @@
   "description": "Examples for Sogni Client SDK",
   "type": "module",
   "scripts": {
+    "segment": "node workflow_sam3_segment.mjs",
     "t2v": "node workflow_text_to_video.mjs",
     "i2v": "node workflow_image_to_video.mjs",
     "s2v": "node workflow_sound_to_video.mjs",

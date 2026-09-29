@@ -27,6 +27,7 @@ import type {
   WorkloadAttributionDefaults,
   WorkloadAttributionInput
 } from '../types/attribution.js';
+import { apiErrorExtras, parseRetryAfterHeader } from '../lib/apiErrorFields.js';
 
 /**
  * Reconnect backoff for recoverable socket drops. Attempts continue for as
@@ -47,17 +48,52 @@ export interface ApiErrorResponse {
   status: 'error';
   message: string;
   errorCode: number;
-  /** Optional structured context for the error (e.g. `{ provider: 'google' }` on 189/190). */
+  /** Seconds to wait before sending the request again, when the server gave one. */
+  retryAfter?: number;
+  /** Structured context for the error, when the server sent any (e.g. `{ provider: 'google' }` on SSO 189/190). */
   details?: Record<string, unknown>;
 }
 
+/**
+ * A non-2xx response from a Sogni REST endpoint.
+ *
+ * `status` is the HTTP status and `payload` the error body. When the server
+ * says how long to wait — a `429`, or a `503` during a restart — `retryAfter`
+ * carries that wait in seconds, taken from the body or, failing that, from the
+ * `Retry-After` header. Wait at least that long before retrying: a request sent
+ * sooner is refused again. `details` carries any structured context the server
+ * attached (for example the counts behind a capacity refusal).
+ *
+ * ```typescript
+ * try {
+ *   await sogni.workflows.start({ input });
+ * } catch (error) {
+ *   if (error instanceof ApiError && error.retryAfter !== undefined) {
+ *     await new Promise((resolve) => setTimeout(resolve, error.retryAfter! * 1000));
+ *     // ...then retry, reusing the same idempotencyKey.
+ *   }
+ * }
+ * ```
+ */
 export class ApiError extends Error {
   status: number;
   payload: ApiErrorResponse;
-  constructor(status: number, payload: ApiErrorResponse) {
+  /** Seconds to wait before retrying. Absent when the server gave no wait. */
+  retryAfter?: number;
+  /** Structured context the server attached to the error, when present. */
+  details?: Record<string, unknown>;
+  /**
+   * @param retryAfterHeader - The response's `Retry-After` header, used only
+   * when the body carries no `retryAfter`.
+   */
+  constructor(status: number, payload: ApiErrorResponse, retryAfterHeader?: string | null) {
     super(payload.message);
     this.status = status;
     this.payload = payload;
+    const extras = apiErrorExtras(payload);
+    const retryAfter = extras.retryAfter ?? parseRetryAfterHeader(retryAfterHeader);
+    if (retryAfter !== undefined) this.retryAfter = retryAfter;
+    if (extras.details) this.details = extras.details;
   }
 }
 
@@ -90,6 +126,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _onlineListener: (() => void) | null = null;
   private _disableSocket: boolean = false;
+  private _disposed = false;
 
   constructor({
     baseUrl,
@@ -193,16 +230,19 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }
 
   handleSocketConnecting() {
+    if (this._disposed) return;
     this.emit('connecting', { network: this.socket.supernetType });
   }
 
   handleSocketConnect({ network }: ServerConnectData) {
+    if (this._disposed) return;
     this._reconnectAttempt = 0;
     this._clearReconnect();
     this.emit('connected', { network });
   }
 
   handleSocketDisconnect(data: ServerDisconnectData) {
+    if (this._disposed) return;
     // If user is not authenticated, we don't need to reconnect
     if (!this.auth.isAuthenticated || data.code === 1000) {
       this._clearReconnect();
@@ -252,6 +292,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }
 
   private _scheduleReconnect() {
+    if (this._disposed) return;
     this._clearReconnect();
     const attempt = this._reconnectAttempt++;
     const base = Math.min(WS_RECONNECT_BASE_DELAY_MS * 2 ** attempt, WS_RECONNECT_MAX_DELAY_MS);
@@ -259,8 +300,9 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     this.handleSocketConnecting();
     const connect = () => {
       this._reconnectTimer = null;
-      if (!this.auth.isAuthenticated || this._disableSocket) return;
+      if (this._disposed || !this.auth.isAuthenticated || this._disableSocket) return;
       this.socket.connect().catch((error) => {
+        if (this._disposed) return;
         this.logger.warn('WebSocket reconnect attempt failed', error);
         this._scheduleReconnect();
       });
@@ -293,14 +335,15 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
   }
 
   handleAuthUpdated(isAuthenticated: boolean) {
+    if (this._disposed) return;
     if (!isAuthenticated) {
       this._clearReconnect();
-      if (this.socket.isConnected) {
-        this.socket.disconnect();
-      }
+      this.socket.disconnect();
     } else if (!this._disableSocket && !this.socket.isConnected) {
       this.handleSocketConnecting();
-      void this.socket.connect();
+      void this.socket.connect().catch((error) => {
+        this.logger.debug('WebSocket connection did not complete', error);
+      });
     }
   }
 
@@ -309,12 +352,20 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
    * After calling this method, the client should not be used.
    */
   dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
     this._clearReconnect();
-    this._socket.disconnect();
+    // Invalidate preparation before removing the auth listeners that normally
+    // advance the session on clear(). A pending renewal must not revive it.
+    this._auth._invalidateSession();
+    if (this._socket.dispose) this._socket.dispose();
+    else this._socket.disconnect();
     this._socket.removeAllListeners();
-    this._auth.removeAllListeners();
     this.removeAllListeners();
+    // Account/project listeners still need the clear event to discard their
+    // state and timers. The browser transport has already stopped forwarding it.
     this._auth.clear();
+    this._auth.removeAllListeners();
   }
 }
 
