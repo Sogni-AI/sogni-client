@@ -1,3 +1,10 @@
+## [5.58.2](https://github.com/Sogni-AI/sogni-client/compare/v5.58.1...v5.58.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* **media:** trust Sogni's R2 and S3 Transfer Acceleration media links ([b32faf8](https://github.com/Sogni-AI/sogni-client/commit/b32faf8b43b5449ceffd7bbf8c45b20011393090))
+
 ## [5.58.1](https://github.com/Sogni-AI/sogni-client/compare/v5.58.0...v5.58.1) (2026-09-27)
 
 
