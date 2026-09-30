@@ -405,6 +405,18 @@ async function readResponseBytes(
 
 const DEFAULT_REMOTE_MEDIA_FETCH_TIMEOUT_MS = 20_000;
 
+/**
+ * Cloudflare R2 buckets that hold Sogni's signed generation inputs and outputs.
+ * Matched by exact host only: every R2 customer serves from a subdomain of
+ * `r2.cloudflarestorage.com`, so a suffix match would trust anyone's bucket.
+ */
+const SOGNI_R2_MEDIA_HOSTS: ReadonlySet<string> = new Set([
+  'generation-output-production.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com',
+  'generation-output-staging.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com',
+  'generation-input-production.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com',
+  'generation-input-staging.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com'
+]);
+
 function trustedRemoteMediaUrl(value: string): URL | null {
   try {
     const url = new URL(value.trim());
@@ -414,10 +426,13 @@ function trustedRemoteMediaUrl(value: string): URL | null {
     const trusted =
       host === 'cdn.sogni.ai' ||
       host.endsWith('.sogni.ai') ||
+      SOGNI_R2_MEDIA_HOSTS.has(host) ||
       host === 'complete-images-production.s3.amazonaws.com' ||
       /^[a-z0-9.-]+\.s3\.amazonaws\.com$/i.test(host) ||
       /^[a-z0-9.-]+\.s3\.[a-z0-9-]+\.amazonaws\.com$/i.test(host) ||
       /^s3\.[a-z0-9-]+\.amazonaws\.com$/i.test(host) ||
+      // S3 Transfer Acceleration, which Sogni's signed result and upload links use.
+      /^[a-z0-9.-]+\.s3-accelerate(\.dualstack)?\.amazonaws\.com$/i.test(host) ||
       host.endsWith('.cloudfront.net');
     return trusted ? url : null;
   } catch {

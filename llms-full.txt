@@ -101,7 +101,7 @@ const project = await sogni.projects.create({
 });
 
 const urls = await project.waitForCompletion();
-console.log('Image URL:', urls[0]); // Valid for 24 hours
+console.log('Image URL:', urls[0]); // Signed link, valid for 48 hours
 ```
 
 MINIMAL VIDEO GENERATION:
@@ -1278,7 +1278,7 @@ Ref2VA (`_r2v`) is a separate checkpoint. It has no frame anchors, so
 `referenceImageEnd` is rejected; references are labelled material the prompt
 assigns jobs to (`<Picture i>`, `<Video k>`, `<Audio j>`, numbered from 1 per
 type). Because it renders on a Sogni worker rather than at a vendor, every artist
-reference uses the normal S3 upload path: `referenceImage` + `contextImages` for
+reference uses the normal Sogni upload path: `referenceImage` + `contextImages` for
 images, `referenceVideo` + `referenceVideos` for videos, and `referenceAudio` +
 `referenceAudios` for audio. Direct URL arrays are rejected. Optional
 `referenceVideoDurations` is optional early-validation metadata in matching
@@ -1460,7 +1460,7 @@ const project = await sogni.projects.create({
 });
 
 const urls = await project.waitForCompletion();
-console.log(urls[0]); // Audio URL (valid 24 hours)
+console.log(urls[0]); // Signed audio URL (valid 48 hours)
 ```
 
 TEXT-TO-MUSIC (With Lyrics):

@@ -502,7 +502,7 @@ function validateVideoReferenceArrays(params: VideoProjectParams): void {
  *
  * r2v takes up to 9 images, 3 videos, 3 audio clips, and 12 files in total.
  * Because it renders on a Sogni worker rather than at an external vendor, every
- * reference uses the S3 upload path. At least one visual reference (image or
+ * reference uses the Sogni upload path. At least one visual reference (image or
  * video) is required; audio alone cannot condition the visual stream.
  */
 function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {

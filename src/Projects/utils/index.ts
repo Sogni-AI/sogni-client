@@ -887,7 +887,7 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
  * MiniMax H3 reference ceilings, taken from the `MiniMaxH3ReferenceToVideo`
  * node: up to 9 reference images, 3 reference videos (24fps, 2-15s each), and
  * 3 reference audio clips, with at most 12 reference files in total. Every H3
- * reference uses the Sogni S3 upload path; see `countMinimaxH3References`.
+ * reference uses the Sogni upload path; see `countMinimaxH3References`.
  */
 export const MINIMAX_H3_MAX_REFERENCE_IMAGES = 9;
 export const MINIMAX_H3_MAX_REFERENCE_VIDEOS = 3;

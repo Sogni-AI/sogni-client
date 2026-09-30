@@ -76,7 +76,9 @@ One request for image or video generation is called a **Project**. A project can
 Each generated image or video is represented by a **Job**.
 
 When you send a project to Supernet, it will be processed by one or more workers. The resulting media will be encrypted and
-uploaded to Sogni servers where it will be stored for 24 hours. After this period, media files will be auto-deleted.
+uploaded to Sogni's temporary media storage. Result URLs are signed download links that stay valid for 48 hours; after that
+the media is auto-deleted, so download anything you want to keep. Treat the links as opaque: the storage host behind them
+can change (for example from Amazon S3 to Cloudflare R2).
 
 ## Client initialization
 
@@ -373,7 +375,7 @@ project.on('progress', (progress) => {
 
 const imageUrls = await project.waitForCompletion();
 // Now you can use image URLs to download images.
-// Note that images will be available for 24 hours only!
+// Note that these are signed links, valid for 48 hours only!
 console.log('Image URLs:', imageUrls);
 ```
 

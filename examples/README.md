@@ -1085,7 +1085,7 @@ output/
 └── ...
 ```
 
-**Important:** Media are also stored on Sogni servers for 24 hours, after which they are automatically deleted. The examples automatically download your generated media!
+**Important:** Result links are signed and stay valid for 48 hours, after which the media is automatically deleted. The examples automatically download your generated media!
 
 ### Auto-Opening Files
 

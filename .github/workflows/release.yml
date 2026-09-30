@@ -84,6 +84,8 @@ jobs:
         run: node scripts/check-image-export-options.cjs
       - name: Run result download endpoint checks
         run: node scripts/check-result-download-endpoint.cjs
+      - name: Run trusted remote media host checks
+        run: node scripts/check-remote-media-hosts.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
