@@ -56,6 +56,7 @@ import {
   loadTokenTypePreference,
   saveTokenTypePreference
 } from './credentials.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const streamPipeline = promisify(pipeline);
 
@@ -331,7 +332,7 @@ async function main() {
 
   const credentials = await loadCredentials();
   const clientConfig = {
-    appId: `sogni-workflow-t2s-${Date.now()}`,
+    appId: exampleAppId('workflow-t2s'),
     // Speech ships in the CU13 opt-in worker pack, which only Fast carries.
     network: 'fast'
   };

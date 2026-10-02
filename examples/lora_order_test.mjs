@@ -13,6 +13,7 @@
 import { SogniClient } from '../dist/index.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { exampleAppId } from './app-id.mjs';
 
 function arg(name, fallback) {
   const hit = process.argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
@@ -42,7 +43,7 @@ function permutations(items) {
 const apiKey = process.env.SOGNI_API_KEY;
 fs.mkdirSync(OUT, { recursive: true });
 const sogni = await SogniClient.createInstance({
-  appId: `lora-order-${Date.now()}`,
+  appId: exampleAppId('lora-order'),
   network: 'fast',
   apiKey
 });

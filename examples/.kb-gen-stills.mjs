@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SogniClient } from '../dist/index.js';
+import { exampleAppId } from './app-id.mjs';
 
 if (process.argv.includes('--help')) {
   console.log('MODEL_ID=<model> SHOTS=<shots.json> node examples/.kb-gen-stills.mjs <output-dir>');
@@ -54,7 +55,7 @@ if (!listOnly) {
 }
 
 const client = await SogniClient.createInstance({
-  appId: `still-batch-${Date.now()}`,
+  appId: exampleAppId('still-batch'),
   network: 'fast',
   apiKey: process.env.SOGNI_API_KEY
 });

@@ -94,6 +94,7 @@ import {
   billingModeLabel,
   shouldCheckTokenBalance
 } from './workflow-helpers.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const streamPipeline = promisify(pipeline);
 const execFileAsync = promisify(execFile);
@@ -623,7 +624,7 @@ async function main() {
 
   // Initialize client
   const clientConfig = {
-    appId: `sogni-workflow-s2v-${Date.now()}`,
+    appId: exampleAppId('workflow-s2v'),
     network: 'fast'
   };
 

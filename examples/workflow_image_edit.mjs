@@ -68,6 +68,7 @@ import {
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const streamPipeline = promisify(pipeline);
 
@@ -462,7 +463,7 @@ async function main() {
 
   // Initialize client
   const clientConfig = {
-    appId: `sogni-workflow-image-edit-${Date.now()}`,
+    appId: exampleAppId('workflow-image-edit'),
     network: 'fast'
   };
 

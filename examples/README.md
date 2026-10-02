@@ -196,7 +196,16 @@ SOGNI_TESTNET=false
 # Optional: Custom endpoints (usually not needed)
 # SOGNI_SOCKET_ENDPOINT=wss://socket.sogni.ai
 # SOGNI_REST_ENDPOINT=https://api.sogni.ai
+
+# Optional: your own app ID (by default each example creates one on first run and reuses it)
+# SOGNI_APP_ID=my-sogni-examples
 ```
+
+Each example connects with a stable app ID, saved in `examples/.app-ids.json` the first time it
+runs (see `app-id.mjs`). Reusing it is what lets the SDK recover a run's projects after a restart,
+and a new ID on every run counts against the account's daily app-ID allowance (error 4061). Two
+runs of the same example at once need different `SOGNI_APP_ID`s: a second connection with the same
+ID closes the first.
 
 ---
 

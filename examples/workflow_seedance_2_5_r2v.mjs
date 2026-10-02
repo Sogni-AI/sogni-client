@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials } from './credentials.mjs';
 import { CONFIRM_VENDOR_SPEND_FLAG, confirmVendorSpend } from './vendor-spend.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const DEFAULT_ENDPOINT = 'https://api.sogni.ai';
 const DEFAULT_MODEL = 'seedance-2-5';
@@ -469,7 +470,7 @@ Local files use the existing Sogni signed upload flow; hosted media must use HTT
 
 async function createClient(credentials, options) {
   const config = {
-    appId: `sogni-seedance-r2v-${options.layer}-${Date.now()}`,
+    appId: exampleAppId(`seedance-r2v-${options.layer}`),
     network: 'fast'
   };
   if (credentials.apiKey) config.apiKey = credentials.apiKey;

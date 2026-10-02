@@ -70,6 +70,7 @@ import {
   billingModeLabel,
   shouldCheckTokenBalance
 } from './workflow-helpers.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const streamPipeline = promisify(pipeline);
 
@@ -406,7 +407,7 @@ async function main() {
   // Initialize client - reuse early connection if available, otherwise create new one
   if (!sogni) {
     const clientConfig = {
-      appId: `sogni-workflow-t2i-${Date.now()}`,
+      appId: exampleAppId('workflow-t2i'),
       network: 'fast'
     };
 

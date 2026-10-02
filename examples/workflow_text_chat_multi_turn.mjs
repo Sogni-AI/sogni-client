@@ -50,6 +50,7 @@ import {
   shouldCheckTokenBalance
 } from './workflow-helpers.mjs';
 import * as readline from 'node:readline';
+import { exampleAppId } from './app-id.mjs';
 
 const DEFAULT_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_SYSTEM = 'You are a helpful assistant.';
@@ -225,7 +226,7 @@ async function main() {
   }
 
   const sogni = await SogniClient.createInstance({
-    appId: `sogni-chat-multi-${Date.now()}`,
+    appId: exampleAppId('chat-multi-turn'),
     network: 'fast',
     ...(credentials.apiKey && { apiKey: credentials.apiKey }),
     ...(testnet && { testnet }),

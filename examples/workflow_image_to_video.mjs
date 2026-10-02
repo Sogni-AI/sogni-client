@@ -92,6 +92,7 @@ import {
   billingModeLabel,
   shouldCheckTokenBalance
 } from './workflow-helpers.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const streamPipeline = promisify(pipeline);
 
@@ -551,7 +552,7 @@ async function main() {
 
   // Initialize client
   const clientConfig = {
-    appId: `sogni-workflow-i2v-${Date.now()}`,
+    appId: exampleAppId('workflow-i2v'),
     network: 'fast'
   };
 

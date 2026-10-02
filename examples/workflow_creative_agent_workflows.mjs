@@ -25,6 +25,7 @@ import {
   parseBillingModeArg
 } from './workflow-helpers.mjs';
 import { CONFIRM_VENDOR_SPEND_FLAG, confirmVendorSpend } from './vendor-spend.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 // Our own GPU model by default; vendor models such as gpt-image-2 need --confirm-vendor-spend.
 const DEFAULT_IMAGE_MODEL = 'krea-2-turbo';
@@ -145,7 +146,7 @@ async function createClient(credentials) {
   }
 
   const clientConfig = {
-    appId: `sogni-creative-workflows-${Date.now()}`,
+    appId: exampleAppId('creative-workflows'),
     network: 'fast',
     apiKey: credentials.apiKey,
     disableSocket: true

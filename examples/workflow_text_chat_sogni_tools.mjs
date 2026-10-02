@@ -70,6 +70,7 @@ import * as fs from 'node:fs';
 import { execFile } from 'node:child_process';
 import { platform } from 'node:os';
 import { resolve } from 'node:path';
+import { exampleAppId } from './app-id.mjs';
 
 const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_IMAGE_MODEL = 'z_image_turbo_bf16';
@@ -1448,7 +1449,7 @@ async function main() {
   if (testnet) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
   const sogni = await SogniClient.createInstance({
-    appId: `sogni-platform-tools-${Date.now()}`,
+    appId: exampleAppId('platform-tools'),
     network: 'fast',
     ...(credentials.apiKey && { apiKey: credentials.apiKey }),
     ...(testnet && { testnet }),

@@ -11,6 +11,7 @@ dist-esm
 examples/output
 examples/results
 examples/toprocess
+examples/.app-ids.json
 docs/superpowers/
 src/Chat/_hostedToolsManifest.generated.ts
 src/version.ts

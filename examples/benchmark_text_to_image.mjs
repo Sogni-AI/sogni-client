@@ -49,6 +49,7 @@ import {
   defaultExamplesOutputDir,
   parseBillingModeArg
 } from './workflow-helpers.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const streamPipeline = promisify(pipeline);
 
@@ -437,7 +438,7 @@ async function main() {
   }
 
   const clientConfig = {
-    appId: `sogni-benchmark-${Date.now()}`,
+    appId: exampleAppId('benchmark-t2i'),
     network: OPTIONS.network
   };
 

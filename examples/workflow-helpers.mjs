@@ -13,6 +13,7 @@ import { exec } from 'node:child_process';
 import imageSize from 'image-size';
 import sharp from 'sharp';
 import { SogniClient } from '../dist/index.js';
+import { exampleAppId } from './app-id.mjs';
 
 const EXAMPLES_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -2300,7 +2301,7 @@ export async function createSogniConnection(credentials) {
   }
 
   const clientConfig = {
-    appId: `sogni-workflow-options-${Date.now()}`,
+    appId: exampleAppId('workflow-options'),
     network: 'fast'
   };
 

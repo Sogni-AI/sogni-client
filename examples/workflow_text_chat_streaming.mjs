@@ -38,6 +38,7 @@ import {
   parseBillingModeArg,
   shouldCheckTokenBalance
 } from './workflow-helpers.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const DEFAULT_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_SYSTEM = 'You are a helpful assistant.';
@@ -237,7 +238,7 @@ async function main() {
   }
 
   const sogni = await SogniClient.createInstance({
-    appId: `sogni-chat-stream-${Date.now()}`,
+    appId: exampleAppId('chat-streaming'),
     network: 'fast',
     ...(credentials.apiKey && { apiKey: credentials.apiKey }),
     ...(testnet && { testnet }),
