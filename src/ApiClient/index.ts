@@ -186,6 +186,7 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     this._disableSocket = disableSocket;
     this._auth.on('updated', this.handleAuthUpdated.bind(this));
     this._socket.on('connected', this.handleSocketConnect.bind(this));
+    this._socket.on('authenticated', this.handleSocketAuthenticated.bind(this));
     this._socket.on('disconnected', this.handleSocketDisconnect.bind(this));
   }
 
@@ -236,9 +237,17 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
 
   handleSocketConnect({ network }: ServerConnectData) {
     if (this._disposed) return;
-    this._reconnectAttempt = 0;
+    // The reconnect backoff resets on `authenticated`, not here. A server that
+    // accepts the connection and closes it before authenticating (admission
+    // closed during a deploy, an overloaded host) would otherwise be retried
+    // about once a second for as long as it keeps doing that.
     this._clearReconnect();
     this.emit('connected', { network });
+  }
+
+  handleSocketAuthenticated() {
+    if (this._disposed) return;
+    this._reconnectAttempt = 0;
   }
 
   handleSocketDisconnect(data: ServerDisconnectData) {
