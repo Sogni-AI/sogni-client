@@ -1,3 +1,15 @@
+# [5.60.0](https://github.com/Sogni-AI/sogni-client/compare/v5.59.0...v5.60.0) (2026-10-02)
+
+
+### Bug Fixes
+
+* **chat:** send a model-less music track over 300 s to ACE-Step ([f331df4](https://github.com/Sogni-AI/sogni-client/commit/f331df4b3e2b237e3b26aa001801c5fe2b2173e6))
+
+
+### Features
+
+* **chat:** make MiniMax Music 3 the default music model ([b600679](https://github.com/Sogni-AI/sogni-client/commit/b600679d18e18e40d236126e15f7282bae1d7171))
+
 # [5.59.0](https://github.com/Sogni-AI/sogni-client/compare/v5.58.2...v5.59.0) (2026-10-02)
 
 
