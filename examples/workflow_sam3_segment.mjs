@@ -2,7 +2,8 @@
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
+import { exampleAppId } from './app-id.mjs';
 
 export function parseOptions(args) {
   const options = { points: [], boxes: [], source: '', text: '', output: resolve('output', `sam3-${Date.now()}`), run: false };
@@ -54,7 +55,7 @@ async function main() {
   const { SogniClient } = await import('../dist/index.js');
   const { loadCredentials } = await import('./credentials.mjs');
   const credentials = await loadCredentials();
-  const client = await SogniClient.createInstance({ appId: `sam3-example-${randomUUID()}`, appSource: 'sogni-sdk-examples', network: 'fast', logLevel: 'error', ...(credentials.apiKey ? { apiKey: credentials.apiKey, authType: 'apiKey' } : {}) });
+  const client = await SogniClient.createInstance({ appId: exampleAppId('sam3-segment'), appSource: 'sogni-sdk-examples', network: 'fast', logLevel: 'error', ...(credentials.apiKey ? { apiKey: credentials.apiKey, authType: 'apiKey' } : {}) });
   let projectId;
   try {
     if (!credentials.apiKey) await client.account.login(credentials.username, credentials.password);
@@ -73,15 +74,28 @@ async function main() {
       outputFormat: 'png', tokenType: 'spark', billingMode: 'tokens', disableNSFWFilter: false, network: 'fast' });
     projectId = project.id;
     await writeFile(resolve(options.output, 'project.json'), JSON.stringify({ projectId, sourceSha256: hash(source), modelId, sam3Prompt, startedAt }, null, 2));
-    let result;
-    while (Date.now() - startedAt < 10 * 60_000) {
-      try { result = await client.projects.get(projectId); }
-      catch (error) { if (error.status && ![404, 429].includes(error.status) && error.status < 500) throw error; }
-      if (result?.status === 'completed') break;
-      if (['errored', 'cancelled'].includes(result?.status) || ['failed', 'canceled'].includes(project.status)) throw new Error('The project did not complete');
-      await sleep(3000);
+    // Follow the project over the socket: no requests while it renders. Never poll for completion.
+    let timer;
+    try {
+      await Promise.race([
+        project.waitForCompletion().catch(() => { throw new Error('The project did not complete'); }),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out waiting; inspect the saved project ID before submitting a replacement')), 10 * 60_000); }),
+      ]);
+    } finally {
+      clearTimeout(timer);
     }
-    if (result?.status !== 'completed') throw new Error('Timed out waiting; inspect the saved project ID before submitting a replacement');
+    // The stored record carries the receipt fields. The socket stores it a moment after the project
+    // finishes, so a 404 is retried briefly; a 429 waits as long as Retry-After says (capped here).
+    let result;
+    for (let misses = 0, limited = 0; !result;) {
+      try { result = await client.projects.get(projectId); }
+      catch (error) {
+        if (error.status === 429 && ++limited <= 3) { await sleep(Math.min(error.retryAfter ?? 30, 300) * 1000); continue; }
+        if (error.status !== 404 || ++misses >= 6) throw error;
+        await sleep(2500);
+      }
+    }
+    if (result.status !== 'completed') throw new Error('The project did not complete');
     if (result.completedWorkerJobs.length !== 1) throw new Error('Expected one mask');
     const job = result.completedWorkerJobs[0];
     if (job.triggeredNSFWFilter || job.nsfwDetected || !job.imgID || !job.result?.sha256 || job.result.sourceImageSha256 !== hash(source)) throw new Error('The output is missing a valid source receipt');
