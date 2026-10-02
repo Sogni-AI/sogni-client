@@ -2,8 +2,9 @@
 /**
  * Text-to-Music Workflow
  *
- * This script generates music from text prompts using ACE-Step models
- * via the SDK's native audio project support.
+ * This script generates music from text prompts via the SDK's native audio
+ * project support. MiniMax Music 3 is the default; ACE-Step 1.5 models stay
+ * available with --model.
  *
  * Run with --help to print supported canonical model IDs and model-specific defaults.
  *
@@ -18,19 +19,22 @@
  *   node workflow_text_to_music.mjs "rock anthem" --model ace_step_1.5_xl_sft
  *
  * Options:
- *   --model           Canonical model ID (default: see --help)
- *   --duration        Duration in seconds (10-600, default: 30)
+ *   --model           Canonical model ID (default: minimax_music3, see --help)
+ *   --duration        Duration in seconds (Music 3: 10-300, default 60, a ceiling;
+ *                     ACE-Step: 10-600, default 30)
  *   --bpm             Beats per minute (30-300, default: 120)
  *   --keyscale        Musical key (e.g., "C major", "A minor", default: C major)
  *   --timesig         Time signature (2, 3, 4, 6, default: 4)
  *   --language        Lyrics language (default: auto-detect)
+ *                     Music 3 has no tempo/key/time-signature/language controls:
+ *                     with Music 3 these four are written into the prompt text.
  *   --lyrics          Song lyrics (default: included)
  *   --steps           Inference steps (model-dependent, see below)
- *   --guidance        Diffusion CFG guidance (1-15, default: 5, SFT only)
- *   --shift           Denoising shift (1-5, default: 3)
- *   --composer-mode   Enable AI composer (true/false, default: true)
- *   --prompt-strength How closely composer follows prompt (0-10, default: 2.0)
- *   --creativity      Composition variation (0-2, default: 0.85)
+ *   --guidance        Diffusion CFG guidance (model-dependent, see --help)
+ *   --shift           Denoising shift (1-5, default: 3, ACE-Step only)
+ *   --composer-mode   Enable AI composer (true/false, default: true, ACE-Step only)
+ *   --prompt-strength How closely the model follows the prompt (0-10)
+ *   --creativity      Composition variation (0-2, default: 0.85, ACE-Step only)
  *   --sampler         Sampler algorithm (model-dependent)
  *   --scheduler       Scheduler algorithm (model-dependent)
  *   --seed            Random seed (default: -1 for random)
@@ -70,12 +74,29 @@ import {
 
 const streamPipeline = promisify(pipeline);
 
-const DEFAULT_AUDIO_MODEL_ID = 'ace_step_1.5_xl_turbo';
+const DEFAULT_AUDIO_MODEL_ID = 'minimax_music3';
+const ACE_XL_TURBO_MODEL_ID = 'ace_step_1.5_xl_turbo';
+
+// MiniMax Music 3 ends an instrumental early unless the lyrics field carries a
+// skeleton of plain section tags where the words would go.
+const INSTRUMENTAL_SECTIONS = '[Intro]\n[Verse]\n[Chorus]\n[Verse]\n[Chorus]\n[Bridge]\n[Outro]';
 
 const AUDIO_MODELS = {
   [DEFAULT_AUDIO_MODEL_ID]: {
+    name: 'MiniMax Music 3',
+    description: 'Default. Best vocals, lyric adherence and song structure; duration is a ceiling',
+    aceControls: false,
+    steps: { min: 10, max: 100, default: 30 },
+    shift: null,
+    guidance: { min: 1, max: 5, default: 1.7 },
+    promptStrength: { min: 0, max: 10, default: 1.7 },
+    duration: { min: 10, max: 300, default: 60 },
+    sampler: { allowed: ['euler'], default: 'euler' },
+    scheduler: { allowed: ['simple'], default: 'simple' }
+  },
+  [ACE_XL_TURBO_MODEL_ID]: {
     name: 'ACE-Step 1.5 XL Turbo',
-    description: 'New default, fast generation, no CFG guidance',
+    description: 'Fast, low-cost drafts, no CFG guidance',
     steps: { min: 4, max: 16, default: 8 },
     shift: { min: 1, max: 5, default: 3 },
     guidance: null, // Turbo does not use CFG guidance
@@ -116,6 +137,26 @@ const AUDIO_MODEL_IDS = Object.keys(AUDIO_MODELS);
 function formatAudioModelHelpLine(modelId) {
   const model = AUDIO_MODELS[modelId];
   return `  ${modelId.padEnd(24)} ${model.name} - ${model.description}`;
+}
+
+// ACE-Step has dedicated tempo, key, time-signature, language, shift, composer
+// and creativity controls; MiniMax Music 3 has none of them.
+function hasAceControls(modelConfig) {
+  return modelConfig.aceControls !== false;
+}
+
+function durationRange(modelConfig) {
+  return modelConfig.duration || AUDIO_CONSTRAINTS.duration;
+}
+
+// Music 3 takes tempo, key, time signature and language as words in its prompt.
+function musicalDirectionsForPrompt(options) {
+  const parts = [];
+  if (options.bpm) parts.push(`Tempo: ${options.bpm} BPM.`);
+  if (options.keyscale) parts.push(`Key: ${options.keyscale}.`);
+  if (options.timesignature) parts.push(`Time signature: ${options.timesignature}/4.`);
+  if (options.language) parts.push(`Lyrics language: ${options.language}.`);
+  return parts.join(' ');
 }
 
 const AUDIO_CONSTRAINTS = {
@@ -261,7 +302,7 @@ function parseArgs() {
 
 function showHelp() {
   console.log(`
-Text-to-Music Workflow (ACE-Step)
+Text-to-Music Workflow (MiniMax Music 3 by default, ACE-Step with --model)
 
 Usage:
   node workflow_text_to_music.mjs                                    # Interactive mode
@@ -274,7 +315,8 @@ ${AUDIO_MODEL_IDS.map(formatAudioModelHelpLine).join('\n')}
 
 Options:
   --model           Canonical model ID (default: ${DEFAULT_AUDIO_MODEL_ID})
-  --duration        Duration in seconds (10-600, default: 30)
+  --duration        Duration in seconds (Music 3: 10-300, default 60, a ceiling;
+                    ACE-Step: 10-600, default 30)
   --bpm             Beats per minute (30-300, default: 120)
   --keyscale        Musical key, e.g. "C major", "A minor" (default: C major)
   --timesig         Time signature (2, 3, 4, 6 - default: 4)
@@ -283,15 +325,24 @@ Options:
                                fr, he, hi, hr, ht, hu, id, is, it, ja, ko, la, lt,
                                ms, ne, nl, no, pa, pl, pt, ro, ru, sa, sk, sr, sv,
                                sw, ta, te, th, tl, tr, uk, ur, vi, yue, zh, unknown
-  --lyrics          Song lyrics (default: included)
+                    Music 3 has no tempo, key, time-signature or language controls:
+                    with Music 3, --bpm/--keyscale/--timesig/--language are written
+                    into the prompt text instead.
+  --lyrics          Song lyrics (default: included; Music 3 wants plain section
+                    tags such as [Verse] and [Chorus] on their own lines)
   --steps           Inference steps (model-specific default)
-  --guidance        Diffusion CFG guidance (1-15, default: 5, SFT only)
-  --shift           Denoising shift (1-5, default: 3)
-  --composer-mode   Enable AI composer planner (true/false, default: true)
+  --guidance        Diffusion CFG guidance (Music 3: 1-5, default 1.7;
+                    ACE-Step SFT: 1-15; ACE-Step Turbo: none)
+  --shift           Denoising shift (1-5, default: 3, ACE-Step only)
+  --composer-mode   Enable AI composer planner (true/false, default: true, ACE-Step only)
                     Disable for faster generation or when using reference audio
-  --prompt-strength How closely composer follows your prompt (0-10, default: 2.0)
-  --creativity      Composition variation (0-2, default: 0.85)
+  --prompt-strength How closely the model follows your prompt (0-10,
+                    default: 1.7 for Music 3, 2.0 for ACE-Step)
+  --creativity      Composition variation (0-2, default: 0.85, ACE-Step only)
                     Higher = more creative, lower = more predictable
+                    Passing --shift, --composer-mode or --creativity without
+                    --model selects ${ACE_XL_TURBO_MODEL_ID}; with
+                    --model ${DEFAULT_AUDIO_MODEL_ID} they are an error.
   --sampler         Sampler algorithm (model-specific default)
   --scheduler       Scheduler algorithm (model-specific default)
   --seed            Random seed (default: -1 for random)
@@ -350,16 +401,22 @@ async function promptAudioOptions(options) {
   }
   console.log();
 
+  const selectedConfig = AUDIO_MODELS[options.model] || AUDIO_MODELS[DEFAULT_AUDIO_MODEL_ID];
+
   // Duration
   if (options.duration === null) {
-    const { min, max } = AUDIO_CONSTRAINTS.duration;
-    const defaultVal = AUDIO_CONSTRAINTS.duration.default;
-    const answer = await askQuestion(`Duration in seconds (${min}-${max}, default: ${defaultVal}): `);
+    const { min, max, default: defaultVal } = durationRange(selectedConfig);
+    const ceiling = hasAceControls(selectedConfig) ? '' : ', the song may end earlier';
+    const answer = await askQuestion(`Duration in seconds (${min}-${max}, default: ${defaultVal}${ceiling}): `);
     options.duration = answer ? parseInt(answer, 10) : null;
   }
 
+  if (!hasAceControls(selectedConfig)) {
+    console.log('  MiniMax Music 3 takes tempo and key in the prompt text, so there are no BPM/key questions.\n');
+  }
+
   // BPM
-  if (options.bpm === null) {
+  if (options.bpm === null && hasAceControls(selectedConfig)) {
     const { min, max } = AUDIO_CONSTRAINTS.bpm;
     const defaultVal = AUDIO_CONSTRAINTS.bpm.default;
     const answer = await askQuestion(`BPM (${min}-${max}, default: ${defaultVal}): `);
@@ -367,14 +424,14 @@ async function promptAudioOptions(options) {
   }
 
   // Key/Scale
-  if (options.keyscale === null) {
+  if (options.keyscale === null && hasAceControls(selectedConfig)) {
     const defaultVal = AUDIO_CONSTRAINTS.keyscale.default;
     const answer = await askQuestion(`Musical key (e.g. "C major", "A minor", default: ${defaultVal}): `);
     options.keyscale = answer || null;
   }
 
   // Time signature
-  if (options.timesignature === null) {
+  if (options.timesignature === null && hasAceControls(selectedConfig)) {
     const allowed = AUDIO_CONSTRAINTS.timesignature.allowed.join(', ');
     const defaultVal = AUDIO_CONSTRAINTS.timesignature.default;
     const answer = await askQuestion(`Time signature [${allowed}] (default: ${defaultVal}): `);
@@ -382,7 +439,7 @@ async function promptAudioOptions(options) {
   }
 
   // Language
-  if (options.language === null && options.lyrics) {
+  if (options.language === null && options.lyrics && hasAceControls(selectedConfig)) {
     const defaultVal = AUDIO_CONSTRAINTS.language.default;
     const answer = await askQuestion(`Lyrics language code (default: ${defaultVal}): `);
     options.language = answer || null;
@@ -419,7 +476,7 @@ function generateAudioFilename(params) {
   const parts = [
     'music',
     `${duration}s`,
-    `${bpm}bpm`,
+    bpm ? `${bpm}bpm` : '',
     keySlug,
     `seed${seed}`,
     promptSlug,
@@ -437,9 +494,25 @@ function generateAudioFilename(params) {
 async function main() {
   const OPTIONS = parseArgs();
 
+  // --shift, --composer-mode and --creativity exist only on ACE-Step: without
+  // --model they select ACE-Step 1.5 XL Turbo, said aloud; with
+  // --model minimax_music3 they are refused below.
+  const aceOnlyFlags = [
+    OPTIONS.shift !== null && '--shift',
+    OPTIONS.composerMode !== null && '--composer-mode',
+    OPTIONS.creativity !== null && '--creativity'
+  ].filter(Boolean);
+  if (!OPTIONS.model && aceOnlyFlags.length > 0) {
+    OPTIONS.model = ACE_XL_TURBO_MODEL_ID;
+    console.warn(
+      `Note: ${aceOnlyFlags.join(', ')} ${aceOnlyFlags.length === 1 ? 'is an ACE-Step setting' : 'are ACE-Step settings'}, ` +
+        `so this run uses ${AUDIO_MODELS[ACE_XL_TURBO_MODEL_ID].name}. Drop ${aceOnlyFlags.length === 1 ? 'it' : 'them'} ` +
+        `to use the default, ${AUDIO_MODELS[DEFAULT_AUDIO_MODEL_ID].name}.`
+    );
+  }
+
   console.log('╔══════════════════════════════════════════════════════════╗');
   console.log('║               Text-to-Music Workflow                     ║');
-  console.log('║                      ACE-Step                              ║');
   console.log('╚══════════════════════════════════════════════════════════╝');
   console.log();
 
@@ -467,13 +540,13 @@ async function main() {
         const answer = await askQuestion(`Guidance/CFG (${min}-${max}, default: ${defaultVal}): `);
         OPTIONS.guidance = answer ? parseFloat(answer) : null;
       }
-      if (OPTIONS.shift === null) {
+      if (OPTIONS.shift === null && interactiveModelConfig.shift) {
         const { min, max } = interactiveModelConfig.shift;
         const defaultVal = interactiveModelConfig.shift.default;
         const answer = await askQuestion(`Shift - denoising distribution (${min}-${max}, default: ${defaultVal}): `);
         OPTIONS.shift = answer ? parseFloat(answer) : null;
       }
-      if (OPTIONS.composerMode === null) {
+      if (OPTIONS.composerMode === null && hasAceControls(interactiveModelConfig)) {
         const defaultVal = AUDIO_CONSTRAINTS.composerMode.default;
         const answer = await askQuestion(`AI Composer mode (true/false, default: ${defaultVal}): `);
         if (answer) {
@@ -481,12 +554,13 @@ async function main() {
         }
       }
       if (OPTIONS.promptStrength === null) {
-        const { min, max } = AUDIO_CONSTRAINTS.promptStrength;
-        const defaultVal = AUDIO_CONSTRAINTS.promptStrength.default;
+        const range = interactiveModelConfig.promptStrength || AUDIO_CONSTRAINTS.promptStrength;
+        const { min, max } = range;
+        const defaultVal = range.default;
         const answer = await askQuestion(`Prompt strength - composer prompt adherence (${min}-${max}, default: ${defaultVal}): `);
         OPTIONS.promptStrength = answer ? parseFloat(answer) : null;
       }
-      if (OPTIONS.creativity === null) {
+      if (OPTIONS.creativity === null && hasAceControls(interactiveModelConfig)) {
         const { min, max } = AUDIO_CONSTRAINTS.creativity;
         const defaultVal = AUDIO_CONSTRAINTS.creativity.default;
         const answer = await askQuestion(`Creativity - composition variation (${min}-${max}, default: ${defaultVal}): `);
@@ -527,45 +601,69 @@ async function main() {
     process.exit(1);
   }
   const AUDIO_MODEL_ID = OPTIONS.model;
+  const aceControls = hasAceControls(modelConfig);
+  if (!aceControls && aceOnlyFlags.length > 0) {
+    console.error(
+      `Error: ${modelConfig.name} has no ${aceOnlyFlags.join(', ')} control. ` +
+        `Use --model ${ACE_XL_TURBO_MODEL_ID} for ACE-Step settings.`
+    );
+    process.exit(1);
+  }
 
   // Apply defaults (model-specific where applicable)
   if (!OPTIONS.prompt) OPTIONS.prompt = DEFAULT_PROMPT;
   if (OPTIONS.lyrics === null) OPTIONS.lyrics = DEFAULT_LYRICS;
-  if (!OPTIONS.duration) OPTIONS.duration = AUDIO_CONSTRAINTS.duration.default;
-  if (!OPTIONS.bpm) OPTIONS.bpm = AUDIO_CONSTRAINTS.bpm.default;
-  if (!OPTIONS.keyscale) OPTIONS.keyscale = AUDIO_CONSTRAINTS.keyscale.default;
-  if (!OPTIONS.timesignature) OPTIONS.timesignature = AUDIO_CONSTRAINTS.timesignature.default;
-  if (!OPTIONS.language) OPTIONS.language = AUDIO_CONSTRAINTS.language.default;
+  const DURATION = durationRange(modelConfig);
+  if (!OPTIONS.duration) OPTIONS.duration = DURATION.default;
+  if (!aceControls) {
+    // Music 3: tempo, key, time signature and language become prompt text, and
+    // an instrumental gets the section skeleton so it does not end early.
+    const directions = musicalDirectionsForPrompt(OPTIONS);
+    if (directions) {
+      OPTIONS.prompt = `${OPTIONS.prompt.trim().replace(/[\s.]+$/, '')}. ${directions}`;
+      console.log(`Note: ${modelConfig.name} takes tempo and key in the prompt; added "${directions}"`);
+    }
+    OPTIONS.bpm = null;
+    OPTIONS.keyscale = null;
+    OPTIONS.timesignature = null;
+    OPTIONS.language = null;
+    if (!OPTIONS.lyrics) OPTIONS.lyrics = INSTRUMENTAL_SECTIONS;
+  }
+  if (aceControls && !OPTIONS.bpm) OPTIONS.bpm = AUDIO_CONSTRAINTS.bpm.default;
+  if (aceControls && !OPTIONS.keyscale) OPTIONS.keyscale = AUDIO_CONSTRAINTS.keyscale.default;
+  if (aceControls && !OPTIONS.timesignature) OPTIONS.timesignature = AUDIO_CONSTRAINTS.timesignature.default;
+  if (aceControls && !OPTIONS.language) OPTIONS.language = AUDIO_CONSTRAINTS.language.default;
   if (!OPTIONS.steps) OPTIONS.steps = modelConfig.steps.default;
   if (OPTIONS.guidance === null || OPTIONS.guidance === undefined) {
     OPTIONS.guidance = modelConfig.guidance ? modelConfig.guidance.default : null;
   }
-  if (OPTIONS.shift === null || OPTIONS.shift === undefined) OPTIONS.shift = modelConfig.shift.default;
-  if (OPTIONS.composerMode === null || OPTIONS.composerMode === undefined) OPTIONS.composerMode = AUDIO_CONSTRAINTS.composerMode.default;
-  if (OPTIONS.promptStrength === null || OPTIONS.promptStrength === undefined) OPTIONS.promptStrength = AUDIO_CONSTRAINTS.promptStrength.default;
-  if (OPTIONS.creativity === null || OPTIONS.creativity === undefined) OPTIONS.creativity = AUDIO_CONSTRAINTS.creativity.default;
+  if (aceControls && (OPTIONS.shift === null || OPTIONS.shift === undefined)) OPTIONS.shift = modelConfig.shift.default;
+  if (aceControls && (OPTIONS.composerMode === null || OPTIONS.composerMode === undefined)) OPTIONS.composerMode = AUDIO_CONSTRAINTS.composerMode.default;
+  const PROMPT_STRENGTH = modelConfig.promptStrength || AUDIO_CONSTRAINTS.promptStrength;
+  if (OPTIONS.promptStrength === null || OPTIONS.promptStrength === undefined) OPTIONS.promptStrength = PROMPT_STRENGTH.default;
+  if (aceControls && (OPTIONS.creativity === null || OPTIONS.creativity === undefined)) OPTIONS.creativity = AUDIO_CONSTRAINTS.creativity.default;
   if (!OPTIONS.sampler) OPTIONS.sampler = modelConfig.sampler.default;
   if (!OPTIONS.scheduler) OPTIONS.scheduler = modelConfig.scheduler.default;
   if (!OPTIONS.format) OPTIONS.format = AUDIO_CONSTRAINTS.outputFormat.default;
 
   // Validate
-  if (OPTIONS.duration < AUDIO_CONSTRAINTS.duration.min || OPTIONS.duration > AUDIO_CONSTRAINTS.duration.max) {
-    console.error(`Error: Duration must be between ${AUDIO_CONSTRAINTS.duration.min} and ${AUDIO_CONSTRAINTS.duration.max} seconds`);
+  if (OPTIONS.duration < DURATION.min || OPTIONS.duration > DURATION.max) {
+    console.error(`Error: Duration must be between ${DURATION.min} and ${DURATION.max} seconds for ${modelConfig.name}`);
     process.exit(1);
   }
-  if (OPTIONS.bpm < AUDIO_CONSTRAINTS.bpm.min || OPTIONS.bpm > AUDIO_CONSTRAINTS.bpm.max) {
+  if (aceControls && (OPTIONS.bpm < AUDIO_CONSTRAINTS.bpm.min || OPTIONS.bpm > AUDIO_CONSTRAINTS.bpm.max)) {
     console.error(`Error: BPM must be between ${AUDIO_CONSTRAINTS.bpm.min} and ${AUDIO_CONSTRAINTS.bpm.max}`);
     process.exit(1);
   }
-  if (!AUDIO_CONSTRAINTS.keyscale.allowed.includes(OPTIONS.keyscale)) {
+  if (aceControls && !AUDIO_CONSTRAINTS.keyscale.allowed.includes(OPTIONS.keyscale)) {
     console.error(`Error: Key/scale must be one of: ${AUDIO_CONSTRAINTS.keyscale.allowed.slice(0, 6).join(', ')}...`);
     process.exit(1);
   }
-  if (!AUDIO_CONSTRAINTS.timesignature.allowed.includes(OPTIONS.timesignature)) {
+  if (aceControls && !AUDIO_CONSTRAINTS.timesignature.allowed.includes(OPTIONS.timesignature)) {
     console.error(`Error: Time signature must be one of: ${AUDIO_CONSTRAINTS.timesignature.allowed.join(', ')}`);
     process.exit(1);
   }
-  if (OPTIONS.lyrics && !AUDIO_CONSTRAINTS.language.allowed.includes(OPTIONS.language)) {
+  if (aceControls && OPTIONS.lyrics && !AUDIO_CONSTRAINTS.language.allowed.includes(OPTIONS.language)) {
     console.error(`Error: Language must be one of: ${AUDIO_CONSTRAINTS.language.allowed.join(', ')}`);
     process.exit(1);
   }
@@ -582,15 +680,15 @@ async function main() {
     console.warn(`Warning: ${modelConfig.name} does not use CFG guidance, ignoring --guidance`);
     OPTIONS.guidance = null;
   }
-  if (OPTIONS.shift < modelConfig.shift.min || OPTIONS.shift > modelConfig.shift.max) {
+  if (aceControls && (OPTIONS.shift < modelConfig.shift.min || OPTIONS.shift > modelConfig.shift.max)) {
     console.error(`Error: Shift must be between ${modelConfig.shift.min} and ${modelConfig.shift.max}`);
     process.exit(1);
   }
-  if (OPTIONS.promptStrength < AUDIO_CONSTRAINTS.promptStrength.min || OPTIONS.promptStrength > AUDIO_CONSTRAINTS.promptStrength.max) {
-    console.error(`Error: Prompt strength must be between ${AUDIO_CONSTRAINTS.promptStrength.min} and ${AUDIO_CONSTRAINTS.promptStrength.max}`);
+  if (OPTIONS.promptStrength < PROMPT_STRENGTH.min || OPTIONS.promptStrength > PROMPT_STRENGTH.max) {
+    console.error(`Error: Prompt strength must be between ${PROMPT_STRENGTH.min} and ${PROMPT_STRENGTH.max}`);
     process.exit(1);
   }
-  if (OPTIONS.creativity < AUDIO_CONSTRAINTS.creativity.min || OPTIONS.creativity > AUDIO_CONSTRAINTS.creativity.max) {
+  if (aceControls && (OPTIONS.creativity < AUDIO_CONSTRAINTS.creativity.min || OPTIONS.creativity > AUDIO_CONSTRAINTS.creativity.max)) {
     console.error(`Error: Creativity must be between ${AUDIO_CONSTRAINTS.creativity.min} and ${AUDIO_CONSTRAINTS.creativity.max}`);
     process.exit(1);
   }
@@ -696,7 +794,9 @@ async function main() {
     }
 
     // Show configuration
-    const lyricsDisplay = OPTIONS.lyrics
+    const lyricsDisplay = OPTIONS.lyrics === INSTRUMENTAL_SECTIONS
+      ? '(instrumental, section skeleton)'
+      : OPTIONS.lyrics
       ? (() => {
           const lines = OPTIONS.lyrics.split('\n').filter(l => l.trim());
           const firstLine = lines[0].length > 30 ? lines[0].substring(0, 30) + '...' : lines[0];
@@ -707,21 +807,27 @@ async function main() {
       Model: modelConfig.name,
       Prompt: OPTIONS.prompt,
       Lyrics: lyricsDisplay,
-      Duration: `${OPTIONS.duration}s`,
-      BPM: OPTIONS.bpm,
-      Key: OPTIONS.keyscale,
-      'Time Signature': `${OPTIONS.timesignature}/4`,
-      Language: OPTIONS.language,
-      Steps: OPTIONS.steps,
-      Shift: OPTIONS.shift
+      Duration: aceControls ? `${OPTIONS.duration}s` : `up to ${OPTIONS.duration}s`
     };
+    if (aceControls) {
+      Object.assign(configDisplay, {
+        BPM: OPTIONS.bpm,
+        Key: OPTIONS.keyscale,
+        'Time Signature': `${OPTIONS.timesignature}/4`,
+        Language: OPTIONS.language
+      });
+    }
+    configDisplay.Steps = OPTIONS.steps;
+    if (aceControls) configDisplay.Shift = OPTIONS.shift;
     if (OPTIONS.guidance !== null) {
       configDisplay.Guidance = OPTIONS.guidance;
     }
+    if (aceControls) {
+      configDisplay['Composer Mode'] = OPTIONS.composerMode ? 'Enabled' : 'Disabled';
+    }
+    configDisplay['Prompt Strength'] = OPTIONS.promptStrength;
+    if (aceControls) configDisplay.Creativity = OPTIONS.creativity;
     Object.assign(configDisplay, {
-      'Composer Mode': OPTIONS.composerMode ? 'Enabled' : 'Disabled',
-      'Prompt Strength': OPTIONS.promptStrength,
-      Creativity: OPTIONS.creativity,
       Sampler: OPTIONS.sampler,
       Scheduler: OPTIONS.scheduler,
       Format: OPTIONS.format,
@@ -821,16 +927,19 @@ async function main() {
       numberOfMedia: OPTIONS.batch,
       steps: OPTIONS.steps,
       ...(OPTIONS.guidance !== null && { guidance: OPTIONS.guidance }),
-      shift: OPTIONS.shift,
       seed: OPTIONS.seed !== null && OPTIONS.seed !== -1 ? OPTIONS.seed : undefined,
       duration: OPTIONS.duration,
-      bpm: OPTIONS.bpm,
-      keyscale: OPTIONS.keyscale,
-      timesignature: OPTIONS.timesignature,
-      language: OPTIONS.language,
-      composerMode: OPTIONS.composerMode,
+      // ACE-Step-only controls; MiniMax Music 3 reads tempo and key from the prompt.
+      ...(aceControls && {
+        shift: OPTIONS.shift,
+        bpm: OPTIONS.bpm,
+        keyscale: OPTIONS.keyscale,
+        timesignature: OPTIONS.timesignature,
+        language: OPTIONS.language,
+        composerMode: OPTIONS.composerMode,
+        creativity: OPTIONS.creativity
+      }),
       promptStrength: OPTIONS.promptStrength,
-      creativity: OPTIONS.creativity,
       sampler: OPTIONS.sampler,
       scheduler: OPTIONS.scheduler,
       outputFormat: OPTIONS.format,

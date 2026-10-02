@@ -75,7 +75,7 @@ console.log(urls[0]); // Signed video URL (valid 48 hours)
 3. **Video Generation (WAN 2.2)** - t2v, i2v, s2v, animate-move, animate-replace
 4. **Video Generation (LTX-2.3)** - Recommended video models with different fps behavior
 5. **Video Generation (Seedance 2.x)** - External API T2V/I2V/V2V at 24fps
-6. **Audio Generation (ACE-Step 1.5)** - Text-to-music with optional lyrics
+6. **Audio Generation (MiniMax Music 3, ACE-Step 1.5)** - Text-to-music with optional lyrics
 7. **LLM Text Generation** - Chat completions, streaming, multi-turn conversations
 8. **LLM Tool Calling** - Function calling with custom tools and Sogni platform tools
 9. **Vision Chat** - Multimodal image understanding with VLM (scene description, OCR, object detection, visual analysis)
@@ -722,18 +722,41 @@ The SDK rejects prompts, TeaCache, trimming, control nets, reference URLs, other
 
 ---
 
-## 6. Audio Generation (ACE-Step 1.5)
+## 6. Audio Generation (MiniMax Music 3, ACE-Step 1.5)
 
 ### Model Variants
 
 | Model ID                | Name                       | Description                                      |
 | ----------------------- | -------------------------- | ------------------------------------------------ |
-| ace_step_1.5_xl_turbo   | ACE-Step 1.5 XL Turbo      | Default fast generation, no CFG guidance         |
+| minimax_music3          | MiniMax Music 3            | Default. Best vocals, lyric adherence and song structure; 10-300 s, duration is a ceiling |
+| ace_step_1.5_xl_turbo   | ACE-Step 1.5 XL Turbo      | Fast, low-cost drafts, no CFG guidance           |
 | ace_step_1.5_xl_sft     | ACE-Step 1.5 XL SFT        | XL quality model with CFG guidance               |
 | ace_step_1.5_turbo      | ACE-Step 1.5 Turbo Legacy  | Legacy fast generation, no CFG guidance          |
 | ace_step_1.5_sft        | ACE-Step 1.5 SFT Legacy    | Legacy SFT model with CFG guidance               |
 
-### Text-to-Music (Instrumental)
+### Text-to-Music (MiniMax Music 3, the default)
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'audio',
+  modelId: 'minimax_music3',
+  positivePrompt:
+    'Global Metadata: upbeat electronic dance music at 128 BPM in C major, building to a euphoric drop. ' +
+    'Vocal Details: none, purely instrumental. ' +
+    'Arrangement: bright synth leads, driving bass, four-on-the-floor kick, rising risers into each chorus.',
+  // An instrumental still needs a skeleton of plain section tags, or it ends early.
+  lyrics: '[Intro]\n[Verse]\n[Chorus]\n[Verse]\n[Chorus]\n[Bridge]\n[Outro]',
+  numberOfMedia: 1,
+  duration: 60, // 10-300 seconds; a ceiling, the song may end earlier
+  steps: 30,
+  outputFormat: 'mp3'
+});
+const urls = await project.waitForCompletion();
+```
+
+MiniMax Music 3 has no `bpm`, `keyscale`, `timesignature`, `language`, `shift`, `composerMode` or `creativity` parameters: write the tempo and key into the prompt. Lyrics use plain section tags on their own lines (`[Intro]`, `[Verse]`, `[Pre-Chorus]`, `[Chorus]`, `[Post-Chorus]`, `[Bridge]`, `[Solo]`, `[Outro]`) with nothing else inside the brackets. `steps` is 10-100 (default 30), `guidance` 1-5 (default 1.7) and `promptStrength` 0-10 (default 1.7).
+
+### Text-to-Music (ACE-Step, Instrumental)
 
 ```javascript
 const project = await sogni.projects.create({
@@ -751,7 +774,7 @@ const project = await sogni.projects.create({
 const urls = await project.waitForCompletion();
 ```
 
-### Text-to-Music (With Lyrics)
+### Text-to-Music (ACE-Step, With Lyrics)
 
 ```javascript
 const project = await sogni.projects.create({
@@ -770,7 +793,7 @@ const project = await sogni.projects.create({
 });
 ```
 
-### Key Parameters
+### ACE-Step Key Parameters
 
 | Parameter      | Range        | Default | Notes                       |
 | -------------- | ------------ | ------- | --------------------------- |
@@ -938,7 +961,7 @@ Default generation models used by platform tools:
 | `sound_to_video` | ltx25-22b-int8_a2v_distilled / ltx25-22b-int8_ia2v_distilled / LTX 2.3 rollback | Audio-driven video generation |
 | `video_to_video` | ltx25-22b-int8_v2v_distilled / ltx25-22b-int8_v2v_dev / LTX 2.3 rollback / Seedance / WAN animate | Video transformation / motion transfer |
 | `upscale_video` | flashvsr_v1.1_tiny_long_bf16 | Promptless 1080p/1440p video upscale preserving frames, frame rate, and audio |
-| `generate_music` | ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo, fast music |
+| `generate_music` | minimax_music3 | MiniMax Music 3; ACE-Step 1.5 when named |
 
 ---
 

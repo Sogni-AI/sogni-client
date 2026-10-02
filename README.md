@@ -1757,7 +1757,7 @@ When helping users generate images, videos, or use LLM features with Sogni:
 
 1. **Image generation**: Use `type: 'image'` with models like `flux1-schnell-fp8`
 2. **Video generation**: Use `type: 'video'` with `network: 'fast'` (required)
-3. **Audio generation**: Use `type: 'audio'` with ACE-Step 1.5 models
+3. **Audio generation**: Use `type: 'audio'` with `minimax_music3` (MiniMax Music 3, the default) or ACE-Step 1.5 models
 4. **LLM text chat**: Use `sogni.chat.completions.create()` for text generation with streaming and tool calling
 5. **Sogni Platform Tools**: Combine LLM tool calling with Sogni media generation to create images, image edits, videos, audio-driven videos, video transforms, and music from natural language
 6. **Vision chat**: Use `qwen3.6-35b-a3b-gguf-iq4xs` VLM for multimodal image understanding with `image_url` content parts carrying inline base64 JPEG/PNG `data:` URIs. Vision requests allow up to 20 images, 10MB each, with longest side capped at 1024px. This 1024px dimension cap applies only to the vision `image_url` path, not to media-generation tool image inputs.

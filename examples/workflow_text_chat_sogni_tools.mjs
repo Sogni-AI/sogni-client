@@ -25,7 +25,7 @@
  * Default Generation Models:
  *   Image: z_image_turbo_bf16
  *   Video: ltx23-22b-fp8_t2v_distilled (LTX-2.3)
- *   Audio: ace_step_1.5_xl_turbo (ACE-Step 1.5 XL Turbo)
+ *   Audio: minimax_music3 (MiniMax Music 3)
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file
@@ -75,12 +75,18 @@ const DEFAULT_LLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_IMAGE_MODEL = 'z_image_turbo_bf16';
 const DEFAULT_VIDEO_MODEL = 'ltx23-22b-fp8_t2v_distilled';
 const DEFAULT_AUDIO_MODEL = {
-  id: 'ace_step_1.5_xl_turbo',
-  name: 'ACE-Step 1.5 XL Turbo',
-  steps: 8,
+  id: 'minimax_music3',
+  name: 'MiniMax Music 3',
+  steps: 30,
+  guidance: 1.7,
   sampler: 'euler',
-  scheduler: 'simple'
+  scheduler: 'simple',
+  // Duration is a ceiling: Music 3 may end the song earlier at a musical resolution.
+  duration: { min: 10, max: 300, default: 60 }
 };
+// MiniMax Music 3 ends an instrumental early unless the lyrics field carries a
+// skeleton of plain section tags where the words would go.
+const INSTRUMENTAL_SECTIONS = '[Intro]\n[Verse]\n[Chorus]\n[Verse]\n[Chorus]\n[Bridge]\n[Outro]';
 const OUTPUT_DIR = defaultExamplesOutputDir();
 
 // ============================================================
@@ -451,18 +457,16 @@ function openFile(filepath) {
 // Media-specific LLM System Prompts
 // ============================================================
 
-const AUDIO_SYSTEM_PROMPT = `You are an expert music producer. Craft a song specification using the compose_song tool.
+const AUDIO_SYSTEM_PROMPT = `You are an expert music producer writing for MiniMax Music 3. Craft a song specification using the compose_song tool.
 
-positivePrompt — Write a dense paragraph like a producer's brief covering: genre/subgenre, each instrument with ROLE+TEXTURE+BEHAVIOR, vocal character (gender, quality, delivery, processing), arrangement arc (open→build→peak→conclude), production aesthetic (polished, raw, gritty, airy). Do NOT include BPM or key in this field — use tempo feel words instead ("driving", "languid").
+positivePrompt — One flowing paragraph in three labeled parts: "Global Metadata: genre/subgenre, tempo in BPM, key, emotional progression across the song, production profile. Vocal Details: gender, timbre, delivery, harmonies (or: none, purely instrumental). Arrangement: primary and secondary instruments, groove, bass, percussion, textures, how sections evolve." Music 3 has no separate tempo or key setting, so the BPM and key belong in Global Metadata (Ballad 60-80, R&B/Hip-hop 80-100, Pop/Funk 100-130, Rock/EDM 120-140, DnB 170-180; minor keys for dark/intense, major for bright/upbeat).
 
-GOOD: "A driving post-punk arrangement with layered electric guitars--one clean arpeggiated, the other distorted chordal--over solid bassline and powerful drums. Male vocal delivered with angsty strained quality building into anthemic shouted chorus. Guitar solo with feedback and bends, then breakdown to core rhythmic elements."
+GOOD: "Global Metadata: driving post-punk at 150 BPM in E minor, tense verses opening into an anthemic chorus, raw live-room production. Vocal Details: male lead, strained and angsty, shouted gang vocals on the chorus. Arrangement: one clean arpeggiated guitar and one distorted chordal guitar over a solid bassline and powerful drums, a feedback-laden guitar solo, then a breakdown to the core rhythm."
 BAD: "Funk, Soul, Groove, Male Vocals" (tag list — write flowing sentences)
 
-lyrics — Use enriched section headers: [Intro - Arpeggiated Guitar], [Verse 1 - Slap Bass with soft male vocal], [Chorus - Horn Section staccato]. Write story/emotion with dynamic contrast. Empty string for instrumentals. Use \\n for newlines.
+lyrics — Put plain section tags on their own lines, chosen from [Intro], [Verse], [Pre-Chorus], [Chorus], [Post-Chorus], [Bridge], [Solo], [Outro]. Never put anything else inside the brackets (no "[Verse 1 - soft vocal]"). Write enough sections to fill the duration: the song ends when the lyric sheet runs out. For an instrumental, return only the tags, one per line, e.g. "[Intro]\\n[Verse]\\n[Chorus]\\n[Verse]\\n[Chorus]\\n[Bridge]\\n[Outro]". Use \\n for newlines.
 
-bpm — Ballad 60-80, R&B/Hip-hop 80-100, Pop/Funk 100-130, Rock/EDM 120-140, DnB 170-180.
-keyscale — Minor for dark/intense, Major for bright/upbeat.
-duration — Default 30s unless user specifies otherwise.`;
+duration — Seconds, 10-300. Default 60 unless the user specifies otherwise. It is a ceiling: the song may end earlier at a musical resolution.`;
 
 const CAMERA_MOVEMENTS = [
   'static tripod', 'slow push-in', 'slow pull-back',
@@ -564,15 +568,17 @@ const AUDIO_COMPOSITION_TOOL = {
     parameters: {
       type: 'object',
       properties: {
-        positivePrompt: { type: 'string', description: 'Dense paragraph describing the sound' },
-        lyrics: { type: 'string', description: 'Song lyrics with section headers, or empty string for instrumentals' },
-        bpm: { type: 'number', description: 'Beats per minute (60-300)' },
-        keyscale: { type: 'string', description: 'Key and scale, e.g. D minor' },
-        timesignature: { type: 'string', enum: ['2', '3', '4', '6'] },
-        duration: { type: 'number', description: 'Duration in seconds (10-600)' },
-        language: { type: 'string', description: 'ISO language code' },
+        positivePrompt: {
+          type: 'string',
+          description: 'Global Metadata / Vocal Details / Arrangement paragraph, with the BPM and key in it'
+        },
+        lyrics: {
+          type: 'string',
+          description: 'Lyrics under plain section tags such as [Verse] and [Chorus], or only the tags for an instrumental'
+        },
+        duration: { type: 'number', description: 'Duration in seconds (10-300), a ceiling' },
       },
-      required: ['positivePrompt', 'lyrics', 'bpm', 'keyscale', 'timesignature', 'duration', 'language'],
+      required: ['positivePrompt', 'lyrics', 'duration'],
     },
   },
 };
@@ -770,20 +776,8 @@ async function composeImage(sogni, userMessage, options, tokenType) {
 }
 
 // ============================================================
-// LLM: Compose a complete song specification for ACE-Step 1.5
+// LLM: Compose a complete song specification for MiniMax Music 3
 // ============================================================
-
-function normalizeKeyscale(keyscale) {
-  // Server expects "C major", "A# minor", etc. — note uppercase, scale lowercase.
-  // LLMs may return "C Major", "c major", "C MAJOR", etc.
-  const parts = keyscale.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    const note = parts.slice(0, -1).join(' ');
-    const scale = parts[parts.length - 1].toLowerCase();
-    return `${note} ${scale}`;
-  }
-  return keyscale;
-}
 
 function parseSongJSON(raw, fallbackPrompt) {
   const attempts = [
@@ -805,14 +799,11 @@ function parseSongJSON(raw, fallbackPrompt) {
     try {
       const parsed = attempt();
       if (parsed && parsed.positivePrompt) {
+        const { min, max, default: defaultDuration } = DEFAULT_AUDIO_MODEL.duration;
         return {
           positivePrompt: String(parsed.positivePrompt),
-          lyrics: String(parsed.lyrics || ''),
-          bpm: Math.max(30, Math.min(300, parseInt(parsed.bpm) || 120)),
-          keyscale: normalizeKeyscale(String(parsed.keyscale || 'C major')),
-          timesignature: String(parsed.timesignature || '4'),
-          duration: Math.max(10, Math.min(600, parseInt(parsed.duration) || 30)),
-          language: String(parsed.language || 'en'),
+          lyrics: String(parsed.lyrics || '').trim() || INSTRUMENTAL_SECTIONS,
+          duration: Math.max(min, Math.min(max, parseInt(parsed.duration) || defaultDuration)),
         };
       }
     } catch {
@@ -825,12 +816,8 @@ function parseSongJSON(raw, fallbackPrompt) {
   console.log(`  (Could not parse song JSON from LLM — raw ${raw.length} chars: ${preview}${raw.length > 200 ? '...' : ''})`);
   return {
     positivePrompt: fallbackPrompt,
-    lyrics: '',
-    bpm: 120,
-    keyscale: 'C major',
-    timesignature: '4',
-    duration: 30,
-    language: 'en',
+    lyrics: INSTRUMENTAL_SECTIONS,
+    duration: DEFAULT_AUDIO_MODEL.duration.default,
   };
 }
 
@@ -849,16 +836,13 @@ async function composeSong(sogni, userMessage, options, tokenType) {
     const raw = await streamComposition(sogni, messages, options, tokenType, [AUDIO_COMPOSITION_TOOL]);
     const songParams = parseSongJSON(raw, userMessage);
 
-    const tsLabels = { '2': '2/4', '3': '3/4', '4': '4/4', '6': '6/8' };
     console.log();
     console.log('  Song Composition:');
     console.log(`  Style:     ${songParams.positivePrompt}`);
-    console.log(`  BPM:       ${songParams.bpm}`);
-    console.log(`  Key:       ${songParams.keyscale}`);
-    console.log(`  Time:      ${tsLabels[songParams.timesignature] || songParams.timesignature}`);
-    console.log(`  Duration:  ${songParams.duration}s`);
-    console.log(`  Language:  ${songParams.language}`);
-    if (songParams.lyrics) {
+    console.log(`  Duration:  up to ${songParams.duration}s`);
+    if (songParams.lyrics === INSTRUMENTAL_SECTIONS) {
+      console.log('  Lyrics:    (instrumental, section skeleton)');
+    } else if (songParams.lyrics) {
       const lineCount = songParams.lyrics.split('\n').filter(l => l.trim()).length;
       console.log(`  Lyrics:    ${lineCount} lines`);
       console.log();
@@ -1247,13 +1231,10 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         network: 'fast',
         modelId,
         positivePrompt: songParams.positivePrompt,
-        language: songParams.language,
         numberOfMedia: quantity,
         duration: songParams.duration,
-        bpm: songParams.bpm,
-        keyscale: songParams.keyscale,
-        timesignature: songParams.timesignature,
         steps: audioSteps,
+        guidance: DEFAULT_AUDIO_MODEL.guidance,
         sampler: DEFAULT_AUDIO_MODEL.sampler,
         scheduler: DEFAULT_AUDIO_MODEL.scheduler,
         seed: -1,
@@ -1262,7 +1243,7 @@ async function generateMedia(sogni, mediaType, promptOrParams, tokenType, quanti
         billingMode: options.billingMode,
       };
 
-      // Only include lyrics if present (omit for instrumentals)
+      // Lyrics or, for an instrumental, the section skeleton.
       if (songParams.lyrics) {
         createParams.lyrics = songParams.lyrics;
       }

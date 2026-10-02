@@ -3,6 +3,7 @@ const { createHash } = require('node:crypto');
 const { EventEmitter } = require('node:events');
 const hostedAliasParityVector = require('./fixtures/hosted-tool-alias-parity.generated.json');
 const {
+  MUSIC_MODEL_IDS,
   PREFERRED_MODEL_IDS,
   assertHostedToolArguments,
   asBooleanValue,
@@ -124,7 +125,9 @@ const models = [
   { id: PREFERRED_MODEL_IDS.audio.aceStepXlTurbo, media: 'audio', workerCount: 1 },
   { id: PREFERRED_MODEL_IDS.audio.aceStepXlSft, media: 'audio', workerCount: 10 },
   { id: PREFERRED_MODEL_IDS.audio.aceStepTurbo, media: 'audio', workerCount: 1 },
-  { id: PREFERRED_MODEL_IDS.audio.aceStepSft, media: 'audio', workerCount: 20 }
+  { id: PREFERRED_MODEL_IDS.audio.aceStepSft, media: 'audio', workerCount: 20 },
+  { id: PREFERRED_MODEL_IDS.audio.minimaxMusic3, media: 'audio', workerCount: 1 },
+  { id: PREFERRED_MODEL_IDS.audio.qwen3TtsCustomVoice, media: 'audio', workerCount: 50 }
 ];
 
 assert.equal(clampVariationCount(99), 16);
@@ -174,12 +177,30 @@ assert.equal(
   PREFERRED_MODEL_IDS.video.animateMove
 );
 
+// MiniMax Music 3 is the default music model, whatever the worker counts.
+assert.equal(MUSIC_MODEL_IDS[0], PREFERRED_MODEL_IDS.audio.minimaxMusic3);
 assert.equal(
-  selectBackboneModel(models, {
+  MUSIC_MODEL_IDS.some((id) => id.startsWith('qwen3_tts_')),
+  false,
+  'speech models are never music candidates'
+);
+const musicSelection = (pool) =>
+  selectBackboneModel(pool, {
     mediaType: 'audio',
-    preferredModelIds: Object.values(PREFERRED_MODEL_IDS.audio)
-  }).modelId,
+    filter: (id) => MUSIC_MODEL_IDS.includes(id),
+    preferredModelIds: MUSIC_MODEL_IDS
+  }).modelId;
+assert.equal(musicSelection(models), PREFERRED_MODEL_IDS.audio.minimaxMusic3);
+assert.equal(
+  musicSelection(models.filter((model) => model.id !== PREFERRED_MODEL_IDS.audio.minimaxMusic3)),
   PREFERRED_MODEL_IDS.audio.aceStepXlTurbo
+);
+assert.throws(
+  () =>
+    musicSelection([
+      { id: PREFERRED_MODEL_IDS.audio.qwen3TtsCustomVoice, media: 'audio', workerCount: 50 }
+    ]),
+  /No compatible audio models currently available/
 );
 
 assert.equal(
@@ -1545,7 +1566,7 @@ assert.deepEqual(
   {
     ok: false,
     errors: [
-      'Argument "model" must be one of "ace_step_1.5_xl_turbo", "ace_step_1.5_xl_sft", "ace_step_1.5_turbo", "ace_step_1.5_sft", "minimax_music3"'
+      'Argument "model" must be one of "minimax_music3", "ace_step_1.5_xl_turbo", "ace_step_1.5_xl_sft", "ace_step_1.5_turbo", "ace_step_1.5_sft"'
     ]
   }
 );
@@ -1870,7 +1891,68 @@ async function checkCanonicalDirectVideoExecution() {
   }
 }
 
+async function checkMusicExecution() {
+  let capturedParams;
+  const audio = (id, workerCount) => ({ id, media: 'audio', workerCount });
+  const musicProjects = (available) => ({
+    waitForModels: async () => available,
+    create: async (params) => {
+      capturedParams = params;
+      const project = new EventEmitter();
+      project.id = 'project_direct_music_test';
+      project.jobs = [];
+      project.finished = false;
+      project.waitForCompletion = async () => ['https://cdn.sogni.ai/direct-music-test.mp3'];
+      project.cancel = async () => {};
+      return project;
+    }
+  });
+  const pool = [
+    audio(PREFERRED_MODEL_IDS.audio.aceStepXlTurbo, 30),
+    audio(PREFERRED_MODEL_IDS.audio.minimaxMusic3, 1),
+    audio(PREFERRED_MODEL_IDS.audio.qwen3TtsCustomVoice, 50)
+  ];
+  const musicCall = (args) => ({
+    id: 'call_direct_music_test',
+    type: 'function',
+    function: {
+      name: 'generate_music',
+      arguments: JSON.stringify({ prompt: 'Warm lo-fi hip hop at 84 BPM in A minor', ...args })
+    }
+  });
+  const aceArgs = { bpm: 84, keyscale: 'A minor', duration: 90 };
+
+  // No model named: MiniMax Music 3, without the ACE-Step-only controls.
+  const defaultResult = await new ChatToolsApi(musicProjects(pool)).execute(musicCall(aceArgs));
+  assert.equal(defaultResult.success, true, defaultResult.error);
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.audio.minimaxMusic3);
+  assert.equal(capturedParams.duration, 90);
+  for (const key of ['bpm', 'keyscale', 'timesignature', 'language', 'composerMode', 'creativity']) {
+    assert.equal(key in capturedParams, false, `${key} is not sent with MiniMax Music 3`);
+  }
+
+  // ACE-Step named explicitly: still available, with its controls.
+  capturedParams = undefined;
+  const aceResult = await new ChatToolsApi(musicProjects(pool)).execute(
+    musicCall({ ...aceArgs, model: PREFERRED_MODEL_IDS.audio.aceStepXlTurbo })
+  );
+  assert.equal(aceResult.success, true, aceResult.error);
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.audio.aceStepXlTurbo);
+  assert.equal(capturedParams.bpm, 84);
+  assert.equal(capturedParams.keyscale, 'A minor');
+
+  // Only a speech model online: a song request fails rather than reading the prompt aloud.
+  capturedParams = undefined;
+  const speechOnly = await new ChatToolsApi(
+    musicProjects([audio(PREFERRED_MODEL_IDS.audio.qwen3TtsCustomVoice, 50)])
+  ).execute(musicCall({}));
+  assert.equal(speechOnly.success, false);
+  assert.match(speechOnly.error, /No compatible audio models currently available/);
+  assert.equal(capturedParams, undefined);
+}
+
 checkCanonicalDirectVideoExecution()
+  .then(checkMusicExecution)
   .then(() => console.log('chat model routing parity checks passed'))
   .catch((error) => {
     console.error(error);

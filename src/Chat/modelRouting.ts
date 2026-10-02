@@ -165,17 +165,31 @@ export const PREFERRED_MODEL_IDS = {
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
   audio: {
+    // Music, in preference order: MiniMax Music 3 is the default music model;
+    // ACE-Step is the explicit draft or legacy choice.
+    minimaxMusic3: 'minimax_music3',
     aceStepXlTurbo: 'ace_step_1.5_xl_turbo',
     aceStepXlSft: 'ace_step_1.5_xl_sft',
     aceStepTurbo: 'ace_step_1.5_turbo',
     aceStepSft: 'ace_step_1.5_sft',
-    minimaxMusic3: 'minimax_music3',
     // Speech, not music: the same audio media type, a different job entirely.
     qwen3TtsCustomVoice: 'qwen3_tts_1.7b_custom_voice_bf16',
     qwen3TtsVoiceClone: 'qwen3_tts_1.7b_voice_clone_bf16',
     qwen3TtsVoiceDesign: 'qwen3_tts_1.7b_voice_design_bf16'
   }
 } as const;
+
+/**
+ * Music models in preference order for a model-less generate_music call:
+ * MiniMax Music 3 first, then ACE-Step. Speech models are deliberately absent.
+ */
+export const MUSIC_MODEL_IDS: string[] = [
+  PREFERRED_MODEL_IDS.audio.minimaxMusic3,
+  PREFERRED_MODEL_IDS.audio.aceStepXlTurbo,
+  PREFERRED_MODEL_IDS.audio.aceStepXlSft,
+  PREFERRED_MODEL_IDS.audio.aceStepTurbo,
+  PREFERRED_MODEL_IDS.audio.aceStepSft
+];
 
 const GPT_IMAGE_MODEL_ALIASES = [
   'chatgpt',

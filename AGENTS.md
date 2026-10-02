@@ -72,7 +72,7 @@ Public chat and workflow media rules:
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2 and 2.5, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, Wan 3, LTX-2.3, Seedance 2.0 and 2.5, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), promptless video upscaling (FlashVSR v1.1), audio generation (ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2 and 2.5, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, Wan 3, LTX-2.3, Seedance 2.0 and 2.5, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), promptless video upscaling (FlashVSR v1.1), audio generation (MiniMax Music 3 by default, ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
 
 Choosing an image-edit model: pick by what the edit has to preserve, not by step count or quality tier. When a person or character must stay recognisable through the edit — style transfer, makeover, clothing or person swap, face swap, new pose or expression, character sheet — use Krea 2 Identity Edit (`krea2_identity_edit_v1_2`, or `dark_beast_krea2_identity_edit_v1_2` uncensored) with 1-2 context images. For general-purpose editing — photo transforms, in-image text, multi-person changes, combining up to 3 references — use a Qwen image-edit model. A higher-step general-purpose editor does not beat the identity model at a likeness task; it reinterprets the subject instead of preserving it. See `llms.txt` for parameters.
 
@@ -336,11 +336,32 @@ const project = await sogni.projects.create({
 const urls = await project.waitForCompletion();
 ```
 
-### Generate Music (ACE-Step 1.5)
+### Generate Music (MiniMax Music 3, the default)
 ```javascript
 const project = await sogni.projects.create({
   type: 'audio',
-  modelId: 'ace_step_1.5_turbo',  // or 'ace_step_1.5_sft'
+  modelId: 'minimax_music3',
+  positivePrompt:
+    'Global Metadata: upbeat electronic dance music at 128 BPM in C major, building to a euphoric drop. ' +
+    'Vocal Details: none, purely instrumental. ' +
+    'Arrangement: bright synth leads, driving bass, four-on-the-floor kick, rising risers into each chorus.',
+  // An instrumental still needs a skeleton of plain section tags, or it ends early.
+  lyrics: '[Intro]\n[Verse]\n[Chorus]\n[Verse]\n[Chorus]\n[Bridge]\n[Outro]',
+  numberOfMedia: 1,
+  duration: 60, // 10-300 seconds; a ceiling, the song may end earlier
+  steps: 30,
+  outputFormat: 'mp3'
+});
+const urls = await project.waitForCompletion();
+```
+
+MiniMax Music 3 has no `bpm`, `keyscale`, `timesignature`, `language`, `shift`, `composerMode` or `creativity` parameters: write the tempo and key into the prompt. Lyrics use plain section tags on their own lines (`[Intro]`, `[Verse]`, `[Pre-Chorus]`, `[Chorus]`, `[Post-Chorus]`, `[Bridge]`, `[Solo]`, `[Outro]`) with nothing else inside the brackets. `steps` is 10-100 (default 30), `guidance` 1-5 (default 1.7) and `promptStrength` 0-10 (default 1.7).
+
+### Generate Music (ACE-Step 1.5, when named)
+```javascript
+const project = await sogni.projects.create({
+  type: 'audio',
+  modelId: 'ace_step_1.5_xl_turbo',  // or 'ace_step_1.5_xl_sft'
   positivePrompt: 'Upbeat electronic dance music with synth leads',
   numberOfMedia: 1,
   duration: 30,       // 10-600 seconds
@@ -356,8 +377,11 @@ const urls = await project.waitForCompletion();
 ### Audio Model Variants
 | Model ID | Name | Description |
 |----------|------|-------------|
-| `ace_step_1.5_turbo` | Fast & Catchy | Quick generation, best quality sound |
-| `ace_step_1.5_sft` | More Control | More accurate lyrics, less stable |
+| `minimax_music3` | MiniMax Music 3 | Default. Best vocals, lyric adherence and song structure; 10-300 s, duration is a ceiling |
+| `ace_step_1.5_xl_turbo` | ACE-Step 1.5 XL Turbo | Fast, low-cost drafts |
+| `ace_step_1.5_xl_sft` | ACE-Step 1.5 XL SFT | XL quality model with CFG guidance |
+| `ace_step_1.5_turbo` | ACE-Step 1.5 Turbo (legacy) | Legacy fast generation |
+| `ace_step_1.5_sft` | ACE-Step 1.5 SFT (legacy) | Legacy SFT model |
 
 ### Video Workflow Asset Requirements
 | Workflow | Model Pattern | Required Assets |

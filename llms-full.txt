@@ -16,7 +16,7 @@ TABLE OF CONTENTS
 5. Video Generation - WAN 2.2 Models
 6. Video Generation - LTX-2.3 Models
 7. Video Generation - Seedance 2.x Models
-8. Audio Generation - ACE-Step 1.5 Models
+8. Audio Generation - MiniMax Music 3 and ACE-Step 1.5 Models
 9. LLM Text Generation
 10. LLM Tool Calling & Sogni Platform Tools
 11. Vision Chat (Multimodal Image Understanding)
@@ -37,7 +37,7 @@ for AI inference. It supports:
 
 - Image Generation: Stable Diffusion, Flux, Z-Image, Z-Image Turbo, Qwen Image Edit
 - Video Generation: WAN 2.2 (5 workflows), LTX-2.3 models, Seedance 2.0 external API models
-- Audio Generation: ACE-Step 1.5 music generation (XL Turbo, XL SFT, and legacy models)
+- Audio Generation: MiniMax Music 3 (default) and ACE-Step 1.5 music generation (XL Turbo, XL SFT, and legacy models)
 - LLM Text Generation: Chat completions with streaming, multi-turn, and thinking mode
 - LLM Tool Calling: OpenAI-compatible function calling with custom and platform tools
 - Sogni Platform Tools: Generate images, image edits, videos, audio-driven videos, video transforms, and music via natural language chat
@@ -1438,21 +1438,47 @@ optional `targetResolution` 1080 or 1440, and optional `detailPreference`,
 `processingSpeed` and `seed`); the server reads the source metadata
 itself, so the model never supplies frames or fps.
 
-================================================================================ 8. AUDIO GENERATION - ACE-STEP 1.5 MODELS
+================================================================================ 8. AUDIO GENERATION - MINIMAX MUSIC 3 AND ACE-STEP 1.5 MODELS
 ================================================================================
 
-ACE-Step 1.5 models generate music from text descriptions with optional lyrics.
-Use canonical model IDs; `ace_step_1.5_xl_turbo` is the default.
+MiniMax Music 3 and the ACE-Step 1.5 models generate music from text descriptions with optional lyrics.
+Use canonical model IDs; `minimax_music3` is the default. Use ACE-Step when the user asks for a quick,
+low-cost draft or names it.
 
 MODEL VARIANTS:
 | Model ID | Name | Description |
 |----------|------|-------------|
-| ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo | Default fast generation, no CFG guidance |
+| minimax_music3 | MiniMax Music 3 | Default. Best vocals, lyric adherence and song structure; 10-300 s, duration is a ceiling |
+| ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo | Fast, low-cost drafts, no CFG guidance |
 | ace_step_1.5_xl_sft | ACE-Step 1.5 XL SFT | XL quality model with CFG guidance |
 | ace_step_1.5_turbo | ACE-Step 1.5 Turbo Legacy | Legacy fast generation, no CFG guidance |
 | ace_step_1.5_sft | ACE-Step 1.5 SFT Legacy | Legacy SFT model with CFG guidance |
 
-TEXT-TO-MUSIC (Instrumental):
+TEXT-TO-MUSIC (MiniMax Music 3, the default):
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'audio',
+  modelId: 'minimax_music3',
+  positivePrompt:
+    'Global Metadata: upbeat electronic dance music at 128 BPM in C major, building to a euphoric drop. ' +
+    'Vocal Details: none, purely instrumental. ' +
+    'Arrangement: bright synth leads, driving bass, four-on-the-floor kick, rising risers into each chorus.',
+  // An instrumental still needs a skeleton of plain section tags, or it ends early.
+  lyrics: '[Intro]\n[Verse]\n[Chorus]\n[Verse]\n[Chorus]\n[Bridge]\n[Outro]',
+  numberOfMedia: 1,
+  duration: 60, // 10-300 seconds; a ceiling, the song may end earlier
+  steps: 30,
+  outputFormat: 'mp3'
+});
+
+const urls = await project.waitForCompletion();
+console.log(urls[0]); // Signed audio URL (valid 48 hours)
+```
+
+MiniMax Music 3 has no `bpm`, `keyscale`, `timesignature`, `language`, `shift`, `composerMode` or `creativity` parameters: write the tempo and key into the prompt. Lyrics use plain section tags on their own lines (`[Intro]`, `[Verse]`, `[Pre-Chorus]`, `[Chorus]`, `[Post-Chorus]`, `[Bridge]`, `[Solo]`, `[Outro]`) with nothing else inside the brackets. `steps` is 10-100 (default 30), `guidance` 1-5 (default 1.7) and `promptStrength` 0-10 (default 1.7).
+
+TEXT-TO-MUSIC (ACE-Step, Instrumental):
 
 ```javascript
 const project = await sogni.projects.create({
@@ -1472,7 +1498,7 @@ const urls = await project.waitForCompletion();
 console.log(urls[0]); // Signed audio URL (valid 48 hours)
 ```
 
-TEXT-TO-MUSIC (With Lyrics):
+TEXT-TO-MUSIC (ACE-Step, With Lyrics):
 
 ```javascript
 const project = await sogni.projects.create({
@@ -1933,7 +1959,7 @@ DEFAULT GENERATION MODELS (used by the canonical generation tools):
 | `generate_video` | ltx25-22b-int8_t2v_distilled / ltx25-22b-int8_i2v_distilled / LTX 2.3 rollback / Seedance selectors | Text-to-video or image-to-video |
 | `sound_to_video` | ltx25-22b-int8_a2v_distilled / ltx25-22b-int8_ia2v_distilled / LTX 2.3 rollback | Audio-driven video generation |
 | `video_to_video` | ltx25-22b-int8_v2v_distilled / ltx25-22b-int8_v2v_dev / LTX 2.3 rollback / Seedance / WAN animate | Video transformation / motion transfer |
-| `generate_music` | ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo, fast music generation |
+| `generate_music` | minimax_music3 | MiniMax Music 3; ACE-Step 1.5 when named |
 
 PLATFORM TOOL WORKFLOW:
 

@@ -26,25 +26,28 @@ const outFile = join(process.cwd(), 'src', 'Chat', '_hostedToolsManifest.generat
 const raw = await readFile(manifestPath, 'utf8');
 const manifest = JSON.parse(raw); // validate
 
+// MiniMax Music 3 first: it is the default music model.
 const audioModelIds = [
+  'minimax_music3',
   'ace_step_1.5_xl_turbo',
   'ace_step_1.5_xl_sft',
   'ace_step_1.5_turbo',
-  'ace_step_1.5_sft',
-  'minimax_music3'
+  'ace_step_1.5_sft'
 ];
 
-// @sogni-ai/sogni-protocol@1.0.0-alpha.6 still exposes legacy generate_music
-// selectors ("turbo", "sft"). The SDK accepts canonical model IDs only, so keep
-// the generated tool schema aligned with SDK routing until protocol catches up.
+// The protocol exposes generate_music selectors ("music3", "turbo", "sft").
+// The SDK accepts canonical model IDs only, so keep the generated tool schema
+// aligned with SDK routing.
 const generateMusicTool = manifest.tools?.find((tool) => tool?.function?.name === 'generate_music');
 const generateMusicModel = generateMusicTool?.function?.parameters?.properties?.model;
 if (generateMusicModel) {
   generateMusicModel.enum = audioModelIds;
   generateMusicModel.description =
-    'Canonical music model ID. Default: ace_step_1.5_xl_turbo. ' +
-    'Use minimax_music3 (MiniMax Music 3, premium autoregressive composer, ~20x cost, duration is a ceiling) ' +
-    'when the user asks for the best quality, realistic vocals, or full songs. ' +
+    'Canonical music model ID. Default: minimax_music3 (MiniMax Music 3, premium autoregressive composer ' +
+    'with the best vocals, lyric adherence and song structure; 10-300 s, and duration is a ceiling, so the ' +
+    'song may end earlier at a musical resolution). Music 3 takes tempo and key in the prompt text; bpm, ' +
+    'keyscale and timesig apply to ACE-Step only. ' +
+    'Use ace_step_1.5_xl_turbo only when the user asks for a quick, cheap or draft track, or names ACE-Step. ' +
     'Use ace_step_1.5_xl_sft only when the user explicitly requests XL SFT. ' +
     'Use legacy ace_step_1.5_turbo or ace_step_1.5_sft only when the user explicitly requests a legacy model.';
 }
