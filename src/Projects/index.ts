@@ -2566,6 +2566,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * A project that belongs to another account, or does not exist, rejects with a
    * 404 `ApiError`; a 503 means the server could not determine the state yet and
    * the call can be retried.
+   *
+   * A one-off read, not a way to wait: a tracked project settles over the
+   * socket (`project.waitForCompletion()`), and polling this spends the
+   * account's per-IP rate limit. On a 429 wait `ApiError.retryAfter` seconds.
    * @param projectId
    */
   async getStatus(projectId: string): Promise<ProjectStatusSnapshot> {
@@ -2586,6 +2590,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * which says whether it is held by the account's own plan concurrency or is
    * waiting for a worker. Needs an authenticated client; another account's or
    * an unknown project rejects with a 404 `ApiError`.
+   *
+   * Not for waiting on a project: never call it in a loop until it finishes.
+   * A tracked project settles over the socket (`project.waitForCompletion()`
+   * and its events) with no requests; after a restart, connect with the same
+   * `appId` and `projects.sync()` hands its projects back (`resolveMissing()`
+   * covers ids it no longer holds). Each call is a REST request against the
+   * account's per-IP rate limit, plus one signed-URL request per completed
+   * job. A 429 `ApiError` carries `retryAfter` (seconds): wait that long.
    *
    * @example
    * ```ts

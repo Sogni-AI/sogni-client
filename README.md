@@ -518,6 +518,15 @@ const { status, finished } = await sogni.projects.getStatus(projectId);
 if (!finished) console.log(`Still ${status}`);
 ```
 
+> **Don't poll for completion.** `getStatus()`, `getResult()` and `get()` are one-off reads, not a
+> way to wait. A project you created settles over the socket — `await project.waitForCompletion()`
+> or its `completed`/`failed` events — with no requests at all. After a restart, connect with the
+> same `appId` and the SDK's `projects.sync()` hands the projects back; `resolveMissing(ids)` covers
+> the ones it no longer holds. Every read counts against a per-IP rate limit shared by everyone on
+> that network, and `getResult()` also signs one download URL per completed job. When a request
+> fails with a 429 `ApiError`, wait `error.retryAfter` seconds before the next one; never retry
+> through it.
+
 The same snapshot also answers "is anything rendering elsewhere on this account?" — another tab in
 a different Sogni app, another device, a headless client. `sogni.projects.listProjectsElsewhere()`
 returns those in-flight projects read-only (`appSource`, `status`, `model`, per-job step counts) so an
@@ -1001,8 +1010,10 @@ const imported = await sogni.projects.personalLoras.import({
   rightsConfirmed: true,
 });
 const current = await sogni.projects.personalLoras.get(imported.id);
-// Importing is asynchronous. Poll get() until ready, rejected, or revoked;
-// queued, validating, and review are not usable yet. Surface reason/failureCode.
+// Importing is asynchronous and takes minutes; there is no event for it. Check get()
+// every 30 seconds or so until ready, rejected, or revoked (on a 429, wait
+// error.retryAfter seconds); queued, validating, and review are not usable yet.
+// Surface reason/failureCode.
 const { loras } = await sogni.projects.availableLoras({
   modelId: 'krea2_turbo_fp8_scaled', includePersonal: true,
 });
