@@ -1,3 +1,10 @@
+# [5.59.0](https://github.com/Sogni-AI/sogni-client/compare/v5.58.2...v5.59.0) (2026-10-02)
+
+
+### Features
+
+* **projects:** let ControlNet make its control map from a photo ([962bce3](https://github.com/Sogni-AI/sogni-client/commit/962bce367a5a31dd984f201ed049cea35f47b7b0))
+
 ## [5.58.2](https://github.com/Sogni-AI/sogni-client/compare/v5.58.1...v5.58.2) (2026-09-30)
 
 
