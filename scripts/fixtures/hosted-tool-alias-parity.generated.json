@@ -281,7 +281,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_music",
       "sdkToolName": "generate_music",
-      "hostedSchemaSha256": "73edb3933d5c453e61c5050c967e12cb586d6c69c3561563d40269f746f8c391",
+      "hostedSchemaSha256": "6a1975eac5d2756db08ffeb61cfa31b86e91ee4cf990d43382f1f30346b0f34c",
       "hostedRequired": [
         "prompt"
       ],

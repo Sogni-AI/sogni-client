@@ -47,9 +47,33 @@ if (generateMusicModel) {
     'with the best vocals, lyric adherence and song structure; 10-300 s, and duration is a ceiling, so the ' +
     'song may end earlier at a musical resolution). Music 3 takes tempo and key in the prompt text; bpm, ' +
     'keyscale and timesig apply to ACE-Step only. ' +
-    'Use ace_step_1.5_xl_turbo only when the user asks for a quick, cheap or draft track, or names ACE-Step. ' +
+    'Use ace_step_1.5_xl_turbo only when the user asks for a quick, cheap or draft track, names ACE-Step, ' +
+    'or wants a track longer than 300 s (with no model named, a duration over 300 s uses ACE-Step XL Turbo). ' +
     'Use ace_step_1.5_xl_sft only when the user explicitly requests XL SFT. ' +
     'Use legacy ace_step_1.5_turbo or ace_step_1.5_sft only when the user explicitly requests a legacy model.';
+}
+
+// Same text as @sogni-ai/sogni-protocol 382e051 (protocolVersion 7.6.0): Music 3's
+// duration range and the ACE-Step-only tempo, key and time-signature controls.
+// A no-op once the pinned protocol carries it.
+const MUSIC_DURATION_DESCRIPTION =
+  'Duration in seconds. music3 (the default model): 10-300, default 60, and a ceiling — the song may end earlier at a musical resolution. ACE-Step turbo/sft: 10-600, default 30. Short clips: 10-30s. Standard songs: 120-300s.';
+const aceStepOnlyMusicDescription = (what) =>
+  `ACE-Step (turbo, sft) only — music3 does not use it; for music3 put the ${what} in the prompt instead. `;
+const generateMusicProperties = generateMusicTool?.function?.parameters?.properties;
+if (generateMusicProperties?.duration) {
+  generateMusicProperties.duration.description = MUSIC_DURATION_DESCRIPTION;
+}
+for (const [propertyName, what] of [
+  ['bpm', 'tempo'],
+  ['keyscale', 'key'],
+  ['timesig', 'time signature']
+]) {
+  const property = generateMusicProperties?.[propertyName];
+  const prefix = aceStepOnlyMusicDescription(what);
+  if (property && !property.description?.startsWith(prefix)) {
+    property.description = `${prefix}${property.description ?? ''}`;
+  }
 }
 
 const MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL =

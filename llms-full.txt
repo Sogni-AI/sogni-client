@@ -1443,7 +1443,7 @@ itself, so the model never supplies frames or fps.
 
 MiniMax Music 3 and the ACE-Step 1.5 models generate music from text descriptions with optional lyrics.
 Use canonical model IDs; `minimax_music3` is the default. Use ACE-Step when the user asks for a quick,
-low-cost draft or names it.
+low-cost draft, names it, or wants a track longer than 300 s (Music 3's ceiling; ACE-Step renders up to 600 s).
 
 MODEL VARIANTS:
 | Model ID | Name | Description |

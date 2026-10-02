@@ -191,6 +191,9 @@ export const MUSIC_MODEL_IDS: string[] = [
   PREFERRED_MODEL_IDS.audio.aceStepSft
 ];
 
+/** MiniMax Music 3's longest track, in seconds (ACE-Step renders up to 600). */
+export const MINIMAX_MUSIC3_MAX_DURATION_SECONDS = 300;
+
 const GPT_IMAGE_MODEL_ALIASES = [
   'chatgpt',
   'chatgpt-image',

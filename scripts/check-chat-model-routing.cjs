@@ -1941,6 +1941,29 @@ async function checkMusicExecution() {
   assert.equal(capturedParams.bpm, 84);
   assert.equal(capturedParams.keyscale, 'A minor');
 
+  // No model named and longer than Music 3's 300 s ceiling: ACE-Step, which renders up to 600 s.
+  capturedParams = undefined;
+  const longResult = await new ChatToolsApi(musicProjects(pool)).execute(musicCall({ duration: 420 }));
+  assert.equal(longResult.success, true, longResult.error);
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.audio.aceStepXlTurbo);
+  assert.equal(capturedParams.duration, 420);
+
+  // Music 3 named for a 420 s track is sent as asked, so the server refuses it loudly.
+  capturedParams = undefined;
+  await new ChatToolsApi(musicProjects(pool)).execute(
+    musicCall({ duration: 420, model: PREFERRED_MODEL_IDS.audio.minimaxMusic3 })
+  );
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.audio.minimaxMusic3);
+
+  // The SDK tool schema states Music 3's range and the ACE-Step-only controls.
+  const musicSchema = SogniTools.all.find((tool) => tool.function.name === 'generate_music').function
+    .parameters.properties;
+  assert.match(musicSchema.duration.description, /^Duration in seconds\. music3 \(the default model\): 10-300, default 60/);
+  for (const key of ['bpm', 'keyscale', 'timesig']) {
+    assert.match(musicSchema[key].description, /^ACE-Step \(turbo, sft\) only/);
+  }
+  assert.equal(musicSchema.model.enum[0], PREFERRED_MODEL_IDS.audio.minimaxMusic3);
+
   // Only a speech model online: a song request fails rather than reading the prompt aloud.
   capturedParams = undefined;
   const speechOnly = await new ChatToolsApi(

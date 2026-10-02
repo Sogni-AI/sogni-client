@@ -22,6 +22,7 @@ import {
   isExternalApiVideoModel,
   isMinimaxH3Model,
   isNonEmptyString,
+  MINIMAX_MUSIC3_MAX_DURATION_SECONDS,
   MUSIC_MODEL_IDS,
   normalizeTimeSignature,
   normalizeVideoControlMode,
@@ -1020,13 +1021,21 @@ class ChatToolsApi {
     args: Record<string, unknown>,
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
+    const requestedModel = resolveHostedToolModelSelector('generate_music', args);
+    // Music models only, MiniMax Music 3 first: a model-less call gets Music 3,
+    // and a song request never lands on a speech model. A model-less track
+    // longer than Music 3's 300 s ceiling goes to ACE-Step (10-600 s), the only
+    // models that can render it; a Music 3 request over 300 s is refused upstream.
+    const duration = asFiniteNumber(args.duration);
+    const candidates =
+      !requestedModel && duration !== undefined && duration > MINIMAX_MUSIC3_MAX_DURATION_SECONDS
+        ? MUSIC_MODEL_IDS.filter((id) => id !== PREFERRED_MODEL_IDS.audio.minimaxMusic3)
+        : MUSIC_MODEL_IDS;
     const modelId = await this.selectModel({
       mediaType: 'audio',
-      requestedModel: resolveHostedToolModelSelector('generate_music', args),
-      // Music models only, MiniMax Music 3 first: a model-less call gets Music 3,
-      // and a song request never lands on a speech model.
-      filter: (id) => MUSIC_MODEL_IDS.includes(id),
-      preferredModelIds: MUSIC_MODEL_IDS
+      requestedModel,
+      filter: (id) => candidates.includes(id),
+      preferredModelIds: candidates
     });
     // MiniMax Music 3 has no tempo, key, time-signature, language, composer or
     // creativity controls (tempo and key belong in its prompt), so those
