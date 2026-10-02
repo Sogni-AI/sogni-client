@@ -1118,6 +1118,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       if (data.feature) error.feature = data.feature;
       if (data.limitation) error.limitation = data.limitation;
     }
+    // A model consent refusal (4103) names the agreement so apps can open it.
+    if (data.consentRequired && typeof data.consentRequired.key === 'string') {
+      error.consentRequired = { ...data.consentRequired };
+    }
     if (!data.imgID) {
       this.emit('project', {
         type: 'error',

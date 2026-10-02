@@ -96,6 +96,8 @@ jobs:
         run: node scripts/check-remote-media-hosts.cjs
       - name: Run large data URI checks
         run: node scripts/check-large-data-uri.cjs
+      - name: Run model consent error checks
+        run: node scripts/check-model-consent-error.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

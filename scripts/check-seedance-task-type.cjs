@@ -113,3 +113,62 @@ assert.throws(() => request({ modelId: 'seedance-2-0', outputFormat: 'mov' }), /
 assert.throws(() => request({ modelId: 'seedance-2-0', returnLastFrame: true }), /only by Seedance 2.5/);
 assert.throws(() => request({ returnLastFrame: 'true' }), /must be a boolean/);
 console.log('Seedance export transport checks passed');
+
+// Seedance 2.5 Uncensored is the same model as Seedance 2.5 under its own id:
+// every 2.5 capability and limit applies, and the id is never rewritten.
+{
+  const modelId = 'seedance-2-5-spicy';
+  const spicy = (overrides) => request({ modelId, ...overrides });
+
+  for (const seedanceTaskType of ['edit', 'extend']) {
+    const message = spicy({
+      referenceVideoUrls: ['https://cdn.example.com/source.mp4'],
+      seedanceTaskType
+    });
+    assert.equal(message.keyFrames[0].modelID, modelId);
+    assert.equal(message.keyFrames[0].seedanceTaskType, seedanceTaskType);
+  }
+  assert.equal(
+    spicy({
+      referenceAudioUrls: ['https://cdn.example.com/voice.mp3'],
+      seedanceTaskType: 'reference'
+    }).keyFrames[0].seedanceTaskType,
+    'reference'
+  );
+  assert.throws(
+    () => spicy({ referenceVideoUrls: ['https://cdn.example.com/source.mp4'] }),
+    /require seedanceTaskType/
+  );
+
+  const maximum = spicy({
+    referenceImageUrls: urls('image', 30, 'jpg'),
+    referenceVideoUrls: urls('video', 10, 'mp4'),
+    referenceAudioUrls: urls('audio', 10, 'mp3'),
+    seedanceTaskType: 'reference'
+  });
+  assert.equal(maximum.keyFrames[0].referenceImageURLs.length, 30);
+  assert.equal(maximum.keyFrames[0].referenceVideoURLs.length, 10);
+  assert.equal(maximum.keyFrames[0].referenceAudioURLs.length, 10);
+  assert.throws(
+    () => spicy({ referenceImageUrls: urls('image', 31, 'jpg'), seedanceTaskType: 'reference' }),
+    /seedance-2-5-spicy supports at most 30 image assets/
+  );
+  assert.throws(
+    () => spicy({ referenceVideoUrls: urls('video', 11, 'mp4'), seedanceTaskType: 'reference' }),
+    /seedance-2-5-spicy supports at most 10 video assets/
+  );
+  assert.throws(
+    () => spicy({ referenceAudioUrls: urls('audio', 11, 'mp3'), seedanceTaskType: 'reference' }),
+    /seedance-2-5-spicy supports at most 10 audio assets/
+  );
+
+  assert.equal(spicy({ duration: 30 }).keyFrames[0].frames, 30 * 24 + 1);
+  assert.equal(spicy({ duration: 4 }).keyFrames[0].frames, 4 * 24 + 1);
+  assert.throws(() => spicy({ duration: 31 }), /less or equal 30, got 31/);
+  assert.throws(() => spicy({ duration: 3 }), /greater or equal 4, got 3/);
+
+  const spicyExport = spicy({ outputFormat: 'mov', returnLastFrame: true });
+  assert.equal(spicyExport.outputFormat, 'mov');
+  assert.equal(spicyExport.keyFrames[0].returnLastFrame, true);
+  console.log('Seedance 2.5 Uncensored transport checks passed');
+}

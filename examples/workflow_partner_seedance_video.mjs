@@ -47,24 +47,33 @@ const SEEDANCE_MODELS = {
   t2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
-    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' }
+    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
+    'seedance2-5-spicy': { id: 'seedance-2-5-spicy', name: 'Seedance 2.5 Uncensored' }
   },
   i2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
-    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' }
+    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
+    'seedance2-5-spicy': { id: 'seedance-2-5-spicy', name: 'Seedance 2.5 Uncensored' }
   },
   ia2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
-    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' }
+    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
+    'seedance2-5-spicy': { id: 'seedance-2-5-spicy', name: 'Seedance 2.5 Uncensored' }
   },
   v2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
-    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' }
+    'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
+    'seedance2-5-spicy': { id: 'seedance-2-5-spicy', name: 'Seedance 2.5 Uncensored' }
   }
 };
+
+// Seedance 2.5 Uncensored is Seedance 2.5 under its own model id: same limits.
+function isSeedance25(modelId) {
+  return modelId === 'seedance-2-5' || modelId === 'seedance-2-5-spicy';
+}
 
 const TOOL_ARGUMENT_KEYS = {
   generate_video: new Set([
@@ -263,6 +272,7 @@ function supportsMiniTier(mode) {
 
 function selectedTierLabel(options) {
   const modelId = selectedModelId(options);
+  if (modelId === 'seedance-2-5-spicy') return 'Seedance 2.5 Uncensored';
   if (modelId === 'seedance-2-5') return 'Seedance 2.5';
   if (modelId.includes('mini')) return 'Seedance 2.0 Mini';
   return 'Seedance 2.0';
@@ -298,7 +308,7 @@ function dimensionPresets(options) {
     ];
   }
 
-  if (modelId === 'seedance-2-5') {
+  if (isSeedance25(modelId)) {
     return [
       {
         label: 'Landscape 16:9 - 1920x1080',
@@ -619,7 +629,7 @@ async function promptCreativeBrief(options) {
 
 async function promptOutputOptions(options) {
   const presets = dimensionPresets(options);
-  const maxDuration = selectedModelId(options) === 'seedance-2-5' ? 30 : 15;
+  const maxDuration = isSeedance25(selectedModelId(options)) ? 30 : 15;
   if (!options.width || !options.height) {
     const selected = await chooseFromList('Choose output format:', presets, 0);
     if (selected.custom) {
@@ -875,6 +885,7 @@ Modes:
 Seedance models:
   seedance-2-0            seedance-2-0-mini
   seedance-2-5            (480p/720p/1080p, 4-30s clips, first+last frame)
+  seedance-2-5-spicy      (Seedance 2.5 Uncensored; same limits as seedance-2-5)
 
 Options:
   --interactive           Run the guided Seedance workflow setup
@@ -919,7 +930,7 @@ Options:
 ${billingModeHelpText()}
   --json                 Print raw response
 
-Execution requires SOGNI_API_KEY in examples/.env or the environment. Local media inputs are uploaded with the existing Sogni media upload endpoints before workflow execution. Workflow dry-runs also upload local media so the printed request contains real HTTPS media URLs. Seedance 2.5 accepts at most 30 image assets, 10 video assets, 10 audio assets, and 50 assets total; the 2.0 family retains 9/3/3/12. In prompts, use @Image1/@Video1/@Audio1 role tags counted independently by modality in attachment order, and use positive preservation language. Exact readable text/logos, lip-sync, voice cloning, and real-human-reference behavior need review.
+Execution requires SOGNI_API_KEY in examples/.env or the environment. Local media inputs are uploaded with the existing Sogni media upload endpoints before workflow execution. Workflow dry-runs also upload local media so the printed request contains real HTTPS media URLs. Seedance 2.5 accepts at most 30 image assets, 10 video assets, 10 audio assets, and 50 assets total; the 2.0 family retains 9/3/3/12. Seedance 2.5 Uncensored (seedance-2-5-spicy) needs a one-time likeness and consent agreement accepted in the Sogni app; until then its jobs fail with error 4103. In prompts, use @Image1/@Video1/@Audio1 role tags counted independently by modality in attachment order, and use positive preservation language. Exact readable text/logos, lip-sync, voice cloning, and real-human-reference behavior need review.
 `);
 }
 
@@ -937,7 +948,7 @@ function validateOptions(options) {
     throw new Error('T2V with --audio-identity is media-bearing and must use --workflow.');
   }
   const modelId = selectedModelId(options);
-  const maxDuration = modelId === 'seedance-2-5' ? 30 : 15;
+  const maxDuration = isSeedance25(modelId) ? 30 : 15;
   if (options.duration < 4 || options.duration > maxDuration) {
     throw new Error(`Seedance duration must be between 4 and ${maxDuration} seconds.`);
   }
@@ -958,7 +969,7 @@ function validateOptions(options) {
   validateRangeOption(options.audioIdentityStrength, '--audio-identity-strength', 0, 10);
   validateNonNegativeOption(options.audioStart, '--audio-start');
   validateNonNegativeOption(options.videoStart, '--video-start');
-  if (modelId === 'seedance-2-5' && Math.max(options.width ?? 0, options.height ?? 0) > 1920) {
+  if (isSeedance25(modelId) && Math.max(options.width ?? 0, options.height ?? 0) > 1920) {
     throw new Error('Seedance 2.5 output is capped at the 1080p tier (maximum dimension 1920).');
   }
   validateMediaOptions(options, modelId);
@@ -987,10 +998,9 @@ function validateMediaOptions(options, modelId) {
   const videoAssetCount = options.videos.length;
   const audioAssetCount = options.audios.length + (options.audioIdentity ? 1 : 0);
   const totalAssetCount = imageAssetCount + videoAssetCount + audioAssetCount;
-  const limits =
-    modelId === 'seedance-2-5'
-      ? { images: 30, videos: 10, audios: 10, total: 50 }
-      : { images: 9, videos: 3, audios: 3, total: 12 };
+  const limits = isSeedance25(modelId)
+    ? { images: 30, videos: 10, audios: 10, total: 50 }
+    : { images: 9, videos: 3, audios: 3, total: 12 };
   if (imageAssetCount > limits.images) {
     throw new Error(`Seedance supports at most ${limits.images} image assets.`);
   }
@@ -1004,7 +1014,7 @@ function validateMediaOptions(options, modelId) {
     throw new Error(`Seedance supports at most ${limits.total} total asset files.`);
   }
   if (
-    modelId !== 'seedance-2-5' &&
+    !isSeedance25(modelId) &&
     audioAssetCount > 0 &&
     imageAssetCount === 0 &&
     videoAssetCount === 0

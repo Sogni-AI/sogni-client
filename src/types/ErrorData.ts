@@ -35,7 +35,40 @@ interface ErrorData {
    * toast, e.g. `'4K video render requires Unlimited Pro'`.
    */
   limitation?: string;
+  /**
+   * Present when a model refused the job because the account has not accepted
+   * that model's one-time agreement (socket error code 4103,
+   * {@link MODEL_CONSENT_REQUIRED_ERROR_CODE}). Names the agreement so apps can
+   * open it; use `isModelConsentRequiredError` to branch on it.
+   */
+  consentRequired?: ModelConsentRequirement;
 }
+
+/**
+ * The agreement a model requires before it renders, carried by a
+ * {@link MODEL_CONSENT_REQUIRED_ERROR_CODE} (4103) job error.
+ */
+export interface ModelConsentRequirement {
+  /** Stable agreement key, e.g. `'seedance-2-5-spicy'`. */
+  key: string;
+  /** Agreement version the account must accept. */
+  version: number;
+  /** Model the refused job asked for, e.g. `'seedance-2-5-spicy'`. */
+  modelId?: string;
+}
+
+/**
+ * Socket error code for a job refused because its model requires a one-time
+ * likeness and consent agreement the account has not accepted. Seedance 2.5
+ * Uncensored (`seedance-2-5-spicy`) is the model that requires one.
+ *
+ * The error carries {@link ErrorData.consentRequired}. The agreement is
+ * accepted in a Sogni app; the SDK never accepts it and API-key sessions
+ * cannot. Until it is accepted every job for the model fails the same way, so
+ * do not retry: show the server's message, which tells the user to accept it
+ * in the Sogni app. Price estimates are not gated.
+ */
+export const MODEL_CONSENT_REQUIRED_ERROR_CODE = 4103;
 
 /**
  * Socket error codes returned when a job explicitly submitted with

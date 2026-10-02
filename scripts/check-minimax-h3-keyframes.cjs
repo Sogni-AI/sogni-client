@@ -122,6 +122,7 @@ for (const modelId of [
   'happyhorse-1.1-i2v',
   'happyhorse-1.1-r2v',
   'seedance-2-5',
+  'seedance-2-5-spicy',
   'not-a-model'
 ]) {
   assert.equal(isMinimaxH3KeyframeModel(modelId), false, modelId);
@@ -405,6 +406,7 @@ for (const modelId of [
   'wan_v2.2-14b-fp8_i2v_lightx2v',
   'happyhorse-1.1-i2v',
   'seedance-2-5',
+  'seedance-2-5-spicy',
   'wan3.0-video'
 ]) {
   keyframeError(

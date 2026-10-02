@@ -6,6 +6,7 @@ import {
   isLtx2Model,
   isMinimaxH3Model,
   isSeedanceModel,
+  isSeedance25Model,
   isWan3Model
 } from '../Projects/utils/index.js';
 import { isKreaIdentityEditModel, isQwenImageEditModel } from '../lib/validation.js';
@@ -128,6 +129,12 @@ export const PREFERRED_MODEL_IDS = {
     seedance25I2v: 'seedance-2-5',
     seedance25Ia2v: 'seedance-2-5',
     seedance25V2v: 'seedance-2-5',
+    // Seedance 2.5 Uncensored: the same model as Seedance 2.5 under its own id.
+    // Never route it to 'seedance-2-5'.
+    seedance25SpicyT2v: 'seedance-2-5-spicy',
+    seedance25SpicyI2v: 'seedance-2-5-spicy',
+    seedance25SpicyIa2v: 'seedance-2-5-spicy',
+    seedance25SpicyV2v: 'seedance-2-5-spicy',
     happyhorseT2v: 'happyhorse-1.1-t2v',
     happyhorseI2v: 'happyhorse-1.1-i2v',
     happyhorseR2v: 'happyhorse-1.1-r2v',
@@ -296,6 +303,7 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25T2v,
+  'seedance2-5-spicy': PREFERRED_MODEL_IDS.video.seedance25SpicyT2v,
   'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
   'minimax-h3-t2v': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
   'minimax-h3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v,
@@ -327,6 +335,7 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25I2v,
+  'seedance2-5-spicy': PREFERRED_MODEL_IDS.video.seedance25SpicyI2v,
   'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
   'minimax-h3-i2v': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
   'minimax-h3-flf2v': PREFERRED_MODEL_IDS.video.minimaxH3Flf2v,
@@ -362,7 +371,8 @@ const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.v2v,
   'ltx23-v2v': PREFERRED_MODEL_IDS.video.v2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v,
-  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v
+  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v,
+  'seedance2-5-spicy': PREFERRED_MODEL_IDS.video.seedance25SpicyV2v
 };
 
 const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
@@ -371,6 +381,7 @@ const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25Ia2v,
+  'seedance2-5-spicy': PREFERRED_MODEL_IDS.video.seedance25SpicyIa2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'ltx25-ia2v': PREFERRED_MODEL_IDS.video.ltx25Ia2vDistilled,
   'ltx25-a2v': PREFERRED_MODEL_IDS.video.ltx25A2vDistilled,
@@ -581,8 +592,9 @@ export function isEditImageModel(modelId: string): boolean {
 const SEEDANCE_CANONICAL_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'ia2v', 'v2v'];
 
 /**
- * Seedance 2.5 adds first-and-last-frame conditioning and a true multimodal
- * reference-to-video mode on top of the 2.0 workflow set.
+ * Seedance 2.5 (and Seedance 2.5 Uncensored) adds first-and-last-frame
+ * conditioning and a true multimodal reference-to-video mode on top of the 2.0
+ * workflow set.
  */
 const SEEDANCE_2_5_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'flf2v', 'r2v', 'ia2v', 'v2v'];
 const WAN3_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'flf2v', 'r2v', 'a2v', 'ia2v'];
@@ -591,7 +603,7 @@ function getCompatibleVideoWorkflows(modelId: string): VideoWorkflow[] {
   if (isWan3Model(modelId)) {
     return WAN3_WORKFLOWS;
   }
-  if (modelId === 'seedance-2-5') {
+  if (isSeedance25Model(modelId)) {
     return SEEDANCE_2_5_WORKFLOWS;
   }
   // models/list still reports the retired seedance-2-0-fast id for analytics; classify it like Mini.

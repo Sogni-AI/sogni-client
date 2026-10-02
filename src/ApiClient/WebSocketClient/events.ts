@@ -2,6 +2,7 @@ import { SupernetType } from './types.js';
 import { Balances } from '../../Account/types.js';
 import { LLMJobCost, LLMModelInfo, ToolCallDelta } from '../../Chat/types.js';
 import { SubscriptionPlanId } from '../../Account/subscription.types.js';
+import type { ModelConsentRequirement } from '../../types/ErrorData.js';
 
 export interface SocketSubscriptionFairUseState {
   limited: true;
@@ -169,6 +170,11 @@ export type JobErrorData = {
   limitation?: string;
   /** Actionable fair-use details when `feature === 'monthly_fair_use'`. */
   fairUse?: SocketSubscriptionFairUseState | null;
+  /**
+   * The agreement the account must accept before this model renders. Present
+   * on model consent refusals (error `'4103'`).
+   */
+  consentRequired?: ModelConsentRequirement;
 };
 
 /**

@@ -1527,6 +1527,52 @@ assert.equal(
   resolveHostedToolModelSelector('sound_to_video', { videoModel: 'seedance2-5' }),
   PREFERRED_MODEL_IDS.video.seedance25Ia2v
 );
+// Seedance 2.5 Uncensored resolves to its own model id on every Seedance 2.5
+// path and never to seedance-2-5 (that is a different vendor account).
+for (const [toolName, args, preferredKey] of [
+  ['generate_video', {}, 'seedance25SpicyT2v'],
+  ['generate_video', { referenceImageIndices: [-1] }, 'seedance25SpicyI2v'],
+  ['video_to_video', {}, 'seedance25SpicyV2v'],
+  ['sound_to_video', {}, 'seedance25SpicyIa2v']
+]) {
+  assert.equal(PREFERRED_MODEL_IDS.video[preferredKey], 'seedance-2-5-spicy');
+  for (const videoModel of ['seedance2-5-spicy', 'seedance-2-5-spicy']) {
+    assert.equal(
+      resolveHostedToolModelSelector(toolName, { ...args, videoModel }),
+      'seedance-2-5-spicy',
+      `${toolName} must resolve ${videoModel} to seedance-2-5-spicy`
+    );
+  }
+}
+assert.deepEqual(getVideoDefaults('seedance-2-5-spicy'), { width: 1920, height: 1080, fps: 24 });
+for (const workflow of ['t2v', 'i2v', 'flf2v', 'r2v', 'ia2v', 'v2v']) {
+  assert.deepEqual(
+    filterVideoModelsByWorkflow([{ id: 'seedance-2-5-spicy', media: 'video' }], [workflow]),
+    ['seedance-2-5-spicy'],
+    `seedance-2-5-spicy must support the Seedance 2.5 ${workflow} workflow`
+  );
+}
+// The hosted tools list the selector directly after seedance2-5, and
+// animate_photo keeps excluding every Seedance selector.
+for (const toolName of ['generate_video', 'sound_to_video', 'video_to_video']) {
+  const videoModelEnum =
+    sdkHostedToolsByName.get(toolName).function.parameters.properties.videoModel.enum;
+  assert.equal(
+    videoModelEnum[videoModelEnum.indexOf('seedance2-5') + 1],
+    'seedance2-5-spicy',
+    `${toolName} must list seedance2-5-spicy after seedance2-5`
+  );
+}
+assert.ok(
+  !sdkHostedToolsByName
+    .get('animate_photo')
+    .function.parameters.properties.videoModel.enum.includes('seedance2-5-spicy')
+);
+// Explicit-id registry: near-miss ids are not Seedance 2.5 Uncensored.
+for (const nearMiss of ['seedance2-5-spicy', 'seedance-2-5-spicy-v2', 'seedance-2-5-uncensored']) {
+  assert.equal(isSeedanceModel(nearMiss), false, `${nearMiss} must not be a Seedance model`);
+  assert.equal(isVideoModel(nearMiss), false, `${nearMiss} must not be a video model`);
+}
 // The FastH3 audio-guide selectors are audio-bearing only: the image tools
 // cannot supply their required referenceAudio. Two-stage selectors mirror the
 // other FastH3 two-stage selectors (`minimax-h3-fasth3-<workflow>-turbo-2stage`).

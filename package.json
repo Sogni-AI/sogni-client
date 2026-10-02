@@ -69,6 +69,7 @@
     "test:model-options": "npm run build && node scripts/check-video-model-options.cjs",
     "test:video-estimates": "npm run build && node scripts/check-video-estimates.cjs",
     "test:seedance-task-type": "npm run build && node scripts/check-seedance-task-type.cjs && node scripts/check-seedance-r2v-example.cjs",
+    "test:model-consent-error": "npm run build && node scripts/check-model-consent-error.cjs",
     "test:wan3-video": "npm run build && node scripts/check-wan3-video.cjs",
     "test:sam3-image-segment": "npm run build && node scripts/check-sam3-image-segment.cjs",
     "test:enhancement": "npm run build && node scripts/check-enhancement.cjs",

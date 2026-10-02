@@ -163,6 +163,74 @@ async function main() {
     assert.doesNotMatch(JSON.stringify(request), /seedanceTaskType|seedance_task_type/);
   }
 
+  // Seedance 2.5 Uncensored keeps its own model id and hosted selector with
+  // every Seedance 2.5 limit.
+  const spicyArgs = ['--model', 'seedance-2-5-spicy', '--task-type', 'reference'];
+  const spicy = parsed(parseArgs, [...spicyArgs, '--audio', 'https://cdn.example.com/voice.mp3']);
+  validateOptions(spicy);
+  const spicyParams = buildDirectProjectParams(spicy, {
+    images: [],
+    videos: [],
+    audios: spicy.audios
+  });
+  assert.equal(spicyParams.modelId, 'seedance-2-5-spicy');
+  assert.equal(spicyParams.seedanceTaskType, 'reference');
+  const spicyCreativeAgent = parsed(parseArgs, [
+    '--creative-agent',
+    ...spicyArgs,
+    '--audio',
+    'https://cdn.example.com/voice.mp3'
+  ]);
+  validateOptions(spicyCreativeAgent);
+  const spicyRequest = buildCreativeAgentRequest(spicyCreativeAgent, {
+    images: [],
+    videos: [],
+    audios: spicyCreativeAgent.audios
+  });
+  assert.equal(spicyRequest.input.steps[0].arguments.videoModel, 'seedance2-5-spicy');
+  assert.doesNotThrow(() =>
+    validateOptions(
+      parsed(parseArgs, [
+        ...spicyArgs,
+        '--duration',
+        '30',
+        ...urls('image', 30, 'jpg').flatMap((url) => ['--image', url])
+      ])
+    )
+  );
+  assert.throws(
+    () =>
+      validateOptions(
+        parsed(parseArgs, [
+          ...spicyArgs,
+          ...urls('image', 31, 'jpg').flatMap((url) => ['--image', url])
+        ])
+      ),
+    /seedance-2-5-spicy supports at most 30 images/
+  );
+
+  const partnerSpicy = spawnSync(
+    process.execPath,
+    [
+      path.resolve(__dirname, '../examples/workflow_partner_seedance_video.mjs'),
+      'Contract check prompt.',
+      '--model',
+      'seedance-2-5-spicy',
+      '--duration',
+      '30',
+      '--width',
+      '1920',
+      '--height',
+      '1080',
+      '--workflow',
+      '--no-execute',
+      '--no-estimate'
+    ],
+    { encoding: 'utf8' }
+  );
+  assert.equal(partnerSpicy.status, 0, partnerSpicy.stderr);
+  assert.match(partnerSpicy.stdout, /"videoModel": "seedance2-5-spicy"/);
+
   const partner1080Dimension = spawnSync(
     process.execPath,
     [
