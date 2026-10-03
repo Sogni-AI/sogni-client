@@ -1104,6 +1104,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         message: data.error_message
       };
     }
+    if (data.vendorFailureCategory) {
+      error.vendorFailureCategory = data.vendorFailureCategory;
+    }
     if (data.subscriptionLimit) {
       error.subscriptionLimit = true;
       if (data.requiredPlans) error.requiredPlans = data.requiredPlans;
