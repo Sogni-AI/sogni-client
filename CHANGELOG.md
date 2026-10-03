@@ -1,3 +1,10 @@
+## [5.60.3](https://github.com/Sogni-AI/sogni-client/compare/v5.60.2...v5.60.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* **projects:** allow additional server failure categories ([f4b92ed](https://github.com/Sogni-AI/sogni-client/commit/f4b92ed6fafdfb4c8c84be4a64792e100e050548))
+
 ## [5.60.2](https://github.com/Sogni-AI/sogni-client/compare/v5.60.1...v5.60.2) (2026-10-03)
 
 
