@@ -1,3 +1,12 @@
+## [5.60.1](https://github.com/Sogni-AI/sogni-client/compare/v5.60.0...v5.60.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **examples:** reuse one saved app ID per example instead of a new one per run ([c52fbab](https://github.com/Sogni-AI/sogni-client/commit/c52fbabc8e0e961d0e8c7c53d33b002cc17130d0))
+* **examples:** wait for the SAM 3 mask over the socket instead of polling ([657fd85](https://github.com/Sogni-AI/sogni-client/commit/657fd85972d0a844027fe1b41ddd2f7b36bbf9fe))
+* **socket:** reset the reconnect backoff only once the server authenticates ([ad642d3](https://github.com/Sogni-AI/sogni-client/commit/ad642d33d2847c6c62affa3ec17f5c444eff06bf))
+
 # [5.60.0](https://github.com/Sogni-AI/sogni-client/compare/v5.59.0...v5.60.0) (2026-10-02)
 
 
