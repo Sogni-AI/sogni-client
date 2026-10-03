@@ -4,6 +4,14 @@ interface ErrorData {
   code: number;
   originalCode?: string;
   message: string;
+  /** Coarse server-reported cause of an external generation failure. */
+  vendorFailureCategory?:
+    | 'content_policy'
+    | 'input_validation'
+    | 'timeout'
+    | 'result_storage'
+    | 'cancelled'
+    | 'vendor_failed';
   /**
    * Discriminator set to `true` when this render-path error is a subscription
    * FEATURE-gate denial (socket error code 4081). The four fields below are

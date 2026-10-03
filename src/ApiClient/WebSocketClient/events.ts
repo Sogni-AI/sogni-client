@@ -157,6 +157,8 @@ export type JobErrorData = {
   isFromWorker: boolean;
   error_message: string;
   error: number | string;
+  /** Coarse server-reported cause of an external generation failure. */
+  vendorFailureCategory?: import('../../types/ErrorData.js').default['vendorFailureCategory'];
   /** `true` when this render failure is a subscription FEATURE-gate denial (4081). */
   subscriptionLimit?: boolean;
   /** Plans that would satisfy the gated feature, cheapest-first. */
