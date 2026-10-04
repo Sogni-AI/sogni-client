@@ -1,3 +1,10 @@
+## [5.60.6](https://github.com/Sogni-AI/sogni-client/compare/v5.60.5...v5.60.6) (2026-10-04)
+
+
+### Bug Fixes
+
+* **socket:** stop the keep-alive ping from crashing a reconnecting client ([61eeae4](https://github.com/Sogni-AI/sogni-client/commit/61eeae49b733d4f4b2a42c3c880a805ef9da9064))
+
 ## [5.60.5](https://github.com/Sogni-AI/sogni-client/compare/v5.60.4...v5.60.5) (2026-10-04)
 
 
