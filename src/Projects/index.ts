@@ -1,7 +1,7 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { MessageDeliveryUncertainError } from '../ApiClient/WebSocketClient/requestDelivery.js';
 import ReusableUploads from './ReusableUploads.js';
-import { captureRequestSession } from '../lib/requestSession.js';
+import { captureRequestSession, RequestSessionError } from '../lib/requestSession.js';
 import {
   AvailableModel,
   EnhancementStrength,
@@ -1299,8 +1299,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       // Sync project data with the server and remove it from the list after some time
       project._syncToServer().catch((e) => {
         // 404 errors are expected when project is still initializing
-        // Only log non-404 errors to avoid confusing users
-        if (e.status !== 404) {
+        // Only log non-404 errors to avoid confusing users.
+        // A session that ended mid-sync (sign-out, or dispose() right after a
+        // refusal such as a fair-use limit) leaves the snapshot without an
+        // owner; the project already carries its real error.
+        if (e instanceof RequestSessionError) {
+          this.client.logger.debug(`Project ${project.id} sync ended with its session`);
+        } else if (e.status !== 404) {
           this.client.logger.error(e);
         }
       });

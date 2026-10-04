@@ -11,6 +11,7 @@ abstract class AuthManagerBase<AuthData = never> extends TypedEventEmitter<AuthM
   protected _logger: Logger;
   private _sessionVersion = 0;
   private _sessionIdentity?: string;
+  private _closed = false;
   constructor(logger: Logger) {
     super();
     this._logger = logger;
@@ -41,6 +42,20 @@ abstract class AuthManagerBase<AuthData = never> extends TypedEventEmitter<AuthM
   _invalidateSession(): void {
     this._sessionVersion += 1;
     this._sessionIdentity = undefined;
+  }
+
+  /**
+   * @internal True once the owning client was disposed. Its unfinished requests
+   * end because the client closed, not because the account changed.
+   */
+  get closed(): boolean {
+    return this._closed;
+  }
+
+  /** @internal The owning client was disposed; end its session without an account change. */
+  _close(): void {
+    this._closed = true;
+    this._invalidateSession();
   }
 
   abstract get isAuthenticated(): boolean;

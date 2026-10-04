@@ -7,6 +7,7 @@ import getUUID from '../lib/getUUID.js';
 import { RawJob, RawProject } from './types/RawProject.js';
 import ProjectsApi from './index.js';
 import { Logger } from '../lib/DefaultLogger.js';
+import { RequestSessionError } from '../lib/requestSession.js';
 import {
   normalizeWaitingReason,
   normalizeJobWaitingReasons,
@@ -563,6 +564,9 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
         });
       }
     } catch (error) {
+      // The session ended mid-sync (sign-out, account change or dispose()).
+      // That is not a failed sync, and the snapshot no longer has an owner.
+      if (error instanceof RequestSessionError) return;
       // A failed request is not evidence that the server lost the generation.
       this._failedSyncAttempts = 0;
       this._logger.error(error);

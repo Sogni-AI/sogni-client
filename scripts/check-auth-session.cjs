@@ -24,6 +24,7 @@ const BASE_URL = 'https://auth.example.test';
 const ACCOUNT_A = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const ACCOUNT_B = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const SESSION_CHANGED = /account changed/i;
+const CLIENT_CLOSED = /client was closed/i;
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 function deferred() {
@@ -442,7 +443,11 @@ async function main() {
           return renewal.promise;
         };
         const connecting = api.socket.connect();
-        const rejected = assert.rejects(connecting, SESSION_CHANGED);
+        // Disposal ends the session, but the account did not change.
+        const rejected = assert.rejects(
+          connecting,
+          (error) => CLIENT_CLOSED.test(error.message) && !SESSION_CHANGED.test(error.message)
+        );
         await started.promise;
         api.dispose();
         renewal.resolve(response(tokens(ACCOUNT_A, 'after-dispose')));
@@ -550,6 +555,93 @@ async function main() {
         api.dispose();
       }
     });
+
+    await check(
+      'a fair-use refusal keeps its message and disposal never reports an account change',
+      async () => {
+        // A node renderer disposes its client as soon as a submission is refused,
+        // while the SDK's post-failure project sync is still in flight.
+        const logged = [];
+        const logger = { ...LOGGER, error: (...args) => logged.push(args) };
+        const api = new ApiClient({
+          baseUrl: BASE_URL,
+          socketUrl: BASE_URL,
+          appId: 'fair-use-dispose-test',
+          authType: 'apiKey',
+          disableSocket: true,
+          networkType: 'fast',
+          logger
+        });
+        await api.auth.authenticate('test-key-a');
+        const projects = new ProjectsApi({ client: api, eip712: {} });
+        const project = new Project(
+          { modelId: 'test-model', positivePrompt: 'test', numberOfMedia: 1 },
+          { api: projects, logger }
+        );
+        projects.projects.push(project);
+        const sync = deferred();
+        const syncStarted = deferred();
+        global.fetch = async () => {
+          syncStarted.resolve();
+          await sync.promise;
+          return response({ project: {} });
+        };
+        const limitation = 'Daily fair-use capacity on the Fast network is used up.';
+        const refusal = project.waitForCompletion().catch((error) => error);
+        api.socket.emit('jobError', {
+          jobID: project.id,
+          isFromWorker: false,
+          error: '4087',
+          error_message: limitation,
+          subscriptionLimit: true,
+          requiredPlans: ['unlimited_pro'],
+          feature: 'daily_fair_use',
+          limitation
+        });
+        const error = await refusal;
+        assert.equal(error.code, 4087);
+        assert.equal(error.message, limitation, 'the server refusal reaches the caller verbatim');
+        await syncStarted.promise;
+        api.dispose();
+        sync.resolve();
+        await tick();
+        await tick();
+        assert.deepEqual(logged, [], 'an ownerless post-failure sync is not logged as an error');
+        assert.equal(project.error.message, limitation);
+
+        // A request still running when its client closes says the client closed.
+        const closing = new ApiClient({
+          baseUrl: BASE_URL,
+          socketUrl: BASE_URL,
+          appId: 'closed-request-test',
+          authType: 'apiKey',
+          disableSocket: true,
+          networkType: 'fast',
+          logger: LOGGER
+        });
+        await closing.auth.authenticate('test-key-a');
+        const body = deferred();
+        const requested = deferred();
+        global.fetch = async () => {
+          requested.resolve();
+          await body.promise;
+          return response(meData(ACCOUNT_A));
+        };
+        const pending = closing.rest.get('/v1/account/me');
+        const rejected = assert.rejects(
+          pending,
+          (error) =>
+            error.name === 'RequestSessionError' &&
+            error.reason === 'clientClosed' &&
+            CLIENT_CLOSED.test(error.message) &&
+            !SESSION_CHANGED.test(error.message)
+        );
+        await requested.promise;
+        closing.dispose();
+        body.resolve();
+        await rejected;
+      }
+    );
 
     await check('same-account token refresh preserves pending project and chat work', async () => {
       const auth = new TokenAuthManager(BASE_URL, LOGGER);

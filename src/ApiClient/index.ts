@@ -366,7 +366,8 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     this._clearReconnect();
     // Invalidate preparation before removing the auth listeners that normally
     // advance the session on clear(). A pending renewal must not revive it.
-    this._auth._invalidateSession();
+    // Closing (not an account change) is what unfinished requests report.
+    this._auth._close();
     if (this._socket.dispose) this._socket.dispose();
     else this._socket.disconnect();
     this._socket.removeAllListeners();
