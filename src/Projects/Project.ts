@@ -502,68 +502,83 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    * window, which is why a bare 404 must never be read as "lost".
    *
    * - socket says alive -> waiting is normal, keep the project alive.
-   * - socket says gone AND REST has no record -> genuinely lost, count a strike.
-   * - liveness unknown (older socket, unauthenticated, transport error) -> fall
-   *   back to the lenient rule: only non-404 REST failures count.
+   * - recovery confirms absence from the live list and both REST lookups ->
+   *   genuinely lost, count a strike.
+   * - inconclusive recovery -> keep waiting without canceling the generation.
    */
   private async _runStalenessCheck() {
     const liveProjectIds = await this._api._listActiveProjectIds();
+    if (this.finished) return;
     if (liveProjectIds?.includes(this.id)) {
       // A queued project emits no events by design; this is not staleness.
       this._failedSyncAttempts = 0;
       this._keepAlive();
       return;
     }
-    const socketConfirmsGone = liveProjectIds !== null;
-
-    return this._syncToServer()
-      .then(() => {
+    const queueRevision = this._queueRevision;
+    try {
+      const resolved = await this._api.resolveMissing([this.id], { attempts: 1, delayMs: 0 });
+      if (this.finished) return; // a live event may have settled it during recovery
+      const resolution = resolved[this.id];
+      if (resolution?.state === 'finished' || resolution?.state === 'terminal') {
+        const data =
+          resolution.state === 'finished'
+            ? resolution.project
+            : {
+                ...resolution.project,
+                status:
+                  resolution.project.status === 'failed'
+                    ? ('errored' as const)
+                    : ('cancelled' as const)
+              };
+        await this._syncToServer(data, queueRevision);
+      }
+      if (resolution?.state !== 'lost') {
         this._failedSyncAttempts = 0;
-      })
-      .catch((error) => {
-        // A 404 alone is ambiguous: it is the normal state for a queued project
-        // as well as for a lost one. It only becomes evidence of loss when the
-        // socket has also confirmed the project is no longer in flight.
-        if (error.status === 404 && !socketConfirmsGone) {
-          return;
-        }
-        if (error.status !== 404) {
-          this._logger.error(error);
-        }
-        this._failedSyncAttempts++;
-        if (this._failedSyncAttempts >= MAX_FAILED_SYNC_ATTEMPTS) {
-          this._logger.error(
-            `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
-          );
-          this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
-            this._logger.error(`Failed to notify socket server that project ${this.id} timed out`);
-            this._logger.error(cancelError);
-          });
-          clearInterval(this._timeout!);
-          this._timeout = null;
-          this.jobs.forEach((job) => {
-            if (!job.finished) {
-              job._update({
-                status: 'failed',
-                error: { code: 0, message: 'Job timed out' }
-              });
-            }
-          });
-          this._update({
-            status: 'failed',
-            error: { code: 0, message: 'Project timed out. Please try again or contact support.' }
-          });
-        }
-      });
+        this._keepAlive();
+        return;
+      }
+      this._failedSyncAttempts++;
+      if (this._failedSyncAttempts >= MAX_FAILED_SYNC_ATTEMPTS) {
+        this._logger.error(
+          `Failed to sync project data after ${MAX_FAILED_SYNC_ATTEMPTS} attempts. Stopping further attempts.`
+        );
+        this._api._notifyProjectTimedOut(this.id).catch((cancelError) => {
+          this._logger.error(`Failed to notify socket server that project ${this.id} timed out`);
+          this._logger.error(cancelError);
+        });
+        clearInterval(this._timeout!);
+        this._timeout = null;
+        this.jobs.forEach((job) => {
+          if (!job.finished) {
+            job._update({
+              status: 'failed',
+              error: { code: 0, message: 'Job timed out' }
+            });
+          }
+        });
+        this._update({
+          status: 'failed',
+          error: { code: 0, message: 'Project timed out. Please try again or contact support.' }
+        });
+      }
+    } catch (error) {
+      // A failed request is not evidence that the server lost the generation.
+      this._failedSyncAttempts = 0;
+      this._logger.error(error);
+    }
   }
 
   /**
    * Sync project data with the data received from the REST API.
    * @internal
    */
-  async _syncToServer() {
-    const queueRevision = this._queueRevision;
-    const data = await this._api.get(this.id);
+  async _syncToServer(
+    snapshot?: Partial<RawProject> & Pick<RawProject, 'status' | 'completedWorkerJobs'>,
+    queueRevision = this._queueRevision
+  ) {
+    const wasFinished = this.finished;
+    const data = snapshot ?? (await this._api.get(this.id));
     this._setQueueState(data.waitingReason, data.jobWaitingReasons, queueRevision);
     const jobData = data.completedWorkerJobs.reduce((acc: Record<string, RawJob>, job) => {
       const jobId = job.imgID || getUUID();
@@ -589,11 +604,18 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     // If there are any jobs left in jobData, it means they are new jobs that are not in the project yet
     if (Object.keys(jobData).length) {
       for (const job of Object.values(jobData)) {
-        const jobInstance = Job.fromRaw(data, job, {
-          api: this._api,
-          logger: this._logger,
-          project: this
-        });
+        const jobInstance = Job.fromRaw(
+          {
+            id: this.id,
+            stepCount: data.stepCount ?? this.params.steps ?? 0
+          },
+          job,
+          {
+            api: this._api,
+            logger: this._logger,
+            project: this
+          }
+        );
         this._addJob(jobInstance);
         // A job discovered for the first time through the REST snapshot needs
         // the same sync a tracked job gets. `Job.fromRaw` only copies the
@@ -611,14 +633,15 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       }
     }
 
+    if (!wasFinished && this.finished) return;
     const delta: Partial<ProjectData> = {
       params: {
         ...this.data.params,
-        numberOfMedia: data.imageCount,
-        steps: data.stepCount
+        ...(data.imageCount !== undefined ? { numberOfMedia: data.imageCount } : {}),
+        ...(data.stepCount !== undefined ? { steps: data.stepCount } : {})
       }
     };
-    if (delta.params && isImageParams(delta.params)) {
+    if (delta.params && isImageParams(delta.params) && data.previewCount !== undefined) {
       delta.params.numberOfPreviews = data.previewCount;
     }
     if (PROJECT_STATUS_MAP[data.status]) {

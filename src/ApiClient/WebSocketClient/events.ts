@@ -325,6 +325,13 @@ export type JobResultData = {
 
 export type JobStateData =
   | {
+      /** LLM startup notifications share the media channel but have no render id. */
+      type: 'initiatingModel' | 'jobStarted';
+      jobID: string;
+      imgID?: undefined;
+      workerName?: string;
+    }
+  | {
       type: 'initiatingModel' | 'jobStarted';
       jobID: string;
       imgID: string;

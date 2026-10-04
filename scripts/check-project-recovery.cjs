@@ -18,6 +18,7 @@
 const assert = require('node:assert/strict');
 
 const ProjectsApi = require('../dist/Projects/index.js').default;
+const ChatApi = require('../dist/Chat/index.js').default;
 const Project = require('../dist/Projects/Project.js').default;
 const { isProjectLostError } = require('../dist/Projects/recovery.js');
 const {
@@ -103,8 +104,9 @@ function makeHarness({ restProjects = {}, syncSnapshot = null } = {}) {
     missingProjectAttempts: 2,
     missingProjectRetryMs: 5
   };
-  // Make `_listActiveProjectIds` (staleness watchdog) inert for these tests.
-  api._listActiveProjectIds = async () => null;
+  // An available, empty live list confirms absence. Tests for unavailable
+  // liveness override this explicitly with null.
+  api._listActiveProjectIds = async () => [];
 
   const apiEvents = [];
   api.on('project', (e) => apiEvents.push({ kind: 'project', ...e }));
@@ -494,14 +496,14 @@ async function main() {
     assert.equal(projects.processing.status, 'pending');
     assert.deepEqual(
       [...synced[0].lost].sort(),
-      [projects.gone.id, projects.anonymous.id].sort(),
-      'a 404 or an unauthenticated lookup keeps the lost verdict'
+      [projects.gone.id],
+      'only a 404 lookup confirms absence'
     );
     assert.equal(projects.gone.status, 'failed');
     assert.deepEqual(
       synced[0].unverified,
-      [projects.settled.id],
-      'a successful answer without a stored record stays unverified'
+      [projects.anonymous.id, projects.settled.id],
+      'an unauthorized lookup or a completion without a stored record stays unverified'
     );
     assert.equal(projects.settled.status, 'pending', 'an unverified project is left untouched');
     assert.deepEqual(
@@ -1113,6 +1115,112 @@ async function main() {
       assert.ok(isProjectLostError(project.error));
     }
     if (api._recheckTimer) clearTimeout(api._recheckTimer);
+    stopTimers(api);
+  }
+
+  // A failed final lookup is inconclusive even after every full-record attempt
+  // returned 404. It must neither fail nor resend a potentially running render.
+  for (const error of [
+    Object.assign(new Error('Unavailable'), { status: 503 }),
+    Object.assign(new Error('Rate limited'), { status: 429, retryAfter: 30 }),
+    Object.assign(new Error('Unauthorized'), { status: 401 }),
+    new TypeError('Load failed')
+  ]) {
+    const { api, client, synced, apiEvents } = makeHarness();
+    const project = await createTracked(api);
+    api.getStatus = async () => {
+      throw error;
+    };
+    let resends = 0;
+    api._resendUndelivered = async () => {
+      resends++;
+      return true;
+    };
+    const resolved = await api.resolveMissing([project.id], { attempts: 1, delayMs: 0 });
+    assert.equal(resolved[project.id].state, 'unknown');
+    assert.equal(resolved[project.id].error, error, 'preserves status and Retry-After');
+    await api._reconcile(
+      { activeProjects: [], unclaimedCompletedProjects: [] },
+      'manual',
+      Date.now()
+    );
+    assert.deepEqual(synced[0].unverified, [project.id]);
+    assert.deepEqual(synced[0].lost, []);
+    assert.equal(project.status, 'pending');
+    assert.equal(resends, 0, 'an inconclusive lookup never resubmits a generation');
+    assert.equal(apiEvents.filter((event) => event.type === 'error').length, 0);
+    stopTimers(api);
+  }
+
+  // A 404 cannot confirm loss while the live list itself is unavailable.
+  {
+    const { api } = makeHarness();
+    const project = await createTracked(api);
+    api._listActiveProjectIds = async () => null;
+    api._resendUndelivered = async () => {
+      throw new Error('must not resend');
+    };
+    const resolved = await api.resolveMissing([project.id], { attempts: 1, delayMs: 0 });
+    assert.equal(resolved[project.id].state, 'unknown');
+    assert.equal(project.status, 'pending');
+    stopTimers(api);
+  }
+
+  // Chat and media share jobState on the same socket. LLM startup frames have
+  // no imgID: chat must receive them without emitting invalid media job events.
+  {
+    const { api, socket, client, apiEvents } = makeHarness();
+    const chat = new ChatApi({ client, eip712: {} });
+    const chatStates = [];
+    chat.on('jobState', (event) => chatStates.push(event));
+    const stream = await chat.completions.create({
+      model: 'qwen',
+      messages: [{ role: 'user', content: 'hello' }],
+      stream: true
+    });
+    const jobID = stream.jobID;
+    socket.emit('jobState', { type: 'initiatingModel', jobID });
+    socket.emit('jobState', { type: 'jobStarted', jobID, workerName: 'chat-worker' });
+    assert.deepEqual(
+      chatStates.map((event) => event.type),
+      ['initiatingModel', 'jobStarted']
+    );
+    assert.equal(stream.workerName, 'chat-worker');
+    assert.equal(apiEvents.filter((event) => event.kind === 'job').length, 0);
+    // Other tabs' chat requests are also unrelated to this media namespace.
+    socket.emit('jobState', {
+      type: 'jobStarted',
+      jobID: 'OTHER-TAB-CHAT',
+      workerName: 'chat-worker'
+    });
+    assert.equal(apiEvents.filter((event) => event.kind === 'job').length, 0);
+    socket.emit('jobTokens', { jobID, content: 'hello' });
+    socket.emit('llmJobResult', { jobID, timeTaken: 1 });
+    assert.equal(stream.finalResult.content, 'hello');
+    assert.equal(stream.finalResult.workerName, 'chat-worker');
+
+    const project = await createTracked(api);
+    for (const type of ['initiatingModel', 'jobStarted']) {
+      socket.emit('jobState', {
+        type,
+        jobID: project.id,
+        imgID: 'IMG-START',
+        workerName: 'media-worker',
+        jobIndex: 0
+      });
+    }
+    assert.equal(project.jobs.length, 1);
+    assert.equal(project.jobs[0].id, 'IMG-START');
+    assert.equal(project.jobs[0].status, 'processing');
+    // Valid media events still reach store-owning consumers before rehydration.
+    socket.emit('jobState', {
+      type: 'jobStarted',
+      jobID: 'UNTRACKED-MEDIA',
+      imgID: 'IMG-UNTRACKED',
+      workerName: 'media-worker'
+    });
+    assert.equal(apiEvents.at(-1).jobId, 'IMG-UNTRACKED');
+    assert.equal(apiEvents.filter((event) => event.kind === 'job').length, 3);
     stopTimers(api);
   }
 
