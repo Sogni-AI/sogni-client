@@ -16,17 +16,29 @@
 const assert = require('node:assert/strict');
 
 const Project = require('../dist/Projects/Project.js').default;
+const ProjectsApi = require('../dist/Projects/index.js').default;
 
 const SILENT_LOGGER = { info() {}, warn() {}, error() {}, debug() {} };
 
 class ApiStub {
-  constructor({ liveProjectIds = null, restError = null, restProject = null } = {}) {
+  constructor({
+    liveProjectIds = null,
+    restError = null,
+    restProject = null,
+    statusError,
+    statusProject
+  } = {}) {
     this.liveProjectIds = liveProjectIds;
     this.restError = restError;
     this.restProject = restProject;
     this.timedOutProjectIds = [];
     this.listCallCount = 0;
     this.getCallCount = 0;
+    this.statusError = statusError ?? Object.assign(new Error('Not Found'), { status: 404 });
+    this.statusProject = statusProject;
+    this.statusCallCount = 0;
+    this.client = {};
+    this._recoveryTuning = {};
   }
 
   async _listActiveProjectIds() {
@@ -42,6 +54,16 @@ class ApiStub {
 
   async _notifyProjectTimedOut(projectId) {
     this.timedOutProjectIds.push(projectId);
+  }
+
+  resolveMissing = ProjectsApi.prototype.resolveMissing;
+  _lookupUnlistedProject = ProjectsApi.prototype._lookupUnlistedProject;
+  _resendUndelivered = async () => false;
+  _recentlyResubmitted = () => false;
+  async getStatus() {
+    this.statusCallCount++;
+    if (this.statusProject) return this.statusProject;
+    throw this.statusError;
   }
 }
 
@@ -122,7 +144,7 @@ async function main() {
     assert.equal(project.status, 'failed');
   }
 
-  // 4. Non-404 REST failures still count even when liveness is unknown.
+  // 4. Non-404 REST failures are inconclusive and must never cancel work.
   {
     const api = new ApiStub({ liveProjectIds: null, restError: serverError() });
     const project = makeProject(api);
@@ -132,7 +154,56 @@ async function main() {
       await runCheck(project);
     }
 
-    assert.equal(project.status, 'failed', 'repeated non-404 sync failures still fail the project');
+    assert.notEqual(project.status, 'failed', 'a server outage is not a project failure');
+    assert.equal(api.timedOutProjectIds.length, 0);
+  }
+
+  // Inconclusive owner lookups must also survive repeated watchdog checks.
+  for (const statusError of [
+    Object.assign(new Error('Unavailable'), { status: 503 }),
+    Object.assign(new Error('Rate limited'), { status: 429, retryAfter: 30 }),
+    Object.assign(new Error('Unauthorized'), { status: 401 }),
+    new TypeError('Load failed')
+  ]) {
+    const api = new ApiStub({ liveProjectIds: [], restError: notFound(), statusError });
+    const project = makeProject(api);
+    project._failedSyncAttempts = 2;
+    for (let i = 0; i < 5; i++) await runCheck(project);
+    assert.equal(project.status, 'pending');
+    assert.equal(project._failedSyncAttempts, 0, 'unknown breaks consecutive loss strikes');
+    assert.equal(api.timedOutProjectIds.length, 0);
+    assert.equal(api.statusCallCount, 5, 'one owner lookup per staleness check');
+  }
+
+  for (const status of ['queued', 'failed', 'canceled']) {
+    const api = new ApiStub({ liveProjectIds: [], restError: notFound() });
+    const project = makeProject(api);
+    const params = project.params;
+    api.statusProject = {
+      id: project.id,
+      status,
+      finished: status !== 'queued',
+      workerJobs: [],
+      completedWorkerJobs: []
+    };
+    await runCheck(project);
+    assert.equal(project.status, status === 'queued' ? 'pending' : status);
+    assert.deepEqual(project.params, params, 'compact status must preserve generation settings');
+    assert.equal(api.getCallCount, 1, 'the recovered snapshot is applied without rereading REST');
+    assert.equal(api.timedOutProjectIds.length, 0);
+  }
+
+  {
+    const api = new ApiStub({ liveProjectIds: [], restError: notFound() });
+    const project = makeProject(api);
+    project._failedSyncAttempts = 2;
+    api.getStatus = async () => {
+      project._update({ status: 'completed' });
+      throw notFound();
+    };
+    await runCheck(project);
+    assert.equal(project.status, 'completed', 'a live completion wins a delayed absence verdict');
+    assert.equal(api.timedOutProjectIds.length, 0);
   }
 
   // 5. A project that completed while the socket was quiet is recovered from

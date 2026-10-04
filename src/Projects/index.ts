@@ -906,6 +906,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this.emit('project', { type: 'completed', projectId: data.jobID });
         return;
       case 'initiatingModel':
+        // LLM startup notifications share this channel but have no render id.
+        // ChatApi handles those; only media frames can produce a JobEvent.
+        if (typeof data.imgID !== 'string') return;
         this.emit('job', {
           type: 'initiating',
           projectId: data.jobID,
@@ -918,6 +921,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         });
         return;
       case 'jobStarted': {
+        if (typeof data.imgID !== 'string') return;
         this.emit('job', {
           type: 'started',
           projectId: data.jobID,
@@ -1753,9 +1757,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       // Before failing anything, ask the owner-scoped live lookup. It can
       // confirm an active project or a terminal failure/cancellation without
       // a full record. A successful completion still needs its result record
-      // and stays unverified until that arrives. Anything else, including
-      // an unauthenticated client or an older API without the lookup, keeps the
-      // `lost` verdict.
+      // and stays unverified until that arrives. Failed lookups are inconclusive;
+      // only a 404 together with an available live list can confirm absence.
       const unlisted = pending.filter((id) => !live?.includes(id));
       const checks = new Map(
         await Promise.all(
@@ -1771,6 +1774,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         const check = checks.get(id);
         if (check) {
           result[id] = check;
+          continue;
+        }
+        if (live === null) {
+          result[id] = {
+            state: 'unknown',
+            error: new Error('The live project list is not available')
+          };
           continue;
         }
         // Nothing on the server knows it. A request that died with a dropped
@@ -1842,7 +1852,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   /**
    * Second opinion for a project neither the terminal REST record nor the live
-   * socket list knows. Returns `undefined` when the lookup cannot vouch for it.
+   * socket list knows. Returns `undefined` for a 404; other lookup failures
+   * remain unknown, preserving the error and any retry-after information.
    */
   private async _lookupUnlistedProject(projectId: string): Promise<ProjectResolution | undefined> {
     try {
@@ -1864,8 +1875,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         };
       }
       return undefined;
-    } catch {
-      return undefined;
+    } catch (error: any) {
+      return error?.status === 404 ? undefined : { state: 'unknown', error };
     }
   }
 
@@ -2744,7 +2755,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         };
         projects.set(projectId, project);
       }
-      const finishedAt = typeof job.endTime === 'number' && job.endTime > 0 ? job.endTime : undefined;
+      const finishedAt =
+        typeof job.endTime === 'number' && job.endTime > 0 ? job.endTime : undefined;
       project.jobs.push({
         id: job.imgID || job.id,
         status: resultJobStatus(job),
@@ -3449,7 +3461,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       );
     }
     const keyframeCount =
-      params.keyframeCount ?? (Array.isArray(params.keyframes) ? params.keyframes.length : undefined);
+      params.keyframeCount ??
+      (Array.isArray(params.keyframes) ? params.keyframes.length : undefined);
     if (Number.isFinite(keyframeCount) && (keyframeCount as number) > 0) {
       query.set('keyframeCount', String(Math.floor(keyframeCount as number)));
     }
