@@ -1,3 +1,11 @@
+## [5.60.4](https://github.com/Sogni-AI/sogni-client/compare/v5.60.3...v5.60.4) (2026-10-04)
+
+
+### Bug Fixes
+
+* **projects:** preserve inconclusive recovery and isolate chat startup events ([fa279a6](https://github.com/Sogni-AI/sogni-client/commit/fa279a6662c5abb3173cf4cebd0e4c00a168cc1b))
+* **projects:** preserve uncertain recovery and isolate chat startup events ([759d3f4](https://github.com/Sogni-AI/sogni-client/commit/759d3f45375a708d7fa59883b93a2b7d63ab2a54))
+
 ## [5.60.3](https://github.com/Sogni-AI/sogni-client/compare/v5.60.2...v5.60.3) (2026-10-03)
 
 
