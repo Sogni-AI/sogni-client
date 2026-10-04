@@ -1,3 +1,10 @@
+## [5.60.7](https://github.com/Sogni-AI/sogni-client/compare/v5.60.6...v5.60.7) (2026-10-04)
+
+
+### Bug Fixes
+
+* **deps:** take sogni-protocol 1.0.0-alpha.47 for the MiniMax Music 3 default ([b2edbac](https://github.com/Sogni-AI/sogni-client/commit/b2edbac55d854d44380ee481c601226d4f98b5d7))
+
 ## [5.60.6](https://github.com/Sogni-AI/sogni-client/compare/v5.60.5...v5.60.6) (2026-10-04)
 
 
