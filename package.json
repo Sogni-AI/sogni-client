@@ -98,6 +98,7 @@
     "test:chat-run-cost-confirmation": "npm run build && node scripts/check-chat-run-cost-confirmation.cjs",
     "test:socket-send-readiness": "npm run build && node scripts/check-socket-send-readiness.cjs",
     "test:socket-reconnect-backoff": "npm run build && node scripts/check-socket-reconnect-backoff.cjs",
+    "test:socket-keepalive": "npm run build && node scripts/check-socket-keepalive.cjs",
     "test:browser-request-handoff": "npm run build && node scripts/check-browser-request-handoff.cjs",
     "test:queue-wait-eta": "npm run build && node scripts/check-queue-wait-eta.cjs",
     "test:queue-reasons": "npm run build && node scripts/check-queue-reasons.cjs",
