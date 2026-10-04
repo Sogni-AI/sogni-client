@@ -1,3 +1,10 @@
+## [5.60.5](https://github.com/Sogni-AI/sogni-client/compare/v5.60.4...v5.60.5) (2026-10-04)
+
+
+### Bug Fixes
+
+* **client:** say a closed client ended a request, not an account change ([07c07eb](https://github.com/Sogni-AI/sogni-client/commit/07c07eb2cc3278ddfbea417c703552b3df548c63))
+
 ## [5.60.4](https://github.com/Sogni-AI/sogni-client/compare/v5.60.3...v5.60.4) (2026-10-04)
 
 
