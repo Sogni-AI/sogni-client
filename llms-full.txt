@@ -858,7 +858,7 @@ in attachment order. Assign every useful reference a role and prefer positive
 preservation constraints. Exact readable text/logos, lip-sync, voice cloning, and
 real-human-reference behavior need review.
 
-Seedance 2.5 Uncensored (`seedance-2-5-uncensored`, hosted selector `seedance2-5-uncensored`) is the same model with every Seedance 2.5 capability, limit, and option under its own id; each account must accept its one-time likeness and consent agreement in a Sogni app first, and until then its jobs fail with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key, version, modelId }` and is detected by `isModelConsentRequiredError()` (both exported from the package root). The SDK never accepts the agreement, and retrying fails the same way until it is accepted.
+Seedance 2.5 Uncensored (`seedance-2-5-uncensored`, hosted selector `seedance2-5-uncensored`) is the same model with every Seedance 2.5 capability, limit, and option under its own id; each account must accept its one-time likeness and consent agreement in a Sogni app first, and until then its jobs fail with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key, version, modelId }` and is detected by `isModelConsentRequiredError()` (both exported from the package root). The SDK never accepts the agreement, and retrying fails the same way until it is accepted. A model that is not yet available on a network is refused with `MODEL_NOT_YET_AVAILABLE_ERROR_CODE` (4104); show the error's message as is (it names models to try instead) and do not retry.
 
 SEEDANCE MODEL IDS:
 | Model ID | Context Assets | Notes |

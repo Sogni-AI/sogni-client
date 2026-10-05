@@ -11,7 +11,11 @@ const path = require('node:path');
 
 const pkgRoot = require('../dist/index.js');
 const ProjectsApi = require('../dist/Projects/index.js').default;
-const { MODEL_CONSENT_REQUIRED_ERROR_CODE, isModelConsentRequiredError } = pkgRoot;
+const {
+  MODEL_CONSENT_REQUIRED_ERROR_CODE,
+  MODEL_NOT_YET_AVAILABLE_ERROR_CODE,
+  isModelConsentRequiredError
+} = pkgRoot;
 
 class StubListeners {
   constructor() {
@@ -140,4 +144,32 @@ assert.equal(isModelConsentRequiredError({ code: 1, consentRequired: null }), fa
   assert.equal(isModelConsentRequiredError(otherError.error), false);
 }
 
-console.log('Model consent (4103) error checks passed');
+// Model not yet available (socket error 4104): the model is held on this
+// network. The error keeps the socket's message verbatim and no agreement.
+{
+  assert.equal(MODEL_NOT_YET_AVAILABLE_ERROR_CODE, 4104);
+  const NOT_YET_AVAILABLE_MESSAGE =
+    'This model is not yet available, try Wan 3 Spicy or MiniMax H3 video in the meantime.';
+  const client = makeStubClient();
+  const projects = new ProjectsApi({ client, eip712: {} });
+  const events = [];
+  projects.on('project', (event) => events.push(event));
+
+  client.socket.emit('jobError', {
+    jobID: 'proj_held',
+    isFromWorker: false,
+    error: '4104',
+    modelId: 'seedance-2-5-uncensored',
+    error_message: NOT_YET_AVAILABLE_MESSAGE
+  });
+  const heldError = events.find((e) => e.type === 'error' && e.projectId === 'proj_held');
+  assert.ok(heldError, 'a 4104 jobError must emit a project-level error');
+  assert.deepEqual(heldError.error, {
+    code: MODEL_NOT_YET_AVAILABLE_ERROR_CODE,
+    message: NOT_YET_AVAILABLE_MESSAGE
+  });
+  assert.equal(isModelConsentRequiredError(heldError.error), false);
+  assert.equal(isModelConsentRequiredError(MODEL_NOT_YET_AVAILABLE_ERROR_CODE), false);
+}
+
+console.log('Model consent (4103) and not-yet-available (4104) error checks passed');

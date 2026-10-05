@@ -71,6 +71,15 @@ export interface ModelConsentRequirement {
 export const MODEL_CONSENT_REQUIRED_ERROR_CODE = 4103;
 
 /**
+ * Socket error code for a job or price estimate refused because its model is
+ * not yet available on this network (for example a model released to staging
+ * but held in production). The error's `message` is the socket's wording,
+ * which names models to try instead; show it as is. Not retryable: the model
+ * stays refused until the server makes it available.
+ */
+export const MODEL_NOT_YET_AVAILABLE_ERROR_CODE = 4104;
+
+/**
  * Socket error codes returned when a job explicitly submitted with
  * `billingMode: 'subscription'` cannot be covered by the subscription, plus
  * the FEATURE-gate denial that applies regardless of billing mode.

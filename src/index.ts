@@ -253,6 +253,7 @@ import {
 // Base Types
 import ErrorData, {
   MODEL_CONSENT_REQUIRED_ERROR_CODE,
+  MODEL_NOT_YET_AVAILABLE_ERROR_CODE,
   SUBSCRIPTION_ERROR_CODES
 } from './types/ErrorData.js';
 import type { ModelConsentRequirement, SubscriptionErrorCode } from './types/ErrorData.js';
@@ -526,6 +527,7 @@ export {
   SogniTools,
   SUBSCRIPTION_ERROR_CODES,
   MODEL_CONSENT_REQUIRED_ERROR_CODE,
+  MODEL_NOT_YET_AVAILABLE_ERROR_CODE,
   isModelConsentRequiredError,
   isProjectLostError,
   isSubscriptionLimitError,
