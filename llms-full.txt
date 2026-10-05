@@ -858,7 +858,7 @@ in attachment order. Assign every useful reference a role and prefer positive
 preservation constraints. Exact readable text/logos, lip-sync, voice cloning, and
 real-human-reference behavior need review.
 
-Seedance 2.5 Uncensored (`seedance-2-5-spicy`, hosted selector `seedance2-5-spicy`) is the same model with every Seedance 2.5 capability, limit, and option under its own id; each account must accept its one-time likeness and consent agreement in a Sogni app first, and until then its jobs fail with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key, version, modelId }` and is detected by `isModelConsentRequiredError()` (both exported from the package root). The SDK never accepts the agreement, and retrying fails the same way until it is accepted.
+Seedance 2.5 Uncensored (`seedance-2-5-uncensored`, hosted selector `seedance2-5-uncensored`) is the same model with every Seedance 2.5 capability, limit, and option under its own id; each account must accept its one-time likeness and consent agreement in a Sogni app first, and until then its jobs fail with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key, version, modelId }` and is detected by `isModelConsentRequiredError()` (both exported from the package root). The SDK never accepts the agreement, and retrying fails the same way until it is accepted.
 
 SEEDANCE MODEL IDS:
 | Model ID | Context Assets | Notes |
@@ -866,7 +866,7 @@ SEEDANCE MODEL IDS:
 | seedance-2-0 | Optional image, video, and audio refs | 24fps, 4-15s, 4K |
 | seedance-2-0-mini | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
 | seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 50 total; audio-only allowed) | 24fps, 4-30s, 1080p cap, first+last frame |
-| seedance-2-5-spicy | Same as seedance-2-5 (Seedance 2.5 Uncensored; one-time agreement required, error 4103 until accepted) | 24fps, 4-30s, 1080p cap, first+last frame |
+| seedance-2-5-uncensored | Same as seedance-2-5 (Seedance 2.5 Uncensored; one-time agreement required, error 4103 until accepted) | 24fps, 4-30s, 1080p cap, first+last frame |
 
 SEEDANCE TEXT-TO-VIDEO:
 

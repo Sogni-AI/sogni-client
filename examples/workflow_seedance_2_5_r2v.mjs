@@ -36,8 +36,8 @@ const MODEL_CONFIG = {
     audioOnlyReference: true
   },
   // Seedance 2.5 Uncensored: Seedance 2.5 under its own model id and selector.
-  'seedance-2-5-spicy': {
-    hostedSelector: 'seedance2-5-spicy',
+  'seedance-2-5-uncensored': {
+    hostedSelector: 'seedance2-5-uncensored',
     maxDuration: 30,
     resolutions: ['480p', '720p', '1080p'],
     defaultResolution: '1080p',
@@ -449,7 +449,7 @@ Usage:
 Options:
   --task-type <type>       reference (default), edit, or extend
   --layer <layer>          direct (default) or creative-agent
-  --model <id>             seedance-2-5 (default), seedance-2-5-spicy, seedance-2-0, -mini, or -fast
+  --model <id>             seedance-2-5 (default), seedance-2-5-uncensored, seedance-2-0, -mini, or -fast
   --duration <seconds>     4-30 for 2.5; 4-15 for the 2.0 family (default: 5)
                            Required for direct edit and must equal @Video1's source duration.
                            For extend, this is the new continuation duration.
@@ -472,7 +472,7 @@ Semantics:
   extend    -> direct seedanceTaskType="extend"; Creative Agent extend_video
 
 Seedance 2.5 accepts 30 images, 10 videos, 10 audios, and 50 files total. Audio-only
-reference is valid. seedance-2-5-spicy is Seedance 2.5 Uncensored with the same limits;
+reference is valid. seedance-2-5-uncensored is Seedance 2.5 Uncensored with the same limits;
 accept its one-time likeness and consent agreement in the Sogni app first, or its jobs
 fail with error 4103. Edit/extend require @Video1. The 2.0 family keeps 9/3/3/12,
 4-15 seconds, requires visual media when audio is attached, and omits seedanceTaskType.

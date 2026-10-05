@@ -69,7 +69,7 @@ function makeStubClient() {
 
 const CONSENT_MESSAGE =
   'Seedance 2.5 Uncensored requires a one-time likeness and consent agreement. Review and accept it in the Sogni app, then try again.';
-const CONSENT = { key: 'seedance-2-5-spicy', version: 1, modelId: 'seedance-2-5-spicy' };
+const CONSENT = { key: 'seedance-2-5-uncensored', version: 1, modelId: 'seedance-2-5-uncensored' };
 
 // The constant and helper are package-root exports.
 assert.equal(MODEL_CONSENT_REQUIRED_ERROR_CODE, 4103);

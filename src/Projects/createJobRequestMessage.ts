@@ -733,7 +733,7 @@ const SEEDANCE_REFERENCE_LIMITS_BY_MODEL: Record<
   'seedance-2-0-fast': { images: 9, videos: 3, audios: 3, assets: 12 },
   'seedance-2-5': { images: 30, videos: 10, audios: 10, assets: 50 },
   // Seedance 2.5 Uncensored: the same model and limits as Seedance 2.5.
-  'seedance-2-5-spicy': { images: 30, videos: 10, audios: 10, assets: 50 }
+  'seedance-2-5-uncensored': { images: 30, videos: 10, audios: 10, assets: 50 }
 };
 
 function seedanceReferenceLimits(modelId: string): {

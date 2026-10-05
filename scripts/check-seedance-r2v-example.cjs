@@ -165,33 +165,37 @@ async function main() {
 
   // Seedance 2.5 Uncensored keeps its own model id and hosted selector with
   // every Seedance 2.5 limit.
-  const spicyArgs = ['--model', 'seedance-2-5-spicy', '--task-type', 'reference'];
-  const spicy = parsed(parseArgs, [...spicyArgs, '--audio', 'https://cdn.example.com/voice.mp3']);
-  validateOptions(spicy);
-  const spicyParams = buildDirectProjectParams(spicy, {
-    images: [],
-    videos: [],
-    audios: spicy.audios
-  });
-  assert.equal(spicyParams.modelId, 'seedance-2-5-spicy');
-  assert.equal(spicyParams.seedanceTaskType, 'reference');
-  const spicyCreativeAgent = parsed(parseArgs, [
-    '--creative-agent',
-    ...spicyArgs,
+  const uncensoredArgs = ['--model', 'seedance-2-5-uncensored', '--task-type', 'reference'];
+  const uncensored = parsed(parseArgs, [
+    ...uncensoredArgs,
     '--audio',
     'https://cdn.example.com/voice.mp3'
   ]);
-  validateOptions(spicyCreativeAgent);
-  const spicyRequest = buildCreativeAgentRequest(spicyCreativeAgent, {
+  validateOptions(uncensored);
+  const uncensoredParams = buildDirectProjectParams(uncensored, {
     images: [],
     videos: [],
-    audios: spicyCreativeAgent.audios
+    audios: uncensored.audios
   });
-  assert.equal(spicyRequest.input.steps[0].arguments.videoModel, 'seedance2-5-spicy');
+  assert.equal(uncensoredParams.modelId, 'seedance-2-5-uncensored');
+  assert.equal(uncensoredParams.seedanceTaskType, 'reference');
+  const uncensoredCreativeAgent = parsed(parseArgs, [
+    '--creative-agent',
+    ...uncensoredArgs,
+    '--audio',
+    'https://cdn.example.com/voice.mp3'
+  ]);
+  validateOptions(uncensoredCreativeAgent);
+  const uncensoredRequest = buildCreativeAgentRequest(uncensoredCreativeAgent, {
+    images: [],
+    videos: [],
+    audios: uncensoredCreativeAgent.audios
+  });
+  assert.equal(uncensoredRequest.input.steps[0].arguments.videoModel, 'seedance2-5-uncensored');
   assert.doesNotThrow(() =>
     validateOptions(
       parsed(parseArgs, [
-        ...spicyArgs,
+        ...uncensoredArgs,
         '--duration',
         '30',
         ...urls('image', 30, 'jpg').flatMap((url) => ['--image', url])
@@ -202,20 +206,20 @@ async function main() {
     () =>
       validateOptions(
         parsed(parseArgs, [
-          ...spicyArgs,
+          ...uncensoredArgs,
           ...urls('image', 31, 'jpg').flatMap((url) => ['--image', url])
         ])
       ),
-    /seedance-2-5-spicy supports at most 30 images/
+    /seedance-2-5-uncensored supports at most 30 images/
   );
 
-  const partnerSpicy = spawnSync(
+  const partnerUncensored = spawnSync(
     process.execPath,
     [
       path.resolve(__dirname, '../examples/workflow_partner_seedance_video.mjs'),
       'Contract check prompt.',
       '--model',
-      'seedance-2-5-spicy',
+      'seedance-2-5-uncensored',
       '--duration',
       '30',
       '--width',
@@ -228,8 +232,8 @@ async function main() {
     ],
     { encoding: 'utf8' }
   );
-  assert.equal(partnerSpicy.status, 0, partnerSpicy.stderr);
-  assert.match(partnerSpicy.stdout, /"videoModel": "seedance2-5-spicy"/);
+  assert.equal(partnerUncensored.status, 0, partnerUncensored.stderr);
+  assert.match(partnerUncensored.stdout, /"videoModel": "seedance2-5-uncensored"/);
 
   const partner1080Dimension = spawnSync(
     process.execPath,

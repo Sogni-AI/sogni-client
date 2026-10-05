@@ -1530,26 +1530,30 @@ assert.equal(
 // Seedance 2.5 Uncensored resolves to its own model id on every Seedance 2.5
 // path and never to seedance-2-5 (that is a different vendor account).
 for (const [toolName, args, preferredKey] of [
-  ['generate_video', {}, 'seedance25SpicyT2v'],
-  ['generate_video', { referenceImageIndices: [-1] }, 'seedance25SpicyI2v'],
-  ['video_to_video', {}, 'seedance25SpicyV2v'],
-  ['sound_to_video', {}, 'seedance25SpicyIa2v']
+  ['generate_video', {}, 'seedance25UncensoredT2v'],
+  ['generate_video', { referenceImageIndices: [-1] }, 'seedance25UncensoredI2v'],
+  ['video_to_video', {}, 'seedance25UncensoredV2v'],
+  ['sound_to_video', {}, 'seedance25UncensoredIa2v']
 ]) {
-  assert.equal(PREFERRED_MODEL_IDS.video[preferredKey], 'seedance-2-5-spicy');
-  for (const videoModel of ['seedance2-5-spicy', 'seedance-2-5-spicy']) {
+  assert.equal(PREFERRED_MODEL_IDS.video[preferredKey], 'seedance-2-5-uncensored');
+  for (const videoModel of ['seedance2-5-uncensored', 'seedance-2-5-uncensored']) {
     assert.equal(
       resolveHostedToolModelSelector(toolName, { ...args, videoModel }),
-      'seedance-2-5-spicy',
-      `${toolName} must resolve ${videoModel} to seedance-2-5-spicy`
+      'seedance-2-5-uncensored',
+      `${toolName} must resolve ${videoModel} to seedance-2-5-uncensored`
     );
   }
 }
-assert.deepEqual(getVideoDefaults('seedance-2-5-spicy'), { width: 1920, height: 1080, fps: 24 });
+assert.deepEqual(getVideoDefaults('seedance-2-5-uncensored'), {
+  width: 1920,
+  height: 1080,
+  fps: 24
+});
 for (const workflow of ['t2v', 'i2v', 'flf2v', 'r2v', 'ia2v', 'v2v']) {
   assert.deepEqual(
-    filterVideoModelsByWorkflow([{ id: 'seedance-2-5-spicy', media: 'video' }], [workflow]),
-    ['seedance-2-5-spicy'],
-    `seedance-2-5-spicy must support the Seedance 2.5 ${workflow} workflow`
+    filterVideoModelsByWorkflow([{ id: 'seedance-2-5-uncensored', media: 'video' }], [workflow]),
+    ['seedance-2-5-uncensored'],
+    `seedance-2-5-uncensored must support the Seedance 2.5 ${workflow} workflow`
   );
 }
 // The hosted tools list the selector directly after seedance2-5, and
@@ -1559,17 +1563,23 @@ for (const toolName of ['generate_video', 'sound_to_video', 'video_to_video']) {
     sdkHostedToolsByName.get(toolName).function.parameters.properties.videoModel.enum;
   assert.equal(
     videoModelEnum[videoModelEnum.indexOf('seedance2-5') + 1],
-    'seedance2-5-spicy',
-    `${toolName} must list seedance2-5-spicy after seedance2-5`
+    'seedance2-5-uncensored',
+    `${toolName} must list seedance2-5-uncensored after seedance2-5`
   );
 }
 assert.ok(
   !sdkHostedToolsByName
     .get('animate_photo')
-    .function.parameters.properties.videoModel.enum.includes('seedance2-5-spicy')
+    .function.parameters.properties.videoModel.enum.includes('seedance2-5-uncensored')
 );
-// Explicit-id registry: near-miss ids are not Seedance 2.5 Uncensored.
-for (const nearMiss of ['seedance2-5-spicy', 'seedance-2-5-spicy-v2', 'seedance-2-5-uncensored']) {
+// Explicit-id registry: near-miss ids, including the old pre-rename
+// seedance-2-5-spicy id, are not Seedance 2.5 Uncensored.
+for (const nearMiss of [
+  'seedance2-5-uncensored',
+  'seedance-2-5-uncensored-v2',
+  'seedance-2-5-spicy',
+  'seedance2-5-spicy'
+]) {
   assert.equal(isSeedanceModel(nearMiss), false, `${nearMiss} must not be a Seedance model`);
   assert.equal(isVideoModel(nearMiss), false, `${nearMiss} must not be a video model`);
 }
