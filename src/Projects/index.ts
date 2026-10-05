@@ -135,6 +135,7 @@ const DEFAULT_LORA_CONSTRAINTS: LoraConstraints = {
   maxStrength: 100
 };
 const GARBAGE_COLLECT_TIMEOUT = 30000;
+const GPT_IMAGE_MASK_DATA_URI_PREFIX = 'data:image/png;base64,';
 /**
  * How many results the image endpoint reported as media are remembered, so a
  * later URL request for one goes straight to the media endpoint. Bounded so a
@@ -2312,13 +2313,23 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       if (normalizedData.gptImageMask) {
         throw new Error('Provide one GPT Image mask, not both media and URL');
       }
-      const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(
-        normalizedData.gptImageMaskUrl
-      );
-      if (!match || match[1].length >= Math.ceil((50 * 1024 * 1024 * 4) / 3)) {
+      // Split off the prefix with string operations and check the payload with
+      // a `*` loop, never a `+` loop: the old
+      // /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/ overflowed V8's regexp
+      // stack for masks over ~3 MB in long-running processes. See
+      // splitBase64DataUri in lib/mediaValidation.ts.
+      const maskUrl = normalizedData.gptImageMaskUrl;
+      const maskBase64 = maskUrl.startsWith(GPT_IMAGE_MASK_DATA_URI_PREFIX)
+        ? maskUrl.slice(GPT_IMAGE_MASK_DATA_URI_PREFIX.length)
+        : '';
+      if (
+        !maskBase64 ||
+        maskBase64.length >= Math.ceil((50 * 1024 * 1024 * 4) / 3) ||
+        !/^[A-Za-z0-9+/=]*$/.test(maskBase64)
+      ) {
         throw new Error('GPT Image mask must be a PNG data URI smaller than 50 MB');
       }
-      const bytes = Uint8Array.from(atob(match[1]), (char) => char.charCodeAt(0));
+      const bytes = Uint8Array.from(atob(maskBase64), (char) => char.charCodeAt(0));
       normalizedData = {
         ...normalizedData,
         gptImageMask: new Blob([bytes], { type: 'image/png' }),

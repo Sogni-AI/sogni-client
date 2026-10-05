@@ -448,21 +448,52 @@ function validateImageDimensions(dimensions: ImageDimensions, maxLongestSide: nu
   }
 }
 
+const DATA_URI_SCHEME = 'data:';
+const DATA_URI_BASE64_SUFFIX = ';base64';
+
+/**
+ * Split `data:<mime>;base64,<payload>` (scheme and `;base64` case-insensitive)
+ * into the declared MIME type and the payload using string operations only.
+ *
+ * The payload must not go through a regexp `+` loop. Once a process has
+ * compiled about 1 MB of regexp code, V8 stops optimizing the regexps it
+ * compiles afterwards (TooMuchRegExpCode in src/regexp/regexp.cc), and an
+ * unoptimized `[...]+` loop takes 16 bytes of backtrack stack per character.
+ * The old `/^data:([^;,]+);base64,([A-Za-z0-9+/=\s]+)$/i` therefore threw
+ * "Maximum call stack size exceeded" for any input over ~3 MB (4M base64
+ * characters) in long-running processes, the same failure sogni-api hit in
+ * production on 2026-10-02..04. A `[...]*` loop is a greedy loop that keeps no
+ * per-character backtrack state, so `decodeStrictBase64`, which checks the
+ * payload's alphabet, is unaffected.
+ */
+function splitBase64DataUri(input: string): { mimeType: string; base64: string } | undefined {
+  const comma = input.indexOf(',');
+  if (comma < 0 || comma === input.length - 1) return undefined;
+  const header = input.slice(0, comma);
+  if (header.length <= DATA_URI_SCHEME.length + DATA_URI_BASE64_SUFFIX.length) return undefined;
+  if (header.slice(0, DATA_URI_SCHEME.length).toLowerCase() !== DATA_URI_SCHEME) return undefined;
+  if (header.slice(-DATA_URI_BASE64_SUFFIX.length).toLowerCase() !== DATA_URI_BASE64_SUFFIX) {
+    return undefined;
+  }
+  const mimeType = header.slice(DATA_URI_SCHEME.length, -DATA_URI_BASE64_SUFFIX.length);
+  if (mimeType.includes(';')) return undefined;
+  return { mimeType, base64: input.slice(comma + 1) };
+}
+
 export function parseInlineMediaDataUri(
   input: string,
   mediaType: MediaType,
   options: InlineMediaValidationOptions = {}
 ): ParsedInlineMediaData {
-  const trimmed = input.trim();
-  const match = /^data:([^;,]+);base64,([A-Za-z0-9+/=\s]+)$/i.exec(trimmed);
-  if (!match) {
+  const dataUri = splitBase64DataUri(input.trim());
+  if (!dataUri) {
     throw new Error(
       `Only inline base64-encoded data URIs are supported for ${mediaType} inputs; remote URLs are not allowed`
     );
   }
 
-  const mimeType = match[1].toLowerCase();
-  const bytes = decodeStrictBase64(match[2]);
+  const mimeType = dataUri.mimeType.toLowerCase();
+  const bytes = decodeStrictBase64(dataUri.base64);
 
   if (options.maxBytes !== undefined && bytes.length > options.maxBytes) {
     throw new Error(
