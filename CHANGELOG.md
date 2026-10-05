@@ -1,3 +1,10 @@
+## [5.60.8](https://github.com/Sogni-AI/sogni-client/compare/v5.60.7...v5.60.8) (2026-10-05)
+
+
+### Bug Fixes
+
+* **media:** parse large data URIs without a regex over the payload ([1dc4cdf](https://github.com/Sogni-AI/sogni-client/commit/1dc4cdfba47baa0ca74aa6dd486a0480d67c1dc7))
+
 ## [5.60.7](https://github.com/Sogni-AI/sogni-client/compare/v5.60.6...v5.60.7) (2026-10-04)
 
 
