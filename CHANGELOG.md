@@ -1,3 +1,12 @@
+# [5.61.0](https://github.com/Sogni-AI/sogni-client/compare/v5.60.8...v5.61.0) (2026-10-06)
+
+
+### Features
+
+* **errors:** export MODEL_NOT_YET_AVAILABLE_ERROR_CODE for socket error 4104 ([04514c6](https://github.com/Sogni-AI/sogni-client/commit/04514c6a889e8b0c525f58c10a53af652331f64e))
+* **video:** add Seedance 2.5 Uncensored and the 4103 consent error ([6fba418](https://github.com/Sogni-AI/sogni-client/commit/6fba418c73c99683f7b309bfbd0784ebc565473e))
+* **video:** rename Seedance 2.5 Uncensored to seedance-2-5-uncensored ([8051c5d](https://github.com/Sogni-AI/sogni-client/commit/8051c5d51e516a5205a2d86fbcebe9c2c59f50ac))
+
 ## [5.60.8](https://github.com/Sogni-AI/sogni-client/compare/v5.60.7...v5.60.8) (2026-10-05)
 
 
