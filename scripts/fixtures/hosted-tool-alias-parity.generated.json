@@ -13,7 +13,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_image",
       "sdkToolName": "generate_image",
-      "hostedSchemaSha256": "310380534da40e0cce9af0c9deb3141c0eb6f2767f37637fdb9e190a27161818",
+      "hostedSchemaSha256": "7579c32c00e8b23a802231ecba3bf6d5e1ad404633c6107b4240e58b232e0fd6",
       "hostedRequired": [
         "prompt"
       ],
@@ -53,7 +53,7 @@
       "executionMode": "direct",
       "hostedToolName": "edit_image",
       "sdkToolName": "edit_image",
-      "hostedSchemaSha256": "dd0df1dcc162256c035321ec69a2350c11f972d5077261dd270c7055dfd0698d",
+      "hostedSchemaSha256": "6a5fe5f973e81d0e46d4751d45d4a4cfcca8311a92284cfeed709d7c9e23dd65",
       "hostedRequired": [
         "prompt"
       ],
