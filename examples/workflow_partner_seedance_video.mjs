@@ -47,24 +47,40 @@ const SEEDANCE_MODELS = {
   t2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
+    'seedance2-mini-uncensored': {
+      id: 'seedance-2-0-mini-uncensored',
+      name: 'Seedance 2.0 Mini Uncensored'
+    },
     'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
     'seedance2-5-uncensored': { id: 'seedance-2-5-uncensored', name: 'Seedance 2.5 Uncensored' }
   },
   i2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
+    'seedance2-mini-uncensored': {
+      id: 'seedance-2-0-mini-uncensored',
+      name: 'Seedance 2.0 Mini Uncensored'
+    },
     'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
     'seedance2-5-uncensored': { id: 'seedance-2-5-uncensored', name: 'Seedance 2.5 Uncensored' }
   },
   ia2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
+    'seedance2-mini-uncensored': {
+      id: 'seedance-2-0-mini-uncensored',
+      name: 'Seedance 2.0 Mini Uncensored'
+    },
     'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
     'seedance2-5-uncensored': { id: 'seedance-2-5-uncensored', name: 'Seedance 2.5 Uncensored' }
   },
   v2v: {
     seedance2: { id: 'seedance-2-0', name: 'Seedance 2.0' },
     'seedance2-mini': { id: 'seedance-2-0-mini', name: 'Seedance 2.0 Mini' },
+    'seedance2-mini-uncensored': {
+      id: 'seedance-2-0-mini-uncensored',
+      name: 'Seedance 2.0 Mini Uncensored'
+    },
     'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
     'seedance2-5-uncensored': { id: 'seedance-2-5-uncensored', name: 'Seedance 2.5 Uncensored' }
   }
@@ -273,6 +289,7 @@ function supportsMiniTier(mode) {
 function selectedTierLabel(options) {
   const modelId = selectedModelId(options);
   if (modelId === 'seedance-2-5-uncensored') return 'Seedance 2.5 Uncensored';
+  if (modelId === 'seedance-2-0-mini-uncensored') return 'Seedance 2.0 Mini Uncensored';
   if (modelId === 'seedance-2-5') return 'Seedance 2.5';
   if (modelId.includes('mini')) return 'Seedance 2.0 Mini';
   return 'Seedance 2.0';
@@ -886,6 +903,7 @@ Seedance models:
   seedance-2-0            seedance-2-0-mini
   seedance-2-5            (480p/720p/1080p, 4-30s clips, first+last frame)
   seedance-2-5-uncensored (Seedance 2.5 Uncensored; same limits as seedance-2-5)
+  seedance-2-0-mini-uncensored (Seedance 2.0 Mini Uncensored; same limits as seedance-2-0-mini)
 
 Options:
   --interactive           Run the guided Seedance workflow setup
@@ -930,7 +948,7 @@ Options:
 ${billingModeHelpText()}
   --json                 Print raw response
 
-Execution requires SOGNI_API_KEY in examples/.env or the environment. Local media inputs are uploaded with the existing Sogni media upload endpoints before workflow execution. Workflow dry-runs also upload local media so the printed request contains real HTTPS media URLs. Seedance 2.5 accepts at most 30 image assets, 10 video assets, 10 audio assets, and 50 assets total; the 2.0 family retains 9/3/3/12. Seedance 2.5 Uncensored (seedance-2-5-uncensored) needs a one-time likeness and consent agreement accepted in the Sogni app; until then its jobs fail with error 4103. In prompts, use @Image1/@Video1/@Audio1 role tags counted independently by modality in attachment order, and use positive preservation language. Exact readable text/logos, lip-sync, voice cloning, and real-human-reference behavior need review.
+Execution requires SOGNI_API_KEY in examples/.env or the environment. Local media inputs are uploaded with the existing Sogni media upload endpoints before workflow execution. Workflow dry-runs also upload local media so the printed request contains real HTTPS media URLs. Seedance 2.5 accepts at most 30 image assets, 10 video assets, 10 audio assets, and 50 assets total; the 2.0 family retains 9/3/3/12. Seedance 2.5 Uncensored (seedance-2-5-uncensored) and Seedance 2.0 Mini Uncensored (seedance-2-0-mini-uncensored) share a one-time likeness and consent agreement accepted in the Sogni app; until then their jobs fail with error 4103. In prompts, use @Image1/@Video1/@Audio1 role tags counted independently by modality in attachment order, and use positive preservation language. Exact readable text/logos, lip-sync, voice cloning, and real-human-reference behavior need review.
 `);
 }
 

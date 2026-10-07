@@ -135,6 +135,12 @@ export const PREFERRED_MODEL_IDS = {
     seedance25UncensoredI2v: 'seedance-2-5-uncensored',
     seedance25UncensoredIa2v: 'seedance-2-5-uncensored',
     seedance25UncensoredV2v: 'seedance-2-5-uncensored',
+    // Seedance 2.0 Mini Uncensored: the same model as Seedance 2.0 Mini under its
+    // own id. Never route it to 'seedance-2-0-mini' or 'seedance-2-0'.
+    seedanceMiniUncensoredT2v: 'seedance-2-0-mini-uncensored',
+    seedanceMiniUncensoredI2v: 'seedance-2-0-mini-uncensored',
+    seedanceMiniUncensoredIa2v: 'seedance-2-0-mini-uncensored',
+    seedanceMiniUncensoredV2v: 'seedance-2-0-mini-uncensored',
     happyhorseT2v: 'happyhorse-1.1-t2v',
     happyhorseI2v: 'happyhorse-1.1-i2v',
     happyhorseR2v: 'happyhorse-1.1-r2v',
@@ -300,6 +306,7 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   wan22: 'wan_v2.2-14b-fp8_t2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceT2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
+  'seedance2-mini-uncensored': PREFERRED_MODEL_IDS.video.seedanceMiniUncensoredT2v,
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25T2v,
@@ -332,6 +339,7 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   wan22: 'wan_v2.2-14b-fp8_i2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceI2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
+  'seedance2-mini-uncensored': PREFERRED_MODEL_IDS.video.seedanceMiniUncensoredI2v,
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25I2v,
@@ -371,6 +379,7 @@ const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.v2v,
   'ltx23-v2v': PREFERRED_MODEL_IDS.video.v2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v,
+  'seedance2-mini-uncensored': PREFERRED_MODEL_IDS.video.seedanceMiniUncensoredV2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v,
   'seedance2-5-uncensored': PREFERRED_MODEL_IDS.video.seedance25UncensoredV2v
 };
@@ -378,6 +387,7 @@ const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
 const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'wan-s2v': PREFERRED_MODEL_IDS.video.s2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceIa2v,
+  'seedance2-mini-uncensored': PREFERRED_MODEL_IDS.video.seedanceMiniUncensoredIa2v,
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25Ia2v,
@@ -607,9 +617,11 @@ function getCompatibleVideoWorkflows(modelId: string): VideoWorkflow[] {
     return SEEDANCE_2_5_WORKFLOWS;
   }
   // models/list still reports the retired seedance-2-0-fast id for analytics; classify it like Mini.
+  // Seedance 2.0 Mini Uncensored is Mini under its own id.
   if (
     modelId === 'seedance-2-0' ||
     modelId === 'seedance-2-0-mini' ||
+    modelId === 'seedance-2-0-mini-uncensored' ||
     modelId === 'seedance-2-0-fast'
   ) {
     return SEEDANCE_CANONICAL_WORKFLOWS;
@@ -651,8 +663,13 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
   }
-  // Seedance Mini and the retired Fast id cap at 720p. Seedance 2.0 and 2.5 default to 1080p.
-  if (modelId === 'seedance-2-0-mini' || modelId === 'seedance-2-0-fast') {
+  // Seedance Mini, Mini Uncensored and the retired Fast id cap at 720p. Seedance 2.0 and 2.5
+  // default to 1080p.
+  if (
+    modelId === 'seedance-2-0-mini' ||
+    modelId === 'seedance-2-0-mini-uncensored' ||
+    modelId === 'seedance-2-0-fast'
+  ) {
     return { width: 1280, height: 720, fps: 24 };
   }
   if (isSeedance || isHappyhorse) {

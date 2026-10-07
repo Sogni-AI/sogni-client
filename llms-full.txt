@@ -858,7 +858,7 @@ in attachment order. Assign every useful reference a role and prefer positive
 preservation constraints. Exact readable text/logos, lip-sync, voice cloning, and
 real-human-reference behavior need review.
 
-Seedance 2.5 Uncensored (`seedance-2-5-uncensored`, hosted selector `seedance2-5-uncensored`) is the same model with every Seedance 2.5 capability, limit, and option under its own id; each account must accept its one-time likeness and consent agreement in a Sogni app first, and until then its jobs fail with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key, version, modelId }` and is detected by `isModelConsentRequiredError()` (both exported from the package root). The SDK never accepts the agreement, and retrying fails the same way until it is accepted. A model that is not yet available on a network is refused with `MODEL_NOT_YET_AVAILABLE_ERROR_CODE` (4104); show the error's message as is (it names models to try instead) and do not retry.
+Seedance 2.5 Uncensored (`seedance-2-5-uncensored`, hosted selector `seedance2-5-uncensored`) is the same model with every Seedance 2.5 capability, limit, and option under its own id, and Seedance 2.0 Mini Uncensored (`seedance-2-0-mini-uncensored`, hosted selector `seedance2-mini-uncensored`) is likewise Seedance 2.0 Mini with every Mini capability and limit (480p/720p, 4-15s, 9/3/3/12 references) under its own id. The two share one likeness and consent agreement: each account must accept it in a Sogni app first, and until then their jobs fail with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key, version, modelId }` and is detected by `isModelConsentRequiredError()` (both exported from the package root). The SDK never accepts the agreement, and retrying fails the same way until it is accepted. A model that is not yet available on a network is refused with `MODEL_NOT_YET_AVAILABLE_ERROR_CODE` (4104); show the error's message as is (it names models to try instead) and do not retry.
 
 SEEDANCE MODEL IDS:
 | Model ID | Context Assets | Notes |
@@ -867,6 +867,7 @@ SEEDANCE MODEL IDS:
 | seedance-2-0-mini | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
 | seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 50 total; audio-only allowed) | 24fps, 4-30s, 1080p cap, first+last frame |
 | seedance-2-5-uncensored | Same as seedance-2-5 (Seedance 2.5 Uncensored; one-time agreement required, error 4103 until accepted) | 24fps, 4-30s, 1080p cap, first+last frame |
+| seedance-2-0-mini-uncensored | Same as seedance-2-0-mini (Seedance 2.0 Mini Uncensored; the same one-time agreement, error 4103 until accepted) | 24fps, 4-15s, 720p cap |
 
 SEEDANCE TEXT-TO-VIDEO:
 

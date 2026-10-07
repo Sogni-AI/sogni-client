@@ -1583,6 +1583,74 @@ for (const nearMiss of [
   assert.equal(isSeedanceModel(nearMiss), false, `${nearMiss} must not be a Seedance model`);
   assert.equal(isVideoModel(nearMiss), false, `${nearMiss} must not be a video model`);
 }
+// Seedance 2.0 Mini Uncensored resolves to its own model id on every Seedance
+// Mini path, including sound and video-to-video, and never to seedance-2-0-mini
+// or seedance-2-0 (those run on a different vendor account).
+for (const [toolName, args, preferredKey] of [
+  ['generate_video', {}, 'seedanceMiniUncensoredT2v'],
+  ['generate_video', { referenceImageIndices: [-1] }, 'seedanceMiniUncensoredI2v'],
+  ['video_to_video', {}, 'seedanceMiniUncensoredV2v'],
+  ['sound_to_video', {}, 'seedanceMiniUncensoredIa2v']
+]) {
+  assert.equal(PREFERRED_MODEL_IDS.video[preferredKey], 'seedance-2-0-mini-uncensored');
+  for (const videoModel of ['seedance2-mini-uncensored', 'seedance-2-0-mini-uncensored']) {
+    assert.equal(
+      resolveHostedToolModelSelector(toolName, { ...args, videoModel }),
+      'seedance-2-0-mini-uncensored',
+      `${toolName} must resolve ${videoModel} to seedance-2-0-mini-uncensored`
+    );
+  }
+}
+// It is Seedance 2.0 Mini under its own id: 720p default, Mini's workflows.
+assert.equal(isSeedanceModel('seedance-2-0-mini-uncensored'), true);
+assert.equal(isVideoModel('seedance-2-0-mini-uncensored'), true);
+assert.deepEqual(getVideoDefaults('seedance-2-0-mini-uncensored'), {
+  width: 1280,
+  height: 720,
+  fps: 24
+});
+for (const [workflow, supported] of [
+  ['t2v', true],
+  ['i2v', true],
+  ['ia2v', true],
+  ['v2v', true],
+  ['flf2v', false],
+  ['r2v', false]
+]) {
+  for (const modelId of ['seedance-2-0-mini', 'seedance-2-0-mini-uncensored']) {
+    assert.deepEqual(
+      filterVideoModelsByWorkflow([{ id: modelId, media: 'video' }], [workflow]),
+      supported ? [modelId] : [],
+      `${modelId} must ${supported ? '' : 'not '}support the Seedance Mini ${workflow} workflow`
+    );
+  }
+}
+// The hosted tools list the selector directly after seedance2-mini, and
+// animate_photo keeps excluding every Seedance selector.
+for (const toolName of ['generate_video', 'sound_to_video', 'video_to_video']) {
+  const videoModelEnum =
+    sdkHostedToolsByName.get(toolName).function.parameters.properties.videoModel.enum;
+  assert.equal(
+    videoModelEnum[videoModelEnum.indexOf('seedance2-mini') + 1],
+    'seedance2-mini-uncensored',
+    `${toolName} must list seedance2-mini-uncensored after seedance2-mini`
+  );
+}
+assert.ok(
+  !sdkHostedToolsByName
+    .get('animate_photo')
+    .function.parameters.properties.videoModel.enum.includes('seedance2-mini-uncensored')
+);
+// Explicit-id registry: near-miss ids are not Seedance 2.0 Mini Uncensored.
+for (const nearMiss of [
+  'seedance2-mini-uncensored',
+  'seedance-2-0-mini-uncensored-v2',
+  'seedance-2-0-uncensored',
+  'seedance-2-0-mini-spicy'
+]) {
+  assert.equal(isSeedanceModel(nearMiss), false, `${nearMiss} must not be a Seedance model`);
+  assert.equal(isVideoModel(nearMiss), false, `${nearMiss} must not be a video model`);
+}
 // The FastH3 audio-guide selectors are audio-bearing only: the image tools
 // cannot supply their required referenceAudio. Two-stage selectors mirror the
 // other FastH3 two-stage selectors (`minimax-h3-fasth3-<workflow>-turbo-2stage`).

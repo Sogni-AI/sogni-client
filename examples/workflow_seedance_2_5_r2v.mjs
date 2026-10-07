@@ -63,6 +63,16 @@ const MODEL_CONFIG = {
     supportsTaskType: false,
     audioOnlyReference: false
   },
+  // Seedance 2.0 Mini Uncensored: Seedance 2.0 Mini under its own model id and selector.
+  'seedance-2-0-mini-uncensored': {
+    hostedSelector: 'seedance2-mini-uncensored',
+    maxDuration: 15,
+    resolutions: ['480p', '720p'],
+    defaultResolution: '720p',
+    limits: { images: 9, videos: 3, audios: 3, total: 12 },
+    supportsTaskType: false,
+    audioOnlyReference: false
+  },
   'seedance-2-0-fast': {
     hostedSelector: null,
     maxDuration: 15,
@@ -449,7 +459,8 @@ Usage:
 Options:
   --task-type <type>       reference (default), edit, or extend
   --layer <layer>          direct (default) or creative-agent
-  --model <id>             seedance-2-5 (default), seedance-2-5-uncensored, seedance-2-0, -mini, or -fast
+  --model <id>             seedance-2-5 (default), seedance-2-5-uncensored, seedance-2-0, -mini,
+                           -mini-uncensored, or -fast
   --duration <seconds>     4-30 for 2.5; 4-15 for the 2.0 family (default: 5)
                            Required for direct edit and must equal @Video1's source duration.
                            For extend, this is the new continuation duration.
@@ -472,8 +483,9 @@ Semantics:
   extend    -> direct seedanceTaskType="extend"; Creative Agent extend_video
 
 Seedance 2.5 accepts 30 images, 10 videos, 10 audios, and 50 files total. Audio-only
-reference is valid. seedance-2-5-uncensored is Seedance 2.5 Uncensored with the same limits;
-accept its one-time likeness and consent agreement in the Sogni app first, or its jobs
+reference is valid. seedance-2-5-uncensored is Seedance 2.5 Uncensored with the same limits,
+and seedance-2-0-mini-uncensored is Seedance 2.0 Mini Uncensored with Mini's limits; accept
+their shared one-time likeness and consent agreement in the Sogni app first, or their jobs
 fail with error 4103. Edit/extend require @Video1. The 2.0 family keeps 9/3/3/12,
 4-15 seconds, requires visual media when audio is attached, and omits seedanceTaskType.
 Local files use the existing Sogni signed upload flow; hosted media must use HTTPS.

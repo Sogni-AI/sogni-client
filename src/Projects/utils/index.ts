@@ -32,6 +32,7 @@ const WAN_VIDEO_MODEL_IDS = new Set([
 const SEEDANCE_VIDEO_MODEL_IDS = new Set([
   'seedance-2-0',
   'seedance-2-0-mini',
+  'seedance-2-0-mini-uncensored',
   'seedance-2-0-fast',
   'seedance-2-5',
   'seedance-2-5-uncensored'
@@ -337,7 +338,8 @@ export function isLtx2Model(modelId: string): boolean {
  * Seedance models are external API-backed video models that all generate at
  * 24fps. Duration and resolution differ by generation:
  * - `seedance-2-0` / `-mini`: 4-15 second clips; the full model goes up to 4K
- *   while Mini caps at 720p.
+ *   while Mini caps at 720p. `seedance-2-0-mini-uncensored` (Seedance 2.0 Mini
+ *   Uncensored) is Mini under its own id, with Mini's limits.
  * - `seedance-2-5` and `seedance-2-5-uncensored` (Seedance 2.5 Uncensored): 4-30
  *   second clips at 480p/720p/1080p (no 4K).
  */

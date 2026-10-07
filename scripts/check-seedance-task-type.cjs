@@ -175,3 +175,70 @@ console.log('Seedance export transport checks passed');
   assert.equal(uncensoredExport.keyFrames[0].returnLastFrame, true);
   console.log('Seedance 2.5 Uncensored transport checks passed');
 }
+
+// Seedance 2.0 Mini Uncensored is the same model as Seedance 2.0 Mini under its
+// own id: every Mini limit applies, it gets none of the 2.5-only options, and
+// the id is never rewritten.
+for (const modelId of ['seedance-2-0-mini', 'seedance-2-0-mini-uncensored']) {
+  const mini = (overrides) => request({ modelId, ...overrides });
+
+  const maximum = mini({
+    referenceImageUrls: urls('image', 6, 'jpg'),
+    referenceVideoUrls: urls('video', 3, 'mp4'),
+    referenceAudioUrls: urls('audio', 3, 'mp3')
+  });
+  assert.equal(maximum.keyFrames[0].modelID, modelId);
+  assert.equal(maximum.keyFrames[0].referenceImageURLs.length, 6);
+  assert.equal(maximum.keyFrames[0].referenceVideoURLs.length, 3);
+  assert.equal(maximum.keyFrames[0].referenceAudioURLs.length, 3);
+  assert.equal(
+    mini({ referenceImageUrls: urls('image', 9, 'jpg') }).keyFrames[0].referenceImageURLs.length,
+    9
+  );
+  assert.throws(
+    () => mini({ referenceImageUrls: urls('image', 10, 'jpg') }),
+    new RegExp(`${modelId} supports at most 9 image assets`)
+  );
+  assert.throws(
+    () => mini({ referenceVideoUrls: urls('video', 4, 'mp4') }),
+    new RegExp(`${modelId} supports at most 3 video assets`)
+  );
+  assert.throws(
+    () =>
+      mini({
+        referenceImageUrls: urls('image', 1, 'jpg'),
+        referenceAudioUrls: urls('audio', 4, 'mp3')
+      }),
+    new RegExp(`${modelId} supports at most 3 audio assets`)
+  );
+  assert.throws(
+    () =>
+      mini({
+        referenceImageUrls: urls('image', 9, 'jpg'),
+        referenceVideoUrls: urls('video', 3, 'mp4'),
+        referenceAudioUrls: urls('audio', 1, 'mp3')
+      }),
+    new RegExp(`${modelId} supports at most 12 total asset files`)
+  );
+  assert.throws(
+    () => mini({ referenceAudioUrls: ['https://cdn.example.com/voice.mp3'] }),
+    /audio references require at least one image or video reference/
+  );
+  assert.throws(
+    () =>
+      mini({
+        referenceVideoUrls: ['https://cdn.example.com/source.mp4'],
+        seedanceTaskType: 'edit'
+      }),
+    /supported only by Seedance 2.5/
+  );
+
+  assert.equal(mini({ duration: 15 }).keyFrames[0].frames, 15 * 24 + 1);
+  assert.equal(mini({ duration: 4 }).keyFrames[0].frames, 4 * 24 + 1);
+  assert.throws(() => mini({ duration: 16 }), /less or equal 15, got 16/);
+  assert.throws(() => mini({ duration: 3 }), /greater or equal 4, got 3/);
+
+  assert.throws(() => mini({ outputFormat: 'mov' }), /only by Seedance 2.5/);
+  assert.throws(() => mini({ returnLastFrame: true }), /only by Seedance 2.5/);
+}
+console.log('Seedance 2.0 Mini Uncensored transport checks passed');

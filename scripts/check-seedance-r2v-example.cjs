@@ -235,6 +235,100 @@ async function main() {
   assert.equal(partnerUncensored.status, 0, partnerUncensored.stderr);
   assert.match(partnerUncensored.stdout, /"videoModel": "seedance2-5-uncensored"/);
 
+  // Seedance 2.0 Mini Uncensored keeps its own model id and hosted selector
+  // with every Seedance 2.0 Mini limit.
+  const miniUncensoredArgs = [
+    '--model',
+    'seedance-2-0-mini-uncensored',
+    '--task-type',
+    'reference',
+    '--resolution',
+    '720p'
+  ];
+  const miniUncensored = parsed(parseArgs, [
+    ...miniUncensoredArgs,
+    '--image',
+    'https://cdn.example.com/image.jpg'
+  ]);
+  validateOptions(miniUncensored);
+  const miniUncensoredParams = buildDirectProjectParams(miniUncensored, {
+    images: miniUncensored.images,
+    videos: [],
+    audios: []
+  });
+  assert.equal(miniUncensoredParams.modelId, 'seedance-2-0-mini-uncensored');
+  assert.equal(miniUncensoredParams.seedanceTaskType, undefined);
+  assert.deepEqual(
+    { width: miniUncensoredParams.width, height: miniUncensoredParams.height },
+    { width: 1280, height: 720 }
+  );
+  const miniUncensoredCreativeAgent = parsed(parseArgs, [
+    '--creative-agent',
+    ...miniUncensoredArgs,
+    '--image',
+    'https://cdn.example.com/image.jpg'
+  ]);
+  validateOptions(miniUncensoredCreativeAgent);
+  const miniUncensoredRequest = buildCreativeAgentRequest(miniUncensoredCreativeAgent, {
+    images: miniUncensoredCreativeAgent.images,
+    videos: [],
+    audios: []
+  });
+  assert.equal(
+    miniUncensoredRequest.input.steps[0].arguments.videoModel,
+    'seedance2-mini-uncensored'
+  );
+  assert.throws(
+    () => validateOptions({ ...miniUncensored, duration: 16 }),
+    /seedance-2-0-mini-uncensored duration must be between 4 and 15 seconds/
+  );
+  assert.throws(
+    () => validateOptions({ ...miniUncensored, resolution: '1080p' }),
+    /seedance-2-0-mini-uncensored supports 480p\/720p output/
+  );
+  assert.throws(
+    () => validateOptions({ ...miniUncensored, images: urls('image', 10, 'jpg') }),
+    /seedance-2-0-mini-uncensored supports at most 9 images/
+  );
+  assert.throws(
+    () =>
+      validateOptions({
+        ...miniUncensored,
+        images: [],
+        audios: ['https://cdn.example.com/voice.mp3']
+      }),
+    /audio references require at least one image or video reference/
+  );
+  assert.throws(
+    () =>
+      validateOptions({
+        ...miniUncensored,
+        taskType: 'extend',
+        images: [],
+        videos: ['https://cdn.example.com/source.mp4']
+      }),
+    /extend is exposed by this example only for Seedance 2.5/
+  );
+
+  const partnerMiniUncensored = spawnSync(
+    process.execPath,
+    [
+      path.resolve(__dirname, '../examples/workflow_partner_seedance_video.mjs'),
+      'Contract check prompt.',
+      '--model',
+      'seedance-2-0-mini-uncensored',
+      '--duration',
+      '15',
+      '--workflow',
+      '--no-execute',
+      '--no-estimate'
+    ],
+    { encoding: 'utf8' }
+  );
+  assert.equal(partnerMiniUncensored.status, 0, partnerMiniUncensored.stderr);
+  assert.match(partnerMiniUncensored.stdout, /"videoModel": "seedance2-mini-uncensored"/);
+  assert.match(partnerMiniUncensored.stdout, /"width": 1280/);
+
   const partner1080Dimension = spawnSync(
     process.execPath,
     [

@@ -142,6 +142,30 @@ assert.equal(isModelConsentRequiredError({ code: 1, consentRequired: null }), fa
   const otherError = events.find((e) => e.type === 'error' && e.projectId === 'proj_other');
   assert.equal('consentRequired' in otherError.error, false);
   assert.equal(isModelConsentRequiredError(otherError.error), false);
+
+  // Seedance 2.0 Mini Uncensored shares the Seedance 2.5 Uncensored agreement:
+  // the key stays the shared one and modelId names the model that was refused.
+  const miniConsent = {
+    key: 'seedance-2-5-uncensored',
+    version: 2,
+    modelId: 'seedance-2-0-mini-uncensored'
+  };
+  const miniMessage =
+    'Seedance 2.0 Mini Uncensored requires a one-time likeness and consent agreement. Review and accept it in the Sogni app, then try again.';
+  client.socket.emit('jobError', {
+    jobID: 'proj_mini_consent',
+    isFromWorker: false,
+    error: '4103',
+    error_message: miniMessage,
+    consentRequired: miniConsent
+  });
+  const miniError = events.find((e) => e.type === 'error' && e.projectId === 'proj_mini_consent');
+  assert.deepEqual(miniError.error, {
+    code: 4103,
+    message: miniMessage,
+    consentRequired: miniConsent
+  });
+  assert.equal(isModelConsentRequiredError(miniError.error), true);
 }
 
 // Model not yet available (socket error 4104): the model is held on this
