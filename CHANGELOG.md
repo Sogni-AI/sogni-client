@@ -1,3 +1,10 @@
+# [5.62.0](https://github.com/Sogni-AI/sogni-client/compare/v5.61.0...v5.62.0) (2026-10-09)
+
+
+### Features
+
+* **worlds:** hosted world builds on the SDK as worlds.builds ([531c039](https://github.com/Sogni-AI/sogni-client/commit/531c039134b65cad69bc56c442033b1c0ab9b29f))
+
 # [5.61.0](https://github.com/Sogni-AI/sogni-client/compare/v5.60.8...v5.61.0) (2026-10-06)
 
 
