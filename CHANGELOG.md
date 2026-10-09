@@ -1,3 +1,10 @@
+# [5.63.0](https://github.com/Sogni-AI/sogni-client/compare/v5.62.0...v5.63.0) (2026-10-09)
+
+
+### Features
+
+* **video:** add Seedance 2.0 Mini Uncensored as its own model id ([028aca3](https://github.com/Sogni-AI/sogni-client/commit/028aca3a60d68af06654c5df7e2623cf09346c2d))
+
 # [5.62.0](https://github.com/Sogni-AI/sogni-client/compare/v5.61.0...v5.62.0) (2026-10-09)
 
 
