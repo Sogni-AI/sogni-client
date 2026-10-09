@@ -1578,6 +1578,19 @@ See `examples/workflow_creative_agent_workflows.mjs` for start/list/get/events/s
 
 ## Code Examples
 
+### Hosted World Builds (server-side)
+
+A hosted world build renders the paths, moments and collectibles a person chose for one scene of their Sogni World in the background, with the account's own key, while they are away. It starts from a signed-in session (an API key cannot author a world), pauses for the quote before anything paid, and pauses again when finished takes await review; publication stays in the World studio. The SDK exposes it through `sogni.worlds.builds`:
+
+- `sogni.worlds.builds.start({ worldId, nodeId, hotspots, look, tokenType, billingMode, idempotencyKey })` — start a build; each hotspot names the object as it appears, its kind (`path`, `moment` or `collectible`), the action, and for a path where it leads
+- `sogni.worlds.builds.get(runId)` and `.list({ worldId })` — inspect builds
+- `sogni.worlds.builds.events(runId, after)` and `.streamEvents(runId, { lastEventId })` — the event history and the SSE stream with `Last-Event-ID` replay
+- `sogni.worlds.builds.confirmCost(runId, { decision: 'confirm' | 'cancel' | 'requote' })` — answer the quote (a quote is good for ten minutes; ask for a requote after that)
+- `sogni.worlds.builds.review(runId, { taskId, decision: 'approved' | 'rejected', note })` — a verdict on a take in review; a rejection with a note sends it back for one rewrite
+- `sogni.worlds.builds.cancel(runId, reason)` — stop the build
+
+Read `run.waiting.reason` to see what the build needs: `cost_approval_required`, `review_required` or `insufficient_credit`. Each task's `generationId` (a path) or `interactionId` (a moment or collectible) is the World record to publish from the studio once approved.
+
 ### SAM 3 object selection
 
 SAM 3 (`sam3_image_segment_bf16`, SDK 5.31.0+) selects objects in an existing

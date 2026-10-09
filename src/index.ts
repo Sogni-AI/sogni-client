@@ -240,6 +240,7 @@ import {
 import StatsApi from './Stats/index.js';
 // Replay records
 import ReplayApi from './Replay/index.js';
+import WorldsApi from './Worlds/index.js';
 import AnnouncementsApi from './Announcements/index.js';
 import {
   GetReplayRecordResult,
@@ -659,6 +660,13 @@ export class SogniClient {
    */
   workflows: CreativeWorkflowsApi;
   /**
+   * Sogni Worlds (`/v1/world-builds`). `worlds.builds` starts a hosted world
+   * build from a signed-in session, answers its quote, reviews its takes and
+   * follows it over SSE; sogni-api renders in the background with the
+   * account's own key.
+   */
+  worlds: WorldsApi;
+  /**
    * Replay records (`/v1/replay/records`). Writes one RunRecord per
    * chat / harness turn and exposes list + get for the replay viewer.
    * Per-owner isolation is enforced server-side via the SDK auth
@@ -687,6 +695,7 @@ export class SogniClient {
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
     this.workflows = new CreativeWorkflowsApi(config);
+    this.worlds = new WorldsApi(config);
     this.replay = new ReplayApi(config);
     this.announcements = new AnnouncementsApi(config);
 
@@ -823,3 +832,23 @@ export class SogniClient {
     return sogniClient;
   }
 }
+export type {
+  ConfirmWorldBuildCostParams,
+  ListWorldBuildsOptions,
+  ReviewWorldBuildTaskParams,
+  StartWorldBuildParams,
+  StreamWorldBuildEventsOptions,
+  WorldBuildAction,
+  WorldBuildCostLine,
+  WorldBuildCostPreview,
+  WorldBuildEvent,
+  WorldBuildHotspotInput,
+  WorldBuildHotspotKind,
+  WorldBuildRecord,
+  WorldBuildStatus,
+  WorldBuildTask,
+  WorldBuildTaskSelection,
+  WorldBuildTaskStep,
+  WorldBuildWaiting,
+  WorldBuildWaitingReason
+} from './Worlds/types.js';
