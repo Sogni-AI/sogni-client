@@ -173,6 +173,8 @@ Keep `appSource` as the stable product/integration ID. Agent wrappers may additi
 
 ### Basic Parameters
 
+Projects accept optional `promptExpanded` (Python: `prompt_expanded`), a boolean reporting whether the submitted prompt was expanded. Omission means unknown; this does not enable expansion.
+
 ```javascript
 {
   type: 'image',

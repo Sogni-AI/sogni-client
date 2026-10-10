@@ -3,6 +3,8 @@ import type { JobProvenance } from './JobProvenance.js';
 import type { WaitingReason, JobWaitingReason } from './WaitingReason.js';
 
 export interface RawProject {
+  /** Missing on older projects or clients that do not report prompt preparation. */
+  promptExpanded?: boolean;
   waitingReason?: WaitingReason | null;
   jobWaitingReasons?: JobWaitingReason[];
   id: string;

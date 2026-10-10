@@ -691,6 +691,7 @@ export interface RecoveredWorkerJob {
  * client that lost its local state can rebuild the prompt and parameters.
  */
 export interface RecoveredProject {
+  promptExpanded?: boolean;
   waitingReason?: import('../../Projects/types/WaitingReason.js').WaitingReason | null;
   jobWaitingReasons?: import('../../Projects/types/WaitingReason.js').JobWaitingReason[];
   id: string;

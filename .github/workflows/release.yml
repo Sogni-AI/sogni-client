@@ -54,6 +54,8 @@ jobs:
         run: node scripts/check-auth-session.cjs && node scripts/check-project-request-session.cjs
       - name: Run project recovery checks
         run: node scripts/check-project-recovery.cjs
+      - name: Run prompt-expanded transport checks
+        run: node scripts/check-prompt-expansion-transport.cjs
       - name: Run project error category checks
         run: node scripts/check-project-error-categories.cjs
       - name: Run current queue detail checks

@@ -107,6 +107,7 @@ export function projectParamsFromRecoveredProject(project: RecoveredProject): Pr
     base.stylePrompt = keyFrame.stylePrompt;
   }
   const steps = typeof project.stepCount === 'number' ? project.stepCount : keyFrame.steps;
+  if (project.promptExpanded !== undefined) base.promptExpanded = project.promptExpanded;
   if (typeof steps === 'number' && steps > 0) base.steps = steps;
   if (typeof keyFrame.guidanceScale === 'number') base.guidance = keyFrame.guidanceScale;
   if (typeof keyFrame.seed === 'number') base.seed = keyFrame.seed;

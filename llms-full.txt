@@ -343,6 +343,8 @@ sogni.apiClient.on('disconnected', ({ code, reason }) => {
 
 BASIC IMAGE GENERATION:
 
+Projects accept optional `promptExpanded` (Python: `prompt_expanded`), a boolean reporting whether the submitted prompt was expanded. Omission means unknown; this does not enable expansion.
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'image',

@@ -70,6 +70,8 @@ export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
 export type BillingMode = 'auto' | 'subscription' | 'tokens';
 
 export interface BaseProjectParams {
+  /** Whether the submitted prompt was expanded; omitted means unknown. */
+  promptExpanded?: boolean;
   /**
    * ID of the model to use, available models are available in the `availableModels` property of the `ProjectsApi` instance.
    */

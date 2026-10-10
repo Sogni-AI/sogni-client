@@ -566,6 +566,7 @@ Here is a full list of project parameters that you can use:
 
 - `modelId` - ID of the model to use for image generation.
 - `positivePrompt` - text prompt that describes what you want to see in the image. Can be an empty string.
+- `promptExpanded` - optional boolean reporting whether the submitted prompt was expanded; omitted means unknown. This does not enable expansion.
 - `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be an empty string.
 - `stylePrompt` - text prompt that describes the style of the image. Can be an empty string.
 - `numberOfImages` - number of images to generate.

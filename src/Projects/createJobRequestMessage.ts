@@ -2003,6 +2003,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
   if (params.appSource) {
     jobRequest.appSource = params.appSource;
   }
+  if (params.promptExpanded !== undefined) jobRequest.promptExpanded = params.promptExpanded;
 
   return jobRequest;
 }
