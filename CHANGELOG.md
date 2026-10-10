@@ -1,3 +1,10 @@
+## [5.63.1](https://github.com/Sogni-AI/sogni-client/compare/v5.63.0...v5.63.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **projects:** preserve prompt expansion flag in project history ([c64838e](https://github.com/Sogni-AI/sogni-client/commit/c64838ef665752e90c1adecb7a078784960b1048))
+
 # [5.63.0](https://github.com/Sogni-AI/sogni-client/compare/v5.62.0...v5.63.0) (2026-10-09)
 
 
