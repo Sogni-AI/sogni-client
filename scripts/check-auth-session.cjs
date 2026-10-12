@@ -193,6 +193,44 @@ async function main() {
       }
     );
 
+    // A service other than the Sogni API answering on a misconfigured endpoint can
+    // return 2xx JSON that is not a token pair.
+    for (const [label, body] of [
+      ['without a data field', { status: 'ok' }],
+      ['as an array', []],
+      ['without tokens', { status: 'success', data: {} }],
+      ['with malformed tokens', { status: 'success', data: { token: 'x', refreshToken: 'y' } }],
+      [
+        'with a malformed refresh token',
+        {
+          status: 'success',
+          data: { token: tokens(ACCOUNT_A, 'renewed').token, refreshToken: 'y' }
+        }
+      ]
+    ]) {
+      await check(`a 2xx token renewal ${label} signs out instead of retrying`, async () => {
+        const auth = new TokenAuthManager(BASE_URL, LOGGER);
+        const updates = [];
+        auth.on('updated', (authenticated) => updates.push(authenticated));
+        let calls = 0;
+        global.fetch = async () => {
+          calls += 1;
+          return new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        };
+        await assert.rejects(
+          auth.authenticate(tokens(ACCOUNT_A, 'expired', true)),
+          /did not include a valid token pair \(HTTP 200\)/
+        );
+        assert.equal(auth.isAuthenticated, false);
+        assert.deepEqual(updates, [false]);
+        assert.deepEqual(await auth.authenticateRequest({}), {});
+        assert.equal(calls, 1);
+      });
+    }
+
     for (const status of [200, 401]) {
       await check(
         `stale token renewal HTTP ${status} cannot replace or clear a newer login`,

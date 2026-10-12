@@ -224,7 +224,22 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
         }`
       );
     }
-    const { token, refreshToken } = parsedBody.data;
+    const { token, refreshToken } = parsedBody.data ?? {};
+    // A 2xx JSON body that is not a token pair (for example from another service on
+    // a misconfigured endpoint) must sign out like an unparseable one. Validate before
+    // _updateTokens so a throwing 'updated' listener cannot clear a valid renewal.
+    try {
+      decodeToken(token);
+      decodeRefreshToken(refreshToken);
+    } catch (e) {
+      this.clear();
+      this._logger.error('Token refresh response did not include a valid token pair:', e, {
+        status: response.status
+      });
+      throw new Error(
+        `Token refresh response did not include a valid token pair (HTTP ${response.status})`
+      );
+    }
     this._updateTokens({ token, refreshToken });
     return this._token!;
   }
