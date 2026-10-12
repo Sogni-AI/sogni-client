@@ -1,3 +1,10 @@
+## [5.63.2](https://github.com/Sogni-AI/sogni-client/compare/v5.63.1...v5.63.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* **auth:** sign out when a token refresh response has no token pair ([d25bf17](https://github.com/Sogni-AI/sogni-client/commit/d25bf17221b32e63e5213d138f64191eb303c7f2))
+
 ## [5.63.1](https://github.com/Sogni-AI/sogni-client/compare/v5.63.0...v5.63.1) (2026-10-10)
 
 
