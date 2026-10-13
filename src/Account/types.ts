@@ -48,7 +48,8 @@ export interface SsoSignupParams {
    * username+password on the device, exactly as {@link AccountApi.create} does, and
    * the account is created as a username & password account with this provider's
    * sign-in enabled from the start — instead of a Google/Apple-only account with a
-   * custodial wallet. The first session is a password session.
+   * custodial wallet. The first session is a password session. Ships dark on the
+   * server: rejected with errorCode 196 unless SSO_SIGNUP_PASSWORD_ENABLED is on there.
    */
   password?: string;
   subscribe?: boolean;
@@ -96,6 +97,8 @@ export const SSO_ERROR_CODES = {
   SSO_LINK_EMAIL_MISMATCH: 188,
   /** Password login named a username owned by an SSO-native account — use `details.provider` sign-in. */
   SSO_LOGIN_REQUIRED: 189,
+  /** The server ships this feature dark: ssoSignup with `password` (400) or ssoLink (403) while its switch is off. */
+  SSO_FEATURE_DISABLED: 196,
   /** Password signup used an email owned by an SSO account (`details.provider`). */
   EMAIL_REGISTERED_VIA_SSO: 190
 } as const;

@@ -568,7 +568,9 @@ class AccountApi extends ApiGroup {
    * Pass `password` to also set a password: the account is then a username &
    * password account (wallet derived on the device, as in {@link create}) with
    * this provider's sign-in enabled from the start, and the session returned is a
-   * password session. This choice exists only at signup.
+   * password session. This choice exists only at signup. The server ships it dark:
+   * unless its SSO_SIGNUP_PASSWORD_ENABLED switch is on, a request with `password`
+   * fails with a 400 and errorCode 196 (SSO_FEATURE_DISABLED).
    *
    * @example Signup after a 105 login miss
    * ```typescript
@@ -644,7 +646,9 @@ class AccountApi extends ApiGroup {
    * account email — otherwise a 400 with errorCode 188 (this includes Apple
    * "Hide My Email" relay addresses, which can never match). One provider per
    * account, permanent — no unlink. The current session is unchanged; the new
-   * sign-in method applies from the next login.
+   * sign-in method applies from the next login. The server ships linking dark:
+   * unless its SSO_LINKING_ENABLED switch is on, the call fails with a 403 and
+   * errorCode 196 (SSO_FEATURE_DISABLED).
    *
    * @example Enable Google sign-in from settings
    * ```typescript
