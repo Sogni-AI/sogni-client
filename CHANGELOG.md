@@ -1,3 +1,10 @@
+## [5.63.3](https://github.com/Sogni-AI/sogni-client/compare/v5.63.2...v5.63.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* **projects:** declare FLAC, Ogg and WebM reference files by their bytes ([4b03ac8](https://github.com/Sogni-AI/sogni-client/commit/4b03ac80ca792746fdfc69a60833cff9cf054702))
+
 ## [5.63.2](https://github.com/Sogni-AI/sogni-client/compare/v5.63.1...v5.63.2) (2026-10-12)
 
 
