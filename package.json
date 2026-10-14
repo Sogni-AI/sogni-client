@@ -80,6 +80,7 @@
     "test:capability-exports": "npm run build && node scripts/check-capability-exports.cjs",
     "test:generation-receipt-transport": "npm run build && node scripts/check-generation-receipt-transport.cjs",
     "test:prompt-expansion": "npm run build && node scripts/check-prompt-expansion-transport.cjs",
+    "test:reference-content-types": "npm run build && node scripts/check-reference-content-types.cjs",
     "test:minimax-h3-audio-policy": "node scripts/check-minimax-h3-source-audio-policy.cjs",
     "test:minimax-h3-balanced": "npm run build && node scripts/check-minimax-h3-balanced.cjs",
     "test:minimax-h3-two-stage": "npm run build && node scripts/check-minimax-h3-two-stage.cjs",

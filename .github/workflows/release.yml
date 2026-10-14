@@ -100,6 +100,8 @@ jobs:
         run: node scripts/check-large-data-uri.cjs
       - name: Run model consent error checks
         run: node scripts/check-model-consent-error.cjs
+      - name: Run reference content-type checks
+        run: node scripts/check-reference-content-types.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -88,6 +88,7 @@ import {
   type ResultMediaKind,
   usesReferenceMask
 } from './utils/index.js';
+import { getFileContentType } from './utils/fileContentType.js';
 import { TokenType } from '../types/token.js';
 import type { JobProvenance } from './types/JobProvenance.js';
 import { getMaxContextImages, validateSampler, isGptImageModel } from '../lib/validation.js';
@@ -247,41 +248,6 @@ function deriveLoraCapableModelIds(loras: LoraCatalogEntry[]): string[] {
     for (const modelId of lora.modelIds ?? []) modelIds.add(modelId);
   }
   return Array.from(modelIds).sort();
-}
-
-/**
- * Detect content type from a file object.
- * For File objects in browser, uses the type property.
- * Returns undefined if content type cannot be detected.
- */
-function getFileContentType(file: File | Buffer | Blob): string | undefined {
-  if (file instanceof Blob && 'type' in file && file.type) {
-    return file.type;
-  }
-  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(file)) {
-    if (file.length >= 12) {
-      if (file[0] === 0xff && file[1] === 0xd8 && file[2] === 0xff) return 'image/jpeg';
-      if (file[0] === 0x89 && file[1] === 0x50 && file[2] === 0x4e && file[3] === 0x47) {
-        return 'image/png';
-      }
-      if (file.toString('ascii', 0, 4) === 'RIFF' && file.toString('ascii', 8, 12) === 'WEBP') {
-        return 'image/webp';
-      }
-      if (file.toString('ascii', 0, 3) === 'GIF') return 'image/gif';
-      if (file.toString('ascii', 4, 8) === 'ftyp') {
-        const brand = file.toString('ascii', 8, 12).toLowerCase();
-        if (brand.includes('m4a') || brand.includes('m4b')) return 'audio/mp4';
-        if (brand.includes('qt')) return 'video/quicktime';
-        return 'video/mp4';
-      }
-      if (file.toString('ascii', 0, 4) === 'RIFF' && file.toString('ascii', 8, 12) === 'WAVE') {
-        return 'audio/wav';
-      }
-    }
-    if (file.length >= 3 && file.toString('ascii', 0, 3) === 'ID3') return 'audio/mpeg';
-    if (file.length >= 2 && file[0] === 0xff && (file[1] & 0xe0) === 0xe0) return 'audio/mpeg';
-  }
-  return undefined;
 }
 
 /**
@@ -2473,7 +2439,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const keyFrame = request.keyFrames?.[0];
     if (!keyFrame) return;
     if (data.referenceAudio && data.referenceAudio !== true) {
-      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio);
+      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio, 'audio');
     }
   }
 
@@ -2548,25 +2514,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     const isMinimaxH3R2v = isMinimaxH3ReferenceModel(data.modelId);
     if (!isMinimaxH3R2v && data.referenceAudio && data.referenceAudio !== true) {
-      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio);
+      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio, 'audio');
     }
     if (data.referenceAudioIdentity && data.referenceAudioIdentity !== true) {
-      const contentType = getFileContentType(data.referenceAudioIdentity);
+      const contentType = getFileContentType(data.referenceAudioIdentity, 'audio');
       keyFrame.referenceAudioIdentityContentType = contentType;
       keyFrame.referenceAudioContentType ??= contentType;
     }
     if (!isMinimaxH3R2v && data.referenceVideo && data.referenceVideo !== true) {
-      keyFrame.referenceVideoContentType = getFileContentType(data.referenceVideo);
+      keyFrame.referenceVideoContentType = getFileContentType(data.referenceVideo, 'video');
     }
     if (isMinimaxH3R2v) {
       for (const { slot, media } of getMinimaxH3ReferenceAudioSlots(data)) {
         if (typeof media !== 'boolean') {
-          keyFrame[`referenceAudio${slot}ContentType`] = getFileContentType(media);
+          keyFrame[`referenceAudio${slot}ContentType`] = getFileContentType(media, 'audio');
         }
       }
       for (const { slot, media } of getMinimaxH3ReferenceVideoSlots(data)) {
         if (typeof media !== 'boolean') {
-          keyFrame[`referenceVideo${slot}ContentType`] = getFileContentType(media);
+          keyFrame[`referenceVideo${slot}ContentType`] = getFileContentType(media, 'video');
         }
       }
     }
@@ -3233,7 +3199,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
-    const contentType = getFileContentType(file);
+    const contentType = getFileContentType(file, 'audio');
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceAudio', id }))
       return;
     assertSession();
@@ -3272,7 +3238,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
-    const contentType = getFileContentType(file);
+    const contentType = getFileContentType(file, 'video');
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceVideo', id }))
       return;
     assertSession();
