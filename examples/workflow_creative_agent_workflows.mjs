@@ -124,8 +124,8 @@ Options:
   --video-prompt <text>   Separate motion/video prompt
   --negative-prompt <txt> Negative prompt
   --duration <seconds>    Video duration (default: 5)
-  --width <px>            Output width
-  --height <px>           Output height
+  --width <px>            Keyframe width (the clip keeps the keyframe's shape)
+  --height <px>           Keyframe height
   --image-model <model>   Creative-agent image model selector (default: ${DEFAULT_IMAGE_MODEL})
   --video-model <model>   Creative-agent video model selector (default: ${DEFAULT_VIDEO_MODEL})
                           Try: ltx23 or wan22
@@ -254,13 +254,15 @@ async function main() {
             }
           },
           {
+            // animate_photo starts the clip from the keyframe and keeps its
+            // shape. generate_video's referenceImageIndices are loose
+            // references, which only Seedance, HappyHorse, Wan 3 and MiniMax H3
+            // reference-to-video accept; the API refuses them for LTX or Wan 2.2.
             id: 'clip',
-            toolName: 'generate_video',
+            toolName: 'animate_photo',
             arguments: {
               prompt: options.videoPrompt || options.prompt,
               negativePrompt: options.negativePrompt,
-              width: options.width,
-              height: options.height,
               duration: options.duration,
               videoModel: options.videoModel,
               numberOfVariations: options.numberOfMedia
@@ -269,7 +271,7 @@ async function main() {
               {
                 sourceStepId: 'keyframe',
                 sourceArtifactIndex: 0,
-                targetArgument: 'referenceImageIndices',
+                targetArgument: 'sourceImageIndex',
                 mediaType: 'image',
                 transform: 'image_index',
                 required: true

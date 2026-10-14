@@ -1524,8 +1524,11 @@ const workflow = await sogni.workflows.start({
         }
       },
       {
+        // animate_photo starts the clip from the keyframe. generate_video's
+        // referenceImageIndices are loose references, which only Seedance,
+        // HappyHorse, Wan 3 and MiniMax H3 reference-to-video accept.
         id: 'clip',
-        toolName: 'generate_video',
+        toolName: 'animate_photo',
         arguments: {
           prompt: 'slow dolly-in, warm stage lights, subtle hand motion',
           videoModel: 'ltx23',
@@ -1535,7 +1538,7 @@ const workflow = await sogni.workflows.start({
           {
             sourceStepId: 'keyframe',
             sourceArtifactIndex: 0,
-            targetArgument: 'referenceImageIndices',
+            targetArgument: 'sourceImageIndex',
             mediaType: 'image',
             transform: 'image_index',
             required: true
