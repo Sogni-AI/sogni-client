@@ -75,6 +75,7 @@ const MODEL_TIER_STEPS = {
   'flux1-schnell-fp8':                { min: 1,  max: 5,  default: 4 },
   'qwen_image_2512_fp8_lightning':    { min: 4,  max: 8,  default: 4 },
   'qwen_image_2512_fp8':              { min: 20, max: 50, default: 20 },
+  'flux3_image_klein_sd_int8_convrot': { min: 4, max: 16, default: 16 },
   // Community fine-tunes (uncensored)
   'dark_beast_z_image_turbo_v9_bf16': { min: 4,  max: 12, default: 8 },
   'dark_beast_krea2_fp8':             { min: 8,  max: 20, default: 16 },
