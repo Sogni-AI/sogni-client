@@ -913,7 +913,7 @@ export const MODELS = {
       id: 'flux3_image_klein_sd_int8_convrot',
       name: 'FLUX 3 Image Klein',
       description:
-        'Black Forest Labs model that edits and composes from 1-6 reference images. Describe the whole result as a full scene caption and name references in order (the first image, the second image). Guidance is fixed and a negative prompt has no effect.',
+        'Black Forest Labs model that edits and composes from 1-10 reference images. Describe the whole result as a full scene caption and name references in order (the first image, the second image). Guidance is fixed and a negative prompt has no effect.',
       defaultWidth: 1024,
       defaultHeight: 1024,
       maxWidth: 4096,
@@ -923,7 +923,7 @@ export const MODELS = {
       maxSteps: 16,
       supportsGuidance: false,
       supportsContextImages: true,
-      maxContextImages: 6,
+      maxContextImages: 10,
       isComfyModel: true,
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'

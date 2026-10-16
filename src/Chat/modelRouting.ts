@@ -241,7 +241,7 @@ function normalizeSelectorKey(value: string): string {
 }
 
 // FLUX 3 Image Klein is one model for text-to-image, start-image and
-// 1-6 reference edits, so generate_image and edit_image share its selectors.
+// 1-10 reference edits, so generate_image and edit_image share its selectors.
 const FLUX3_IMAGE_KLEIN_SELECTORS: Record<string, string> = {
   'flux-3-klein': PREFERRED_MODEL_IDS.image.flux3ImageKlein,
   'flux3-klein': PREFERRED_MODEL_IDS.image.flux3ImageKlein,

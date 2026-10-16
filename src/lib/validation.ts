@@ -105,7 +105,7 @@ export function isKreaIdentityEditModel(modelId: string): boolean {
   return KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId);
 }
 
-/** FLUX 3 Image Klein renders text-to-image, start-image and edits from 1-6 references. */
+/** FLUX 3 Image Klein renders text-to-image, start-image and edits from 1-10 references. */
 const FLUX3_IMAGE_KLEIN_MODEL_ID = 'flux3_image_klein_sd_int8_convrot';
 
 export function isFlux3ImageKleinModel(modelId: string): boolean {
@@ -238,7 +238,7 @@ export function isComfyModel(modelId: string): boolean {
 /**
  * Get the maximum number of context images supported by a model.
  * - GPT Image 2: 16 images
- * - FLUX 3 Image Klein: 6 images (optional)
+ * - FLUX 3 Image Klein: 10 images (optional)
  * - Qwen Image Edit: 3 images
  * - Krea 2 Identity Edit: 2 images
  * - Legacy Flux Kontext matching: 2 images
@@ -249,7 +249,7 @@ export function getMaxContextImages(modelId: string): number {
     return 16;
   }
   if (isFlux3ImageKleinModel(modelId)) {
-    return 6;
+    return 10;
   }
   if (QWEN_IMAGE_MODEL_IDS.has(modelId)) {
     return 3;

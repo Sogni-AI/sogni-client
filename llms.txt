@@ -243,7 +243,7 @@ The full catalog is dynamic — enumerate it at runtime with
 | `z_image_turbo_bf16` | Z-Image Turbo — ultra-fast 8-step (free-tier eligible) |
 | `z_image_bf16` | Z-Image — high quality 20-50 step |
 | `krea2_turbo_fp8_scaled` | Krea 2 Turbo — few-step, strong in-image text, up to 2K |
-| `flux3_image_klein_sd_int8_convrot` | FLUX 3 Image Klein (Black Forest Labs) — 16-step text-to-image, `startingImage`, and edits from 1-6 optional `contextImages`; 256-4096px (4K included), guidance fixed at 1, no negative prompt, no LoRAs; write full scene captions |
+| `flux3_image_klein_sd_int8_convrot` | FLUX 3 Image Klein (Black Forest Labs) — 16-step text-to-image, `startingImage`, and edits from 1-10 optional `contextImages`; 256-4096px (4K included), guidance fixed at 1, no negative prompt, no LoRAs; write full scene captions |
 | `krea2_identity_edit_v1_2` | Krea 2 Identity Edit LoRA v1.2 — best for transforming a person or character while keeping their likeness; 1-2 reference images |
 | `chroma-v.46-flash_fp8` | Chroma v.46 Flash — fast, high quality |
 | `chroma-v48-detail-svd_fp8` | Chroma v.48 Detail — high detail |
@@ -271,8 +271,8 @@ Pick by what the edit has to preserve, not by step count or quality tier.
 - **Everything else** — use `qwen_image_edit_2511_fp8_lightning` (fast) or
   `qwen_image_edit_2511_fp8`: general-purpose photo transforms, in-image text
   edits, multi-person changes, and combining up to 3 reference images.
-- **Compositions from up to 6 references** — `flux3_image_klein_sd_int8_convrot`
-  (FLUX 3 Image Klein) takes 1-6 `contextImages`. Describe the whole result as a
+- **Compositions from up to 10 references** — `flux3_image_klein_sd_int8_convrot`
+  (FLUX 3 Image Klein) takes 1-10 `contextImages`. Describe the whole result as a
   full scene caption and name references in order (the first image, the second
   image); a negative prompt has no effect.
 
