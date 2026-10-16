@@ -1,3 +1,10 @@
+## [5.63.4](https://github.com/Sogni-AI/sogni-client/compare/v5.63.3...v5.63.4) (2026-10-16)
+
+
+### Bug Fixes
+
+* **projects:** start admission grace after request preparation ([2d9d99a](https://github.com/Sogni-AI/sogni-client/commit/2d9d99accdce4c897331b6a5ceefe05e3ec46c52))
+
 ## [5.63.3](https://github.com/Sogni-AI/sogni-client/compare/v5.63.2...v5.63.3) (2026-10-14)
 
 
