@@ -506,7 +506,7 @@ RECOMMENDED MODELS:
 | z_image_turbo_bf16 | Ultra-fast | 8 | 1 | Fastest generation |
 | z_image_bf16 | Quality | 20 | 3 | High quality Z-Image generation |
 | krea2_turbo_fp8_scaled | Fast | 8 | 1 | Distilled few-step, strong in-image text, up to 2K |
-| flux3_image_klein_sd_int8_convrot | Generate + Edit | 16 | 1 (fixed) | FLUX 3 Image Klein: text-to-image, startingImage, and 1-6 optional context images; up to 2048px; no negative prompt or LoRAs |
+| flux3_image_klein_sd_int8_convrot | Generate + Edit | 16 | 1 (fixed) | FLUX 3 Image Klein: text-to-image, startingImage, and 1-6 optional context images; up to 4096px (4K); no negative prompt or LoRAs |
 | krea2_identity_edit_v1_2 | Edit | 10 | 1 | Best for transforming a person/character while keeping their likeness; 1-2 context images |
 | chroma1-hd_fp8_scaled | Quality | 26 | 3.8 | Final high-res Chroma (uncensored, LoRA-capable) |
 | qwen_image_edit_2511_fp8_lightning | Edit | 4 | 1 | Fast general-purpose editing; multi-image context |

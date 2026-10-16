@@ -179,7 +179,7 @@ Available Models:
   z-turbo              - Z-Image Turbo (fast generation, max: 2048x2048, supports img2img)
   z-image              - Z-Image (high quality 20-50 steps, max: 2048x2048, supports img2img)
   krea-2-turbo         - Krea 2 Turbo (fast 8-step, max: 2560x2560, supports img2img, strong text)
-  flux-3-klein         - FLUX 3 Image Klein (16-step, max: 2048x2048, supports img2img, full scene captions)
+  flux-3-klein         - FLUX 3 Image Klein (16-step, max: 4096x4096, supports img2img, full scene captions)
   chroma-v46-flash     - Chroma v.46 Flash (fast high-quality, max: 2048x2048, supports img2img)
   chroma-v48-detail-svd - Chroma v48 Detail SVD (high detail, max: 2048x2048, supports img2img)
   chroma-hd            - Chroma1-HD (final high-res Chroma, max: 2048x2048, supports img2img)

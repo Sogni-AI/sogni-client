@@ -129,6 +129,9 @@ function getCustomImageSizeBounds(modelId?: string): { min: number; max: number 
   if (isGptImageModel(modelId)) {
     return { min: 256, max: 3840 };
   }
+  if (modelId && isFlux3ImageKleinModel(modelId)) {
+    return { min: 256, max: 4096 };
+  }
   if (modelId && EXTENDED_IMAGE_SIZE_MODEL_IDS.has(modelId)) {
     return { min: 256, max: 2560 };
   }

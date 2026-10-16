@@ -1347,7 +1347,7 @@ assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.krea2IdentityEdit), true
 assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), true);
 assert.equal(isEditImageModel('qwen_image_edit_2511_fp8'), true);
 assert.equal(isEditImageModel('qwen_image_edit_2511_fp8_lightning'), true);
-// FLUX 3 Image Klein: one Comfy model for generate_image and edit_image, 1-6 references, 256-2048px.
+// FLUX 3 Image Klein: one Comfy model for generate_image and edit_image, 1-6 references, 256-4096px.
 assert.equal(PREFERRED_MODEL_IDS.image.flux3ImageKlein, 'flux3_image_klein_sd_int8_convrot');
 assert.equal(isComfyModel(PREFERRED_MODEL_IDS.image.flux3ImageKlein), true);
 assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.flux3ImageKlein), true);
@@ -1361,19 +1361,34 @@ for (const toolName of ['generate_image', 'edit_image']) {
   }
 }
 assert.equal(
-  validateCustomImageSize(2048, {
+  validateCustomImageSize(4096, {
     modelId: PREFERRED_MODEL_IDS.image.flux3ImageKlein,
     propertyName: 'Width'
   }),
-  2048
+  4096
+);
+assert.equal(
+  validateCustomImageSize(256, {
+    modelId: PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+    propertyName: 'Height'
+  }),
+  256
 );
 assert.throws(
   () =>
-    validateCustomImageSize(2560, {
+    validateCustomImageSize(4097, {
       modelId: PREFERRED_MODEL_IDS.image.flux3ImageKlein,
       propertyName: 'Width'
     }),
-  /Width must be less or equal 2048/
+  /Width must be less or equal 4096/
+);
+assert.throws(
+  () =>
+    validateCustomImageSize(255, {
+      modelId: PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+      propertyName: 'Width'
+    }),
+  /Width must greater or equal 256/
 );
 assert.equal(getMaxContextImages('qwen_image_2512_fp8'), 3);
 assert.equal(getMaxContextImages('qwen_image_edit_2511_fp8'), 3);

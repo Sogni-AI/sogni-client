@@ -200,7 +200,7 @@ Available Models:
   qwen           - Qwen Image Edit 2511 (higher quality, 20-step)
                    Same general-purpose strengths as qwen-lightning, slower.
                    Still NOT the identity-preserving choice - see above.
-  flux-3-klein   - FLUX 3 Image Klein (16-step, 1-6 refs, max 2048x2048)
+  flux-3-klein   - FLUX 3 Image Klein (16-step, 1-6 refs, max 4096x4096)
                    Edits and compositions from up to 6 references. Describe the
                    whole result as a scene caption; name references in order.
 
