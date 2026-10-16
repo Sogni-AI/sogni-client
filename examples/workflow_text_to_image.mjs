@@ -17,7 +17,7 @@
  *   node workflow_text_to_image.mjs "Fantasy art" --model chroma-v46-flash --starting-image ./test-assets/placeholder.jpg --strength 0.7
  *
  * Options:
- *   --model     Model key: z-turbo, z-image, krea-2-turbo, chroma-v46-flash, chroma-v48-detail-svd, chroma-hd, flux1-schnell, dark-beast-z-image-turbo, dark-beast-krea-2, one-obsession-v22 (default: prompts for selection)
+ *   --model     Model key: z-turbo, z-image, krea-2-turbo, flux-3-klein, chroma-v46-flash, chroma-v48-detail-svd, chroma-hd, flux1-schnell, dark-beast-z-image-turbo, dark-beast-krea-2, one-obsession-v22 (default: prompts for selection)
  *   --width     Image width (default: model-specific, max: 2048)
  *   --height    Image height (default: model-specific, max: 2048)
  *   --batch     Number of images to generate (default: 1)
@@ -179,6 +179,7 @@ Available Models:
   z-turbo              - Z-Image Turbo (fast generation, max: 2048x2048, supports img2img)
   z-image              - Z-Image (high quality 20-50 steps, max: 2048x2048, supports img2img)
   krea-2-turbo         - Krea 2 Turbo (fast 8-step, max: 2560x2560, supports img2img, strong text)
+  flux-3-klein         - FLUX 3 Image Klein (16-step, max: 2048x2048, supports img2img, full scene captions)
   chroma-v46-flash     - Chroma v.46 Flash (fast high-quality, max: 2048x2048, supports img2img)
   chroma-v48-detail-svd - Chroma v48 Detail SVD (high detail, max: 2048x2048, supports img2img)
   chroma-hd            - Chroma1-HD (final high-res Chroma, max: 2048x2048, supports img2img)

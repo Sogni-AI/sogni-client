@@ -2406,7 +2406,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       await this.uploadCNImage(project.id, data.controlNet.image);
     }
 
-    // Context images (GPT Image 2 supports up to 16; Qwen Image Edit supports up to 3; Krea 2 Identity Edit and legacy Flux Kontext support up to 2)
+    // Context images (GPT Image 2 supports up to 16; FLUX 3 Image Klein up to 6; Qwen Image Edit supports up to 3; Krea 2 Identity Edit and legacy Flux Kontext support up to 2)
     if (data.contextImages?.length) {
       const maxContextImages = getMaxContextImages(data.modelId);
       if (data.contextImages.length > maxContextImages) {

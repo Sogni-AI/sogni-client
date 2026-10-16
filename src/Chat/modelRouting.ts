@@ -9,7 +9,11 @@ import {
   isSeedance25Model,
   isWan3Model
 } from '../Projects/utils/index.js';
-import { isKreaIdentityEditModel, isQwenImageEditModel } from '../lib/validation.js';
+import {
+  isFlux3ImageKleinModel,
+  isKreaIdentityEditModel,
+  isQwenImageEditModel
+} from '../lib/validation.js';
 
 export {
   calculateVideoFrames,
@@ -98,6 +102,7 @@ export const PREFERRED_MODEL_IDS = {
     chromaFlash: 'chroma-v.46-flash_fp8',
     zTurbo: 'z_image_turbo_bf16',
     krea2Turbo: 'krea2_turbo_fp8_scaled',
+    flux3ImageKlein: 'flux3_image_klein_sd_int8_convrot',
     krea2IdentityEdit: 'krea2_identity_edit_v1_2',
     darkBeastKrea2IdentityEdit: 'dark_beast_krea2_identity_edit_v1_2',
     rtxVsr: 'rtx_vsr_pro'
@@ -235,6 +240,15 @@ function normalizeSelectorKey(value: string): string {
     .replace(/[_\s]+/g, '-');
 }
 
+// FLUX 3 Image Klein is one model for text-to-image, start-image and
+// 1-6 reference edits, so generate_image and edit_image share its selectors.
+const FLUX3_IMAGE_KLEIN_SELECTORS: Record<string, string> = {
+  'flux-3-klein': PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+  'flux3-klein': PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+  'flux-3-image-klein': PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+  'flux3-image-klein': PREFERRED_MODEL_IDS.image.flux3ImageKlein
+};
+
 const GPT_IMAGE_25_SELECTORS: Record<string, string> = {
   'gpt-image-2.5-sunburst': PREFERRED_MODEL_IDS.image.gptImage25Sunburst,
   'gpt-image-2.5-flare': PREFERRED_MODEL_IDS.image.gptImage25Flare,
@@ -252,6 +266,7 @@ const IMAGE_MODEL_SELECTORS: Record<string, string> = {
   'z-turbo': 'z_image_turbo_bf16',
   'krea-2-turbo': 'krea2_turbo_fp8_scaled',
   'krea2-turbo': 'krea2_turbo_fp8_scaled',
+  ...FLUX3_IMAGE_KLEIN_SELECTORS,
   'z-image': 'z_image_bf16',
   'chroma-v46-flash': 'chroma-v.46-flash_fp8',
   'chroma-detail': 'chroma-v48-detail-svd_fp8',
@@ -289,6 +304,7 @@ const EDIT_IMAGE_MODEL_SELECTORS: Record<string, string> = {
   ...GPT_IMAGE_25_SELECTORS,
   'qwen-lightning': 'qwen_image_edit_2511_fp8_lightning',
   qwen: 'qwen_image_edit_2511_fp8',
+  ...FLUX3_IMAGE_KLEIN_SELECTORS,
   'krea-2-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
   'krea2-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
   'krea-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
@@ -595,7 +611,8 @@ export function isEditImageModel(modelId: string): boolean {
     modelId === PREFERRED_MODEL_IDS.image.gptImage25Sunburst ||
     modelId === PREFERRED_MODEL_IDS.image.gptImage25Flare ||
     isQwenImageEditModel(modelId) ||
-    isKreaIdentityEditModel(modelId)
+    isKreaIdentityEditModel(modelId) ||
+    isFlux3ImageKleinModel(modelId)
   );
 }
 

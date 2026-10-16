@@ -17,7 +17,7 @@
  * Options:
  *   --context     Reference image 1 (required, at least 1 needed)
  *   --context2    Reference image 2 (optional)
- *   --context3    Reference image 3 (optional, Qwen only)
+ *   --context3    Reference image 3 (optional, Qwen and FLUX 3 Image Klein)
  *   --model       Model key (default: prompts for selection)
  *   --width       Output image width (default: context image width, max: 2048)
  *   --height      Output image height (default: context image height, max: 2048)
@@ -169,7 +169,7 @@ function showHelp() {
 Image Generation Workflow (with Reference Images)
 
 This workflow generates new images using reference images to guide the style/content.
-Works with Qwen Image Edit, Krea 2 Identity Edit, and Flux models that support context-based generation.
+Works with Qwen Image Edit, Krea 2 Identity Edit, FLUX 3 Image Klein, and Flux models that support context-based generation.
 
 Usage:
   node workflow_image_edit.mjs                                    # Interactive mode
@@ -200,11 +200,14 @@ Available Models:
   qwen           - Qwen Image Edit 2511 (higher quality, 20-step)
                    Same general-purpose strengths as qwen-lightning, slower.
                    Still NOT the identity-preserving choice - see above.
+  flux-3-klein   - FLUX 3 Image Klein (16-step, 1-6 refs, max 2048x2048)
+                   Edits and compositions from up to 6 references. Describe the
+                   whole result as a scene caption; name references in order.
 
 Options:
   --context     Reference image 1 (required, at least 1 needed)
   --context2    Reference image 2 (optional)
-  --context3    Reference image 3 (optional, Qwen only)
+  --context3    Reference image 3 (optional, Qwen and FLUX 3 Image Klein)
   --model       Model key (default: prompts for selection)
   --width       Output image width (default: context image width, max: 2048)
   --height      Output image height (default: context image height, max: 2048)

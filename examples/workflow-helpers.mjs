@@ -625,6 +625,25 @@ export const MODELS = {
       defaultComfySampler: 'euler',
       defaultComfyScheduler: 'simple'
     },
+    'flux-3-klein': {
+      id: 'flux3_image_klein_sd_int8_convrot',
+      name: 'FLUX 3 Image Klein',
+      description: 'Black Forest Labs distilled 16-step generation; write full scene captions',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 4,
+      maxSteps: 16,
+      defaultSteps: 16,
+      supportsGuidance: false,
+      supportsDenoise: true,
+      defaultDenoise: 0.7,
+      supportsStartingImage: true,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
+    },
     'z-image': {
       id: 'z_image_bf16',
       name: 'Z-Image',
@@ -889,6 +908,25 @@ export const MODELS = {
       defaultGuidance: 4.0,
       minGuidance: 2.5,
       maxGuidance: 5.0
+    },
+    'flux-3-klein': {
+      id: 'flux3_image_klein_sd_int8_convrot',
+      name: 'FLUX 3 Image Klein',
+      description:
+        'Black Forest Labs model that edits and composes from 1-6 reference images. Describe the whole result as a full scene caption and name references in order (the first image, the second image). Guidance is fixed and a negative prompt has no effect.',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      defaultSteps: 16,
+      minSteps: 4,
+      maxSteps: 16,
+      supportsGuidance: false,
+      supportsContextImages: true,
+      maxContextImages: 6,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'simple'
     },
     'krea-identity-edit': {
       id: 'krea2_identity_edit_v1_2',

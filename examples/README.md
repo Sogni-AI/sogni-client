@@ -308,6 +308,7 @@ The workflow examples showcase these powerful new models:
 | `z_image_turbo_bf16`                 | Z-Image Turbo     | Image        | Fast 8-step turbo generation - great for quick iterations                          |
 | `z_image_bf16`                       | Z-Image           | Image        | High quality 20-step generation with detailed output                               |
 | `krea2_turbo_fp8_scaled`             | Krea 2 Turbo      | Image        | Fast 8-step text-to-image + image-to-image, crisp in-image text, up to 2K          |
+| `flux3_image_klein_sd_int8_convrot`  | FLUX 3 Image Klein | Image + Edit | Black Forest Labs 16-step text-to-image, image-to-image and 1-6 reference edits, up to 2048px |
 | `krea2_identity_edit_v1_2`           | Krea 2 Identity Edit | Image Edit | Identity-preserving edits with 1-2 reference images                                |
 | `chroma1-hd_fp8_scaled`              | Chroma1-HD        | Image        | Final high-res Chroma (uncensored, LoRA-capable)                                   |
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning    | Image Edit   | Fast 4-step reference-based generation                                             |
@@ -338,6 +339,9 @@ node workflow_text_to_image.mjs "A cyberpunk city" --model z-image
 # Krea 2 Turbo - fast 8-step, strong in-image text, up to 2K
 node workflow_text_to_image.mjs "A neon sign that reads OPEN" --model krea-2-turbo
 
+# FLUX 3 Image Klein - full scene captions work best
+node workflow_text_to_image.mjs "A rainy Tokyo alley at night, wide shot, neon reflections on wet asphalt" --model flux-3-klein
+
 # Chroma1-HD - final high-res Chroma
 node workflow_text_to_image.mjs "A detailed oil painting of a harbor at dawn" --model chroma-hd
 
@@ -363,6 +367,7 @@ Generate images from text prompts with support for multiple cutting-edge models.
 | `z-turbo` | Z-Image Turbo (8-step, fast) | Quick prototyping, iterations |
 | `z-image` | Z-Image (20-step, high quality) | Detailed, high quality output |
 | `krea-2-turbo` | Krea 2 Turbo (8-step, strong in-image text, up to 2K) | Text-heavy images, fast iteration |
+| `flux-3-klein` | FLUX 3 Image Klein (16-step, up to 2048px) | Full-scene captions, img2img |
 | `chroma-v46-flash` | Chroma v.46 Flash (fast high-quality) | Balanced speed/quality |
 | `chroma-v48-detail-svd` | Chroma v48 Detail SVD (high detail) | Fine detail rendering |
 | `chroma-hd` | Chroma1-HD (final high-res Chroma) | Highest-fidelity Chroma output |
@@ -408,6 +413,7 @@ person's likeness with Krea 2 Identity Edit.
 | `qwen` | Qwen Image Edit (20-step) | High-quality image editing |
 | `krea-identity-edit` | Krea 2 Identity Edit LoRA v1.2 (10-step) | Identity-preserving edits with 1-2 references |
 | `dark-beast-krea2-identity-edit` | Dark Beast Krea 2 Identity Edit (10-step) | Community identity-preserving edits |
+| `flux-3-klein` | FLUX 3 Image Klein (16-step) | Edits and compositions from 1-6 references |
 
 **Usage:**
 
