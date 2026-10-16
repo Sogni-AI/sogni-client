@@ -247,6 +247,7 @@ FLUX 3 Image Klein output size:
   Without --width/--height, a single photo is edited at its own shape, shrunk to
   at most 4 megapixels and 4096 px per side (never enlarged), on a 16 px grid -
   how Black Forest Labs' pipeline sizes it, so the rest of the photo stays put.
+  A one-photo edit asked for above 4 megapixels renders at that size instead.
   With several references, the first one sets the shape at up to 1 megapixel.
 `);
 }
@@ -593,6 +594,18 @@ async function main() {
   if (modelConfig.maxHeight && outputHeight > modelConfig.maxHeight) {
     log('⚠️', `Height exceeds model maximum of ${modelConfig.maxHeight}, capping to ${modelConfig.maxHeight}`);
     outputHeight = modelConfig.maxHeight;
+  }
+  // FLUX 3 Image Klein edits one photo at up to 4 MiB pixels: larger than its
+  // photo the edit breaks, and the server refuses it.
+  if (
+    modelConfig.id === 'flux3_image_klein_sd_int8_convrot'
+    && OPTIONS.contextImages.filter(Boolean).length === 1
+    && outputWidth * outputHeight > 4 * 1024 * 1024
+  ) {
+    const capped = kleinEditSize(imageDimensions.width, imageDimensions.height, 1);
+    log('⚠️', `FLUX 3 Image Klein edits one photo at up to 4 megapixels; rendering at ${capped.width} x ${capped.height} instead of ${outputWidth} x ${outputHeight}`);
+    outputWidth = capped.width;
+    outputHeight = capped.height;
   }
 
     // Show configuration first
