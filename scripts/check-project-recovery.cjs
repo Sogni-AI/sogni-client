@@ -213,6 +213,50 @@ function stopTimers(api) {
 }
 
 async function main() {
+  // A slow reference upload must not consume the server-admission grace.
+  {
+    const { api, client, synced } = makeHarness();
+    api._recoveryTuning.recentlyCreatedGraceMs = 5000;
+    api.getModelOptions = async () => ({
+      type: 'image',
+      steps: { min: 1, max: 4, step: 1, default: 4 },
+      guidance: { min: 0, max: 1, step: 0.1, default: 0 },
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: [], default: null }
+    });
+    client.resolveWorkloadAttribution = () => undefined;
+    api._processImageAssets = async (project) => {
+      // The request is still preparing here, as with a minute-long upload.
+      project.data.startedAt = new Date(Date.now() - 60_000);
+    };
+    try {
+      const project = await api.create({
+        type: 'image',
+        modelId: 'flux1-schnell-fp8',
+        numberOfMedia: 1,
+        positivePrompt: 'a lighthouse at dusk',
+        steps: 4
+      });
+      const snapshot = { activeProjects: [], unclaimedCompletedProjects: [] };
+      await api._reconcile(snapshot, 'manual', Date.now());
+      assert.deepEqual(synced[0].lost, [], 'a just-submitted request retains its admission grace');
+      assert.equal(
+        project.finished,
+        false,
+        'upload time cannot turn a fresh submission into a lost project'
+      );
+      assert.equal(client.rest.calls.length, 0, 'no premature missing-project lookup');
+      await api._reconcile(snapshot, 'manual', Date.now() + 6000);
+      assert.deepEqual(
+        synced[1].lost,
+        [project.id],
+        'a genuinely absent request is still detected after grace'
+      );
+    } finally {
+      stopTimers(api);
+    }
+  }
+
   // 1. A transport drop must not fail tracked projects, and timeouts defer.
   {
     const { api, client, apiEvents } = makeHarness();

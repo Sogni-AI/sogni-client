@@ -543,6 +543,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   /** Projects waiting for a reconnect to be resubmitted on. */
   private _awaitingResubmit = new Set<string>();
   private _resubmitWaiters = new Set<() => void>();
+  /** Initial sends finish after model lookups and uploads, independently of creation time. */
+  private _submittedAt = new Map<string, number>();
   /** When each resubmitted project was last sent, for the recently-created grace. */
   private _resubmittedAt = new Map<string, number>();
   /** Bumped on every transport loss; tells a frame sent before a drop from one sent after. */
@@ -770,6 +772,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._unadmittedRequests.clear();
       for (const stopWaiting of this._resubmitWaiters) stopWaiting();
       this._awaitingResubmit.clear();
+      this._submittedAt.clear();
       this._resubmittedAt.clear();
       this._sentOnGeneration.clear();
       this._recoveredCompletedIds.clear();
@@ -1265,6 +1268,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     if (project.finished) {
       this._unadmittedRequests.delete(project.id);
+      this._submittedAt.delete(project.id);
       this._resubmittedAt.delete(project.id);
       this._sentOnGeneration.delete(project.id);
       // Sync project data with the server and remove it from the list after some time
@@ -1580,7 +1584,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private _lastSubmittedAt(project: Project): number {
-    return Math.max(project.startedAt.getTime(), this._resubmittedAt.get(project.id) ?? 0);
+    return Math.max(
+      this._submittedAt.get(project.id) ?? project.startedAt.getTime(),
+      this._resubmittedAt.get(project.id) ?? 0
+    );
   }
 
   private handleServerConnected() {
@@ -2375,6 +2382,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _trackSubmitted(project: Project): Project {
     const tracked = this.projects.find((candidate) => candidate.id === project.id);
     if (!tracked) {
+      this._submittedAt.set(project.id, Date.now());
       this.projects.push(project);
       return project;
     }
