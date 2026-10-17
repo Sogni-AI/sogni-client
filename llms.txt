@@ -171,6 +171,11 @@ Keep `appSource` as the stable product/integration ID. Agent wrappers may additi
 
 ## 2. Image Generation
 
+MOSS-Image SFT: `modelId: 'moss_image_sft_int8_convrot'` (hosted `moss-image`),
+1024×1024, 50 steps, guidance 3, Euler / `sgm_uniform`; 512–2048 px per edge,
+multiples of 16. It accepts captions, tags or experimental JSON layouts and no
+guide/reference images. Keep JSON layouts literal, including quoted text and boxes.
+
 ### Basic Parameters
 
 Projects accept optional `promptExpanded` (Python: `prompt_expanded`), a boolean reporting whether the submitted prompt was expanded. Omission means unknown; this does not enable expansion.

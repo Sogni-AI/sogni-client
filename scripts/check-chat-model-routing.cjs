@@ -130,6 +130,61 @@ const models = [
   { id: PREFERRED_MODEL_IDS.audio.qwen3TtsCustomVoice, media: 'audio', workerCount: 50 }
 ];
 
+assert.equal(resolveHostedToolModelSelector('generate_image', { model: 'moss-image' }),
+  'moss_image_sft_int8_convrot');
+assert.equal(resolveHostedToolModelSelector('generate_image', { model: 'moss-image-sft' }),
+  'moss_image_sft_int8_convrot');
+assert.equal(isEditImageModel('moss_image_sft_int8_convrot'), false);
+assert.equal(isComfyModel('moss_image_sft_int8_convrot'), true);
+assert.equal(getMaxContextImages('moss_image_sft_int8_convrot'), 0);
+for (const dimension of [512, 1024, 2048]) {
+  assert.equal(validateCustomImageSize(dimension, {
+    modelId: 'moss_image_sft_int8_convrot', propertyName: 'Width'
+  }), dimension);
+}
+for (const dimension of [496, 2064]) {
+  assert.throws(() => validateCustomImageSize(dimension, {
+    modelId: 'moss_image_sft_int8_convrot', propertyName: 'Height'
+  }));
+}
+const mossParams = {
+  type: 'image', modelId: 'moss_image_sft_int8_convrot', numberOfMedia: 1,
+  positivePrompt: '{"caption":"A sign with exact text 山海"}',
+  negativePrompt: '', width: 1024, height: 1024, sizePreset: 'custom',
+  steps: 50, guidance: 3, sampler: 'euler', scheduler: 'sgm_uniform',
+  disableNSFWFilter: true
+};
+const mossOptions = {
+  type: 'image', steps: { min: 50, max: 100, step: 1, default: 50 },
+  guidance: { min: 3, max: 6, step: 0.1, default: 3 },
+  sampler: { allowed: ['euler'], default: 'euler' },
+  scheduler: { allowed: ['sgm_uniform'], default: 'sgm_uniform' }
+};
+const mossRequest = createJobRequestMessage('moss-wire', mossParams, mossOptions);
+const mossFastId = 'moss_image_sft_dmd8_int8_convrot';
+assert.equal(resolveHostedToolModelSelector('generate_image', { model: 'moss-image-8step' }), mossFastId);
+assert.equal(isEditImageModel(mossFastId), false);
+assert.equal(getMaxContextImages(mossFastId), 0);
+const mossFastParams = { ...mossParams, modelId: mossFastId, steps: 8, guidance: 1,
+  loras: ['personal-owned-adapter'], loraStrengths: [0.7] };
+const mossFastOptions = { ...mossOptions, steps: { min: 8, max: 8, default: 8 }, guidance: { min: 1, max: 1, default: 1 } };
+const mossFastRequest = createJobRequestMessage('moss-fast-wire', mossFastParams, mossFastOptions);
+assert.equal(mossFastRequest.keyFrames[0].steps, 8);
+assert.equal(mossFastRequest.keyFrames[0].guidanceScale, 1);
+assert.deepEqual(mossFastRequest.keyFrames[0].loras, ['personal-owned-adapter']);
+assert.deepEqual(mossFastRequest.keyFrames[0].loraStrengths, [0.7]);
+assert.throws(() => createJobRequestMessage('moss-fast-no-ref', { ...mossFastParams, contextImages: ['not-uploaded'] }, mossFastOptions), /does not accept guide or reference images/);
+assert.equal(mossRequest.disableSafety, true);
+assert.equal(mossRequest.keyFrames[0].positivePrompt, mossParams.positivePrompt);
+assert.equal(mossRequest.keyFrames[0].steps, 50);
+assert.equal(mossRequest.keyFrames[0].comfySampler, 'euler');
+assert.equal(mossRequest.keyFrames[0].comfyScheduler, 'sgm_uniform');
+for (const forbidden of [{ startingImage: 'not-uploaded' }, { contextImages: ['not-uploaded'] }]) {
+  assert.throws(() => createJobRequestMessage('moss-no-refs', {
+    ...mossParams, ...forbidden
+  }, mossOptions), /does not accept guide or reference images/);
+}
+
 assert.equal(clampVariationCount(99), 16);
 assert.equal(clampVariationCount(0), 1);
 assert.equal(clampVariationCount(3.6), 4);

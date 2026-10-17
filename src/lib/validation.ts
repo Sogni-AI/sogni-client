@@ -120,6 +120,9 @@ interface ImageSizeValidationOptions {
 }
 
 function getCustomImageSizeBounds(modelId?: string): { min: number; max: number } {
+  if (['moss_image_sft_int8_convrot', 'moss_image_sft_dmd8_int8_convrot'].includes(modelId || '')) {
+    return { min: 512, max: 2048 };
+  }
   if (modelId === 'rtx_vsr_pro') {
     return { min: 512, max: RTX_VSR_MAX_EDGE };
   }
@@ -222,6 +225,7 @@ export function isComfyModel(modelId: string): boolean {
     'z_image_',
     'dark_beast_z_image_',
     'krea2_',
+    'moss_image_',
     'dark_beast_krea2_',
     'qwen_image_',
     'flux3_',
@@ -245,6 +249,7 @@ export function isComfyModel(modelId: string): boolean {
  * - Default: 3 images
  */
 export function getMaxContextImages(modelId: string): number {
+  if (['moss_image_sft_int8_convrot', 'moss_image_sft_dmd8_int8_convrot'].includes(modelId || '')) return 0;
   if (isGptImageModel(modelId)) {
     return 16;
   }

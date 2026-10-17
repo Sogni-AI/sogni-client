@@ -1731,6 +1731,15 @@ work. Lower `meshTargetFaces` for a game-ready asset. `shapeResolution` is
 
 The workflow examples showcase a few powerful open-source frontier models supported by Sogni Supernet:
 
+MOSS-Image SFT (`moss_image_sft_int8_convrot`, hosted selector `moss-image`)
+generates from captions, tags, or experimental JSON layouts. Start with 1024×1024,
+50 steps, guidance 3, `sampler: 'euler'`, and `scheduler: 'sgm_uniform'`.
+It accepts no `startingImage` or `contextImages`. See the
+[MOSS-Image guide](https://docs.sogni.ai/models/moss-image/) for layout coordinates.
+The 8-step preset is `moss_image_sft_dmd8_int8_convrot` (hosted
+`moss-image-8step`), using exactly 8 steps and guidance 1 with the same sampler,
+scheduler and dimension bounds. Both presets accept compatible Personal LoRAs.
+
 | Model ID                              | Description                                              | Use Case                                                                                                     |
 | ------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `z_image_turbo_bf16`                  | **Z-Image Turbo** - Ultra-fast 8-step generation         | Quick text-to-image prototyping and iteration                                                                |

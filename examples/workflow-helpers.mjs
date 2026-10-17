@@ -603,6 +603,27 @@ export const MODELS = {
       defaultComfySampler: 'res_multistep',
       defaultComfyScheduler: 'simple'
     },
+    'moss-image': {
+      id: 'moss_image_sft_int8_convrot',
+      name: 'MOSS-Image SFT',
+      description: 'Full-step text-to-image with natural language, tags and JSON layouts',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 50,
+      maxSteps: 100,
+      defaultSteps: 50,
+      supportsGuidance: true,
+      defaultGuidance: 3,
+      minGuidance: 3,
+      maxGuidance: 6,
+      supportsDenoise: false,
+      supportsStartingImage: false,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'sgm_uniform'
+    },
     'krea-2-turbo': {
       id: 'krea2_turbo_fp8_scaled',
       name: 'Krea 2 Turbo',

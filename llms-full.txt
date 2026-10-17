@@ -1,7 +1,7 @@
 # Sogni SDK - Complete LLM Reference
 
 > @sogni-ai/sogni-client - JavaScript/Node.js SDK for AI image, video, and audio generation
-> Version: 4.2.0-alpha.24 | License: ISC | Platform: Node.js & Browser
+> Version: see package.json | License: ISC | Platform: Node.js & Browser
 > Repository: https://github.com/Sogni-AI/sogni-client
 > API Docs: https://sdk-docs.sogni.ai
 
@@ -340,6 +340,8 @@ sogni.apiClient.on('disconnected', ({ code, reason }) => {
 
 ================================================================================ 4. IMAGE GENERATION
 ================================================================================
+
+MOSS-Image SFT uses modelId `moss_image_sft_int8_convrot` (hosted selector `moss-image`). It generates from English/Chinese text or one complete literal JSON layout; it does not accept a starting image, guide image, or context image. Use 1024x1024, 50 steps, guidance 3, Euler and sgm_uniform as the author recipe. Supported dimensions are 512-2048 per edge, aligned to 16 pixels. Preserve layout JSON verbatim, including vertical bars in text. numberOfVariations changes seeds; use separate calls for different layouts instead of Dynamic Prompt choices inside JSON.
 
 BASIC IMAGE GENERATION:
 

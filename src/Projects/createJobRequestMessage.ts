@@ -1372,6 +1372,10 @@ function applyImageParams(
   params: ImageProjectParams,
   options: ImageModelOptions
 ) {
+  if (['moss_image_sft_int8_convrot', 'moss_image_sft_dmd8_int8_convrot'].includes(params.modelId) &&
+      (params.startingImage || params.contextImages?.length)) {
+    throw new Error('MOSS-Image SFT generates from text and does not accept guide or reference images.');
+  }
   const keyFrame: Record<string, any> = {
     ...inputKeyframe,
     sizePreset: params.sizePreset

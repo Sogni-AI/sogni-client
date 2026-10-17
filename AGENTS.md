@@ -310,6 +310,14 @@ not. Judge by whether the client contract moved.
 ## Common Tasks Quick Reference
 
 ### Generate an Image
+
+MOSS-Image SFT uses `moss_image_sft_int8_convrot` (hosted `moss-image`),
+50 steps, guidance 3, Euler / `sgm_uniform`, 512–2048 px aligned to 16.
+It is text-to-image only; no guide or context images. Preserve JSON layout prompts.
+The fast preset is `moss_image_sft_dmd8_int8_convrot` (hosted `moss-image-8step`):
+exactly 8 steps and guidance 1, with the same sampler/scheduler and bounds.
+Both support compatible Personal LoRAs; the fast preset applies them after DMD.
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'image',
