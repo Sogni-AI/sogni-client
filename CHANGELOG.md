@@ -1,3 +1,17 @@
+# [5.64.0](https://github.com/Sogni-AI/sogni-client/compare/v5.63.4...v5.64.0) (2026-10-17)
+
+
+### Bug Fixes
+
+* **deps:** take sogni-protocol 1.0.0-alpha.51 for FLUX 3 Image Klein ([d966182](https://github.com/Sogni-AI/sogni-client/commit/d9661820b0f7fbe98c7c6a9ddcd91893aabd9adf))
+
+
+### Features
+
+* **models:** accept up to 10 FLUX 3 Image Klein reference images ([8acd2de](https://github.com/Sogni-AI/sogni-client/commit/8acd2de446974afd02cf5106d299ea38947de6f5))
+* **models:** allow FLUX 3 Image Klein up to 4096 px per side ([022dd4f](https://github.com/Sogni-AI/sogni-client/commit/022dd4f19d94c169b15a915d1f102a043e0561f1))
+* **models:** route FLUX 3 Image Klein for image generation and edits ([ed8225f](https://github.com/Sogni-AI/sogni-client/commit/ed8225fd1cd255f3be8a7bd3c6ebd93e68bedbfb))
+
 ## [5.63.4](https://github.com/Sogni-AI/sogni-client/compare/v5.63.3...v5.63.4) (2026-10-16)
 
 
