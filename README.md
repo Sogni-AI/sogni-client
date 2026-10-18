@@ -906,6 +906,60 @@ clients that manage project IDs and input slots directly.
 Project history may include `byolUsed`, `personalLoras` public-source snapshots,
 and `reusedAssetCount`. Missing fields on older projects mean unknown, not zero.
 
+### Media encryption
+
+Create a project with `mediaEncryption: true` to keep its media encrypted in
+storage and in transit. Input media is encrypted on your device before it is
+uploaded, and results and previews are encrypted before they are stored, so
+storage and download links hold only ciphertext. Each project's key travels with
+the project request, through Sogni's servers, to the worker rendering it. That
+worker has to decrypt the media to work on it; its working files are normally
+deleted when the job ends. Prompts and other parameters are not encrypted.
+
+```javascript
+await sogni.account.login('username', 'password'); // derives your media key
+
+if (await sogni.projects.supportsMediaEncryption(modelId)) {
+  const project = await sogni.projects.create({ ...params, modelId, mediaEncryption: true });
+  await project.waitForCompletion();
+  const blob = await project.jobs[0].getResultData(); // decrypted, with its real MIME type
+}
+```
+
+- **Result URLs point at encrypted data.** Read results with
+  `job.getResultData()`, or `sogni.mediaEncryption.fetchDecrypted(url)` for
+  preview and result URLs, instead of loading the URL in an `<img>` or `<video>`.
+  `job.encrypted` and `project.encrypted` tell you which projects need this.
+- **Your account's media key never leaves your device.** It is derived from your
+  login during `account.login()`. Each project has its own key for its results,
+  wrapped under the account key inside every file and sent with the project so
+  the rendering worker can use it; it is not stored with the media. A session resumed without
+  the password (cookies, saved tokens, an API key) starts locked: check
+  `await sogni.mediaEncryption.isUnlocked()` and call
+  `await sogni.mediaEncryption.unlock(password)` once. In browsers the key is
+  then kept on the device, non-extractable, until logout. Headless integrations
+  can supply their own 32-byte secret with `mediaEncryption.setAccountKey()`.
+- **Every device that signs in with the same account can open the media**, and
+  there is nothing extra to remember.
+- Pass media as a `File`, `Blob` or `Buffer`; `true` ("already uploaded") cannot
+  be combined with encryption. Each input file is encrypted under a key derived
+  from your account key and the file's content, so the same file always
+  encrypts to the same bytes: an input you have used before is recognised and
+  not uploaded again, and the server sees only the hash of the encrypted file.
+  The rendering worker receives those input keys wrapped under the project key.
+- `sogni.mediaEncryption.available` is `true` while the server accepts
+  encrypted projects from this account (it says so when the connection
+  authenticates, and `availabilityChanged` fires when that changes). Apps that
+  encrypt by default should do so only while it is `true`. An account that signs
+  in only with Google or Apple has no password to unlock with:
+  `canUnlockWithPassword()` says so up front, and `unlock()` throws
+  `password_unavailable`.
+- This is a paid feature and not every model supports it yet. The server
+  refuses an ineligible project with the subscription-limit error
+  (`feature: 'media_encryption'`) or one of `MEDIA_ENCRYPTION_ERROR_CODES`;
+  client-side failures throw `MediaEncryptionError` with a `code` such as
+  `locked`, `unsupported` or `authentication_failed`.
+
 ### ControlNets
 
 **EXPERIMENTAL FEATURE:** This feature is still in development and may not work as expected. Use at your own risk.

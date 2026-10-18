@@ -122,6 +122,10 @@ export function projectParamsFromRecoveredProject(project: RecoveredProject): Pr
   const billingMode = project.billingMode || request.billingMode;
   if (billingMode) base.billingMode = billingMode;
   if (request.disableSafety === true) base.disableNSFWFilter = true;
+  // The recovered request never carries the project key; its presence only marks the media as encrypted.
+  if (request.mediaEncryption && typeof request.mediaEncryption === 'object') {
+    base.mediaEncryption = true;
+  }
   if (typeof request.outputFormat === 'string' && request.outputFormat) {
     base.outputFormat = request.outputFormat;
   }

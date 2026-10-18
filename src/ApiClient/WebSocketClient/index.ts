@@ -25,6 +25,7 @@ import {
   normalizeConnectionAttribution,
   type NormalizedConnectionAttribution
 } from '../../lib/attribution.js';
+import { redactMediaKey } from '../../lib/mediaEncryption/redact.js';
 
 const PROTOCOL_VERSION = '3.0.0';
 
@@ -410,7 +411,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     // A suspended tab can resume after its timers' deadlines. Check the wall
     // clock again immediately before sending, even if authentication succeeded.
     remaining();
-    this._logger.debug('WebSocket send:', messageType, data);
+    this._logger.debug('WebSocket send:', messageType, redactMediaKey(data));
     this.socket!.send(
       JSON.stringify({ type: messageType, data: base64Encode(JSON.stringify(data)) })
     );

@@ -18,6 +18,7 @@ import type {
 } from '../eventSubscriptions.js';
 import type { NormalizedConnectionAttribution } from '../../../lib/attribution.js';
 import getUUID from '../../../lib/getUUID.js';
+import { redactMediaKey } from '../../../lib/mediaEncryption/redact.js';
 
 interface SocketSend<T extends MessageType = MessageType> {
   type: 'socket-send';
@@ -321,7 +322,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
 
   private async handleMessage(message: Message, deadline?: number) {
     if (this._disposed) throw new Error('WebSocket client disposed');
-    this._logger.debug('Received control message', message);
+    this._logger.debug('Received control message', redactMediaKey(message));
     switch (message.type) {
       case 'socket-send': {
         this.syncSessionContext();
@@ -411,7 +412,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         return;
       }
       default: {
-        this._logger.error('Received unknown message type:', message);
+        this._logger.error('Received unknown message type:', redactMediaKey(message));
       }
     }
   }

@@ -25,6 +25,8 @@ export interface SupportedModel {
    * Media type produced by this model: image, video, audio, or a 3D model artifact.
    */
   media: 'image' | 'video' | 'audio' | 'model';
+  /** Whether projects for this model can be created with `mediaEncryption`. */
+  supportsMediaEncryption?: boolean;
 }
 
 export interface AvailableModel {
@@ -126,6 +128,20 @@ export interface BaseProjectParams {
    * - tokens: opt out of Unlimited coverage and use Spark/SOGNI tokens.
    */
   billingMode?: BillingMode;
+  /**
+   * Encrypt this project's media. Input media is encrypted on this device
+   * before upload, and results and previews are encrypted before they are
+   * stored, so result URLs serve ciphertext: read them with
+   * {@link Job.getResultData} or {@link MediaEncryptionApi.fetchDecrypted}
+   * rather than loading the URL directly. The rendering worker decrypts the
+   * media to work on it.
+   *
+   * Requires an unlocked media key ({@link MediaEncryptionApi.isUnlocked}) and a
+   * model that supports it ({@link ProjectsApi.supportsMediaEncryption}). This is
+   * a paid feature; the server remains authoritative and refuses the project
+   * when the account or payment method does not qualify.
+   */
+  mediaEncryption?: boolean;
   /**
    * Optional client app/source label to attach to the project request for server-side attribution.
    */

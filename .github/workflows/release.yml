@@ -106,6 +106,8 @@ jobs:
         run: node scripts/check-model-consent-error.cjs
       - name: Run reference content-type checks
         run: node scripts/check-reference-content-types.cjs
+      - name: Run media encryption checks
+        run: node scripts/check-media-encryption.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

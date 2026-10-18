@@ -311,6 +311,14 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   }
 
   /**
+   * Whether this project's media is encrypted. Result URLs then
+   * point at encrypted data; read results with {@link Job.getResultData}.
+   */
+  get encrypted(): boolean {
+    return this.params.mediaEncryption === true;
+  }
+
+  /**
    * List of result URLs for all completed jobs in the project.
    */
   get resultUrls() {
