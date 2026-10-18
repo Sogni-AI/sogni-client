@@ -1220,11 +1220,14 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
   }
 
   private handleSocketAuthenticated(data: AuthenticatedData): void {
-    if (!this.jobsAwaitingReconnect.size || !Array.isArray(data?.activeLLMJobIDs)) return;
+    if (!Array.isArray(data?.activeLLMJobIDs)) return;
     const live = new Set(data.activeLLMJobIDs.map((id) => String(id).toUpperCase()));
+    // Every job already sent, not only those a 'connecting' put on watch: a tab
+    // that takes the connection over from another tab gets no 'connecting', and
+    // a job queued on the old connection was cancelled when it closed.
     const gone: string[] = [];
-    for (const jobID of this.jobsAwaitingReconnect) {
-      if (!live.has(jobID.toUpperCase())) gone.push(jobID);
+    for (const jobID of this.activeStreams.keys()) {
+      if (!this.unsentJobs.has(jobID) && !live.has(jobID.toUpperCase())) gone.push(jobID);
     }
     this.jobsAwaitingReconnect.clear();
     this.clearTransportGraceTimer();

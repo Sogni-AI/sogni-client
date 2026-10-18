@@ -4,6 +4,12 @@ import { MessageDeliveryUncertainError, SEND_READY_TIMEOUT_MS } from '../request
 
 const PRIMARY_HEARTBEAT_INTERVAL = 2000;
 const PRIMARY_TIMEOUT = 4000;
+// How long a visible tab waits without a heartbeat from the primary before it
+// takes the connection over itself. A primary in a background tab can keep
+// answering elections (messages are not throttled) while its timers, and so its
+// heartbeats, have all but stopped; requests forwarded to it can then wait on a
+// connection that no longer works.
+const PRIMARY_TAKEOVER_TIMEOUT = 12000;
 const ELECTION_SETTLE_TIMEOUT = 600;
 const ACK_TIMEOUT = 5000;
 
@@ -126,6 +132,11 @@ class ChannelCoordinator<M, N> {
 
   // Heartbeat to detect primary tab death
   private lastPrimaryHeartbeat: number = Date.now();
+  // The primary this tab follows, and when it last sent a heartbeat of its own.
+  // Unlike lastPrimaryHeartbeat, the primary re-announcing itself in answer to
+  // an election does not count.
+  private primaryId: string | null = null;
+  private lastHeartbeatFromPrimary: number = Date.now();
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private primaryCheckTimer: NodeJS.Timeout | null = null;
   private readyCallback: () => void | null = () => {};
@@ -158,6 +169,10 @@ class ChannelCoordinator<M, N> {
 
   get isPrimary() {
     return this._isPrimary;
+  }
+
+  private tabIsVisible() {
+    return isActiveTab;
   }
 
   private get currentPriority() {
@@ -209,8 +224,24 @@ class ChannelCoordinator<M, N> {
     return new Promise((resolve) => setTimeout(resolve, ELECTION_SETTLE_TIMEOUT));
   }
 
+  /**
+   * A visible secondary whose primary has sent no heartbeat for
+   * PRIMARY_TAKEOVER_TIMEOUT becomes primary itself. Announcing demotes the
+   * silent primary, which closes its connection; this tab opens its own.
+   */
+  private takeOverFromSilentPrimary(): boolean {
+    if (this._isPrimary || !this.tabIsVisible()) return false;
+    const silentFor = Date.now() - this.lastHeartbeatFromPrimary;
+    if (silentFor <= PRIMARY_TAKEOVER_TIMEOUT) return false;
+    this.logger.debug(`Primary sent no heartbeat for ${silentFor}ms, taking over as primary`);
+    this.electionInProgress = false;
+    this.electionResponses.clear();
+    this.becomePrimary();
+    return true;
+  }
+
   private async ensureFreshPrimaryBeforeRequest(): Promise<void> {
-    if (this._isPrimary) {
+    if (this._isPrimary || this.takeOverFromSilentPrimary()) {
       return;
     }
 
@@ -260,6 +291,7 @@ class ChannelCoordinator<M, N> {
 
   private becomePrimary() {
     this._isPrimary = true;
+    this.primaryId = this.id;
     this.lastPrimaryHeartbeat = Date.now();
     this.broadcast({
       type: MessageType.PRIMARY_ANNOUNCE,
@@ -300,6 +332,7 @@ class ChannelCoordinator<M, N> {
     }
     this.primaryCheckTimer = setInterval(() => {
       if (!this._isPrimary) {
+        if (this.takeOverFromSilentPrimary()) return;
         const timeSinceLastHeartbeat = Date.now() - this.lastPrimaryHeartbeat;
         if (timeSinceLastHeartbeat > PRIMARY_TIMEOUT) {
           this.startElections();
@@ -325,7 +358,7 @@ class ChannelCoordinator<M, N> {
       case MessageType.PRIMARY_ANNOUNCE:
         return this.handlePrimaryAnnounce(message);
       case MessageType.PRIMARY_HEARTBEAT:
-        return this.handlePrimaryHeartbeat();
+        return this.handlePrimaryHeartbeat(message);
       case MessageType.BROADCAST:
         return this.handleBroadcast(message);
       case MessageType.REQUEST:
@@ -373,6 +406,12 @@ class ChannelCoordinator<M, N> {
     const wasPrimary = this._isPrimary;
     this._isPrimary = false;
     this.lastPrimaryHeartbeat = Date.now();
+    // A new primary starts with a clean record; the same primary answering an
+    // election again proves only that its tab still handles messages.
+    if (message.payload.id !== this.primaryId) {
+      this.primaryId = message.payload.id;
+      this.lastHeartbeatFromPrimary = Date.now();
+    }
     this.electionInProgress = false;
     this.electionResponses.clear();
 
@@ -386,8 +425,10 @@ class ChannelCoordinator<M, N> {
     this.readyCallback();
   }
 
-  private handlePrimaryHeartbeat() {
+  private handlePrimaryHeartbeat(message: PrimaryHeartbeat) {
     this.lastPrimaryHeartbeat = Date.now();
+    this.primaryId = message.payload.id;
+    this.lastHeartbeatFromPrimary = Date.now();
   }
 
   private handleBroadcast(message: BroadcastMessage) {

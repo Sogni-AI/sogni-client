@@ -326,6 +326,92 @@ async function checkDisposedPrimaryHandoff() {
   }
 }
 
+// A primary in a background tab keeps answering elections (channel messages are
+// not throttled) while its heartbeat timer has all but stopped. A visible tab
+// must take the connection over instead of forwarding to it forever.
+async function checkSilentPrimaryTakeover() {
+  mock.timers.enable({ apis: ['Date', 'setTimeout', 'setInterval'], now: 300_000 });
+  const tabs = [];
+  try {
+    const makeTab = (visible) => {
+      const roleChanges = [];
+      const handled = [];
+      const tab = Object.assign(Object.create(ChannelCoordinator.prototype), {
+        id: visible ? 'visible-tab' : 'hidden-tab',
+        priority: 1,
+        _isPrimary: false,
+        primaryId: null,
+        lastPrimaryHeartbeat: Date.now(),
+        lastHeartbeatFromPrimary: Date.now(),
+        electionInProgress: false,
+        electionResponses: new Map(),
+        ackCallbacks: {},
+        logger,
+        roleChanges,
+        handled,
+        callbacks: {
+          onRoleChange: (isPrimary) => roleChanges.push(isPrimary),
+          onMessage: async (message) => handled.push(message),
+          onNotification() {}
+        },
+        readyCallback() {},
+        tabIsVisible: () => visible,
+        channel: {
+          // The stale primary answers every election by announcing itself again.
+          postMessage: (envelope) => {
+            if (envelope.message.type === 'election') {
+              tab.handlePrimaryAnnounce({
+                type: 'primary_announce',
+                payload: { id: 'stale-primary', priority: 1 }
+              });
+            }
+          }
+        }
+      });
+      tabs.push(tab);
+      tab.handlePrimaryAnnounce({
+        type: 'primary_announce',
+        payload: { id: 'stale-primary', priority: 1 }
+      });
+      tab.startPrimaryMonitor();
+      return tab;
+    };
+
+    const visible = makeTab(true);
+    mock.timers.tick(10_000);
+    assert.equal(visible.isPrimary, false, 'a few missed heartbeats are not enough');
+    // A real heartbeat restarts the wait; re-announcements never do.
+    visible.handlePrimaryHeartbeat({
+      type: 'primary_heartbeat',
+      payload: { id: 'stale-primary', priority: 1 }
+    });
+    mock.timers.tick(10_000);
+    assert.equal(visible.isPrimary, false);
+    mock.timers.tick(4000);
+    assert.equal(visible.isPrimary, true, 'the visible tab takes over from a silent primary');
+    assert.deepEqual(visible.roleChanges, [true]);
+
+    // A background tab never takes over; only the tab the artist is using does.
+    const hidden = makeTab(false);
+    mock.timers.tick(60_000);
+    assert.equal(hidden.isPrimary, false);
+
+    // A request sent while the primary is silent goes out on this tab's own
+    // connection instead of being forwarded.
+    const requesting = makeTab(true);
+    mock.timers.setTime(Date.now() + 13_000);
+    await requesting.sendMessage({ type: 'socket-send', payload: { type: 'llmJobRequest' } });
+    assert.equal(requesting.isPrimary, true);
+    assert.equal(requesting.handled.length, 1, 'handled locally, not forwarded');
+  } finally {
+    for (const tab of tabs) {
+      clearInterval(tab.primaryCheckTimer);
+      clearInterval(tab.heartbeatTimer);
+    }
+    mock.timers.reset();
+  }
+}
+
 async function main() {
   const previousWindow = global.window;
   const unloadListeners = new Set();
@@ -359,6 +445,7 @@ async function main() {
   await checkSlowReconnect();
   await checkMissingAckAndSuspension();
   await checkDisposedPrimaryHandoff();
+  await checkSilentPrimaryTakeover();
   console.log('check-browser-request-handoff: ALL TESTS PASSED');
 }
 main().catch((error) => {
