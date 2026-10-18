@@ -2,6 +2,7 @@ import { SupernetType } from './types.js';
 import { Balances } from '../../Account/types.js';
 import { LLMJobCost, LLMModelInfo, ToolCallDelta } from '../../Chat/types.js';
 import { SubscriptionPlanId } from '../../Account/subscription.types.js';
+import type { ModelConsentRequirement } from '../../types/ErrorData.js';
 
 export interface SocketSubscriptionFairUseState {
   limited: true;
@@ -157,6 +158,8 @@ export type JobErrorData = {
   isFromWorker: boolean;
   error_message: string;
   error: number | string;
+  /** Coarse server-reported cause of an external generation failure. */
+  vendorFailureCategory?: import('../../types/ErrorData.js').default['vendorFailureCategory'];
   /** `true` when this render failure is a subscription FEATURE-gate denial (4081). */
   subscriptionLimit?: boolean;
   /** Plans that would satisfy the gated feature, cheapest-first. */
@@ -167,6 +170,11 @@ export type JobErrorData = {
   limitation?: string;
   /** Actionable fair-use details when `feature === 'monthly_fair_use'`. */
   fairUse?: SocketSubscriptionFairUseState | null;
+  /**
+   * The agreement the account must accept before this model renders. Present
+   * on model consent refusals (error `'4103'`).
+   */
+  consentRequired?: ModelConsentRequirement;
 };
 
 /**
@@ -322,6 +330,13 @@ export type JobResultData = {
 };
 
 export type JobStateData =
+  | {
+      /** LLM startup notifications share the media channel but have no render id. */
+      type: 'initiatingModel' | 'jobStarted';
+      jobID: string;
+      imgID?: undefined;
+      workerName?: string;
+    }
   | {
       type: 'initiatingModel' | 'jobStarted';
       jobID: string;
@@ -676,6 +691,7 @@ export interface RecoveredWorkerJob {
  * client that lost its local state can rebuild the prompt and parameters.
  */
 export interface RecoveredProject {
+  promptExpanded?: boolean;
   waitingReason?: import('../../Projects/types/WaitingReason.js').WaitingReason | null;
   jobWaitingReasons?: import('../../Projects/types/WaitingReason.js').JobWaitingReason[];
   id: string;

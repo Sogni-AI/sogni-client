@@ -32,8 +32,10 @@ const WAN_VIDEO_MODEL_IDS = new Set([
 const SEEDANCE_VIDEO_MODEL_IDS = new Set([
   'seedance-2-0',
   'seedance-2-0-mini',
+  'seedance-2-0-mini-uncensored',
   'seedance-2-0-fast',
-  'seedance-2-5'
+  'seedance-2-5',
+  'seedance-2-5-uncensored'
 ]);
 const HAPPYHORSE_VIDEO_MODEL_IDS = new Set([
   'happyhorse-1.1-t2v',
@@ -336,8 +338,10 @@ export function isLtx2Model(modelId: string): boolean {
  * Seedance models are external API-backed video models that all generate at
  * 24fps. Duration and resolution differ by generation:
  * - `seedance-2-0` / `-mini`: 4-15 second clips; the full model goes up to 4K
- *   while Mini caps at 720p.
- * - `seedance-2-5`: 4-30 second clips at 480p/720p/1080p (no 4K).
+ *   while Mini caps at 720p. `seedance-2-0-mini-uncensored` (Seedance 2.0 Mini
+ *   Uncensored) is Mini under its own id, with Mini's limits.
+ * - `seedance-2-5` and `seedance-2-5-uncensored` (Seedance 2.5 Uncensored): 4-30
+ *   second clips at 480p/720p/1080p (no 4K).
  */
 export function isSeedanceModel(modelId: string): boolean {
   return SEEDANCE_VIDEO_MODEL_IDS.has(modelId);
@@ -348,11 +352,17 @@ export function isSeedanceModel(modelId: string): boolean {
  *
  * Seedance 2.5 is the only Seedance generation that renders up to 30 seconds in
  * a single call, supports first-and-last-frame conditioning, and accepts the
- * larger 30 image / 10 video / 10 audio reference budget. It is also the only
- * one that cannot render 1080p or 4K.
+ * larger 30 image / 10 video / 10 audio reference budget. It renders
+ * 480p/720p/1080p but not 4K.
+ *
+ * Seedance 2.5 Uncensored (`seedance-2-5-uncensored`) is the same model with every
+ * Seedance 2.5 capability and limit, so it answers `true` here. It is a
+ * distinct model id: never rewrite it to `seedance-2-5`. Each account must
+ * accept its one-time likeness and consent agreement in a Sogni app first;
+ * until then jobs fail with error code 4103 (`MODEL_CONSENT_REQUIRED_ERROR_CODE`).
  */
 export function isSeedance25Model(modelId: string): boolean {
-  return modelId === 'seedance-2-5';
+  return modelId === 'seedance-2-5' || modelId === 'seedance-2-5-uncensored';
 }
 
 /**
@@ -887,7 +897,7 @@ export const VIDEO_WORKFLOW_ASSETS: Record<
  * MiniMax H3 reference ceilings, taken from the `MiniMaxH3ReferenceToVideo`
  * node: up to 9 reference images, 3 reference videos (24fps, 2-15s each), and
  * 3 reference audio clips, with at most 12 reference files in total. Every H3
- * reference uses the Sogni S3 upload path; see `countMinimaxH3References`.
+ * reference uses the Sogni upload path; see `countMinimaxH3References`.
  */
 export const MINIMAX_H3_MAX_REFERENCE_IMAGES = 9;
 export const MINIMAX_H3_MAX_REFERENCE_VIDEOS = 3;

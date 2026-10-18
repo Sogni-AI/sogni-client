@@ -55,6 +55,7 @@ import { SogniClient } from '../dist/index.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { loadCredentials } from './credentials.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const DEFAULT_STACK = 'krea2-detail-enhancer:3,krea2-amateur:-2,krea2-warm-light:1.5';
 const DEFAULT_PROMPT =
@@ -159,7 +160,7 @@ async function main() {
   fs.mkdirSync(options.output, { recursive: true });
 
   const credentials = await loadCredentials();
-  const clientConfig = { appId: `krea2-lora-stack-${Date.now()}`, network: 'fast' };
+  const clientConfig = { appId: exampleAppId('krea2-lora-stack'), network: 'fast' };
   if (credentials.apiKey) clientConfig.apiKey = credentials.apiKey;
   const sogni = await SogniClient.createInstance(clientConfig);
 

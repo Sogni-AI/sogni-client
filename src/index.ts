@@ -252,6 +252,7 @@ import {
 import StatsApi from './Stats/index.js';
 // Replay records
 import ReplayApi from './Replay/index.js';
+import WorldsApi from './Worlds/index.js';
 import AnnouncementsApi from './Announcements/index.js';
 import {
   GetReplayRecordResult,
@@ -263,8 +264,13 @@ import {
   RunRecord
 } from './Replay/types.js';
 // Base Types
-import ErrorData, { SUBSCRIPTION_ERROR_CODES } from './types/ErrorData.js';
-import type { SubscriptionErrorCode } from './types/ErrorData.js';
+import ErrorData, {
+  MODEL_CONSENT_REQUIRED_ERROR_CODE,
+  MODEL_NOT_YET_AVAILABLE_ERROR_CODE,
+  SUBSCRIPTION_ERROR_CODES
+} from './types/ErrorData.js';
+import type { ModelConsentRequirement, SubscriptionErrorCode } from './types/ErrorData.js';
+import isModelConsentRequiredError from './lib/isModelConsentRequiredError.js';
 import isSubscriptionLimitError from './lib/isSubscriptionLimitError.js';
 import { TokenType } from './types/token.js';
 import {
@@ -348,6 +354,7 @@ export type {
   ImageProjectParams,
   ImageOutputFormat,
   MinimaxH3Keyframe,
+  ModelConsentRequirement,
   Pixal3dGenerationOptions,
   Pixal3dMultiViewImages,
   Pixal3dTemplateVariant,
@@ -539,6 +546,9 @@ export {
   SogniTools,
   SSO_ERROR_CODES,
   SUBSCRIPTION_ERROR_CODES,
+  MODEL_CONSENT_REQUIRED_ERROR_CODE,
+  MODEL_NOT_YET_AVAILABLE_ERROR_CODE,
+  isModelConsentRequiredError,
   isProjectLostError,
   isSubscriptionLimitError,
   isSogniToolCall,
@@ -669,6 +679,13 @@ export class SogniClient {
    */
   workflows: CreativeWorkflowsApi;
   /**
+   * Sogni Worlds (`/v1/world-builds`). `worlds.builds` starts a hosted world
+   * build from a signed-in session, answers its quote, reviews its takes and
+   * follows it over SSE; sogni-api renders in the background with the
+   * account's own key.
+   */
+  worlds: WorldsApi;
+  /**
    * Replay records (`/v1/replay/records`). Writes one RunRecord per
    * chat / harness turn and exposes list + get for the replay viewer.
    * Per-owner isolation is enforced server-side via the SDK auth
@@ -697,6 +714,7 @@ export class SogniClient {
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
     this.workflows = new CreativeWorkflowsApi(config);
+    this.worlds = new WorldsApi(config);
     this.replay = new ReplayApi(config);
     this.announcements = new AnnouncementsApi(config);
 
@@ -836,3 +854,23 @@ export class SogniClient {
     return sogniClient;
   }
 }
+export type {
+  ConfirmWorldBuildCostParams,
+  ListWorldBuildsOptions,
+  ReviewWorldBuildTaskParams,
+  StartWorldBuildParams,
+  StreamWorldBuildEventsOptions,
+  WorldBuildAction,
+  WorldBuildCostLine,
+  WorldBuildCostPreview,
+  WorldBuildEvent,
+  WorldBuildHotspotInput,
+  WorldBuildHotspotKind,
+  WorldBuildRecord,
+  WorldBuildStatus,
+  WorldBuildTask,
+  WorldBuildTaskSelection,
+  WorldBuildTaskStep,
+  WorldBuildWaiting,
+  WorldBuildWaitingReason
+} from './Worlds/types.js';

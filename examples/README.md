@@ -196,7 +196,16 @@ SOGNI_TESTNET=false
 # Optional: Custom endpoints (usually not needed)
 # SOGNI_SOCKET_ENDPOINT=wss://socket.sogni.ai
 # SOGNI_REST_ENDPOINT=https://api.sogni.ai
+
+# Optional: your own app ID (by default each example creates one on first run and reuses it)
+# SOGNI_APP_ID=my-sogni-examples
 ```
+
+Each example connects with a stable app ID, saved in `examples/.app-ids.json` the first time it
+runs (see `app-id.mjs`). Reusing it is what lets the SDK recover a run's projects after a restart,
+and a new ID on every run counts against the account's daily app-ID allowance (error 4061). Two
+runs of the same example at once need different `SOGNI_APP_ID`s: a second connection with the same
+ID closes the first.
 
 ---
 
@@ -299,6 +308,7 @@ The workflow examples showcase these powerful new models:
 | `z_image_turbo_bf16`                 | Z-Image Turbo     | Image        | Fast 8-step turbo generation - great for quick iterations                          |
 | `z_image_bf16`                       | Z-Image           | Image        | High quality 20-step generation with detailed output                               |
 | `krea2_turbo_fp8_scaled`             | Krea 2 Turbo      | Image        | Fast 8-step text-to-image + image-to-image, crisp in-image text, up to 2K          |
+| `flux3_image_klein_sd_int8_convrot`  | FLUX 3 Image Klein | Image + Edit | Black Forest Labs 16-step text-to-image, image-to-image and 1-10 reference edits, up to 4096px (4K) |
 | `krea2_identity_edit_v1_2`           | Krea 2 Identity Edit | Image Edit | Identity-preserving edits with 1-2 reference images                                |
 | `chroma1-hd_fp8_scaled`              | Chroma1-HD        | Image        | Final high-res Chroma (uncensored, LoRA-capable)                                   |
 | `qwen_image_edit_2511_fp8_lightning` | Qwen Lightning    | Image Edit   | Fast 4-step reference-based generation                                             |
@@ -310,6 +320,8 @@ The workflow examples showcase these powerful new models:
 | `seedance-2-0`                       | Seedance 2.0      | Video        | External API multimodal video at 24fps                                             |
 | `seedance-2-0-mini`                  | Seedance 2.0 Mini | Video        | Fastest, lower-cost 720p-capped external API multimodal video at 24fps             |
 | `seedance-2-5`                       | Seedance 2.5      | Video        | Newest Seedance: 480p/720p, 4-30s clips, first+last frame, 30/10/10 refs at 24fps  |
+| `seedance-2-5-uncensored`            | Seedance 2.5 Uncensored | Video  | Seedance 2.5 under its own id; one-time agreement in a Sogni app first (4103)       |
+| `seedance-2-0-mini-uncensored`       | Seedance 2.0 Mini Uncensored | Video | Seedance 2.0 Mini under its own id; the same one-time agreement first (4103)   |
 | `happyhorse-1.1-t2v`                 | Happy Horse 1.1   | Video        | External API video, text-to-video (image-only references)                          |
 | `happyhorse-1.1-i2v`                 | Happy Horse 1.1   | Video        | External API video, image-to-video from one first-frame image                      |
 | `happyhorse-1.1-r2v`                 | Happy Horse 1.1   | Video        | External API video, reference-to-video from 1-9 images                             |
@@ -326,6 +338,9 @@ node workflow_text_to_image.mjs "A cyberpunk city" --model z-image
 
 # Krea 2 Turbo - fast 8-step, strong in-image text, up to 2K
 node workflow_text_to_image.mjs "A neon sign that reads OPEN" --model krea-2-turbo
+
+# FLUX 3 Image Klein - full scene captions work best
+node workflow_text_to_image.mjs "A rainy Tokyo alley at night, wide shot, neon reflections on wet asphalt" --model flux-3-klein
 
 # Chroma1-HD - final high-res Chroma
 node workflow_text_to_image.mjs "A detailed oil painting of a harbor at dawn" --model chroma-hd
@@ -352,6 +367,7 @@ Generate images from text prompts with support for multiple cutting-edge models.
 | `z-turbo` | Z-Image Turbo (8-step, fast) | Quick prototyping, iterations |
 | `z-image` | Z-Image (20-step, high quality) | Detailed, high quality output |
 | `krea-2-turbo` | Krea 2 Turbo (8-step, strong in-image text, up to 2K) | Text-heavy images, fast iteration |
+| `flux-3-klein` | FLUX 3 Image Klein (16-step, up to 4096px) | Full-scene captions, img2img |
 | `chroma-v46-flash` | Chroma v.46 Flash (fast high-quality) | Balanced speed/quality |
 | `chroma-v48-detail-svd` | Chroma v48 Detail SVD (high detail) | Fine detail rendering |
 | `chroma-hd` | Chroma1-HD (final high-res Chroma) | Highest-fidelity Chroma output |
@@ -397,6 +413,7 @@ person's likeness with Krea 2 Identity Edit.
 | `qwen` | Qwen Image Edit (20-step) | High-quality image editing |
 | `krea-identity-edit` | Krea 2 Identity Edit LoRA v1.2 (10-step) | Identity-preserving edits with 1-2 references |
 | `dark-beast-krea2-identity-edit` | Dark Beast Krea 2 Identity Edit (10-step) | Community identity-preserving edits |
+| `flux-3-klein` | FLUX 3 Image Klein (16-step) | Edits and compositions from 1-10 references |
 
 **Usage:**
 
@@ -716,7 +733,7 @@ Generate the core text-to-image, text-to-video, and text-to-music flows through 
 
 **Canonical hosted creative-tool surface** (the full 24-tool family exposed via `SogniTools.all`, executed server-side via `chat.hosted.create()` / `chat.runs.create()`):
 
-- **Generation** — `generate_image` (defaults to `krea2_turbo_fp8_scaled`), `edit_image`, `generate_video` (defaults to `ltx23-22b-fp8_t2v_distilled`), `generate_music` (defaults to `ace_step_1.5_xl_turbo`), `sound_to_video`, `video_to_video`
+- **Generation** — `generate_image` (defaults to `krea2_turbo_fp8_scaled`), `edit_image`, `generate_video` (defaults to `ltx23-22b-fp8_t2v_distilled`), `generate_music` (defaults to `minimax_music3`), `sound_to_video`, `video_to_video`
 - **Image adapters** — `restore_photo`, `apply_style`, `refine_result`, `change_angle`, `animate_photo` (image-to-video with multi-source fan-out)
 - **Video composition / post-production** — `stitch_video`, `orbit_video`, `dance_montage`, `extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`
 - **Synchronous composition and planning** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`
@@ -1085,7 +1102,7 @@ output/
 └── ...
 ```
 
-**Important:** Media are also stored on Sogni servers for 24 hours, after which they are automatically deleted. The examples automatically download your generated media!
+**Important:** Result links are signed and stay valid for 48 hours, after which the media is automatically deleted. The examples automatically download your generated media!
 
 ### Auto-Opening Files
 

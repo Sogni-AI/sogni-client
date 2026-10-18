@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "5.58.0",
+  "version": "5.64.0",
   "engines": {
     "node": ">=22"
   },
@@ -70,14 +70,18 @@
     "test:model-options": "npm run build && node scripts/check-video-model-options.cjs",
     "test:video-estimates": "npm run build && node scripts/check-video-estimates.cjs",
     "test:seedance-task-type": "npm run build && node scripts/check-seedance-task-type.cjs && node scripts/check-seedance-r2v-example.cjs",
+    "test:model-consent-error": "npm run build && node scripts/check-model-consent-error.cjs",
     "test:wan3-video": "npm run build && node scripts/check-wan3-video.cjs",
     "test:sam3-image-segment": "npm run build && node scripts/check-sam3-image-segment.cjs",
     "test:enhancement": "npm run build && node scripts/check-enhancement.cjs",
+    "test:controlnet-preprocess": "npm run build && node scripts/check-controlnet-preprocess.cjs",
     "test:pixal3d-artifact": "npm run build && node scripts/check-pixal3d-artifact.cjs",
     "test:birefnet-background-removal": "npm run build && node scripts/check-birefnet-background-removal.cjs",
     "test:flashvsr-video": "npm run build && node scripts/check-flashvsr-video.cjs",
     "test:capability-exports": "npm run build && node scripts/check-capability-exports.cjs",
     "test:generation-receipt-transport": "npm run build && node scripts/check-generation-receipt-transport.cjs",
+    "test:prompt-expansion": "npm run build && node scripts/check-prompt-expansion-transport.cjs",
+    "test:reference-content-types": "npm run build && node scripts/check-reference-content-types.cjs",
     "test:minimax-h3-audio-policy": "node scripts/check-minimax-h3-source-audio-policy.cjs",
     "test:minimax-h3-balanced": "npm run build && node scripts/check-minimax-h3-balanced.cjs",
     "test:minimax-h3-two-stage": "npm run build && node scripts/check-minimax-h3-two-stage.cjs",
@@ -92,10 +96,13 @@
     "test:auth-session": "npm run build && node scripts/check-auth-session.cjs",
     "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
     "test:project-recovery": "npm run build && node scripts/check-project-recovery.cjs",
+    "test:project-error-categories": "npm run build && node scripts/check-project-error-categories.cjs",
     "test:project-results": "npm run build && node scripts/check-project-results.cjs",
     "test:chat-transport-recovery": "npm run build && node scripts/check-chat-transport-recovery.cjs",
     "test:chat-run-cost-confirmation": "npm run build && node scripts/check-chat-run-cost-confirmation.cjs",
     "test:socket-send-readiness": "npm run build && node scripts/check-socket-send-readiness.cjs",
+    "test:socket-reconnect-backoff": "npm run build && node scripts/check-socket-reconnect-backoff.cjs",
+    "test:socket-keepalive": "npm run build && node scripts/check-socket-keepalive.cjs",
     "test:browser-request-handoff": "npm run build && node scripts/check-browser-request-handoff.cjs",
     "test:queue-wait-eta": "npm run build && node scripts/check-queue-wait-eta.cjs",
     "test:queue-reasons": "npm run build && node scripts/check-queue-reasons.cjs",
@@ -111,7 +118,10 @@
     "prepare": "npm run codegen && husky",
     "test:gpt-image-25": "npm run build && node scripts/check-gpt-image-25.cjs",
     "test:job-reassignment": "npm run build && node scripts/check-job-reassignment.cjs",
-    "test:result-download-endpoint": "npm run build && node scripts/check-result-download-endpoint.cjs"
+    "test:result-download-endpoint": "npm run build && node scripts/check-result-download-endpoint.cjs",
+    "test:remote-media-hosts": "npm run build && node scripts/check-remote-media-hosts.cjs",
+    "test:large-data-uri": "npm run build && node scripts/check-large-data-uri.cjs",
+    "test:world-builds": "npm run build && node scripts/check-world-builds.cjs"
   },
   "repository": {
     "type": "git",
@@ -125,7 +135,7 @@
   "homepage": "https://github.com/Sogni-AI/sogni-client#readme",
   "dependencies": {
     "@lukeed/uuid": "^2.0.1",
-    "@sogni-ai/sogni-protocol": "1.0.0-alpha.46",
+    "@sogni-ai/sogni-protocol": "1.0.0-alpha.51",
     "@types/js-cookie": "^3.0.6",
     "@types/lodash": "^4.17.23",
     "@types/ws": "^8.5.13",

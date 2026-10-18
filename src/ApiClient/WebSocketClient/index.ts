@@ -228,7 +228,11 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
       return;
     }
     this._pingInterval = setInterval(() => {
-      socket.ping();
+      // ws throws from ping() while the handshake is still in progress, and a
+      // throw inside this timer is an uncaught exception that ends the host
+      // process. A reconnect handshake can outlast PING_INTERVAL, so only an
+      // open socket is pinged; a closing or closed one has nothing to keep alive.
+      if (socket.readyState === WebSocket.OPEN) socket.ping();
     }, PING_INTERVAL);
   }
 

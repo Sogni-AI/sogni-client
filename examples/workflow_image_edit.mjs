@@ -3,7 +3,7 @@
  * Image Generation Workflow (with Reference Images)
  *
  * This script generates images using reference/context images to guide the generation.
- * Works with Qwen Image Edit and Krea 2 Identity Edit models that support context-based generation.
+ * Works with Qwen Image Edit, Krea 2 Identity Edit and FLUX 3 Image Klein models that support context-based generation.
  *
  * Prerequisites:
  * - Set SOGNI_API_KEY or SOGNI_USERNAME/SOGNI_PASSWORD in .env file (or will prompt)
@@ -17,10 +17,11 @@
  * Options:
  *   --context     Reference image 1 (required, at least 1 needed)
  *   --context2    Reference image 2 (optional)
- *   --context3    Reference image 3 (optional, Qwen only)
+ *   --context3    Reference image 3 (optional, Qwen and FLUX 3 Image Klein)
+ *   --context4..--context10  Reference images 4-10 (optional, FLUX 3 Image Klein)
  *   --model       Model key (default: prompts for selection)
- *   --width       Output image width (default: context image width, max: 2048)
- *   --height      Output image height (default: context image height, max: 2048)
+ *   --width       Output image width (default: context image width; FLUX 3 Image Klein: see below)
+ *   --height      Output image height (default: context image height; FLUX 3 Image Klein: see below)
  *   --batch       Number of images to generate (default: 1)
  *   --seed        Random seed for reproducibility (default: -1 for random)
  *   --guidance    Guidance scale when supported by the selected model
@@ -68,11 +69,31 @@ import {
   displaySafeContentFilterMessage,
   isSensitiveContentError
 } from './workflow-helpers.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const streamPipeline = promisify(pipeline);
 
 // Default prompt for this workflow
 const DEFAULT_PROMPT = 'Generate an image in this style';
+
+/**
+ * FLUX 3 Image Klein's default edit size, the way Black Forest Labs' pipeline
+ * sizes references: one photo keeps its shape at up to 4 MiB pixels and 4096 px
+ * per side, never enlarged; with several references the first sets the shape at
+ * up to 1 MiB. Sides land on the 16 px grid (minimum 256).
+ */
+function kleinEditSize(width, height, referenceCount) {
+  const maxPixels = referenceCount > 1 ? 1024 * 1024 : 4 * 1024 * 1024;
+  const scale = Math.min(1, Math.sqrt(maxPixels / (width * height)), 4096 / width, 4096 / height);
+  const snap = (side) => Math.min(4096, Math.max(256, Math.round((side * scale) / 16) * 16));
+  let w = snap(width);
+  let h = snap(height);
+  while (w * h > maxPixels) {
+    if (Math.abs((w - 16) / h - width / height) <= Math.abs(w / (h - 16) - width / height)) w -= 16;
+    else h -= 16;
+  }
+  return { width: w, height: h };
+}
 
 // ============================================
 // Parse Command Line Arguments
@@ -115,16 +136,8 @@ async function parseArgs() {
       options.image = args[++i];
     } else if (arg === '--context' && args[i + 1]) {
       options.contextImages[0] = args[++i];
-    } else if (arg === '--context2' && args[i + 1]) {
-      options.contextImages[1] = args[++i];
-    } else if (arg === '--context3' && args[i + 1]) {
-      options.contextImages[2] = args[++i];
-    } else if (arg === '--context4' && args[i + 1]) {
-      options.contextImages[3] = args[++i];
-    } else if (arg === '--context5' && args[i + 1]) {
-      options.contextImages[4] = args[++i];
-    } else if (arg === '--context6' && args[i + 1]) {
-      options.contextImages[5] = args[++i];
+    } else if (/^--context([2-9]|10)$/.test(arg) && args[i + 1]) {
+      options.contextImages[Number(arg.slice('--context'.length)) - 1] = args[++i];
     } else if (arg === '--model' && args[i + 1]) {
       options.modelKey = args[++i];
     } else if (arg === '--batch' && args[i + 1]) {
@@ -168,7 +181,7 @@ function showHelp() {
 Image Generation Workflow (with Reference Images)
 
 This workflow generates new images using reference images to guide the style/content.
-Works with Qwen Image Edit, Krea 2 Identity Edit, and Flux models that support context-based generation.
+Works with Qwen Image Edit, Krea 2 Identity Edit, FLUX 3 Image Klein, and Flux models that support context-based generation.
 
 Usage:
   node workflow_image_edit.mjs                                    # Interactive mode
@@ -199,14 +212,18 @@ Available Models:
   qwen           - Qwen Image Edit 2511 (higher quality, 20-step)
                    Same general-purpose strengths as qwen-lightning, slower.
                    Still NOT the identity-preserving choice - see above.
+  flux-3-klein   - FLUX 3 Image Klein (16-step, 1-10 refs, max 4096x4096)
+                   Edits and compositions from up to 10 references. Describe the
+                   whole result as a scene caption; name references in order.
 
 Options:
   --context     Reference image 1 (required, at least 1 needed)
   --context2    Reference image 2 (optional)
-  --context3    Reference image 3 (optional, Qwen only)
+  --context3    Reference image 3 (optional, Qwen and FLUX 3 Image Klein)
+  --context4..--context10  Reference images 4-10 (optional, FLUX 3 Image Klein)
   --model       Model key (default: prompts for selection)
-  --width       Output image width (default: context image width, max: 2048)
-  --height      Output image height (default: context image height, max: 2048)
+  --width       Output image width (default: context image width; FLUX 3 Image Klein: see below)
+  --height      Output image height (default: context image height; FLUX 3 Image Klein: see below)
   --negative    Negative prompt (default: none)
   --style       Style prompt (default: none)
   --batch       Number of images to generate (default: 1)
@@ -225,6 +242,13 @@ Reference Images:
   Qwen models use reference images to guide the generation (not img2img editing).
   Provide 1-3 reference images that represent the style or content you want.
   Example: portrait photo → generates new portraits in that style
+
+FLUX 3 Image Klein output size:
+  Without --width/--height, a single photo is edited at its own shape, shrunk to
+  at most 4 megapixels and 4096 px per side (never enlarged), on a 16 px grid -
+  how Black Forest Labs' pipeline sizes it, so the rest of the photo stays put.
+  A one-photo edit asked for above 4 megapixels renders at that size instead.
+  With several references, the first one sets the shape at up to 1 megapixel.
 `);
 }
 
@@ -363,8 +387,12 @@ async function main() {
     console.log('📐 Output Dimensions\n');
     console.log(`  Context image size: ${imageDimensions.width} x ${imageDimensions.height}`);
 
-    // Default to context image dimensions for all models
-    const defaultWidth = imageDimensions.width;
+    // Default to context image dimensions (FLUX 3 Image Klein: its edit size)
+    const defaultSize =
+      modelConfig.id === 'flux3_image_klein_sd_int8_convrot'
+        ? kleinEditSize(imageDimensions.width, imageDimensions.height, OPTIONS.contextImages.filter(Boolean).length)
+        : imageDimensions;
+    const defaultWidth = defaultSize.width;
     const widthInput = await askQuestion(`  Width (default: ${defaultWidth}): `);
     if (widthInput.trim()) {
       const w = parseInt(widthInput.trim(), 10);
@@ -374,7 +402,7 @@ async function main() {
     }
     if (!OPTIONS.width) OPTIONS.width = defaultWidth;
 
-    const defaultHeight = imageDimensions.height;
+    const defaultHeight = defaultSize.height;
     const heightInput = await askQuestion(`  Height (default: ${defaultHeight}): `);
     if (heightInput.trim()) {
       const h = parseInt(heightInput.trim(), 10);
@@ -462,7 +490,7 @@ async function main() {
 
   // Initialize client
   const clientConfig = {
-    appId: `sogni-workflow-image-edit-${Date.now()}`,
+    appId: exampleAppId('workflow-image-edit'),
     network: 'fast'
   };
 
@@ -546,6 +574,12 @@ async function main() {
     // User specified both dimensions
     outputWidth = OPTIONS.width;
     outputHeight = OPTIONS.height;
+  } else if (modelConfig.id === 'flux3_image_klein_sd_int8_convrot' && !OPTIONS.width && !OPTIONS.height) {
+    ({ width: outputWidth, height: outputHeight } = kleinEditSize(
+      imageDimensions.width,
+      imageDimensions.height,
+      OPTIONS.contextImages.filter(Boolean).length
+    ));
   } else {
     // Use context image dimensions as default for all models
     outputWidth = OPTIONS.width || imageDimensions.width;
@@ -560,6 +594,18 @@ async function main() {
   if (modelConfig.maxHeight && outputHeight > modelConfig.maxHeight) {
     log('⚠️', `Height exceeds model maximum of ${modelConfig.maxHeight}, capping to ${modelConfig.maxHeight}`);
     outputHeight = modelConfig.maxHeight;
+  }
+  // FLUX 3 Image Klein edits one photo at up to 4 MiB pixels: larger than its
+  // photo the edit breaks, and the server refuses it.
+  if (
+    modelConfig.id === 'flux3_image_klein_sd_int8_convrot'
+    && OPTIONS.contextImages.filter(Boolean).length === 1
+    && outputWidth * outputHeight > 4 * 1024 * 1024
+  ) {
+    const capped = kleinEditSize(imageDimensions.width, imageDimensions.height, 1);
+    log('⚠️', `FLUX 3 Image Klein edits one photo at up to 4 megapixels; rendering at ${capped.width} x ${capped.height} instead of ${outputWidth} x ${outputHeight}`);
+    outputWidth = capped.width;
+    outputHeight = capped.height;
   }
 
     // Show configuration first

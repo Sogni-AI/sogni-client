@@ -13,7 +13,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_image",
       "sdkToolName": "generate_image",
-      "hostedSchemaSha256": "310380534da40e0cce9af0c9deb3141c0eb6f2767f37637fdb9e190a27161818",
+      "hostedSchemaSha256": "306d770fc7d9c938a1c1eaa138da9df2c5ec9992fa0ca59486704f1eedd745b7",
       "hostedRequired": [
         "prompt"
       ],
@@ -53,7 +53,7 @@
       "executionMode": "direct",
       "hostedToolName": "edit_image",
       "sdkToolName": "edit_image",
-      "hostedSchemaSha256": "dd0df1dcc162256c035321ec69a2350c11f972d5077261dd270c7055dfd0698d",
+      "hostedSchemaSha256": "3207085683eaa5e8b690414d505909d57a7de761739ffd500a1a24f9e99614df",
       "hostedRequired": [
         "prompt"
       ],
@@ -92,7 +92,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_video",
       "sdkToolName": "generate_video",
-      "hostedSchemaSha256": "1f08296519520195900d606b0e6f00501271ff412ae9c81346c9bc69630d73b5",
+      "hostedSchemaSha256": "bad2a69247f460ebca0eeccf0b5c234b57dc4068aa838b1d1a8c2fdb72ea6624",
       "hostedRequired": [
         "prompt"
       ],
@@ -192,7 +192,7 @@
       "executionMode": "direct",
       "hostedToolName": "sound_to_video",
       "sdkToolName": "sound_to_video",
-      "hostedSchemaSha256": "a4d13a99c626ae01400c9f8811eb112a179ddc73a0cc90d66d67e9e2c6afc5a1",
+      "hostedSchemaSha256": "195f2b5b526271a650dded76b79002ef3dd57d8db0bb86172afdd21c3e9d6198",
       "hostedRequired": [
         "prompt"
       ],
@@ -238,7 +238,7 @@
       "executionMode": "direct",
       "hostedToolName": "video_to_video",
       "sdkToolName": "video_to_video",
-      "hostedSchemaSha256": "2f062f23263972ff719990ff0b99b594980f2c8f844abf743a2bc97187f88980",
+      "hostedSchemaSha256": "1a09228ba4f8a22dc217af2ec60e11cc37e13ba6b152410116d1a8334f130157",
       "hostedRequired": [
         "prompt"
       ],
@@ -281,7 +281,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_music",
       "sdkToolName": "generate_music",
-      "hostedSchemaSha256": "8842553d6432dc877e6b491e9def89e378b240f2bf65ae91ae606daae8412c88",
+      "hostedSchemaSha256": "218c4dec935acdf72f9624bf6b9acf43adb4cb7b78783bccc85b6dcdc36e103f",
       "hostedRequired": [
         "prompt"
       ],

@@ -23,6 +23,7 @@
 import { SogniClient } from '../dist/index.js';
 import { loadCredentials, loadTokenTypePreference } from './credentials.mjs';
 import { askQuestion } from './workflow-helpers.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const DIRECT_TOOLS = new Set([
   'enhance_prompt',
@@ -153,7 +154,7 @@ async function main() {
   }
 
   const sogni = await SogniClient.createInstance({
-    appId: `direct-creative-tool-${Date.now()}`,
+    appId: exampleAppId('direct-creative-tool'),
     apiKey: credentials.apiKey,
     network: 'fast'
   });

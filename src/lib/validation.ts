@@ -105,6 +105,13 @@ export function isKreaIdentityEditModel(modelId: string): boolean {
   return KREA_IDENTITY_EDIT_MODEL_IDS.has(modelId);
 }
 
+/** FLUX 3 Image Klein renders text-to-image, start-image and edits from 1-10 references. */
+const FLUX3_IMAGE_KLEIN_MODEL_ID = 'flux3_image_klein_sd_int8_convrot';
+
+export function isFlux3ImageKleinModel(modelId: string): boolean {
+  return modelId === FLUX3_IMAGE_KLEIN_MODEL_ID;
+}
+
 const RTX_VSR_MAX_EDGE = 15360;
 
 interface ImageSizeValidationOptions {
@@ -121,6 +128,9 @@ function getCustomImageSizeBounds(modelId?: string): { min: number; max: number 
   }
   if (isGptImageModel(modelId)) {
     return { min: 256, max: 3840 };
+  }
+  if (modelId && isFlux3ImageKleinModel(modelId)) {
+    return { min: 256, max: 4096 };
   }
   if (modelId && EXTENDED_IMAGE_SIZE_MODEL_IDS.has(modelId)) {
     return { min: 256, max: 2560 };
@@ -214,6 +224,7 @@ export function isComfyModel(modelId: string): boolean {
     'krea2_',
     'dark_beast_krea2_',
     'qwen_image_',
+    'flux3_',
     'rtx_vsr_',
     'flashvsr_',
     'wan_',
@@ -227,6 +238,7 @@ export function isComfyModel(modelId: string): boolean {
 /**
  * Get the maximum number of context images supported by a model.
  * - GPT Image 2: 16 images
+ * - FLUX 3 Image Klein: 10 images (optional)
  * - Qwen Image Edit: 3 images
  * - Krea 2 Identity Edit: 2 images
  * - Legacy Flux Kontext matching: 2 images
@@ -235,6 +247,9 @@ export function isComfyModel(modelId: string): boolean {
 export function getMaxContextImages(modelId: string): number {
   if (isGptImageModel(modelId)) {
     return 16;
+  }
+  if (isFlux3ImageKleinModel(modelId)) {
+    return 10;
   }
   if (QWEN_IMAGE_MODEL_IDS.has(modelId)) {
     return 3;

@@ -16,7 +16,7 @@ TABLE OF CONTENTS
 5. Video Generation - WAN 2.2 Models
 6. Video Generation - LTX-2.3 Models
 7. Video Generation - Seedance 2.x Models
-8. Audio Generation - ACE-Step 1.5 Models
+8. Audio Generation - MiniMax Music 3 and ACE-Step 1.5 Models
 9. LLM Text Generation
 10. LLM Tool Calling & Sogni Platform Tools
 11. Vision Chat (Multimodal Image Understanding)
@@ -37,7 +37,7 @@ for AI inference. It supports:
 
 - Image Generation: Stable Diffusion, Flux, Z-Image, Z-Image Turbo, Qwen Image Edit
 - Video Generation: WAN 2.2 (5 workflows), LTX-2.3 models, Seedance 2.0 external API models
-- Audio Generation: ACE-Step 1.5 music generation (XL Turbo, XL SFT, and legacy models)
+- Audio Generation: MiniMax Music 3 (default) and ACE-Step 1.5 music generation (XL Turbo, XL SFT, and legacy models)
 - LLM Text Generation: Chat completions with streaming, multi-turn, and thinking mode
 - LLM Tool Calling: OpenAI-compatible function calling with custom and platform tools
 - Sogni Platform Tools: Generate images, image edits, videos, audio-driven videos, video transforms, and music via natural language chat
@@ -101,7 +101,7 @@ const project = await sogni.projects.create({
 });
 
 const urls = await project.waitForCompletion();
-console.log('Image URL:', urls[0]); // Valid for 24 hours
+console.log('Image URL:', urls[0]); // Signed link, valid for 48 hours
 ```
 
 MINIMAL VIDEO GENERATION:
@@ -343,6 +343,8 @@ sogni.apiClient.on('disconnected', ({ code, reason }) => {
 
 BASIC IMAGE GENERATION:
 
+Projects accept optional `promptExpanded` (Python: `prompt_expanded`), a boolean reporting whether the submitted prompt was expanded. Omission means unknown; this does not enable expansion.
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'image',
@@ -443,10 +445,19 @@ const project = await sogni.projects.create({
     strength: 0.8,
     mode: 'balanced',
     guidanceStart: 0,
-    guidanceEnd: 1
+    guidanceEnd: 1,
+    preprocess: true // pose-reference.png is a photo; the worker extracts the pose skeleton
   }
 });
 ```
+
+CONTROLNET PREPROCESS:
+
+- `preprocess: true`: the image is an ordinary photo; the worker generates the control map matching `name`
+  (edges for canny, a depth map for depth, a pose skeleton for openpose, and so on).
+- `preprocess` omitted or `false` (default): the image is used as the control map as-is. Use this for ready-made
+  depth maps, pose skeletons, edge maps and scribbles.
+- Only affects the Stable Diffusion ControlNet types. instantid, inpaint and instrp2p always use the image as given.
 
 CONTROLNET TYPES:
 
@@ -495,6 +506,7 @@ RECOMMENDED MODELS:
 | z_image_turbo_bf16 | Ultra-fast | 8 | 1 | Fastest generation |
 | z_image_bf16 | Quality | 20 | 3 | High quality Z-Image generation |
 | krea2_turbo_fp8_scaled | Fast | 8 | 1 | Distilled few-step, strong in-image text, up to 2K |
+| flux3_image_klein_sd_int8_convrot | Generate + Edit | 16 | 1 (fixed) | FLUX 3 Image Klein: text-to-image, startingImage, and 1-10 optional context images; up to 4096px (4K); no negative prompt |
 | krea2_identity_edit_v1_2 | Edit | 10 | 1 | Best for transforming a person/character while keeping their likeness; 1-2 context images |
 | chroma1-hd_fp8_scaled | Quality | 26 | 3.8 | Final high-res Chroma (uncensored, LoRA-capable) |
 | qwen_image_edit_2511_fp8_lightning | Edit | 4 | 1 | Fast general-purpose editing; multi-image context |
@@ -849,12 +861,16 @@ in attachment order. Assign every useful reference a role and prefer positive
 preservation constraints. Exact readable text/logos, lip-sync, voice cloning, and
 real-human-reference behavior need review.
 
+Seedance 2.5 Uncensored (`seedance-2-5-uncensored`, hosted selector `seedance2-5-uncensored`) is the same model with every Seedance 2.5 capability, limit, and option under its own id, and Seedance 2.0 Mini Uncensored (`seedance-2-0-mini-uncensored`, hosted selector `seedance2-mini-uncensored`) is likewise Seedance 2.0 Mini with every Mini capability and limit (480p/720p, 4-15s, 9/3/3/12 references) under its own id. The two share one likeness and consent agreement: each account must accept it in a Sogni app first, and until then their jobs fail with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key, version, modelId }` and is detected by `isModelConsentRequiredError()` (both exported from the package root). The SDK never accepts the agreement, and retrying fails the same way until it is accepted. A model that is not yet available on a network is refused with `MODEL_NOT_YET_AVAILABLE_ERROR_CODE` (4104); show the error's message as is (it names models to try instead) and do not retry.
+
 SEEDANCE MODEL IDS:
 | Model ID | Context Assets | Notes |
 |----------|----------------|-------|
 | seedance-2-0 | Optional image, video, and audio refs | 24fps, 4-15s, 4K |
 | seedance-2-0-mini | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
-| seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 50 total; audio-only allowed) | 24fps, 4-30s, 720p cap, first+last frame |
+| seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 50 total; audio-only allowed) | 24fps, 4-30s, 1080p cap, first+last frame |
+| seedance-2-5-uncensored | Same as seedance-2-5 (Seedance 2.5 Uncensored; one-time agreement required, error 4103 until accepted) | 24fps, 4-30s, 1080p cap, first+last frame |
+| seedance-2-0-mini-uncensored | Same as seedance-2-0-mini (Seedance 2.0 Mini Uncensored; the same one-time agreement, error 4103 until accepted) | 24fps, 4-15s, 720p cap |
 
 SEEDANCE TEXT-TO-VIDEO:
 
@@ -1071,18 +1087,33 @@ to its own `keyframeImage<i+1>` slot in array order and the indices travel as
 together. If no worker serving the model can pin keyframes yet, the job is
 refused with error code `4100`. MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 
-Prompts for keyframes: H3 never sees the keyframe images as references, so the
-prompt must describe what each keyframe shows at its time. Keyframes are never
-labelled: the I2V/FLF2V alignment line still names only the first and last
-frame, and on R2V `<Picture N>` and `<Subject N>` refer to the references only.
-On Sound to Video the uploaded audio drives the performance and keyframes pin
-how it looks at their times. When a keyframe changes the framing, camera angle,
-location or light,
-start a new shot (a hard cut) at its time: `[Shot N] At MM:SS.mmm, ...`, where
-the time is `frameIndex / 24` seconds (frame 144 is `00:06.000`). Two
-differently framed or lit stills inside one continuous shot cross-fade into each
-other, and a shot described differently from its still can flash the still for
-a single frame.
+Prompts for keyframes (MiniMax's keyframe format): name each keyframe
+`<Picture N>`, numbered in time order after the workflow's own pictures: after
+the first frame `<Picture 1>` on I2V and IA2V (after the last frame
+`<Picture 1>` on a last-frame-only I2V job), after `<Picture 1>` (first) and
+`<Picture 2>` (last) on FLF2V and FLFA2V, from `<Picture 1>` on A2V, and after
+the last reference image `<Picture N>` on R2V. Keyframes are still not
+references and never count toward the reference limits. I2V, FLF2V and Sound to
+Video prompts open with one alignment line listing every picture at its mark
+(`frameIndex / 24` seconds, two decimals; a last frame at the clip's end), in
+time order, each credited to the shot on screen there: `How the reference
+pictures align with the target video — Picture 1 (from Shot 1) aligns with the
+0.00-second mark of the target video; Picture 2 (from Shot 2) aligns with the
+2.88-second mark of the target video.` The shot where a keyframe lands says
+"the shot's keyframe corresponds to `<Picture N>`". R2V adds
+`<Picture N> is the keyframe of [Shot M], showing ...` to
+`subject_definitions`, `keyframe completion` to the summary tasks, and
+`<Picture N> ([Shot M] keyframe): fully_preserved - ...` to
+`retention_analysis`. H3's text encoder never sees the keyframe images (they
+only pin frames), so the prompt must still describe what each keyframe shows at
+its time. On Sound to Video the uploaded audio drives the performance and
+keyframes pin how it looks at their times. When a keyframe changes the framing,
+camera angle, location or light, start a new shot (a hard cut) at its time:
+`[Shot N] At MM:SS.mmm, the camera cuts to ..., whose keyframe corresponds to
+<Picture N>.`, where the time is `frameIndex / 24` seconds (frame 144 is
+`00:06.000`). Two differently framed or lit stills inside one continuous shot
+cross-fade into each other, and a shot described differently from its still can
+flash the still for a single frame.
 
 FASTH3 AUDIO GUIDE (`minimax-h3-fastvideo-int8_ia2v_turbo`,
 `minimax-h3-fastvideo-int8_flfa2v_turbo`, `minimax-h3-fastvideo-int8_a2v_turbo`
@@ -1263,7 +1294,7 @@ Ref2VA (`_r2v`) is a separate checkpoint. It has no frame anchors, so
 `referenceImageEnd` is rejected; references are labelled material the prompt
 assigns jobs to (`<Picture i>`, `<Video k>`, `<Audio j>`, numbered from 1 per
 type). Because it renders on a Sogni worker rather than at a vendor, every artist
-reference uses the normal S3 upload path: `referenceImage` + `contextImages` for
+reference uses the normal Sogni upload path: `referenceImage` + `contextImages` for
 images, `referenceVideo` + `referenceVideos` for videos, and `referenceAudio` +
 `referenceAudios` for audio. Direct URL arrays are rejected. Optional
 `referenceVideoDurations` is optional early-validation metadata in matching
@@ -1277,8 +1308,8 @@ Ref2VA uses six sections in exact order: `subject_definitions`, `summary`,
 `retention_analysis`, `detailed_description`, `overall_soundscape`, and
 `non_diegetic_music`. Use `<Subject N>` for reusable visible content abstracted
 from a reference. Reserve standalone `<Picture N>` for a reference image used
-as a concrete keyframe or composition anchor (MiniMax's wording; images passed
-in `keyframes` are never labelled); a still used only for identity, wardrobe, environment, or
+as a concrete keyframe or composition anchor (MiniMax's wording; each image
+passed in `keyframes` is one, numbered after the reference images); a still used only for identity, wardrobe, environment, or
 style belongs in a `<Subject N>` definition. `<Video N>` represents whole-video
 structure and `<Audio N>` represents copied or referenced audio. Keep labels
 stable across all sections. `summary` begins with official task types such as
@@ -1414,21 +1445,47 @@ optional `targetResolution` 1080 or 1440, and optional `detailPreference`,
 `processingSpeed` and `seed`); the server reads the source metadata
 itself, so the model never supplies frames or fps.
 
-================================================================================ 8. AUDIO GENERATION - ACE-STEP 1.5 MODELS
+================================================================================ 8. AUDIO GENERATION - MINIMAX MUSIC 3 AND ACE-STEP 1.5 MODELS
 ================================================================================
 
-ACE-Step 1.5 models generate music from text descriptions with optional lyrics.
-Use canonical model IDs; `ace_step_1.5_xl_turbo` is the default.
+MiniMax Music 3 and the ACE-Step 1.5 models generate music from text descriptions with optional lyrics.
+Use canonical model IDs; `minimax_music3` is the default. Use ACE-Step when the user asks for a quick,
+low-cost draft, names it, or wants a track longer than 300 s (Music 3's ceiling; ACE-Step renders up to 600 s).
 
 MODEL VARIANTS:
 | Model ID | Name | Description |
 |----------|------|-------------|
-| ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo | Default fast generation, no CFG guidance |
+| minimax_music3 | MiniMax Music 3 | Default. Best vocals, lyric adherence and song structure; 10-300 s, duration is a ceiling |
+| ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo | Fast, low-cost drafts, no CFG guidance |
 | ace_step_1.5_xl_sft | ACE-Step 1.5 XL SFT | XL quality model with CFG guidance |
 | ace_step_1.5_turbo | ACE-Step 1.5 Turbo Legacy | Legacy fast generation, no CFG guidance |
 | ace_step_1.5_sft | ACE-Step 1.5 SFT Legacy | Legacy SFT model with CFG guidance |
 
-TEXT-TO-MUSIC (Instrumental):
+TEXT-TO-MUSIC (MiniMax Music 3, the default):
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'audio',
+  modelId: 'minimax_music3',
+  positivePrompt:
+    'Global Metadata: upbeat electronic dance music at 128 BPM in C major, building to a euphoric drop. ' +
+    'Vocal Details: none, purely instrumental. ' +
+    'Arrangement: bright synth leads, driving bass, four-on-the-floor kick, rising risers into each chorus.',
+  // An instrumental still needs a skeleton of plain section tags, or it ends early.
+  lyrics: '[Intro]\n[Verse]\n[Chorus]\n[Verse]\n[Chorus]\n[Bridge]\n[Outro]',
+  numberOfMedia: 1,
+  duration: 60, // 10-300 seconds; a ceiling, the song may end earlier
+  steps: 30,
+  outputFormat: 'mp3'
+});
+
+const urls = await project.waitForCompletion();
+console.log(urls[0]); // Signed audio URL (valid 48 hours)
+```
+
+MiniMax Music 3 has no `bpm`, `keyscale`, `timesignature`, `language`, `shift`, `composerMode` or `creativity` parameters: write the tempo and key into the prompt. Lyrics use plain section tags on their own lines (`[Intro]`, `[Verse]`, `[Pre-Chorus]`, `[Chorus]`, `[Post-Chorus]`, `[Bridge]`, `[Solo]`, `[Outro]`) with nothing else inside the brackets. `steps` is 10-100 (default 30), `guidance` 1-5 (default 1.7) and `promptStrength` 0-10 (default 1.7).
+
+TEXT-TO-MUSIC (ACE-Step, Instrumental):
 
 ```javascript
 const project = await sogni.projects.create({
@@ -1445,10 +1502,10 @@ const project = await sogni.projects.create({
 });
 
 const urls = await project.waitForCompletion();
-console.log(urls[0]); // Audio URL (valid 24 hours)
+console.log(urls[0]); // Signed audio URL (valid 48 hours)
 ```
 
-TEXT-TO-MUSIC (With Lyrics):
+TEXT-TO-MUSIC (ACE-Step, With Lyrics):
 
 ```javascript
 const project = await sogni.projects.create({
@@ -1909,7 +1966,7 @@ DEFAULT GENERATION MODELS (used by the canonical generation tools):
 | `generate_video` | ltx25-22b-int8_t2v_distilled / ltx25-22b-int8_i2v_distilled / LTX 2.3 rollback / Seedance selectors | Text-to-video or image-to-video |
 | `sound_to_video` | ltx25-22b-int8_a2v_distilled / ltx25-22b-int8_ia2v_distilled / LTX 2.3 rollback | Audio-driven video generation |
 | `video_to_video` | ltx25-22b-int8_v2v_distilled / ltx25-22b-int8_v2v_dev / LTX 2.3 rollback / Seedance / WAN animate | Video transformation / motion transfer |
-| `generate_music` | ace_step_1.5_xl_turbo | ACE-Step 1.5 XL Turbo, fast music generation |
+| `generate_music` | minimax_music3 | MiniMax Music 3; ACE-Step 1.5 when named |
 
 PLATFORM TOOL WORKFLOW:
 
@@ -2654,6 +2711,7 @@ interface ControlNetParams {
   mode?: ControlNetMode;
   guidanceStart?: number;
   guidanceEnd?: number;
+  preprocess?: boolean; // true = worker makes the control map from a photo; default false = image is the map
 }
 
 type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer';

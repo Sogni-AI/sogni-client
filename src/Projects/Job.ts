@@ -199,7 +199,11 @@ export interface JobOptions {
 }
 
 class Job extends DataEntity<JobData, JobEventMap> {
-  static fromRaw(rawProject: RawProject, rawJob: RawJob, options: JobOptions) {
+  static fromRaw(
+    rawProject: Pick<RawProject, 'id' | 'stepCount'>,
+    rawJob: RawJob,
+    options: JobOptions
+  ) {
     return new Job(
       {
         id: rawJob.imgID || getUUID(),

@@ -54,10 +54,18 @@ jobs:
         run: node scripts/check-auth-session.cjs && node scripts/check-project-request-session.cjs
       - name: Run project recovery checks
         run: node scripts/check-project-recovery.cjs
+      - name: Run prompt-expanded transport checks
+        run: node scripts/check-prompt-expansion-transport.cjs
+      - name: Run project error category checks
+        run: node scripts/check-project-error-categories.cjs
       - name: Run current queue detail checks
         run: node scripts/check-queue-reasons.cjs
       - name: Run browser request handoff and socket readiness checks
         run: node scripts/check-browser-request-handoff.cjs && node scripts/check-socket-send-readiness.cjs
+      - name: Run socket reconnect backoff checks
+        run: node scripts/check-socket-reconnect-backoff.cjs
+      - name: Run socket keep-alive checks
+        run: node scripts/check-socket-keepalive.cjs
       - name: Run project liveness checks
         run: node scripts/check-project-liveness.cjs
       - name: Run job reassignment checks
@@ -82,8 +90,18 @@ jobs:
         run: node scripts/check-gpt-image-25.cjs
       - name: Run image export and strength checks
         run: node scripts/check-image-export-options.cjs
+      - name: Run ControlNet preprocess checks
+        run: node scripts/check-controlnet-preprocess.cjs
       - name: Run result download endpoint checks
         run: node scripts/check-result-download-endpoint.cjs
+      - name: Run trusted remote media host checks
+        run: node scripts/check-remote-media-hosts.cjs
+      - name: Run large data URI checks
+        run: node scripts/check-large-data-uri.cjs
+      - name: Run model consent error checks
+        run: node scripts/check-model-consent-error.cjs
+      - name: Run reference content-type checks
+        run: node scripts/check-reference-content-types.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,6 +3,7 @@ const { createHash } = require('node:crypto');
 const { EventEmitter } = require('node:events');
 const hostedAliasParityVector = require('./fixtures/hosted-tool-alias-parity.generated.json');
 const {
+  MUSIC_MODEL_IDS,
   PREFERRED_MODEL_IDS,
   assertHostedToolArguments,
   asBooleanValue,
@@ -124,7 +125,9 @@ const models = [
   { id: PREFERRED_MODEL_IDS.audio.aceStepXlTurbo, media: 'audio', workerCount: 1 },
   { id: PREFERRED_MODEL_IDS.audio.aceStepXlSft, media: 'audio', workerCount: 10 },
   { id: PREFERRED_MODEL_IDS.audio.aceStepTurbo, media: 'audio', workerCount: 1 },
-  { id: PREFERRED_MODEL_IDS.audio.aceStepSft, media: 'audio', workerCount: 20 }
+  { id: PREFERRED_MODEL_IDS.audio.aceStepSft, media: 'audio', workerCount: 20 },
+  { id: PREFERRED_MODEL_IDS.audio.minimaxMusic3, media: 'audio', workerCount: 1 },
+  { id: PREFERRED_MODEL_IDS.audio.qwen3TtsCustomVoice, media: 'audio', workerCount: 50 }
 ];
 
 assert.equal(clampVariationCount(99), 16);
@@ -174,12 +177,30 @@ assert.equal(
   PREFERRED_MODEL_IDS.video.animateMove
 );
 
+// MiniMax Music 3 is the default music model, whatever the worker counts.
+assert.equal(MUSIC_MODEL_IDS[0], PREFERRED_MODEL_IDS.audio.minimaxMusic3);
 assert.equal(
-  selectBackboneModel(models, {
+  MUSIC_MODEL_IDS.some((id) => id.startsWith('qwen3_tts_')),
+  false,
+  'speech models are never music candidates'
+);
+const musicSelection = (pool) =>
+  selectBackboneModel(pool, {
     mediaType: 'audio',
-    preferredModelIds: Object.values(PREFERRED_MODEL_IDS.audio)
-  }).modelId,
+    filter: (id) => MUSIC_MODEL_IDS.includes(id),
+    preferredModelIds: MUSIC_MODEL_IDS
+  }).modelId;
+assert.equal(musicSelection(models), PREFERRED_MODEL_IDS.audio.minimaxMusic3);
+assert.equal(
+  musicSelection(models.filter((model) => model.id !== PREFERRED_MODEL_IDS.audio.minimaxMusic3)),
   PREFERRED_MODEL_IDS.audio.aceStepXlTurbo
+);
+assert.throws(
+  () =>
+    musicSelection([
+      { id: PREFERRED_MODEL_IDS.audio.qwen3TtsCustomVoice, media: 'audio', workerCount: 50 }
+    ]),
+  /No compatible audio models currently available/
 );
 
 assert.equal(
@@ -1326,6 +1347,49 @@ assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.krea2IdentityEdit), true
 assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.darkBeastKrea2IdentityEdit), true);
 assert.equal(isEditImageModel('qwen_image_edit_2511_fp8'), true);
 assert.equal(isEditImageModel('qwen_image_edit_2511_fp8_lightning'), true);
+// FLUX 3 Image Klein: one Comfy model for generate_image and edit_image, 1-10 references, 256-4096px.
+assert.equal(PREFERRED_MODEL_IDS.image.flux3ImageKlein, 'flux3_image_klein_sd_int8_convrot');
+assert.equal(isComfyModel(PREFERRED_MODEL_IDS.image.flux3ImageKlein), true);
+assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.flux3ImageKlein), true);
+assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.flux3ImageKlein), 10);
+for (const toolName of ['generate_image', 'edit_image']) {
+  for (const model of ['flux-3-klein', 'flux3-klein', 'FLUX 3 Image Klein']) {
+    assert.equal(
+      resolveHostedToolModelSelector(toolName, { model }),
+      PREFERRED_MODEL_IDS.image.flux3ImageKlein
+    );
+  }
+}
+assert.equal(
+  validateCustomImageSize(4096, {
+    modelId: PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+    propertyName: 'Width'
+  }),
+  4096
+);
+assert.equal(
+  validateCustomImageSize(256, {
+    modelId: PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+    propertyName: 'Height'
+  }),
+  256
+);
+assert.throws(
+  () =>
+    validateCustomImageSize(4097, {
+      modelId: PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+      propertyName: 'Width'
+    }),
+  /Width must be less or equal 4096/
+);
+assert.throws(
+  () =>
+    validateCustomImageSize(255, {
+      modelId: PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+      propertyName: 'Width'
+    }),
+  /Width must greater or equal 256/
+);
 assert.equal(getMaxContextImages('qwen_image_2512_fp8'), 3);
 assert.equal(getMaxContextImages('qwen_image_edit_2511_fp8'), 3);
 assert.equal(getMaxContextImages('flux1-dev-kontext_fp8_scaled'), 2);
@@ -1506,6 +1570,130 @@ assert.equal(
   resolveHostedToolModelSelector('sound_to_video', { videoModel: 'seedance2-5' }),
   PREFERRED_MODEL_IDS.video.seedance25Ia2v
 );
+// Seedance 2.5 Uncensored resolves to its own model id on every Seedance 2.5
+// path and never to seedance-2-5 (that is a different vendor account).
+for (const [toolName, args, preferredKey] of [
+  ['generate_video', {}, 'seedance25UncensoredT2v'],
+  ['generate_video', { referenceImageIndices: [-1] }, 'seedance25UncensoredI2v'],
+  ['video_to_video', {}, 'seedance25UncensoredV2v'],
+  ['sound_to_video', {}, 'seedance25UncensoredIa2v']
+]) {
+  assert.equal(PREFERRED_MODEL_IDS.video[preferredKey], 'seedance-2-5-uncensored');
+  for (const videoModel of ['seedance2-5-uncensored', 'seedance-2-5-uncensored']) {
+    assert.equal(
+      resolveHostedToolModelSelector(toolName, { ...args, videoModel }),
+      'seedance-2-5-uncensored',
+      `${toolName} must resolve ${videoModel} to seedance-2-5-uncensored`
+    );
+  }
+}
+assert.deepEqual(getVideoDefaults('seedance-2-5-uncensored'), {
+  width: 1920,
+  height: 1080,
+  fps: 24
+});
+for (const workflow of ['t2v', 'i2v', 'flf2v', 'r2v', 'ia2v', 'v2v']) {
+  assert.deepEqual(
+    filterVideoModelsByWorkflow([{ id: 'seedance-2-5-uncensored', media: 'video' }], [workflow]),
+    ['seedance-2-5-uncensored'],
+    `seedance-2-5-uncensored must support the Seedance 2.5 ${workflow} workflow`
+  );
+}
+// The hosted tools list the selector directly after seedance2-5, and
+// animate_photo keeps excluding every Seedance selector.
+for (const toolName of ['generate_video', 'sound_to_video', 'video_to_video']) {
+  const videoModelEnum =
+    sdkHostedToolsByName.get(toolName).function.parameters.properties.videoModel.enum;
+  assert.equal(
+    videoModelEnum[videoModelEnum.indexOf('seedance2-5') + 1],
+    'seedance2-5-uncensored',
+    `${toolName} must list seedance2-5-uncensored after seedance2-5`
+  );
+}
+assert.ok(
+  !sdkHostedToolsByName
+    .get('animate_photo')
+    .function.parameters.properties.videoModel.enum.includes('seedance2-5-uncensored')
+);
+// Explicit-id registry: near-miss ids, including the old pre-rename
+// seedance-2-5-spicy id, are not Seedance 2.5 Uncensored.
+for (const nearMiss of [
+  'seedance2-5-uncensored',
+  'seedance-2-5-uncensored-v2',
+  'seedance-2-5-spicy',
+  'seedance2-5-spicy'
+]) {
+  assert.equal(isSeedanceModel(nearMiss), false, `${nearMiss} must not be a Seedance model`);
+  assert.equal(isVideoModel(nearMiss), false, `${nearMiss} must not be a video model`);
+}
+// Seedance 2.0 Mini Uncensored resolves to its own model id on every Seedance
+// Mini path, including sound and video-to-video, and never to seedance-2-0-mini
+// or seedance-2-0 (those run on a different vendor account).
+for (const [toolName, args, preferredKey] of [
+  ['generate_video', {}, 'seedanceMiniUncensoredT2v'],
+  ['generate_video', { referenceImageIndices: [-1] }, 'seedanceMiniUncensoredI2v'],
+  ['video_to_video', {}, 'seedanceMiniUncensoredV2v'],
+  ['sound_to_video', {}, 'seedanceMiniUncensoredIa2v']
+]) {
+  assert.equal(PREFERRED_MODEL_IDS.video[preferredKey], 'seedance-2-0-mini-uncensored');
+  for (const videoModel of ['seedance2-mini-uncensored', 'seedance-2-0-mini-uncensored']) {
+    assert.equal(
+      resolveHostedToolModelSelector(toolName, { ...args, videoModel }),
+      'seedance-2-0-mini-uncensored',
+      `${toolName} must resolve ${videoModel} to seedance-2-0-mini-uncensored`
+    );
+  }
+}
+// It is Seedance 2.0 Mini under its own id: 720p default, Mini's workflows.
+assert.equal(isSeedanceModel('seedance-2-0-mini-uncensored'), true);
+assert.equal(isVideoModel('seedance-2-0-mini-uncensored'), true);
+assert.deepEqual(getVideoDefaults('seedance-2-0-mini-uncensored'), {
+  width: 1280,
+  height: 720,
+  fps: 24
+});
+for (const [workflow, supported] of [
+  ['t2v', true],
+  ['i2v', true],
+  ['ia2v', true],
+  ['v2v', true],
+  ['flf2v', false],
+  ['r2v', false]
+]) {
+  for (const modelId of ['seedance-2-0-mini', 'seedance-2-0-mini-uncensored']) {
+    assert.deepEqual(
+      filterVideoModelsByWorkflow([{ id: modelId, media: 'video' }], [workflow]),
+      supported ? [modelId] : [],
+      `${modelId} must ${supported ? '' : 'not '}support the Seedance Mini ${workflow} workflow`
+    );
+  }
+}
+// The hosted tools list the selector directly after seedance2-mini, and
+// animate_photo keeps excluding every Seedance selector.
+for (const toolName of ['generate_video', 'sound_to_video', 'video_to_video']) {
+  const videoModelEnum =
+    sdkHostedToolsByName.get(toolName).function.parameters.properties.videoModel.enum;
+  assert.equal(
+    videoModelEnum[videoModelEnum.indexOf('seedance2-mini') + 1],
+    'seedance2-mini-uncensored',
+    `${toolName} must list seedance2-mini-uncensored after seedance2-mini`
+  );
+}
+assert.ok(
+  !sdkHostedToolsByName
+    .get('animate_photo')
+    .function.parameters.properties.videoModel.enum.includes('seedance2-mini-uncensored')
+);
+// Explicit-id registry: near-miss ids are not Seedance 2.0 Mini Uncensored.
+for (const nearMiss of [
+  'seedance2-mini-uncensored',
+  'seedance-2-0-mini-uncensored-v2',
+  'seedance-2-0-uncensored',
+  'seedance-2-0-mini-spicy'
+]) {
+  assert.equal(isSeedanceModel(nearMiss), false, `${nearMiss} must not be a Seedance model`);
+  assert.equal(isVideoModel(nearMiss), false, `${nearMiss} must not be a video model`);
+}
 // The FastH3 audio-guide selectors are audio-bearing only: the image tools
 // cannot supply their required referenceAudio. Two-stage selectors mirror the
 // other FastH3 two-stage selectors (`minimax-h3-fasth3-<workflow>-turbo-2stage`).
@@ -1545,7 +1733,7 @@ assert.deepEqual(
   {
     ok: false,
     errors: [
-      'Argument "model" must be one of "ace_step_1.5_xl_turbo", "ace_step_1.5_xl_sft", "ace_step_1.5_turbo", "ace_step_1.5_sft", "minimax_music3"'
+      'Argument "model" must be one of "minimax_music3", "ace_step_1.5_xl_turbo", "ace_step_1.5_xl_sft", "ace_step_1.5_turbo", "ace_step_1.5_sft"'
     ]
   }
 );
@@ -1870,7 +2058,91 @@ async function checkCanonicalDirectVideoExecution() {
   }
 }
 
+async function checkMusicExecution() {
+  let capturedParams;
+  const audio = (id, workerCount) => ({ id, media: 'audio', workerCount });
+  const musicProjects = (available) => ({
+    waitForModels: async () => available,
+    create: async (params) => {
+      capturedParams = params;
+      const project = new EventEmitter();
+      project.id = 'project_direct_music_test';
+      project.jobs = [];
+      project.finished = false;
+      project.waitForCompletion = async () => ['https://cdn.sogni.ai/direct-music-test.mp3'];
+      project.cancel = async () => {};
+      return project;
+    }
+  });
+  const pool = [
+    audio(PREFERRED_MODEL_IDS.audio.aceStepXlTurbo, 30),
+    audio(PREFERRED_MODEL_IDS.audio.minimaxMusic3, 1),
+    audio(PREFERRED_MODEL_IDS.audio.qwen3TtsCustomVoice, 50)
+  ];
+  const musicCall = (args) => ({
+    id: 'call_direct_music_test',
+    type: 'function',
+    function: {
+      name: 'generate_music',
+      arguments: JSON.stringify({ prompt: 'Warm lo-fi hip hop at 84 BPM in A minor', ...args })
+    }
+  });
+  const aceArgs = { bpm: 84, keyscale: 'A minor', duration: 90 };
+
+  // No model named: MiniMax Music 3, without the ACE-Step-only controls.
+  const defaultResult = await new ChatToolsApi(musicProjects(pool)).execute(musicCall(aceArgs));
+  assert.equal(defaultResult.success, true, defaultResult.error);
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.audio.minimaxMusic3);
+  assert.equal(capturedParams.duration, 90);
+  for (const key of ['bpm', 'keyscale', 'timesignature', 'language', 'composerMode', 'creativity']) {
+    assert.equal(key in capturedParams, false, `${key} is not sent with MiniMax Music 3`);
+  }
+
+  // ACE-Step named explicitly: still available, with its controls.
+  capturedParams = undefined;
+  const aceResult = await new ChatToolsApi(musicProjects(pool)).execute(
+    musicCall({ ...aceArgs, model: PREFERRED_MODEL_IDS.audio.aceStepXlTurbo })
+  );
+  assert.equal(aceResult.success, true, aceResult.error);
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.audio.aceStepXlTurbo);
+  assert.equal(capturedParams.bpm, 84);
+  assert.equal(capturedParams.keyscale, 'A minor');
+
+  // No model named and longer than Music 3's 300 s ceiling: ACE-Step, which renders up to 600 s.
+  capturedParams = undefined;
+  const longResult = await new ChatToolsApi(musicProjects(pool)).execute(musicCall({ duration: 420 }));
+  assert.equal(longResult.success, true, longResult.error);
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.audio.aceStepXlTurbo);
+  assert.equal(capturedParams.duration, 420);
+
+  // Music 3 named for a 420 s track is sent as asked, so the server refuses it loudly.
+  capturedParams = undefined;
+  await new ChatToolsApi(musicProjects(pool)).execute(
+    musicCall({ duration: 420, model: PREFERRED_MODEL_IDS.audio.minimaxMusic3 })
+  );
+  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.audio.minimaxMusic3);
+
+  // The SDK tool schema states Music 3's range and the ACE-Step-only controls.
+  const musicSchema = SogniTools.all.find((tool) => tool.function.name === 'generate_music').function
+    .parameters.properties;
+  assert.match(musicSchema.duration.description, /^Duration in seconds\. music3 \(the default model\): 10-300, default 60/);
+  for (const key of ['bpm', 'keyscale', 'timesig']) {
+    assert.match(musicSchema[key].description, /^ACE-Step \(turbo, sft\) only/);
+  }
+  assert.equal(musicSchema.model.enum[0], PREFERRED_MODEL_IDS.audio.minimaxMusic3);
+
+  // Only a speech model online: a song request fails rather than reading the prompt aloud.
+  capturedParams = undefined;
+  const speechOnly = await new ChatToolsApi(
+    musicProjects([audio(PREFERRED_MODEL_IDS.audio.qwen3TtsCustomVoice, 50)])
+  ).execute(musicCall({}));
+  assert.equal(speechOnly.success, false);
+  assert.match(speechOnly.error, /No compatible audio models currently available/);
+  assert.equal(capturedParams, undefined);
+}
+
 checkCanonicalDirectVideoExecution()
+  .then(checkMusicExecution)
   .then(() => console.log('chat model routing parity checks passed'))
   .catch((error) => {
     console.error(error);

@@ -45,6 +45,7 @@ import {
   parseBillingModeArg,
   shouldCheckTokenBalance
 } from './workflow-helpers.mjs';
+import { exampleAppId } from './app-id.mjs';
 
 const DEFAULT_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_SYSTEM = `You are a helpful assistant with access to tools. Use tools when they would help answer the user's question accurately. You can check weather, get the current time, convert units, and do math. Always respond naturally after receiving tool results.`;
@@ -780,7 +781,7 @@ async function main() {
   }
 
   const sogni = await SogniClient.createInstance({
-    appId: `sogni-tool-calling-${Date.now()}`,
+    appId: exampleAppId('chat-tool-calling'),
     network: 'fast',
     ...(credentials.apiKey && { apiKey: credentials.apiKey }),
     ...(testnet && { testnet }),

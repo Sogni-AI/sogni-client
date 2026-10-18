@@ -6,9 +6,14 @@ import {
   isLtx2Model,
   isMinimaxH3Model,
   isSeedanceModel,
+  isSeedance25Model,
   isWan3Model
 } from '../Projects/utils/index.js';
-import { isKreaIdentityEditModel, isQwenImageEditModel } from '../lib/validation.js';
+import {
+  isFlux3ImageKleinModel,
+  isKreaIdentityEditModel,
+  isQwenImageEditModel
+} from '../lib/validation.js';
 
 export {
   calculateVideoFrames,
@@ -97,6 +102,7 @@ export const PREFERRED_MODEL_IDS = {
     chromaFlash: 'chroma-v.46-flash_fp8',
     zTurbo: 'z_image_turbo_bf16',
     krea2Turbo: 'krea2_turbo_fp8_scaled',
+    flux3ImageKlein: 'flux3_image_klein_sd_int8_convrot',
     krea2IdentityEdit: 'krea2_identity_edit_v1_2',
     darkBeastKrea2IdentityEdit: 'dark_beast_krea2_identity_edit_v1_2',
     rtxVsr: 'rtx_vsr_pro'
@@ -128,6 +134,18 @@ export const PREFERRED_MODEL_IDS = {
     seedance25I2v: 'seedance-2-5',
     seedance25Ia2v: 'seedance-2-5',
     seedance25V2v: 'seedance-2-5',
+    // Seedance 2.5 Uncensored: the same model as Seedance 2.5 under its own id.
+    // Never route it to 'seedance-2-5'.
+    seedance25UncensoredT2v: 'seedance-2-5-uncensored',
+    seedance25UncensoredI2v: 'seedance-2-5-uncensored',
+    seedance25UncensoredIa2v: 'seedance-2-5-uncensored',
+    seedance25UncensoredV2v: 'seedance-2-5-uncensored',
+    // Seedance 2.0 Mini Uncensored: the same model as Seedance 2.0 Mini under its
+    // own id. Never route it to 'seedance-2-0-mini' or 'seedance-2-0'.
+    seedanceMiniUncensoredT2v: 'seedance-2-0-mini-uncensored',
+    seedanceMiniUncensoredI2v: 'seedance-2-0-mini-uncensored',
+    seedanceMiniUncensoredIa2v: 'seedance-2-0-mini-uncensored',
+    seedanceMiniUncensoredV2v: 'seedance-2-0-mini-uncensored',
     happyhorseT2v: 'happyhorse-1.1-t2v',
     happyhorseI2v: 'happyhorse-1.1-i2v',
     happyhorseR2v: 'happyhorse-1.1-r2v',
@@ -165,17 +183,34 @@ export const PREFERRED_MODEL_IDS = {
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
   audio: {
+    // Music, in preference order: MiniMax Music 3 is the default music model;
+    // ACE-Step is the explicit draft or legacy choice.
+    minimaxMusic3: 'minimax_music3',
     aceStepXlTurbo: 'ace_step_1.5_xl_turbo',
     aceStepXlSft: 'ace_step_1.5_xl_sft',
     aceStepTurbo: 'ace_step_1.5_turbo',
     aceStepSft: 'ace_step_1.5_sft',
-    minimaxMusic3: 'minimax_music3',
     // Speech, not music: the same audio media type, a different job entirely.
     qwen3TtsCustomVoice: 'qwen3_tts_1.7b_custom_voice_bf16',
     qwen3TtsVoiceClone: 'qwen3_tts_1.7b_voice_clone_bf16',
     qwen3TtsVoiceDesign: 'qwen3_tts_1.7b_voice_design_bf16'
   }
 } as const;
+
+/**
+ * Music models in preference order for a model-less generate_music call:
+ * MiniMax Music 3 first, then ACE-Step. Speech models are deliberately absent.
+ */
+export const MUSIC_MODEL_IDS: string[] = [
+  PREFERRED_MODEL_IDS.audio.minimaxMusic3,
+  PREFERRED_MODEL_IDS.audio.aceStepXlTurbo,
+  PREFERRED_MODEL_IDS.audio.aceStepXlSft,
+  PREFERRED_MODEL_IDS.audio.aceStepTurbo,
+  PREFERRED_MODEL_IDS.audio.aceStepSft
+];
+
+/** MiniMax Music 3's longest track, in seconds (ACE-Step renders up to 600). */
+export const MINIMAX_MUSIC3_MAX_DURATION_SECONDS = 300;
 
 const GPT_IMAGE_MODEL_ALIASES = [
   'chatgpt',
@@ -205,6 +240,15 @@ function normalizeSelectorKey(value: string): string {
     .replace(/[_\s]+/g, '-');
 }
 
+// FLUX 3 Image Klein is one model for text-to-image, start-image and
+// 1-10 reference edits, so generate_image and edit_image share its selectors.
+const FLUX3_IMAGE_KLEIN_SELECTORS: Record<string, string> = {
+  'flux-3-klein': PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+  'flux3-klein': PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+  'flux-3-image-klein': PREFERRED_MODEL_IDS.image.flux3ImageKlein,
+  'flux3-image-klein': PREFERRED_MODEL_IDS.image.flux3ImageKlein
+};
+
 const GPT_IMAGE_25_SELECTORS: Record<string, string> = {
   'gpt-image-2.5-sunburst': PREFERRED_MODEL_IDS.image.gptImage25Sunburst,
   'gpt-image-2.5-flare': PREFERRED_MODEL_IDS.image.gptImage25Flare,
@@ -222,6 +266,7 @@ const IMAGE_MODEL_SELECTORS: Record<string, string> = {
   'z-turbo': 'z_image_turbo_bf16',
   'krea-2-turbo': 'krea2_turbo_fp8_scaled',
   'krea2-turbo': 'krea2_turbo_fp8_scaled',
+  ...FLUX3_IMAGE_KLEIN_SELECTORS,
   'z-image': 'z_image_bf16',
   'chroma-v46-flash': 'chroma-v.46-flash_fp8',
   'chroma-detail': 'chroma-v48-detail-svd_fp8',
@@ -259,6 +304,7 @@ const EDIT_IMAGE_MODEL_SELECTORS: Record<string, string> = {
   ...GPT_IMAGE_25_SELECTORS,
   'qwen-lightning': 'qwen_image_edit_2511_fp8_lightning',
   qwen: 'qwen_image_edit_2511_fp8',
+  ...FLUX3_IMAGE_KLEIN_SELECTORS,
   'krea-2-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
   'krea2-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
   'krea-identity-edit': PREFERRED_MODEL_IDS.image.krea2IdentityEdit,
@@ -276,9 +322,11 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   wan22: 'wan_v2.2-14b-fp8_t2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceT2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
+  'seedance2-mini-uncensored': PREFERRED_MODEL_IDS.video.seedanceMiniUncensoredT2v,
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25T2v,
+  'seedance2-5-uncensored': PREFERRED_MODEL_IDS.video.seedance25UncensoredT2v,
   'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
   'minimax-h3-t2v': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
   'minimax-h3-turbo': PREFERRED_MODEL_IDS.video.minimaxH3TurboT2v,
@@ -307,9 +355,11 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   wan22: 'wan_v2.2-14b-fp8_i2v_lightx2v',
   seedance2: PREFERRED_MODEL_IDS.video.seedanceI2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
+  'seedance2-mini-uncensored': PREFERRED_MODEL_IDS.video.seedanceMiniUncensoredI2v,
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25I2v,
+  'seedance2-5-uncensored': PREFERRED_MODEL_IDS.video.seedance25UncensoredI2v,
   'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
   'minimax-h3-i2v': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
   'minimax-h3-flf2v': PREFERRED_MODEL_IDS.video.minimaxH3Flf2v,
@@ -345,15 +395,19 @@ const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   ltx23: PREFERRED_MODEL_IDS.video.v2v,
   'ltx23-v2v': PREFERRED_MODEL_IDS.video.v2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v,
-  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v
+  'seedance2-mini-uncensored': PREFERRED_MODEL_IDS.video.seedanceMiniUncensoredV2v,
+  'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v,
+  'seedance2-5-uncensored': PREFERRED_MODEL_IDS.video.seedance25UncensoredV2v
 };
 
 const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'wan-s2v': PREFERRED_MODEL_IDS.video.s2v,
   'seedance2-mini': PREFERRED_MODEL_IDS.video.seedanceIa2v,
+  'seedance2-mini-uncensored': PREFERRED_MODEL_IDS.video.seedanceMiniUncensoredIa2v,
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25Ia2v,
+  'seedance2-5-uncensored': PREFERRED_MODEL_IDS.video.seedance25UncensoredIa2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'ltx25-ia2v': PREFERRED_MODEL_IDS.video.ltx25Ia2vDistilled,
   'ltx25-a2v': PREFERRED_MODEL_IDS.video.ltx25A2vDistilled,
@@ -557,15 +611,17 @@ export function isEditImageModel(modelId: string): boolean {
     modelId === PREFERRED_MODEL_IDS.image.gptImage25Sunburst ||
     modelId === PREFERRED_MODEL_IDS.image.gptImage25Flare ||
     isQwenImageEditModel(modelId) ||
-    isKreaIdentityEditModel(modelId)
+    isKreaIdentityEditModel(modelId) ||
+    isFlux3ImageKleinModel(modelId)
   );
 }
 
 const SEEDANCE_CANONICAL_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'ia2v', 'v2v'];
 
 /**
- * Seedance 2.5 adds first-and-last-frame conditioning and a true multimodal
- * reference-to-video mode on top of the 2.0 workflow set.
+ * Seedance 2.5 (and Seedance 2.5 Uncensored) adds first-and-last-frame
+ * conditioning and a true multimodal reference-to-video mode on top of the 2.0
+ * workflow set.
  */
 const SEEDANCE_2_5_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'flf2v', 'r2v', 'ia2v', 'v2v'];
 const WAN3_WORKFLOWS: VideoWorkflow[] = ['t2v', 'i2v', 'flf2v', 'r2v', 'a2v', 'ia2v'];
@@ -574,13 +630,15 @@ function getCompatibleVideoWorkflows(modelId: string): VideoWorkflow[] {
   if (isWan3Model(modelId)) {
     return WAN3_WORKFLOWS;
   }
-  if (modelId === 'seedance-2-5') {
+  if (isSeedance25Model(modelId)) {
     return SEEDANCE_2_5_WORKFLOWS;
   }
   // models/list still reports the retired seedance-2-0-fast id for analytics; classify it like Mini.
+  // Seedance 2.0 Mini Uncensored is Mini under its own id.
   if (
     modelId === 'seedance-2-0' ||
     modelId === 'seedance-2-0-mini' ||
+    modelId === 'seedance-2-0-mini-uncensored' ||
     modelId === 'seedance-2-0-fast'
   ) {
     return SEEDANCE_CANONICAL_WORKFLOWS;
@@ -622,8 +680,13 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
   }
-  // Seedance Mini and the retired Fast id cap at 720p. Seedance 2.0 and 2.5 default to 1080p.
-  if (modelId === 'seedance-2-0-mini' || modelId === 'seedance-2-0-fast') {
+  // Seedance Mini, Mini Uncensored and the retired Fast id cap at 720p. Seedance 2.0 and 2.5
+  // default to 1080p.
+  if (
+    modelId === 'seedance-2-0-mini' ||
+    modelId === 'seedance-2-0-mini-uncensored' ||
+    modelId === 'seedance-2-0-fast'
+  ) {
     return { width: 1280, height: 720, fps: 24 };
   }
   if (isSeedance || isHappyhorse) {

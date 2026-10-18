@@ -502,7 +502,7 @@ function validateVideoReferenceArrays(params: VideoProjectParams): void {
  *
  * r2v takes up to 9 images, 3 videos, 3 audio clips, and 12 files in total.
  * Because it renders on a Sogni worker rather than at an external vendor, every
- * reference uses the S3 upload path. At least one visual reference (image or
+ * reference uses the Sogni upload path. At least one visual reference (image or
  * video) is required; audio alone cannot condition the visual stream.
  */
 function validateMinimaxH3ReferenceAssets(params: VideoProjectParams): void {
@@ -729,9 +729,13 @@ const SEEDANCE_REFERENCE_LIMITS_BY_MODEL: Record<
 > = {
   'seedance-2-0': { images: 9, videos: 3, audios: 3, assets: 12 },
   'seedance-2-0-mini': { images: 9, videos: 3, audios: 3, assets: 12 },
+  // Seedance 2.0 Mini Uncensored: the same model and limits as Seedance 2.0 Mini.
+  'seedance-2-0-mini-uncensored': { images: 9, videos: 3, audios: 3, assets: 12 },
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance-2-0-fast': { images: 9, videos: 3, audios: 3, assets: 12 },
-  'seedance-2-5': { images: 30, videos: 10, audios: 10, assets: 50 }
+  'seedance-2-5': { images: 30, videos: 10, audios: 10, assets: 50 },
+  // Seedance 2.5 Uncensored: the same model and limits as Seedance 2.5.
+  'seedance-2-5-uncensored': { images: 30, videos: 10, audios: 10, assets: 50 }
 };
 
 function seedanceReferenceLimits(modelId: string): {
@@ -1186,6 +1190,15 @@ function getControlNet(params: ControlNetParams): ControlNetParamsRaw[] {
       max: 1,
       propertyName: 'guidanceEnd'
     });
+  }
+  if (params.preprocess !== undefined) {
+    if (typeof params.preprocess !== 'boolean') {
+      throw new Error('controlNet.preprocess must be a boolean');
+    }
+    // Sent only when true, so requests without it stay identical to before.
+    if (params.preprocess) {
+      cn.preprocess = true;
+    }
   }
   return [cn];
 }
@@ -1990,6 +2003,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
   if (params.appSource) {
     jobRequest.appSource = params.appSource;
   }
+  if (params.promptExpanded !== undefined) jobRequest.promptExpanded = params.promptExpanded;
 
   return jobRequest;
 }

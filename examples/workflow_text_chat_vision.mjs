@@ -52,6 +52,7 @@ import {
 import * as readline from 'node:readline';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { exampleAppId } from './app-id.mjs';
 
 const VLM_MODEL = 'qwen3.6-35b-a3b-gguf-iq4xs';
 const DEFAULT_SYSTEM =
@@ -329,7 +330,7 @@ async function main() {
   }
 
   const sogni = await SogniClient.createInstance({
-    appId: `sogni-vision-${Date.now()}`,
+    appId: exampleAppId('chat-vision'),
     network: 'fast',
     ...(credentials.apiKey && { apiKey: credentials.apiKey }),
     ...(testnet && { testnet }),

@@ -5,6 +5,14 @@ interface ErrorData {
   originalCode?: string;
   message: string;
   /**
+   * Coarse server-reported cause of an external generation failure. Known
+   * values include `content_policy`, `input_validation`, `timeout`,
+   * `result_storage`, `cancelled`, `vendor_failed`, `asset_resolution`, and
+   * `vendor_transient`. Servers may add categories; handle unknown strings
+   * with a generic failure message.
+   */
+  vendorFailureCategory?: string;
+  /**
    * Discriminator set to `true` when this render-path error is a subscription
    * FEATURE-gate denial (socket error code 4081). The four fields below are
    * present only when this is `true`. Apps can branch on it (or use
@@ -27,7 +35,56 @@ interface ErrorData {
    * toast, e.g. `'4K video render requires Unlimited Pro'`.
    */
   limitation?: string;
+  /**
+   * Present when a model refused the job because the account has not accepted
+   * that model's one-time agreement (socket error code 4103,
+   * {@link MODEL_CONSENT_REQUIRED_ERROR_CODE}). Names the agreement so apps can
+   * open it; use `isModelConsentRequiredError` to branch on it.
+   */
+  consentRequired?: ModelConsentRequirement;
 }
+
+/**
+ * The agreement a model requires before it renders, carried by a
+ * {@link MODEL_CONSENT_REQUIRED_ERROR_CODE} (4103) job error.
+ */
+export interface ModelConsentRequirement {
+  /**
+   * Stable agreement key, e.g. `'seedance-2-5-uncensored'`, the one agreement
+   * both Seedance 2.5 Uncensored and Seedance 2.0 Mini Uncensored require.
+   */
+  key: string;
+  /** Agreement version the account must accept. */
+  version: number;
+  /**
+   * Model the refused job asked for, e.g. `'seedance-2-5-uncensored'` or
+   * `'seedance-2-0-mini-uncensored'`.
+   */
+  modelId?: string;
+}
+
+/**
+ * Socket error code for a job refused because its model requires a one-time
+ * likeness and consent agreement the account has not accepted. Seedance 2.5
+ * Uncensored (`seedance-2-5-uncensored`) and Seedance 2.0 Mini Uncensored
+ * (`seedance-2-0-mini-uncensored`) require one, and share the same agreement.
+ *
+ * The error carries {@link ErrorData.consentRequired}. The agreement is
+ * accepted in a Sogni app; the SDK never accepts it and API-key sessions
+ * cannot. Until it is accepted every job for the model fails the same way, so
+ * do not retry: show the server's message, which tells the user to accept it
+ * in the Sogni app. Price estimates are not gated.
+ */
+export const MODEL_CONSENT_REQUIRED_ERROR_CODE = 4103;
+
+/**
+ * Socket error code for a job or price estimate refused because its model is
+ * not yet available on this network (for example a model released to staging
+ * but held in production). The error's `message` is the socket's wording,
+ * which names models to try instead; show it as is. Not retryable: the model
+ * stays refused until the server makes it available.
+ */
+export const MODEL_NOT_YET_AVAILABLE_ERROR_CODE = 4104;
 
 /**
  * Socket error codes returned when a job explicitly submitted with

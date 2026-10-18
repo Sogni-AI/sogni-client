@@ -1,3 +1,160 @@
+# [5.64.0](https://github.com/Sogni-AI/sogni-client/compare/v5.63.4...v5.64.0) (2026-10-17)
+
+
+### Bug Fixes
+
+* **deps:** take sogni-protocol 1.0.0-alpha.51 for FLUX 3 Image Klein ([d966182](https://github.com/Sogni-AI/sogni-client/commit/d9661820b0f7fbe98c7c6a9ddcd91893aabd9adf))
+
+
+### Features
+
+* **models:** accept up to 10 FLUX 3 Image Klein reference images ([8acd2de](https://github.com/Sogni-AI/sogni-client/commit/8acd2de446974afd02cf5106d299ea38947de6f5))
+* **models:** allow FLUX 3 Image Klein up to 4096 px per side ([022dd4f](https://github.com/Sogni-AI/sogni-client/commit/022dd4f19d94c169b15a915d1f102a043e0561f1))
+* **models:** route FLUX 3 Image Klein for image generation and edits ([ed8225f](https://github.com/Sogni-AI/sogni-client/commit/ed8225fd1cd255f3be8a7bd3c6ebd93e68bedbfb))
+
+## [5.63.4](https://github.com/Sogni-AI/sogni-client/compare/v5.63.3...v5.63.4) (2026-10-16)
+
+
+### Bug Fixes
+
+* **projects:** start admission grace after request preparation ([2d9d99a](https://github.com/Sogni-AI/sogni-client/commit/2d9d99accdce4c897331b6a5ceefe05e3ec46c52))
+
+## [5.63.3](https://github.com/Sogni-AI/sogni-client/compare/v5.63.2...v5.63.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* **projects:** declare FLAC, Ogg and WebM reference files by their bytes ([4b03ac8](https://github.com/Sogni-AI/sogni-client/commit/4b03ac80ca792746fdfc69a60833cff9cf054702))
+
+## [5.63.2](https://github.com/Sogni-AI/sogni-client/compare/v5.63.1...v5.63.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* **auth:** sign out when a token refresh response has no token pair ([d25bf17](https://github.com/Sogni-AI/sogni-client/commit/d25bf17221b32e63e5213d138f64191eb303c7f2))
+
+## [5.63.1](https://github.com/Sogni-AI/sogni-client/compare/v5.63.0...v5.63.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **projects:** preserve prompt expansion flag in project history ([c64838e](https://github.com/Sogni-AI/sogni-client/commit/c64838ef665752e90c1adecb7a078784960b1048))
+
+# [5.63.0](https://github.com/Sogni-AI/sogni-client/compare/v5.62.0...v5.63.0) (2026-10-09)
+
+
+### Features
+
+* **video:** add Seedance 2.0 Mini Uncensored as its own model id ([028aca3](https://github.com/Sogni-AI/sogni-client/commit/028aca3a60d68af06654c5df7e2623cf09346c2d))
+
+# [5.62.0](https://github.com/Sogni-AI/sogni-client/compare/v5.61.0...v5.62.0) (2026-10-09)
+
+
+### Features
+
+* **worlds:** hosted world builds on the SDK as worlds.builds ([531c039](https://github.com/Sogni-AI/sogni-client/commit/531c039134b65cad69bc56c442033b1c0ab9b29f))
+
+# [5.61.0](https://github.com/Sogni-AI/sogni-client/compare/v5.60.8...v5.61.0) (2026-10-06)
+
+
+### Features
+
+* **errors:** export MODEL_NOT_YET_AVAILABLE_ERROR_CODE for socket error 4104 ([04514c6](https://github.com/Sogni-AI/sogni-client/commit/04514c6a889e8b0c525f58c10a53af652331f64e))
+* **video:** add Seedance 2.5 Uncensored and the 4103 consent error ([6fba418](https://github.com/Sogni-AI/sogni-client/commit/6fba418c73c99683f7b309bfbd0784ebc565473e))
+* **video:** rename Seedance 2.5 Uncensored to seedance-2-5-uncensored ([8051c5d](https://github.com/Sogni-AI/sogni-client/commit/8051c5d51e516a5205a2d86fbcebe9c2c59f50ac))
+
+## [5.60.8](https://github.com/Sogni-AI/sogni-client/compare/v5.60.7...v5.60.8) (2026-10-05)
+
+
+### Bug Fixes
+
+* **media:** parse large data URIs without a regex over the payload ([1dc4cdf](https://github.com/Sogni-AI/sogni-client/commit/1dc4cdfba47baa0ca74aa6dd486a0480d67c1dc7))
+
+## [5.60.7](https://github.com/Sogni-AI/sogni-client/compare/v5.60.6...v5.60.7) (2026-10-04)
+
+
+### Bug Fixes
+
+* **deps:** take sogni-protocol 1.0.0-alpha.47 for the MiniMax Music 3 default ([b2edbac](https://github.com/Sogni-AI/sogni-client/commit/b2edbac55d854d44380ee481c601226d4f98b5d7))
+
+## [5.60.6](https://github.com/Sogni-AI/sogni-client/compare/v5.60.5...v5.60.6) (2026-10-04)
+
+
+### Bug Fixes
+
+* **socket:** stop the keep-alive ping from crashing a reconnecting client ([61eeae4](https://github.com/Sogni-AI/sogni-client/commit/61eeae49b733d4f4b2a42c3c880a805ef9da9064))
+
+## [5.60.5](https://github.com/Sogni-AI/sogni-client/compare/v5.60.4...v5.60.5) (2026-10-04)
+
+
+### Bug Fixes
+
+* **client:** say a closed client ended a request, not an account change ([07c07eb](https://github.com/Sogni-AI/sogni-client/commit/07c07eb2cc3278ddfbea417c703552b3df548c63))
+
+## [5.60.4](https://github.com/Sogni-AI/sogni-client/compare/v5.60.3...v5.60.4) (2026-10-04)
+
+
+### Bug Fixes
+
+* **projects:** preserve inconclusive recovery and isolate chat startup events ([fa279a6](https://github.com/Sogni-AI/sogni-client/commit/fa279a6662c5abb3173cf4cebd0e4c00a168cc1b))
+* **projects:** preserve uncertain recovery and isolate chat startup events ([759d3f4](https://github.com/Sogni-AI/sogni-client/commit/759d3f45375a708d7fa59883b93a2b7d63ab2a54))
+
+## [5.60.3](https://github.com/Sogni-AI/sogni-client/compare/v5.60.2...v5.60.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* **projects:** allow additional server failure categories ([f4b92ed](https://github.com/Sogni-AI/sogni-client/commit/f4b92ed6fafdfb4c8c84be4a64792e100e050548))
+
+## [5.60.2](https://github.com/Sogni-AI/sogni-client/compare/v5.60.1...v5.60.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* **projects:** preserve server failure categories ([c5195ea](https://github.com/Sogni-AI/sogni-client/commit/c5195eaf5c8f1c2ebcbd7f953109150a1d616057))
+
+## [5.60.1](https://github.com/Sogni-AI/sogni-client/compare/v5.60.0...v5.60.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **examples:** reuse one saved app ID per example instead of a new one per run ([c52fbab](https://github.com/Sogni-AI/sogni-client/commit/c52fbabc8e0e961d0e8c7c53d33b002cc17130d0))
+* **examples:** wait for the SAM 3 mask over the socket instead of polling ([657fd85](https://github.com/Sogni-AI/sogni-client/commit/657fd85972d0a844027fe1b41ddd2f7b36bbf9fe))
+* **socket:** reset the reconnect backoff only once the server authenticates ([ad642d3](https://github.com/Sogni-AI/sogni-client/commit/ad642d33d2847c6c62affa3ec17f5c444eff06bf))
+
+# [5.60.0](https://github.com/Sogni-AI/sogni-client/compare/v5.59.0...v5.60.0) (2026-10-02)
+
+
+### Bug Fixes
+
+* **chat:** send a model-less music track over 300 s to ACE-Step ([f331df4](https://github.com/Sogni-AI/sogni-client/commit/f331df4b3e2b237e3b26aa001801c5fe2b2173e6))
+
+
+### Features
+
+* **chat:** make MiniMax Music 3 the default music model ([b600679](https://github.com/Sogni-AI/sogni-client/commit/b600679d18e18e40d236126e15f7282bae1d7171))
+
+# [5.59.0](https://github.com/Sogni-AI/sogni-client/compare/v5.58.2...v5.59.0) (2026-10-02)
+
+
+### Features
+
+* **projects:** let ControlNet make its control map from a photo ([962bce3](https://github.com/Sogni-AI/sogni-client/commit/962bce367a5a31dd984f201ed049cea35f47b7b0))
+
+## [5.58.2](https://github.com/Sogni-AI/sogni-client/compare/v5.58.1...v5.58.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* **media:** trust Sogni's R2 and S3 Transfer Acceleration media links ([b32faf8](https://github.com/Sogni-AI/sogni-client/commit/b32faf8b43b5449ceffd7bbf8c45b20011393090))
+
+## [5.58.1](https://github.com/Sogni-AI/sogni-client/compare/v5.58.0...v5.58.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* **minimax-h3:** name keyframes as <Picture N> in the prompt guidance ([db85ad7](https://github.com/Sogni-AI/sogni-client/commit/db85ad709e6764c9b0b8fe3da60e18edccff69f2))
+
 # [5.58.0](https://github.com/Sogni-AI/sogni-client/compare/v5.57.0...v5.58.0) (2026-09-27)
 
 

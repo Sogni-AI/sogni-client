@@ -1,7 +1,7 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { MessageDeliveryUncertainError } from '../ApiClient/WebSocketClient/requestDelivery.js';
 import ReusableUploads from './ReusableUploads.js';
-import { captureRequestSession } from '../lib/requestSession.js';
+import { captureRequestSession, RequestSessionError } from '../lib/requestSession.js';
 import {
   AvailableModel,
   EnhancementStrength,
@@ -88,6 +88,7 @@ import {
   type ResultMediaKind,
   usesReferenceMask
 } from './utils/index.js';
+import { getFileContentType } from './utils/fileContentType.js';
 import { TokenType } from '../types/token.js';
 import type { JobProvenance } from './types/JobProvenance.js';
 import { getMaxContextImages, validateSampler, isGptImageModel } from '../lib/validation.js';
@@ -135,6 +136,7 @@ const DEFAULT_LORA_CONSTRAINTS: LoraConstraints = {
   maxStrength: 100
 };
 const GARBAGE_COLLECT_TIMEOUT = 30000;
+const GPT_IMAGE_MASK_DATA_URI_PREFIX = 'data:image/png;base64,';
 /**
  * How many results the image endpoint reported as media are remembered, so a
  * later URL request for one goes straight to the media endpoint. Bounded so a
@@ -246,41 +248,6 @@ function deriveLoraCapableModelIds(loras: LoraCatalogEntry[]): string[] {
     for (const modelId of lora.modelIds ?? []) modelIds.add(modelId);
   }
   return Array.from(modelIds).sort();
-}
-
-/**
- * Detect content type from a file object.
- * For File objects in browser, uses the type property.
- * Returns undefined if content type cannot be detected.
- */
-function getFileContentType(file: File | Buffer | Blob): string | undefined {
-  if (file instanceof Blob && 'type' in file && file.type) {
-    return file.type;
-  }
-  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(file)) {
-    if (file.length >= 12) {
-      if (file[0] === 0xff && file[1] === 0xd8 && file[2] === 0xff) return 'image/jpeg';
-      if (file[0] === 0x89 && file[1] === 0x50 && file[2] === 0x4e && file[3] === 0x47) {
-        return 'image/png';
-      }
-      if (file.toString('ascii', 0, 4) === 'RIFF' && file.toString('ascii', 8, 12) === 'WEBP') {
-        return 'image/webp';
-      }
-      if (file.toString('ascii', 0, 3) === 'GIF') return 'image/gif';
-      if (file.toString('ascii', 4, 8) === 'ftyp') {
-        const brand = file.toString('ascii', 8, 12).toLowerCase();
-        if (brand.includes('m4a') || brand.includes('m4b')) return 'audio/mp4';
-        if (brand.includes('qt')) return 'video/quicktime';
-        return 'video/mp4';
-      }
-      if (file.toString('ascii', 0, 4) === 'RIFF' && file.toString('ascii', 8, 12) === 'WAVE') {
-        return 'audio/wav';
-      }
-    }
-    if (file.length >= 3 && file.toString('ascii', 0, 3) === 'ID3') return 'audio/mpeg';
-    if (file.length >= 2 && file[0] === 0xff && (file[1] & 0xe0) === 0xe0) return 'audio/mpeg';
-  }
-  return undefined;
 }
 
 /**
@@ -576,6 +543,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   /** Projects waiting for a reconnect to be resubmitted on. */
   private _awaitingResubmit = new Set<string>();
   private _resubmitWaiters = new Set<() => void>();
+  /** Initial sends finish after model lookups and uploads, independently of creation time. */
+  private _submittedAt = new Map<string, number>();
   /** When each resubmitted project was last sent, for the recently-created grace. */
   private _resubmittedAt = new Map<string, number>();
   /** Bumped on every transport loss; tells a frame sent before a drop from one sent after. */
@@ -803,6 +772,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._unadmittedRequests.clear();
       for (const stopWaiting of this._resubmitWaiters) stopWaiting();
       this._awaitingResubmit.clear();
+      this._submittedAt.clear();
       this._resubmittedAt.clear();
       this._sentOnGeneration.clear();
       this._recoveredCompletedIds.clear();
@@ -906,6 +876,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         this.emit('project', { type: 'completed', projectId: data.jobID });
         return;
       case 'initiatingModel':
+        // LLM startup notifications share this channel but have no render id.
+        // ChatApi handles those; only media frames can produce a JobEvent.
+        if (typeof data.imgID !== 'string') return;
         this.emit('job', {
           type: 'initiating',
           projectId: data.jobID,
@@ -918,6 +891,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         });
         return;
       case 'jobStarted': {
+        if (typeof data.imgID !== 'string') return;
         this.emit('job', {
           type: 'started',
           projectId: data.jobID,
@@ -1104,11 +1078,18 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         message: data.error_message
       };
     }
+    if (data.vendorFailureCategory) {
+      error.vendorFailureCategory = data.vendorFailureCategory;
+    }
     if (data.subscriptionLimit) {
       error.subscriptionLimit = true;
       if (data.requiredPlans) error.requiredPlans = data.requiredPlans;
       if (data.feature) error.feature = data.feature;
       if (data.limitation) error.limitation = data.limitation;
+    }
+    // A model consent refusal (4103) names the agreement so apps can open it.
+    if (data.consentRequired && typeof data.consentRequired.key === 'string') {
+      error.consentRequired = { ...data.consentRequired };
     }
     if (!data.imgID) {
       this.emit('project', {
@@ -1287,13 +1268,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     if (project.finished) {
       this._unadmittedRequests.delete(project.id);
+      this._submittedAt.delete(project.id);
       this._resubmittedAt.delete(project.id);
       this._sentOnGeneration.delete(project.id);
       // Sync project data with the server and remove it from the list after some time
       project._syncToServer().catch((e) => {
         // 404 errors are expected when project is still initializing
-        // Only log non-404 errors to avoid confusing users
-        if (e.status !== 404) {
+        // Only log non-404 errors to avoid confusing users.
+        // A session that ended mid-sync (sign-out, or dispose() right after a
+        // refusal such as a fair-use limit) leaves the snapshot without an
+        // owner; the project already carries its real error.
+        if (e instanceof RequestSessionError) {
+          this.client.logger.debug(`Project ${project.id} sync ended with its session`);
+        } else if (e.status !== 404) {
           this.client.logger.error(e);
         }
       });
@@ -1597,7 +1584,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   private _lastSubmittedAt(project: Project): number {
-    return Math.max(project.startedAt.getTime(), this._resubmittedAt.get(project.id) ?? 0);
+    return Math.max(
+      this._submittedAt.get(project.id) ?? project.startedAt.getTime(),
+      this._resubmittedAt.get(project.id) ?? 0
+    );
   }
 
   private handleServerConnected() {
@@ -1750,9 +1740,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       // Before failing anything, ask the owner-scoped live lookup. It can
       // confirm an active project or a terminal failure/cancellation without
       // a full record. A successful completion still needs its result record
-      // and stays unverified until that arrives. Anything else, including
-      // an unauthenticated client or an older API without the lookup, keeps the
-      // `lost` verdict.
+      // and stays unverified until that arrives. Failed lookups are inconclusive;
+      // only a 404 together with an available live list can confirm absence.
       const unlisted = pending.filter((id) => !live?.includes(id));
       const checks = new Map(
         await Promise.all(
@@ -1768,6 +1757,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         const check = checks.get(id);
         if (check) {
           result[id] = check;
+          continue;
+        }
+        if (live === null) {
+          result[id] = {
+            state: 'unknown',
+            error: new Error('The live project list is not available')
+          };
           continue;
         }
         // Nothing on the server knows it. A request that died with a dropped
@@ -1839,7 +1835,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   /**
    * Second opinion for a project neither the terminal REST record nor the live
-   * socket list knows. Returns `undefined` when the lookup cannot vouch for it.
+   * socket list knows. Returns `undefined` for a 404; other lookup failures
+   * remain unknown, preserving the error and any retry-after information.
    */
   private async _lookupUnlistedProject(projectId: string): Promise<ProjectResolution | undefined> {
     try {
@@ -1861,8 +1858,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         };
       }
       return undefined;
-    } catch {
-      return undefined;
+    } catch (error: any) {
+      return error?.status === 404 ? undefined : { state: 'unknown', error };
     }
   }
 
@@ -2293,13 +2290,23 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       if (normalizedData.gptImageMask) {
         throw new Error('Provide one GPT Image mask, not both media and URL');
       }
-      const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(
-        normalizedData.gptImageMaskUrl
-      );
-      if (!match || match[1].length >= Math.ceil((50 * 1024 * 1024 * 4) / 3)) {
+      // Split off the prefix with string operations and check the payload with
+      // a `*` loop, never a `+` loop: the old
+      // /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/ overflowed V8's regexp
+      // stack for masks over ~3 MB in long-running processes. See
+      // splitBase64DataUri in lib/mediaValidation.ts.
+      const maskUrl = normalizedData.gptImageMaskUrl;
+      const maskBase64 = maskUrl.startsWith(GPT_IMAGE_MASK_DATA_URI_PREFIX)
+        ? maskUrl.slice(GPT_IMAGE_MASK_DATA_URI_PREFIX.length)
+        : '';
+      if (
+        !maskBase64 ||
+        maskBase64.length >= Math.ceil((50 * 1024 * 1024 * 4) / 3) ||
+        !/^[A-Za-z0-9+/=]*$/.test(maskBase64)
+      ) {
         throw new Error('GPT Image mask must be a PNG data URI smaller than 50 MB');
       }
-      const bytes = Uint8Array.from(atob(match[1]), (char) => char.charCodeAt(0));
+      const bytes = Uint8Array.from(atob(maskBase64), (char) => char.charCodeAt(0));
       normalizedData = {
         ...normalizedData,
         gptImageMask: new Blob([bytes], { type: 'image/png' }),
@@ -2375,6 +2382,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _trackSubmitted(project: Project): Project {
     const tracked = this.projects.find((candidate) => candidate.id === project.id);
     if (!tracked) {
+      this._submittedAt.set(project.id, Date.now());
       this.projects.push(project);
       return project;
     }
@@ -2398,7 +2406,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       await this.uploadCNImage(project.id, data.controlNet.image);
     }
 
-    // Context images (GPT Image 2 supports up to 16; Qwen Image Edit supports up to 3; Krea 2 Identity Edit and legacy Flux Kontext support up to 2)
+    // Context images (GPT Image 2 supports up to 16; FLUX 3 Image Klein up to 10; Qwen Image Edit supports up to 3; Krea 2 Identity Edit and legacy Flux Kontext support up to 2)
     if (data.contextImages?.length) {
       const maxContextImages = getMaxContextImages(data.modelId);
       if (data.contextImages.length > maxContextImages) {
@@ -2439,7 +2447,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const keyFrame = request.keyFrames?.[0];
     if (!keyFrame) return;
     if (data.referenceAudio && data.referenceAudio !== true) {
-      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio);
+      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio, 'audio');
     }
   }
 
@@ -2514,25 +2522,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     const isMinimaxH3R2v = isMinimaxH3ReferenceModel(data.modelId);
     if (!isMinimaxH3R2v && data.referenceAudio && data.referenceAudio !== true) {
-      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio);
+      keyFrame.referenceAudioContentType = getFileContentType(data.referenceAudio, 'audio');
     }
     if (data.referenceAudioIdentity && data.referenceAudioIdentity !== true) {
-      const contentType = getFileContentType(data.referenceAudioIdentity);
+      const contentType = getFileContentType(data.referenceAudioIdentity, 'audio');
       keyFrame.referenceAudioIdentityContentType = contentType;
       keyFrame.referenceAudioContentType ??= contentType;
     }
     if (!isMinimaxH3R2v && data.referenceVideo && data.referenceVideo !== true) {
-      keyFrame.referenceVideoContentType = getFileContentType(data.referenceVideo);
+      keyFrame.referenceVideoContentType = getFileContentType(data.referenceVideo, 'video');
     }
     if (isMinimaxH3R2v) {
       for (const { slot, media } of getMinimaxH3ReferenceAudioSlots(data)) {
         if (typeof media !== 'boolean') {
-          keyFrame[`referenceAudio${slot}ContentType`] = getFileContentType(media);
+          keyFrame[`referenceAudio${slot}ContentType`] = getFileContentType(media, 'audio');
         }
       }
       for (const { slot, media } of getMinimaxH3ReferenceVideoSlots(data)) {
         if (typeof media !== 'boolean') {
-          keyFrame[`referenceVideo${slot}ContentType`] = getFileContentType(media);
+          keyFrame[`referenceVideo${slot}ContentType`] = getFileContentType(media, 'video');
         }
       }
     }
@@ -2566,6 +2574,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * A project that belongs to another account, or does not exist, rejects with a
    * 404 `ApiError`; a 503 means the server could not determine the state yet and
    * the call can be retried.
+   *
+   * A one-off read, not a way to wait: a tracked project settles over the
+   * socket (`project.waitForCompletion()`), and polling this spends the
+   * account's per-IP rate limit. On a 429 wait `ApiError.retryAfter` seconds.
    * @param projectId
    */
   async getStatus(projectId: string): Promise<ProjectStatusSnapshot> {
@@ -2586,6 +2598,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * which says whether it is held by the account's own plan concurrency or is
    * waiting for a worker. Needs an authenticated client; another account's or
    * an unknown project rejects with a 404 `ApiError`.
+   *
+   * Not for waiting on a project: never call it in a loop until it finishes.
+   * A tracked project settles over the socket (`project.waitForCompletion()`
+   * and its events) with no requests; after a restart, connect with the same
+   * `appId` and `projects.sync()` hands its projects back (`resolveMissing()`
+   * covers ids it no longer holds). Each call is a REST request against the
+   * account's per-IP rate limit, plus one signed-URL request per completed
+   * job. A 429 `ApiError` carries `retryAfter` (seconds): wait that long.
    *
    * @example
    * ```ts
@@ -2729,7 +2749,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         };
         projects.set(projectId, project);
       }
-      const finishedAt = typeof job.endTime === 'number' && job.endTime > 0 ? job.endTime : undefined;
+      const finishedAt =
+        typeof job.endTime === 'number' && job.endTime > 0 ? job.endTime : undefined;
       project.jobs.push({
         id: job.imgID || job.id,
         status: resultJobStatus(job),
@@ -3186,7 +3207,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
-    const contentType = getFileContentType(file);
+    const contentType = getFileContentType(file, 'audio');
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceAudio', id }))
       return;
     assertSession();
@@ -3225,7 +3246,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
-    const contentType = getFileContentType(file);
+    const contentType = getFileContentType(file, 'video');
     if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceVideo', id }))
       return;
     assertSession();
@@ -3434,7 +3455,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       );
     }
     const keyframeCount =
-      params.keyframeCount ?? (Array.isArray(params.keyframes) ? params.keyframes.length : undefined);
+      params.keyframeCount ??
+      (Array.isArray(params.keyframes) ? params.keyframes.length : undefined);
     if (Number.isFinite(keyframeCount) && (keyframeCount as number) > 0) {
       query.set('keyframeCount', String(Math.floor(keyframeCount as number)));
     }

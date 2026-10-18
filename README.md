@@ -76,7 +76,9 @@ One request for image or video generation is called a **Project**. A project can
 Each generated image or video is represented by a **Job**.
 
 When you send a project to Supernet, it will be processed by one or more workers. The resulting media will be encrypted and
-uploaded to Sogni servers where it will be stored for 24 hours. After this period, media files will be auto-deleted.
+uploaded to Sogni's temporary media storage. Result URLs are signed download links that stay valid for 48 hours; after that
+the media is auto-deleted, so download anything you want to keep. Treat the links as opaque: the storage host behind them
+can change (for example from Amazon S3 to Cloudflare R2).
 
 ## Client initialization
 
@@ -373,7 +375,7 @@ project.on('progress', (progress) => {
 
 const imageUrls = await project.waitForCompletion();
 // Now you can use image URLs to download images.
-// Note that images will be available for 24 hours only!
+// Note that these are signed links, valid for 48 hours only!
 console.log('Image URLs:', imageUrls);
 ```
 
@@ -516,6 +518,15 @@ const { status, finished } = await sogni.projects.getStatus(projectId);
 if (!finished) console.log(`Still ${status}`);
 ```
 
+> **Don't poll for completion.** `getStatus()`, `getResult()` and `get()` are one-off reads, not a
+> way to wait. A project you created settles over the socket — `await project.waitForCompletion()`
+> or its `completed`/`failed` events — with no requests at all. After a restart, connect with the
+> same `appId` and the SDK's `projects.sync()` hands the projects back; `resolveMissing(ids)` covers
+> the ones it no longer holds. Every read counts against a per-IP rate limit shared by everyone on
+> that network, and `getResult()` also signs one download URL per completed job. When a request
+> fails with a 429 `ApiError`, wait `error.retryAfter` seconds before the next one; never retry
+> through it.
+
 The same snapshot also answers "is anything rendering elsewhere on this account?" — another tab in
 a different Sogni app, another device, a headless client. `sogni.projects.listProjectsElsewhere()`
 returns those in-flight projects read-only (`appSource`, `status`, `model`, per-job step counts) so an
@@ -555,6 +566,7 @@ Here is a full list of project parameters that you can use:
 
 - `modelId` - ID of the model to use for image generation.
 - `positivePrompt` - text prompt that describes what you want to see in the image. Can be an empty string.
+- `promptExpanded` - optional boolean reporting whether the submitted prompt was expanded; omitted means unknown. This does not enable expansion.
 - `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be an empty string.
 - `stylePrompt` - text prompt that describes the style of the image. Can be an empty string.
 - `numberOfImages` - number of images to generate.
@@ -908,6 +920,10 @@ To use ControlNet in your project, you need to provide `controlNet` object with 
   - `cn_priority` - the controlnet model has more impact than the prompt
 - `guidanceStart` - step when ControlNet first applied, 0 means first step, 1 means last step. Must be less than guidanceEnd
 - `guidanceEnd` - step when ControlNet last applied, 0 means first step, 1 means last step. Must be greater than guidanceStart
+- `preprocess` - `true` makes the worker generate the control map from `image`, so you can pass an ordinary photo
+  (edges for `canny`, a depth map for `depth`, a pose skeleton for `openpose`, and so on). Default `false` uses `image`
+  as the control map as-is: pass ready-made depth maps, pose skeletons, edge maps and scribbles this way. Only affects
+  the Stable Diffusion ControlNet types; `instantid`, `inpaint` and `instrp2p` always use the image as given.
 
 Example:
 
@@ -924,6 +940,26 @@ const project = await sogni.projects.create({
   controlNet: {
     name: 'instrp2p',
     image: cnImage
+  }
+});
+```
+
+Example with an ordinary photo, letting the worker make the depth map:
+
+```javascript
+const photo = fs.readFileSync('./living-room.jpg');
+const project = await sogni.projects.create({
+  type: 'image',
+  network: 'fast',
+  modelId: 'coreml-cyberrealistic_v70_768',
+  numberOfMedia: 1,
+  positivePrompt: 'a cozy cabin interior, warm evening light',
+  steps: 20,
+  guidance: 7.5,
+  controlNet: {
+    name: 'depth',
+    image: photo,
+    preprocess: true
   }
 });
 ```
@@ -956,6 +992,7 @@ export interface ControlNetParams {
   mode?: ControlNetMode;
   guidanceStart?: number;
   guidanceEnd?: number;
+  preprocess?: boolean;
 }
 ```
 
@@ -974,8 +1011,10 @@ const imported = await sogni.projects.personalLoras.import({
   rightsConfirmed: true,
 });
 const current = await sogni.projects.personalLoras.get(imported.id);
-// Importing is asynchronous. Poll get() until ready, rejected, or revoked;
-// queued, validating, and review are not usable yet. Surface reason/failureCode.
+// Importing is asynchronous and takes minutes; there is no event for it. Check get()
+// every 30 seconds or so until ready, rejected, or revoked (on a 429, wait
+// error.retryAfter seconds); queued, validating, and review are not usable yet.
+// Surface reason/failureCode.
 const { loras } = await sogni.projects.availableLoras({
   modelId: 'krea2_turbo_fp8_scaled', includePersonal: true,
 });
@@ -1034,6 +1073,8 @@ Example model IDs:
 - `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-mini` (Seedance 2.0 Mini multimodal video, external API, 720p cap)
 - `seedance-2-5` (Seedance 2.5 multimodal video, external API, 480p/720p/1080p, 4-30s, first+last frame)
+- `seedance-2-5-uncensored` (Seedance 2.5 Uncensored: the same model, limits, and options as `seedance-2-5`; requires a one-time agreement in a Sogni app)
+- `seedance-2-0-mini-uncensored` (Seedance 2.0 Mini Uncensored: the same model, limits, and options as `seedance-2-0-mini`; requires the same one-time agreement)
 - `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
 - `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
@@ -1065,7 +1106,7 @@ When creating video projects, you can specify:
 - `referenceVideoDurations` - Optional MiniMax H3 r2v duration hints in `[referenceVideo, ...referenceVideos]` order for early client-side validation; Socket probes the uploaded files and uses measured durations for pricing and admission
 - `referenceAudio` - Reference audio for sound-to-video workflows (s2v, ia2v, flfa2v, a2v)
 - `referenceImageEnd` - Last frame for i2v, flf2v and the MiniMax H3 FastH3 flfa2v audio-guide workflow
-- `keyframes` - Every MiniMax H3 workflow except t2v (21 ids, `isMinimaxH3KeyframeModel()`: i2v and flf2v on every tier, Sound to Video ia2v/flfa2v/a2v, and Ref2VA r2v): up to `MINIMAX_H3_MAX_KEYFRAMES` (8) `{ image, frameIndex }` stills pinned between the first and last frame. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2`, each frame used once. Pass `frames` from the H3 grid (124, 141, 158, … 362) so the count is exact: `duration` snaps to the grid (`duration: 6` renders 141 frames, not 144). Frame 0 and the last frame are never keyframes: i2v, flf2v and flfa2v set them with `referenceImage` / `referenceImageEnd`, ia2v sets frame 0 with `referenceImage`, and a2v and r2v cannot pin them. H3 never sees the keyframe images as references, so the prompt must describe what each keyframe shows at its time; keyframes are never labelled, and on r2v `<Picture N>` / `<Subject N>` refer to the references only. On Sound to Video the audio drives the performance and keyframes pin how it looks at their times. When a keyframe changes the framing, camera angle, location or light, start a new shot (a hard cut) in the prompt at its time: two differently framed or lit stills inside one continuous shot cross-fade, and a shot described differently from its still can flash the still for a single frame. Images upload to their own `keyframeImage1..N` slots in array order, so r2v sends its references (`referenceImage`, `contextImages`) and keyframes together. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100` MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
+- `keyframes` - Every MiniMax H3 workflow except t2v (21 ids, `isMinimaxH3KeyframeModel()`: i2v and flf2v on every tier, Sound to Video ia2v/flfa2v/a2v, and Ref2VA r2v): up to `MINIMAX_H3_MAX_KEYFRAMES` (8) `{ image, frameIndex }` stills pinned between the first and last frame. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2`, each frame used once. Pass `frames` from the H3 grid (124, 141, 158, … 362) so the count is exact: `duration` snaps to the grid (`duration: 6` renders 141 frames, not 144). Frame 0 and the last frame are never keyframes: i2v, flf2v and flfa2v set them with `referenceImage` / `referenceImageEnd`, ia2v sets frame 0 with `referenceImage`, and a2v and r2v cannot pin them. The prompt names each keyframe `<Picture N>` (MiniMax's keyframe format), numbered in time order after the workflow's own pictures: after the first frame on i2v and ia2v (after the last frame on a last-frame-only i2v job), after the first and last frames on flf2v and flfa2v, from `<Picture 1>` on a2v, and after the reference images on r2v; keyframes still never count as references. i2v, flf2v and Sound to Video prompts open with one alignment line listing every picture at its mark (`How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot 2) aligns with the 2.88-second mark of the target video.`), the shot where a keyframe lands says "the shot's keyframe corresponds to `<Picture N>`", and r2v adds a `<Picture N> is the keyframe of [Shot M], showing ...` entry, `keyframe completion` in the summary tasks and a `<Picture N> ([Shot M] keyframe): fully_preserved - ...` retention entry. H3's text encoder never sees the keyframe images, so the prompt must still describe what each keyframe shows at its time. On Sound to Video the audio drives the performance and keyframes pin how it looks at their times. When a keyframe changes the framing, camera angle, location or light, start a new shot (a hard cut) in the prompt at its time: two differently framed or lit stills inside one continuous shot cross-fade, and a shot described differently from its still can flash the still for a single frame. Images upload to their own `keyframeImage1..N` slots in array order, so r2v sends its references (`referenceImage`, `contextImages`) and keyframes together. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100` MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 - `referenceImageUrls` - Loose image context URLs for Seedance, Happy Horse, and Wan 3; Wan 3 accepts up to 10
 - `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `referenceAudioUrls` - Loose audio context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
@@ -1079,6 +1120,8 @@ When creating video projects, you can specify:
 Seedance 2.0 can combine image, video, and audio reference assets in one external API request. Reference limits are up to 9 image assets, 3 video assets, 3 audio assets, and 12 asset files total. Text+audio without at least one image or video reference is not supported by Seedance. URL-array references must be HTTPS URLs that the vendor can fetch; local multi-reference files should be uploaded first, as shown in `examples/workflow_partner_seedance_video.mjs`. In prompts and creative briefs, refer to attachments by Seedance-style tags: `@Image1`, `@Video1`, and `@Audio1`, counted independently by modality in attachment order. Assign each useful reference a role, such as product identity, motion timing, camera path, edit rhythm, background music, or speech reference. Prefer positive preservation language like "maintain the same product silhouette and logo placement from @Image1"; exact readable text, logos, lip-sync, voice cloning, and real-human-reference behavior still need review. Seedance dispatch omits negative prompts; Wan 2.2 and LTX 2.3 video models can still use `negativePrompt`. Seedance jobs are Spark-only and should not use SOGNI token fallback.
 
 Seedance 2.5 raises the reference limits to 30 images, 10 videos, 10 audios, and 50 total files, and it permits audio-only loose-reference generation. Its frame-conditioned, edit, and extend operations inherit source aspect ratio. Send `seedanceTaskType: 'edit'` for source-video edits and `seedanceTaskType: 'extend'` for continuation; the Sogni vendor adapter applies Seedance 2.5's required adaptive ratio and provider-selected edit duration. Use `reference` when media supplies creative guidance for a newly generated video. Loose-reference requests require an explicit task type.
+
+Seedance 2.5 Uncensored (`seedance-2-5-uncensored`, hosted selector `seedance2-5-uncensored`) is the same model with every Seedance 2.5 capability, limit, and option under its own id, and Seedance 2.0 Mini Uncensored (`seedance-2-0-mini-uncensored`, hosted selector `seedance2-mini-uncensored`) is likewise Seedance 2.0 Mini with every Mini capability and limit (480p/720p, 4-15s, 9/3/3/12 references) under its own id. The two share one likeness and consent agreement: each account must accept it in a Sogni app first, and until then their jobs fail with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key, version, modelId }` and is detected by `isModelConsentRequiredError()` (both exported from the package root). The SDK never accepts the agreement, and retrying fails the same way until it is accepted. A model that is not yet available on a network is refused with `MODEL_NOT_YET_AVAILABLE_ERROR_CODE` (4104); show the error's message as is (it names models to try instead) and do not retry.
 
 Wan 3 uses the single exact model ID `wan3.0-video` for text, first-frame, first+last-frame, loose-reference, and audio-driven generation. It accepts fixed or smart 2-30 second output at 480P/720P/1080P and fixed 30fps, with `adaptive`, `16:9`, `4:3`, `1:1`, `3:4`, or `9:16` ratio. Native audio defaults on and watermarking is optional. It accepts up to 10 loose images, 5 videos, and 5 audios, plus either one public document or one webpage. Native first/last frames cannot be mixed with loose media or document/web context. In English prompts, identify loose assets as `Image 1`, `Video 1`, and `Audio 1`, numbered independently by type. A video reference conditions a new generation; Wan 3 does not expose source-video edit or extend task modes. Wan 3 has no `negativePrompt`. Sogni prompt expansion and Alibaba `prompt_extend` are coordinated so an expanded prompt is not rewritten twice. Wan 3 is Premium Spark-only.
 
@@ -1481,8 +1524,11 @@ const workflow = await sogni.workflows.start({
         }
       },
       {
+        // animate_photo starts the clip from the keyframe. generate_video's
+        // referenceImageIndices are loose references, which only Seedance,
+        // HappyHorse, Wan 3 and MiniMax H3 reference-to-video accept.
         id: 'clip',
-        toolName: 'generate_video',
+        toolName: 'animate_photo',
         arguments: {
           prompt: 'slow dolly-in, warm stage lights, subtle hand motion',
           videoModel: 'ltx23',
@@ -1492,7 +1538,7 @@ const workflow = await sogni.workflows.start({
           {
             sourceStepId: 'keyframe',
             sourceArtifactIndex: 0,
-            targetArgument: 'referenceImageIndices',
+            targetArgument: 'sourceImageIndex',
             mediaType: 'image',
             transform: 'image_index',
             required: true
@@ -1536,6 +1582,19 @@ async function startWithRetry(params, attempts = 5) {
 See `examples/workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage. The underlying REST endpoints remain documented in the [LLM API durable workflows reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#durable-creative-agent-workflows).
 
 ## Code Examples
+
+### Hosted World Builds (server-side)
+
+A hosted world build renders the paths, moments and collectibles a person chose for one scene of their Sogni World in the background, with the account's own key, while they are away. It starts from a signed-in session (an API key cannot author a world), pauses for the quote before anything paid, and pauses again when finished takes await review; publication stays in the World studio. The SDK exposes it through `sogni.worlds.builds`:
+
+- `sogni.worlds.builds.start({ worldId, nodeId, hotspots, look, tokenType, billingMode, idempotencyKey })` — start a build; each hotspot names the object as it appears, its kind (`path`, `moment` or `collectible`), the action, and for a path where it leads
+- `sogni.worlds.builds.get(runId)` and `.list({ worldId })` — inspect builds
+- `sogni.worlds.builds.events(runId, after)` and `.streamEvents(runId, { lastEventId })` — the event history and the SSE stream with `Last-Event-ID` replay
+- `sogni.worlds.builds.confirmCost(runId, { decision: 'confirm' | 'cancel' | 'requote' })` — answer the quote (a quote is good for ten minutes; ask for a requote after that)
+- `sogni.worlds.builds.review(runId, { taskId, decision: 'approved' | 'rejected', note })` — a verdict on a take in review; a rejection with a note sends it back for one rewrite
+- `sogni.worlds.builds.cancel(runId, reason)` — stop the build
+
+Read `run.waiting.reason` to see what the build needs: `cost_approval_required`, `review_required` or `insufficient_credit`. Each task's `generationId` (a path) or `interactionId` (a moment or collectible) is the World record to publish from the studio once approved.
 
 ### SAM 3 object selection
 
@@ -1677,6 +1736,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `z_image_turbo_bf16`                  | **Z-Image Turbo** - Ultra-fast 8-step generation         | Quick text-to-image prototyping and iteration                                                                |
 | `z_image_bf16`                        | **Z-Image** - High quality 20-step generation            | Detailed, high quality image output                                                                          |
 | `krea2_turbo_fp8_scaled`              | **Krea 2 Turbo** - Fast 8-step, strong in-image text     | Text-heavy images and fast iteration, up to 2K                                                               |
+| `flux3_image_klein_sd_int8_convrot`   | **FLUX 3 Image Klein** - Black Forest Labs, 16-step      | Text-to-image, image-to-image and edits from 1-10 reference images, up to 4096px (4K)                        |
 | `krea2_identity_edit_v1_2`            | **Krea 2 Identity Edit LoRA v1.2** - Identity editing    | Preserve a subject across edits with 1-2 reference images                                                    |
 | `chroma1-hd_fp8_scaled`               | **Chroma1-HD** - Final high-res Chroma (uncensored)      | Highest-fidelity Chroma output, LoRA-capable                                                                 |
 | `qwen_image_edit_2511_fp8_lightning`  | **Qwen Image Edit Lightning** - Fast 4-step editing      | Rapid reference-based image generation                                                                       |
@@ -1685,6 +1745,8 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `seedance-2-0`                        | **Seedance 2.0** - 4K external API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-mini`                   | **Seedance 2.0 Mini** - 720p external API video          | Fastest, lower-cost 24fps Seedance video generation                                                          |
 | `seedance-2-5`                        | **Seedance 2.5** - up to 1080p external API video         | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs |
+| `seedance-2-5-uncensored`             | **Seedance 2.5 Uncensored** - Seedance 2.5, uncensored    | Same as Seedance 2.5; accept the one-time agreement in a Sogni app first (error 4103 until then)             |
+| `seedance-2-0-mini-uncensored`        | **Seedance 2.0 Mini Uncensored** - Seedance 2.0 Mini, uncensored | Same as Seedance 2.0 Mini; accept the same one-time agreement in a Sogni app first (error 4103 until then) |
 | `dark_beast_z_image_turbo_v9_bf16`    | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                     |
 | `dark_beast_krea2_fp8`                | **Dark Beast KREA 2** - Community (uncensored)           | Uncensored Krea 2 fine-tune (2K output needs a 24GB+ VRAM worker)                                            |
 | `dark_beast_krea2_identity_edit_v1_2` | **Dark Beast Krea 2 Identity Edit** - Community          | Uncensored identity-preserving Krea 2 edit LoRA with 1-2 reference images                                    |
@@ -1730,7 +1792,7 @@ When helping users generate images, videos, or use LLM features with Sogni:
 
 1. **Image generation**: Use `type: 'image'` with models like `flux1-schnell-fp8`
 2. **Video generation**: Use `type: 'video'` with `network: 'fast'` (required)
-3. **Audio generation**: Use `type: 'audio'` with ACE-Step 1.5 models
+3. **Audio generation**: Use `type: 'audio'` with `minimax_music3` (MiniMax Music 3, the default) or ACE-Step 1.5 models
 4. **LLM text chat**: Use `sogni.chat.completions.create()` for text generation with streaming and tool calling
 5. **Sogni Platform Tools**: Combine LLM tool calling with Sogni media generation to create images, image edits, videos, audio-driven videos, video transforms, and music from natural language
 6. **Vision chat**: Use `qwen3.6-35b-a3b-gguf-iq4xs` VLM for multimodal image understanding with `image_url` content parts carrying inline base64 JPEG/PNG `data:` URIs. Vision requests allow up to 20 images, 10MB each, with longest side capped at 1024px. This 1024px dimension cap applies only to the vision `image_url` path, not to media-generation tool image inputs.

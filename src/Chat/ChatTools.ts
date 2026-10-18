@@ -22,6 +22,8 @@ import {
   isExternalApiVideoModel,
   isMinimaxH3Model,
   isNonEmptyString,
+  MINIMAX_MUSIC3_MAX_DURATION_SECONDS,
+  MUSIC_MODEL_IDS,
   normalizeTimeSignature,
   normalizeVideoControlMode,
   PREFERRED_MODEL_IDS,
@@ -1019,11 +1021,26 @@ class ChatToolsApi {
     args: Record<string, unknown>,
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
+    const requestedModel = resolveHostedToolModelSelector('generate_music', args);
+    // Music models only, MiniMax Music 3 first: a model-less call gets Music 3,
+    // and a song request never lands on a speech model. A model-less track
+    // longer than Music 3's 300 s ceiling goes to ACE-Step (10-600 s), the only
+    // models that can render it; a Music 3 request over 300 s is refused upstream.
+    const duration = asFiniteNumber(args.duration);
+    const candidates =
+      !requestedModel && duration !== undefined && duration > MINIMAX_MUSIC3_MAX_DURATION_SECONDS
+        ? MUSIC_MODEL_IDS.filter((id) => id !== PREFERRED_MODEL_IDS.audio.minimaxMusic3)
+        : MUSIC_MODEL_IDS;
     const modelId = await this.selectModel({
       mediaType: 'audio',
-      requestedModel: resolveHostedToolModelSelector('generate_music', args),
-      preferredModelIds: Object.values(PREFERRED_MODEL_IDS.audio)
+      requestedModel,
+      filter: (id) => candidates.includes(id),
+      preferredModelIds: candidates
     });
+    // MiniMax Music 3 has no tempo, key, time-signature, language, composer or
+    // creativity controls (tempo and key belong in its prompt), so those
+    // ACE-Step arguments are not sent with it.
+    const aceControls = modelId !== PREFERRED_MODEL_IDS.audio.minimaxMusic3;
 
     const projectParams: Record<string, unknown> = {
       type: 'audio' as const,
@@ -1033,23 +1050,23 @@ class ChatToolsApi {
     };
 
     if (args.duration !== undefined) projectParams.duration = args.duration;
-    if (args.bpm !== undefined) projectParams.bpm = args.bpm;
-    if (args.keyscale) projectParams.keyscale = args.keyscale;
+    if (aceControls && args.bpm !== undefined) projectParams.bpm = args.bpm;
+    if (aceControls && args.keyscale) projectParams.keyscale = args.keyscale;
     if (args.lyrics) projectParams.lyrics = args.lyrics;
-    if (args.language) projectParams.language = args.language;
+    if (aceControls && args.language) projectParams.language = args.language;
     if (args.output_format) projectParams.outputFormat = args.output_format;
 
     const timeSignature = normalizeTimeSignature(args.timesignature);
-    if (timeSignature) projectParams.timesignature = timeSignature;
+    if (aceControls && timeSignature) projectParams.timesignature = timeSignature;
 
     const composerMode = asBooleanValue(args.composer_mode);
-    if (composerMode !== undefined) projectParams.composerMode = composerMode;
+    if (aceControls && composerMode !== undefined) projectParams.composerMode = composerMode;
 
     const promptStrength = asFiniteNumber(args.prompt_strength);
     if (promptStrength !== undefined) projectParams.promptStrength = promptStrength;
 
     const creativity = asFiniteNumber(args.creativity);
-    if (creativity !== undefined) projectParams.creativity = creativity;
+    if (aceControls && creativity !== undefined) projectParams.creativity = creativity;
 
     if (args.seed !== undefined) projectParams.seed = args.seed;
     if (options?.tokenType) projectParams.tokenType = options.tokenType;

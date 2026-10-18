@@ -17,6 +17,7 @@
 import { SogniClient } from '../dist/index.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { exampleAppId } from './app-id.mjs';
 
 function arg(name, fallback) {
   const hit = process.argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
@@ -61,7 +62,7 @@ fs.mkdirSync(OUT, { recursive: true });
 
 // API-key auth is configured on the instance; there is no separate login call.
 const sogni = await SogniClient.createInstance({
-  appId: `lora-examples-${Date.now()}`,
+  appId: exampleAppId('lora-examples'),
   network: 'fast',
   apiKey
 });
