@@ -1,3 +1,10 @@
+## [5.65.1](https://github.com/Sogni-AI/sogni-client/compare/v5.65.0...v5.65.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **socket:** take over from a silent primary tab instead of forwarding to it ([4412936](https://github.com/Sogni-AI/sogni-client/commit/44129363f0f6f5924ac9ee9dd95262d43b93bb2f))
+
 # [5.65.0](https://github.com/Sogni-AI/sogni-client/compare/v5.64.0...v5.65.0) (2026-10-18)
 
 
