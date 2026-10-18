@@ -1,3 +1,16 @@
+# [5.65.0](https://github.com/Sogni-AI/sogni-client/compare/v5.64.0...v5.65.0) (2026-10-18)
+
+
+### Bug Fixes
+
+* **deps:** consume published MOSS protocol definitions ([0c063bf](https://github.com/Sogni-AI/sogni-client/commit/0c063bf6efea753344596be45b77057a32ee46c5))
+* **models:** refresh MOSS hosted schema parity receipt ([233fd09](https://github.com/Sogni-AI/sogni-client/commit/233fd09b61eacf3be9679a6e2c6a2d0b39612739))
+
+
+### Features
+
+* **models:** add MOSS generation presets and routing ([5a54e7b](https://github.com/Sogni-AI/sogni-client/commit/5a54e7bb806baa95a9b2cddb86b1c713f0cdd41b))
+
 # [5.64.0](https://github.com/Sogni-AI/sogni-client/compare/v5.63.4...v5.64.0) (2026-10-17)
 
 
