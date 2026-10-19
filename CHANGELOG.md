@@ -1,3 +1,10 @@
+# [5.66.0](https://github.com/Sogni-AI/sogni-client/compare/v5.65.1...v5.66.0) (2026-10-19)
+
+
+### Features
+
+* **images:** support optional MOSS spatial scaling ([9f2f55d](https://github.com/Sogni-AI/sogni-client/commit/9f2f55dd6b52c41c7d20af9f6b9a36bce3b0961c))
+
 ## [5.65.1](https://github.com/Sogni-AI/sogni-client/compare/v5.65.0...v5.65.1) (2026-10-18)
 
 
