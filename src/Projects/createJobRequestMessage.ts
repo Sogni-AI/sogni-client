@@ -1372,15 +1372,32 @@ function applyImageParams(
   params: ImageProjectParams,
   options: ImageModelOptions
 ) {
-  if (['moss_image_sft_int8_convrot', 'moss_image_sft_dmd8_int8_convrot'].includes(params.modelId) &&
-      (params.startingImage || params.contextImages?.length)) {
-    throw new Error('MOSS-Image SFT generates from text and does not accept guide or reference images.');
+  if (
+    ['moss_image_sft_int8_convrot', 'moss_image_sft_dmd8_int8_convrot'].includes(params.modelId) &&
+    (params.startingImage || params.contextImages?.length)
+  ) {
+    throw new Error(
+      'MOSS-Image SFT generates from text and does not accept guide or reference images.'
+    );
   }
   const keyFrame: Record<string, any> = {
     ...inputKeyframe,
     sizePreset: params.sizePreset
   };
   const contextImages = params.contextImages || [];
+  for (const name of ['mossRopeScaleX', 'mossRopeScaleY'] as const) {
+    const value = params[name];
+    if (value === undefined) continue;
+    if (
+      !['moss_image_sft_int8_convrot', 'moss_image_sft_dmd8_int8_convrot'].includes(params.modelId)
+    ) {
+      throw new Error(`${name} is only supported by MOSS-Image`);
+    }
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) {
+      throw new Error(`${name} must be a finite number between 0 and 100`);
+    }
+    if (value !== 1) keyFrame[name] = value;
+  }
   for (let index = 1; index <= 16; index += 1) {
     keyFrame[`hasContextImage${index}`] = !!contextImages[index - 1];
   }

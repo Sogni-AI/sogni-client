@@ -931,6 +931,10 @@ export interface Sam3Selection {
 export interface ImageProjectParams
   extends BaseProjectParams, Pixal3dGenerationOptions, Pixal3dMultiViewImages {
   type: 'image';
+  /** MOSS only: horizontal spatial scaling, 0–100; 1 is neutral. Changes composition, not output size. */
+  mossRopeScaleX?: number;
+  /** MOSS only: vertical spatial scaling, 0–100; 1 is neutral. */
+  mossRopeScaleY?: number;
   /**
    * Number of previews to generate. Note that previews affect project cost
    */

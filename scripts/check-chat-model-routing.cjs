@@ -161,6 +161,44 @@ const mossOptions = {
   scheduler: { allowed: ['sgm_uniform'], default: 'sgm_uniform' }
 };
 const mossRequest = createJobRequestMessage('moss-wire', mossParams, mossOptions);
+assert.equal(mossRequest.keyFrames[0].mossRopeScaleX, undefined);
+assert.equal(
+  createJobRequestMessage(
+    'moss-neutral',
+    {
+      ...mossParams,
+      mossRopeScaleX: 1,
+      mossRopeScaleY: 1
+    },
+    mossOptions
+  ).keyFrames[0].mossRopeScaleX,
+  undefined
+);
+const scaledMoss = createJobRequestMessage(
+  'moss-scaled',
+  {
+    ...mossParams,
+    mossRopeScaleX: 0.5,
+    mossRopeScaleY: 0
+  },
+  mossOptions
+).keyFrames[0];
+assert.equal(scaledMoss.mossRopeScaleX, 0.5);
+assert.equal(scaledMoss.mossRopeScaleY, 0);
+for (const value of [-1, 101, NaN, Infinity, '0.5', null]) {
+  assert.throws(
+    () =>
+      createJobRequestMessage(
+        'moss-invalid',
+        {
+          ...mossParams,
+          mossRopeScaleX: value
+        },
+        mossOptions
+      ),
+    /must be a finite number between 0 and 100/
+  );
+}
 const mossFastId = 'moss_image_sft_dmd8_int8_convrot';
 assert.equal(resolveHostedToolModelSelector('generate_image', { model: 'moss-image-8step' }), mossFastId);
 assert.equal(isEditImageModel(mossFastId), false);

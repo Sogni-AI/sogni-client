@@ -1731,6 +1731,10 @@ work. Lower `meshTargetFaces` for a game-ready asset. `shapeResolution` is
 
 The workflow examples showcase a few powerful open-source frontier models supported by Sogni Supernet:
 
+Both MOSS presets accept optional `mossRopeScaleX` and `mossRopeScaleY`
+(0–100, neutral 1) to adjust spatial composition. These controls preserve the
+requested output dimensions; omitted or neutral values preserve existing behavior.
+
 MOSS-Image SFT (`moss_image_sft_int8_convrot`, hosted selector `moss-image`)
 generates from captions, tags, or experimental JSON layouts. Start with 1024×1024,
 50 steps, guidance 3, `sampler: 'euler'`, and `scheduler: 'sgm_uniform'`.
