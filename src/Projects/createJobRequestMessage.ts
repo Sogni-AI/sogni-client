@@ -46,6 +46,7 @@ import {
   isMinimaxH3ReferenceModel,
   isMinimaxH3AudioGuideModel,
   isMinimaxH3KeyframeModel,
+  isMinimaxH3ExtendModel,
   isExternalApiVideoModel,
   usesReferenceMask,
   countMinimaxH3References,
@@ -1689,6 +1690,19 @@ function applyVideoParams(
   }
   if (params.generateAudio !== undefined) {
     keyFrame.generateAudio = params.generateAudio;
+  }
+  if (params.extendOutput !== undefined) {
+    if (!params.referenceVideo || !isMinimaxH3ExtendModel(params.modelId)) {
+      throw new Error(
+        'extendOutput applies only to a MiniMax H3 video extension: a referenceVideo on a model that extends (isMinimaxH3ExtendModel).'
+      );
+    }
+    if (params.extendOutput !== 'extended' && params.extendOutput !== 'continuation') {
+      throw new Error(
+        "extendOutput must be 'extended' (the source and the new footage as one video) or 'continuation' (the new footage alone)."
+      );
+    }
+    keyFrame.extendOutput = params.extendOutput;
   }
   if (params.referenceFileUrl !== undefined) {
     keyFrame.referenceFileURL = params.referenceFileUrl;

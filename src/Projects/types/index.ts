@@ -647,6 +647,13 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   generateAudio?: boolean;
   /**
+   * MiniMax H3 video extension only (a `referenceVideo` on a model
+   * `isMinimaxH3ExtendModel` accepts): `'extended'`, the default, delivers the
+   * source and the new footage as one video, its audio crossfaded at the join;
+   * `'continuation'` delivers the new footage alone.
+   */
+  extendOutput?: 'extended' | 'continuation';
+  /**
    * Reference audio for ID-LoRA speaker identity transfer (LTX-2.3 only).
    * Provide a ~5 second audio clip of the target speaker's voice.
    * The model uses this to transfer vocal identity into the generated video.

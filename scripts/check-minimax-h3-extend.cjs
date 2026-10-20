@@ -9,7 +9,8 @@
  *   t2v; LightX2V Turbo, non-H3 t2v models and other H3 workflows still forbid one;
  * - the source rides as the unnumbered referenceVideo upload with
  *   hasReferenceVideo (the flag sogni-socket reads as an extension), and a job
- *   without one is unchanged;
+ *   without one is unchanged; extendOutput ('extended' by default, or
+ *   'continuation') is sent only with a source, and only when asked;
  * - external video URLs stay refused, because the worker needs a Sogni upload;
  * - estimateVideoCost sends hasVideoInput=1 with the source, so the quote
  *   prices the extension the job is charged for.
@@ -120,6 +121,33 @@ for (const modelId of ['minimax-h3-fastvideo-int8_i2v_turbo', 'minimax-h3-fl2va-
 const source = Buffer.from('source video');
 const extended = keyFrame({ referenceVideo: source });
 assert.equal(extended.hasReferenceVideo, true);
+// Delivery: left to the default (the whole extended video) unless asked; the new footage alone on request.
+assert.equal(extended.extendOutput, undefined, 'the default delivery is not sent');
+assert.equal(
+  keyFrame({ referenceVideo: source, extendOutput: 'continuation' }).extendOutput,
+  'continuation'
+);
+assert.equal(
+  keyFrame({ referenceVideo: source, extendOutput: 'extended' }).extendOutput,
+  'extended'
+);
+assert.throws(
+  () => keyFrame({ referenceVideo: source, extendOutput: 'both' }),
+  /extendOutput must be 'extended'/
+);
+assert.throws(
+  () => keyFrame({ extendOutput: 'continuation' }),
+  /applies only to a MiniMax H3 video extension/
+);
+assert.throws(
+  () =>
+    keyFrame({
+      modelId: 'minimax-h3-fastvideo-int8_i2v_turbo',
+      referenceImage: Buffer.from('i'),
+      extendOutput: 'continuation'
+    }),
+  /applies only to a MiniMax H3 video extension/
+);
 assert.deepEqual(
   Object.keys(extended).filter((key) => /^hasReferenceVideo\d/.test(key)),
   []
