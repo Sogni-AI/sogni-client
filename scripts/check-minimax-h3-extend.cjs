@@ -4,10 +4,9 @@
  * continues that video from its last 22 frames and their audio. Runs against
  * compiled output so it also checks the published API shape.
  *
- * - FastH3 text-to-video accepts an optional referenceVideo and every other
- *   entry of its table matches generic t2v; the other H3 t2v tiers and the
- *   two-stage id (not offered yet), non-H3 t2v models and other H3 workflows
- *   still forbid one;
+ * - every H3 text-to-video tier and FastH3 two-stage accept an optional
+ *   referenceVideo and every other entry of their table matches generic t2v;
+ *   non-H3 t2v models and other H3 workflows still forbid one;
  * - the source rides as the unnumbered referenceVideo upload with
  *   hasReferenceVideo (the flag sogni-socket reads as an extension), and a job
  *   without one is unchanged;
@@ -27,12 +26,21 @@ const {
 const ProjectsApi = require('../dist/Projects/index.js').default;
 
 const EXTEND_ID = 'minimax-h3-fastvideo-int8_t2v_turbo';
-const NOT_YET_IDS = [
+const EXTEND_IDS = [
   'minimax-h3-fl2va-fp8_t2v',
   'minimax-h3-fl2va-fp8_t2v_turbo',
   'minimax-h3-fl2va-fp8_t2v_balanced',
+  EXTEND_ID,
   'minimax-h3-fastvideo-int8_t2v_turbo_2stage'
 ];
+// Each tier pins its own step count.
+const STEPS = {
+  'minimax-h3-fl2va-fp8_t2v': 20,
+  'minimax-h3-fl2va-fp8_t2v_balanced': 8,
+  'minimax-h3-fl2va-fp8_t2v_turbo': 4,
+  [EXTEND_ID]: 4,
+  'minimax-h3-fastvideo-int8_t2v_turbo_2stage': 4
+};
 const options = {
   type: 'video',
   steps: { min: 4, max: 4, step: 1, default: 4 },
@@ -54,14 +62,32 @@ const params = (overrides = {}) => ({
   scheduler: 'simple',
   ...overrides
 });
-const keyFrame = (overrides) => createJobRequestMessage('h3-extend', params(overrides), options).keyFrames[0];
+const keyFrame = (overrides) => {
+  const steps = overrides.steps ?? STEPS[overrides.modelId ?? EXTEND_ID];
+  const stepOptions = { ...options, steps: { min: steps, max: steps, step: 1, default: steps } };
+  return createJobRequestMessage('h3-extend', params({ ...overrides, steps }), stepOptions)
+    .keyFrames[0];
+};
 
-assert.equal(isMinimaxH3ExtendModel(EXTEND_ID), true);
-assert.equal(getVideoAssetRequirements(EXTEND_ID), MINIMAX_H3_T2V_ASSETS, 'FastH3 t2v uses the extension table');
-for (const modelId of NOT_YET_IDS) {
-  assert.equal(isMinimaxH3ExtendModel(modelId), false, `${modelId} does not extend yet`);
-  assert.equal(getVideoAssetRequirements(modelId).referenceVideo, 'forbidden', `${modelId} still forbids a video`);
-  assert.throws(() => keyFrame({ modelId, referenceVideo: Buffer.from('v') }), /referenceVideo/, `${modelId} refuses a source`);
+for (const modelId of EXTEND_IDS) {
+  assert.equal(isMinimaxH3ExtendModel(modelId), true, `${modelId} extends`);
+  assert.equal(
+    getVideoAssetRequirements(modelId),
+    MINIMAX_H3_T2V_ASSETS,
+    `${modelId} uses the extension table`
+  );
+  assert.equal(
+    keyFrame({ modelId, referenceVideo: Buffer.from('v') }).hasReferenceVideo,
+    true,
+    `${modelId} carries a source`
+  );
+}
+for (const modelId of [
+  'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_a2v_turbo',
+  'minimax-h3-ref2va-fp8_r2v_turbo'
+]) {
+  assert.equal(isMinimaxH3ExtendModel(modelId), false, `${modelId} does not extend`);
 }
 assert.deepEqual(
   { ...MINIMAX_H3_T2V_ASSETS, referenceVideo: VIDEO_WORKFLOW_ASSETS.t2v.referenceVideo },
@@ -69,26 +95,45 @@ assert.deepEqual(
   'only referenceVideo differs from generic t2v'
 );
 assert.equal(MINIMAX_H3_T2V_ASSETS.referenceVideo, 'optional');
-assert.equal(VIDEO_WORKFLOW_ASSETS.t2v.referenceVideo, 'forbidden', 'generic t2v still forbids a video');
+assert.equal(
+  VIDEO_WORKFLOW_ASSETS.t2v.referenceVideo,
+  'forbidden',
+  'generic t2v still forbids a video'
+);
 assert.equal(getVideoAssetRequirements('wan_v2.2-14b-fp8_t2v').referenceVideo, 'forbidden');
 for (const modelId of ['minimax-h3-fastvideo-int8_i2v_turbo', 'minimax-h3-fl2va-fp8_flf2v']) {
-  assert.equal(getVideoAssetRequirements(modelId).referenceVideo, 'forbidden', `${modelId} forbids a video`);
+  assert.equal(
+    getVideoAssetRequirements(modelId).referenceVideo,
+    'forbidden',
+    `${modelId} forbids a video`
+  );
 }
 
 // The source rides as the unnumbered referenceVideo upload.
 const source = Buffer.from('source video');
 const extended = keyFrame({ referenceVideo: source });
 assert.equal(extended.hasReferenceVideo, true);
-assert.deepEqual(Object.keys(extended).filter((key) => /^hasReferenceVideo\d/.test(key)), []);
-assert.equal(extended.frames, 141, 'the job renders the full frame count; the worker trims the pinned head');
+assert.deepEqual(
+  Object.keys(extended).filter((key) => /^hasReferenceVideo\d/.test(key)),
+  []
+);
+assert.equal(
+  extended.frames,
+  141,
+  'the job renders the full frame count; the worker trims the pinned head'
+);
 const plain = keyFrame({});
 assert.equal(plain.hasReferenceVideo, undefined, 'without a source it is ordinary text-to-video');
+assert.throws(() => keyFrame({ referenceVideoUrls: ['https://example.com/source.mp4'] }), {
+  message: 'External reference URLs are supported only by Seedance, HappyHorse, and Wan 3 models.'
+});
 assert.throws(
-  () => keyFrame({ referenceVideoUrls: ['https://example.com/source.mp4'] }),
-  { message: 'External reference URLs are supported only by Seedance, HappyHorse, and Wan 3 models.' }
-);
-assert.throws(
-  () => keyFrame({ modelId: 'minimax-h3-fastvideo-int8_i2v_turbo', referenceImage: source, referenceVideo: source }),
+  () =>
+    keyFrame({
+      modelId: 'minimax-h3-fastvideo-int8_i2v_turbo',
+      referenceImage: source,
+      referenceVideo: source
+    }),
   /i2v workflow does not support referenceVideo|referenceVideo/
 );
 
@@ -100,7 +145,13 @@ class SocketStub extends EventEmitter {
   }
   async get(path) {
     this.paths.push(path);
-    const cost = { costInToken: '1', costInUSD: '0.01', costInSpark: '2', costInSogni: '3', costInRenderSec: '8' };
+    const cost = {
+      costInToken: '1',
+      costInUSD: '0.01',
+      costInSpark: '2',
+      costInSogni: '3',
+      costInRenderSec: '8'
+    };
     return { quote: { job: cost, project: cost } };
   }
 }

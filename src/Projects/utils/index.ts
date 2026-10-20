@@ -530,13 +530,21 @@ export function isMinimaxH3KeyframeModel(modelId: string): boolean {
 }
 
 /**
- * MiniMax H3 models that extend a video: FastH3 text-to-video
- * (`minimax-h3-fastvideo-int8_t2v_turbo`) carrying `referenceVideo`. The clip
- * continues the source from its last 22 frames and their audio. Other tiers
- * and the two-stage id follow as each is qualified.
+ * MiniMax H3 models that extend a video: every text-to-video tier (Standard,
+ * Balanced, LightX2V Turbo, FastH3) and FastH3 two-stage, carrying
+ * `referenceVideo`. The clip continues the source from its last 22 frames and
+ * their audio.
  */
+const MINIMAX_H3_EXTEND_MODEL_IDS = new Set([
+  'minimax-h3-fl2va-fp8_t2v',
+  'minimax-h3-fl2va-fp8_t2v_balanced',
+  'minimax-h3-fl2va-fp8_t2v_turbo',
+  'minimax-h3-fastvideo-int8_t2v_turbo',
+  'minimax-h3-fastvideo-int8_t2v_turbo_2stage'
+]);
+
 export function isMinimaxH3ExtendModel(modelId: string): boolean {
-  return modelId === 'minimax-h3-fastvideo-int8_t2v_turbo';
+  return MINIMAX_H3_EXTEND_MODEL_IDS.has(modelId);
 }
 
 /**
