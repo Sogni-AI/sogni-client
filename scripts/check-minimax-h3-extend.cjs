@@ -4,9 +4,9 @@
  * continues that video from its last 22 frames and their audio. Runs against
  * compiled output so it also checks the published API shape.
  *
- * - every H3 text-to-video tier and FastH3 two-stage accept an optional
- *   referenceVideo and every other entry of their table matches generic t2v;
- *   non-H3 t2v models and other H3 workflows still forbid one;
+ * - Standard, Balanced and FastH3 text-to-video and FastH3 two-stage accept an
+ *   optional referenceVideo and every other entry of their table matches generic
+ *   t2v; LightX2V Turbo, non-H3 t2v models and other H3 workflows still forbid one;
  * - the source rides as the unnumbered referenceVideo upload with
  *   hasReferenceVideo (the flag sogni-socket reads as an extension), and a job
  *   without one is unchanged;
@@ -28,7 +28,6 @@ const ProjectsApi = require('../dist/Projects/index.js').default;
 const EXTEND_ID = 'minimax-h3-fastvideo-int8_t2v_turbo';
 const EXTEND_IDS = [
   'minimax-h3-fl2va-fp8_t2v',
-  'minimax-h3-fl2va-fp8_t2v_turbo',
   'minimax-h3-fl2va-fp8_t2v_balanced',
   EXTEND_ID,
   'minimax-h3-fastvideo-int8_t2v_turbo_2stage'
@@ -89,6 +88,14 @@ for (const modelId of [
 ]) {
   assert.equal(isMinimaxH3ExtendModel(modelId), false, `${modelId} does not extend`);
 }
+// LightX2V Turbo lost the source a few frames after the join in testing, so it still refuses one.
+const LIGHTX2V_TURBO = 'minimax-h3-fl2va-fp8_t2v_turbo';
+assert.equal(isMinimaxH3ExtendModel(LIGHTX2V_TURBO), false);
+assert.equal(getVideoAssetRequirements(LIGHTX2V_TURBO).referenceVideo, 'forbidden');
+assert.throws(
+  () => keyFrame({ modelId: LIGHTX2V_TURBO, referenceVideo: Buffer.from('v') }),
+  /referenceVideo/
+);
 assert.deepEqual(
   { ...MINIMAX_H3_T2V_ASSETS, referenceVideo: VIDEO_WORKFLOW_ASSETS.t2v.referenceVideo },
   VIDEO_WORKFLOW_ASSETS.t2v,
