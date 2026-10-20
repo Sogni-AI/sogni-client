@@ -530,6 +530,16 @@ export function isMinimaxH3KeyframeModel(modelId: string): boolean {
 }
 
 /**
+ * MiniMax H3 models that extend a video: FastH3 text-to-video
+ * (`minimax-h3-fastvideo-int8_t2v_turbo`) carrying `referenceVideo`. The clip
+ * continues the source from its last 22 frames and their audio. Other tiers
+ * and the two-stage id follow as each is qualified.
+ */
+export function isMinimaxH3ExtendModel(modelId: string): boolean {
+  return modelId === 'minimax-h3-fastvideo-int8_t2v_turbo';
+}
+
+/**
  * Check if a model ID is an external API-backed video model.
  *
  * These vendor families share the external API routing path: Spark-only
@@ -969,6 +979,18 @@ export const MINIMAX_H3_I2V_ASSETS: Record<VideoAssetKey, AssetRequirement> = {
 };
 
 /**
+ * MiniMax H3 text-to-video on the models that extend (`isMinimaxH3ExtendModel`):
+ * with `referenceVideo` the worker continues the source from its last 22 frames
+ * (0.92 s at 24 fps) and their audio, and the delivered clip starts on the frame
+ * after the source's last frame (`frames - 22` long). Without a source it is
+ * ordinary text-to-video. Every other entry matches the generic `t2v` table.
+ */
+export const MINIMAX_H3_T2V_ASSETS: Record<VideoAssetKey, AssetRequirement> = {
+  ...VIDEO_WORKFLOW_ASSETS.t2v,
+  referenceVideo: 'optional'
+};
+
+/**
  * One reference image, resolved to the upload slot that carries it.
  */
 export interface VideoContextImageSlot {
@@ -1110,6 +1132,9 @@ export function getVideoAssetRequirements(
   }
   if (workflowType === 'i2v' && isMinimaxH3Model(modelId)) {
     return MINIMAX_H3_I2V_ASSETS;
+  }
+  if (workflowType === 't2v' && isMinimaxH3ExtendModel(modelId)) {
+    return MINIMAX_H3_T2V_ASSETS;
   }
   return VIDEO_WORKFLOW_ASSETS[workflowType];
 }
