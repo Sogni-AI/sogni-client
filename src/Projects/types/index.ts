@@ -270,8 +270,8 @@ export interface MinimaxH3Keyframe {
  *   using the `_2stage` model id and that canvas.
  * - FastH3 Reference (`minimax-h3-fastvideo-omni-int8_r2v_turbo`) is
  *   FastVideo's FastH3 Omni, its own distilled `r2v` checkpoint, with the same
- *   references, catalog LoRAs, frame grid and canvas as the other `r2v` IDs;
- *   Personal LoRAs are not available on it. Its
+ *   references, catalog and Personal LoRAs, frame grid and canvas as the other
+ *   `r2v` IDs. Its
  *   two-stage ID (`minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage`) takes the
  *   same request and delivers twice the canvas, with the same 384/544/768 px
  *   canvas choices as the other Two-Stage IDs.

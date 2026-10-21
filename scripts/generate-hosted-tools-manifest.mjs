@@ -132,7 +132,7 @@ if (generateVideoModel) {
   );
   generateVideoModel.description = appendDescriptionOnce(
     generateVideoModel.description,
-    'MiniMax H3 FastH3 Reference is the FastH3 tier\'s reference-to-video engine, FastVideo\'s FastH3 Omni on its own distilled Ref2VA checkpoint, about twice as fast as Balanced Reference; use "minimax-h3-fasth3-r2v-turbo" with the same references, durations and catalog LoRAs as the other R2V selectors (Personal LoRAs are not available on it). "minimax-h3-fasth3-r2v-turbo-2stage" is its two-stage form: targetResolution names the delivered class exactly as for the other two-stage selectors (1080, 1440 or omitted for 2K, 720), and it bills its own rate plus the two-stage surcharge of that class.'
+    'MiniMax H3 FastH3 Reference is the FastH3 tier\'s reference-to-video engine, FastVideo\'s FastH3 Omni on its own distilled Ref2VA checkpoint, about twice as fast as Balanced Reference; use "minimax-h3-fasth3-r2v-turbo" with the same references, durations, catalog LoRAs and Personal LoRAs as the other R2V selectors. "minimax-h3-fasth3-r2v-turbo-2stage" is its two-stage form: targetResolution names the delivered class exactly as for the other two-stage selectors (1080, 1440 or omitted for 2K, 720), and it bills its own rate plus the two-stage surcharge of that class.'
   );
 }
 
