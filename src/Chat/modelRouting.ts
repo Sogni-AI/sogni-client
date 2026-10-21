@@ -181,6 +181,10 @@ export const PREFERRED_MODEL_IDS = {
     // own id, rendered on the half canvas and delivered at 2x.
     minimaxH3TwoStageR2v: 'minimax-h3-ref2va-fp8_r2v_2stage',
     minimaxH3BalancedTwoStageR2v: 'minimax-h3-ref2va-fp8_r2v_balanced_2stage',
+    // FastH3 Reference: FastVideo's FastH3 Omni, the FastH3 tier's own
+    // reference-to-video checkpoint, and its two-stage id.
+    minimaxH3FastH3TurboR2v: 'minimax-h3-fastvideo-omni-int8_r2v_turbo',
+    minimaxH3FastH3TwoStageR2v: 'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage',
     animateMove: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
     animateReplace: 'wan_v2.2-14b-fp8_animate-replace_lightx2v'
   },
@@ -347,6 +351,8 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-r2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedR2v,
   'minimax-h3-r2v-2stage': PREFERRED_MODEL_IDS.video.minimaxH3TwoStageR2v,
   'minimax-h3-r2v-balanced-2stage': PREFERRED_MODEL_IDS.video.minimaxH3BalancedTwoStageR2v,
+  'minimax-h3-fasth3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboR2v,
+  'minimax-h3-fasth3-r2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageR2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseT2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseT2v,
   wan3: PREFERRED_MODEL_IDS.video.wan3,
@@ -385,6 +391,8 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-r2v-balanced': PREFERRED_MODEL_IDS.video.minimaxH3BalancedR2v,
   'minimax-h3-r2v-2stage': PREFERRED_MODEL_IDS.video.minimaxH3TwoStageR2v,
   'minimax-h3-r2v-balanced-2stage': PREFERRED_MODEL_IDS.video.minimaxH3BalancedTwoStageR2v,
+  'minimax-h3-fasth3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboR2v,
+  'minimax-h3-fasth3-r2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageR2v,
   happyhorse: PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseI2v,
   'happyhorse-1.1-i2v': PREFERRED_MODEL_IDS.video.happyhorseI2v,

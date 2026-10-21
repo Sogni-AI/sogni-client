@@ -31,7 +31,9 @@ const {
   isHappyhorseModel,
   isLtx2Model,
   isMinimaxH3BalancedModel,
+  isMinimaxH3FastH3ReferenceModel,
   isMinimaxH3Model,
+  isMinimaxH3ReferenceModel,
   isMinimaxH3TurboModel,
   isSeedanceModel,
   isVideoModel,
@@ -470,7 +472,8 @@ for (const schema of [generateVideoModelSchema, animatePhotoModelSchema]) {
   assert.match(schema.description, /1344x768 delivers 2688x1536/);
   assert.match(schema.description, /672x384 delivers 1344x768/);
 }
-assert.ok(!generateVideoModelSchema.enum.includes('minimax-h3-fasth3-r2v-turbo'));
+assert.doesNotMatch(generateVideoModelSchema.description, /FastH3 has no R2V mode/);
+assert.doesNotMatch(animatePhotoModelSchema.description, /FastH3 has no R2V mode/);
 assert.match(generateVideoModelSchema.description, /FastVideo VSA four-step FastH3/);
 assert.match(generateVideoModelSchema.description, /Existing "minimax-h3-turbo" selectors remain LightX2V Turbo/);
 for (const selector of [
@@ -549,6 +552,41 @@ for (const [selector, expected] of [
 }
 assert.match(generateVideoLoraSchema.description, /"minimax-h3-r2v-2stage"/);
 assert.match(generateVideoLoraSchema.description, /"minimax-h3-r2v-balanced-2stage"/);
+// FastH3 Reference (FastVideo's FastH3 Omni): the FastH3 tier's own r2v
+// checkpoint and its two-stage id. The ids end in _turbo but run 8 steps, so
+// neither is a 4-step Turbo id nor a Balanced one.
+const minimaxH3FastH3R2vModelIds = {
+  oneStage: 'minimax-h3-fastvideo-omni-int8_r2v_turbo',
+  twoStage: 'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage'
+};
+for (const id of Object.values(minimaxH3FastH3R2vModelIds)) {
+  assert.equal(isVideoModel(id), true, id);
+  assert.equal(isMinimaxH3Model(id), true, id);
+  assert.equal(isMinimaxH3ReferenceModel(id), true, id);
+  assert.equal(isMinimaxH3FastH3ReferenceModel(id), true, id);
+  assert.equal(isMinimaxH3TurboModel(id), false, id);
+  assert.equal(isMinimaxH3BalancedModel(id), false, id);
+  assert.equal(getVideoWorkflowType(id), 'r2v', id);
+  assert.deepEqual(getVideoAssetRequirements(id), MINIMAX_H3_R2V_ASSETS, id);
+  assert.deepEqual(getVideoDefaults(id), { width: 1344, height: 768, fps: 24 }, id);
+}
+assert.equal(isMinimaxH3FastH3ReferenceModel('minimax-h3-fastvideo-int8_i2v_turbo'), false);
+assert.equal(isMinimaxH3FastH3ReferenceModel('minimax-h3-ref2va-fp8_r2v_turbo'), false);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboR2v, minimaxH3FastH3R2vModelIds.oneStage);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageR2v, minimaxH3FastH3R2vModelIds.twoStage);
+for (const [selector, expected] of [
+  ['minimax-h3-fasth3-r2v-turbo', minimaxH3FastH3R2vModelIds.oneStage],
+  ['minimax-h3-fasth3-r2v-turbo-2stage', minimaxH3FastH3R2vModelIds.twoStage]
+]) {
+  assert.ok(generateVideoModelSchema.enum.includes(selector), `${selector} is a hosted generate_video selector`);
+  assert.match(generateVideoLoraSchema.description, new RegExp(`"${selector}"`));
+  assert.equal(resolveHostedToolModelSelector('generate_video', { videoModel: selector }), expected);
+  assert.equal(
+    resolveHostedToolModelSelector('generate_video', { videoModel: selector, referenceImageIndices: [0] }),
+    expected
+  );
+}
+assert.match(generateVideoModelSchema.description, /MiniMax H3 FastH3 Reference/);
 assert.ok(Object.values(minimaxH3BalancedModelIds).every(isMinimaxH3Model));
 assert.ok(Object.values(minimaxH3BalancedModelIds).every(isMinimaxH3BalancedModel));
 assert.equal(isMinimaxH3TurboModel(minimaxH3ModelIds.t2v), false);

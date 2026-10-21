@@ -4,8 +4,8 @@
  * between the first and last frame on every H3 workflow except text-to-video.
  * Runs against compiled output so it also checks the published API shape.
  *
- * - exactly 21 ids accept keyframes (i2v and flf2v on every tier, the six Sound
- *   to Video ids and the five Ref2VA ids); t2v and every other model refuse a
+ * - exactly 23 ids accept keyframes (i2v and flf2v on every tier, the six Sound
+ *   to Video ids and the seven r2v ids); t2v and every other model refuse a
  *   non-empty list, and an empty list is no keyframes;
  * - keyframes[i].image rides in its own keyframeImage<i+1> slot (caller order)
  *   with hasKeyframeImage<i+1>, keyframeFrameIndices keeps the same order, and
@@ -30,6 +30,7 @@ const {
   getMinimaxH3KeyframeSlots,
   getVideoWorkflowType,
   isMinimaxH3BalancedModel,
+  isMinimaxH3FastH3ReferenceModel,
   isMinimaxH3KeyframeModel,
   isMinimaxH3Model,
   isMinimaxH3TurboModel,
@@ -70,7 +71,7 @@ const keyframeOptions = {
   scheduler: { allowed: ['simple'], default: 'simple' }
 };
 
-// The 21 keyframe ids, by workflow, and the five t2v ids that refuse keyframes.
+// The 23 keyframe ids, by workflow, and the five t2v ids that refuse keyframes.
 const minimaxH3KeyframeModelIds = [
   'minimax-h3-fl2va-fp8_i2v',
   'minimax-h3-fl2va-fp8_i2v_turbo',
@@ -92,7 +93,9 @@ const minimaxH3KeyframeModelIds = [
   'minimax-h3-ref2va-fp8_r2v_turbo',
   'minimax-h3-ref2va-fp8_r2v_balanced',
   'minimax-h3-ref2va-fp8_r2v_2stage',
-  'minimax-h3-ref2va-fp8_r2v_balanced_2stage'
+  'minimax-h3-ref2va-fp8_r2v_balanced_2stage',
+  'minimax-h3-fastvideo-omni-int8_r2v_turbo',
+  'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage'
 ];
 const minimaxH3NonKeyframeModelIds = [
   'minimax-h3-fl2va-fp8_t2v',
@@ -102,8 +105,8 @@ const minimaxH3NonKeyframeModelIds = [
   'minimax-h3-fastvideo-int8_t2v_turbo_2stage'
 ];
 assert.equal(MINIMAX_H3_MAX_KEYFRAMES, 8);
-assert.equal(minimaxH3KeyframeModelIds.length, 21);
-assert.equal(minimaxH3KeyframeModelIds.length + minimaxH3NonKeyframeModelIds.length, 26);
+assert.equal(minimaxH3KeyframeModelIds.length, 23);
+assert.equal(minimaxH3KeyframeModelIds.length + minimaxH3NonKeyframeModelIds.length, 28);
 for (const modelId of [...minimaxH3KeyframeModelIds, ...minimaxH3NonKeyframeModelIds]) {
   assert.equal(isMinimaxH3Model(modelId), true, `${modelId} is an H3 id`);
 }
@@ -140,7 +143,13 @@ const workflowUploads = {
   r2v: { referenceImage: true }
 };
 const keyframeSteps = (modelId) =>
-  isMinimaxH3TurboModel(modelId) ? 4 : isMinimaxH3BalancedModel(modelId) ? 8 : 20;
+  isMinimaxH3FastH3ReferenceModel(modelId)
+    ? 8
+    : isMinimaxH3TurboModel(modelId)
+      ? 4
+      : isMinimaxH3BalancedModel(modelId)
+        ? 8
+        : 20;
 const keyframeParams = (modelId, overrides = {}) => ({
   ...minimaxH3Params,
   modelId,

@@ -204,7 +204,9 @@ const otherH3 = [
   ['minimax-h3-fl2va-fp8_t2v_balanced', 8],
   ['minimax-h3-fl2va-fp8_i2v_balanced', 8],
   ['minimax-h3-fl2va-fp8_flf2v_balanced', 8],
-  ['minimax-h3-ref2va-fp8_r2v_balanced', 8]
+  ['minimax-h3-ref2va-fp8_r2v_balanced', 8],
+  ['minimax-h3-fastvideo-omni-int8_r2v_turbo', 8],
+  ['minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage', 8]
 ];
 for (const [modelId, steps] of otherH3) {
   assert.equal(sdk.isMinimaxH3AudioGuideModel(modelId), false, modelId);

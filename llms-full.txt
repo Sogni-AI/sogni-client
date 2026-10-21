@@ -1021,8 +1021,11 @@ own GPUs. Standard H3 uses 20-step res_multistep/simple sampling and Balanced
 uses eight steps. Existing fl2va/ref2va Turbo IDs use LightX2V; the
 fastvideo-int8 IDs use the separate FastVideo VSA FastH3 four-step engine,
 fixed to Euler/simple. FastH3 adds the audio guide driven by an uploaded audio
-(IA2V first frame + audio, FLFA2V first and last frame + audio, A2V audio only)
-and has no R2V mode. All use fixed 24fps,
+(IA2V first frame + audio, FLFA2V first and last frame + audio, A2V audio only).
+FastH3 Reference (minimax-h3-fastvideo-omni-int8_r2v_turbo) is the FastH3 tier's
+R2V: FastVideo's FastH3 Omni on its own distilled checkpoint, with a Two-Stage
+id. Despite the `_turbo` suffix it is not a four-step Turbo id, so omit `steps`
+for it. All use fixed 24fps,
 guidance 1, no negative prompt, the `124 + n*17` frame grid
 from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 
@@ -1050,6 +1053,8 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 | minimax-h3-fastvideo-int8_a2v_turbo_2stage | FastH3 Two-Stage uploaded audio to video (2x canvas delivery) | referenceAudio only |
 | minimax-h3-ref2va-fp8_r2v_2stage | Two-Stage reference-to-video, Standard 20 steps (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | minimax-h3-ref2va-fp8_r2v_balanced_2stage | Two-Stage reference-to-video, Balanced 8 steps (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+| minimax-h3-fastvideo-omni-int8_r2v_turbo | FastH3 Reference reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+| minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage | FastH3 Reference Two-Stage reference-to-video (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | minimax-h3-fl2va-fp8_t2v_balanced | Balanced text-to-video | none |
 | minimax-h3-fl2va-fp8_i2v_balanced | Balanced endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fl2va-fp8_flf2v_balanced | Balanced first-and-last-frame video | both anchor images required |
@@ -1058,19 +1063,20 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544.
 Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 
-All 26 current workflow ids are available through the Sogni projects API: four
+All 28 current workflow ids are available through the Sogni projects API: four
 Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with
-generated audio, three audio-guide), six FastH3 Two-Stage modes, and two Ref2VA
-Two-Stage modes (Standard and Balanced).
+generated audio, three audio-guide), six FastH3 Two-Stage modes, two Ref2VA
+Two-Stage modes (Standard and Balanced), and FastH3 Reference (one-stage and
+Two-Stage).
 
 For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
 `referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids
 still require both anchors.
 
-INTERMEDIATE KEYFRAMES (every H3 workflow except T2V, 21 ids;
+INTERMEDIATE KEYFRAMES (every H3 workflow except T2V, 23 ids;
 `isMinimaxH3KeyframeModel()`): I2V and FLF2V on every tier (Standard, Balanced,
 LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage), the six FastH3 Sound to
-Video ids (IA2V, FLFA2V, A2V, one- and two-stage) and the five Ref2VA R2V ids.
+Video ids (IA2V, FLFA2V, A2V, one- and two-stage) and the seven R2V ids.
 `keyframes: [{ image, frameIndex }]` pins up to `MINIMAX_H3_MAX_KEYFRAMES` (8)
 still images between the first and last frame, alongside the workflow's own
 uploads. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds *
@@ -1087,7 +1093,7 @@ to its own `keyframeImage<i+1>` slot in array order and the indices travel as
 `keyframeFrameIndices`, so an R2V request carries its references
 (`referenceImage`, `contextImages`, which keep their slots) and its keyframes
 together. If no worker serving the model can pin keyframes yet, the job is
-refused with error code `4100`. MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
+refused with error code `4100`. MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier, FastH3 Reference included (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 
 Prompts for keyframes (MiniMax's keyframe format): name each keyframe
 `<Picture N>`, numbered in time order after the workflow's own pictures: after
@@ -1169,7 +1175,9 @@ their FastH3 Turbo id (canvas, frames, 4 steps, Euler/simple, inputs, LoRAs);
 `minimax-h3-ref2va-fp8_r2v_2stage` (Standard, 20 steps) and
 `minimax-h3-ref2va-fp8_r2v_balanced_2stage` (Balanced, 8 steps) each take
 exactly the request of their one-stage R2V id (canvas, frames, steps,
-sampling, references, LoRAs).
+sampling, references, LoRAs), and
+`minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage` (FastH3 Reference) the
+request of `minimax-h3-fastvideo-omni-int8_r2v_turbo`.
 The tier renders the canvas, then the worker enlarges it 2x and refines it, so the
 clip is delivered at exactly twice the canvas width and height with the same
 frame count, 24 fps timing and audio. Keep `width`/`height` on the normal H3
@@ -1202,7 +1210,8 @@ FastH3 uses `minimax-h3-fasth3-turbo` (automatic t2v or i2v),
 `minimax-h3-fasth3-t2v-turbo-2stage`, `minimax-h3-fasth3-i2v-turbo-2stage`, and
 `minimax-h3-fasth3-flf2v-turbo-2stage`; Ref2VA Two-Stage uses
 `minimax-h3-r2v-2stage` (Standard) and `minimax-h3-r2v-balanced-2stage`
-(Balanced). On those hosted selectors
+(Balanced); FastH3 Reference uses `minimax-h3-fasth3-r2v-turbo` and
+`minimax-h3-fasth3-r2v-turbo-2stage`. On those hosted selectors
 `targetResolution` names the delivered class: `720` renders the 384 px canvas,
 `1080` the 544 px canvas, and `1440` (or omitted) the 768p canvas for 2K.
 For `sound_to_video`, `resolveHostedToolModelSelector()` maps
@@ -2487,7 +2496,7 @@ When estimating a reference-to-video job, pass `referenceImageCount`,
 will actually submit. MiniMax H3 bills reference-video duration at the full
 resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with
 Turbo output. These fields are ignored by unrelated models.
-MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
+MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier, FastH3 Reference included (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 Quote MiniMax H3 two-stage output with the `_2stage` model id and the canvas
 the job renders (672x384 for 720p, 960x544 for 1080p, 1344x768 for 2K).
 
