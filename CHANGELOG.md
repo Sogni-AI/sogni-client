@@ -1,3 +1,10 @@
+# [5.68.0](https://github.com/Sogni-AI/sogni-client/compare/v5.67.0...v5.68.0) (2026-10-21)
+
+
+### Features
+
+* **minimax-h3:** add FastH3 Reference reference-to-video model ids ([3625721](https://github.com/Sogni-AI/sogni-client/commit/362572133eeb7412c93e823da1a310fa25ef20c3))
+
 # [5.67.0](https://github.com/Sogni-AI/sogni-client/compare/v5.66.0...v5.67.0) (2026-10-21)
 
 
