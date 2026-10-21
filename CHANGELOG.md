@@ -1,3 +1,17 @@
+# [5.67.0](https://github.com/Sogni-AI/sogni-client/compare/v5.66.0...v5.67.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **minimax-h3:** keep LightX2V Turbo out of video extension ([96edab1](https://github.com/Sogni-AI/sogni-client/commit/96edab12455aec779e53fa197c76f2ea1b96db32))
+
+
+### Features
+
+* **minimax-h3:** accept a source video on every H3 text-to-video tier ([5a8e858](https://github.com/Sogni-AI/sogni-client/commit/5a8e8586ed8ff2e64ba1f947ca80e95dd31f00d5))
+* **minimax-h3:** accept a source video to extend a FastH3 clip ([74a8799](https://github.com/Sogni-AI/sogni-client/commit/74a87992295c0822b1952a1f57cdcf748efd1218))
+* **minimax-h3:** choose an extension's delivery with extendOutput ([8d8b4b9](https://github.com/Sogni-AI/sogni-client/commit/8d8b4b96884cbcabf46906265f47f8622de898a6))
+
 # [5.66.0](https://github.com/Sogni-AI/sogni-client/compare/v5.65.1...v5.66.0) (2026-10-19)
 
 
