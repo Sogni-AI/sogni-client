@@ -1,3 +1,10 @@
+## [5.68.1](https://github.com/Sogni-AI/sogni-client/compare/v5.68.0...v5.68.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **minimax-h3:** say FastH3 Reference takes Personal LoRAs ([8c5dbfe](https://github.com/Sogni-AI/sogni-client/commit/8c5dbfe4244e899d5446df000dbf72dba94696f0))
+
 # [5.68.0](https://github.com/Sogni-AI/sogni-client/compare/v5.67.0...v5.68.0) (2026-10-21)
 
 
