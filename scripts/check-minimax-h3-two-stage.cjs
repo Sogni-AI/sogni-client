@@ -7,6 +7,8 @@
  *   class, with the workflow, frame grid and canvas defaults of their FastH3 base;
  * - their request is the FastH3 request with only the model id changed, for the
  *   720p (384 short edge), 1080p (544 short edge) and 2K (768p) canvases alike;
+ * - the Standard, Balanced and FastH3 Reference r2v two-stage ids send their
+ *   one-stage request with only the model id changed, at their tier's steps;
  * - a caller that still passes the retired `outputScale` (any value, on any video
  *   model) is refused with the socket's wording before any request is made, both
  *   by projects.create and by the request builder; no request carries the key.
@@ -41,7 +43,12 @@ const twoStage = {
 // every canvas class.
 const r2vTwoStage = {
   standard: ['minimax-h3-ref2va-fp8_r2v_2stage', 'minimax-h3-ref2va-fp8_r2v'],
-  balanced: ['minimax-h3-ref2va-fp8_r2v_balanced_2stage', 'minimax-h3-ref2va-fp8_r2v_balanced']
+  balanced: ['minimax-h3-ref2va-fp8_r2v_balanced_2stage', 'minimax-h3-ref2va-fp8_r2v_balanced'],
+  // FastH3 Reference: its own 8-step checkpoint despite the _turbo suffix.
+  fasth3Reference: [
+    'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage',
+    'minimax-h3-fastvideo-omni-int8_r2v_turbo'
+  ]
 };
 const h3Ids = {
   standard: [
@@ -64,9 +71,12 @@ const h3Ids = {
     'minimax-h3-fl2va-fp8_flf2v_turbo',
     'minimax-h3-ref2va-fp8_r2v_turbo',
     ...Object.values(twoStage).flat()
-  ]
+  ],
+  fasth3Reference: [...r2vTwoStage.fasth3Reference]
 };
-const steps = { standard: 20, balanced: 8, turbo: 4 };
+const steps = { standard: 20, balanced: 8, turbo: 4, fasth3Reference: 8 };
+// A tier whose steps every r2v two-stage id must refuse.
+const wrongStepsTier = { standard: 'balanced', balanced: 'standard', fasth3Reference: 'turbo' };
 const options = {
   type: 'video',
   sampler: { allowed: [], default: null },
@@ -180,8 +190,8 @@ for (const [tier, [modelId, baseId]] of Object.entries(r2vTwoStage)) {
     assert.equal(sent.frames, 141);
   }
   assert.throws(
-    () => request(modelId, tier === 'balanced' ? 'standard' : 'balanced'),
-    /MiniMax H3(?: Balanced)? steps are fixed at (?:20|8)/,
+    () => request(modelId, wrongStepsTier[tier]),
+    new RegExp(`MiniMax H3${{ standard: '', balanced: ' Balanced', fasth3Reference: ' FastH3 Reference' }[tier]} steps are fixed at ${steps[tier]}\\.$`),
     `${modelId}: steps other than its tier's are refused`
   );
   assert.throws(
@@ -206,7 +216,7 @@ for (const [tier, ids] of Object.entries(h3Ids)) {
     covered += 1;
   }
 }
-assert.equal(covered, 20, 'every MiniMax H3 workflow id is covered');
+assert.equal(covered, 22, 'every MiniMax H3 workflow id is covered');
 
 // The retired field is refused on every video model, not only on MiniMax H3.
 for (const modelId of ['ltx25-22b-int8_t2v_distilled', 'wan_v2.2-14b-fp8_t2v_lightx2v']) {

@@ -2,7 +2,7 @@ import type ProjectsApi from '../Projects/index.js';
 import type { AuthManager } from '../lib/AuthManager/index.js';
 import { captureRequestSession } from '../lib/requestSession.js';
 import type { AvailableModel } from '../Projects/types/index.js';
-import { getMaxContextImages } from '../lib/validation.js';
+import { getMaxContextImages, isSeedreamModel } from '../lib/validation.js';
 import {
   getMinimaxH3FramesForAudioDuration,
   isMinimaxH3AudioGuideModel
@@ -138,6 +138,19 @@ function normalizeImageOutputFormat(value: unknown): string | undefined {
   return outputFormat === 'png' || outputFormat === 'jpg' || outputFormat === 'webp'
     ? outputFormat
     : undefined;
+}
+
+/**
+ * Image models a tool call may land on. Seedream 5.0 Pro Uncensored needs a
+ * one-time agreement and is Spark-only, so it is chosen only when the call
+ * names it; a call that names no image model keeps choosing among the others.
+ */
+function imageModelFilter(
+  requestedModel: string | undefined,
+  filter?: (modelId: string) => boolean
+): (modelId: string) => boolean {
+  return (modelId) =>
+    (!filter || filter(modelId)) && (modelId === requestedModel || !isSeedreamModel(modelId));
 }
 
 function applyHostedImageOptions(
@@ -461,10 +474,14 @@ class ChatToolsApi {
     args: Record<string, unknown>,
     options?: ToolExecutionOptions
   ): Promise<ToolExecutionResult> {
+    const requestedModel = resolveHostedToolModelSelector('generate_image', args);
     const modelId = await this.selectModel({
       mediaType: 'image',
-      requestedModel: resolveHostedToolModelSelector('generate_image', args)
+      requestedModel,
+      filter: imageModelFilter(requestedModel)
     });
+    // Seedream takes no negative prompt, seed or steps.
+    const takesSampling = !isSeedreamModel(modelId);
 
     const projectParams: Record<string, unknown> = {
       type: 'image' as const,
@@ -473,14 +490,14 @@ class ChatToolsApi {
       numberOfMedia: getVariationCount(args, options)
     };
 
-    if (args.negative_prompt) projectParams.negativePrompt = args.negative_prompt;
+    if (takesSampling && args.negative_prompt) projectParams.negativePrompt = args.negative_prompt;
     if (args.width && args.height) {
       projectParams.width = args.width;
       projectParams.height = args.height;
       projectParams.sizePreset = 'custom';
     }
-    if (args.steps !== undefined) projectParams.steps = args.steps;
-    if (args.seed !== undefined) projectParams.seed = args.seed;
+    if (takesSampling && args.steps !== undefined) projectParams.steps = args.steps;
+    if (takesSampling && args.seed !== undefined) projectParams.seed = args.seed;
     applyHostedImageOptions(projectParams, args);
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;
@@ -508,11 +525,14 @@ class ChatToolsApi {
       throw new Error('edit_image requires source_image_url or reference_image_urls');
     }
 
+    const requestedModel = resolveHostedToolModelSelector('edit_image', args);
     const modelId = await this.selectModel({
       mediaType: 'image',
-      requestedModel: resolveHostedToolModelSelector('edit_image', args),
-      filter: isEditImageModel
+      requestedModel,
+      filter: imageModelFilter(requestedModel, isEditImageModel)
     });
+    // Seedream takes no negative prompt or seed.
+    const takesSampling = !isSeedreamModel(modelId);
     const maxContextImages = getMaxContextImages(modelId);
     // A model never receives more references than it accepts; none are dropped.
     if (inputUrls.length > maxContextImages) {
@@ -537,13 +557,13 @@ class ChatToolsApi {
       contextImages
     };
 
-    if (args.negative_prompt) projectParams.negativePrompt = args.negative_prompt;
+    if (takesSampling && args.negative_prompt) projectParams.negativePrompt = args.negative_prompt;
     if (args.width && args.height) {
       projectParams.width = args.width;
       projectParams.height = args.height;
       projectParams.sizePreset = 'custom';
     }
-    if (args.seed !== undefined) projectParams.seed = args.seed;
+    if (takesSampling && args.seed !== undefined) projectParams.seed = args.seed;
     applyHostedImageOptions(projectParams, args);
     if (options?.tokenType) projectParams.tokenType = options.tokenType;
     if (options?.network) projectParams.network = options.network;

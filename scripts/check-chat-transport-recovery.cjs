@@ -185,6 +185,25 @@ async function main() {
     await assert.rejects(pending, (error) => error.retryable === true);
   }
 
+  // 7b. This tab took the connection over from another tab, so no 'connecting'
+  //     fired: a sent job missing from the new handshake was cancelled with the
+  //     old connection and fails at once; a listed one keeps streaming.
+  {
+    const { chat, socket } = makeHarness({ graceMs: 10_000 });
+    const lost = await openStream(chat, socket);
+    const kept = await openStream(chat, socket);
+    const lostPending = drain(lost.stream);
+    const keptPending = drain(kept.stream);
+    socket.emit('authenticated', { clientType: 'artist', activeLLMJobIDs: [kept.jobID] });
+    await assert.rejects(
+      lostPending,
+      (error) => error.errorType === 'transport_lost' && error.retryable === true
+    );
+    socket.emit('jobTokens', { jobID: kept.jobID, content: 'kept' });
+    socket.emit('llmJobResult', { jobID: kept.jobID, timeTaken: 1 });
+    assert.equal(await keptPending, 'kept');
+  }
+
   // 8. Ordinary failures are not retryable.
   assert.equal(
     isRetryableChatError(new ChatJobError('nope', { errorType: 'invalid_request' })),

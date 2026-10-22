@@ -72,7 +72,7 @@ Public chat and workflow media rules:
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2 and 2.5, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, Wan 3, LTX-2.3, Seedance 2.0 and 2.5, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), promptless video upscaling (FlashVSR v1.1), audio generation (MiniMax Music 3 by default, ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2 and 2.5, Seedream 5.0 Pro Uncensored, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, Wan 3, LTX-2.3, Seedance 2.0 and 2.5, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), promptless video upscaling (FlashVSR v1.1), audio generation (MiniMax Music 3 by default, ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
 
 Choosing an image-edit model: pick by what the edit has to preserve, not by step count or quality tier. When a person or character must stay recognisable through the edit — style transfer, makeover, clothing or person swap, face swap, new pose or expression, character sheet — use Krea 2 Identity Edit (`krea2_identity_edit_v1_2`, or `dark_beast_krea2_identity_edit_v1_2` uncensored) with 1-2 context images. For general-purpose editing — photo transforms, in-image text, multi-person changes, combining up to 3 references — use a Qwen image-edit model. A higher-step general-purpose editor does not beat the identity model at a likeness task; it reinterprets the subject instead of preserving it. See `llms.txt` for parameters.
 
@@ -310,6 +310,14 @@ not. Judge by whether the client contract moved.
 ## Common Tasks Quick Reference
 
 ### Generate an Image
+
+MOSS-Image SFT uses `moss_image_sft_int8_convrot` (hosted `moss-image`),
+50 steps, guidance 3, Euler / `sgm_uniform`, 512–2048 px aligned to 16.
+It is text-to-image only; no guide or context images. Preserve JSON layout prompts.
+The fast preset is `moss_image_sft_dmd8_int8_convrot` (hosted `moss-image-8step`):
+exactly 8 steps and guidance 1, with the same sampler/scheduler and bounds.
+Both support compatible Personal LoRAs; the fast preset applies them after DMD.
+
 ```javascript
 const project = await sogni.projects.create({
   type: 'image',
@@ -389,7 +397,7 @@ const urls = await project.waitForCompletion();
 | Text-to-Video | `*_t2v*` | None |
 | Image-to-Video | `*_i2v*` | `referenceImage` (and/or `referenceImageEnd`) |
 | First/Last-Frame Video | `*_flf2v*` (MiniMax H3) | `referenceImage` + `referenceImageEnd` |
-| MiniMax H3 intermediate keyframes | every H3 id except `*_t2v*`: `*_i2v*`, `*_flf2v*`, `*_ia2v*`, `*_flfa2v*`, `*_a2v*`, `*_r2v*` (`isMinimaxH3KeyframeModel`, 21 ids) | optional `keyframes: [{ image, frameIndex }]`, up to 8, alongside the workflow's own uploads; `frameIndex` is a 0-based 24 fps frame from 1 to `frames - 2` (pass `frames`: `duration` snaps to the 124 + n*17 grid); images upload to `keyframeImage1..N` in order (r2v references keep their `contextImage` slots); the prompt names each keyframe `<Picture N>` after the workflow's own pictures, lists it in the alignment line (r2v: keyframe entry, `keyframe completion` task, retention entry), describes what it shows, and cuts to a new shot where framing or light changes (see `llms.txt`) |
+| MiniMax H3 intermediate keyframes | every H3 id except `*_t2v*`: `*_i2v*`, `*_flf2v*`, `*_ia2v*`, `*_flfa2v*`, `*_a2v*`, `*_r2v*` (`isMinimaxH3KeyframeModel`, 23 ids) | optional `keyframes: [{ image, frameIndex }]`, up to 8, alongside the workflow's own uploads; `frameIndex` is a 0-based 24 fps frame from 1 to `frames - 2` (pass `frames`: `duration` snaps to the 124 + n*17 grid); images upload to `keyframeImage1..N` in order (r2v references keep their `contextImage` slots); the prompt names each keyframe `<Picture N>` after the workflow's own pictures, lists it in the alignment line (r2v: keyframe entry, `keyframe completion` task, retention entry), describes what it shows, and cuts to a new shot where framing or light changes (see `llms.txt`) |
 | Reference-to-Video | `*_r2v*` (Happy Horse) | 1-9 images via `referenceImage`/`referenceImageUrls` |
 | Video-to-Video | `*_v2v*` (LTX-2.3) | `referenceVideo` + `controlNet` |
 | Sound-to-Video | `*_s2v*` (WAN only) | `referenceImage` + `referenceAudio` |

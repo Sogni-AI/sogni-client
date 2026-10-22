@@ -1,0 +1,230 @@
+'use strict';
+/**
+ * MiniMax H3 video extension: a text-to-video job that carries `referenceVideo`
+ * continues that video from its last 22 frames and their audio. Runs against
+ * compiled output so it also checks the published API shape.
+ *
+ * - Standard, Balanced and FastH3 text-to-video and FastH3 two-stage accept an
+ *   optional referenceVideo and every other entry of their table matches generic
+ *   t2v; LightX2V Turbo, non-H3 t2v models and other H3 workflows still forbid one;
+ * - the source rides as the unnumbered referenceVideo upload with
+ *   hasReferenceVideo (the flag sogni-socket reads as an extension), and a job
+ *   without one is unchanged; extendOutput ('extended' by default, or
+ *   'continuation') is sent only with a source, and only when asked;
+ * - external video URLs stay refused, because the worker needs a Sogni upload;
+ * - estimateVideoCost sends hasVideoInput=1 with the source, so the quote
+ *   prices the extension the job is charged for.
+ */
+const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
+const createJobRequestMessage = require('../dist/Projects/createJobRequestMessage.js').default;
+const {
+  getVideoAssetRequirements,
+  isMinimaxH3ExtendModel,
+  MINIMAX_H3_T2V_ASSETS,
+  VIDEO_WORKFLOW_ASSETS
+} = require('../dist/Projects/utils/index.js');
+const ProjectsApi = require('../dist/Projects/index.js').default;
+
+const EXTEND_ID = 'minimax-h3-fastvideo-int8_t2v_turbo';
+const EXTEND_IDS = [
+  'minimax-h3-fl2va-fp8_t2v',
+  'minimax-h3-fl2va-fp8_t2v_balanced',
+  EXTEND_ID,
+  'minimax-h3-fastvideo-int8_t2v_turbo_2stage'
+];
+// Each tier pins its own step count.
+const STEPS = {
+  'minimax-h3-fl2va-fp8_t2v': 20,
+  'minimax-h3-fl2va-fp8_t2v_balanced': 8,
+  'minimax-h3-fl2va-fp8_t2v_turbo': 4,
+  [EXTEND_ID]: 4,
+  'minimax-h3-fastvideo-int8_t2v_turbo_2stage': 4
+};
+const options = {
+  type: 'video',
+  steps: { min: 4, max: 4, step: 1, default: 4 },
+  guidance: { min: 1, max: 1, step: 1, default: 1 },
+  fps: { allowed: [24], default: 24 },
+  sampler: { allowed: [], default: null },
+  scheduler: { allowed: ['simple'], default: 'simple' }
+};
+const params = (overrides = {}) => ({
+  type: 'video',
+  modelId: 'minimax-h3-fastvideo-int8_t2v_turbo',
+  numberOfMedia: 1,
+  positivePrompt: 'The vendor laughs and hands her the bowl.',
+  frames: 141,
+  width: 1344,
+  height: 768,
+  steps: 4,
+  guidance: 1,
+  scheduler: 'simple',
+  ...overrides
+});
+const keyFrame = (overrides) => {
+  const steps = overrides.steps ?? STEPS[overrides.modelId ?? EXTEND_ID];
+  const stepOptions = { ...options, steps: { min: steps, max: steps, step: 1, default: steps } };
+  return createJobRequestMessage('h3-extend', params({ ...overrides, steps }), stepOptions)
+    .keyFrames[0];
+};
+
+for (const modelId of EXTEND_IDS) {
+  assert.equal(isMinimaxH3ExtendModel(modelId), true, `${modelId} extends`);
+  assert.equal(
+    getVideoAssetRequirements(modelId),
+    MINIMAX_H3_T2V_ASSETS,
+    `${modelId} uses the extension table`
+  );
+  assert.equal(
+    keyFrame({ modelId, referenceVideo: Buffer.from('v') }).hasReferenceVideo,
+    true,
+    `${modelId} carries a source`
+  );
+}
+for (const modelId of [
+  'minimax-h3-fastvideo-int8_i2v_turbo_2stage',
+  'minimax-h3-fastvideo-int8_a2v_turbo',
+  'minimax-h3-ref2va-fp8_r2v_turbo'
+]) {
+  assert.equal(isMinimaxH3ExtendModel(modelId), false, `${modelId} does not extend`);
+}
+// LightX2V Turbo lost the source a few frames after the join in testing, so it still refuses one.
+const LIGHTX2V_TURBO = 'minimax-h3-fl2va-fp8_t2v_turbo';
+assert.equal(isMinimaxH3ExtendModel(LIGHTX2V_TURBO), false);
+assert.equal(getVideoAssetRequirements(LIGHTX2V_TURBO).referenceVideo, 'forbidden');
+assert.throws(
+  () => keyFrame({ modelId: LIGHTX2V_TURBO, referenceVideo: Buffer.from('v') }),
+  /referenceVideo/
+);
+assert.deepEqual(
+  { ...MINIMAX_H3_T2V_ASSETS, referenceVideo: VIDEO_WORKFLOW_ASSETS.t2v.referenceVideo },
+  VIDEO_WORKFLOW_ASSETS.t2v,
+  'only referenceVideo differs from generic t2v'
+);
+assert.equal(MINIMAX_H3_T2V_ASSETS.referenceVideo, 'optional');
+assert.equal(
+  VIDEO_WORKFLOW_ASSETS.t2v.referenceVideo,
+  'forbidden',
+  'generic t2v still forbids a video'
+);
+assert.equal(getVideoAssetRequirements('wan_v2.2-14b-fp8_t2v').referenceVideo, 'forbidden');
+for (const modelId of ['minimax-h3-fastvideo-int8_i2v_turbo', 'minimax-h3-fl2va-fp8_flf2v']) {
+  assert.equal(
+    getVideoAssetRequirements(modelId).referenceVideo,
+    'forbidden',
+    `${modelId} forbids a video`
+  );
+}
+
+// The source rides as the unnumbered referenceVideo upload.
+const source = Buffer.from('source video');
+const extended = keyFrame({ referenceVideo: source });
+assert.equal(extended.hasReferenceVideo, true);
+// Delivery: left to the default (the whole extended video) unless asked; the new footage alone on request.
+assert.equal(extended.extendOutput, undefined, 'the default delivery is not sent');
+assert.equal(
+  keyFrame({ referenceVideo: source, extendOutput: 'continuation' }).extendOutput,
+  'continuation'
+);
+assert.equal(
+  keyFrame({ referenceVideo: source, extendOutput: 'extended' }).extendOutput,
+  'extended'
+);
+assert.throws(
+  () => keyFrame({ referenceVideo: source, extendOutput: 'both' }),
+  /extendOutput must be 'extended'/
+);
+assert.throws(
+  () => keyFrame({ extendOutput: 'continuation' }),
+  /applies only to a MiniMax H3 video extension/
+);
+assert.throws(
+  () =>
+    keyFrame({
+      modelId: 'minimax-h3-fastvideo-int8_i2v_turbo',
+      referenceImage: Buffer.from('i'),
+      extendOutput: 'continuation'
+    }),
+  /applies only to a MiniMax H3 video extension/
+);
+assert.deepEqual(
+  Object.keys(extended).filter((key) => /^hasReferenceVideo\d/.test(key)),
+  []
+);
+assert.equal(
+  extended.frames,
+  141,
+  'the job renders the full frame count; the worker trims the pinned head'
+);
+const plain = keyFrame({});
+assert.equal(plain.hasReferenceVideo, undefined, 'without a source it is ordinary text-to-video');
+assert.throws(() => keyFrame({ referenceVideoUrls: ['https://example.com/source.mp4'] }), {
+  message: 'External reference URLs are supported only by Seedance, HappyHorse, and Wan 3 models.'
+});
+assert.throws(
+  () =>
+    keyFrame({
+      modelId: 'minimax-h3-fastvideo-int8_i2v_turbo',
+      referenceImage: source,
+      referenceVideo: source
+    }),
+  /i2v workflow does not support referenceVideo|referenceVideo/
+);
+
+// The estimate carries the flag the socket prices the extension on.
+class SocketStub extends EventEmitter {
+  constructor() {
+    super();
+    this.paths = [];
+  }
+  async get(path) {
+    this.paths.push(path);
+    const cost = {
+      costInToken: '1',
+      costInUSD: '0.01',
+      costInSpark: '2',
+      costInSogni: '3',
+      costInRenderSec: '8'
+    };
+    return { quote: { job: cost, project: cost } };
+  }
+}
+class ClientStub extends EventEmitter {
+  constructor() {
+    super();
+    this.socket = new SocketStub();
+    this.logger = { info() {}, warn() {}, error() {}, debug() {} };
+  }
+}
+
+async function main() {
+  const client = new ClientStub();
+  const projects = new ProjectsApi({ client, eip712: {} });
+  const estimate = (overrides) =>
+    projects.estimateVideoCost({
+      tokenType: 'spark',
+      model: 'minimax-h3-fastvideo-int8_t2v_turbo',
+      width: 1344,
+      height: 768,
+      frames: 141,
+      fps: 24,
+      steps: 4,
+      numberOfMedia: 1,
+      ...overrides
+    });
+  await estimate({ referenceVideo: source });
+  const query = new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
+  assert.equal(query.get('hasVideoInput'), '1', 'an extension quote carries hasVideoInput');
+  await estimate({});
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-int8_t2v_turbo/1344/768/141/24/4/1',
+    'a plain text-to-video quote is unchanged'
+  );
+  console.log('minimax-h3 extend: ok');
+}
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

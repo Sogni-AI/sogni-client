@@ -166,6 +166,45 @@ assert.equal(isModelConsentRequiredError({ code: 1, consentRequired: null }), fa
     consentRequired: miniConsent
   });
   assert.equal(isModelConsentRequiredError(miniError.error), true);
+
+  // Seedream 5.0 Pro Uncensored is an image model on the same agreement: its
+  // image jobs are refused with the same shape, project- and job-level alike.
+  const seedreamConsent = {
+    key: 'seedance-2-5-uncensored',
+    version: 2,
+    modelId: 'seedream-5-0-pro-uncensored'
+  };
+  const seedreamMessage =
+    'Seedream 5.0 Pro Uncensored requires a one-time likeness and consent agreement. Review and accept it in the Sogni app, then try again.';
+  client.socket.emit('jobError', {
+    jobID: 'proj_seedream_consent',
+    isFromWorker: false,
+    error: '4103',
+    error_message: seedreamMessage,
+    consentRequired: seedreamConsent
+  });
+  client.socket.emit('jobError', {
+    jobID: 'proj_seedream_consent',
+    imgID: 'job_seedream_consent',
+    isFromWorker: false,
+    error: 4103,
+    error_message: seedreamMessage,
+    consentRequired: seedreamConsent
+  });
+  const seedreamError = events.find(
+    (e) => e.type === 'error' && e.projectId === 'proj_seedream_consent' && !e.jobId
+  );
+  assert.deepEqual(seedreamError.error, {
+    code: 4103,
+    message: seedreamMessage,
+    consentRequired: seedreamConsent
+  });
+  assert.equal(isModelConsentRequiredError(seedreamError.error), true);
+  const seedreamJobError = events.find(
+    (e) => e.type === 'error' && e.jobId === 'job_seedream_consent'
+  );
+  assert.deepEqual(seedreamJobError.error.consentRequired, seedreamConsent);
+  assert.equal(isModelConsentRequiredError(seedreamJobError.error), true);
 }
 
 // Model not yet available (socket error 4104): the model is held on this

@@ -19,9 +19,11 @@ import {
   validateNumber,
   validateCustomImageSize,
   validateGptImageOptions,
+  validateSeedreamOptions,
   validateVideoSize,
   validateTeacacheThreshold,
   isComfyModel,
+  isSeedreamModel,
   validateVideoDuration,
   validateSampler,
   validateScheduler,
@@ -43,9 +45,11 @@ import {
   isMinimaxH3Model,
   isMinimaxH3TurboModel,
   isMinimaxH3BalancedModel,
+  isMinimaxH3FastH3ReferenceModel,
   isMinimaxH3ReferenceModel,
   isMinimaxH3AudioGuideModel,
   isMinimaxH3KeyframeModel,
+  isMinimaxH3ExtendModel,
   isExternalApiVideoModel,
   usesReferenceMask,
   countMinimaxH3References,
@@ -615,13 +619,21 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
   if (params.fps !== undefined && params.fps !== 24) {
     invalid('MiniMax H3 fps is fixed at 24. Omit fps or set it to 24.');
   }
+  // FastH3 Reference ends in `_turbo` but is distilled to 8 steps, so it is
+  // neither a 4-step Turbo id nor a Balanced one.
+  const isFastH3Reference = isMinimaxH3FastH3ReferenceModel(params.modelId);
   const isTurbo = isMinimaxH3TurboModel(params.modelId);
   const isBalanced = isMinimaxH3BalancedModel(params.modelId);
-  const expectedSteps = isTurbo ? 4 : isBalanced ? 8 : 20;
+  const expectedSteps = isFastH3Reference ? 8 : isTurbo ? 4 : isBalanced ? 8 : 20;
   if (params.steps !== undefined && params.steps !== expectedSteps) {
-    invalid(
-      `MiniMax H3${isTurbo ? ' Turbo' : isBalanced ? ' Balanced' : ''} steps are fixed at ${expectedSteps}.`
-    );
+    const tier = isFastH3Reference
+      ? ' FastH3 Reference'
+      : isTurbo
+        ? ' Turbo'
+        : isBalanced
+          ? ' Balanced'
+          : '';
+    invalid(`MiniMax H3${tier} steps are fixed at ${expectedSteps}.`);
   }
   if (params.guidance !== undefined && params.guidance !== 1) {
     invalid('MiniMax H3 guidance is fixed at 1.');
@@ -1372,11 +1384,32 @@ function applyImageParams(
   params: ImageProjectParams,
   options: ImageModelOptions
 ) {
+  if (
+    ['moss_image_sft_int8_convrot', 'moss_image_sft_dmd8_int8_convrot'].includes(params.modelId) &&
+    (params.startingImage || params.contextImages?.length)
+  ) {
+    throw new Error(
+      'MOSS-Image SFT generates from text and does not accept guide or reference images.'
+    );
+  }
   const keyFrame: Record<string, any> = {
     ...inputKeyframe,
     sizePreset: params.sizePreset
   };
   const contextImages = params.contextImages || [];
+  for (const name of ['mossRopeScaleX', 'mossRopeScaleY'] as const) {
+    const value = params[name];
+    if (value === undefined) continue;
+    if (
+      !['moss_image_sft_int8_convrot', 'moss_image_sft_dmd8_int8_convrot'].includes(params.modelId)
+    ) {
+      throw new Error(`${name} is only supported by MOSS-Image`);
+    }
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) {
+      throw new Error(`${name} must be a finite number between 0 and 100`);
+    }
+    if (value !== 1) keyFrame[name] = value;
+  }
   for (let index = 1; index <= 16; index += 1) {
     keyFrame[`hasContextImage${index}`] = !!contextImages[index - 1];
   }
@@ -1515,6 +1548,7 @@ function applyImageParams(
     });
   }
   validateGptImageOptions(params);
+  validateSeedreamOptions(params);
   if (params.gptImageMask) {
     keyFrame.hasReferenceMask = true;
     keyFrame.referenceMaskContentType = 'image/png';
@@ -1668,6 +1702,19 @@ function applyVideoParams(
   }
   if (params.generateAudio !== undefined) {
     keyFrame.generateAudio = params.generateAudio;
+  }
+  if (params.extendOutput !== undefined) {
+    if (!params.referenceVideo || !isMinimaxH3ExtendModel(params.modelId)) {
+      throw new Error(
+        'extendOutput applies only to a MiniMax H3 video extension: a referenceVideo on a model that extends (isMinimaxH3ExtendModel).'
+      );
+    }
+    if (params.extendOutput !== 'extended' && params.extendOutput !== 'continuation') {
+      throw new Error(
+        "extendOutput must be 'extended' (the source and the new footage as one video) or 'continuation' (the new footage alone)."
+      );
+    }
+    keyFrame.extendOutput = params.extendOutput;
   }
   if (params.referenceFileUrl !== undefined) {
     keyFrame.referenceFileURL = params.referenceFileUrl;
@@ -1916,6 +1963,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
   };
   if (
     isAudioParams(params) ||
+    (isImageParams(params) && isSeedreamModel(params.modelId)) ||
     (isVideoParams(params) &&
       (isExternalApiVideoModel(params.modelId) || isMinimaxH3Model(params.modelId)))
   ) {

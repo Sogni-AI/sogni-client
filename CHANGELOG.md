@@ -1,3 +1,70 @@
+# [5.69.0](https://github.com/Sogni-AI/sogni-client/compare/v5.68.1...v5.69.0) (2026-10-22)
+
+
+### Bug Fixes
+
+* **deps:** use the published protocol alpha.54 artifacts ([499e689](https://github.com/Sogni-AI/sogni-client/commit/499e689846f54097599fa49f4672d6db4d3e99a0))
+
+
+### Features
+
+* **images:** add Seedream 5.0 Pro Uncensored image model ([fb6a00b](https://github.com/Sogni-AI/sogni-client/commit/fb6a00beea415ea4054917ace9e015f455555fe2))
+
+## [5.68.1](https://github.com/Sogni-AI/sogni-client/compare/v5.68.0...v5.68.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **minimax-h3:** say FastH3 Reference takes Personal LoRAs ([8c5dbfe](https://github.com/Sogni-AI/sogni-client/commit/8c5dbfe4244e899d5446df000dbf72dba94696f0))
+
+# [5.68.0](https://github.com/Sogni-AI/sogni-client/compare/v5.67.0...v5.68.0) (2026-10-21)
+
+
+### Features
+
+* **minimax-h3:** add FastH3 Reference reference-to-video model ids ([3625721](https://github.com/Sogni-AI/sogni-client/commit/362572133eeb7412c93e823da1a310fa25ef20c3))
+
+# [5.67.0](https://github.com/Sogni-AI/sogni-client/compare/v5.66.0...v5.67.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **minimax-h3:** keep LightX2V Turbo out of video extension ([96edab1](https://github.com/Sogni-AI/sogni-client/commit/96edab12455aec779e53fa197c76f2ea1b96db32))
+
+
+### Features
+
+* **minimax-h3:** accept a source video on every H3 text-to-video tier ([5a8e858](https://github.com/Sogni-AI/sogni-client/commit/5a8e8586ed8ff2e64ba1f947ca80e95dd31f00d5))
+* **minimax-h3:** accept a source video to extend a FastH3 clip ([74a8799](https://github.com/Sogni-AI/sogni-client/commit/74a87992295c0822b1952a1f57cdcf748efd1218))
+* **minimax-h3:** choose an extension's delivery with extendOutput ([8d8b4b9](https://github.com/Sogni-AI/sogni-client/commit/8d8b4b96884cbcabf46906265f47f8622de898a6))
+
+# [5.66.0](https://github.com/Sogni-AI/sogni-client/compare/v5.65.1...v5.66.0) (2026-10-19)
+
+
+### Features
+
+* **images:** support optional MOSS spatial scaling ([9f2f55d](https://github.com/Sogni-AI/sogni-client/commit/9f2f55dd6b52c41c7d20af9f6b9a36bce3b0961c))
+
+## [5.65.1](https://github.com/Sogni-AI/sogni-client/compare/v5.65.0...v5.65.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **socket:** take over from a silent primary tab instead of forwarding to it ([4412936](https://github.com/Sogni-AI/sogni-client/commit/44129363f0f6f5924ac9ee9dd95262d43b93bb2f))
+
+# [5.65.0](https://github.com/Sogni-AI/sogni-client/compare/v5.64.0...v5.65.0) (2026-10-18)
+
+
+### Bug Fixes
+
+* **deps:** consume published MOSS protocol definitions ([0c063bf](https://github.com/Sogni-AI/sogni-client/commit/0c063bf6efea753344596be45b77057a32ee46c5))
+* **models:** refresh MOSS hosted schema parity receipt ([233fd09](https://github.com/Sogni-AI/sogni-client/commit/233fd09b61eacf3be9679a6e2c6a2d0b39612739))
+
+
+### Features
+
+* **models:** add MOSS generation presets and routing ([5a54e7b](https://github.com/Sogni-AI/sogni-client/commit/5a54e7bb806baa95a9b2cddb86b1c713f0cdd41b))
+
 # [5.64.0](https://github.com/Sogni-AI/sogni-client/compare/v5.63.4...v5.64.0) (2026-10-17)
 
 

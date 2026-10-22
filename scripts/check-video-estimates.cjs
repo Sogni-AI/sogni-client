@@ -149,6 +149,24 @@ async function main() {
     '/api/v1/job-video/estimate/spark/minimax-h3-ref2va-fp8_r2v_balanced_2stage/1344/768/141/24/8/1',
     '2K Balanced R2V two-stage pricing must be requested with the two-stage model id and the 768p canvas'
   );
+  // FastH3 Reference prices at its own 8 steps although its ids end in _turbo.
+  await estimate(projects, { model: 'minimax-h3-fastvideo-omni-int8_r2v_turbo', steps: 8 });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-omni-int8_r2v_turbo/1344/768/141/24/8/1',
+    'FastH3 Reference pricing must be requested with its exact model id and fixed step count'
+  );
+  await estimate(projects, {
+    model: 'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage',
+    width: 960,
+    height: 544,
+    steps: 8
+  });
+  assert.equal(
+    client.socket.paths.at(-1),
+    '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage/960/544/141/24/8/1',
+    '1080p FastH3 Reference two-stage pricing must be requested with the two-stage model id and the 544 canvas'
+  );
   // outputScale is retired: an untyped caller that still passes it (any value)
   // is refused with the socket's wording before any estimate request is made.
   const requestsBefore = client.socket.paths.length;

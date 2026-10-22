@@ -69,7 +69,9 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-fl2va-fp8_flf2v_balanced',
   'minimax-h3-ref2va-fp8_r2v_balanced',
   'minimax-h3-ref2va-fp8_r2v_2stage',
-  'minimax-h3-ref2va-fp8_r2v_balanced_2stage'
+  'minimax-h3-ref2va-fp8_r2v_balanced_2stage',
+  'minimax-h3-fastvideo-omni-int8_r2v_turbo',
+  'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage'
 ]);
 
 export function getEnhacementStrength(strength: EnhancementStrength): number {
@@ -423,12 +425,21 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  *   exactly twice the canvas, with the same 384/544/768 px canvas choices as
  *   the FastH3 two-stage ids. Price it with `estimateVideoCost` using the
  *   `_2stage` id.
+ * - FastH3 Reference: `minimax-h3-fastvideo-omni-int8_r2v_turbo`, FastVideo's
+ *   FastH3 Omni, its own distilled Ref2VA checkpoint (fixed 8 steps despite the
+ *   `_turbo` suffix; see `isMinimaxH3FastH3ReferenceModel`), with the same
+ *   references, catalog LoRAs and limits as the other r2v ids (no Personal
+ *   LoRAs: its layers differ from the H3 personal-LoRA layout). Its two-stage id
+ *   `minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage` takes the same request
+ *   and delivers the clip at exactly twice the canvas, like the Ref2VA
+ *   two-stage ids.
  *
  * All H3 paths share fixed 24fps, guidance 1, and the `124 + n*17` frame grid.
  * Every path except the FastH3 audio guide generates 32kHz stereo audio
  * jointly; audio-guide output carries the uploaded audio instead. Standard H3 uses 20 steps;
  * Balanced uses qualified fixed 8-step acceleration: LightX2V for FL2VA and
- * Larry v4 for Ref2VA; each Turbo family uses its own 4-step distillation LoRA.
+ * Larry v4 for Ref2VA; each Turbo family uses its own 4-step distillation LoRA;
+ * FastH3 Reference is distilled to a fixed 8 steps.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
   return MINIMAX_H3_VIDEO_MODEL_IDS.has(modelId);
@@ -438,7 +449,9 @@ export function isMinimaxH3Model(modelId: string): boolean {
  * Check if a model ID is one of the 4-step MiniMax H3 Turbo workflows.
  * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its dedicated r2v Turbo LoRA.
  * FastH3 covers t2v/i2v/flf2v and the ia2v/flfa2v/a2v audio guide, and its
- * two-stage ids share its 4-step sampling.
+ * two-stage ids share its 4-step sampling. FastH3 Reference
+ * (`minimax-h3-fastvideo-omni-int8_r2v_turbo[_2stage]`) is not one of them:
+ * it runs 8 steps (`isMinimaxH3FastH3ReferenceModel`).
  */
 export function isMinimaxH3TurboModel(modelId: string): boolean {
   return (
@@ -447,6 +460,17 @@ export function isMinimaxH3TurboModel(modelId: string): boolean {
     /^minimax-h3-fastvideo-int8_(?:ia2v|flfa2v|a2v)_turbo(?:_2stage)?$/.test(modelId) ||
     modelId === 'minimax-h3-ref2va-fp8_r2v_turbo'
   );
+}
+
+/**
+ * Check if a model ID is MiniMax H3 FastH3 Reference (FastVideo's FastH3 Omni):
+ * `minimax-h3-fastvideo-omni-int8_r2v_turbo` or its two-stage id
+ * `..._r2v_turbo_2stage`. It is a reference-to-video workflow
+ * (`isMinimaxH3ReferenceModel`) whose steps are fixed at 8 even though the id
+ * ends in `_turbo`.
+ */
+export function isMinimaxH3FastH3ReferenceModel(modelId: string): boolean {
+  return /^minimax-h3-fastvideo-omni-int8_r2v_turbo(?:_2stage)?$/.test(modelId);
 }
 
 /** MiniMax H3 FastH3 first-frame image + uploaded audio to video. */
@@ -486,8 +510,9 @@ export function isMinimaxH3BalancedModel(modelId: string): boolean {
 
 /**
  * Check if a model ID is the MiniMax H3 Ref2VA multi-reference workflow
- * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, `..._r2v_balanced`, or the
- * two-stage `..._r2v_2stage` and `..._r2v_balanced_2stage`).
+ * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, `..._r2v_balanced`, the
+ * two-stage `..._r2v_2stage` and `..._r2v_balanced_2stage`, or FastH3
+ * Reference `minimax-h3-fastvideo-omni-int8_r2v_turbo` and its `_2stage` id).
  *
  * This is the only MiniMax H3 workflow that conditions on more than two input
  * files, and the only video workflow of any family that carries reference
@@ -510,13 +535,13 @@ export const MINIMAX_H3_MAX_KEYFRAMES = 8;
  * the worker pins (ComfyUI `MiniMaxH3AddGuide`) at chosen frames between the
  * first and last frame.
  *
- * Every MiniMax H3 workflow except text-to-video accepts them, 21 ids in all:
+ * Every MiniMax H3 workflow except text-to-video accepts them, 23 ids in all:
  * - image-to-video (`i2v`) and first/last-frame (`flf2v`) on every tier
  *   (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage);
  * - the FastH3 Sound to Video audio guide (`ia2v`, `flfa2v`, `a2v`, one-stage
  *   and two-stage; `isMinimaxH3AudioGuideModel`);
- * - Ref2VA Reference to Video (`r2v`: Standard, Turbo, Balanced and both
- *   two-stage ids; `isMinimaxH3ReferenceModel`).
+ * - Reference to Video (`r2v`: Standard, Turbo, Balanced, FastH3 Reference
+ *   and their three two-stage ids; `isMinimaxH3ReferenceModel`).
  */
 export function isMinimaxH3KeyframeModel(modelId: string): boolean {
   if (!isMinimaxH3Model(modelId)) return false;
@@ -527,6 +552,24 @@ export function isMinimaxH3KeyframeModel(modelId: string): boolean {
     workflow === 'r2v' ||
     isMinimaxH3AudioGuideModel(modelId)
   );
+}
+
+/**
+ * MiniMax H3 models that extend a video: Standard, Balanced and FastH3
+ * text-to-video and FastH3 two-stage, carrying `referenceVideo`. The clip
+ * continues the source from its last 22 frames and their audio. LightX2V Turbo
+ * (`minimax-h3-fl2va-fp8_t2v_turbo`) does not: it lost the source a few frames
+ * after the join in testing.
+ */
+const MINIMAX_H3_EXTEND_MODEL_IDS = new Set([
+  'minimax-h3-fl2va-fp8_t2v',
+  'minimax-h3-fl2va-fp8_t2v_balanced',
+  'minimax-h3-fastvideo-int8_t2v_turbo',
+  'minimax-h3-fastvideo-int8_t2v_turbo_2stage'
+]);
+
+export function isMinimaxH3ExtendModel(modelId: string): boolean {
+  return MINIMAX_H3_EXTEND_MODEL_IDS.has(modelId);
 }
 
 /**
@@ -969,6 +1012,18 @@ export const MINIMAX_H3_I2V_ASSETS: Record<VideoAssetKey, AssetRequirement> = {
 };
 
 /**
+ * MiniMax H3 text-to-video on the models that extend (`isMinimaxH3ExtendModel`):
+ * with `referenceVideo` the worker continues the source from its last 22 frames
+ * (0.92 s at 24 fps) and their audio, and the delivered clip starts on the frame
+ * after the source's last frame (`frames - 22` long). Without a source it is
+ * ordinary text-to-video. Every other entry matches the generic `t2v` table.
+ */
+export const MINIMAX_H3_T2V_ASSETS: Record<VideoAssetKey, AssetRequirement> = {
+  ...VIDEO_WORKFLOW_ASSETS.t2v,
+  referenceVideo: 'optional'
+};
+
+/**
  * One reference image, resolved to the upload slot that carries it.
  */
 export interface VideoContextImageSlot {
@@ -1110,6 +1165,9 @@ export function getVideoAssetRequirements(
   }
   if (workflowType === 'i2v' && isMinimaxH3Model(modelId)) {
     return MINIMAX_H3_I2V_ASSETS;
+  }
+  if (workflowType === 't2v' && isMinimaxH3ExtendModel(modelId)) {
+    return MINIMAX_H3_T2V_ASSETS;
   }
   return VIDEO_WORKFLOW_ASSETS[workflowType];
 }

@@ -102,17 +102,25 @@ if (generateVideoModel) {
       'minimax-h3-r2v-balanced',
       'minimax-h3-r2v-2stage',
       'minimax-h3-r2v-balanced-2stage',
+      'minimax-h3-fasth3-r2v-turbo',
+      'minimax-h3-fasth3-r2v-turbo-2stage',
       'wan3.0-video',
       'wan3.0-spicy-video'
     ])
   ];
+  // FastH3 Reference gives the FastH3 tier a reference-to-video selector, so the
+  // protocol's "FastH3 has no R2V mode." no longer holds.
+  generateVideoModel.description = generateVideoModel.description?.replace(
+    'FastH3 has no R2V mode. ',
+    ''
+  );
   generateVideoModel.description = appendDescriptionOnce(
     generateVideoModel.description,
     `MiniMax H3 Balanced uses the LightX2V 8-step 768p accelerator for FL2VA and Larry v4 step-600 EMA for Ref2VA, between 4-step Turbo and 20-step Standard; use "minimax-h3-balanced" or "minimax-h3-t2v-balanced" for FL2VA text-to-video and "minimax-h3-r2v-balanced" for Ref2VA reference-to-video. Sources: ${MINIMAX_H3_LIGHTX2V_BALANCED_SOURCE_URL} and ${MINIMAX_H3_LARRY_BALANCED_SOURCE_URL}.`
   );
   generateVideoModel.description = appendDescriptionOnce(
     generateVideoModel.description,
-    'MiniMax H3 FastH3 Turbo is the separate FastVideo VSA four-step engine, qualified only with Euler/simple; use "minimax-h3-fasth3-turbo" or "minimax-h3-fasth3-t2v-turbo" for text-to-video. Existing "minimax-h3-turbo" selectors remain LightX2V Turbo. FastH3 has no R2V mode.'
+    'MiniMax H3 FastH3 Turbo is the separate FastVideo VSA four-step engine, qualified only with Euler/simple; use "minimax-h3-fasth3-turbo" or "minimax-h3-fasth3-t2v-turbo" for text-to-video. Existing "minimax-h3-turbo" selectors remain LightX2V Turbo.'
   );
   generateVideoModel.description = appendDescriptionOnce(
     generateVideoModel.description,
@@ -122,11 +130,19 @@ if (generateVideoModel) {
     generateVideoModel.description,
     'MiniMax H3 Two-Stage Reference-to-Video is the Standard or Balanced Ref2VA request delivered at twice the canvas with the same length, audio and references; use "minimax-h3-r2v-2stage" (20 steps) or "minimax-h3-r2v-balanced-2stage" (8 steps). targetResolution names the delivered class exactly as for the FastH3 two-stage selectors (1080, 1440 or omitted for 2K, 720), and each bills its tier\'s rate plus the two-stage surcharge of that class; keep "minimax-h3-r2v" or "minimax-h3-r2v-balanced" for ordinary 768p output.'
   );
+  generateVideoModel.description = appendDescriptionOnce(
+    generateVideoModel.description,
+    'MiniMax H3 FastH3 Reference is the FastH3 tier\'s reference-to-video engine, FastVideo\'s FastH3 Omni on its own distilled Ref2VA checkpoint, about twice as fast as Balanced Reference; use "minimax-h3-fasth3-r2v-turbo" with the same references, durations, catalog LoRAs and Personal LoRAs as the other R2V selectors. "minimax-h3-fasth3-r2v-turbo-2stage" is its two-stage form: targetResolution names the delivered class exactly as for the other two-stage selectors (1080, 1440 or omitted for 2K, 720), and it bills its own rate plus the two-stage surcharge of that class.'
+  );
 }
 
 const animatePhotoTool = manifest.tools?.find((tool) => tool?.function?.name === 'animate_photo');
 const animatePhotoModel = animatePhotoTool?.function?.parameters?.properties?.videoModel;
 if (animatePhotoModel) {
+  animatePhotoModel.description = animatePhotoModel.description?.replace(
+    'FastH3 has no R2V mode; use frameRole',
+    'FastH3 Reference-to-Video is on generate_video; use frameRole'
+  );
   animatePhotoModel.enum = [
     ...new Set([
       ...(Array.isArray(animatePhotoModel.enum) ? animatePhotoModel.enum : []),
@@ -164,6 +180,8 @@ const h3LoraSelectorsByTool = {
     'minimax-h3-r2v-balanced',
     'minimax-h3-r2v-2stage',
     'minimax-h3-r2v-balanced-2stage',
+    'minimax-h3-fasth3-r2v-turbo',
+    'minimax-h3-fasth3-r2v-turbo-2stage',
     'minimax-h3-turbo',
     'minimax-h3-fasth3-turbo',
     'minimax-h3-fasth3-turbo-2stage',

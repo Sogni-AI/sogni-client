@@ -570,7 +570,7 @@ Here is a full list of project parameters that you can use:
 - `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be an empty string.
 - `stylePrompt` - text prompt that describes the style of the image. Can be an empty string.
 - `numberOfImages` - number of images to generate.
-- `tokenType` - select token type to pay for render. Can be either `sogni` or `spark`. External API-backed models such as GPT Image 2 and Seedance are Spark-only.
+- `tokenType` - select token type to pay for render. Can be either `sogni` or `spark`. External API-backed models such as GPT Image 2, Seedream 5.0 Pro Uncensored, and Seedance are Spark-only.
 - `sizePreset` - optionally pass the ID of a size preset to use. If not passed, the default output is a square at
   either 512x512, 768x768 or 1024x1024 (SDXL and Flux) based on the default resolution of the selected model.
   See **Detecting available output presets** section below for available presets for your model. The token cost and
@@ -622,6 +622,25 @@ const imageUrls = await project.waitForCompletion();
 ```
 
 For GPT Image 2 edits, pass `contextImages`; the SDK supports up to 16 context images for this model. Cost estimates can include `gptImageQuality`, `outputFormat`, and `contextImages` so external input-image pricing is represented.
+
+### Seedream 5.0 Pro Uncensored
+
+Seedream 5.0 Pro Uncensored (`seedream-5-0-pro-uncensored`) is ByteDance's Seedream 5.0 Pro through the normal image project API: text-to-image, or edits from 1-10 `contextImages` in source order. It is Spark-only and takes no negative prompt, seed, or steps; the SDK never sends it a negative prompt. Custom sizes run from 921,600 to 4,194,304 pixels at an aspect ratio from 1:16 to 16:1, for example 1536x1536, 2048x2048, 2560x1440, or 3024x1296.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  network: 'fast',
+  modelId: 'seedream-5-0-pro-uncensored',
+  positivePrompt: 'A candid portrait in warm window light, 35mm film grain',
+  numberOfMedia: 1,
+  width: 1536,
+  height: 1536,
+  tokenType: 'spark'
+});
+```
+
+It shares the one-time likeness and consent agreement of Seedance 2.5 Uncensored: an account that has accepted it for Seedance can use Seedream, and until it is accepted in a Sogni app every Seedream job fails with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key: 'seedance-2-5-uncensored', version, modelId: 'seedream-5-0-pro-uncensored' }` and is detected by `isModelConsentRequiredError()`. `isSeedreamModel()` and `SEEDREAM_5_PRO_UNCENSORED_MODEL_ID` are exported from the package root. Hosted chat tools (`generate_image`, `edit_image`) use it only when the call names it.
 
 ### Detecting available output presets
 
@@ -1082,6 +1101,7 @@ Example model IDs:
 - `minimax-h3-fastvideo-int8_ia2v_turbo` / `minimax-h3-fastvideo-int8_flfa2v_turbo` / `minimax-h3-fastvideo-int8_a2v_turbo` (MiniMax H3 FastH3 audio guide: an uploaded `referenceAudio` drives the video and is kept in the output, with a first frame, first and last frames, or no image; 124-362 frames, size with `getMinimaxH3FramesForAudioDuration()`; catalog and Personal H3 LoRAs are accepted as on the frame modes; no `generateAudio: false` or `audioDuration`)
 - `minimax-h3-fastvideo-int8_t2v_turbo_2stage` / `minimax-h3-fastvideo-int8_i2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flf2v_turbo_2stage` / `minimax-h3-fastvideo-int8_ia2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flfa2v_turbo_2stage` / `minimax-h3-fastvideo-int8_a2v_turbo_2stage` (MiniMax H3 FastH3 Two-Stage: the FastH3 Turbo request, delivered at twice the canvas with the same length and audio. 720p: the chosen aspect at a 384 px short edge, 672×384 → 1344×768. 1080p: a 544 px short edge, 960×544 → 1920×1088. 2K: the 768p canvas, 1344×768 → 2688×1536)
 - `minimax-h3-ref2va-fp8_r2v_2stage` / `minimax-h3-ref2va-fp8_r2v_balanced_2stage` (MiniMax H3 Two-Stage Reference-to-Video: the Standard 20-step or Balanced 8-step Ref2VA request, delivered at twice the canvas with the same length, audio and references; the same 384/544/768 px canvas choices as the FastH3 Two-Stage ids)
+- `minimax-h3-fastvideo-omni-int8_r2v_turbo` / `minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage` (MiniMax H3 FastH3 Reference: FastVideo's FastH3 Omni, the FastH3 tier's Reference-to-Video on its own distilled checkpoint, with the same references, catalog LoRAs and Personal LoRAs as the other r2v ids; omit `steps`, since it is not a four-step Turbo id despite the suffix. The `_2stage` id takes the same request and delivers twice the canvas)
 - `flashvsr_v1.1_tiny_long_bf16` (FlashVSR v1.1 promptless 1080p/1440p video upscaling of one finished video)
 
 The repository does not bundle sample prompts or input media for the 10Eros model. Creators
@@ -1106,14 +1126,14 @@ When creating video projects, you can specify:
 - `referenceVideoDurations` - Optional MiniMax H3 r2v duration hints in `[referenceVideo, ...referenceVideos]` order for early client-side validation; Socket probes the uploaded files and uses measured durations for pricing and admission
 - `referenceAudio` - Reference audio for sound-to-video workflows (s2v, ia2v, flfa2v, a2v)
 - `referenceImageEnd` - Last frame for i2v, flf2v and the MiniMax H3 FastH3 flfa2v audio-guide workflow
-- `keyframes` - Every MiniMax H3 workflow except t2v (21 ids, `isMinimaxH3KeyframeModel()`: i2v and flf2v on every tier, Sound to Video ia2v/flfa2v/a2v, and Ref2VA r2v): up to `MINIMAX_H3_MAX_KEYFRAMES` (8) `{ image, frameIndex }` stills pinned between the first and last frame. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2`, each frame used once. Pass `frames` from the H3 grid (124, 141, 158, … 362) so the count is exact: `duration` snaps to the grid (`duration: 6` renders 141 frames, not 144). Frame 0 and the last frame are never keyframes: i2v, flf2v and flfa2v set them with `referenceImage` / `referenceImageEnd`, ia2v sets frame 0 with `referenceImage`, and a2v and r2v cannot pin them. The prompt names each keyframe `<Picture N>` (MiniMax's keyframe format), numbered in time order after the workflow's own pictures: after the first frame on i2v and ia2v (after the last frame on a last-frame-only i2v job), after the first and last frames on flf2v and flfa2v, from `<Picture 1>` on a2v, and after the reference images on r2v; keyframes still never count as references. i2v, flf2v and Sound to Video prompts open with one alignment line listing every picture at its mark (`How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot 2) aligns with the 2.88-second mark of the target video.`), the shot where a keyframe lands says "the shot's keyframe corresponds to `<Picture N>`", and r2v adds a `<Picture N> is the keyframe of [Shot M], showing ...` entry, `keyframe completion` in the summary tasks and a `<Picture N> ([Shot M] keyframe): fully_preserved - ...` retention entry. H3's text encoder never sees the keyframe images, so the prompt must still describe what each keyframe shows at its time. On Sound to Video the audio drives the performance and keyframes pin how it looks at their times. When a keyframe changes the framing, camera angle, location or light, start a new shot (a hard cut) in the prompt at its time: two differently framed or lit stills inside one continuous shot cross-fade, and a shot described differently from its still can flash the still for a single frame. Images upload to their own `keyframeImage1..N` slots in array order, so r2v sends its references (`referenceImage`, `contextImages`) and keyframes together. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100` MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
+- `keyframes` - Every MiniMax H3 workflow except t2v (23 ids, `isMinimaxH3KeyframeModel()`: i2v and flf2v on every tier, Sound to Video ia2v/flfa2v/a2v, and r2v): up to `MINIMAX_H3_MAX_KEYFRAMES` (8) `{ image, frameIndex }` stills pinned between the first and last frame. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2`, each frame used once. Pass `frames` from the H3 grid (124, 141, 158, … 362) so the count is exact: `duration` snaps to the grid (`duration: 6` renders 141 frames, not 144). Frame 0 and the last frame are never keyframes: i2v, flf2v and flfa2v set them with `referenceImage` / `referenceImageEnd`, ia2v sets frame 0 with `referenceImage`, and a2v and r2v cannot pin them. The prompt names each keyframe `<Picture N>` (MiniMax's keyframe format), numbered in time order after the workflow's own pictures: after the first frame on i2v and ia2v (after the last frame on a last-frame-only i2v job), after the first and last frames on flf2v and flfa2v, from `<Picture 1>` on a2v, and after the reference images on r2v; keyframes still never count as references. i2v, flf2v and Sound to Video prompts open with one alignment line listing every picture at its mark (`How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot 2) aligns with the 2.88-second mark of the target video.`), the shot where a keyframe lands says "the shot's keyframe corresponds to `<Picture N>`", and r2v adds a `<Picture N> is the keyframe of [Shot M], showing ...` entry, `keyframe completion` in the summary tasks and a `<Picture N> ([Shot M] keyframe): fully_preserved - ...` retention entry. H3's text encoder never sees the keyframe images, so the prompt must still describe what each keyframe shows at its time. On Sound to Video the audio drives the performance and keyframes pin how it looks at their times. When a keyframe changes the framing, camera angle, location or light, start a new shot (a hard cut) in the prompt at its time: two differently framed or lit stills inside one continuous shot cross-fade, and a shot described differently from its still can flash the still for a single frame. Images upload to their own `keyframeImage1..N` slots in array order, so r2v sends its references (`referenceImage`, `contextImages`) and keyframes together. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100` MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier, FastH3 Reference included (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 - `referenceImageUrls` - Loose image context URLs for Seedance, Happy Horse, and Wan 3; Wan 3 accepts up to 10
 - `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `referenceAudioUrls` - Loose audio context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `seedanceTaskType` - Seedance 2.5 loose-reference operation: `reference`, `edit`, or `extend`. Edit and extend require a reference video.
 - `hasVideoInput` - Estimate-only flag for `estimateVideoCost`; set this when estimating a canonical Seedance video-input job without passing `referenceVideo`/`referenceVideoUrls`
 - `referenceImageCount` - Optional estimate-only count of image references the video job will submit; models whose pricing does not use it ignore it
-- `keyframeCount` / `keyframes` - Estimate-only count of MiniMax H3 intermediate keyframes (0-8). The first two are included; each extra keyframe adds output time at the job's per-second rate: 0.75 s on FastH3, 0.3 s on every other tier
+- `keyframeCount` / `keyframes` - Estimate-only count of MiniMax H3 intermediate keyframes (0-8). The first two are included; each extra keyframe adds output time at the job's per-second rate: 0.75 s on FastH3, 0.3 s on every other tier, FastH3 Reference included
 - `referenceVideoCount` / `referenceVideoDurationSeconds` - Estimate-only MiniMax H3 r2v input metadata; reference-video seconds use the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output. On the two-stage Reference ids, reference video with 2K output is $0.13/s
 - MiniMax H3 two-stage quotes (FastH3 and Ref2VA alike): call `estimateVideoCost` with the `_2stage` model id and the canvas the job renders (`672`×`384` for 720p, `960`×`544` for 1080p, `1344`×`768` for 2K). Two-stage output is a model id, not a request option; passing the retired `outputScale` throws before any request
 
@@ -1731,6 +1751,19 @@ work. Lower `meshTargetFaces` for a game-ready asset. `shapeResolution` is
 
 The workflow examples showcase a few powerful open-source frontier models supported by Sogni Supernet:
 
+Both MOSS presets accept optional `mossRopeScaleX` and `mossRopeScaleY`
+(0–100, neutral 1) to adjust spatial composition. These controls preserve the
+requested output dimensions; omitted or neutral values preserve existing behavior.
+
+MOSS-Image SFT (`moss_image_sft_int8_convrot`, hosted selector `moss-image`)
+generates from captions, tags, or experimental JSON layouts. Start with 1024×1024,
+50 steps, guidance 3, `sampler: 'euler'`, and `scheduler: 'sgm_uniform'`.
+It accepts no `startingImage` or `contextImages`. See the
+[MOSS-Image guide](https://docs.sogni.ai/models/moss-image/) for layout coordinates.
+The 8-step preset is `moss_image_sft_dmd8_int8_convrot` (hosted
+`moss-image-8step`), using exactly 8 steps and guidance 1 with the same sampler,
+scheduler and dimension bounds. Both presets accept compatible Personal LoRAs.
+
 | Model ID                              | Description                                              | Use Case                                                                                                     |
 | ------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `z_image_turbo_bf16`                  | **Z-Image Turbo** - Ultra-fast 8-step generation         | Quick text-to-image prototyping and iteration                                                                |
@@ -1741,6 +1774,7 @@ The workflow examples showcase a few powerful open-source frontier models suppor
 | `chroma1-hd_fp8_scaled`               | **Chroma1-HD** - Final high-res Chroma (uncensored)      | Highest-fidelity Chroma output, LoRA-capable                                                                 |
 | `qwen_image_edit_2511_fp8_lightning`  | **Qwen Image Edit Lightning** - Fast 4-step editing      | Rapid reference-based image generation                                                                       |
 | `qwen_image_edit_2511_fp8`            | **Qwen Image Edit** - High quality 20-step editing       | Professional image editing with context awareness                                                            |
+| `seedream-5-0-pro-uncensored`         | **Seedream 5.0 Pro Uncensored** - ByteDance, external API | Text-to-image and edits from 1-10 reference images; accept the Seedance 2.5 Uncensored agreement first (error 4103 until then) |
 | `wan_v2.2-14b-fp8_t2v_lightx2v`       | **Wan 2.2 T2V** - Text-to-video                          | Generate videos from text prompts                                                                            |
 | `seedance-2-0`                        | **Seedance 2.0** - 4K external API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-mini`                   | **Seedance 2.0 Mini** - 720p external API video          | Fastest, lower-cost 24fps Seedance video generation                                                          |

@@ -523,6 +523,59 @@ function createMinimaxH3R2vTwoStageModel(tier) {
 }
 
 /**
+ * MiniMax H3 FastH3 Reference example config: FastVideo's FastH3 Omni, the
+ * FastH3 tier's own reference-to-video checkpoint. It runs 8 steps although its
+ * id ends in `_turbo`. `twoStage` selects the `_turbo_2stage` id: the same
+ * request, delivered at twice the canvas.
+ */
+function createMinimaxH3FastH3ReferenceModel({ twoStage = false } = {}) {
+  return {
+    id: `minimax-h3-fastvideo-omni-int8_r2v_turbo${twoStage ? '_2stage' : ''}`,
+    name: `MiniMax H3 FastH3 ${twoStage ? 'Two-Stage ' : ''}Reference`,
+    description: `FastH3 multi-reference video with jointly generated stereo audio${
+      twoStage ? ', delivered at twice the canvas' : ''
+    }; at least one image or video reference`,
+    workflowType: 'r2v',
+    defaultWidth: 1344,
+    defaultHeight: 768,
+    minWidth: 32,
+    maxWidth: 1344,
+    minHeight: 32,
+    maxHeight: 1344,
+    dimensionStep: 32,
+    maxPixels: 1032192,
+    defaultSteps: 8,
+    minSteps: 8,
+    maxSteps: 8,
+    defaultGuidance: 1.0,
+    minGuidance: 1.0,
+    maxGuidance: 1.0,
+    defaultComfySampler: 'euler',
+    allowedComfySamplers: ['euler'],
+    defaultComfyScheduler: 'simple',
+    allowedComfySchedulers: ['simple'],
+    minFrames: MINIMAX_H3_MIN_FRAMES,
+    maxFrames: MINIMAX_H3_MAX_FRAMES,
+    defaultFrames: MINIMAX_H3_BASE_FRAMES,
+    frameStep: MINIMAX_H3_FRAME_STEP,
+    frameBase: MINIMAX_H3_BASE_FRAMES,
+    defaultFps: MINIMAX_H3_FPS,
+    allowedFps: [MINIMAX_H3_FPS],
+    minDuration: MINIMAX_H3_MIN_DURATION,
+    maxDuration: MINIMAX_H3_MAX_DURATION,
+    isLightning: true,
+    isComfyModel: true,
+    hasAudio: true,
+    supportsNegativePrompt: false,
+    requiresVisualReference: true,
+    maxReferenceImages: MINIMAX_H3_MAX_REFERENCE_IMAGES,
+    maxReferenceVideos: MINIMAX_H3_MAX_REFERENCE_VIDEOS,
+    maxReferenceAudios: MINIMAX_H3_MAX_REFERENCE_AUDIOS,
+    maxReferenceFiles: MINIMAX_H3_MAX_REFERENCE_FILES
+  };
+}
+
+/**
  * MiniMax H3 FastH3 Turbo example config. `twoStage` selects the matching
  * `_turbo_2stage` id: the same request, delivered at twice the canvas.
  */
@@ -602,6 +655,27 @@ export const MODELS = {
       isComfyModel: true,
       defaultComfySampler: 'res_multistep',
       defaultComfyScheduler: 'simple'
+    },
+    'moss-image': {
+      id: 'moss_image_sft_int8_convrot',
+      name: 'MOSS-Image SFT',
+      description: 'Full-step text-to-image with natural language, tags and JSON layouts',
+      defaultWidth: 1024,
+      defaultHeight: 1024,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      minSteps: 50,
+      maxSteps: 100,
+      defaultSteps: 50,
+      supportsGuidance: true,
+      defaultGuidance: 3,
+      minGuidance: 3,
+      maxGuidance: 6,
+      supportsDenoise: false,
+      supportsStartingImage: false,
+      isComfyModel: true,
+      defaultComfySampler: 'euler',
+      defaultComfyScheduler: 'sgm_uniform'
     },
     'krea-2-turbo': {
       id: 'krea2_turbo_fp8_scaled',
@@ -2114,6 +2188,8 @@ export const MODELS = {
     'minimax-h3-r2v-balanced': createMinimaxH3BalancedModel('r2v'),
     'minimax-h3-r2v-2stage': createMinimaxH3R2vTwoStageModel('standard'),
     'minimax-h3-r2v-balanced-2stage': createMinimaxH3R2vTwoStageModel('balanced'),
+    'minimax-h3-fasth3-r2v-turbo': createMinimaxH3FastH3ReferenceModel(),
+    'minimax-h3-fasth3-r2v-turbo-2stage': createMinimaxH3FastH3ReferenceModel({ twoStage: true }),
     'minimax-h3-r2v-turbo': {
       id: 'minimax-h3-ref2va-fp8_r2v_turbo',
       name: 'MiniMax H3 Ref2VA FP8 Turbo R2V',

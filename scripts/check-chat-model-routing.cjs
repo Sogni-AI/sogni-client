@@ -31,7 +31,9 @@ const {
   isHappyhorseModel,
   isLtx2Model,
   isMinimaxH3BalancedModel,
+  isMinimaxH3FastH3ReferenceModel,
   isMinimaxH3Model,
+  isMinimaxH3ReferenceModel,
   isMinimaxH3TurboModel,
   isSeedanceModel,
   isVideoModel,
@@ -129,6 +131,99 @@ const models = [
   { id: PREFERRED_MODEL_IDS.audio.minimaxMusic3, media: 'audio', workerCount: 1 },
   { id: PREFERRED_MODEL_IDS.audio.qwen3TtsCustomVoice, media: 'audio', workerCount: 50 }
 ];
+
+assert.equal(resolveHostedToolModelSelector('generate_image', { model: 'moss-image' }),
+  'moss_image_sft_int8_convrot');
+assert.equal(resolveHostedToolModelSelector('generate_image', { model: 'moss-image-sft' }),
+  'moss_image_sft_int8_convrot');
+assert.equal(isEditImageModel('moss_image_sft_int8_convrot'), false);
+assert.equal(isComfyModel('moss_image_sft_int8_convrot'), true);
+assert.equal(getMaxContextImages('moss_image_sft_int8_convrot'), 0);
+for (const dimension of [512, 1024, 2048]) {
+  assert.equal(validateCustomImageSize(dimension, {
+    modelId: 'moss_image_sft_int8_convrot', propertyName: 'Width'
+  }), dimension);
+}
+for (const dimension of [496, 2064]) {
+  assert.throws(() => validateCustomImageSize(dimension, {
+    modelId: 'moss_image_sft_int8_convrot', propertyName: 'Height'
+  }));
+}
+const mossParams = {
+  type: 'image', modelId: 'moss_image_sft_int8_convrot', numberOfMedia: 1,
+  positivePrompt: '{"caption":"A sign with exact text 山海"}',
+  negativePrompt: '', width: 1024, height: 1024, sizePreset: 'custom',
+  steps: 50, guidance: 3, sampler: 'euler', scheduler: 'sgm_uniform',
+  disableNSFWFilter: true
+};
+const mossOptions = {
+  type: 'image', steps: { min: 50, max: 100, step: 1, default: 50 },
+  guidance: { min: 3, max: 6, step: 0.1, default: 3 },
+  sampler: { allowed: ['euler'], default: 'euler' },
+  scheduler: { allowed: ['sgm_uniform'], default: 'sgm_uniform' }
+};
+const mossRequest = createJobRequestMessage('moss-wire', mossParams, mossOptions);
+assert.equal(mossRequest.keyFrames[0].mossRopeScaleX, undefined);
+assert.equal(
+  createJobRequestMessage(
+    'moss-neutral',
+    {
+      ...mossParams,
+      mossRopeScaleX: 1,
+      mossRopeScaleY: 1
+    },
+    mossOptions
+  ).keyFrames[0].mossRopeScaleX,
+  undefined
+);
+const scaledMoss = createJobRequestMessage(
+  'moss-scaled',
+  {
+    ...mossParams,
+    mossRopeScaleX: 0.5,
+    mossRopeScaleY: 0
+  },
+  mossOptions
+).keyFrames[0];
+assert.equal(scaledMoss.mossRopeScaleX, 0.5);
+assert.equal(scaledMoss.mossRopeScaleY, 0);
+for (const value of [-1, 101, NaN, Infinity, '0.5', null]) {
+  assert.throws(
+    () =>
+      createJobRequestMessage(
+        'moss-invalid',
+        {
+          ...mossParams,
+          mossRopeScaleX: value
+        },
+        mossOptions
+      ),
+    /must be a finite number between 0 and 100/
+  );
+}
+const mossFastId = 'moss_image_sft_dmd8_int8_convrot';
+assert.equal(resolveHostedToolModelSelector('generate_image', { model: 'moss-image-8step' }), mossFastId);
+assert.equal(isEditImageModel(mossFastId), false);
+assert.equal(getMaxContextImages(mossFastId), 0);
+const mossFastParams = { ...mossParams, modelId: mossFastId, steps: 8, guidance: 1,
+  loras: ['personal-owned-adapter'], loraStrengths: [0.7] };
+const mossFastOptions = { ...mossOptions, steps: { min: 8, max: 8, default: 8 }, guidance: { min: 1, max: 1, default: 1 } };
+const mossFastRequest = createJobRequestMessage('moss-fast-wire', mossFastParams, mossFastOptions);
+assert.equal(mossFastRequest.keyFrames[0].steps, 8);
+assert.equal(mossFastRequest.keyFrames[0].guidanceScale, 1);
+assert.deepEqual(mossFastRequest.keyFrames[0].loras, ['personal-owned-adapter']);
+assert.deepEqual(mossFastRequest.keyFrames[0].loraStrengths, [0.7]);
+assert.throws(() => createJobRequestMessage('moss-fast-no-ref', { ...mossFastParams, contextImages: ['not-uploaded'] }, mossFastOptions), /does not accept guide or reference images/);
+assert.equal(mossRequest.disableSafety, true);
+assert.equal(mossRequest.keyFrames[0].positivePrompt, mossParams.positivePrompt);
+assert.equal(mossRequest.keyFrames[0].steps, 50);
+assert.equal(mossRequest.keyFrames[0].comfySampler, 'euler');
+assert.equal(mossRequest.keyFrames[0].comfyScheduler, 'sgm_uniform');
+for (const forbidden of [{ startingImage: 'not-uploaded' }, { contextImages: ['not-uploaded'] }]) {
+  assert.throws(() => createJobRequestMessage('moss-no-refs', {
+    ...mossParams, ...forbidden
+  }, mossOptions), /does not accept guide or reference images/);
+}
 
 assert.equal(clampVariationCount(99), 16);
 assert.equal(clampVariationCount(0), 1);
@@ -377,7 +472,8 @@ for (const schema of [generateVideoModelSchema, animatePhotoModelSchema]) {
   assert.match(schema.description, /1344x768 delivers 2688x1536/);
   assert.match(schema.description, /672x384 delivers 1344x768/);
 }
-assert.ok(!generateVideoModelSchema.enum.includes('minimax-h3-fasth3-r2v-turbo'));
+assert.doesNotMatch(generateVideoModelSchema.description, /FastH3 has no R2V mode/);
+assert.doesNotMatch(animatePhotoModelSchema.description, /FastH3 has no R2V mode/);
 assert.match(generateVideoModelSchema.description, /FastVideo VSA four-step FastH3/);
 assert.match(generateVideoModelSchema.description, /Existing "minimax-h3-turbo" selectors remain LightX2V Turbo/);
 for (const selector of [
@@ -456,6 +552,41 @@ for (const [selector, expected] of [
 }
 assert.match(generateVideoLoraSchema.description, /"minimax-h3-r2v-2stage"/);
 assert.match(generateVideoLoraSchema.description, /"minimax-h3-r2v-balanced-2stage"/);
+// FastH3 Reference (FastVideo's FastH3 Omni): the FastH3 tier's own r2v
+// checkpoint and its two-stage id. The ids end in _turbo but run 8 steps, so
+// neither is a 4-step Turbo id nor a Balanced one.
+const minimaxH3FastH3R2vModelIds = {
+  oneStage: 'minimax-h3-fastvideo-omni-int8_r2v_turbo',
+  twoStage: 'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage'
+};
+for (const id of Object.values(minimaxH3FastH3R2vModelIds)) {
+  assert.equal(isVideoModel(id), true, id);
+  assert.equal(isMinimaxH3Model(id), true, id);
+  assert.equal(isMinimaxH3ReferenceModel(id), true, id);
+  assert.equal(isMinimaxH3FastH3ReferenceModel(id), true, id);
+  assert.equal(isMinimaxH3TurboModel(id), false, id);
+  assert.equal(isMinimaxH3BalancedModel(id), false, id);
+  assert.equal(getVideoWorkflowType(id), 'r2v', id);
+  assert.deepEqual(getVideoAssetRequirements(id), MINIMAX_H3_R2V_ASSETS, id);
+  assert.deepEqual(getVideoDefaults(id), { width: 1344, height: 768, fps: 24 }, id);
+}
+assert.equal(isMinimaxH3FastH3ReferenceModel('minimax-h3-fastvideo-int8_i2v_turbo'), false);
+assert.equal(isMinimaxH3FastH3ReferenceModel('minimax-h3-ref2va-fp8_r2v_turbo'), false);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboR2v, minimaxH3FastH3R2vModelIds.oneStage);
+assert.equal(PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageR2v, minimaxH3FastH3R2vModelIds.twoStage);
+for (const [selector, expected] of [
+  ['minimax-h3-fasth3-r2v-turbo', minimaxH3FastH3R2vModelIds.oneStage],
+  ['minimax-h3-fasth3-r2v-turbo-2stage', minimaxH3FastH3R2vModelIds.twoStage]
+]) {
+  assert.ok(generateVideoModelSchema.enum.includes(selector), `${selector} is a hosted generate_video selector`);
+  assert.match(generateVideoLoraSchema.description, new RegExp(`"${selector}"`));
+  assert.equal(resolveHostedToolModelSelector('generate_video', { videoModel: selector }), expected);
+  assert.equal(
+    resolveHostedToolModelSelector('generate_video', { videoModel: selector, referenceImageIndices: [0] }),
+    expected
+  );
+}
+assert.match(generateVideoModelSchema.description, /MiniMax H3 FastH3 Reference/);
 assert.ok(Object.values(minimaxH3BalancedModelIds).every(isMinimaxH3Model));
 assert.ok(Object.values(minimaxH3BalancedModelIds).every(isMinimaxH3BalancedModel));
 assert.equal(isMinimaxH3TurboModel(minimaxH3ModelIds.t2v), false);
@@ -1389,6 +1520,28 @@ assert.throws(
       propertyName: 'Width'
     }),
   /Width must greater or equal 256/
+);
+// Seedream 5.0 Pro Uncensored: one external API model for generate_image and
+// edit_image, 1-10 references; only chosen when a call names it
+// (scripts/check-seedream-5-pro-uncensored.cjs covers selection and the wire).
+assert.equal(PREFERRED_MODEL_IDS.image.seedream5ProUncensored, 'seedream-5-0-pro-uncensored');
+assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.seedream5ProUncensored), true);
+assert.equal(isComfyModel(PREFERRED_MODEL_IDS.image.seedream5ProUncensored), false);
+assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.seedream5ProUncensored), 10);
+for (const toolName of ['generate_image', 'edit_image']) {
+  for (const model of ['seedream-5-0-pro-uncensored', 'Seedream 5.0 Pro Uncensored', 'Seedream 5 Pro Spicy']) {
+    assert.equal(
+      resolveHostedToolModelSelector(toolName, { model }),
+      PREFERRED_MODEL_IDS.image.seedream5ProUncensored
+    );
+  }
+}
+assert.equal(
+  validateCustomImageSize(3024, {
+    modelId: PREFERRED_MODEL_IDS.image.seedream5ProUncensored,
+    propertyName: 'Width'
+  }),
+  3024
 );
 assert.equal(getMaxContextImages('qwen_image_2512_fp8'), 3);
 assert.equal(getMaxContextImages('qwen_image_edit_2511_fp8'), 3);
