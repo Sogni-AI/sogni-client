@@ -1,3 +1,15 @@
+# [5.69.0](https://github.com/Sogni-AI/sogni-client/compare/v5.68.1...v5.69.0) (2026-10-22)
+
+
+### Bug Fixes
+
+* **deps:** use the published protocol alpha.54 artifacts ([499e689](https://github.com/Sogni-AI/sogni-client/commit/499e689846f54097599fa49f4672d6db4d3e99a0))
+
+
+### Features
+
+* **images:** add Seedream 5.0 Pro Uncensored image model ([fb6a00b](https://github.com/Sogni-AI/sogni-client/commit/fb6a00beea415ea4054917ace9e015f455555fe2))
+
 ## [5.68.1](https://github.com/Sogni-AI/sogni-client/compare/v5.68.0...v5.68.1) (2026-10-22)
 
 
