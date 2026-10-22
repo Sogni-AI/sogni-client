@@ -20,8 +20,8 @@
  *   --transition  Attach the LTX-2.3 transition/morph LoRA (requires --end-image, LTX-2.3 i2v);
  *                 morphs the first image into the end image and appends the 'zhuanchang' trigger
  *   --model     Model ID (default: wan_v2.2-14b-fp8_i2v_lightx2v)
- *   --width     Video width (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
- *   --height    Video height (WAN: 480-1536 step 16, LTX-2.3: 640-3840 step 64)
+ *   --width     Video width (WAN: 480-1536 step 16, at most 1024x1024 pixels; LTX-2.3: 640-3840 step 64)
+ *   --height    Video height (WAN: 480-1536 step 16, at most 1024x1024 pixels; LTX-2.3: 640-3840 step 64)
  *   --duration  Duration in seconds (WAN: 1-10s, LTX-2.3: 4-20s)
  *   --fps       Frames per second (WAN: 16/32, LTX-2.3: 1-60)
  *   --first-frame-strength  LTX keyframes: first frame match strength 0-1 (default: 1.0, 0=disable)
