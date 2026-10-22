@@ -990,6 +990,7 @@ export interface ImageProjectParams
   /**
    * Context images for multi-reference image generation.
    * GPT Image 2 supports up to 16 context images.
+   * Seedream 5.0 Pro Uncensored supports up to 10 context images.
    * Qwen Image Edit supports up to 3 context images.
    * Krea 2 Identity Edit supports up to 2 context images.
    * Legacy Flux Kontext matching supports up to 2 context images.

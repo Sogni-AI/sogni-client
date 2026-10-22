@@ -88,6 +88,8 @@ jobs:
         run: node scripts/check-minimax-h3-keyframes.cjs
       - name: Run GPT Image 2.5 checks
         run: node scripts/check-gpt-image-25.cjs
+      - name: Run Seedream 5.0 Pro Uncensored checks
+        run: node scripts/check-seedream-5-pro-uncensored.cjs
       - name: Run image export and strength checks
         run: node scripts/check-image-export-options.cjs
       - name: Run ControlNet preprocess checks

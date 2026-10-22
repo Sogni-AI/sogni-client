@@ -570,7 +570,7 @@ Here is a full list of project parameters that you can use:
 - `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be an empty string.
 - `stylePrompt` - text prompt that describes the style of the image. Can be an empty string.
 - `numberOfImages` - number of images to generate.
-- `tokenType` - select token type to pay for render. Can be either `sogni` or `spark`. External API-backed models such as GPT Image 2 and Seedance are Spark-only.
+- `tokenType` - select token type to pay for render. Can be either `sogni` or `spark`. External API-backed models such as GPT Image 2, Seedream 5.0 Pro Uncensored, and Seedance are Spark-only.
 - `sizePreset` - optionally pass the ID of a size preset to use. If not passed, the default output is a square at
   either 512x512, 768x768 or 1024x1024 (SDXL and Flux) based on the default resolution of the selected model.
   See **Detecting available output presets** section below for available presets for your model. The token cost and
@@ -622,6 +622,25 @@ const imageUrls = await project.waitForCompletion();
 ```
 
 For GPT Image 2 edits, pass `contextImages`; the SDK supports up to 16 context images for this model. Cost estimates can include `gptImageQuality`, `outputFormat`, and `contextImages` so external input-image pricing is represented.
+
+### Seedream 5.0 Pro Uncensored
+
+Seedream 5.0 Pro Uncensored (`seedream-5-0-pro-uncensored`) is ByteDance's Seedream 5.0 Pro through the normal image project API: text-to-image, or edits from 1-10 `contextImages` in source order. It is Spark-only and takes no negative prompt, seed, or steps; the SDK never sends it a negative prompt. Custom sizes run from 921,600 to 4,194,304 pixels at an aspect ratio from 1:16 to 16:1, for example 1536x1536, 2048x2048, 2560x1440, or 3024x1296.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'image',
+  network: 'fast',
+  modelId: 'seedream-5-0-pro-uncensored',
+  positivePrompt: 'A candid portrait in warm window light, 35mm film grain',
+  numberOfMedia: 1,
+  width: 1536,
+  height: 1536,
+  tokenType: 'spark'
+});
+```
+
+It shares the one-time likeness and consent agreement of Seedance 2.5 Uncensored: an account that has accepted it for Seedance can use Seedream, and until it is accepted in a Sogni app every Seedream job fails with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key: 'seedance-2-5-uncensored', version, modelId: 'seedream-5-0-pro-uncensored' }` and is detected by `isModelConsentRequiredError()`. `isSeedreamModel()` and `SEEDREAM_5_PRO_UNCENSORED_MODEL_ID` are exported from the package root. Hosted chat tools (`generate_image`, `edit_image`) use it only when the call names it.
 
 ### Detecting available output presets
 
@@ -1755,6 +1774,7 @@ scheduler and dimension bounds. Both presets accept compatible Personal LoRAs.
 | `chroma1-hd_fp8_scaled`               | **Chroma1-HD** - Final high-res Chroma (uncensored)      | Highest-fidelity Chroma output, LoRA-capable                                                                 |
 | `qwen_image_edit_2511_fp8_lightning`  | **Qwen Image Edit Lightning** - Fast 4-step editing      | Rapid reference-based image generation                                                                       |
 | `qwen_image_edit_2511_fp8`            | **Qwen Image Edit** - High quality 20-step editing       | Professional image editing with context awareness                                                            |
+| `seedream-5-0-pro-uncensored`         | **Seedream 5.0 Pro Uncensored** - ByteDance, external API | Text-to-image and edits from 1-10 reference images; accept the Seedance 2.5 Uncensored agreement first (error 4103 until then) |
 | `wan_v2.2-14b-fp8_t2v_lightx2v`       | **Wan 2.2 T2V** - Text-to-video                          | Generate videos from text prompts                                                                            |
 | `seedance-2-0`                        | **Seedance 2.0** - 4K external API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-mini`                   | **Seedance 2.0 Mini** - 720p external API video          | Fastest, lower-cost 24fps Seedance video generation                                                          |

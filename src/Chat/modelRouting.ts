@@ -12,7 +12,9 @@ import {
 import {
   isFlux3ImageKleinModel,
   isKreaIdentityEditModel,
-  isQwenImageEditModel
+  isQwenImageEditModel,
+  isSeedreamModel,
+  SEEDREAM_5_PRO_UNCENSORED_MODEL_ID
 } from '../lib/validation.js';
 
 export {
@@ -98,6 +100,9 @@ export const PREFERRED_MODEL_IDS = {
     gptImage2: 'gpt-image-2',
     gptImage25Sunburst: 'gpt-image-2.5-sunburst',
     gptImage25Flare: 'gpt-image-2.5-flare',
+    // Seedream 5.0 Pro Uncensored: requires the one-time agreement Seedance 2.5
+    // Uncensored uses, and is only ever chosen by name.
+    seedream5ProUncensored: 'seedream-5-0-pro-uncensored',
     flux1Schnell: 'flux1-schnell-fp8',
     chromaFlash: 'chroma-v.46-flash_fp8',
     zTurbo: 'z_image_turbo_bf16',
@@ -264,11 +269,24 @@ const GPT_IMAGE_25_SELECTORS: Record<string, string> = {
   flare: PREFERRED_MODEL_IDS.image.gptImage25Flare
 };
 
+// Seedream 5.0 Pro Uncensored is one model for text-to-image and 1-10
+// reference edits, so generate_image and edit_image share its selectors. Every
+// selector names the uncensored model: no standard Seedream ships, and a bare
+// "seedream" is left free for one.
+const SEEDREAM_SELECTORS: Record<string, string> = {
+  'seedream-5-pro-uncensored': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  'seedream-5.0-pro-uncensored': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  'seedream-uncensored': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  'seedream-5-pro-spicy': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  'seedream-5.0-pro-spicy': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID
+};
+
 const IMAGE_MODEL_SELECTORS: Record<string, string> = {
   ...Object.fromEntries(
     GPT_IMAGE_MODEL_ALIASES.map((alias) => [alias, PREFERRED_MODEL_IDS.image.gptImage2])
   ),
   ...GPT_IMAGE_25_SELECTORS,
+  ...SEEDREAM_SELECTORS,
   'z-turbo': 'z_image_turbo_bf16',
   'krea-2-turbo': 'krea2_turbo_fp8_scaled',
   'krea2-turbo': 'krea2_turbo_fp8_scaled',
@@ -311,6 +329,7 @@ const EDIT_IMAGE_MODEL_SELECTORS: Record<string, string> = {
     GPT_IMAGE_MODEL_ALIASES.map((alias) => [alias, PREFERRED_MODEL_IDS.image.gptImage2])
   ),
   ...GPT_IMAGE_25_SELECTORS,
+  ...SEEDREAM_SELECTORS,
   'qwen-lightning': 'qwen_image_edit_2511_fp8_lightning',
   qwen: 'qwen_image_edit_2511_fp8',
   ...FLUX3_IMAGE_KLEIN_SELECTORS,
@@ -623,6 +642,7 @@ export function isEditImageModel(modelId: string): boolean {
     modelId === PREFERRED_MODEL_IDS.image.gptImage2 ||
     modelId === PREFERRED_MODEL_IDS.image.gptImage25Sunburst ||
     modelId === PREFERRED_MODEL_IDS.image.gptImage25Flare ||
+    isSeedreamModel(modelId) ||
     isQwenImageEditModel(modelId) ||
     isKreaIdentityEditModel(modelId) ||
     isFlux3ImageKleinModel(modelId)

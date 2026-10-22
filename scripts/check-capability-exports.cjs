@@ -18,10 +18,15 @@ for (const name of [
   'isSegmentationModel',
   'requiresStartingImage',
   'isVideoModel',
-  'isAudioModel'
+  'isAudioModel',
+  'SEEDREAM_5_PRO_UNCENSORED_MODEL_ID',
+  'isSeedreamModel'
 ]) {
   assert.ok(sdk[name] !== undefined, `${name} is not exported from the package root`);
 }
+assert.equal(sdk.SEEDREAM_5_PRO_UNCENSORED_MODEL_ID, 'seedream-5-0-pro-uncensored');
+assert.equal(sdk.isSeedreamModel(sdk.SEEDREAM_5_PRO_UNCENSORED_MODEL_ID), true);
+assert.equal(sdk.isSeedreamModel('seedance-2-5-uncensored'), false);
 
 assert.equal(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID, 'pixal3d_int8_i23d');
 assert.equal(sdk.PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID, 'pixal3d_multiview_int8_i23d');

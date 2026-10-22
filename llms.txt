@@ -257,6 +257,7 @@ The full catalog is dynamic — enumerate it at runtime with
 | `dark_beast_krea2_identity_edit_v1_2` | Dark Beast Krea 2 Identity Edit — community identity edit LoRA with 1-2 reference images |
 | `qwen_image_2512_fp8` / `_lightning` | Qwen Image 2512 — text rendering |
 | `gpt-image-2` | GPT Image 2 — OpenAI partner (premium, Spark-only) |
+| `seedream-5-0-pro-uncensored` | Seedream 5.0 Pro Uncensored — ByteDance partner (premium, Spark-only); text-to-image and edits from 1-10 `contextImages`; 921,600-4,194,304 pixels at 1:16 to 16:1; no negative prompt, seed, or steps; shares the Seedance 2.5 Uncensored one-time agreement (error 4103 until accepted) |
 
 Community fine-tunes (uncensored; pass the id directly):
 `dark_beast_z_image_turbo_v9_bf16` (fast Z-Image fine-tune, 2K needs 24GB VRAM),

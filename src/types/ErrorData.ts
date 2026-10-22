@@ -51,14 +51,15 @@ interface ErrorData {
 export interface ModelConsentRequirement {
   /**
    * Stable agreement key, e.g. `'seedance-2-5-uncensored'`, the one agreement
-   * both Seedance 2.5 Uncensored and Seedance 2.0 Mini Uncensored require.
+   * Seedance 2.5 Uncensored, Seedance 2.0 Mini Uncensored and Seedream 5.0 Pro
+   * Uncensored all require.
    */
   key: string;
   /** Agreement version the account must accept. */
   version: number;
   /**
-   * Model the refused job asked for, e.g. `'seedance-2-5-uncensored'` or
-   * `'seedance-2-0-mini-uncensored'`.
+   * Model the refused job asked for, e.g. `'seedance-2-5-uncensored'`,
+   * `'seedance-2-0-mini-uncensored'` or `'seedream-5-0-pro-uncensored'`.
    */
   modelId?: string;
 }
@@ -66,8 +67,10 @@ export interface ModelConsentRequirement {
 /**
  * Socket error code for a job refused because its model requires a one-time
  * likeness and consent agreement the account has not accepted. Seedance 2.5
- * Uncensored (`seedance-2-5-uncensored`) and Seedance 2.0 Mini Uncensored
- * (`seedance-2-0-mini-uncensored`) require one, and share the same agreement.
+ * Uncensored (`seedance-2-5-uncensored`), Seedance 2.0 Mini Uncensored
+ * (`seedance-2-0-mini-uncensored`) and the image model Seedream 5.0 Pro
+ * Uncensored (`seedream-5-0-pro-uncensored`) require one, and share the same
+ * agreement. Image and video jobs are refused the same way.
  *
  * The error carries {@link ErrorData.consentRequired}. The agreement is
  * accepted in a Sogni app; the SDK never accepts it and API-key sessions

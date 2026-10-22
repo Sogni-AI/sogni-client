@@ -70,6 +70,67 @@ export function validateGptImageOptions(params: ImageProjectParams): void {
   }
 }
 
+/**
+ * Seedream 5.0 Pro Uncensored: ByteDance's Seedream 5.0 Pro, an external
+ * API-backed image model for text-to-image and for edits from 1-10 reference
+ * images (`contextImages`). Spark-only, with no negative prompt, seed or steps.
+ * Each account must accept the one-time likeness and consent agreement that
+ * Seedance 2.5 Uncensored uses (key `seedance-2-5-uncensored`) in a Sogni app
+ * first; until then its jobs fail with error code 4103
+ * (`MODEL_CONSENT_REQUIRED_ERROR_CODE`).
+ */
+export const SEEDREAM_5_PRO_UNCENSORED_MODEL_ID = 'seedream-5-0-pro-uncensored';
+
+const SEEDREAM_MODEL_IDS = new Set([SEEDREAM_5_PRO_UNCENSORED_MODEL_ID]);
+const SEEDREAM_MAX_CONTEXT_IMAGES = 10;
+// Output limits: 921,600 (1280x720) to 4,194,304 (2048x2048) pixels, aspect
+// ratio from 1:16 to 16:1. Together they bound each edge to 240-8192 px
+// (3840x240 and 8192x512 are the extremes).
+const SEEDREAM_MIN_PIXELS = 921_600;
+const SEEDREAM_MAX_PIXELS = 4_194_304;
+const SEEDREAM_MAX_ASPECT_RATIO = 16;
+
+/** Whether `modelId` is a Seedream image model (today only Seedream 5.0 Pro Uncensored). */
+export function isSeedreamModel(modelId?: string): boolean {
+  return modelId !== undefined && SEEDREAM_MODEL_IDS.has(modelId);
+}
+
+/**
+ * Check a Seedream request before anything is uploaded: at most 10 non-empty
+ * reference images, and a custom size inside the pixel and aspect-ratio limits.
+ */
+export function validateSeedreamOptions(params: ImageProjectParams): void {
+  if (!isSeedreamModel(params.modelId)) return;
+  if (
+    params.contextImages !== undefined &&
+    (!Array.isArray(params.contextImages) ||
+      params.contextImages.length > SEEDREAM_MAX_CONTEXT_IMAGES ||
+      params.contextImages.some((image) => !image))
+  ) {
+    throw new Error(
+      `${params.modelId} accepts up to ${SEEDREAM_MAX_CONTEXT_IMAGES} non-empty reference images in source order`
+    );
+  }
+  const isCustomSize =
+    (params.sizePreset === undefined || params.sizePreset === 'custom') &&
+    !!params.width &&
+    !!params.height;
+  if (!isCustomSize) return;
+  const width = Number(params.width);
+  const height = Number(params.height);
+  const pixels = width * height;
+  const aspectRatio = Math.max(width, height) / Math.min(width, height);
+  if (
+    pixels < SEEDREAM_MIN_PIXELS ||
+    pixels > SEEDREAM_MAX_PIXELS ||
+    aspectRatio > SEEDREAM_MAX_ASPECT_RATIO
+  ) {
+    throw new Error(
+      `${params.modelId} renders 921,600 to 4,194,304 pixels at an aspect ratio from 1:16 to 16:1; got ${width}x${height}`
+    );
+  }
+}
+
 const EXTENDED_IMAGE_SIZE_MODEL_IDS = new Set([
   'z_image_bf16',
   'z_image_turbo_bf16',
@@ -131,6 +192,9 @@ function getCustomImageSizeBounds(modelId?: string): { min: number; max: number 
   }
   if (isGptImageModel(modelId)) {
     return { min: 256, max: 3840 };
+  }
+  if (isSeedreamModel(modelId)) {
+    return { min: 240, max: 8192 };
   }
   if (modelId && isFlux3ImageKleinModel(modelId)) {
     return { min: 256, max: 4096 };
@@ -242,6 +306,7 @@ export function isComfyModel(modelId: string): boolean {
 /**
  * Get the maximum number of context images supported by a model.
  * - GPT Image 2: 16 images
+ * - Seedream 5.0 Pro Uncensored: 10 images
  * - FLUX 3 Image Klein: 10 images (optional)
  * - Qwen Image Edit: 3 images
  * - Krea 2 Identity Edit: 2 images
@@ -252,6 +317,9 @@ export function getMaxContextImages(modelId: string): number {
   if (['moss_image_sft_int8_convrot', 'moss_image_sft_dmd8_int8_convrot'].includes(modelId || '')) return 0;
   if (isGptImageModel(modelId)) {
     return 16;
+  }
+  if (isSeedreamModel(modelId)) {
+    return SEEDREAM_MAX_CONTEXT_IMAGES;
   }
   if (isFlux3ImageKleinModel(modelId)) {
     return 10;

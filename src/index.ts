@@ -49,6 +49,7 @@ import {
   isVideoUpscaleModel,
   requiresStartingImage
 } from './Projects/utils/index.js';
+import { SEEDREAM_5_PRO_UNCENSORED_MODEL_ID, isSeedreamModel } from './lib/validation.js';
 import ProjectsApi from './Projects/index.js';
 import Job, { JobStatus } from './Projects/Job.js';
 import Project, { ProjectStatus } from './Projects/Project.js';
@@ -498,6 +499,7 @@ export {
   PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
   PIXAL3D_ORBIT_VIEW_SLOTS,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
+  SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
   calculateVideoFrames,
   getMinimaxH3FramesForAudioDuration,
   getPixal3dOrbitViewSlots,
@@ -508,6 +510,7 @@ export {
   isPixal3dModel,
   isPixal3dMultiViewModel,
   isSegmentationModel,
+  isSeedreamModel,
   isVideoModel,
   isVideoUpscaleModel,
   requiresStartingImage,

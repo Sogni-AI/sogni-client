@@ -1521,6 +1521,28 @@ assert.throws(
     }),
   /Width must greater or equal 256/
 );
+// Seedream 5.0 Pro Uncensored: one external API model for generate_image and
+// edit_image, 1-10 references; only chosen when a call names it
+// (scripts/check-seedream-5-pro-uncensored.cjs covers selection and the wire).
+assert.equal(PREFERRED_MODEL_IDS.image.seedream5ProUncensored, 'seedream-5-0-pro-uncensored');
+assert.equal(isEditImageModel(PREFERRED_MODEL_IDS.image.seedream5ProUncensored), true);
+assert.equal(isComfyModel(PREFERRED_MODEL_IDS.image.seedream5ProUncensored), false);
+assert.equal(getMaxContextImages(PREFERRED_MODEL_IDS.image.seedream5ProUncensored), 10);
+for (const toolName of ['generate_image', 'edit_image']) {
+  for (const model of ['seedream-5-0-pro-uncensored', 'Seedream 5.0 Pro Uncensored', 'Seedream 5 Pro Spicy']) {
+    assert.equal(
+      resolveHostedToolModelSelector(toolName, { model }),
+      PREFERRED_MODEL_IDS.image.seedream5ProUncensored
+    );
+  }
+}
+assert.equal(
+  validateCustomImageSize(3024, {
+    modelId: PREFERRED_MODEL_IDS.image.seedream5ProUncensored,
+    propertyName: 'Width'
+  }),
+  3024
+);
 assert.equal(getMaxContextImages('qwen_image_2512_fp8'), 3);
 assert.equal(getMaxContextImages('qwen_image_edit_2511_fp8'), 3);
 assert.equal(getMaxContextImages('flux1-dev-kontext_fp8_scaled'), 2);

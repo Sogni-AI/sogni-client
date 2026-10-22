@@ -501,6 +501,17 @@ GPT Image 2 uses `modelId: 'gpt-image-2'`, supports up to 16 `contextImages`,
 accepts `gptImageQuality: 'low' | 'medium' | 'high'`, supports
 `outputFormat: 'png' | 'jpg' | 'webp'`, and is Spark-only.
 
+Seedream 5.0 Pro Uncensored uses `modelId: 'seedream-5-0-pro-uncensored'`
+(exported as `SEEDREAM_5_PRO_UNCENSORED_MODEL_ID`; test with `isSeedreamModel()`):
+text-to-image, or edits from 1-10 `contextImages` in source order. It is
+Spark-only and takes no negative prompt, seed, or steps. Custom sizes run from
+921,600 to 4,194,304 pixels at an aspect ratio from 1:16 to 16:1 (for example
+1536x1536, 2048x2048, 2560x1440, 3024x1296). It shares the Seedance 2.5
+Uncensored one-time likeness and consent agreement: until the account accepts
+it in a Sogni app, its jobs fail with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103)
+carrying `consentRequired: { key: 'seedance-2-5-uncensored', version, modelId }`.
+Hosted chat tools use it only when the call names it.
+
 RECOMMENDED MODELS:
 | Model ID | Type | Steps | Guidance | Notes |
 |----------|------|-------|----------|-------|

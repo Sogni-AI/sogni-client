@@ -19,9 +19,11 @@ import {
   validateNumber,
   validateCustomImageSize,
   validateGptImageOptions,
+  validateSeedreamOptions,
   validateVideoSize,
   validateTeacacheThreshold,
   isComfyModel,
+  isSeedreamModel,
   validateVideoDuration,
   validateSampler,
   validateScheduler,
@@ -1546,6 +1548,7 @@ function applyImageParams(
     });
   }
   validateGptImageOptions(params);
+  validateSeedreamOptions(params);
   if (params.gptImageMask) {
     keyFrame.hasReferenceMask = true;
     keyFrame.referenceMaskContentType = 'image/png';
@@ -1960,6 +1963,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
   };
   if (
     isAudioParams(params) ||
+    (isImageParams(params) && isSeedreamModel(params.modelId)) ||
     (isVideoParams(params) &&
       (isExternalApiVideoModel(params.modelId) || isMinimaxH3Model(params.modelId)))
   ) {
