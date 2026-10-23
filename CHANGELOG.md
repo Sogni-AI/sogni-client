@@ -1,3 +1,10 @@
+## [5.69.1](https://github.com/Sogni-AI/sogni-client/compare/v5.69.0...v5.69.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** use the published protocol alpha.55 artifacts ([e324505](https://github.com/Sogni-AI/sogni-client/commit/e3245054b1f07ae91d0798b09b79df9872abfd9b))
+
 # [5.69.0](https://github.com/Sogni-AI/sogni-client/compare/v5.68.1...v5.69.0) (2026-10-22)
 
 
