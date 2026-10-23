@@ -1,0 +1,45 @@
+name: Pull request checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Check generation recovery and cancellation
+        run: |
+          node scripts/check-auth-session.cjs
+          node scripts/check-project-request-session.cjs
+          node scripts/check-project-cancellation.cjs
+          node scripts/check-project-recovery.cjs
+          node scripts/check-project-liveness.cjs
+          node scripts/check-project-results.cjs
+          node scripts/check-chat-transport-recovery.cjs
+      - name: Check socket handoff and reconnects
+        run: |
+          node scripts/check-browser-request-handoff.cjs
+          node scripts/check-socket-send-readiness.cjs
+          node scripts/check-socket-reconnect-backoff.cjs
+          node scripts/check-socket-keepalive.cjs
+      - name: Check downloads and REST errors
+        run: |
+          node scripts/check-result-download-endpoint.cjs
+          node scripts/check-remote-media-hosts.cjs
+          node scripts/check-rest-error-messages.cjs
+          node scripts/check-rest-error-retry-after.cjs
