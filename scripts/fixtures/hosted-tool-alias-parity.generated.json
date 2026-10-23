@@ -92,7 +92,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_video",
       "sdkToolName": "generate_video",
-      "hostedSchemaSha256": "d2bb81a85896ea04f1e773636fa314ad1f19944ddf29547f2db1439a66291fd9",
+      "hostedSchemaSha256": "c30fecfc4c2d6cbf15fcb596585687c5d6f3876e1d4e23b9b4ddebf004aaa92e",
       "hostedRequired": [
         "prompt"
       ],
