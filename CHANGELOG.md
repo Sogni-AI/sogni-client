@@ -1,3 +1,10 @@
+# [5.70.0](https://github.com/Sogni-AI/sogni-client/compare/v5.69.1...v5.70.0) (2026-10-26)
+
+
+### Features
+
+* **video:** add opt-in MiniMax reference compression ([b6ef9a5](https://github.com/Sogni-AI/sogni-client/commit/b6ef9a581414a77f4ed56adf4d96779dc51488a7))
+
 ## [5.69.1](https://github.com/Sogni-AI/sogni-client/compare/v5.69.0...v5.69.1) (2026-10-23)
 
 
