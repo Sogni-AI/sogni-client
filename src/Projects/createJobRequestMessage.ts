@@ -1653,6 +1653,23 @@ function applyVideoParams(
   rejectRetiredOutputScale(params);
   validateMinimaxH3Params(params);
   const keyFrame: Record<string, any> = { ...inputKeyframe };
+  if (params.referenceVideoCompression !== undefined) {
+    if (!['none', 'vpack'].includes(params.referenceVideoCompression)) {
+      throw new Error('referenceVideoCompression must be none or vpack.');
+    }
+    if (params.referenceVideoCompression === 'vpack') {
+      if (
+        !isMinimaxH3ReferenceModel(params.modelId) ||
+        params.modelId.endsWith('_2stage') ||
+        !getMinimaxH3ReferenceVideoSlots(params).length
+      ) {
+        throw new Error(
+          'VPack requires an uploaded reference video on a one-stage MiniMax H3 Reference to Video model.'
+        );
+      }
+      keyFrame.referenceVideoCompression = 'vpack';
+    }
+  }
   if (params.referenceImage) {
     keyFrame.hasReferenceImage = true;
   }

@@ -86,6 +86,8 @@ jobs:
         run: node scripts/check-capability-exports.cjs
       - name: Run MiniMax H3 keyframe checks
         run: node scripts/check-minimax-h3-keyframes.cjs
+      - name: Run MiniMax H3 reference compression checks
+        run: node scripts/check-minimax-h3-vpack.cjs
       - name: Run GPT Image 2.5 checks
         run: node scripts/check-gpt-image-25.cjs
       - name: Run Seedream 5.0 Pro Uncensored checks

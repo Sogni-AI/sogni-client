@@ -717,6 +717,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    * pricing and job admission. Omit this field when duration is unavailable.
    */
   referenceVideoDurations?: number[];
+  /** Opt-in VPack compression for one-stage MiniMax H3 reference video. Omitted/none preserves the original reference tokens. */
+  referenceVideoCompression?: 'none' | 'vpack';
   /**
    * Inpaint mask IMAGE for distilled LTX 2.5 or LTX 2.3 v2v inpaint workflows.
    * White pixels mark the region to regenerate. Maps to jobKey 'referenceMask'.

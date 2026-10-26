@@ -1326,6 +1326,11 @@ uploaded video, overwrites caller claims, and uses measured durations for
 pricing and admission. At least one
 visual reference (image or video) is required; audio alone is rejected.
 
+For one-stage MiniMax H3 Reference to Video, `referenceVideoCompression: 'vpack'`
+opts into lower reference-video memory use. Fine detail and motion may change.
+It requires an uploaded reference video; two-stage output and image-only requests
+do not support it. Omit the option or use `'none'` to preserve ordinary processing.
+
 Ref2VA uses six sections in exact order: `subject_definitions`, `summary`,
 `retention_analysis`, `detailed_description`, `overall_soundscape`, and
 `non_diegetic_music`. Use `<Subject N>` for reusable visible content abstracted
