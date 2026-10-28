@@ -106,6 +106,7 @@
     "test:socket-reconnect-backoff": "npm run build && node scripts/check-socket-reconnect-backoff.cjs",
     "test:socket-keepalive": "npm run build && node scripts/check-socket-keepalive.cjs",
     "test:browser-request-handoff": "npm run build && node scripts/check-browser-request-handoff.cjs",
+    "test:browser-media-encryption": "npm run build && node scripts/check-browser-media-encryption.cjs",
     "test:queue-wait-eta": "npm run build && node scripts/check-queue-wait-eta.cjs",
     "test:queue-reasons": "npm run build && node scripts/check-queue-reasons.cjs",
     "test:workflow-template-envelope": "npm run build && node scripts/check-workflow-template-envelope.cjs",

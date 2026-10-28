@@ -143,6 +143,9 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     this.client.socket.on('authenticated', (data) => {
       this.setServerAvailable(data.mediaEncryptionAvailable === true);
     });
+    this.client.socket.on('mediaEncryptionAvailabilityUpdated', (available) => {
+      this.setServerAvailable(available === true);
+    });
   }
 
   /**

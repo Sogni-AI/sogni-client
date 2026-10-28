@@ -129,6 +129,9 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   // the shared socket originally connected.
   private _lastSubscriptionEntitlement: SocketEventMap['subscriptionEntitlementUpdated'] | null =
     null;
+  // Only the boolean is retained: replaying authenticated would also repeat
+  // account initialization and active-project recovery in existing consumers.
+  private _lastMediaEncryptionAvailable: boolean | null = null;
 
   constructor(
     baseUrl: string,
@@ -396,6 +399,16 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
               }
             });
           }
+          if (this._lastMediaEncryptionAvailable !== null) {
+            this.coordinator.notify({
+              type: 'socket-event',
+              sessionId: this._sessionId ?? undefined,
+              payload: {
+                type: 'mediaEncryptionAvailabilityUpdated',
+                data: this._lastMediaEncryptionAvailable
+              }
+            });
+          }
         }
         return;
       }
@@ -501,8 +514,11 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         this._lastSwarmLLMModels = payload;
       } else if (eventType === 'subscriptionEntitlementUpdated') {
         this._lastSubscriptionEntitlement = payload;
-      } else if (eventType === 'authenticated' && payload?.subscriptionEntitlement) {
-        this._lastSubscriptionEntitlement = payload.subscriptionEntitlement;
+      } else if (eventType === 'authenticated') {
+        this._lastMediaEncryptionAvailable = payload?.mediaEncryptionAvailable === true;
+        if (payload?.subscriptionEntitlement) {
+          this._lastSubscriptionEntitlement = payload.subscriptionEntitlement;
+        }
       }
       this.coordinator.notify({
         type: 'socket-event',
@@ -535,6 +551,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       this._legacySessionVersion = undefined;
       this._lastBalanceUpdate = null;
       this._lastSubscriptionEntitlement = null;
+      this._lastMediaEncryptionAvailable = null;
     }
     if (this.coordinator.isPrimary && !this._sessionId) this._sessionId = getUUID();
   }

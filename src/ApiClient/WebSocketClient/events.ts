@@ -521,6 +521,8 @@ export type SocketEventMap = {
    * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
    */
   authenticated: AuthenticatedData;
+  /** @internal Replays only the shared socket's encryption availability to a joining tab. */
+  mediaEncryptionAvailabilityUpdated: boolean;
   /**
    * @event WebSocketClient#subscriptionEntitlementUpdated - Subscription entitlement changed while connected
    */
