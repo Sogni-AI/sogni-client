@@ -378,14 +378,20 @@ async function checkRoundTripsAndTampering() {
 class StubAuth {
   constructor() {
     this.listeners = [];
+    this.sessionListeners = [];
     this.isAuthenticated = true;
   }
   on(event, listener) {
     if (event === 'updated') this.listeners.push(listener);
+    if (event === 'sessionChanged') this.sessionListeners.push(listener);
     return () => {};
   }
   emitUpdated(value) {
     this.listeners.forEach((listener) => listener(value));
+  }
+  changeSession() {
+    this.sessionVersion = (this.sessionVersion || 0) + 1;
+    this.sessionListeners.forEach((listener) => listener());
   }
   async authenticateRequest(options) {
     return options;
@@ -617,6 +623,110 @@ async function checkAccountKeyLifecycle() {
     () => api.decrypt(headlessSealed),
     (error) => error.code === 'wrong_account_key'
   );
+}
+
+async function checkAsyncKeyLifecycle() {
+  const deferred = () => {
+    let resolve;
+    const promise = new Promise((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  };
+  const key = await lib.importAccountKey(PROJECT_KEY);
+  // Credentials can switch accounts directly, without an intervening logout.
+  const switchingAccount = stubAccount('artist', 'correct horse');
+  const switchingClient = stubClient();
+  const switchingStore = new lib.MemoryAccountKeyStore();
+  const switchingApi = new MediaEncryptionApi(
+    { client: switchingClient, eip712: {} },
+    switchingAccount,
+    switchingStore
+  );
+  await switchingApi.unlock('correct horse');
+  switchingAccount.currentAccount.clear();
+  switchingClient.auth.changeSession();
+  assert.equal(
+    await switchingApi.isUnlocked(),
+    false,
+    'a session change clears the old key before the new account loads'
+  );
+  await switchingApi.lock();
+  assert.equal(await switchingStore.load(switchingAccount.wallet.address), null);
+  // A read started by a tile must not restore a key after logout or an account switch.
+  for (const change of ['logout', 'account']) {
+    const account = stubAccount('artist', 'correct horse');
+    const client = stubClient();
+    const loaded = deferred();
+    const started = deferred();
+    const api = new MediaEncryptionApi({ client, eip712: {} }, account, {
+      load: () => {
+        started.resolve();
+        return loaded.promise;
+      },
+      save: async () => {},
+      remove: async () => {}
+    });
+    const events = [];
+    api.on('unlocked', () => events.push('unlocked'));
+    const opening = api.isUnlocked();
+    await started.promise;
+    if (change === 'logout') {
+      await api.lock();
+      account.currentAccount.clear();
+    } else {
+      account.currentAccount.walletAddress = Wallet.createRandom().address;
+    }
+    loaded.resolve(key);
+    assert.equal(await opening, false, `${change} invalidates an in-flight key load`);
+    assert.equal(api.accountKey, null);
+    assert.deepEqual(events, []);
+  }
+
+  // Derivation/import may yield to logout before setKey is reached.
+  for (const operation of ['unlock', 'custom']) {
+    const store = new lib.MemoryAccountKeyStore();
+    const account = stubAccount('artist', 'correct horse');
+    const api = new MediaEncryptionApi({ client: stubClient(), eip712: {} }, account, store);
+    const changing =
+      operation === 'unlock' ? api.unlock('correct horse') : api.setAccountKey(PROJECT_KEY);
+    const rejected = assert.rejects(changing, (error) => error.code === 'locked');
+    await api.lock();
+    await rejected;
+    assert.equal(await api.isUnlocked(), false, `${operation} cannot finish after locking`);
+    assert.equal(await store.load(account.wallet.address), null);
+  }
+
+  // A save already in progress must finish before logout removes it, never afterwards.
+  const backing = new lib.MemoryAccountKeyStore();
+  const saveStarted = deferred();
+  const finishSave = deferred();
+  const account = stubAccount('artist', 'correct horse');
+  const api = new MediaEncryptionApi({ client: stubClient(), eip712: {} }, account, {
+    load: (wallet) => backing.load(wallet),
+    save: async (wallet, value) => {
+      saveStarted.resolve();
+      await finishSave.promise;
+      await backing.save(wallet, value);
+    },
+    remove: (wallet) => backing.remove(wallet)
+  });
+  const events = [];
+  api.on('unlocked', () => events.push('unlocked'));
+  const changing = api.unlock('correct horse');
+  const rejected = assert.rejects(changing, (error) => error.code === 'locked');
+  await saveStarted.promise;
+  const locking = api.lock();
+  const opening = api.isUnlocked();
+  finishSave.resolve();
+  await Promise.all([locking, rejected]);
+  assert.equal(await opening, false, 'a read during removal waits for it');
+  assert.equal(
+    await backing.load(account.wallet.address),
+    null,
+    'the late save cannot persist after logout'
+  );
+  assert.deepEqual(events, [], 'the late save cannot emit unlocked');
 }
 
 async function checkKeyHygiene() {
@@ -1125,6 +1235,7 @@ async function run() {
   await checkVectors();
   await checkRoundTripsAndTampering();
   await checkAccountKeyLifecycle();
+  await checkAsyncKeyLifecycle();
   await checkKeyHygiene();
   await checkProjectCreation();
   await checkEncryptedKeyframeUploads();

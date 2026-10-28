@@ -95,8 +95,11 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
   private lastWalletAddress: string | null = null;
   /** The integrator supplied the key; a later password login must not replace it. */
   private explicitKey = false;
-  /** Stored-key removals still in progress; see {@link MediaEncryptionApi.lock}. */
-  private removal: Promise<void> = Promise.resolve();
+  /** Serialize saves and removals so logout cannot be overtaken by an earlier save. */
+  private persistence: Promise<void> = Promise.resolve();
+  /** Invalidates asynchronous key work when the key is changed or locked. */
+  private keyGeneration = 0;
+  private keySessionVersion?: number;
   /** The last `mediaEncryptionAvailable` the server sent on this connection. */
   private serverAvailable = false;
 
@@ -120,6 +123,12 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
           this.client.logger.warn('Failed to remove the stored media key', error)
         );
       }
+    });
+    this.client.auth.on('sessionChanged', () => {
+      this.setServerAvailable(false);
+      this.lock().catch((error) =>
+        this.client.logger.warn('Failed to remove the stored media key', error)
+      );
     });
     this.client.socket.on('authenticated', (data) => {
       this.setServerAvailable(data.mediaEncryptionAvailable === true);
@@ -173,6 +182,7 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
    * wallet address and is never sent anywhere.
    */
   async unlock(password: string): Promise<void> {
+    const isCurrent = this.beginKeyChange();
     let { username, walletAddress } = this.account.currentAccount;
     if (!username || !walletAddress) {
       const me = await this.account.me();
@@ -196,8 +206,9 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
       );
     }
     // An explicit unlock is a deliberate choice of the password-derived key.
+    this.assertCurrentKeyChange(isCurrent);
     this.explicitKey = false;
-    await this.adoptWallet(wallet);
+    await this.adoptWallet(wallet, isCurrent);
   }
 
   /**
@@ -207,13 +218,17 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
    * or logout: a later `account.login()` does not replace it.
    */
   async setAccountKey(secret: Uint8Array): Promise<void> {
+    const isCurrent = this.beginKeyChange();
     const walletAddress = this.account.currentAccount.walletAddress;
+    const key = await importAccountKey(secret);
+    this.assertCurrentKeyChange(isCurrent);
     this.explicitKey = true;
-    await this.setKey(await importAccountKey(secret), walletAddress ?? null);
+    await this.setKey(key, walletAddress ?? null, isCurrent);
   }
 
   /** Forget the account key on this device. Encrypted media stays encrypted. */
   async lock(): Promise<void> {
+    this.keyGeneration++;
     const walletAddresses = new Set(
       [this.keyWalletAddress, this.account.currentAccount.walletAddress, this.lastWalletAddress]
         .filter((address): address is string => !!address)
@@ -227,12 +242,12 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     // Logging out locks on its own, without anyone waiting for it. Chaining
     // lets a caller that does wait (before leaving the page, say) know every
     // earlier removal has finished too, not only its own.
-    const removal = this.removal
+    const removal = this.persistence
       .catch(() => undefined)
       .then(async () => {
         for (const walletAddress of walletAddresses) await this.store.remove(walletAddress);
       });
-    this.removal = removal;
+    this.persistence = removal;
     if (hadKey) this.emit('locked', undefined);
     await removal;
   }
@@ -339,11 +354,16 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
   }
 
   private async loadAccountKey(): Promise<AccountMediaKey | null> {
+    const generation = this.keyGeneration;
+    const session = this.client.auth.sessionVersion;
     const walletAddress = this.account.currentAccount.walletAddress;
     if (this.accountKey) {
       // A key set before the account was known (setAccountKey) belongs to whoever signs in.
-      if (!this.keyWalletAddress || !walletAddress) return this.accountKey;
-      if (this.keyWalletAddress.toLowerCase() === walletAddress.toLowerCase()) {
+      if (!this.keyWalletAddress) return this.accountKey;
+      if (
+        this.keySessionVersion === session &&
+        (!walletAddress || this.keyWalletAddress.toLowerCase() === walletAddress.toLowerCase())
+      ) {
         return this.accountKey;
       }
       // A different account signed in on this client; its key is not this one.
@@ -353,41 +373,80 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     if (!walletAddress) return null;
     let stored: AccountMediaKey | null;
     try {
+      await this.persistence.catch(() => undefined);
+      if (generation !== this.keyGeneration || session !== this.client.auth.sessionVersion)
+        return null;
       stored = await this.store.load(walletAddress);
     } catch (error) {
       // Storage blocked or unavailable: the same as having no stored key.
       this.client.logger.warn('Media key storage could not be read', error);
       return null;
     }
-    if (!stored) return null;
+    if (
+      !stored ||
+      generation !== this.keyGeneration ||
+      session !== this.client.auth.sessionVersion ||
+      walletAddress.toLowerCase() !== this.account.currentAccount.walletAddress?.toLowerCase()
+    )
+      return null;
     this.accountKey = stored;
     this.keyWalletAddress = walletAddress;
+    this.keySessionVersion = session;
     this.emit('unlocked', undefined);
     return stored;
   }
 
-  private async adoptWallet(wallet: Wallet): Promise<void> {
+  private beginKeyChange(): () => boolean {
+    const generation = ++this.keyGeneration;
+    const session = this.client.auth.sessionVersion;
+    return () => generation === this.keyGeneration && session === this.client.auth.sessionVersion;
+  }
+
+  private assertCurrentKeyChange(isCurrent: () => boolean): void {
+    if (!isCurrent()) {
+      throw new MediaEncryptionError(
+        'locked',
+        'Media encryption was locked or the account changed'
+      );
+    }
+  }
+
+  private async adoptWallet(wallet: Wallet, isCurrent?: () => boolean): Promise<void> {
     // Reached from login as well: a key the integrator set must survive it.
     if (this.explicitKey) return;
+    const current = isCurrent ?? this.beginKeyChange();
     const walletKey = getBytes(wallet.privateKey);
     try {
-      await this.setKey(await deriveAccountKey(walletKey), wallet.address);
+      await this.setKey(await deriveAccountKey(walletKey), wallet.address, current);
     } finally {
       walletKey.fill(0);
     }
   }
 
-  private async setKey(key: AccountMediaKey, walletAddress: string | null): Promise<void> {
+  private async setKey(
+    key: AccountMediaKey,
+    walletAddress: string | null,
+    isCurrent: () => boolean
+  ): Promise<void> {
+    this.assertCurrentKeyChange(isCurrent);
     this.accountKey = key;
     this.keyWalletAddress = walletAddress;
+    this.keySessionVersion = this.client.auth.sessionVersion;
     if (walletAddress) {
       try {
-        await this.store.save(walletAddress, key);
+        const saving = this.persistence
+          .catch(() => undefined)
+          .then(async () => {
+            if (isCurrent()) await this.store.save(walletAddress, key);
+          });
+        this.persistence = saving;
+        await saving;
       } catch (error) {
         // The key still works for this page load; the artist is asked again next visit.
         this.client.logger.warn('Media key could not be stored on this device', error);
       }
     }
+    this.assertCurrentKeyChange(isCurrent);
     this.emit('unlocked', undefined);
   }
 }
