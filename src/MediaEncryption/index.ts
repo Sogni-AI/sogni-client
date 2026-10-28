@@ -114,7 +114,10 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
       );
     account.currentAccount.on('updated', () => {
       const walletAddress = account.currentAccount.walletAddress;
-      if (walletAddress) this.lastWalletAddress = walletAddress;
+      if (walletAddress) {
+        this.lastWalletAddress = walletAddress;
+        this.bindExplicitKey(walletAddress);
+      }
     });
     this.client.auth.on('updated', (isAuthenticated) => {
       if (!isAuthenticated) {
@@ -126,6 +129,13 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     });
     this.client.auth.on('sessionChanged', () => {
       this.setServerAvailable(false);
+      // Auth retains its previous identity after logout. A new explicit key
+      // supplied while signed out belongs to the NEXT account, even when its
+      // login changes that retained identity. Previously bound keys still lock.
+      if (this.explicitKey && this.accountKey && !this.keyWalletAddress) {
+        this.keyGeneration++;
+        return;
+      }
       this.lock().catch((error) =>
         this.client.logger.warn('Failed to remove the stored media key', error)
       );
@@ -413,13 +423,23 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
 
   private async adoptWallet(wallet: Wallet, isCurrent?: () => boolean): Promise<void> {
     // Reached from login as well: a key the integrator set must survive it.
-    if (this.explicitKey) return;
+    if (this.explicitKey) {
+      this.bindExplicitKey(wallet.address);
+      return;
+    }
     const current = isCurrent ?? this.beginKeyChange();
     const walletKey = getBytes(wallet.privateKey);
     try {
       await this.setKey(await deriveAccountKey(walletKey), wallet.address, current);
     } finally {
       walletKey.fill(0);
+    }
+  }
+
+  private bindExplicitKey(walletAddress: string): void {
+    if (this.explicitKey && this.accountKey && !this.keyWalletAddress) {
+      this.keyWalletAddress = walletAddress;
+      this.keySessionVersion = this.client.auth.sessionVersion;
     }
   }
 

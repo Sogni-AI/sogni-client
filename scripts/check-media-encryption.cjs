@@ -729,6 +729,122 @@ async function checkAsyncKeyLifecycle() {
   assert.deepEqual(events, [], 'the late save cannot emit unlocked');
 }
 
+async function checkRealLoginKeyLifecycle() {
+  const { EventEmitter } = require('node:events');
+  const AccountApi = require('../dist/Account/index.js').default;
+  const CookieAuth = require('../dist/lib/AuthManager/CookieAuthManager.js').default;
+  const TokenAuth = require('../dist/lib/AuthManager/TokenAuthManager.js').default;
+  const logger = { debug() {}, info() {}, warn() {}, error() {} };
+  const jwt = (payload) => {
+    const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.test`;
+  };
+  const tokens = (address, expired = false) => {
+    const now = Math.floor(Date.now() / 1000);
+    return {
+      token: jwt({ addr: address, env: 'test', iat: now, exp: now + (expired ? -60 : 3600) }),
+      refreshToken: jwt({ type: 'refresh', env: 'test', iat: now, exp: now + 86400 })
+    };
+  };
+  for (const mode of ['cookie', 'token']) {
+    const auth =
+      mode === 'cookie'
+        ? new CookieAuth(logger)
+        : new TokenAuth('https://auth.example.test', logger);
+    let address;
+    let sessionChanges = 0;
+    auth.on('sessionChanged', () => sessionChanges++);
+    const socket = Object.assign(new EventEmitter(), { isConnected: false, supernetType: 'fast' });
+    const client = Object.assign(new EventEmitter(), {
+      auth,
+      socket,
+      logger,
+      rest: {
+        post: async (url, body) => {
+          if (url === '/v1/account/nonce') return { data: { nonce: 'test-nonce' } };
+          if (url === '/v1/account/login') {
+            address = body.walletAddress;
+            return { data: tokens(address) };
+          }
+          if (url === '/v1/account/logout') return { data: {} };
+          throw new Error(`Unexpected auth POST ${url}`);
+        },
+        get: async (url) => {
+          assert.equal(url, '/v1/account/me');
+          return { data: { username: 'artist', walletAddress: address, currentEmail: '' } };
+        }
+      }
+    });
+    const config = { client, eip712: { signTypedData: async () => 'test-signature' } };
+    const account = new AccountApi(config);
+    const store = new lib.MemoryAccountKeyStore();
+    const api = new MediaEncryptionApi(config, account, store);
+    const firstSecret = new Uint8Array(32).fill(7);
+    await api.setAccountKey(firstSecret);
+    const firstMedia = await (
+      await api._createProjectEncryption()
+    ).encrypt(pattern(7), 'image/png');
+    await account.login('first-artist', 'test-password');
+    assert.equal(sessionChanges, 0, `${mode}: first identity does not emit sessionChanged`);
+    assert.deepEqual(await bytesOf(await api.decrypt(firstMedia)), pattern(7));
+    await account.logout();
+    await api.lock();
+
+    await api.setAccountKey(new Uint8Array(32).fill(8));
+    const secondMedia = await (
+      await api._createProjectEncryption()
+    ).encrypt(pattern(8), 'image/png');
+    await account.login('second-artist', 'test-password');
+    assert.equal(sessionChanges, 1, `${mode}: a new identity after logout emits sessionChanged`);
+    assert.deepEqual(
+      await bytesOf(await api.decrypt(secondMedia)),
+      pattern(8),
+      `${mode}: explicit pre-login key survives`
+    );
+    // Store the same key while the account is known, so refresh checks both
+    // the in-memory key and a real persisted entry.
+    await api.setAccountKey(new Uint8Array(32).fill(8));
+    const currentKey = api.accountKey;
+    const storedKey = await store.load(address);
+    assert.ok(storedKey);
+    const sessionVersion = auth.sessionVersion;
+    if (mode === 'token') {
+      const previousFetch = globalThis.fetch;
+      try {
+        globalThis.fetch = async (url) => {
+          assert.equal(new URL(url).pathname, '/v1/account/refresh-token');
+          return new Response(JSON.stringify({ status: 'success', data: tokens(address) }));
+        };
+        await auth.authenticate(tokens(address, true));
+      } finally {
+        globalThis.fetch = previousFetch;
+      }
+    } else {
+      await auth.authenticate();
+    }
+    assert.equal(
+      auth.sessionVersion,
+      sessionVersion,
+      `${mode}: same-account refresh keeps session`
+    );
+    assert.equal(sessionChanges, 1);
+    assert.equal(api.accountKey, currentKey, `${mode}: refresh keeps key`);
+    assert.equal(await store.load(address), storedKey, `${mode}: refresh does not clear storage`);
+    assert.deepEqual(await bytesOf(await api.decrypt(secondMedia)), pattern(8));
+
+    // Once the explicit key has an owner, switching directly must lock it.
+    await account.login('third-artist', 'test-password');
+    assert.equal(sessionChanges, 2);
+    await assert.rejects(
+      () => api.decrypt(secondMedia),
+      (error) => error.code === 'wrong_account_key'
+    );
+    await account.logout();
+    await api.lock();
+    assert.equal(await api.isUnlocked(), false);
+  }
+}
+
 async function checkKeyHygiene() {
   // Debug logs print whole socket messages; the project key must never be in them.
   const key = lib.bytesToBase64(PROJECT_KEY);
@@ -1236,6 +1352,7 @@ async function run() {
   await checkRoundTripsAndTampering();
   await checkAccountKeyLifecycle();
   await checkAsyncKeyLifecycle();
+  await checkRealLoginKeyLifecycle();
   await checkKeyHygiene();
   await checkProjectCreation();
   await checkEncryptedKeyframeUploads();
