@@ -3300,7 +3300,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     contextImages,
     gptImageQuality,
     outputFormat,
-    billingMode
+    billingMode,
+    priorityMode
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const modelOptions = await this.getModelOptions(model);
@@ -3336,6 +3337,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (gptImageQuality) queryParams.set('gptImageQuality', gptImageQuality);
     if (outputFormat) queryParams.set('outputFormat', outputFormat);
     if (billingMode) queryParams.set('billingMode', billingMode);
+    if (priorityMode !== undefined) queryParams.set('priorityMode', String(priorityMode));
     const query = queryParams.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}${query ? `?${query}` : ''}`
@@ -3464,6 +3466,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const network = params.network ?? this._currentNetworkType;
     if (network) query.set('network', network);
     if (params.billingMode) query.set('billingMode', params.billingMode);
+    if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-video/estimate/${path}${queryString ? `?${queryString}` : ''}`
@@ -3504,6 +3507,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const network = params.network ?? this._currentNetworkType;
     if (network) query.set('network', network);
     if (params.billingMode) query.set('billingMode', params.billingMode);
+    if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-audio/estimate/${path}${queryString ? `?${queryString}` : ''}`

@@ -5,6 +5,19 @@ in both TypeScript and JavaScript projects such as backend Node.js and browser e
 
 Behind the scenes this SDK uses a WebSocket connection for communication between clients, server, and workers. It harnesses an event-based API to interact with Supernet to make things super efficient.
 
+## Optional Priority mode
+
+Paid Unlimited members can opt a media generation into earlier Fast queue placement with
+`priorityMode: true`, `network: 'fast'`, `tokenType: 'spark'`, and
+`billingMode: 'subscription'` in `projects.create()`. It uses 1.5× the usual daily and
+monthly usage credits, behind Premium Spark priority. Existing caps and concurrency stay
+the same. It changes queue placement, not render speed or quality; no GPU or start time
+is guaranteed. Leave it off to preserve usage. Pass `priorityMode` to image, video and
+audio estimate helpers to include the weighted share in `dailyFairUsePct`.
+
+Omitting the option preserves standard behavior. Trials, Relaxed generations and
+token-paid generations cannot use Priority mode. [Plan details](https://docs.sogni.ai/pricing/unlimited-plan-details/#priority-mode).
+
 ## Features
 
 - 🎨 **Image Generation** - Create images with the latest frontier Open Source models like Stable Diffusion, Qwen Image, Z-Image Turbo, and Flux

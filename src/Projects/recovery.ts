@@ -121,6 +121,7 @@ export function projectParamsFromRecoveredProject(project: RecoveredProject): Pr
   if (tokenType) base.tokenType = tokenType;
   const billingMode = project.billingMode || request.billingMode;
   if (billingMode) base.billingMode = billingMode;
+  if (project.priorityMode !== undefined) base.priorityMode = project.priorityMode;
   if (request.disableSafety === true) base.disableNSFWFilter = true;
   if (typeof request.outputFormat === 'string' && request.outputFormat) {
     base.outputFormat = request.outputFormat;

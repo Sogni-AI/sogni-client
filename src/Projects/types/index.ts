@@ -127,6 +127,13 @@ export interface BaseProjectParams {
    */
   billingMode?: BillingMode;
   /**
+   * Opt in to Priority mode for this generation. Paid Unlimited plans on Fast
+   * only, with plan billing. Uses 1.5× daily and monthly usage credits for
+   * earlier queue placement, behind Premium Spark. Does not change render speed.
+   * @default false
+   */
+  priorityMode?: boolean;
+  /**
    * Optional client app/source label to attach to the project request for server-side attribution.
    */
   appSource?: string;
@@ -1222,6 +1229,8 @@ export type MediaUrlParams = {
 };
 
 export interface EstimateRequest {
+  /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
+  priorityMode?: boolean;
   /**
    * Network to use. Can be 'fast' or 'relaxed'
    * @default 'fast'
@@ -1300,6 +1309,8 @@ export interface EstimateRequest {
 }
 
 export interface VideoEstimateRequest {
+  /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
+  priorityMode?: boolean;
   /** FlashVSR source geometry for an estimate. The server verifies the uploaded file at admission. */
   sourceWidth?: number;
   sourceHeight?: number;
@@ -1365,6 +1376,8 @@ export interface VideoEstimateRequest {
 }
 
 export interface AudioEstimateRequest {
+  /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
+  priorityMode?: boolean;
   tokenType: TokenType;
   model: string;
   duration: number;

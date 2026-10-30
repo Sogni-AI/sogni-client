@@ -2059,6 +2059,11 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
   if (params.network) {
     jobRequest.network = params.network;
   }
+  if (params.priorityMode !== undefined) {
+    if (typeof params.priorityMode !== 'boolean')
+      throw new Error('Priority mode must be true or false.');
+    jobRequest.priorityMode = params.priorityMode;
+  }
   if (isImageParams(params) && params.embedPromptMetadata !== undefined) {
     if (typeof params.embedPromptMetadata !== 'boolean') {
       throw new Error('embedPromptMetadata must be a boolean');
