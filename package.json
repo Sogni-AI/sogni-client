@@ -102,6 +102,7 @@
     "test:chat-transport-recovery": "npm run build && node scripts/check-chat-transport-recovery.cjs",
     "test:chat-run-cost-confirmation": "npm run build && node scripts/check-chat-run-cost-confirmation.cjs",
     "test:socket-send-readiness": "npm run build && node scripts/check-socket-send-readiness.cjs",
+    "test:socket-receive-order": "npm run build && node scripts/check-socket-receive-order.cjs",
     "test:socket-reconnect-backoff": "npm run build && node scripts/check-socket-reconnect-backoff.cjs",
     "test:socket-keepalive": "npm run build && node scripts/check-socket-keepalive.cjs",
     "test:browser-request-handoff": "npm run build && node scripts/check-browser-request-handoff.cjs",

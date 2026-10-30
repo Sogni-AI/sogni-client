@@ -64,6 +64,8 @@ jobs:
         run: node scripts/check-browser-request-handoff.cjs && node scripts/check-socket-send-readiness.cjs
       - name: Run socket reconnect backoff checks
         run: node scripts/check-socket-reconnect-backoff.cjs
+      - name: Run socket receive ordering checks
+        run: node scripts/check-socket-receive-order.cjs
       - name: Run socket keep-alive checks
         run: node scripts/check-socket-keepalive.cjs
       - name: Run project liveness checks

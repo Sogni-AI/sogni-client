@@ -35,6 +35,7 @@ jobs:
         run: |
           node scripts/check-browser-request-handoff.cjs
           node scripts/check-socket-send-readiness.cjs
+          node scripts/check-socket-receive-order.cjs
           node scripts/check-socket-reconnect-backoff.cjs
           node scripts/check-socket-keepalive.cjs
       - name: Check downloads and REST errors
