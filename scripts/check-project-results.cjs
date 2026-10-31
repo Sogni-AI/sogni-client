@@ -142,6 +142,30 @@ const stop = (api) => {
     stop(failing.api);
   }
 
+  // 3b. A project that failed while nobody was listening (or was followed from another app): no renders, but the
+  //     explanation its owner would have been shown comes through (2026-10-31: a Seedance copyright refusal read back
+  //     as nothing at all). Only its text fields; none when the server recorded none.
+  {
+    const message = "Seedance blocked this video because it did not pass the provider's content policy. No video was returned. Its generated soundtrack may match copyrighted audio.";
+    const { api } = makeApi({
+      status: {
+        F1: {
+          id: 'F1', status: 'failed', finished: true, statusOnly: true, reason: 'genfailure',
+          model: { id: 'seedance-2-5-uncensored', type: 'video' },
+          failure: { code: 'OutputAudioSensitiveContentDetected.PolicyViolation', category: 'content_policy', message, extra: 7 },
+          workerJobs: [], completedWorkerJobs: []
+        },
+        F2: { id: 'F2', status: 'failed', finished: true, statusOnly: true, reason: 'genfailure', workerJobs: [], completedWorkerJobs: [] }
+      }
+    });
+    const result = await api.getResult('F1');
+    assert.equal(result.status, 'failed');
+    assert.deepEqual(result.jobs, []);
+    assert.deepEqual(result.failure, { code: 'OutputAudioSensitiveContentDetected.PolicyViolation', category: 'content_policy', message });
+    assert.equal('failure' in (await api.getResult('F2')), false);
+    stop(api);
+  }
+
   // 4. Another account's or an unknown project rejects with the API's 404.
   {
     const { api } = makeApi();

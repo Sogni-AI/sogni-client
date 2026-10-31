@@ -68,6 +68,26 @@ function checkTransport(ProjectsApi, Project) {
     }
   }
 
+  // The provider's own code comes through beside the category, so an app can tell a soundtrack refusal from a picture
+  // refusal without reading prose (2026-10-31); its raw reason and response still stay out.
+  client.socket.emit('jobError', {
+    jobID: 'untracked-project',
+    imgID: 'render',
+    isFromWorker: false,
+    error: '5061',
+    error_message: 'Seedance blocked this video. Its generated soundtrack may match copyrighted audio.',
+    vendorFailureCategory: 'content_policy',
+    vendorErrorCode: 'OutputAudioSensitiveContentDetected.PolicyViolation',
+    vendorFailureReason: 'Private detail',
+    vendorResponse: { internal: true }
+  });
+  assert.deepEqual(jobEvents.at(-1).error, {
+    code: 5061,
+    message: 'Seedance blocked this video. Its generated soundtrack may match copyrighted audio.',
+    vendorFailureCategory: 'content_policy',
+    vendorErrorCode: 'OutputAudioSensitiveContentDetected.PolicyViolation'
+  });
+
   // Categories also survive tracked Job and Project state updates.
   for (const category of categories) {
     for (const imgID of ['failed-render', undefined]) {

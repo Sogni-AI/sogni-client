@@ -13,6 +13,15 @@ interface ErrorData {
    */
   vendorFailureCategory?: string;
   /**
+   * The provider's own error code for an external generation failure, when it
+   * gave one, e.g. `OutputAudioSensitiveContentDetected.PolicyViolation` (the
+   * provider flagged the soundtrack it generated, usually as possibly matching
+   * copyrighted audio) or `OutputVideoSensitiveContentDetected` (the picture).
+   * Lets an app tell kinds of refusal apart within one category without
+   * reading the message.
+   */
+  vendorErrorCode?: string;
+  /**
    * Discriminator set to `true` when this render-path error is a subscription
    * FEATURE-gate denial (socket error code 4081). The four fields below are
    * present only when this is `true`. Apps can branch on it (or use
