@@ -1,3 +1,10 @@
+## [5.71.1](https://github.com/Sogni-AI/sogni-client/compare/v5.71.0...v5.71.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **socket:** preserve browser message delivery order ([ac45f08](https://github.com/Sogni-AI/sogni-client/commit/ac45f085468bdd431a4757061cee2d598bf68861))
+
 # [5.71.0](https://github.com/Sogni-AI/sogni-client/compare/v5.70.0...v5.71.0) (2026-10-31)
 
 
