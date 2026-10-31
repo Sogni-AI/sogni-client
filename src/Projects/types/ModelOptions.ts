@@ -79,6 +79,7 @@ export interface AudioModelOptions {
   instruct?: { maxLength: number; required: boolean };
   /** Speech only. Maximum length of the reference recording's transcript. */
   referenceText?: { maxLength: number };
+  fullText?: { default: boolean };
   /** Speech only. Whether a reference recording may be uploaded. */
   acceptsReferenceAudio?: boolean;
   /** Speech only. Whether a reference recording is mandatory (voice cloning). */
@@ -205,6 +206,9 @@ export function mapAudioTier(tier: AudioTier): AudioModelOptions {
   }
   if (tier.referenceText) {
     options.referenceText = { maxLength: tier.referenceText.maxLength };
+  }
+  if (tier.fullText) {
+    options.fullText = { default: tier.fullText.default };
   }
   if (tier.acceptInputAudio) {
     options.acceptsReferenceAudio = true;

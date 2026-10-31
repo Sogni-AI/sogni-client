@@ -129,6 +129,7 @@ export interface AudioTier {
   instruct?: { maxLength: number; required?: boolean; description?: string };
   /** Speech: whether the model takes a transcript of the reference recording. */
   referenceText?: { maxLength: number; description?: string };
+  fullText?: { default: boolean };
   /** Speech: whether a reference recording may be uploaded. */
   acceptInputAudio?: boolean;
   /** Speech: whether a reference recording is mandatory (voice cloning). */

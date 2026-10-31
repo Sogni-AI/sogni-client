@@ -1938,6 +1938,9 @@ function applyAudioParams(
   if (params.referenceText !== undefined) {
     keyFrame.referenceText = params.referenceText;
   }
+  if (params.fullText !== undefined) {
+    keyFrame.fullText = params.fullText;
+  }
   if (params.referenceAudio) {
     keyFrame.hasReferenceAudio = true;
   }

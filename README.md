@@ -1310,6 +1310,30 @@ const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the origina
 
 To show a price first, call `estimateVideoCost()` with the output `width`/`height` (the source scaled so its short edge equals the target, both edges rounded to even pixels), the source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the verified source. In hosted chat and durable workflows, the same operation is the promptless `upscale_video` tool.
 
+## Voice cloning with Qwen3-TTS
+
+Use the voice-clone audio model with a clean reference recording and its exact transcript:
+
+```typescript
+const project = await sogni.projects.create({
+  type: 'audio',
+  modelId: 'qwen3_tts_1.7b_voice_clone_bf16',
+  numberOfMedia: 1,
+  positivePrompt: 'Good evening. The rain has finally stopped.',
+  referenceAudio: voiceFile,
+  referenceText: 'The exact words spoken in the reference recording.',
+  fullText: true,
+  creativity: 0.6
+});
+```
+
+`fullText` is optional and supported only by Voice Clone. It conditions on each
+complete script chunk before generating speech; long scripts still use the
+existing sentence-based chunking. It is separate from `referenceText`, which
+describes the recording. Omitted or `false` keeps incremental text conditioning.
+`creativity` controls sampling variation (0.1–2, default 0.9). Try 0.6 with
+full-text cloning; voice consistency still depends on the reference and script.
+
 ## LLM Text Generation & Tool Calling
 
 The Sogni SDK supports LLM text generation through the Sogni Supernet, providing an OpenAI-compatible chat completions API with streaming, multi-turn conversations, and tool calling (function calling).

@@ -1136,6 +1136,11 @@ export interface AudioProjectParams extends BaseProjectParams {
    * embedding alone, which is markedly closer to the source.
    */
   referenceText?: string;
+  /** Voice cloning only: condition on each complete script chunk before speaking.
+   * Omitted/false preserves incremental text conditioning. Does not disable chunking.
+   * For full-text cloning, try creativity: 0.6; the sampling default remains 0.9.
+   */
+  fullText?: boolean;
   /**
    * Speech only. Three to thirty seconds of the voice to clone, as one person
    * speaking cleanly. Required by Qwen3-TTS Voice Clone and unused elsewhere.
