@@ -1,3 +1,10 @@
+# [5.71.0](https://github.com/Sogni-AI/sogni-client/compare/v5.70.0...v5.71.0) (2026-10-31)
+
+
+### Features
+
+* **projects:** say why a failed project failed ([b02d2cd](https://github.com/Sogni-AI/sogni-client/commit/b02d2cd0c2f0afe9d243a22b6b826f0c2e38bf10))
+
 # [5.70.0](https://github.com/Sogni-AI/sogni-client/compare/v5.69.1...v5.70.0) (2026-10-26)
 
 
