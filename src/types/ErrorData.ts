@@ -105,7 +105,7 @@ export const MODEL_NOT_YET_AVAILABLE_ERROR_CODE = 4104;
  * is when the account was deleted, in Unix seconds.
  *
  * Ask the person whether to restore the account. If they agree, call `login()`
- * again with the same username and password and
+ * again with the same arguments, including `rememberMe` and `appSource`, plus
  * `{ restoreDeletedAccount: true }`: the account is restored and the call signs
  * in as usual. The error's `message` is readable as is for apps that do not
  * handle this code.

@@ -127,21 +127,25 @@ const models = await sogni.projects.waitForModels();
 When someone signs in to an account they deleted and the account can be restored, `login()` throws
 an `ApiError` whose `payload.errorCode` is `ACCOUNT_RESTORABLE_ERROR_CODE` (196). `details.deletedAt`
 is when the account was deleted, in Unix seconds. Ask the person whether to restore it; if they
-agree, call `login()` again with `{ restoreDeletedAccount: true }` to restore the account and sign
-in.
+agree, call `login()` again with the same arguments plus `{ restoreDeletedAccount: true }` to
+restore the account and sign in. Repeat the original `rememberMe` and `appSource` so the restored
+session lasts as long as the one first requested.
 
 ```javascript
 import { ApiError, ACCOUNT_RESTORABLE_ERROR_CODE } from '@sogni-ai/sogni-client';
 
 try {
-  await sogni.account.login(username, password);
+  await sogni.account.login(username, password, rememberMe, appSource);
 } catch (error) {
   if (!(error instanceof ApiError) || error.payload.errorCode !== ACCOUNT_RESTORABLE_ERROR_CODE) {
     throw error;
   }
   const deletedAt = new Date(Number(error.details?.deletedAt) * 1000);
-  // Ask the person whether to restore the account deleted on `deletedAt`. If they agree:
-  await sogni.account.login(username, password, false, undefined, { restoreDeletedAccount: true });
+  // Ask the person whether to restore the account deleted on `deletedAt`. If they agree, repeat
+  // the original arguments and add the option:
+  await sogni.account.login(username, password, rememberMe, appSource, {
+    restoreDeletedAccount: true
+  });
 }
 ```
 

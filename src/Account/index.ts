@@ -465,14 +465,15 @@ class AccountApi extends ApiGroup {
    * import { ApiError, ACCOUNT_RESTORABLE_ERROR_CODE } from '@sogni-ai/sogni-client';
    *
    * try {
-   *   await sogni.account.login(username, password);
+   *   await sogni.account.login(username, password, rememberMe, appSource);
    * } catch (error) {
    *   if (!(error instanceof ApiError) || error.payload.errorCode !== ACCOUNT_RESTORABLE_ERROR_CODE) {
    *     throw error;
    *   }
    *   const deletedAt = new Date(Number(error.details?.deletedAt) * 1000);
-   *   // Ask the person whether to restore the account deleted on `deletedAt`. If they agree:
-   *   await sogni.account.login(username, password, false, undefined, {
+   *   // Ask the person whether to restore the account deleted on `deletedAt`. If they agree,
+   *   // repeat the original arguments and add the option:
+   *   await sogni.account.login(username, password, rememberMe, appSource, {
    *     restoreDeletedAccount: true
    *   });
    * }
@@ -485,8 +486,9 @@ class AccountApi extends ApiGroup {
    * @param appSource - Optional client app/source label for login attribution. Defaults to the
    * SogniClient connection appSource when configured.
    * @param options - Optional sign-in settings. Set `restoreDeletedAccount: true` to restore a
-   * deleted account and sign in, after the person confirms. A deleted account that can be
-   * restored makes `login()` throw an `ApiError` with
+   * deleted account and sign in, after the person confirms; repeat the original `rememberMe` and
+   * `appSource` on that call so the session lasts as long as first requested. A deleted account
+   * that can be restored makes `login()` throw an `ApiError` with
    * `payload.errorCode === ACCOUNT_RESTORABLE_ERROR_CODE` (196) and `details.deletedAt` (Unix
    * seconds).
    */

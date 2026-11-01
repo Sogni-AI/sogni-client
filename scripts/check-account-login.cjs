@@ -2,21 +2,42 @@
  * Checks the request `sogni.account.login()` sends and the error it throws when
  * the account was deleted and signing in can restore it. Runs against compiled
  * output, through the real RestClient, so it checks the exact bytes on the wire
- * and the published root exports.
+ * and the published root exports. A small consumer fixture is type-checked
+ * against the package to cover the published declarations.
  */
 
 'use strict';
 
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
-const fs = require('node:fs');
 const path = require('node:path');
+const ts = require('typescript');
 
 const sdk = require('../dist/index.js');
 const AccountApi = require('../dist/Account/index.js').default;
 const RestClient = require('../dist/lib/RestClient.js').default;
 
 const { ApiError, ACCOUNT_RESTORABLE_ERROR_CODE } = sdk;
+
+// The documented restore flow compiles against the published declarations.
+const program = ts.createProgram([path.join(__dirname, 'fixtures/account-login.ts')], {
+  strict: true,
+  noEmit: true,
+  skipLibCheck: true,
+  target: ts.ScriptTarget.ES2022,
+  module: ts.ModuleKind.Node16,
+  moduleResolution: ts.ModuleResolutionKind.Node16
+});
+const diagnostics = ts.getPreEmitDiagnostics(program);
+assert.equal(
+  diagnostics.length,
+  0,
+  ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+    getCurrentDirectory: () => process.cwd(),
+    getCanonicalFileName: (name) => name,
+    getNewLine: () => '\n'
+  })
+);
 
 const API = 'https://api.example.test';
 const USERNAME = 'restore-check';
@@ -156,16 +177,6 @@ async function main() {
   assert.equal(error.details.deletedAt, DELETED_AT, 'deletedAt is readable on the thrown error');
   assert.equal(error.payload.details.deletedAt, DELETED_AT, 'and on its payload');
   assert.equal(new Date(error.details.deletedAt * 1000).toISOString(), '2025-11-01T00:00:00.000Z');
-
-  // The published declarations carry the option and the code.
-  const dist = path.join(__dirname, '..', 'dist');
-  const accountTypes = fs.readFileSync(path.join(dist, 'Account', 'index.d.ts'), 'utf8');
-  assert.match(accountTypes, /options\?: LoginOptions\): Promise<LoginData>/);
-  const rootTypes = fs.readFileSync(path.join(dist, 'index.d.ts'), 'utf8');
-  assert.match(rootTypes, /\bACCOUNT_RESTORABLE_ERROR_CODE\b/);
-  assert.match(rootTypes, /\bLoginOptions\b/);
-  const optionTypes = fs.readFileSync(path.join(dist, 'Account', 'types.d.ts'), 'utf8');
-  assert.match(optionTypes, /restoreDeletedAccount\?: boolean;/);
 
   console.log('account login checks passed');
 }
