@@ -163,6 +163,29 @@ const sogni = await SogniClient.createInstance({
 await sogni.account.login('username', 'password');
 ```
 
+RESTORING A DELETED ACCOUNT AT SIGN-IN:
+
+Signature: `login(username, password, rememberMe = false, appSource?, options?: { restoreDeletedAccount?: boolean })`.
+When the account was deleted and can be restored, `login()` throws an `ApiError` with HTTP status
+400, `payload.errorCode === ACCOUNT_RESTORABLE_ERROR_CODE` (196) and `details.deletedAt` (Unix
+seconds). Ask the person to confirm, then call `login()` again with `{ restoreDeletedAccount: true }`
+to restore the account and sign in. The option changes nothing for an account that is not deleted.
+
+```javascript
+import { ApiError, ACCOUNT_RESTORABLE_ERROR_CODE } from '@sogni-ai/sogni-client';
+
+try {
+  await sogni.account.login(username, password);
+} catch (error) {
+  if (!(error instanceof ApiError) || error.payload.errorCode !== ACCOUNT_RESTORABLE_ERROR_CODE) {
+    throw error;
+  }
+  const deletedAt = new Date(Number(error.details?.deletedAt) * 1000);
+  // After the person confirms restoring the account deleted on `deletedAt`:
+  await sogni.account.login(username, password, false, undefined, { restoreDeletedAccount: true });
+}
+```
+
 APP ID LIFECYCLE:
 
 Generate an `appId` once per application installation and persist it across process restarts or page

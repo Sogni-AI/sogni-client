@@ -122,6 +122,29 @@ await sogni.account.login('your-username', 'your-password');
 const models = await sogni.projects.waitForModels();
 ```
 
+#### Restoring a deleted account at sign-in
+
+When someone signs in to an account they deleted and the account can be restored, `login()` throws
+an `ApiError` whose `payload.errorCode` is `ACCOUNT_RESTORABLE_ERROR_CODE` (196). `details.deletedAt`
+is when the account was deleted, in Unix seconds. Ask the person whether to restore it; if they
+agree, call `login()` again with `{ restoreDeletedAccount: true }` to restore the account and sign
+in.
+
+```javascript
+import { ApiError, ACCOUNT_RESTORABLE_ERROR_CODE } from '@sogni-ai/sogni-client';
+
+try {
+  await sogni.account.login(username, password);
+} catch (error) {
+  if (!(error instanceof ApiError) || error.payload.errorCode !== ACCOUNT_RESTORABLE_ERROR_CODE) {
+    throw error;
+  }
+  const deletedAt = new Date(Number(error.details?.deletedAt) * 1000);
+  // Ask the person whether to restore the account deleted on `deletedAt`. If they agree:
+  await sogni.account.login(username, password, false, undefined, { restoreDeletedAccount: true });
+}
+```
+
 **Important Note:**
 
 - These samples assume you are using ES modules, which allow `await` on the top level, if you are CommonJS you will need to wrap `await` calls in an async function.
