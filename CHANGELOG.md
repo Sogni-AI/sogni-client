@@ -1,3 +1,10 @@
+# [5.72.0](https://github.com/Sogni-AI/sogni-client/compare/v5.71.1...v5.72.0) (2026-11-01)
+
+
+### Features
+
+* **account:** restore a deleted account when signing in ([4485a2c](https://github.com/Sogni-AI/sogni-client/commit/4485a2cf5bb3722f4c143439cad4ccd3139da24d))
+
 ## [5.71.1](https://github.com/Sogni-AI/sogni-client/compare/v5.71.0...v5.71.1) (2026-10-31)
 
 
