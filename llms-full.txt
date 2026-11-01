@@ -168,21 +168,26 @@ RESTORING A DELETED ACCOUNT AT SIGN-IN:
 Signature: `login(username, password, rememberMe = false, appSource?, options?: { restoreDeletedAccount?: boolean })`.
 When the account was deleted and can be restored, `login()` throws an `ApiError` with HTTP status
 400, `payload.errorCode === ACCOUNT_RESTORABLE_ERROR_CODE` (196) and `details.deletedAt` (Unix
-seconds). Ask the person to confirm, then call `login()` again with `{ restoreDeletedAccount: true }`
-to restore the account and sign in. The option changes nothing for an account that is not deleted.
+seconds). Ask the person to confirm, then call `login()` again with the same arguments plus
+`{ restoreDeletedAccount: true }` to restore the account and sign in. Repeat the original `rememberMe`
+and `appSource` so the restored session lasts as long as the one first requested. The option changes
+nothing for an account that is not deleted.
 
 ```javascript
 import { ApiError, ACCOUNT_RESTORABLE_ERROR_CODE } from '@sogni-ai/sogni-client';
 
 try {
-  await sogni.account.login(username, password);
+  await sogni.account.login(username, password, rememberMe, appSource);
 } catch (error) {
   if (!(error instanceof ApiError) || error.payload.errorCode !== ACCOUNT_RESTORABLE_ERROR_CODE) {
     throw error;
   }
   const deletedAt = new Date(Number(error.details?.deletedAt) * 1000);
-  // After the person confirms restoring the account deleted on `deletedAt`:
-  await sogni.account.login(username, password, false, undefined, { restoreDeletedAccount: true });
+  // After the person confirms restoring the account deleted on `deletedAt`, repeat the original
+  // arguments and add the option:
+  await sogni.account.login(username, password, rememberMe, appSource, {
+    restoreDeletedAccount: true
+  });
 }
 ```
 

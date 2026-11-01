@@ -118,7 +118,7 @@ await sogni.account.login(username, password);
 
 - **API key**: Pass `apiKey` to `createInstance()`. Auto-authenticates via WebSocket. No `login()` call needed. Most REST API calls (balance, profile, etc.) available. Sensitive operations (withdrawals, staking, 2FA) not available.
 - **Username/password**: Call `sogni.account.login()` after creating instance. Full REST API access.
-- **Restoring a deleted account at sign-in**: when the account can be restored, `login()` throws an `ApiError` with `payload.errorCode === ACCOUNT_RESTORABLE_ERROR_CODE` (196) and `details.deletedAt` (Unix seconds). After the person confirms, call `login(username, password, false, undefined, { restoreDeletedAccount: true })` to restore it and sign in.
+- **Restoring a deleted account at sign-in**: when the account can be restored, `login()` throws an `ApiError` with `payload.errorCode === ACCOUNT_RESTORABLE_ERROR_CODE` (196) and `details.deletedAt` (Unix seconds). After the person confirms, call `login()` again with the same arguments plus the option, e.g. `login(username, password, rememberMe, appSource, { restoreDeletedAccount: true })`, to restore it and sign in.
 - **REST-only**: Pass `disableSocket: true`; `appId` is then optional and no artist WebSocket is opened. Use this for hosted chat, durable workflows, replay, announcements, and account REST APIs.
 
 Generate an `appId` once per application installation and persist it across restarts or page
