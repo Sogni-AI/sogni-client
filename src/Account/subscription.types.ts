@@ -46,6 +46,8 @@ export type SubscriptionTerm = 'monthly' | 'annual';
 /** Actionable monthly fair-use state returned only while Fast limits are active. */
 export interface SubscriptionFairUseState {
   limited: true;
+  /** Temporary accounting confirmation, rather than confirmed exhausted capacity. */
+  accountingStatus?: 'pending';
   /** Subscription-funded Spark used in the current monthly fair-use window. */
   usageSpark: number;
   /** Retail-equivalent USD value of the subscription-funded usage. */
