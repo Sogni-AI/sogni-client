@@ -987,6 +987,31 @@ if (await sogni.projects.supportsMediaEncryption(modelId)) {
   client-side failures throw `MediaEncryptionError` with a `code` such as
   `locked`, `unsupported` or `authentication_failed`.
 
+For encrypted video and audio, `openDecrypted()` reads authenticated byte ranges
+without downloading the entire file. Offsets refer to the decrypted file and the
+end offset is exclusive. Use `stream()` for large reads and close the reader when
+finished; locking or changing accounts also aborts its outstanding requests.
+
+```javascript
+const media = await sogni.mediaEncryption.openDecrypted(resultUrl);
+try {
+  const header = await media.read(0, Math.min(1024, media.size));
+  // media.contentType is authenticated; media.stream() reads with backpressure.
+} finally {
+  media.close();
+}
+```
+
+Browser apps can import `createEncryptedPlayback` and `serveEncryptedMedia` from
+`@sogni-ai/sogni-client/media-encryption-playback` to connect these range reads to
+their own service worker. The worker must route `ENCRYPTED_MEDIA_PATH` requests
+with the requesting client's ID, and answer `SOGNI_ENCRYPTED_MEDIA_CLIENT`
+messages through their transferred port with `{ clientId: event.source.id }`.
+Pass the opened reader to `createEncryptedPlayback()`, use its returned `url` as
+the media element's source, and call `dispose()` when removing the element.
+The URL belongs to that tab; the service worker does not retain media keys or
+cache plaintext. This requires an active service worker controlling the page.
+
 ### ControlNets
 
 **EXPERIMENTAL FEATURE:** This feature is still in development and may not work as expected. Use at your own risk.
