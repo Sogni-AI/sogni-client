@@ -36,6 +36,8 @@ jobs:
         run: npm audit signatures
       - name: Run subscription API checks (builds dist first)
         run: npm run test:subscription-api
+      - name: Run Priority generation and capability checks
+        run: node scripts/check-priority-mode.cjs && node scripts/check-priority-capability.cjs
       - name: Run reusable upload concurrency checks
         run: node scripts/check-reusable-uploads.cjs
       - name: Run model option checks

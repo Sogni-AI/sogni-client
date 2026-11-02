@@ -128,7 +128,8 @@ export interface BaseProjectParams {
   billingMode?: BillingMode;
   /**
    * Opt in to Priority mode for this generation. Paid Unlimited plans on Fast
-   * only, with plan billing. Uses 1.5× daily and monthly usage credits for
+   * only, with plan billing; excludes third-party vendor models. Uses 1.5× daily
+   * and monthly usage credits for
    * earlier queue placement, behind Premium Spark. Does not change render speed.
    * @default false
    */

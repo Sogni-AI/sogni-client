@@ -16,7 +16,7 @@ is guaranteed. Leave it off to preserve usage. Pass `priorityMode` to image, vid
 audio estimate helpers to include the weighted share in `dailyFairUsePct`.
 
 Omitting the option preserves standard behavior. Trials, Relaxed generations and
-token-paid generations cannot use Priority mode. [Plan details](https://docs.sogni.ai/pricing/unlimited-plan-details/#priority-mode).
+token-paid generations and third-party vendor models cannot use Priority mode. [Plan details](https://docs.sogni.ai/pricing/unlimited-plan-details/#priority-mode).
 
 ## Features
 
