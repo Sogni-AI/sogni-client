@@ -1,3 +1,12 @@
+## [5.72.1](https://github.com/Sogni-AI/sogni-client/compare/v5.72.0...v5.72.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **deps:** align current protocol and client fixes ([9869858](https://github.com/Sogni-AI/sogni-client/commit/9869858da59d23968c7fec656fdc317bbd449780))
+* **security:** patch cookie handling and release dependencies ([63c1bd7](https://github.com/Sogni-AI/sogni-client/commit/63c1bd7d503ffe132bf0c629e9554a2f00d800a8))
+* **uploads:** serialize bindings for the same saved file ([d8fa6ab](https://github.com/Sogni-AI/sogni-client/commit/d8fa6ab59009e294e183939e91a46aa06a2c95f4))
+
 # [5.72.0](https://github.com/Sogni-AI/sogni-client/compare/v5.71.1...v5.72.0) (2026-11-01)
 
 
