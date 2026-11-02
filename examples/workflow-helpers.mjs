@@ -2287,7 +2287,7 @@ export function ensureDimensionsDivisibleBy16(width, height) {
  */
 export async function processImageForVideo(imagePath, frames, options = {}) {
   // Get original dimensions
-  const dimensions = imageSize(imagePath);
+  const dimensions = imageSize(fs.readFileSync(imagePath));
   if (!dimensions.width || !dimensions.height) {
     throw new Error('Could not read image dimensions');
   }

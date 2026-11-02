@@ -394,9 +394,38 @@ export type ProjectStatusSnapshot = Partial<
   finished: boolean;
   workerJobs: RawProject['workerJobs'];
   completedWorkerJobs: RawProject['completedWorkerJobs'];
+  /** For a failed project: why, as its owner was told (status-only records keep it for a day). */
+  failure?: ProjectFailure;
 };
 
 const IN_FLIGHT_LOOKUP_STATUSES: ReadonlySet<string> = new Set(['pending', 'queued', 'processing']);
+
+/** The server's failure explanation, its string fields only; null when it has none. */
+function projectFailure(value: unknown): ProjectFailure | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const failure: ProjectFailure = {};
+  for (const key of ['code', 'category', 'message'] as const) {
+    if (typeof record[key] === 'string' && record[key]) failure[key] = record[key] as string;
+  }
+  return Object.keys(failure).length ? failure : null;
+}
+
+/**
+ * Why a failed project failed, as its owner was told when it did: the provider's
+ * code, Sogni's category and the public message (the `jobError` event's
+ * `vendorErrorCode`, `vendorFailureCategory` and `error_message`). Kept with the
+ * project's status for a day, so a client that reconnects, or follows the
+ * project from another app, can say why it failed.
+ */
+export interface ProjectFailure {
+  /** The provider's error code, e.g. `OutputAudioSensitiveContentDetected.PolicyViolation`. */
+  code?: string;
+  /** Sogni's category for it, e.g. `content_policy`, `vendor_transient`, `timeout`. */
+  category?: string;
+  /** The message shown to the account when it failed. */
+  message?: string;
+}
 
 /**
  * One render of a project returned by {@link ProjectsApi.getResult}.
@@ -444,6 +473,8 @@ export interface ProjectResult {
    * did not report one.
    */
   waitingReason?: WaitingReason | null;
+  /** For a failed project: why, as its owner was told. Absent when the server recorded no explanation. */
+  failure?: ProjectFailure;
   jobs: ProjectResultJob[];
 }
 
@@ -1080,6 +1111,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     if (data.vendorFailureCategory) {
       error.vendorFailureCategory = data.vendorFailureCategory;
+    }
+    if (typeof data.vendorErrorCode === 'string' && data.vendorErrorCode) {
+      error.vendorErrorCode = data.vendorErrorCode;
     }
     if (data.subscriptionLimit) {
       error.subscriptionLimit = true;
@@ -2633,6 +2667,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     // The stored record's model carries its media type even though ProjectModel does not declare it.
     const recordType = (snapshot.model as { type?: unknown } | undefined)?.type;
     const projectType = typeof recordType === 'string' ? recordType : undefined;
+    const failure = projectFailure(snapshot.failure);
     const jobs: ProjectResultJob[] = [];
     const seen = new Set<string>();
     for (const job of [...(snapshot.completedWorkerJobs || []), ...(snapshot.workerJobs || [])]) {
@@ -2684,6 +2719,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       finished: snapshot.finished,
       ...(modelId ? { modelId } : {}),
       ...(snapshot.waitingReason !== undefined ? { waitingReason: snapshot.waitingReason } : {}),
+      ...(failure ? { failure } : {}),
       jobs
     };
   }

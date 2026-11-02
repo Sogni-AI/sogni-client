@@ -92,7 +92,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_video",
       "sdkToolName": "generate_video",
-      "hostedSchemaSha256": "c30fecfc4c2d6cbf15fcb596585687c5d6f3876e1d4e23b9b4ddebf004aaa92e",
+      "hostedSchemaSha256": "60c6e2e0c4337d8d85209e45c6a3bfb3617a2f47aebaa84c48760f75bfc94230",
       "hostedRequired": [
         "prompt"
       ],
@@ -120,7 +120,8 @@
         "loras",
         "loraStrengths",
         "outputFormat",
-        "returnLastFrame"
+        "returnLastFrame",
+        "referenceVideoCompression"
       ],
       "argumentAliasTargets": [
         "prompt",

@@ -200,7 +200,7 @@ async function main() {
   }
 
   // Read source dimensions and resolve the output size
-  const sourceDimensions = imageSize(OPTIONS.image);
+  const sourceDimensions = imageSize(fs.readFileSync(OPTIONS.image));
   if (!sourceDimensions.width || !sourceDimensions.height) {
     console.error('Error: Could not read source image dimensions');
     process.exit(1);

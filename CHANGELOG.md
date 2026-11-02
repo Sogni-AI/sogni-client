@@ -1,3 +1,33 @@
+## [5.72.1](https://github.com/Sogni-AI/sogni-client/compare/v5.72.0...v5.72.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **deps:** align current protocol and client fixes ([9869858](https://github.com/Sogni-AI/sogni-client/commit/9869858da59d23968c7fec656fdc317bbd449780))
+* **security:** patch cookie handling and release dependencies ([63c1bd7](https://github.com/Sogni-AI/sogni-client/commit/63c1bd7d503ffe132bf0c629e9554a2f00d800a8))
+* **uploads:** serialize bindings for the same saved file ([d8fa6ab](https://github.com/Sogni-AI/sogni-client/commit/d8fa6ab59009e294e183939e91a46aa06a2c95f4))
+
+# [5.72.0](https://github.com/Sogni-AI/sogni-client/compare/v5.71.1...v5.72.0) (2026-11-01)
+
+
+### Features
+
+* **account:** restore a deleted account when signing in ([4485a2c](https://github.com/Sogni-AI/sogni-client/commit/4485a2cf5bb3722f4c143439cad4ccd3139da24d))
+
+## [5.71.1](https://github.com/Sogni-AI/sogni-client/compare/v5.71.0...v5.71.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **socket:** preserve browser message delivery order ([ac45f08](https://github.com/Sogni-AI/sogni-client/commit/ac45f085468bdd431a4757061cee2d598bf68861))
+
+# [5.71.0](https://github.com/Sogni-AI/sogni-client/compare/v5.70.0...v5.71.0) (2026-10-31)
+
+
+### Features
+
+* **projects:** say why a failed project failed ([b02d2cd](https://github.com/Sogni-AI/sogni-client/commit/b02d2cd0c2f0afe9d243a22b6b826f0c2e38bf10))
+
 # [5.70.0](https://github.com/Sogni-AI/sogni-client/compare/v5.69.1...v5.70.0) (2026-10-26)
 
 

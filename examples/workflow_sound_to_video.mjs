@@ -451,7 +451,7 @@ async function main() {
   };
   if (OPTIONS.image) {
     try {
-      const dimensions = imageSize(OPTIONS.image);
+      const dimensions = imageSize(fs.readFileSync(OPTIONS.image));
       if (dimensions.width && dimensions.height) {
         imageInfo = { width: dimensions.width, height: dimensions.height };
       }
