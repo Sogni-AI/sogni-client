@@ -496,6 +496,7 @@ export type {
 } from './Projects/PersonalLoras.js';
 export type { Pixal3dOrbitView } from './Projects/utils/index.js';
 export type { MediaEncryptionApiEvents } from './MediaEncryption/index.js';
+export type { DecryptedMediaReader } from './lib/mediaEncryption/remote.js';
 export type { AccountKeyStore, MediaEncryptionHeader } from './lib/mediaEncryption/index.js';
 
 export {

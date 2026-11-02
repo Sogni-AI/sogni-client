@@ -133,7 +133,9 @@ export interface BaseProjectParams {
    * before upload, and results and previews are encrypted before they are
    * stored, so result URLs serve ciphertext: read them with
    * {@link Job.getResultData} or {@link MediaEncryptionApi.fetchDecrypted}
-   * rather than loading the URL directly. The rendering worker decrypts the
+   * rather than loading the URL directly. For seekable video/audio playback,
+   * {@link MediaEncryptionApi.openDecrypted} reads authenticated byte ranges
+   * without downloading the entire file. The rendering worker decrypts the
    * media to work on it.
    *
    * Requires an unlocked media key ({@link MediaEncryptionApi.isUnlocked}) and a

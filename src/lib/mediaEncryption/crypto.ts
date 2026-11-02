@@ -115,8 +115,13 @@ async function readRange(source: MediaSource, start: number, end: number): Promi
   return new Uint8Array(await source.slice(start, end).arrayBuffer());
 }
 
-async function deriveFileKey(projectKey: Uint8Array, header: Uint8Array, salt: Uint8Array) {
-  return importAesGcmKey(await hkdfSha256(projectKey, salt, header, MEDIA_KEY_BYTES));
+export async function deriveFileKey(projectKey: Uint8Array, header: Uint8Array, salt: Uint8Array) {
+  const raw = await hkdfSha256(projectKey, salt, header, MEDIA_KEY_BYTES);
+  try {
+    return await importAesGcmKey(raw);
+  } finally {
+    raw.fill(0);
+  }
 }
 
 export interface EncryptMediaOptions {

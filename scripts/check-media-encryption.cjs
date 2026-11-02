@@ -1251,6 +1251,96 @@ async function checkEncryptedKeyframeUploads() {
   }
 }
 
+async function checkEncryptedVideoAudioReferences() {
+  const image = new Blob([pattern(2100)], { type: 'image/png' });
+  const video = new Blob([pattern(180000)], { type: 'video/mp4' });
+  const video2 = new Blob([pattern(180017)], { type: 'video/mp4' });
+  const audio = new Blob([pattern(30000)], { type: 'audio/wav' });
+  const audio2 = new Blob([pattern(30017)], { type: 'audio/mpeg' });
+  const cases = [
+    { type: 'video', modelId: 'wan_v2.2-14b-fp8_animate-move_lightx2v',
+      referenceImage: image, referenceVideo: video, expected: [image, video] },
+    { type: 'video', modelId: 'ltx23-22b-fp8_ia2v_distilled',
+      referenceImage: image, referenceAudio: audio, expected: [image, audio] },
+    { type: 'video', modelId: 'ltx23-22b-fp8_t2v_distilled',
+      referenceAudioIdentity: audio, expected: [audio] },
+    { type: 'video', modelId: 'ltx23-22b-fp8_v2v_distilled',
+      referenceVideo: video, referenceMask: image, controlNet: { name: 'inpaint', strength: 1 },
+      expected: [video, image] },
+    { type: 'video', modelId: 'minimax-h3-ref2va-fp8_r2v',
+      referenceVideos: [video, video2], referenceAudios: [audio, audio2],
+      referenceVideoDurations: [2, 2], expected: [video, video2, audio, audio2] },
+    { type: 'audio', modelId: 'qwen3_tts_1.7b_voice_clone_bf16',
+      referenceAudio: audio, referenceText: 'This is a reference recording.', expected: [audio] },
+    { type: 'audio', modelId: 'minimax_music3', expected: [] }
+  ];
+  for (const spec of cases) {
+    const client = stubClient();
+    const realGet = client.socket.get;
+    client.socket.get = async (path) => path === '/api/v1/models/list'
+      ? [{ id: spec.modelId, name: 'Test', SID: 3, tier: 'test-tier', media: spec.type, supportsMediaEncryption: true }]
+      : realGet(path);
+    const encryption = new MediaEncryptionApi({ client, eip712: {} },
+      stubAccount('artist', 'correct horse'), new lib.MemoryAccountKeyStore());
+    await encryption.unlock('correct horse');
+    const projects = new ProjectsApi({ client, eip712: {} }, encryption);
+    projects.getModelOptions = async () => ({
+      type: spec.type,
+      steps: { min: 1, max: 100, step: 1, default: 20 },
+      guidance: { min: 1, max: 10, step: 1, default: 1 },
+      fps: { allowed: [16, 24], default: 24 },
+      sampler: { allowed: [], default: null },
+      scheduler: { allowed: ['simple'], default: 'simple' }
+    });
+    const uploads = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (_url, init) => {
+      uploads.push(await bytesOf(init.body));
+      return { ok: true, status: 200 };
+    };
+    try {
+      const { expected, ...params } = spec;
+      const createParams = {
+        network: 'fast', numberOfMedia: 1, positivePrompt: 'A clear test recording.',
+        duration: 6, width: 1344, height: 768, steps: 20, guidance: 1,
+        scheduler: 'simple', ...params, mediaEncryption: true
+      };
+      const field = ['referenceImage', 'referenceVideo', 'referenceAudio', 'referenceAudioIdentity', 'referenceVideos']
+        .find((name) => params[name]);
+      if (field) {
+        const placeholder = Array.isArray(params[field]) ? params[field].map(() => true) : true;
+        await assert.rejects(() => projects.create({ ...createParams, [field]: placeholder }),
+          { code: 'unsupported' });
+        assert.equal(uploads.length, 0, 'pre-uploaded plaintext references are refused before any upload');
+        assert.equal(client.sent.length, 0);
+      }
+      const project = await projects.create(createParams);
+      assert.equal(uploads.length, expected.length, spec.modelId);
+      const wire = client.sent.at(-1).data.mediaEncryption;
+      assert.equal(wire.version, 1);
+      assert.equal(wire.inputKeys?.length || 0, expected.length);
+      const inputKeys = await Promise.all((wire.inputKeys || []).map((wrapped) =>
+        lib.unwrapInputKey(lib.base64ToBytes(wire.key), lib.base64ToBytes(wrapped))));
+      const remaining = new Set(await Promise.all(expected.map(async (file) => sha256(await bytesOf(file)))));
+      for (const uploaded of uploads) {
+        assert.equal(lib.isEncryptedMedia(uploaded), true, spec.modelId);
+        const opened = await encryption.decrypt(uploaded);
+        assert.ok(remaining.delete(sha256(await bytesOf(opened))), 'artist opens each original reference exactly once');
+        let workerOpened;
+        for (const inputKey of inputKeys) {
+          try { workerOpened = await lib.decryptMedia(uploaded, () => inputKey); break; } catch {}
+        }
+        assert.ok(workerOpened, 'worker can open reference using only wrapped input keys');
+        assert.deepEqual(await bytesOf(workerOpened.data), await bytesOf(opened));
+      }
+      assert.equal(remaining.size, 0);
+      project._update({ status: 'failed', error: { code: 0, message: 'test cleanup' } });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  }
+}
+
 // The socket's refusal codes (sogni-socket constants/errorCodes.js). 4095 and
 // 4097 belong to ordinary input-media errors there, so they must not be reused.
 function checkErrorCodes() {
@@ -1356,6 +1446,7 @@ async function run() {
   await checkKeyHygiene();
   await checkProjectCreation();
   await checkEncryptedKeyframeUploads();
+  await checkEncryptedVideoAudioReferences();
   await checkServerAvailability();
   await checkProviderOnlyAccounts();
   await checkUnsupportedRefusalRefreshesModels();

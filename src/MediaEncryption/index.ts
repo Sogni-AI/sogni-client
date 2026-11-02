@@ -2,6 +2,10 @@ import { getBytes, Wallet } from 'ethers';
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import type AccountApi from '../Account/index.js';
 import {
+  openRemoteEncryptedMedia,
+  type DecryptedMediaReader
+} from '../lib/mediaEncryption/remote.js';
+import {
   AccountKeyStore,
   AccountMediaKey,
   MAX_INPUT_KEYS,
@@ -100,6 +104,7 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
   /** Invalidates asynchronous key work when the key is changed or locked. */
   private keyGeneration = 0;
   private keySessionVersion?: number;
+  private readonly mediaReaders = new Set<AbortController>();
   /** The last `mediaEncryptionAvailable` the server sent on this connection. */
   private serverAvailable = false;
 
@@ -133,6 +138,7 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
       // supplied while signed out belongs to the NEXT account, even when its
       // login changes that retained identity. Previously bound keys still lock.
       if (this.explicitKey && this.accountKey && !this.keyWalletAddress) {
+        this.closeMediaReaders();
         this.keyGeneration++;
         return;
       }
@@ -241,6 +247,7 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
 
   /** Forget the account key on this device. Encrypted media stays encrypted. */
   async lock(): Promise<void> {
+    this.closeMediaReaders();
     this.keyGeneration++;
     const walletAddresses = new Set(
       [this.keyWalletAddress, this.account.currentAccount.walletAddress, this.lastWalletAddress]
@@ -271,8 +278,42 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
    * was encrypted without an account recipient.
    */
   async decrypt(media: MediaSource, options: { key?: Uint8Array } = {}): Promise<Blob> {
+    const assertCurrent = this.captureMediaSession();
     const { data } = await decryptMedia(media, (header) => this.resolveProjectKey(header, options));
+    assertCurrent();
     return data;
+  }
+
+  /**
+   * Open encrypted video/audio for seeking without downloading the whole file.
+   * The storage URL must support HTTP byte ranges and expose Content-Range to
+   * this origin. Each returned chunk is authenticated before it leaves the SDK.
+   * No plaintext is cached. Close the reader when playback no longer needs it;
+   * locking or changing the account also closes it and aborts pending requests.
+   *
+   * Ranges use [start, end) offsets in the DECRYPTED file. Apps can serve these
+   * through their service worker to a normal audio/video element. Prefer
+   * `stream()` for long ranges; `read()` collects the requested range in memory.
+   */
+  async openDecrypted(
+    url: string,
+    options: { init?: RequestInit } = {}
+  ): Promise<DecryptedMediaReader> {
+    const assertCurrent = this.captureMediaSession();
+    const lifetime = new AbortController();
+    this.mediaReaders.add(lifetime);
+    const abort = () => lifetime.abort();
+    options.init?.signal?.addEventListener('abort', abort, { once: true });
+    if (options.init?.signal?.aborted) abort();
+    const onClose = () => {
+      this.mediaReaders.delete(lifetime);
+      options.init?.signal?.removeEventListener('abort', abort);
+    };
+    return openRemoteEncryptedMedia(url, (header) => this.resolveProjectKey(header, {}), {
+      init: { ...options.init, signal: lifetime.signal },
+      assertCurrent,
+      onClose
+    });
   }
 
   /**
@@ -286,11 +327,13 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     url: string,
     options: { init?: RequestInit; requireEncrypted?: boolean } = {}
   ): Promise<Blob> {
+    const assertCurrent = this.captureMediaSession();
     const response = await fetch(url, options.init);
     if (!response.ok) {
       throw new Error(`Failed to download media: ${response.status} ${response.statusText}`);
     }
     const blob = await response.blob();
+    assertCurrent();
     const signature = new Uint8Array(await blob.slice(0, 8).arrayBuffer());
     if (isEncryptedMedia(signature)) return this.decrypt(blob);
     if (options.requireEncrypted) {
@@ -410,9 +453,24 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
   }
 
   private beginKeyChange(): () => boolean {
+    this.closeMediaReaders();
     const generation = ++this.keyGeneration;
     const session = this.client.auth.sessionVersion;
     return () => generation === this.keyGeneration && session === this.client.auth.sessionVersion;
+  }
+
+  private closeMediaReaders(): void {
+    for (const reader of this.mediaReaders) reader.abort();
+    this.mediaReaders.clear();
+  }
+
+  private captureMediaSession(): () => void {
+    const generation = this.keyGeneration;
+    const session = this.client.auth.sessionVersion;
+    return () =>
+      this.assertCurrentKeyChange(
+        () => generation === this.keyGeneration && session === this.client.auth.sessionVersion
+      );
   }
 
   private assertCurrentKeyChange(isCurrent: () => boolean): void {
