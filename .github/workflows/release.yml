@@ -40,6 +40,8 @@ jobs:
         run: node scripts/check-reusable-uploads.cjs
       - name: Run model option checks
         run: npm run test:model-options
+      - name: Check hosted schema snapshots and chat routing
+        run: node scripts/generate-hosted-tool-alias-parity.mjs --check && node scripts/check-chat-model-routing.cjs
       - name: Run attribution transport checks
         run: npm run test:attribution
       - name: Run workflow content filter checks

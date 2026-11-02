@@ -31,6 +31,8 @@ jobs:
           node scripts/check-project-liveness.cjs
           node scripts/check-project-results.cjs
           node scripts/check-chat-transport-recovery.cjs
+          node scripts/generate-hosted-tool-alias-parity.mjs --check
+          node scripts/check-chat-model-routing.cjs
       - name: Check socket handoff and reconnects
         run: |
           node scripts/check-browser-request-handoff.cjs
