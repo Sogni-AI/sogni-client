@@ -163,6 +163,34 @@ const sogni = await SogniClient.createInstance({
 await sogni.account.login('username', 'password');
 ```
 
+RESTORING A DELETED ACCOUNT AT SIGN-IN:
+
+Signature: `login(username, password, rememberMe = false, appSource?, options?: { restoreDeletedAccount?: boolean })`.
+When the account was deleted and can be restored, `login()` throws an `ApiError` with HTTP status
+400, `payload.errorCode === ACCOUNT_RESTORABLE_ERROR_CODE` (196) and `details.deletedAt` (Unix
+seconds). Ask the person to confirm, then call `login()` again with the same arguments plus
+`{ restoreDeletedAccount: true }` to restore the account and sign in. Repeat the original `rememberMe`
+and `appSource` so the restored session lasts as long as the one first requested. The option changes
+nothing for an account that is not deleted.
+
+```javascript
+import { ApiError, ACCOUNT_RESTORABLE_ERROR_CODE } from '@sogni-ai/sogni-client';
+
+try {
+  await sogni.account.login(username, password, rememberMe, appSource);
+} catch (error) {
+  if (!(error instanceof ApiError) || error.payload.errorCode !== ACCOUNT_RESTORABLE_ERROR_CODE) {
+    throw error;
+  }
+  const deletedAt = new Date(Number(error.details?.deletedAt) * 1000);
+  // After the person confirms restoring the account deleted on `deletedAt`, repeat the original
+  // arguments and add the option:
+  await sogni.account.login(username, password, rememberMe, appSource, {
+    restoreDeletedAccount: true
+  });
+}
+```
+
 APP ID LIFECYCLE:
 
 Generate an `appId` once per application installation and persist it across process restarts or page
@@ -1326,10 +1354,10 @@ uploaded video, overwrites caller claims, and uses measured durations for
 pricing and admission. At least one
 visual reference (image or video) is required; audio alone is rejected.
 
-For one-stage MiniMax H3 Reference to Video, `referenceVideoCompression: 'vpack'`
-opts into lower reference-video memory use. Fine detail and motion may change.
-It requires an uploaded reference video; two-stage output and image-only requests
-do not support it. Omit the option or use `'none'` to preserve ordinary processing.
+`referenceVideoCompression` is a legacy MiniMax H3 reference-video preference
+(`'none'` or `'vpack'`), retained for compatibility. Current services select
+compression automatically; this field no longer selects compression. Leave it
+unset for new requests.
 
 Ref2VA uses six sections in exact order: `subject_definitions`, `summary`,
 `retention_analysis`, `detailed_description`, `overall_soundscape`, and

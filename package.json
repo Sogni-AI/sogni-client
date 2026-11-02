@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "5.71.1",
+  "version": "5.72.0",
   "engines": {
     "node": ">=22"
   },
@@ -95,6 +95,7 @@
     "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",
     "test:project-request-session": "npm run build && node scripts/check-project-request-session.cjs",
     "test:auth-session": "npm run build && node scripts/check-auth-session.cjs",
+    "test:account-login": "npm run build && node scripts/check-account-login.cjs",
     "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
     "test:project-recovery": "npm run build && node scripts/check-project-recovery.cjs",
     "test:project-error-categories": "npm run build && node scripts/check-project-error-categories.cjs",
@@ -138,13 +139,13 @@
   "homepage": "https://github.com/Sogni-AI/sogni-client#readme",
   "dependencies": {
     "@lukeed/uuid": "^2.0.1",
-    "@sogni-ai/sogni-protocol": "1.0.0-alpha.55",
+    "@sogni-ai/sogni-protocol": "1.0.0-alpha.57",
     "@types/js-cookie": "^3.0.6",
     "@types/lodash": "^4.17.23",
     "@types/ws": "^8.5.13",
     "ethers": "^6.17.0",
     "isomorphic-ws": "^5.0.0",
-    "js-cookie": "3.0.7",
+    "js-cookie": "3.0.8",
     "jwt-decode": "^4.0.0",
     "lodash": "^4.18.1",
     "ws": "^8.21.1"
