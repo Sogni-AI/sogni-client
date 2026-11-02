@@ -1,3 +1,16 @@
+# [5.73.0](https://github.com/Sogni-AI/sogni-client/compare/v5.72.1...v5.73.0) (2026-11-02)
+
+
+### Bug Fixes
+
+* describe temporary monthly accounting confirmation ([97ef956](https://github.com/Sogni-AI/sogni-client/commit/97ef9564e693ae515e8c41f73f97fe61b510b7e2))
+
+
+### Features
+
+* add opt-in Unlimited priority mode ([f699949](https://github.com/Sogni-AI/sogni-client/commit/f699949c20ec6d77a2db340a3ea83b4e10fff580))
+* retain Priority availability and history metadata ([7a65896](https://github.com/Sogni-AI/sogni-client/commit/7a658961b21aa99f9233dc86176e70694ddad6ef))
+
 ## [5.72.1](https://github.com/Sogni-AI/sogni-client/compare/v5.72.0...v5.72.1) (2026-11-02)
 
 
