@@ -102,6 +102,11 @@ class AccountApi extends ApiGroup {
    */
   private appliedSubscriptionSocketWrites = 0;
   private accountSessionVersion?: number;
+  /** Priority availability belongs to the current authenticated connection. */
+  private socketPriorityAvailability: {
+    sessionVersion: number;
+    available: boolean;
+  } | null = null;
 
   constructor(config: ApiConfig) {
     super(config);
@@ -133,6 +138,7 @@ class AccountApi extends ApiGroup {
   }
 
   private handleServerConnected({ network }: { network: SupernetType }) {
+    this.clearSocketPriorityAvailability();
     this.currentAccount._update({
       networkStatus: 'connected',
       network
@@ -140,6 +146,7 @@ class AccountApi extends ApiGroup {
   }
 
   private handleServerConnecting({ network }: { network: SupernetType }) {
+    this.clearSocketPriorityAvailability();
     this.currentAccount._update({
       networkStatus: 'connecting',
       network
@@ -147,10 +154,39 @@ class AccountApi extends ApiGroup {
   }
 
   private handleServerDisconnected() {
+    this.clearSocketPriorityAvailability();
     this.currentAccount._update({
       networkStatus: 'disconnected',
       network: null
     });
+  }
+
+  private clearSocketPriorityAvailability() {
+    this.socketPriorityAvailability = null;
+    const subscription = this.currentAccount.subscription;
+    if (!subscription?.capabilities?.priorityMode) return;
+    const capabilities = { ...subscription.capabilities };
+    delete capabilities.priorityMode;
+    this.currentAccount._update({ subscription: { ...subscription, capabilities } });
+  }
+
+  /** Plan refreshes retain the current connection's coarse Priority availability. */
+  private withSocketPriorityAvailability(
+    subscription: SubscriptionEntitlementSnapshot
+  ): SubscriptionEntitlementSnapshot {
+    const available = Boolean(
+      this.socketPriorityAvailability?.available &&
+      this.socketPriorityAvailability.sessionVersion === this.client.auth.sessionVersion &&
+      this.client.socket.isConnected &&
+      subscription.active &&
+      subscription.status !== 'trialing' &&
+      (subscription.tier === 'unlimited' || subscription.tier === 'unlimited_pro')
+    );
+    if (available === (subscription.capabilities?.priorityMode === true)) return subscription;
+    const capabilities = { ...subscription.capabilities };
+    if (available) capabilities.priorityMode = true;
+    else delete capabilities.priorityMode;
+    return { ...subscription, capabilities };
   }
 
   private mapSocketSubscriptionEntitlement(
@@ -289,12 +325,17 @@ class AccountApi extends ApiGroup {
     }
     if (source === 'socket') {
       this.appliedSubscriptionSocketWrites += 1;
+      this.socketPriorityAvailability = {
+        sessionVersion: this.client.auth.sessionVersion,
+        available: subscription.capabilities?.priorityMode === true
+      };
     }
+    const normalizedSubscription = this.withSocketPriorityAvailability(subscription);
     const current = this.currentAccount.subscription;
-    if (current && JSON.stringify(current) === JSON.stringify(subscription)) {
+    if (current && JSON.stringify(current) === JSON.stringify(normalizedSubscription)) {
       return true;
     }
-    this.currentAccount._update({ subscription });
+    this.currentAccount._update({ subscription: normalizedSubscription });
     return true;
   }
 
@@ -355,6 +396,7 @@ class AccountApi extends ApiGroup {
     this.accountSessionVersion = this.client.auth.sessionVersion;
     this.lastAppliedSubscriptionVersion = null;
     this.appliedSubscriptionSocketWrites = 0;
+    this.socketPriorityAvailability = null;
     this.currentAccount._clear();
   }
 
@@ -364,6 +406,7 @@ class AccountApi extends ApiGroup {
       // the next login starts from a clean slate.
       this.lastAppliedSubscriptionVersion = null;
       this.appliedSubscriptionSocketWrites = 0;
+      this.socketPriorityAvailability = null;
       this.currentAccount._clear();
     } else {
       this.clearChangedAccountSession();
@@ -699,6 +742,7 @@ class AccountApi extends ApiGroup {
     if (params.provider) {
       query.provider = params.provider;
     }
+    if (params.includePriorityAccounting === true) query.includePriorityAccounting = 'true';
     const res = await this.client.rest.get<ApiResponse<TxHistoryData>>(
       '/v1/transactions/list',
       query
@@ -723,7 +767,10 @@ class AccountApi extends ApiGroup {
           paymentModel: tx.paymentModel,
           subscriptionTier: tx.subscriptionTier,
           subscriptionTrialing: tx.subscriptionTrialing,
-          subscriptionThrottled: tx.subscriptionThrottled
+          subscriptionThrottled: tx.subscriptionThrottled,
+          ...(params.includePriorityAccounting === true && tx.priorityUsage
+            ? { priorityUsage: tx.priorityUsage }
+            : {})
         })
       ),
       next: {
@@ -965,7 +1012,7 @@ class AccountApi extends ApiGroup {
       // currentAccount.subscription.
       return this.currentAccount.subscription;
     }
-    return subscription;
+    return this.currentAccount.subscription ?? subscription;
   }
 
   /**

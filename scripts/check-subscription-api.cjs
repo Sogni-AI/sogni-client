@@ -141,6 +141,40 @@ function apiResponse(data) {
 async function run() {
   {
     const { api, client } = makeApi();
+    const priorityUsage = { outputCount: 1, rate: 1.5, coverage: 'complete' };
+    client.rest._nextPayload = {
+      data: {
+        transactions: [
+          {
+            id: 'usage-1',
+            address: '0xartist',
+            createTime: 1,
+            updateTime: 1,
+            endTime: 1,
+            status: 'completed',
+            role: 'artist',
+            amount: 0,
+            tokenType: 'spark',
+            description: 'Unlimited plan',
+            source: 'subscription',
+            type: 'debit',
+            priorityUsage
+          }
+        ],
+        next: null
+      }
+    };
+    const params = { status: 'completed', address: '0xartist', limit: 20, provider: 'all' };
+    const ordinary = await api.transactionHistory(params);
+    assert.equal(client.rest._lastCall.query.includePriorityAccounting, undefined);
+    assert.equal(ordinary.entries[0].priorityUsage, undefined);
+    const opted = await api.transactionHistory({ ...params, includePriorityAccounting: true });
+    assert.equal(client.rest._lastCall.query.includePriorityAccounting, 'true');
+    assert.deepEqual(opted.entries[0].priorityUsage, priorityUsage);
+    assert.equal(opted.entries[0].amount, 0);
+  }
+  {
+    const { api, client } = makeApi();
     const snapshot = {
       active: true,
       status: 'active',

@@ -97,6 +97,14 @@ export interface TxHistoryParams {
   limit: number;
   provider?: string;
   offset?: number;
+  /** Include saved Priority labels on plan usage entries. */
+  includePriorityAccounting?: boolean;
+}
+
+export interface PriorityUsageSummary {
+  outputCount: number;
+  rate: 1.5;
+  coverage: 'complete' | 'partial';
 }
 
 export interface TxHistoryData {
@@ -105,6 +113,7 @@ export interface TxHistoryData {
 }
 
 export interface TxRaw {
+  priorityUsage?: PriorityUsageSummary;
   _id: string;
   id: string;
   SID: number;
@@ -130,6 +139,7 @@ export interface TxRaw {
 }
 
 export interface TxHistoryEntry {
+  priorityUsage?: PriorityUsageSummary;
   id: string;
   address: string;
   createTime: Date;
