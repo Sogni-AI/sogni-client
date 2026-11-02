@@ -5,6 +5,7 @@ import {
   ClaimOptions,
   FullBalances,
   LoginData,
+  LoginOptions,
   MeData,
   Nonce,
   Reward,
@@ -467,18 +468,44 @@ class AccountApi extends ApiGroup {
    * console.log('Logged in');
    * ```
    *
+   * @example Offer to restore a deleted account at sign-in
+   * ```typescript
+   * import { ApiError, ACCOUNT_RESTORABLE_ERROR_CODE } from '@sogni-ai/sogni-client';
+   *
+   * try {
+   *   await sogni.account.login(username, password, rememberMe, appSource);
+   * } catch (error) {
+   *   if (!(error instanceof ApiError) || error.payload.errorCode !== ACCOUNT_RESTORABLE_ERROR_CODE) {
+   *     throw error;
+   *   }
+   *   const deletedAt = new Date(Number(error.details?.deletedAt) * 1000);
+   *   // Ask the person whether to restore the account deleted on `deletedAt`. If they agree,
+   *   // repeat the original arguments and add the option:
+   *   await sogni.account.login(username, password, rememberMe, appSource, {
+   *     restoreDeletedAccount: true
+   *   });
+   * }
+   * ```
+   *
    * @param username
    * @param password
    * @param rememberMe - Whether to establish a long-lived session. Default is false. Only
    * applicable for cookie-based authentication.
    * @param appSource - Optional client app/source label for login attribution. Defaults to the
    * SogniClient connection appSource when configured.
+   * @param options - Optional sign-in settings. Set `restoreDeletedAccount: true` to restore a
+   * deleted account and sign in, after the person confirms; repeat the original `rememberMe` and
+   * `appSource` on that call so the session lasts as long as first requested. A deleted account
+   * that can be restored makes `login()` throw an `ApiError` with
+   * `payload.errorCode === ACCOUNT_RESTORABLE_ERROR_CODE` (196) and `details.deletedAt` (Unix
+   * seconds).
    */
   async login(
     username: string,
     password: string,
     rememberMe = false,
-    appSource?: string
+    appSource?: string,
+    options?: LoginOptions
   ): Promise<LoginData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
@@ -491,7 +518,8 @@ class AccountApi extends ApiGroup {
       walletAddress: wallet.address,
       signature,
       ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
-      rememberMe
+      rememberMe,
+      ...(options?.restoreDeletedAccount ? { restoreDeletedAccount: true } : {})
     });
     const auth = this.client.auth;
     if (auth instanceof TokenAuthManager) {

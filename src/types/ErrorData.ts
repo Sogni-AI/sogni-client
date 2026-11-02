@@ -13,6 +13,15 @@ interface ErrorData {
    */
   vendorFailureCategory?: string;
   /**
+   * The provider's own error code for an external generation failure, when it
+   * gave one, e.g. `OutputAudioSensitiveContentDetected.PolicyViolation` (the
+   * provider flagged the soundtrack it generated, usually as possibly matching
+   * copyrighted audio) or `OutputVideoSensitiveContentDetected` (the picture).
+   * Lets an app tell kinds of refusal apart within one category without
+   * reading the message.
+   */
+  vendorErrorCode?: string;
+  /**
    * Discriminator set to `true` when this render-path error is a subscription
    * FEATURE-gate denial (socket error code 4081). The four fields below are
    * present only when this is `true`. Apps can branch on it (or use
@@ -88,6 +97,20 @@ export const MODEL_CONSENT_REQUIRED_ERROR_CODE = 4103;
  * stays refused until the server makes it available.
  */
 export const MODEL_NOT_YET_AVAILABLE_ERROR_CODE = 4104;
+
+/**
+ * REST error code `sogni.account.login()` throws when the account was deleted
+ * and signing in can restore it. It arrives as an `ApiError` with HTTP status
+ * 400 and `error.payload.errorCode` set to this code. `error.details.deletedAt`
+ * is when the account was deleted, in Unix seconds.
+ *
+ * Ask the person whether to restore the account. If they agree, call `login()`
+ * again with the same arguments, including `rememberMe` and `appSource`, plus
+ * `{ restoreDeletedAccount: true }`: the account is restored and the call signs
+ * in as usual. The error's `message` is readable as is for apps that do not
+ * handle this code.
+ */
+export const ACCOUNT_RESTORABLE_ERROR_CODE = 196;
 
 /**
  * Socket error codes returned when a job explicitly submitted with

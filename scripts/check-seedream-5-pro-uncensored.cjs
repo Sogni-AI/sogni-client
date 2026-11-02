@@ -90,6 +90,12 @@ const request = (params) =>
     },
     options
   );
+// Existing image outputFormat is forwarded unchanged; omitted stays PNG.
+for (const outputFormat of [undefined, 'png', 'jpg', 'webp']) {
+  for (const contextImages of [undefined, ['reference-image']]) {
+    assert.equal(request({ outputFormat, contextImages }).outputFormat, outputFormat || 'png');
+  }
+}
 for (const [width, height] of [
   [1024, 1024],
   [1152, 864],

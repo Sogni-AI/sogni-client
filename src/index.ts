@@ -108,6 +108,7 @@ import type {
   ListRecentProjectsOptions,
   ProjectLookupStatus,
   ProjectResolution,
+  ProjectFailure,
   ProjectResult,
   ProjectResultJob,
   ProjectStatusSnapshot,
@@ -119,7 +120,13 @@ import {
   isProjectLostError,
   projectParamsFromRecoveredProject
 } from './Projects/recovery.js';
-import type { Balances, Reward, RewardCantClaimReason, TxHistoryEntry } from './Account/types.js';
+import type {
+  Balances,
+  LoginOptions,
+  Reward,
+  RewardCantClaimReason,
+  TxHistoryEntry
+} from './Account/types.js';
 import type {
   CreateSubscriptionCheckoutOptions,
   SubscriptionCheckoutResult,
@@ -257,6 +264,7 @@ import {
 // Base Types
 import ErrorData, {
   MEDIA_ENCRYPTION_ERROR_CODES,
+  ACCOUNT_RESTORABLE_ERROR_CODE,
   MODEL_CONSENT_REQUIRED_ERROR_CODE,
   MODEL_NOT_YET_AVAILABLE_ERROR_CODE,
   SUBSCRIPTION_ERROR_CODES
@@ -424,6 +432,7 @@ export type {
   // Primitives promoted from deep paths so consumers can import from the
   // package root rather than reaching into `./dist/*`.
   Balances,
+  LoginOptions,
   Reward,
   RewardCantClaimReason,
   TxHistoryEntry,
@@ -477,6 +486,7 @@ export type {
   ProjectLookupStatus,
   ProjectRecoverySnapshot,
   ProjectResolution,
+  ProjectFailure,
   ProjectResult,
   ProjectResultJob,
   ProjectStatusSnapshot,
@@ -544,6 +554,7 @@ export {
   PROJECT_LOST_ORIGINAL_CODE,
   SogniTools,
   SUBSCRIPTION_ERROR_CODES,
+  ACCOUNT_RESTORABLE_ERROR_CODE,
   MODEL_CONSENT_REQUIRED_ERROR_CODE,
   MODEL_NOT_YET_AVAILABLE_ERROR_CODE,
   isModelConsentRequiredError,

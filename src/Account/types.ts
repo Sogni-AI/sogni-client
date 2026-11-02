@@ -37,6 +37,17 @@ export interface LoginData {
   username: string;
 }
 
+/** Optional settings for `sogni.account.login()`. */
+export interface LoginOptions {
+  /**
+   * Restore the account, then sign in, when the account was deleted. Set it
+   * after the person confirms they want the account back, usually in answer to
+   * an `ACCOUNT_RESTORABLE_ERROR_CODE` error from an earlier `login()` call.
+   * It changes nothing for an account that has not been deleted.
+   */
+  restoreDeletedAccount?: boolean;
+}
+
 export interface MeData {
   currentEmail: string;
   discord2FA: boolean;

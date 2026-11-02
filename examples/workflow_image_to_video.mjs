@@ -316,7 +316,7 @@ async function main() {
   let initialImageDimensions = { width: 832, height: 480 };
   try {
     const imageSize = (await import('image-size')).default;
-    const dims = imageSize(OPTIONS.image);
+    const dims = imageSize(fs.readFileSync(OPTIONS.image));
     if (dims.width && dims.height) {
       initialImageDimensions = { width: dims.width, height: dims.height };
       log('📐', `Original image dimensions: ${dims.width}x${dims.height}`);

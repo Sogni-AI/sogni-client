@@ -40,7 +40,8 @@ class AutomaticSaveBlockedError extends Error {}
 
 /** Private subscriber uploads that can be reused across projects. */
 export default class ReusableUploads {
-  private pending = new Map<string, Promise<SavedUpload>>();
+  private pending = new Map<string, { upload: Promise<SavedUpload>; users: number }>();
+  private bindings = new Map<string, Promise<void>>();
   // Bound hashing/upload memory even when a project has many reference files.
   private lanes: Promise<unknown>[] = [Promise.resolve(), Promise.resolve()];
   private nextLane = 0;
@@ -60,6 +61,7 @@ export default class ReusableUploads {
     if (session !== this.lastSession) {
       this.lastSession = session;
       this.pending.clear();
+      this.bindings.clear();
       this.availability = undefined;
       this.automaticSaveBlockedUntil = 0;
     }
@@ -112,11 +114,24 @@ export default class ReusableUploads {
 
   async bind(id: string, binding: SavedUploadBinding): Promise<void> {
     const session = this.session;
-    await this.retryBusy(() => {
-      this.assertSession(session);
-      return this.rest.post(`/v1/assets/${encodeURIComponent(id)}/bind`, { ...binding });
-    });
-    this.assertSession(session);
+    // The server holds a per-file lock while copying. Queue only this file;
+    // unrelated files still use the two upload lanes concurrently.
+    const previous = this.bindings.get(id) ?? Promise.resolve();
+    const operation = previous
+      .catch(() => undefined)
+      .then(async () => {
+        await this.retryBusy(() => {
+          this.assertSession(session);
+          return this.rest.post(`/v1/assets/${encodeURIComponent(id)}/bind`, { ...binding });
+        });
+        this.assertSession(session);
+      });
+    this.bindings.set(id, operation);
+    try {
+      await operation;
+    } finally {
+      if (this.bindings.get(id) === operation) this.bindings.delete(id);
+    }
   }
 
   private async retryBusy<T>(operation: () => Promise<T>): Promise<T> {
@@ -139,7 +154,8 @@ export default class ReusableUploads {
     file: Blob | Buffer,
     contentType: string,
     name: string,
-    automatic: boolean
+    automatic: boolean,
+    binding?: SavedUploadBinding
   ): Promise<SavedUpload> {
     const session = this.session;
     const size = file instanceof Blob ? file.size : file.byteLength;
@@ -152,7 +168,7 @@ export default class ReusableUploads {
         })
       );
     const lane = this.nextLane++ % this.lanes.length;
-    const run = this.lanes[lane].then(async () => {
+    const prepared = this.lanes[lane].then(async () => {
       this.assertSession(session);
       // Concurrent project helpers can all pass the capability check before
       // the first quota response arrives. Recheck once this lane reaches the
@@ -166,18 +182,30 @@ export default class ReusableUploads {
         value.toString(16).padStart(2, '0')
       ).join('');
       const key = `${sha256}:${contentType}`;
-      const existing = this.pending.get(key);
-      if (existing) return existing;
-      const task = this.performUpload(file, bytes.byteLength, sha256, contentType, name, session);
-      this.pending.set(key, task);
+      let pending = this.pending.get(key);
+      if (!pending) {
+        pending = {
+          upload: this.performUpload(file, bytes.byteLength, sha256, contentType, name, session),
+          users: 0
+        };
+        this.pending.set(key, pending);
+      }
+      pending.users += 1;
+      return { pending, key };
+    });
+    // The lane bounds hashing and transfer, not the per-file server copy.
+    this.lanes[lane] = prepared.then(({ pending }) => pending.upload).catch(() => undefined);
+    return prepared.then(async ({ pending, key }) => {
       try {
-        return await task;
+        const saved = await pending.upload;
+        this.assertSession(session);
+        if (binding) await this.bind(saved.id, binding);
+        return saved;
       } finally {
-        if (this.pending.get(key) === task) this.pending.delete(key);
+        pending.users -= 1;
+        if (pending.users === 0 && this.pending.get(key) === pending) this.pending.delete(key);
       }
     });
-    this.lanes[lane] = run.catch(() => undefined);
-    return run;
   }
 
   private async performUpload(
@@ -247,16 +275,16 @@ export default class ReusableUploads {
     this.assertSession(session);
     if (!enabled) return false;
     try {
-      const saved = await this.uploadInternal(
+      await this.uploadInternal(
         file,
         contentType,
         file instanceof Blob && 'name' in file && typeof file.name === 'string'
           ? file.name
           : 'Saved upload',
-        true
+        true,
+        binding
       );
       this.assertSession(session);
-      await this.bind(saved.id, binding);
       return true;
     } catch (error) {
       this.assertSession(session);
