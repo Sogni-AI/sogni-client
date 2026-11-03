@@ -8,6 +8,13 @@ import type { Sam3Selection } from './index.js';
 export interface JobProvenance {
   /** Hash of the exact bytes uploaded as the completed artifact. */
   sha256?: string;
+  /**
+   * Hash of the plaintext of an encrypted job's completed artifact, taken by
+   * the worker as it sealed it. Only on encrypted jobs; `sha256` there, when
+   * present, is of the ciphertext. Lets the server prove that a copy the
+   * artist decrypts and hands back (to seed a world, say) is this render.
+   */
+  plaintextSha256?: string;
   /** Hash of the original still used by an image edit or segmentation job. */
   sourceImageSha256?: string;
   /** Hash of the canonical normalized SAM point/box/text prompt. */

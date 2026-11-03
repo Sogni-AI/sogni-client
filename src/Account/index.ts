@@ -108,6 +108,13 @@ class AccountApi extends ApiGroup {
     available: boolean;
   } | null = null;
 
+  /**
+   * Called with the login wallet once a password login or signup has succeeded,
+   * so the media encryption key can be derived without a second password prompt.
+   * @internal
+   */
+  _onWalletDerived?: (wallet: Wallet) => Promise<void>;
+
   constructor(config: ApiConfig) {
     super(config);
     this.accountSessionVersion = this.client.auth.sessionVersion;
@@ -491,6 +498,7 @@ class AccountApi extends ApiGroup {
       auth._setSessionIdentity(wallet.address.toLowerCase());
       await auth.authenticate();
     }
+    await this._onWalletDerived?.(wallet);
     return res.data;
   }
 
@@ -563,6 +571,7 @@ class AccountApi extends ApiGroup {
       auth._setSessionIdentity(wallet.address.toLowerCase());
       await auth.authenticate();
     }
+    await this._onWalletDerived?.(wallet);
     return res.data;
   }
 

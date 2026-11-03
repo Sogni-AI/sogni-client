@@ -148,6 +148,12 @@ export interface AuthenticatedData {
   freeSparkLocked?: boolean;
   /** Which call to action to present while locked: `'trial'` or `'purchase'`. */
   freeSparkUnlockPath?: 'trial' | 'purchase';
+  /**
+   * `true` when the server currently accepts `mediaEncryption` projects from
+   * this account. Carried by newer socket builds only; absent means `false`.
+   * Read it through {@link MediaEncryptionApi.available}.
+   */
+  mediaEncryptionAvailable?: boolean;
   hasUnclaimedAirdrop: boolean;
   firstLoginAfterMigration: boolean;
 }
@@ -310,6 +316,8 @@ export type JobResultData = {
   videoFile?: string;
   /** Worker-attested completed artifact hash. */
   sha256?: string;
+  /** Worker-attested plaintext hash of an encrypted job's completed artifact. */
+  plaintextSha256?: string;
   sourceImageSha256?: string;
   samPromptSha256?: string;
   maskRleSha256?: string;
@@ -515,6 +523,8 @@ export type SocketEventMap = {
    * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
    */
   authenticated: AuthenticatedData;
+  /** @internal Replays only the shared socket's encryption availability to a joining tab. */
+  mediaEncryptionAvailabilityUpdated: boolean;
   /**
    * @event WebSocketClient#subscriptionEntitlementUpdated - Subscription entitlement changed while connected
    */

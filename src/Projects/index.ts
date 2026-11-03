@@ -1,7 +1,10 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { MessageDeliveryUncertainError } from '../ApiClient/WebSocketClient/requestDelivery.js';
-import ReusableUploads from './ReusableUploads.js';
+import ReusableUploads, { type SavedUploadBinding } from './ReusableUploads.js';
 import { captureRequestSession, RequestSessionError } from '../lib/requestSession.js';
+import type MediaEncryptionApi from '../MediaEncryption/index.js';
+import type { ProjectMediaEncryption } from '../MediaEncryption/index.js';
+import { MediaEncryptionError } from '../lib/mediaEncryption/index.js';
 import {
   AvailableModel,
   EnhancementStrength,
@@ -63,7 +66,7 @@ import {
 import getUUID from '../lib/getUUID.js';
 import { RawProject } from './types/RawProject.js';
 import type { WaitingReason } from './types/WaitingReason.js';
-import ErrorData from '../types/ErrorData.js';
+import ErrorData, { MEDIA_ENCRYPTION_ERROR_CODES } from '../types/ErrorData.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 import Cache from '../lib/Cache.js';
 import Job, { enhancementDefaults } from './Job.js';
@@ -240,6 +243,25 @@ function jobProvenanceFromResult(data: Partial<JobResultData>): JobProvenance | 
 // confirm and refund the same cancellation.
 const CANCELLATION_CONFIRMATION_TIMEOUT = 120000;
 const MODELS_REFRESH_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
+
+/** Every project param that can carry uploadable media. */
+const ENCRYPTABLE_MEDIA_FIELDS = [
+  'startingImage',
+  'controlNet.image',
+  'contextImages',
+  'gptImageMask',
+  'leftViewImage',
+  'backViewImage',
+  'rightViewImage',
+  'referenceImage',
+  'referenceImageEnd',
+  'referenceMask',
+  'referenceAudio',
+  'referenceAudios',
+  'referenceAudioIdentity',
+  'referenceVideo',
+  'referenceVideos'
+] as const;
 
 /** Fallback for an API that does not advertise its LoRA-capable model set. */
 function deriveLoraCapableModelIds(loras: LoraCatalogEntry[]): string[] {
@@ -760,7 +782,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
   }
 
-  constructor(config: ApiConfig) {
+  /**
+   * Encryption of projects whose uploads are still in progress, by project id.
+   * Holds the project key only until the request has been sent.
+   */
+  private _projectEncryption = new Map<string, ProjectMediaEncryption>();
+
+  constructor(
+    config: ApiConfig,
+    /** @internal */
+    readonly _mediaEncryption?: MediaEncryptionApi
+  ) {
     super(config);
     // Listen to server events and emit them as project and job events
     this.client.socket.on('changeNetwork', this.handleChangeNetwork.bind(this));
@@ -1088,6 +1120,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
 
   private handleJobError(data: JobErrorData) {
     const errorCode = Number(data.error);
+    if (!data.imgID && errorCode === MEDIA_ENCRYPTION_ERROR_CODES.UNSUPPORTED) {
+      // The cached model list said this model could encrypt. Read it again on
+      // the next check rather than wait out the cache.
+      this._supportedModels = { ...this._supportedModels, updatedAt: new Date(0) };
+    }
     if (
       !data.imgID &&
       errorCode === SERVER_RESTARTING_ERROR_CODE &&
@@ -2358,6 +2395,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         attribution: this.resolveWorkloadAttribution(normalizedData.attribution, project.id)
       } as ProjectParams;
       const request = createJobRequestMessage(project.id, requestParams, modelOptions);
+      if (normalizedData.mediaEncryption) {
+        this._projectEncryption.set(project.id, await this._startProjectEncryption(normalizedData));
+      }
 
       switch (normalizedData.type) {
         case 'image':
@@ -2372,6 +2412,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           this._annotateAudioAssetContentTypes(request, normalizedData);
           break;
       }
+      // After the uploads: each encrypted input adds its key to the field.
+      const encryption = this._projectEncryption.get(project.id);
+      if (encryption) request.mediaEncryption = encryption.wire();
       // Recorded before sending: a refusal can arrive as soon as the frame lands.
       assertSession();
       this._unadmittedRequests.set(project.id, request);
@@ -2401,6 +2444,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       throw failure;
     } finally {
       this._preparingSessions.delete(project.id);
+      this._projectEncryption.delete(project.id);
     }
   }
 
@@ -2424,6 +2468,80 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this._sentOnGeneration.delete(project.id);
     project._dispose();
     return tracked;
+  }
+
+  /**
+   * Whether projects for this model can use `mediaEncryption`. The answer comes
+   * from the server's model list, so it reflects what the network can serve
+   * today rather than what this SDK version knows about.
+   */
+  async supportsMediaEncryption(modelId: string): Promise<boolean> {
+    const models = await this.getSupportedModels();
+    return models.find((model) => model.id === modelId)?.supportsMediaEncryption === true;
+  }
+
+  private async _startProjectEncryption(data: ProjectParams): Promise<ProjectMediaEncryption> {
+    if (!this._mediaEncryption) {
+      throw new MediaEncryptionError(
+        'unsupported',
+        'Media encryption is not available on this client instance'
+      );
+    }
+    if (!(await this.supportsMediaEncryption(data.modelId))) {
+      throw new MediaEncryptionError(
+        'unsupported',
+        `Media encryption is not available for model "${data.modelId}"`
+      );
+    }
+    // `true` means "this media was uploaded outside the SDK", which the SDK cannot encrypt.
+    const mediaFields = data as unknown as Record<string, unknown>;
+    const uploadedElsewhere = ENCRYPTABLE_MEDIA_FIELDS.find((field) => {
+      const value =
+        field === 'controlNet.image'
+          ? data.type === 'image' && data.controlNet?.image
+          : mediaFields[field];
+      return value === true || (Array.isArray(value) && value.includes(true));
+    });
+    const keyframeUploadedElsewhere =
+      data.type === 'video' && getMinimaxH3KeyframeSlots(data).some(({ media }) => media === true);
+    if (uploadedElsewhere || keyframeUploadedElsewhere) {
+      const field = uploadedElsewhere ?? 'keyframes';
+      throw new MediaEncryptionError(
+        'unsupported',
+        `Media encryption needs the media itself: pass a File, Blob or Buffer for "${field}" instead of true`
+      );
+    }
+    return this._mediaEncryption._createProjectEncryption();
+  }
+
+  /**
+   * An encrypted project saves and reuses the ENCRYPTED file. An input's key is
+   * derived from its content, so the same file always encrypts to the same
+   * bytes and the upload library recognises it by their hash; it is told the
+   * media type the project slot expects, but never the file's name or the hash
+   * of its plaintext.
+   */
+  private async _bindSavedUpload(
+    file: File | Buffer | Blob,
+    contentType: string | undefined,
+    target: SavedUploadBinding
+  ): Promise<boolean> {
+    const encryption = this._projectEncryption.get(target.projectId);
+    if (!encryption) return this.assets.tryBindFile(file, contentType, target);
+    return this.assets.tryBindFile(
+      await encryption.encrypt(file, contentType),
+      contentType,
+      target
+    );
+  }
+
+  private async _uploadBody(
+    projectId: string,
+    file: File | Buffer | Blob,
+    contentType: string | undefined
+  ): Promise<BodyInit> {
+    const encryption = this._projectEncryption.get(projectId);
+    return encryption ? encryption.encrypt(file, contentType) : toFetchBody(file);
   }
 
   private async _processImageAssets(project: Project, data: ImageProjectParams) {
@@ -2954,7 +3072,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
     const contentType = getFileContentType(file);
-    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'startingImage' }))
+    if (await this._bindSavedUpload(file, contentType, { projectId, type: 'startingImage' }))
       return imageId;
     assertSession();
     const presignedUrl = await this.uploadUrl({
@@ -2968,7 +3086,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file),
+      body: await this._uploadBody(projectId, file, contentType),
       headers
     });
     assertSession();
@@ -2988,7 +3106,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
     const contentType = getFileContentType(file);
-    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'cnImage' }))
+    if (await this._bindSavedUpload(file, contentType, { projectId, type: 'cnImage' }))
       return imageId;
     assertSession();
     const presignedUrl = await this.uploadUrl({
@@ -3002,7 +3120,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file),
+      body: await this._uploadBody(projectId, file, contentType),
       headers
     });
     assertSession();
@@ -3044,7 +3162,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     assertSession();
     const contentType = getFileContentType(file);
     if (
-      await this.assets.tryBindFile(file, contentType, {
+      await this._bindSavedUpload(file, contentType, {
         projectId,
         type: `contextImage${imageIndex}`
       })
@@ -3057,7 +3175,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       type: `contextImage${imageIndex}`,
       contentType
     });
-    const body = toFetchBody(file);
+    const body = await this._uploadBody(projectId, file, contentType);
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
     assertSession();
@@ -3093,7 +3211,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
     const contentType = getFileContentType(file);
-    if (await this.assets.tryBindFile(file, contentType, { projectId, type })) return imageId;
+    if (await this._bindSavedUpload(file, contentType, { projectId, type })) return imageId;
     assertSession();
     const presignedUrl = await this.uploadUrl({ imageId, jobId: projectId, type, contentType });
     const headers: Record<string, string> = {};
@@ -3101,7 +3219,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file),
+      body: await this._uploadBody(projectId, file, contentType),
       headers
     });
     assertSession();
@@ -3129,7 +3247,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
     const contentType = getFileContentType(file);
-    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceImage' }))
+    if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceImage' }))
       return imageId;
     assertSession();
     const presignedUrl = await this.uploadUrl({
@@ -3143,7 +3261,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file),
+      body: await this._uploadBody(projectId, file, contentType),
       headers
     });
     assertSession();
@@ -3167,7 +3285,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
     const contentType = getFileContentType(file);
-    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceMask' }))
+    if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceMask' }))
       return imageId;
     assertSession();
     const presignedUrl = await this.uploadUrl({
@@ -3181,7 +3299,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file),
+      body: await this._uploadBody(projectId, file, contentType),
       headers
     });
     assertSession();
@@ -3205,7 +3323,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
     const contentType = getFileContentType(file);
-    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceImageEnd' }))
+    if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceImageEnd' }))
       return imageId;
     assertSession();
     const presignedUrl = await this.uploadUrl({
@@ -3219,7 +3337,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file),
+      body: await this._uploadBody(projectId, file, contentType),
       headers
     });
     assertSession();
@@ -3244,7 +3362,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
     const contentType = getFileContentType(file, 'audio');
-    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceAudio', id }))
+    if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceAudio', id }))
       return;
     assertSession();
     const presignedUrl = await this.mediaUploadUrl({
@@ -3260,7 +3378,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file),
+      body: await this._uploadBody(projectId, file, contentType),
       headers
     });
     assertSession();
@@ -3283,7 +3401,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
     const contentType = getFileContentType(file, 'video');
-    if (await this.assets.tryBindFile(file, contentType, { projectId, type: 'referenceVideo', id }))
+    if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceVideo', id }))
       return;
     assertSession();
     const presignedUrl = await this.mediaUploadUrl({
@@ -3299,7 +3417,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     assertSession();
     const res = await fetch(presignedUrl, {
       method: 'PUT',
-      body: toFetchBody(file),
+      body: await this._uploadBody(projectId, file, contentType),
       headers
     });
     assertSession();

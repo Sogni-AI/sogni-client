@@ -58,6 +58,16 @@ export interface MeData {
   requestedUpdatedEmail: string;
   username: string;
   walletAddress: string;
+  /**
+   * How this session signed in: `'password'`, or a provider such as
+   * `'sso-google'` / `'sso-apple'`. Sent by newer API builds only.
+   */
+  auth?: string;
+  /**
+   * Every sign-in method the account has. An account without `'password'`
+   * signs in only with a provider. Sent by newer API builds only.
+   */
+  authMethods?: string[];
 }
 
 export interface BalanceData {

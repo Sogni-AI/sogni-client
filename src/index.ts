@@ -250,6 +250,8 @@ import StatsApi from './Stats/index.js';
 import ReplayApi from './Replay/index.js';
 import WorldsApi from './Worlds/index.js';
 import AnnouncementsApi from './Announcements/index.js';
+import MediaEncryptionApi from './MediaEncryption/index.js';
+import { MediaEncryptionError } from './lib/mediaEncryption/index.js';
 import {
   GetReplayRecordResult,
   ListReplayRecordsOptions,
@@ -261,12 +263,17 @@ import {
 } from './Replay/types.js';
 // Base Types
 import ErrorData, {
+  MEDIA_ENCRYPTION_ERROR_CODES,
   ACCOUNT_RESTORABLE_ERROR_CODE,
   MODEL_CONSENT_REQUIRED_ERROR_CODE,
   MODEL_NOT_YET_AVAILABLE_ERROR_CODE,
   SUBSCRIPTION_ERROR_CODES
 } from './types/ErrorData.js';
-import type { ModelConsentRequirement, SubscriptionErrorCode } from './types/ErrorData.js';
+import type {
+  MediaEncryptionErrorCode,
+  ModelConsentRequirement,
+  SubscriptionErrorCode
+} from './types/ErrorData.js';
 import isModelConsentRequiredError from './lib/isModelConsentRequiredError.js';
 import isSubscriptionLimitError from './lib/isSubscriptionLimitError.js';
 import { TokenType } from './types/token.js';
@@ -437,6 +444,7 @@ export type {
   SubscriptionPlanInterval,
   SubscriptionPlan,
   SubscriptionErrorCode,
+  MediaEncryptionErrorCode,
   SubscriptionPortalSession,
   SubscriptionRedirectType,
   SubscriptionStatus,
@@ -497,6 +505,9 @@ export type {
   ImportPersonalLoraParams
 } from './Projects/PersonalLoras.js';
 export type { Pixal3dOrbitView } from './Projects/utils/index.js';
+export type { MediaEncryptionApiEvents } from './MediaEncryption/index.js';
+export type { DecryptedMediaReader } from './lib/mediaEncryption/remote.js';
+export type { AccountKeyStore, MediaEncryptionHeader } from './lib/mediaEncryption/index.js';
 
 export {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
@@ -536,6 +547,9 @@ export {
   ReplayApi,
   CurrentAccount,
   Job,
+  MediaEncryptionApi,
+  MediaEncryptionError,
+  MEDIA_ENCRYPTION_ERROR_CODES,
   Project,
   PROJECT_LOST_ORIGINAL_CODE,
   SogniTools,
@@ -695,12 +709,20 @@ export class SogniClient {
    * announcement per account so it stays dismissed on every device.
    */
   announcements: AnnouncementsApi;
+  /**
+   * Encryption of project media. Create a project with
+   * `mediaEncryption: true` to have its inputs encrypted on this device and its
+   * results encrypted before they are stored; use this group to unlock the
+   * account key on a device and to decrypt downloaded media.
+   */
+  mediaEncryption: MediaEncryptionApi;
 
   apiClient: ApiClient;
 
   private constructor(config: ApiConfig) {
     this.account = new AccountApi(config);
-    this.projects = new ProjectsApi(config);
+    this.mediaEncryption = new MediaEncryptionApi(config, this.account);
+    this.projects = new ProjectsApi(config, this.mediaEncryption);
     // An API-key session learns its address from the socket's authenticated
     // frame; before that arrives, `me()` answers it.
     this.projects._setAccountAddressResolver(

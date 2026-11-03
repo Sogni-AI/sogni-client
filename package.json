@@ -43,7 +43,13 @@
       "require": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./media-encryption-playback": {
+      "types": "./dist/browser/mediaEncryptionPlayback/index.d.ts",
+      "import": "./dist-esm/browser/mediaEncryptionPlayback/index.js",
+      "require": "./dist/browser/mediaEncryptionPlayback/index.js",
+      "default": "./dist/browser/mediaEncryptionPlayback/index.js"
+    }
   },
   "sideEffects": false,
   "files": [
@@ -93,6 +99,7 @@
     "test:lora-catalog": "npm run build && node scripts/check-lora-catalog.cjs",
     "test:personal-loras": "npm run build && node scripts/check-personal-loras.cjs",
     "test:reusable-uploads": "npm run build && node scripts/check-reusable-uploads.cjs",
+    "test:media-encryption": "npm run build && node scripts/check-media-encryption.cjs && node scripts/check-media-encryption-streams.cjs && node scripts/check-media-encryption-playback.cjs",
     "test:project-liveness": "npm run build && node scripts/check-project-liveness.cjs",
     "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",
     "test:project-request-session": "npm run build && node scripts/check-project-request-session.cjs",
@@ -109,6 +116,7 @@
     "test:socket-reconnect-backoff": "npm run build && node scripts/check-socket-reconnect-backoff.cjs",
     "test:socket-keepalive": "npm run build && node scripts/check-socket-keepalive.cjs",
     "test:browser-request-handoff": "npm run build && node scripts/check-browser-request-handoff.cjs",
+    "test:browser-media-encryption": "npm run build && node scripts/check-browser-media-encryption.cjs",
     "test:queue-wait-eta": "npm run build && node scripts/check-queue-wait-eta.cjs",
     "test:queue-reasons": "npm run build && node scripts/check-queue-reasons.cjs",
     "test:workflow-template-envelope": "npm run build && node scripts/check-workflow-template-envelope.cjs",

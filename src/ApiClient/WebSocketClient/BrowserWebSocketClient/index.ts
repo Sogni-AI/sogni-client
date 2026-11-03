@@ -18,6 +18,7 @@ import type {
 } from '../eventSubscriptions.js';
 import type { NormalizedConnectionAttribution } from '../../../lib/attribution.js';
 import getUUID from '../../../lib/getUUID.js';
+import { redactMediaKey } from '../../../lib/mediaEncryption/redact.js';
 
 interface SocketSend<T extends MessageType = MessageType> {
   type: 'socket-send';
@@ -128,6 +129,9 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   // the shared socket originally connected.
   private _lastSubscriptionEntitlement: SocketEventMap['subscriptionEntitlementUpdated'] | null =
     null;
+  // Only the boolean is retained: replaying authenticated would also repeat
+  // account initialization and active-project recovery in existing consumers.
+  private _lastMediaEncryptionAvailable: boolean | null = null;
 
   constructor(
     baseUrl: string,
@@ -321,7 +325,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
 
   private async handleMessage(message: Message, deadline?: number) {
     if (this._disposed) throw new Error('WebSocket client disposed');
-    this._logger.debug('Received control message', message);
+    this._logger.debug('Received control message', redactMediaKey(message));
     switch (message.type) {
       case 'socket-send': {
         this.syncSessionContext();
@@ -395,6 +399,16 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
               }
             });
           }
+          if (this._lastMediaEncryptionAvailable !== null) {
+            this.coordinator.notify({
+              type: 'socket-event',
+              sessionId: this._sessionId ?? undefined,
+              payload: {
+                type: 'mediaEncryptionAvailabilityUpdated',
+                data: this._lastMediaEncryptionAvailable
+              }
+            });
+          }
         }
         return;
       }
@@ -411,7 +425,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         return;
       }
       default: {
-        this._logger.error('Received unknown message type:', message);
+        this._logger.error('Received unknown message type:', redactMediaKey(message));
       }
     }
   }
@@ -500,8 +514,11 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         this._lastSwarmLLMModels = payload;
       } else if (eventType === 'subscriptionEntitlementUpdated') {
         this._lastSubscriptionEntitlement = payload;
-      } else if (eventType === 'authenticated' && payload?.subscriptionEntitlement) {
-        this._lastSubscriptionEntitlement = payload.subscriptionEntitlement;
+      } else if (eventType === 'authenticated') {
+        this._lastMediaEncryptionAvailable = payload?.mediaEncryptionAvailable === true;
+        if (payload?.subscriptionEntitlement) {
+          this._lastSubscriptionEntitlement = payload.subscriptionEntitlement;
+        }
       }
       this.coordinator.notify({
         type: 'socket-event',
@@ -534,6 +551,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
       this._legacySessionVersion = undefined;
       this._lastBalanceUpdate = null;
       this._lastSubscriptionEntitlement = null;
+      this._lastMediaEncryptionAvailable = null;
     }
     if (this.coordinator.isPrimary && !this._sessionId) this._sessionId = getUUID();
   }

@@ -9,6 +9,8 @@ export interface RawProject {
   waitingReason?: WaitingReason | null;
   jobWaitingReasons?: JobWaitingReason[];
   id: string;
+  /** True when the project's input and result media are encrypted. */
+  mediaEncrypted?: boolean;
   SID: number;
   artist: Account;
   model: ProjectModel;

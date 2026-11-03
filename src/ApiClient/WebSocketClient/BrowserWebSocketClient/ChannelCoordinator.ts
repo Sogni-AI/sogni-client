@@ -1,6 +1,7 @@
 import getUUID from '../../../lib/getUUID.js';
 import { Logger } from '../../../lib/DefaultLogger.js';
 import { MessageDeliveryUncertainError, SEND_READY_TIMEOUT_MS } from '../requestDelivery.js';
+import { redactMediaKey } from '../../../lib/mediaEncryption/redact.js';
 
 const PRIMARY_HEARTBEAT_INTERVAL = 2000;
 const PRIMARY_TIMEOUT = 4000;
@@ -432,7 +433,7 @@ class ChannelCoordinator<M, N> {
   }
 
   private handleBroadcast(message: BroadcastMessage) {
-    this.logger.debug(`Received broadcast from primary`, message.payload);
+    this.logger.debug(`Received broadcast from primary`, redactMediaKey(message.payload));
     this.callbacks.onNotification(message.payload);
   }
 
@@ -440,7 +441,7 @@ class ChannelCoordinator<M, N> {
     if (!this.isPrimary) {
       return;
     }
-    this.logger.debug(`Received request from secondary`, message.payload);
+    this.logger.debug(`Received request from secondary`, redactMediaKey(message.payload));
     // Use the sender's clock, not a fresh timeout when a suspended primary
     // finally receives the request. The handler enforces it for socket sends,
     // so an expired request is never forwarded; control messages still apply.
@@ -528,11 +529,14 @@ class ChannelCoordinator<M, N> {
 
   public async sendMessage(message: M, ackTimeoutMs = ACK_TIMEOUT): Promise<any> {
     if (this.disposed) throw new Error('WebSocket client disposed');
-    this.logger.debug(`Sending message to primary`, message);
+    this.logger.debug(`Sending message to primary`, redactMediaKey(message));
     await this.ensureFreshPrimaryBeforeRequest();
     if (this.disposed) throw new Error('WebSocket client disposed');
     if (this._isPrimary) {
-      this.logger.debug(`Became primary before request delivery, handling locally`, message);
+      this.logger.debug(
+        `Became primary before request delivery, handling locally`,
+        redactMediaKey(message)
+      );
       return this.callbacks.onMessage(message);
     }
     return this.send(
@@ -546,7 +550,7 @@ class ChannelCoordinator<M, N> {
   }
 
   public notify(message: N) {
-    this.logger.debug(`Sending notification to secondary tabs`, message);
+    this.logger.debug(`Sending notification to secondary tabs`, redactMediaKey(message));
     this.broadcast({
       type: MessageType.BROADCAST,
       payload: message
