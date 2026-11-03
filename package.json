@@ -57,6 +57,7 @@
     "src/"
   ],
   "scripts": {
+    "test:qwen3-tts": "npm run build && node scripts/check-qwen3-tts.cjs",
     "clean": "rimraf ./dist ./dist-esm",
     "codegen": "node scripts/generate-hosted-tools-manifest.mjs && node scripts/generate-version.mjs",
     "prepublishOnly": "npm run build",
