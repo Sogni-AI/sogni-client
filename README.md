@@ -1172,6 +1172,8 @@ When creating video projects, you can specify:
 - `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `referenceAudioUrls` - Loose audio context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `seedanceTaskType` - Seedance 2.5 loose-reference operation: `reference`, `edit`, or `extend`. Edit and extend require a reference video.
+- `seedanceDraft` - Seedance 2.5 only: render a 480p draft that can be finalized at 1080p later, priced like the same 480p job. See the draft example below.
+- `seedanceDraftJobId` - Seedance 2.5 only: finalize that draft (its `job.id`) at 1080p. The final reuses the draft's prompt, media, duration, aspect ratio, seed and audio setting. Mutually exclusive with `seedanceDraft`; also accepted by `estimateVideoCost` to quote the final
 - `hasVideoInput` - Estimate-only flag for `estimateVideoCost`; set this when estimating a canonical Seedance video-input job without passing `referenceVideo`/`referenceVideoUrls`
 - `referenceImageCount` - Optional estimate-only count of image references the video job will submit; models whose pricing does not use it ignore it
 - `keyframeCount` / `keyframes` - Estimate-only count of MiniMax H3 intermediate keyframes (0-8). The first two are included; each extra keyframe adds output time at the job's per-second rate: 0.75 s on FastH3, 0.3 s on every other tier, FastH3 Reference included
@@ -1245,6 +1247,50 @@ const project = await sogni.projects.create({
 });
 
 const videoUrls = await project.waitForCompletion();
+```
+
+Seedance 2.5 draft → 1080p final example. Choose draft mode when submitting: a normal job cannot be finalized. A draft accepts every normal Seedance 2.5 input at a 480p size and costs the same as that 480p job. Finalizing renders the same video at 1080p in the draft's aspect ratio and reuses the draft's prompt, media, duration, seed and audio setting, so the request sends none of them. It must use the draft's model and account, before `job.seedanceDraftExpiresAt`. The final is priced at 1080p for the draft's duration (at the video-input rate when the draft had a video input), and each finalize of the same draft is billed again.
+
+```javascript
+const draft = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'seedance-2-5',
+  positivePrompt: 'A lighthouse keeper climbs a spiral stair as a storm rolls in',
+  numberOfMedia: 1,
+  duration: 8,
+  width: 864,
+  height: 496,
+  seedanceDraft: true,
+  tokenType: 'spark'
+});
+await draft.waitForCompletion();
+const [draftJob] = draft.jobs;
+console.log(draftJob.seedanceDraft, draftJob.seedanceDraftExpiresAt); // true, ISO 8601 expiry
+
+// The server prices the final from the draft; width, height, duration and fps do not change the quote.
+const quote = await sogni.projects.estimateVideoCost({
+  tokenType: 'spark',
+  model: 'seedance-2-5',
+  width: 864,
+  height: 496,
+  duration: 8,
+  fps: 24,
+  numberOfMedia: 1,
+  seedanceDraftJobId: draftJob.id
+});
+
+const final = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'seedance-2-5',
+  positivePrompt: '', // the final uses the draft's prompt
+  numberOfMedia: 1,
+  seedanceDraftJobId: draftJob.id,
+  tokenType: 'spark'
+});
+const [finalUrl] = await final.waitForCompletion();
+console.log(final.jobs[0].seedanceDraftJobId === draftJob.id); // true
 ```
 
 ### Image-to-Video Example

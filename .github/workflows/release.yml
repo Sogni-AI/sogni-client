@@ -114,6 +114,8 @@ jobs:
         run: node scripts/check-model-consent-error.cjs
       - name: Run reference content-type checks
         run: node scripts/check-reference-content-types.cjs
+      - name: Run Seedance 2.5 draft checks
+        run: node scripts/check-seedance-draft.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

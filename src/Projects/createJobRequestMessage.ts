@@ -166,6 +166,8 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
   if (exportError) {
     throw new ApiError(400, { status: 'error', errorCode: 0, message: exportError });
   }
+  validateSeedanceDraftFields(params);
+  validateSeedanceDraftFinalize(params);
   validateVideoContextImages(params);
   validateVideoKeyframes(params);
   validateVideoReferenceArrays(params);
@@ -247,6 +249,80 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
         message: `${workflowType} workflow does not support ${assetKey}. Please remove this asset.`
       });
     }
+  }
+}
+
+/** Prompt a finalize request carries; the final always uses its draft's prompt. */
+const SEEDANCE_DRAFT_FINALIZE_PROMPT = 'Finalize the Seedance 2.5 draft at 1080p.';
+
+function seedanceDraftError(message: string): never {
+  throw new ApiError(400, { status: 'error', errorCode: 0, message });
+}
+
+/**
+ * Seedance 2.5 draft mode fields, shared by projects and video estimates:
+ * `seedanceDraft` creates a 480p draft and `seedanceDraftJobId` finalizes one
+ * at 1080p. The server checks ownership, expiry, model and size; this only
+ * catches requests no server would accept.
+ */
+export function validateSeedanceDraftFields(params: {
+  modelId?: string;
+  model?: string;
+  seedanceDraft?: unknown;
+  seedanceDraftJobId?: unknown;
+}): void {
+  const { seedanceDraft, seedanceDraftJobId } = params;
+  if (seedanceDraft !== undefined && typeof seedanceDraft !== 'boolean') {
+    seedanceDraftError('seedanceDraft must be a boolean.');
+  }
+  if (
+    seedanceDraftJobId !== undefined &&
+    (typeof seedanceDraftJobId !== 'string' || !seedanceDraftJobId.trim())
+  ) {
+    seedanceDraftError('seedanceDraftJobId must be the Sogni job id of a Seedance 2.5 draft.');
+  }
+  if (seedanceDraft !== true && seedanceDraftJobId === undefined) return;
+  if (!isSeedance25Model(String(params.modelId ?? params.model ?? ''))) {
+    seedanceDraftError('Seedance draft mode is supported only by Seedance 2.5.');
+  }
+  if (seedanceDraft === true && seedanceDraftJobId !== undefined) {
+    seedanceDraftError(
+      'seedanceDraft and seedanceDraftJobId are mutually exclusive: create a draft, or finalize one.'
+    );
+  }
+}
+
+/**
+ * A finalize renders an existing draft at 1080p and inherits every
+ * generation-defining input from it; the vendor refuses any of them sent again,
+ * even with identical values.
+ */
+function validateSeedanceDraftFinalize(params: VideoProjectParams): void {
+  if (params.seedanceDraftJobId === undefined) return;
+  const inherited: Array<[keyof VideoProjectParams, boolean]> = [
+    ['referenceImage', Boolean(params.referenceImage)],
+    ['referenceImageEnd', Boolean(params.referenceImageEnd)],
+    ['referenceImageUrls', asReferenceUrlArray(params.referenceImageUrls).length > 0],
+    ['referenceVideo', Boolean(params.referenceVideo)],
+    ['referenceVideoUrls', asReferenceUrlArray(params.referenceVideoUrls).length > 0],
+    ['referenceAudio', Boolean(params.referenceAudio)],
+    ['referenceAudioUrls', asReferenceUrlArray(params.referenceAudioUrls).length > 0],
+    ['referenceAudioIdentity', Boolean(params.referenceAudioIdentity)],
+    ['duration', params.duration !== undefined],
+    ['frames', params.frames !== undefined],
+    ['ratio', params.ratio !== undefined],
+    ['seed', params.seed !== undefined],
+    ['generateAudio', params.generateAudio !== undefined],
+    ['seedanceTaskType', params.seedanceTaskType !== undefined]
+  ];
+  const sent = inherited.filter(([, present]) => present).map(([name]) => name);
+  if (sent.length) {
+    seedanceDraftError(
+      `A Seedance 2.5 finalize reuses its draft's inputs and settings; remove ${sent.join(', ')}.`
+    );
+  }
+  if ((params.numberOfMedia ?? 1) !== 1) {
+    seedanceDraftError('A Seedance 2.5 finalize renders its draft once; numberOfMedia must be 1.');
   }
 }
 
@@ -1753,6 +1829,15 @@ function applyVideoParams(
   }
   if (params.seedanceTaskType !== undefined) {
     keyFrame.seedanceTaskType = params.seedanceTaskType;
+  }
+  if (params.seedanceDraft === true) {
+    keyFrame.seedanceDraft = true;
+  }
+  if (params.seedanceDraftJobId !== undefined) {
+    keyFrame.seedanceDraftJobId = params.seedanceDraftJobId;
+    // The final inherits the draft's prompt. The request still carries a
+    // non-empty prompt, which the server ignores for a finalize.
+    keyFrame.positivePrompt = SEEDANCE_DRAFT_FINALIZE_PROMPT;
   }
   if (params.audioIdentityStrength !== undefined) {
     keyFrame.identityGuidanceScale = params.audioIdentityStrength;

@@ -963,6 +963,49 @@ const project = await sogni.projects.create({
 });
 ```
 
+SEEDANCE 2.5 DRAFT -> 1080P FINAL:
+
+Draft mode is chosen at submission; a normal job cannot be finalized. A draft
+(`seedanceDraft: true`) takes every normal Seedance 2.5 input at a 480p size and
+costs the same as that 480p job. The completed job reports `job.seedanceDraft`
+and `job.seedanceDraftExpiresAt` (ISO 8601). Finalize it with
+`seedanceDraftJobId: draftJob.id` on the same model and account before it
+expires: the final reuses the draft's prompt, media, duration, aspect ratio,
+seed and audio setting, so send none of them (no references, frames, audio,
+`duration`, `frames`, `ratio`, `seed`, `generateAudio` or `seedanceTaskType`),
+use `numberOfMedia: 1` and an empty `positivePrompt`. `outputFormat` and
+`returnLastFrame` may be set. The output is the draft's aspect ratio at 1080p,
+priced at 1080p for the draft's duration (video-input rate when the draft had
+one); each finalize bills again. The final reports `job.seedanceDraftJobId`.
+`estimateVideoCost` accepts both fields; for a finalize the server prices from
+the draft, so width, height, duration and fps do not change the quote.
+
+```javascript
+const draft = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'seedance-2-5',
+  positivePrompt: 'A lighthouse keeper climbs a spiral stair as a storm rolls in',
+  numberOfMedia: 1,
+  duration: 8,
+  width: 864,
+  height: 496,
+  seedanceDraft: true
+});
+await draft.waitForCompletion();
+const [draftJob] = draft.jobs; // draftJob.seedanceDraft === true
+
+const final = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'seedance-2-5',
+  positivePrompt: '',
+  numberOfMedia: 1,
+  seedanceDraftJobId: draftJob.id
+});
+await final.waitForCompletion(); // final.jobs[0].seedanceDraftJobId === draftJob.id
+```
+
 SEEDANCE IMAGE-TO-VIDEO:
 
 ```javascript
@@ -2274,6 +2317,8 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceVideoUrls?: string[];  // Seedance only
   referenceAudioUrls?: string[];  // Seedance only
   seedanceTaskType?: 'reference' | 'edit' | 'extend';  // Seedance 2.5 loose-reference operation
+  seedanceDraft?: boolean;   // Seedance 2.5: 480p draft that can be finalized at 1080p
+  seedanceDraftJobId?: string;  // Seedance 2.5: finalize that draft (its job id) at 1080p; inherits its inputs
   audioStart?: number;       // Seconds into audio
   audioDuration?: number;    // Seconds of audio
   videoStart?: number;       // Seconds into video

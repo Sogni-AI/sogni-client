@@ -117,6 +117,41 @@ function directResultUrlFromRawJob(rawJob: RawJob): string | null {
   );
 }
 
+type SeedanceDraftResultFields = Pick<
+  JobData,
+  'seedanceDraft' | 'seedanceDraftExpiresAt' | 'seedanceDraftJobId'
+>;
+
+function pickSeedanceDraftFields(source: unknown): SeedanceDraftResultFields {
+  if (!source || typeof source !== 'object') return {};
+  const { seedanceDraft, seedanceDraftExpiresAt, seedanceDraftJobId } = source as Record<
+    string,
+    unknown
+  >;
+  return {
+    ...(seedanceDraft === true ? { seedanceDraft } : {}),
+    ...(typeof seedanceDraftExpiresAt === 'string' && seedanceDraftExpiresAt
+      ? { seedanceDraftExpiresAt }
+      : {}),
+    ...(typeof seedanceDraftJobId === 'string' && seedanceDraftJobId ? { seedanceDraftJobId } : {})
+  };
+}
+
+/**
+ * Seedance 2.5 draft result fields from a socket result or a REST job record,
+ * read from the record itself or its allowlisted `result` receipt (the record
+ * wins). Only well-formed fields are returned, so a record without them never
+ * clears values a job already holds.
+ * @internal
+ */
+export function seedanceDraftResultFields(record: unknown): SeedanceDraftResultFields {
+  if (!record || typeof record !== 'object') return {};
+  return {
+    ...pickSeedanceDraftFields((record as { result?: unknown }).result),
+    ...pickSeedanceDraftFields(record)
+  };
+}
+
 function etaProgressPercent(
   startedAt: Date | undefined,
   eta: Date | undefined
@@ -156,6 +191,12 @@ export interface JobData {
   lastFrameUrl?: string;
   lastFrameKey?: string;
   outputFormat?: string;
+  /** Seedance 2.5: this job is a draft that can be finalized at 1080p. */
+  seedanceDraft?: boolean;
+  /** Seedance 2.5 draft: ISO 8601 time after which it can no longer be finalized. */
+  seedanceDraftExpiresAt?: string;
+  /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
+  seedanceDraftJobId?: string;
   provenance?: JobProvenance;
   error?: ErrorData;
   positivePrompt?: string;
@@ -220,6 +261,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
         lastFrameUrl: rawJob.lastFrameUrl ?? (rawJob.result?.lastFrameUrl as string | undefined),
         lastFrameKey: rawJob.lastFrameKey ?? (rawJob.result?.lastFrameKey as string | undefined),
         outputFormat: rawJob.outputFormat ?? (rawJob.result?.outputFormat as string | undefined),
+        ...seedanceDraftResultFields(rawJob),
         provenance: rawJob.result
       },
       options
@@ -315,6 +357,24 @@ class Job extends DataEntity<JobData, JobEventMap> {
   /** Exported final-frame image URL, when requested. */
   get lastFrameUrl() {
     return this.data.lastFrameUrl;
+  }
+
+  /**
+   * Seedance 2.5: `true` on a completed draft, which can be finalized at 1080p by
+   * passing this job's `id` as `seedanceDraftJobId`. Reported to the owner only.
+   */
+  get seedanceDraft() {
+    return this.data.seedanceDraft;
+  }
+
+  /** Seedance 2.5 draft: ISO 8601 time after which it can no longer be finalized. */
+  get seedanceDraftExpiresAt() {
+    return this.data.seedanceDraftExpiresAt;
+  }
+
+  /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
+  get seedanceDraftJobId() {
+    return this.data.seedanceDraftJobId;
   }
 
   /** Refresh the signed URL for an exported final frame. */
@@ -552,7 +612,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
       ...(data.result ? { provenance: data.result } : {}),
       lastFrameUrl: data.lastFrameUrl ?? (data.result?.lastFrameUrl as string | undefined),
       lastFrameKey: data.lastFrameKey ?? (data.result?.lastFrameKey as string | undefined),
-      outputFormat: data.outputFormat ?? (data.result?.outputFormat as string | undefined)
+      outputFormat: data.outputFormat ?? (data.result?.outputFormat as string | undefined),
+      ...seedanceDraftResultFields(data)
     };
     if (JOB_STATUS_MAP[data.status]) {
       delta.status = JOB_STATUS_MAP[data.status];

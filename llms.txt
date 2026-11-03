@@ -482,6 +482,8 @@ Use `referenceImageUrls`, `referenceVideoUrls`, and `referenceAudioUrls` for See
 
 For Seedance 2.5 loose-reference video operations, set `seedanceTaskType` to `reference`, `edit`, or `extend`. Edit/extend require a reference video. The server applies adaptive source aspect ratio to first/last-frame, edit, and extend requests and provider-selected duration to edit requests. Loose-reference requests require an explicit task type.
 
+Seedance 2.5 draft mode: send `seedanceDraft: true` with a 480p size for a draft priced like the same 480p job (choose it at submission; a normal job cannot be finalized). The completed job reports `job.seedanceDraft` and `job.seedanceDraftExpiresAt` (ISO 8601). Finalize it at 1080p with `seedanceDraftJobId: draftJob.id` on the same model, `numberOfMedia: 1` and an empty `positivePrompt`: the final reuses the draft's prompt, media, duration, aspect ratio, seed and audio setting, so omit references, frames, audio, `duration`, `frames`, `ratio`, `seed`, `generateAudio` and `seedanceTaskType`. The final reports `job.seedanceDraftJobId`. `estimateVideoCost` accepts both fields; the server prices a finalize from the draft. The two fields are mutually exclusive.
+
 Aliases used by chat tools and examples: `seedance2`, `seedance2-mini`, `seedance2-5`, `seedance2-5-uncensored`, and `seedance2-mini-uncensored`. V2V uses `seedance2` or `seedance2-mini` as the model selector and `seedance-v2v` as the control mode. Seedance Mini is the preferred lower-cost 720p tier. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
 
 ### Happy Horse 1.1 (external API)

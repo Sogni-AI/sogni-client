@@ -47,3 +47,5 @@ jobs:
           node scripts/check-rest-error-messages.cjs
           node scripts/check-rest-error-retry-after.cjs
           node scripts/check-account-login.cjs
+      - name: Check Seedance 2.5 draft mode
+        run: node scripts/check-seedance-draft.cjs

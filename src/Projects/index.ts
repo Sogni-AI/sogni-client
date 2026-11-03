@@ -41,7 +41,8 @@ import {
 } from './recovery.js';
 import createJobRequestMessage, {
   type JobRequestRaw,
-  rejectRetiredOutputScale
+  rejectRetiredOutputScale,
+  validateSeedanceDraftFields
 } from './createJobRequestMessage.js';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import { EstimationResponse } from './types/EstimationResponse.js';
@@ -66,7 +67,7 @@ import type { WaitingReason } from './types/WaitingReason.js';
 import ErrorData from '../types/ErrorData.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 import Cache from '../lib/Cache.js';
-import Job, { enhancementDefaults } from './Job.js';
+import Job, { enhancementDefaults, seedanceDraftResultFields } from './Job.js';
 import {
   calculateVideoFrames,
   getEnhacementStrength,
@@ -1035,6 +1036,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     let performedStepCount = data.performedStepCount;
     let seed = data.lastSeed !== undefined ? Number(data.lastSeed) : undefined;
     const provenance = jobProvenanceFromResult(data);
+    const seedanceDraftFields = seedanceDraftResultFields(data);
     if (project) {
       const job = project.job(data.imgID);
       if (job) {
@@ -1053,6 +1055,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           lastFrameUrl: data.lastFrameUrl,
           lastFrameKey: data.lastFrameKey,
           outputFormat: data.outputFormat,
+          // Set with the status, so a `completed` listener can already read them.
+          ...seedanceDraftFields,
           // Unchanged meaning: the server withheld the media. The label for
           // media that WAS delivered is `nsfwDetected`, deliberately kept out of
           // this flag so upgrading the SDK changes no existing app's behaviour.
@@ -1078,6 +1082,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       resultUrl: downloadUrl,
       lastFrameUrl: data.lastFrameUrl,
       outputFormat: data.outputFormat,
+      ...seedanceDraftFields,
       isNSFW: Boolean(data.triggeredNSFWFilter),
       nsfwDetected: data.nsfwDetected === true,
       nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
@@ -1467,7 +1472,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           delta.seed = event.seed;
         }
         job._update({
-          ...delta
+          ...delta,
+          // A job first seen in its own completion still learns it is a draft.
+          ...seedanceDraftResultFields(event)
         });
         break;
       }
@@ -2121,6 +2128,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             : (job.result as Record<string, unknown> | undefined)?.outputFormat) as
             | string
             | undefined,
+          ...seedanceDraftResultFields(job),
           ...(typeof job.resultUrl === 'string' && job.resultUrl
             ? { resultUrl: job.resultUrl }
             : {}),
@@ -3431,6 +3439,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - referenceVideoDurationSeconds: Combined duration of MiniMax H3 r2v video input.
    *   - keyframeCount / keyframes: MiniMax H3 intermediate keyframes (0-8). The first two are
    *     included; each extra keyframe adds 0.75 s of output time on FastH3 and 0.3 s on other tiers.
+   *   - seedanceDraft: Seedance 2.5 480p draft, priced like the same 480p job.
+   *   - seedanceDraftJobId: Seedance 2.5 finalize of that draft at 1080p, priced by the server from
+   *     the draft (duration, aspect ratio, input video); width, height, duration and fps do not change it.
    * @return {Promise<Object>} Returns an object containing the estimated costs for the video in different units:
    *   - token: Cost in tokens.
    *   - usd: Cost in USD.
@@ -3439,6 +3450,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   async estimateVideoCost(params: VideoEstimateRequest) {
     rejectRetiredOutputScale(params);
+    validateSeedanceDraftFields(params);
     const frames = params.frames
       ? params.frames
       : calculateVideoFrames(params.model, params.duration, params.fps);
@@ -3503,6 +3515,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (network) query.set('network', network);
     if (params.billingMode) query.set('billingMode', params.billingMode);
     if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
+    if (params.seedanceDraft === true) query.set('seedanceDraft', '1');
+    if (params.seedanceDraftJobId !== undefined) {
+      query.set('seedanceDraftJobId', params.seedanceDraftJobId);
+    }
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-video/estimate/${path}${queryString ? `?${queryString}` : ''}`
