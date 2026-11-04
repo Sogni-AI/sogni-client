@@ -1,3 +1,10 @@
+# [5.74.0](https://github.com/Sogni-AI/sogni-client/compare/v5.73.0...v5.74.0) (2026-11-04)
+
+
+### Features
+
+* **projects:** add Seedance 2.5 draft and 1080p finalize ([dba103b](https://github.com/Sogni-AI/sogni-client/commit/dba103b8393efe55299f580e56a72b7139b70736))
+
 # [5.73.0](https://github.com/Sogni-AI/sogni-client/compare/v5.72.1...v5.73.0) (2026-11-02)
 
 
