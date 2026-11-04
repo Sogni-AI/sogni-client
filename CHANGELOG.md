@@ -1,3 +1,11 @@
+## [5.74.1](https://github.com/Sogni-AI/sogni-client/compare/v5.74.0...v5.74.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **deps:** align the published protocol contract ([ab079b0](https://github.com/Sogni-AI/sogni-client/commit/ab079b01b5504ca9a7009d392f296645de4ed4de))
+* **deps:** align the published protocol contract ([768814d](https://github.com/Sogni-AI/sogni-client/commit/768814d92db5e2cc90e8fa7ec420488ca41a6f4f))
+
 # [5.74.0](https://github.com/Sogni-AI/sogni-client/compare/v5.73.0...v5.74.0) (2026-11-04)
 
 
