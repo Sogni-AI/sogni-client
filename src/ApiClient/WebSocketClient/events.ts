@@ -84,6 +84,11 @@ export interface SocketSubscriptionEntitlementData {
     paymentPending?: boolean | null;
     /** Monthly Fast-network fair-use state, when currently active. */
     fairUse?: SocketSubscriptionFairUseState | null;
+    /**
+     * Member discount on premium third-party vendor models, in basis points.
+     * Surfaced to consumers as `frontierDiscountBps`, the REST snapshot's name.
+     */
+    vendorDiscountBps?: number;
   } | null;
   /**
    * `true` while free Spark cannot be spent on this account. Rides on the

@@ -260,6 +260,9 @@ class AccountApi extends ApiGroup {
         ? { scheduledChangeAt: new Date(sub.scheduledChangeAt).toISOString() }
         : {}),
       ...(sub.paymentPending ? { paymentPending: true } : {}),
+      ...(data.active && Number(sub.vendorDiscountBps) > 0
+        ? { frontierDiscountBps: Number(sub.vendorDiscountBps) }
+        : {}),
       ...(sub.fairUse?.limited && Number(sub.fairUse.resetAt) > Date.now()
         ? {
             fairUse: {
