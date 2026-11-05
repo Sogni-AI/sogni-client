@@ -1078,6 +1078,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       resultUrl: downloadUrl,
       lastFrameUrl: data.lastFrameUrl,
       outputFormat: data.outputFormat,
+      ...(data.lastFrameKey ? { lastFrameKey: data.lastFrameKey } : {}),
       isNSFW: Boolean(data.triggeredNSFWFilter),
       nsfwDetected: data.nsfwDetected === true,
       nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],

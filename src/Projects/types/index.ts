@@ -800,7 +800,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Output video format. Defaults to 'mp4'; 'mov' is supported by Seedance 2.5.
    */
   outputFormat?: VideoOutputFormat;
-  /** Seedance 2.5: export a separate final-frame image, available as job.lastFrameUrl. */
+  /** Seedance 2.5 / MiniMax H3: export a final-frame image; refresh with job.getLastFrameUrl(). */
   returnLastFrame?: boolean;
   /**
    * SAM2 click coordinates for subject detection in animate-replace workflows.

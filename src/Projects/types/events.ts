@@ -107,6 +107,7 @@ export interface JobCompleted extends JobEventBase {
    */
   resultUrl: string | null;
   lastFrameUrl?: string;
+  lastFrameKey?: string;
   outputFormat?: string;
   /**
    * A safety signal fired. Either the media was withheld (filter on, no
