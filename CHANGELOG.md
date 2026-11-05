@@ -1,3 +1,11 @@
+# [5.76.0](https://github.com/Sogni-AI/sogni-client/compare/v5.75.2...v5.76.0) (2026-11-05)
+
+
+### Features
+
+* **video:** merge MiniMax H3 last-frame export ([64e64d7](https://github.com/Sogni-AI/sogni-client/commit/64e64d7cd2e384ddb377a83238903eb2e048636a))
+* **video:** support MiniMax H3 last-frame exports ([f682e60](https://github.com/Sogni-AI/sogni-client/commit/f682e606f9dddce1ddb1af221d256eaeb787174f))
+
 ## [5.75.2](https://github.com/Sogni-AI/sogni-client/compare/v5.75.1...v5.75.2) (2026-11-05)
 
 
