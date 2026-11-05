@@ -3598,9 +3598,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * starting a project or workflow that references the asset.
    *
    * @param {ImageUrlParams} params - Image asset coordinates:
-   *   - imageId: Stable identifier for the asset within the job
-   *     (e.g. `"media_ref_1"`). The same id is later used to reference
-   *     the asset in workflow inputs.
+   *   - imageId: Identifier for the asset (e.g. `"media_ref_1"`). The same
+   *     id is later used to reference the asset in workflow inputs. It does
+   *     not select a storage slot: every role except `'preview'` and
+   *     `'complete'` holds one image per `jobId` and `type`, so a second
+   *     upload with the same pair replaces the first, whatever its `imageId`.
+   *     To send several images in one role, give each its own `jobId`.
    *   - jobId: Caller-generated job/correlation id (e.g.
    *     `"sogni-agent-1735000000-1-abcdef"`). Ties the asset to a
    *     specific request.
@@ -3651,8 +3654,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * before starting a project or workflow that references the asset.
    *
    * @param {MediaUrlParams} params - Media asset coordinates:
-   *   - id: Stable identifier for the asset within the job
-   *     (e.g. `"media_ref_1"`). Optional for some asset roles.
+   *   - id: Identifier for the asset (e.g. `"media_ref_1"`). Optional for
+   *     some asset roles. For `'referenceAudio'` and `'referenceVideo'`, only
+   *     `referenceAudio1`..`referenceAudio3` and
+   *     `referenceVideo1`..`referenceVideo3` select their own slot. Any other
+   *     id shares the role's one slot per `jobId`, so a second upload there
+   *     replaces the first.
    *   - jobId: Caller-generated job/correlation id.
    *   - type: Asset role. Supported values are `'referenceAudio'`,
    *     `'referenceVideo'`, `'preview'`, `'complete'`.
