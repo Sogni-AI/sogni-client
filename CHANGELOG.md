@@ -1,3 +1,16 @@
+# [5.75.0](https://github.com/Sogni-AI/sogni-client/compare/v5.74.1...v5.75.0) (2026-11-05)
+
+
+### Bug Fixes
+
+* **deps:** align published image generation contracts ([4031300](https://github.com/Sogni-AI/sogni-client/commit/40313009ff04ad810b527463c64558f612f900c9))
+* **images:** validate complete animated gif sheets ([557ef08](https://github.com/Sogni-AI/sogni-client/commit/557ef0809f2859e9b7dfd15a4ff46498ea649350))
+
+
+### Features
+
+* **images:** integrate gpt image 2.6 generation ([eabcb22](https://github.com/Sogni-AI/sogni-client/commit/eabcb22fdbef0a7198b63c3bfd321ca79022995e))
+
 ## Unreleased
 
 - Add GPT Image 2.6 Sunburst and Flare as explicit choices, with animated GIF generation, planning complexity, and annotation-guided still-image edits. GIF settings and quoted costs stay together through submission.
