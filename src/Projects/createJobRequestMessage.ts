@@ -161,8 +161,10 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
         ? 'MOV output is supported only by Seedance 2.5.'
         : params.returnLastFrame !== undefined && typeof params.returnLastFrame !== 'boolean'
           ? 'returnLastFrame must be a boolean.'
-          : params.returnLastFrame === true && !isSeedance25Model(params.modelId)
-            ? 'Last-frame export is supported only by Seedance 2.5.'
+          : params.returnLastFrame === true &&
+              !isSeedance25Model(params.modelId) &&
+              !isMinimaxH3Model(params.modelId)
+            ? 'Last-frame export is supported only by Seedance 2.5 and MiniMax H3.'
             : undefined;
   if (exportError) {
     throw new ApiError(400, { status: 'error', errorCode: 0, message: exportError });

@@ -107,6 +107,7 @@ export interface JobCompleted extends JobEventBase {
    */
   resultUrl: string | null;
   lastFrameUrl?: string;
+  lastFrameKey?: string;
   outputFormat?: string;
   /** Seedance 2.5: this job is a draft that can be finalized at 1080p. */
   seedanceDraft?: boolean;
