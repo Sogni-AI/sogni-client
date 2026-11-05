@@ -98,6 +98,8 @@ jobs:
         run: node scripts/check-minimax-h3-vpack.cjs
       - name: Run GPT Image 2.5 checks
         run: node scripts/check-gpt-image-25.cjs
+      - name: Run GPT Image 2.6 animation checks
+        run: node scripts/check-gpt-image-26.cjs
       - name: Run Seedream 5.0 Pro Uncensored checks
         run: node scripts/check-seedream-5-pro-uncensored.cjs
       - name: Run image export and strength checks

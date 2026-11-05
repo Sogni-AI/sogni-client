@@ -22,6 +22,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Check GPT Image 2.6 animation contracts
+        run: node scripts/check-gpt-image-26.cjs
       - name: Check generation recovery and cancellation
         run: |
           node scripts/check-auth-session.cjs
