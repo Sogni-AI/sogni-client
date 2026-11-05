@@ -1,3 +1,10 @@
+## [5.75.1](https://github.com/Sogni-AI/sogni-client/compare/v5.75.0...v5.75.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **tools:** expose gif guidance in public image tools ([f2d03ba](https://github.com/Sogni-AI/sogni-client/commit/f2d03bad36b75bc2412ee69d11e2950f01d14ea1))
+
 # [5.75.0](https://github.com/Sogni-AI/sogni-client/compare/v5.74.1...v5.75.0) (2026-11-05)
 
 
