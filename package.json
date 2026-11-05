@@ -127,7 +127,8 @@
     "test:result-download-endpoint": "npm run build && node scripts/check-result-download-endpoint.cjs",
     "test:remote-media-hosts": "npm run build && node scripts/check-remote-media-hosts.cjs",
     "test:large-data-uri": "npm run build && node scripts/check-large-data-uri.cjs",
-    "test:world-builds": "npm run build && node scripts/check-world-builds.cjs"
+    "test:world-builds": "npm run build && node scripts/check-world-builds.cjs",
+    "test:gpt-image-26": "npm run build && node scripts/check-gpt-image-26.cjs"
   },
   "repository": {
     "type": "git",

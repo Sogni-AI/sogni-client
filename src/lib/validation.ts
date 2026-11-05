@@ -5,14 +5,40 @@ import type { ImageProjectParams } from '../Projects/types/index.js';
 const GPT_IMAGE_MODEL_IDS = new Set([
   'gpt-image-2',
   'gpt-image-2.5-sunburst',
-  'gpt-image-2.5-flare'
+  'gpt-image-2.5-flare',
+  'gpt-image-2.6-sunburst',
+  'gpt-image-2.6-flare'
 ]);
 
 export function isGptImageModel(modelId?: string): boolean {
   return modelId !== undefined && GPT_IMAGE_MODEL_IDS.has(modelId);
 }
 
+export function resolveGptImageGifSize(width?: number, height?: number, frameCount = 9): { width: number; height: number } {
+  if (!Number.isInteger(frameCount) || frameCount < 2 || frameCount > 16) throw new Error('GIF frame count must be 2–16');
+  const side = Math.min(896, Math.floor(Math.sqrt(8294400 / frameCount) / 16) * 16);
+  const w = width ?? height ?? side;
+  const h = height ?? width ?? side;
+  if (![w, h].every(n => Number.isInteger(n) && n > 0 && n % 16 === 0) || Math.max(w, h) > 3840 || Math.max(w, h) / Math.min(w, h) > 3 || w * h * frameCount > 8294400) throw new Error('GIF frame dimensions must be multiples of 16, within 3:1 and the 8294400 total pixel budget');
+  return { width: w, height: h };
+}
+
 export function validateGptImageOptions(params: ImageProjectParams): void {
+  const is26 = params.modelId === 'gpt-image-2.6-sunburst' || params.modelId === 'gpt-image-2.6-flare';
+  const advancedFormat = params.outputFormat === 'gif';
+  if (!is26 && (advancedFormat || params.gptImageComplexity !== undefined || params.gptImageFrameCount !== undefined || params.gptImageFrameDurationMs !== undefined || params.gptImageMarkupUrl !== undefined)) {
+    throw new Error('GIF, complexity and markup options require GPT Image 2.6');
+  }
+  if (is26) {
+    if (params.outputFormat === 'gif' && (!params.sizePreset || params.sizePreset === 'custom' || params.width || params.height)) resolveGptImageGifSize(params.width, params.height, params.gptImageFrameCount);
+    if (params.gptImageComplexity !== undefined && !['low', 'medium', 'high'].includes(params.gptImageComplexity)) throw new Error('Unsupported GPT Image complexity');
+    if (advancedFormat && (params.contextImages?.length || params.gptImageMask || params.gptImageMaskUrl || params.gptImageMarkupUrl)) throw new Error('GIF output require text-to-image generation');
+    if (params.outputFormat !== 'gif' && (params.gptImageFrameCount !== undefined || params.gptImageFrameDurationMs !== undefined)) throw new Error('Frame options require GIF output');
+    if (params.gptImageFrameCount !== undefined && (!Number.isInteger(params.gptImageFrameCount) || params.gptImageFrameCount < 2 || params.gptImageFrameCount > 16)) throw new Error('GIF frame count must be an integer from 2 to 16');
+    if (params.gptImageFrameDurationMs !== undefined && (!Number.isInteger(params.gptImageFrameDurationMs) || params.gptImageFrameDurationMs < 20 || params.gptImageFrameDurationMs > 2000)) throw new Error('GIF frame duration must be an integer from 20 to 2000 ms');
+    if (params.gptImageMarkupUrl !== undefined && (!params.gptImageMarkupUrl.trim() || !params.contextImages?.length || params.gptImageMask || params.gptImageMaskUrl)) throw new Error('Markup requires a first edit reference and cannot combine with a mask');
+    if (params.gptImageBackground === 'transparent' && advancedFormat) throw new Error('Transparent output requires PNG or WebP');
+  }
   if (!isGptImageModel(params.modelId)) {
     if (params.gptImageMask || params.gptImageMaskUrl)
       throw new Error('GPT Image masks require a GPT Image model');

@@ -1,0 +1,46 @@
+const assert = require('node:assert/strict');
+const create = require('../dist/Projects/createJobRequestMessage.js').default;
+const { validateGptImageOptions } = require('../dist/lib/validation.js');
+const { SogniTools } = require('../dist/Chat/tools.js');
+const { assertHostedToolArguments, resolveHostedToolModelSelector } = require('../dist/Chat/modelRouting.js');
+const options = { type: 'image', steps: { min: 1, max: 1, default: 1 }, guidance: { min: 0, max: 1, default: 1 }, sampler: { allowed: [], default: null }, scheduler: { allowed: [], default: null } };
+for (const modelId of ['gpt-image-2.6-sunburst', 'gpt-image-2.6-flare']) {
+  const args = { model: modelId, prompt: 'A lantern gently sways in a seamless loop', outputFormat: 'gif', gptImageFrameCount: 9, gptImageFrameDurationMs: 200, gptImageComplexity: 'medium' };
+  assert.equal(resolveHostedToolModelSelector('generate_image', args), modelId);
+  assertHostedToolArguments(SogniTools.all, 'generate_image', args, { skipEnumProperties: [] });
+  const request = create('gif-wire', { ...args, modelId, type: 'image', positivePrompt: args.prompt, numberOfMedia: 1 }, options);
+  assert.equal(request.outputFormat, 'gif');
+  assert.equal(request.keyFrames[0].width, 896);
+  assert.equal(request.keyFrames[0].height, 896);
+  assert.equal(request.keyFrames[0].gptImageFrameCount, 9);
+  assert.equal(request.keyFrames[0].gptImageFrameDurationMs, 200);
+  assert.equal(request.keyFrames[0].gptImageComplexity, 'medium');
+  const small = create('small-gif-wire', { modelId, type: 'image', positivePrompt: args.prompt, numberOfMedia: 1, outputFormat: 'gif', width: 320, height: 320 }, options);
+  assert.equal(small.keyFrames[0].width, 320);
+  assert.throws(() => validateGptImageOptions({ modelId, outputFormat: 'gif', contextImages: [Buffer.from('ref')] }), /text-to-image/);
+  assert.throws(() => validateGptImageOptions({ modelId, outputFormat: 'gif', width: 1024, height: 1024 }), /pixel budget/);
+  assert.throws(() => validateGptImageOptions({ modelId, outputFormat: 'png', gptImageFrameCount: 9 }), /require GIF/);
+  assert.throws(() => validateGptImageOptions({ modelId, gptImageMarkupUrl: 'https://example.test/overlay.png' }), /first edit reference/);
+}
+for (const modelId of ['gpt-image-2', 'gpt-image-2.5-sunburst', 'gpt-image-2.5-flare', 'z_image_turbo_bf16']) {
+  assert.throws(() => validateGptImageOptions({ modelId, outputFormat: 'gif' }), /require GPT Image 2.6/);
+}
+console.log('GPT Image 2.6: hosted contract, concrete GIF defaults, wire options and pre-send validation passed');
+
+(async () => {
+  const Projects = require('../dist/Projects/index.js').default;
+  for (const input of [{}, { sizePreset: 'custom' }, { width: 320, height: 320, sizePreset: '1024x1024' }]) {
+    let path;
+    await Projects.prototype.estimateCost.call({
+      getModelOptions: async () => options,
+      getSizePresets: async () => { throw new Error('GIF custom sizes must not be replaced by presets'); },
+      client: { socket: { get: async url => { path = url; return { quote: { project: {} } }; } } }
+    }, { model: 'gpt-image-2.6-flare', imageCount: 1, stepCount: 1, previewCount: 0, outputFormat: 'gif', gptImageFrameCount: 9, gptImageFrameDurationMs: 200, gptImageComplexity: 'low', ...input });
+    const size = input.width ?? 896;
+    assert.ok(path.includes(`/0/0/${size}/${size}?`), path);
+    assert.ok(path.includes('gptImageFrameCount=9'));
+    assert.ok(path.includes('gptImageFrameDurationMs=200'));
+    assert.ok(path.includes('gptImageComplexity=low'));
+  }
+  console.log('GIF estimate URLs preserve concrete create sizes and all frame controls');
+})().catch(error => { console.error(error); process.exitCode = 1; });

@@ -92,7 +92,7 @@ import {
 import { getFileContentType } from './utils/fileContentType.js';
 import { TokenType } from '../types/token.js';
 import type { JobProvenance } from './types/JobProvenance.js';
-import { getMaxContextImages, validateSampler, isGptImageModel } from '../lib/validation.js';
+import { getMaxContextImages, validateSampler, isGptImageModel, resolveGptImageGifSize } from '../lib/validation.js';
 import ModelTiersRaw, {
   isAudioTier,
   isComfyImageTier,
@@ -3343,12 +3343,21 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     sampler,
     contextImages,
     gptImageQuality,
+    gptImageFrameCount,
+    gptImageFrameDurationMs,
+    gptImageComplexity,
     outputFormat,
     billingMode,
     priorityMode
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const modelOptions = await this.getModelOptions(model);
+    if (outputFormat === 'gif' && (!sizePreset || sizePreset === 'custom' || width || height)) {
+      const size = resolveGptImageGifSize(width, height, gptImageFrameCount);
+      width = size.width;
+      height = size.height;
+      sizePreset = undefined;
+    }
     const pathParams = [
       tokenType || 'spark',
       network,
@@ -3379,6 +3388,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     const queryParams = new URLSearchParams();
     if (gptImageQuality) queryParams.set('gptImageQuality', gptImageQuality);
+    if (gptImageFrameCount !== undefined) queryParams.set('gptImageFrameCount', String(gptImageFrameCount));
+    if (gptImageFrameDurationMs !== undefined) queryParams.set('gptImageFrameDurationMs', String(gptImageFrameDurationMs));
+    if (gptImageComplexity !== undefined) queryParams.set('gptImageComplexity', gptImageComplexity);
     if (outputFormat) queryParams.set('outputFormat', outputFormat);
     if (billingMode) queryParams.set('billingMode', billingMode);
     if (priorityMode !== undefined) queryParams.set('priorityMode', String(priorityMode));

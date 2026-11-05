@@ -46,7 +46,7 @@ export interface SizePreset {
   aspect: string;
 }
 
-export type ImageOutputFormat = 'png' | 'jpg' | 'webp';
+export type ImageOutputFormat = 'png' | 'jpg' | 'webp' | 'gif';
 /**
  * GPT Image quality preset. `xhigh` and `max` need GPT Image 2.5.
  *
@@ -1087,6 +1087,14 @@ export interface ImageProjectParams
   gptImageBackground?: GptImageBackground;
   /** JPEG/WebP compression (0–100). Omit for PNG. */
   gptImageOutputCompression?: number;
+  /** GPT Image 2.6 planning effort. Omitted uses the provider's high setting. */
+  gptImageComplexity?: 'low' | 'medium' | 'high';
+  /** Animated GIF only: 2–16 frames, default 9. */
+  gptImageFrameCount?: number;
+  /** Animated GIF only: 20–2000 ms per frame, rounded to 10 ms by OpenAI. */
+  gptImageFrameDurationMs?: number;
+  /** Annotation overlay for the first edit reference; cannot combine with a mask. */
+  gptImageMarkupUrl?: string;
   /** PNG alpha mask URL or data URI matching contextImages[0]. Transparent regions are edited. */
   gptImageMaskUrl?: string;
   /** PNG alpha mask, uploaded in the referenceMask asset slot for durable replay. */
@@ -1333,6 +1341,10 @@ export interface EstimateRequest {
    * Output format, when estimating models with format-specific request metadata.
    */
   outputFormat?: ImageOutputFormat;
+  /** GIF frame count used by the quote; default 9. */
+  gptImageFrameCount?: number;
+  gptImageFrameDurationMs?: number;
+  gptImageComplexity?: 'low' | 'medium' | 'high';
   /**
    * Billing intent of the job being quoted. 'tokens' opts out of plan coverage,
    * so the estimate carries no `dailyFairUsePct`.

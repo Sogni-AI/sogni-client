@@ -19,6 +19,7 @@ import {
   validateNumber,
   validateCustomImageSize,
   validateGptImageOptions,
+  resolveGptImageGifSize,
   validateSeedreamOptions,
   validateVideoSize,
   validateTeacacheThreshold,
@@ -1613,7 +1614,12 @@ function applyImageParams(
   }
   keyFrame.sizePreset = effectiveSizePreset;
 
-  if (effectiveSizePreset === 'custom' && params.width && params.height) {
+  if (params.outputFormat === 'gif' && (!effectiveSizePreset || effectiveSizePreset === 'custom' || params.width || params.height)) {
+    const dimensions = resolveGptImageGifSize(params.width, params.height, params.gptImageFrameCount);
+    keyFrame.sizePreset = 'custom';
+    keyFrame.width = dimensions.width;
+    keyFrame.height = dimensions.height;
+  } else if (effectiveSizePreset === 'custom' && params.width && params.height) {
     keyFrame.width = validateCustomImageSize(params.width, {
       modelId: params.modelId,
       propertyName: 'Width'
@@ -1624,6 +1630,9 @@ function applyImageParams(
     });
   }
   validateGptImageOptions(params);
+  for (const field of ['gptImageComplexity', 'gptImageFrameCount', 'gptImageFrameDurationMs', 'gptImageMarkupUrl'] as const) {
+    if (params[field] !== undefined) keyFrame[field] = params[field];
+  }
   validateSeedreamOptions(params);
   if (params.gptImageMask) {
     keyFrame.hasReferenceMask = true;

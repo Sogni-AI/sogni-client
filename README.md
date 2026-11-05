@@ -663,6 +663,36 @@ const imageUrls = await project.waitForCompletion();
 
 For GPT Image 2 edits, pass `contextImages`; the SDK supports up to 16 context images for this model. Cost estimates can include `gptImageQuality`, `outputFormat`, and `contextImages` so external input-image pricing is represented.
 
+### GPT Image 2.6 and animated GIFs
+
+Use `gpt-image-2.6-sunburst` or `gpt-image-2.6-flare` explicitly. Both accept the
+existing still-image quality settings and add planning complexity, annotation-guided
+edits, and GIF generation. Existing model choices keep their behavior.
+
+```javascript
+const settings = {
+  type: 'image', network: 'fast', modelId: 'gpt-image-2.6-flare',
+  positivePrompt: 'A monkey lifts a lantern, blinks, and lowers it to its exact starting pose. Locked camera, seamless loop.',
+  numberOfMedia: 1, width: 320, height: 320,
+  gptImageQuality: 'medium', gptImageComplexity: 'high',
+  outputFormat: 'gif', gptImageFrameCount: 9, gptImageFrameDurationMs: 200,
+  tokenType: 'spark'
+};
+const quote = await sogni.projects.estimateCost({
+  ...settings, model: settings.modelId, imageCount: 1, stepCount: 1, previewCount: 0
+});
+const project = await sogni.projects.create(settings);
+const gifUrls = await project.waitForCompletion();
+```
+
+GIFs support 2–16 frames, 20–2000 ms per frame, and at most 8,294,400 pixels
+across all frames. They accept no references, mask, markup, transparent background,
+or output compression. For still edits, `gptImageMarkupUrl` accepts a separate
+transparent PNG matching the first reference; do not combine it with a mask.
+Planning complexity is `low`, `medium`, or `high`, independent of rendering quality.
+GIF quotes reserve an output budget and settle downward to confirmed usage when lower.
+See the [model guide](https://docs.sogni.ai/models/gpt-image-2-6/) for limits and pricing.
+
 ### Seedream 5.0 Pro Uncensored
 
 Seedream 5.0 Pro Uncensored (`seedream-5-0-pro-uncensored`) is ByteDance's Seedream 5.0 Pro through the normal image project API: text-to-image, or edits from 1-10 `contextImages` in source order. It is Spark-only and takes no negative prompt, seed, or steps; the SDK never sends it a negative prompt. Custom sizes run from 921,600 to 4,194,304 pixels at an aspect ratio from 1:16 to 16:1, for example 1536x1536, 2048x2048, 2560x1440, or 3024x1296.

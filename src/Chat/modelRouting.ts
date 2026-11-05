@@ -100,6 +100,8 @@ export const PREFERRED_MODEL_IDS = {
     gptImage2: 'gpt-image-2',
     gptImage25Sunburst: 'gpt-image-2.5-sunburst',
     gptImage25Flare: 'gpt-image-2.5-flare',
+    gptImage26Flare: 'gpt-image-2.6-flare',
+    gptImage26Sunburst: 'gpt-image-2.6-sunburst',
     // Seedream 5.0 Pro Uncensored: requires the one-time agreement Seedance 2.5
     // Uncensored uses, and is only ever chosen by name.
     seedream5ProUncensored: 'seedream-5-0-pro-uncensored',

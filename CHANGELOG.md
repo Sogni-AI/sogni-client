@@ -1,3 +1,7 @@
+## Unreleased
+
+- Add GPT Image 2.6 Sunburst and Flare as explicit choices, with animated GIF generation, planning complexity, and annotation-guided still-image edits. GIF settings and quoted costs stay together through submission.
+
 ## [5.74.1](https://github.com/Sogni-AI/sogni-client/compare/v5.74.0...v5.74.1) (2026-11-04)
 
 
