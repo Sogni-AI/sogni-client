@@ -704,7 +704,8 @@ export class SogniClient {
     // An API-key session learns its address from the socket's authenticated
     // frame; before that arrives, `me()` answers it.
     this.projects._setAccountAddressResolver(
-      async () => this.account.currentAccount.walletAddress || (await this.account.me()).walletAddress
+      async () =>
+        this.account.currentAccount.walletAddress || (await this.account.me()).walletAddress
     );
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
@@ -866,3 +867,10 @@ export type {
   WorldBuildWaiting,
   WorldBuildWaitingReason
 } from './Worlds/types.js';
+
+export {
+  getGptImageGifLayouts,
+  getGptImageGifFrameBounds,
+  getGptImageGifSheet,
+  resolveGptImageGifSize
+} from './lib/gptImageGif.js';

@@ -44,3 +44,15 @@ console.log('GPT Image 2.6: hosted contract, concrete GIF defaults, wire options
   }
   console.log('GIF estimate URLs preserve concrete create sizes and all frame controls');
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
+const { getGptImageGifSheet, resolveGptImageGifSize } = require('../dist/index.js');
+assert.throws(() => getGptImageGifSheet(1280, 1280, 5), /supported sheet/);
+assert.throws(() => getGptImageGifSheet(16, 16, 9), /supported sheet/);
+assert.deepEqual(getGptImageGifSheet(640, 640, 2), { columns: 4, rows: 2, width: 2560, height: 1280 });
+assert.deepEqual(resolveGptImageGifSize(undefined, undefined, 16, 3), { width: 960, height: 320 });
+for (let count = 2; count <= 16; count++) for (const ratio of [1/3, 9/16, 3/4, 1, 4/3, 16/9, 3]) {
+  const size = resolveGptImageGifSize(undefined, undefined, count, ratio);
+  const sheet = getGptImageGifSheet(size.width, size.height, count);
+  assert.ok(sheet.width <= 3840 && sheet.height <= 3840 && sheet.width * sheet.height <= 8294400);
+}
+console.log('GIF sheet admission rejects provider failures and fits all count/aspect defaults');

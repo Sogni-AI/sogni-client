@@ -685,8 +685,10 @@ const project = await sogni.projects.create(settings);
 const gifUrls = await project.waitForCompletion();
 ```
 
-GIFs support 2–16 frames, 20–2000 ms per frame, and at most 8,294,400 pixels
-across all frames. They accept no references, mask, markup, transparent background,
+GIFs support 2–16 frames and 20–2000 ms per frame. Frame dimensions must fit a
+655,360–8,294,400-pixel sheet, including unused cells, with a 3840-pixel edge limit.
+Use `resolveGptImageGifSize()` to infer a valid size or `getGptImageGifSheet()` to
+validate explicit dimensions. They accept no references, mask, markup, transparent background,
 or output compression. For still edits, `gptImageMarkupUrl` accepts a separate
 transparent PNG matching the first reference; do not combine it with a mask.
 Planning complexity is `low`, `medium`, or `high`, independent of rendering quality.
