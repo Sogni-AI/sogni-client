@@ -13,7 +13,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_image",
       "sdkToolName": "generate_image",
-      "hostedSchemaSha256": "a03285d278a809dd4a7b1581b2d9fb1f260c4880966c1484502077cecc9dcfe8",
+      "hostedSchemaSha256": "cf8abb37aa63f80a551e708848eb1da71cf66588c4550bcf80812525f1e4673e",
       "hostedRequired": [
         "prompt"
       ],

@@ -28,6 +28,14 @@ for (const modelId of ['gpt-image-2', 'gpt-image-2.5-sunburst', 'gpt-image-2.5-f
 console.log('GPT Image 2.6: hosted contract, concrete GIF defaults, wire options and pre-send validation passed');
 
 (async () => {
+  const canonicalFormat = require('@sogni-ai/sogni-protocol/schemas/tools/generate_image.schema.json').properties.outputFormat;
+  const esm = await import('../dist-esm/index.js');
+  for (const sdk of [require('../dist/index.js'), esm]) {
+    const format = sdk.SogniTools.generateImage.function.parameters.properties.outputFormat;
+    assert.equal(format.description, canonicalFormat.description);
+    assert.match(format.description, /GIF requires GPT Image 2\.6 text-to-image/);
+    assert.ok(format.enum.includes('gif'));
+  }
   const Projects = require('../dist/Projects/index.js').default;
   for (const input of [{}, { sizePreset: 'custom' }, { width: 320, height: 320, sizePreset: '1024x1024' }]) {
     let path;

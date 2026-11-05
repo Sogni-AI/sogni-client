@@ -26,6 +26,13 @@ const outFile = join(process.cwd(), 'src', 'Chat', '_hostedToolsManifest.generat
 const raw = await readFile(manifestPath, 'utf8');
 const manifest = JSON.parse(raw); // validate
 
+// Protocol alpha.59's schema includes GIF guidance omitted from its manifest.
+// Keep the public SDK tool description aligned with that canonical schema.
+const imageSchemaPath = join(dirname(protocolPkgPath), 'schemas', 'tools', 'generate_image.schema.json');
+const imageSchema = JSON.parse(await readFile(imageSchemaPath, 'utf8'));
+const generateImageTool = manifest.tools.find((tool) => tool.function.name === 'generate_image');
+generateImageTool.function.parameters.properties.outputFormat.description = imageSchema.properties.outputFormat.description;
+
 // MiniMax Music 3 first: it is the default music model.
 const audioModelIds = [
   'minimax_music3',
