@@ -1,3 +1,10 @@
+## [5.75.2](https://github.com/Sogni-AI/sogni-client/compare/v5.75.1...v5.75.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **account:** keep the member discount on socket plan updates ([a39a7f9](https://github.com/Sogni-AI/sogni-client/commit/a39a7f9f79a52e030d8d52cdf44220c0e867b7bd))
+
 ## [5.75.1](https://github.com/Sogni-AI/sogni-client/compare/v5.75.0...v5.75.1) (2026-11-05)
 
 
