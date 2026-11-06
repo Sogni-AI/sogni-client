@@ -98,8 +98,14 @@ export function isVideoModel(modelId: string): boolean {
     isHappyhorseModel(modelId) ||
     isWan3Model(modelId) ||
     isMinimaxH3Model(modelId) ||
-    isVideoUpscaleModel(modelId)
+    isVideoUpscaleModel(modelId) || isVideoSegmentationModel(modelId)
   );
+}
+
+export const SAM3_VIDEO_SEGMENT_MODEL_ID = 'sam3_video_segment_fp16';
+
+export function isVideoSegmentationModel(modelId: string): boolean {
+  return modelId === SAM3_VIDEO_SEGMENT_MODEL_ID;
 }
 
 /** Standalone, promptless enhancement of a finished video. */
@@ -683,7 +689,7 @@ export function calculateVideoFrames(
 ): number {
   let frames: number;
 
-  if (isVideoUpscaleModel(modelId)) {
+  if (isVideoUpscaleModel(modelId) || isVideoSegmentationModel(modelId)) {
     // Upscaling preserves the source frame count; never append or snap frames.
     frames = Math.round(duration * fps);
   } else if (isWanModel(modelId)) {
@@ -739,6 +745,7 @@ export function calculateVideoFrames(
  */
 export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   if (!modelId) return null;
+  if (isVideoSegmentationModel(modelId)) return 'v2v';
   if (isVideoUpscaleModel(modelId)) return 'upscale';
 
   const isWan = isWanModel(modelId);

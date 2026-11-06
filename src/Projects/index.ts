@@ -165,6 +165,7 @@ function isMediaResultRefusal(error: unknown): boolean {
 const JOB_PROVENANCE_HASH_FIELDS = [
   'sha256',
   'sourceImageSha256',
+  'sourceVideoSha256',
   'samPromptSha256',
   'maskRleSha256',
   'selectionHash',
@@ -199,9 +200,11 @@ function jobProvenanceFromResult(data: Partial<JobResultData>): JobProvenance | 
   if (Number.isSafeInteger(data.maskHeight) && Number(data.maskHeight) > 0) {
     result.maskHeight = Number(data.maskHeight);
   }
+  if (Number.isSafeInteger(data.maskFrames) && Number(data.maskFrames) > 0) result.maskFrames = Number(data.maskFrames);
+  if (typeof data.maskFps === 'number' && Number.isFinite(data.maskFps) && data.maskFps > 0) result.maskFps = data.maskFps;
   if (
     typeof data.samVersion === 'string' &&
-    /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,79}$/.test(data.samVersion)
+    /^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,79}$/.test(data.samVersion)
   ) {
     result.samVersion = data.samVersion;
   }

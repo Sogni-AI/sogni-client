@@ -322,6 +322,9 @@ export type JobResultData = {
   /** Worker-attested completed artifact hash. */
   sha256?: string;
   sourceImageSha256?: string;
+  sourceVideoSha256?: string;
+  maskFrames?: number;
+  maskFps?: number;
   samPromptSha256?: string;
   maskRleSha256?: string;
   maskWidth?: number;

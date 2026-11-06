@@ -35,6 +35,7 @@ import {
   getVideoAssetRequirements,
   isVideoModel,
   isVideoUpscaleModel,
+  isVideoSegmentationModel,
   calculateVideoFrames,
   isLtx2Model,
   isWanAnimateModel,
@@ -1697,6 +1698,31 @@ function applyVideoParams(
     });
   }
   validateVideoWorkflowAssets(params);
+  if (isVideoSegmentationModel(params.modelId)) {
+    if (!params.referenceVideo || params.numberOfMedia !== 1) throw new Error('Video selection requires one uploaded referenceVideo and numberOfMedia: 1.');
+    if (!params.sam3VideoPrompt) throw new Error('Video selection requires sam3VideoPrompt.');
+    if (params.positivePrompt?.trim() || params.negativePrompt?.trim() || params.stylePrompt?.trim() || params.referenceImage || params.referenceImageEnd || params.referenceAudio
+      || params.controlNet || params.videoStart != null || params.trimEndFrame || params.teacacheThreshold != null || params.loras?.length || params.referenceAudioIdentity) {
+      throw new Error('Video selection accepts one complete source video and selection prompts.');
+    }
+    const { frameIndex = 0, objectIndex = 0, output = 'mask', edges = 'hard', ...selection } = params.sam3VideoPrompt;
+    if (!Number.isSafeInteger(frameIndex) || frameIndex < 0 || frameIndex >= 900 || !Number.isSafeInteger(objectIndex) || objectIndex < 0 || objectIndex > 31) throw new Error('Use a valid source frameIndex and objectIndex from 0 to 31.');
+    if (output !== 'mask' || edges !== 'hard') throw new Error('Video selection supports hard mask output.');
+    const imageSelection: NonNullable<ImageProjectParams['sam3Prompt']> = selection;
+    if (imageSelection.applyMask || (imageSelection.maxInstances !== undefined && imageSelection.maxInstances !== 1)) throw new Error('Video selection tracks one object; choose it with objectIndex.');
+    const prompt = normalizeSam3Prompt(selection);
+    const keyFrame = { ...inputKeyframe, hasReferenceVideo: true, sam3VideoPrompt: { ...prompt, maxInstances: 1, frameIndex, objectIndex, output, edges }, steps: 1, seed: 0, interpolation: 'none', generateAudio: false };
+    for (const name of ['width', 'height', 'frames', 'fps'] as const) {
+      const value = params[name];
+      if (value !== undefined) {
+        if (!Number.isFinite(value) || value <= 0 || (name !== 'fps' && !Number.isSafeInteger(value))) throw new Error(`Video selection ${name} must match the source video.`);
+        Object.assign(keyFrame, { [name]: value });
+      }
+    }
+    if (params.frames !== undefined && frameIndex >= params.frames) throw new Error('frameIndex must refer to a source frame.');
+    return keyFrame;
+  }
+  if (params.sam3VideoPrompt !== undefined) throw new Error('sam3VideoPrompt requires the SAM 3 video selection model.');
   if (isVideoUpscaleModel(params.modelId)) {
     if (
       params.detailPreference != null &&
@@ -2045,6 +2071,9 @@ function applyAudioParams(
 }
 
 function createJobRequestMessage(id: string, params: ProjectParams, options: ModelOptions) {
+  if ((params as VideoProjectParams).sam3VideoPrompt !== undefined && !isVideoSegmentationModel(params.modelId)) {
+    throw new Error('sam3VideoPrompt requires the SAM 3 video selection model.');
+  }
   const template = getTemplate();
   const worldGenerationReceipt = normalizeWorldGenerationReceipt(params.worldGenerationReceipt);
   const negativePrompt =
