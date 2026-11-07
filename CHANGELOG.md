@@ -1,3 +1,10 @@
+# [5.79.0](https://github.com/Sogni-AI/sogni-client/compare/v5.78.0...v5.79.0) (2026-11-07)
+
+
+### Features
+
+* **images:** allow reference images for animated GIFs ([3dcc9ea](https://github.com/Sogni-AI/sogni-client/commit/3dcc9ea551dcc66b4b2478b59776173ff46e55a1))
+
 # [5.78.0](https://github.com/Sogni-AI/sogni-client/compare/v5.77.0...v5.78.0) (2026-11-07)
 
 
