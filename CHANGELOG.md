@@ -1,3 +1,15 @@
+# [5.78.0](https://github.com/Sogni-AI/sogni-client/compare/v5.77.0...v5.78.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* **models:** type video selection options ([f096b2c](https://github.com/Sogni-AI/sogni-client/commit/f096b2c34e965f2d0d60b68790e3bd79727d4c84))
+
+
+### Features
+
+* support SAM 3 video selection masks ([d899c77](https://github.com/Sogni-AI/sogni-client/commit/d899c7728de23ef3460e312ae85bf2e6e44d51d3))
+
 # [5.77.0](https://github.com/Sogni-AI/sogni-client/compare/v5.76.0...v5.77.0) (2026-11-07)
 
 
