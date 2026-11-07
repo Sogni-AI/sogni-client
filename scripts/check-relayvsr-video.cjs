@@ -44,6 +44,11 @@ for (const modelId of [x2, x4]) {
   const key = request(modelId).keyFrames[0];
   assert.equal(key.upscaleResolution, 2160);
   assert.equal(key.hasReferenceVideo, true);
+
+  // A 600x1344 source at 2160 would be 4838 long.
+  assert.throws(() => request(modelId, { width: 2160, height: 4838 }), /at most 3840 pixels on its long edge/);
+  assert.throws(() => request(modelId, { width: 4838, height: 2160 }), /at most 3840 pixels on its long edge/);
+  assert.equal(request(modelId, { width: 3780, height: 2160 }).keyFrames[0].width, 3780);
   assert.equal(key.steps, 1);
   assert.equal(key.seed, 0);
   assert.equal(key.generateAudio, true);

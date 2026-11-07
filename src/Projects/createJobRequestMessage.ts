@@ -1861,6 +1861,9 @@ function applyVideoParams(
     if (relayVsr) {
       if (![1080, 1440, 2160].includes(resolution))
         throw new Error('Choose 1080p, 1440p or 2160p for RelayVSR video upscaling.');
+      // The source is unknown here, so only a size the caller sends can be checked.
+      if (Math.max(Number(params.width) || 0, Number(params.height) || 0) > 3840)
+        throw new Error('RelayVSR output can be at most 3840 pixels on its long edge.');
     } else if (![1080, 1440].includes(resolution)) {
       throw new Error('Choose 1080p or 1440p for video upscaling.');
     }

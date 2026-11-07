@@ -248,7 +248,7 @@ The SDK supports two families of video models with **fundamentally different FPS
 
 **RelayVSR** (`RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID`, `RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID`) takes the same request and adds `upscaleResolution: 2160`:
 - Opt-in by model id; FlashVSR stays the `upscale_video` default. `model: 'relayvsr'` on the hosted tool selects it.
-- X2 takes sources up to 1080x1920 and delivers at most twice their size; X4 takes sources up to 540x960 and delivers at most four times. Output long edge at most 3840px. The server checks these against the probed source.
+- X2 takes sources up to 1080x1920 and delivers at most twice their size; X4 takes sources up to 768x1344 and delivers at most four times. Output long edge at most 3840px. The server checks these against the probed source.
 - The SDK refuses `detailPreference`, `processingSpeed` and `seed`, fixes seed to 0, and sends neither option on the wire. `isRelayVsrModel()` detects both; `isVideoUpscaleModel()` covers them.
 
 ### Key Files
