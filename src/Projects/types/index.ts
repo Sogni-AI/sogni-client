@@ -1281,6 +1281,8 @@ export type MediaUrlParams = {
 };
 
 export interface EstimateRequest {
+  /** Request the optional monthly capacity share alongside the daily estimate. */
+  includeMonthlyFairUse?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
   /**
@@ -1365,6 +1367,8 @@ export interface EstimateRequest {
 }
 
 export interface VideoEstimateRequest {
+  /** Request the optional monthly capacity share alongside the daily estimate. */
+  includeMonthlyFairUse?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
   /** FlashVSR source geometry for an estimate. The server verifies the uploaded file at admission. */
@@ -1441,6 +1445,8 @@ export interface VideoEstimateRequest {
 }
 
 export interface AudioEstimateRequest {
+  /** Request the optional monthly capacity share alongside the daily estimate. */
+  includeMonthlyFairUse?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
   tokenType: TokenType;
@@ -1495,6 +1501,8 @@ export interface CostEstimation {
    * for guests, premium-vendor models, token billing, trials and Relaxed.
    */
   dailyFairUsePct?: number;
+  /** Estimated share of monthly Fast capacity, when requested and supplied by the server. */
+  monthlyFairUsePct?: number;
 }
 
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';

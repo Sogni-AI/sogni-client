@@ -1,3 +1,10 @@
+# [5.77.0](https://github.com/Sogni-AI/sogni-client/compare/v5.76.0...v5.77.0) (2026-11-07)
+
+
+### Features
+
+* **estimates:** add optional monthly capacity shares ([3236f0f](https://github.com/Sogni-AI/sogni-client/commit/3236f0f309710fe902a61e0a39912130693011e6))
+
 # [5.76.0](https://github.com/Sogni-AI/sogni-client/compare/v5.75.2...v5.76.0) (2026-11-05)
 
 
