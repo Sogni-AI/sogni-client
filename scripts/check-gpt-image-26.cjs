@@ -17,7 +17,15 @@ for (const modelId of ['gpt-image-2.6-sunburst', 'gpt-image-2.6-flare']) {
   assert.equal(request.keyFrames[0].gptImageComplexity, 'medium');
   const small = create('small-gif-wire', { modelId, type: 'image', positivePrompt: args.prompt, numberOfMedia: 1, outputFormat: 'gif', width: 320, height: 320 }, options);
   assert.equal(small.keyFrames[0].width, 320);
-  assert.throws(() => validateGptImageOptions({ modelId, outputFormat: 'gif', contextImages: [Buffer.from('ref')] }), /text-to-image/);
+  const references = [Buffer.from('first reference'), Buffer.from('second reference')];
+  const edit = create('reference-gif-wire', { modelId, type: 'image', positivePrompt: args.prompt, numberOfMedia: 1, outputFormat: 'gif', width: 320, height: 320, contextImages: references }, options);
+  assert.equal(edit.keyFrames[0].hasContextImage1, true);
+  assert.equal(edit.keyFrames[0].hasContextImage2, true);
+  assert.equal(edit.keyFrames[0].width, 320);
+  assert.equal(edit.outputFormat, 'gif');
+  for (const extra of [{ gptImageMask: Buffer.from('mask') }, { gptImageMaskUrl: 'https://example.test/mask.png' }, { gptImageMarkupUrl: 'https://example.test/overlay.png' }]) {
+    assert.throws(() => validateGptImageOptions({ modelId, outputFormat: 'gif', contextImages: references, ...extra }), /masks or markup/);
+  }
   assert.throws(() => validateGptImageOptions({ modelId, outputFormat: 'gif', width: 1024, height: 1024 }), /pixel budget/);
   assert.throws(() => validateGptImageOptions({ modelId, outputFormat: 'png', gptImageFrameCount: 9 }), /require GIF/);
   assert.throws(() => validateGptImageOptions({ modelId, gptImageMarkupUrl: 'https://example.test/overlay.png' }), /first edit reference/);
@@ -37,7 +45,7 @@ console.log('GPT Image 2.6: hosted contract, concrete GIF defaults, wire options
     assert.ok(format.enum.includes('gif'));
   }
   const Projects = require('../dist/Projects/index.js').default;
-  for (const input of [{}, { sizePreset: 'custom' }, { width: 320, height: 320, sizePreset: '1024x1024' }]) {
+  for (const input of [{}, { sizePreset: 'custom' }, { width: 320, height: 320, sizePreset: '1024x1024' }, { contextImages: 2 }]) {
     let path;
     await Projects.prototype.estimateCost.call({
       getModelOptions: async () => options,
@@ -45,7 +53,7 @@ console.log('GPT Image 2.6: hosted contract, concrete GIF defaults, wire options
       client: { socket: { get: async url => { path = url; return { quote: { project: {} } }; } } }
     }, { model: 'gpt-image-2.6-flare', imageCount: 1, stepCount: 1, previewCount: 0, outputFormat: 'gif', gptImageFrameCount: 9, gptImageFrameDurationMs: 200, gptImageComplexity: 'low', ...input });
     const size = input.width ?? 896;
-    assert.ok(path.includes(`/0/0/${size}/${size}?`), path);
+    assert.ok(path.includes(`/0/0/${size}/${size}${input.contextImages ? '/0/_/2' : ''}?`), path);
     assert.ok(path.includes('gptImageFrameCount=9'));
     assert.ok(path.includes('gptImageFrameDurationMs=200'));
     assert.ok(path.includes('gptImageComplexity=low'));

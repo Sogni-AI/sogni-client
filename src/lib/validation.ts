@@ -43,12 +43,9 @@ export function validateGptImageOptions(params: ImageProjectParams): void {
       throw new Error('Unsupported GPT Image complexity');
     if (
       advancedFormat &&
-      (params.contextImages?.length ||
-        params.gptImageMask ||
-        params.gptImageMaskUrl ||
-        params.gptImageMarkupUrl)
+      (params.gptImageMask || params.gptImageMaskUrl || params.gptImageMarkupUrl)
     )
-      throw new Error('GIF output require text-to-image generation');
+      throw new Error('GIF output cannot combine with masks or markup');
     if (
       params.outputFormat !== 'gif' &&
       (params.gptImageFrameCount !== undefined || params.gptImageFrameDurationMs !== undefined)

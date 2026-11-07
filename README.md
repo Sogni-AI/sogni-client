@@ -688,8 +688,10 @@ const gifUrls = await project.waitForCompletion();
 GIFs support 2–16 frames and 20–2000 ms per frame. Frame dimensions must fit a
 655,360–8,294,400-pixel sheet, including unused cells, with a 3840-pixel edge limit.
 Use `resolveGptImageGifSize()` to infer a valid size or `getGptImageGifSheet()` to
-validate explicit dimensions. They accept no references, mask, markup, transparent background,
-or output compression. For still edits, `gptImageMarkupUrl` accepts a separate
+validate explicit dimensions. Pass up to 16 still reference images in `contextImages`
+to guide the animation; set `contextImages` to the reference count in `estimateCost()`.
+GIFs accept no mask, markup, transparent background, or output compression.
+For still edits, `gptImageMarkupUrl` accepts a separate
 transparent PNG matching the first reference; do not combine it with a mask.
 Planning complexity is `low`, `medium`, or `high`, independent of rendering quality.
 GIF quotes reserve an output budget and settle downward to confirmed usage when lower.
