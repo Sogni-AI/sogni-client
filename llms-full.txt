@@ -2876,3 +2876,28 @@ For additional resources:
 
 OPTIONAL PRIORITY MODE
 Paid Unlimited members may set priorityMode: true on projects.create() with network: fast, tokenType: spark and billingMode: subscription. Earlier Fast queue placement costs 1.5x daily and monthly usage credits, behind Premium Spark. Plan caps and concurrency are unchanged; rendering speed, quality and GPU assignment are not guaranteed to change. Omit the option for standard behavior. Trials, Relaxed, token-paid generations and third-party vendor models cannot use it. Image, video and audio estimate helpers also accept priorityMode and include the weighted daily share in dailyFairUsePct. This setting applies to media generations, not chat or prompt-writing calls.
+
+
+### SAM 3 video selection
+
+`sam3_video_segment_fp16` tracks one selected object across an uploaded video.
+The result is a lossless binary mask MP4 at the original dimensions, frame count
+and frame rate. White selects the object. The server verifies the upload before
+charging; omitted dimensions and timing are taken from that verified source.
+
+```javascript
+const project = await sogni.projects.create({
+  type: "video", network: "fast", modelId: "sam3_video_segment_fp16",
+  positivePrompt: "", numberOfMedia: 1, referenceVideo: videoBytes,
+  sam3VideoPrompt: { text: "unicorn horn", frameIndex: 126 }
+});
+const [maskUrl] = await project.waitForCompletion();
+```
+
+The zero-based `frameIndex` identifies the prompt frame (default 0); tracking
+runs both forward and backward from it. `objectIndex` chooses a text-detected
+candidate in confidence order (default 0). Points and boxes use normalized
+coordinates against the complete source frame. Inputs must be constant-frame-rate
+SDR video, up to 30 seconds, 900 frames, 2560 pixels on either edge and 100 MB.
+
+See `examples/workflow_sam3_video_segment.mjs` for a runnable paid request.

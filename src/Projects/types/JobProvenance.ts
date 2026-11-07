@@ -10,6 +10,10 @@ export interface JobProvenance {
   sha256?: string;
   /** Hash of the original still used by an image edit or segmentation job. */
   sourceImageSha256?: string;
+  /** Exact uploaded video whose frames the mask follows. */
+  sourceVideoSha256?: string;
+  maskFrames?: number;
+  maskFps?: number;
   /** Hash of the canonical normalized SAM point/box/text prompt. */
   samPromptSha256?: string;
   /** Hash of the canonical SAM mask run-length encoding. */

@@ -418,6 +418,8 @@ export type Wan3Ratio = 'adaptive' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
 
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
+  /** Track one selected object across an uploaded video, preserving every source frame. */
+  sam3VideoPrompt?: Sam3VideoPrompt;
   /**
    * FlashVSR delivery resolution on the shorter edge. Source timing and audio are preserved.
    * With a FlashVSR `referenceVideo`, `frames`, `fps`, `width` and `height` may be omitted: the
@@ -874,6 +876,15 @@ export interface Sam3PromptBox {
 }
 
 /** A bounded prompt for the SAM3 image-segmentation workflow. */
+export interface Sam3VideoPrompt extends Omit<Sam3ImagePrompt, 'applyMask' | 'maxInstances'> {
+  /** Zero-based source frame the selection refers to. Defaults to 0. */
+  frameIndex?: number;
+  /** Zero-based candidate in confidence order. Defaults to the best match. */
+  objectIndex?: number;
+  output?: 'mask';
+  edges?: 'hard';
+}
+
 export interface Sam3ImagePrompt {
   points?: Sam3PromptPoint[];
   boxes?: Sam3PromptBox[];

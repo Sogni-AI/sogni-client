@@ -1737,6 +1737,31 @@ A hosted world build renders the paths, moments and collectibles a person chose 
 
 Read `run.waiting.reason` to see what the build needs: `cost_approval_required`, `review_required` or `insufficient_credit`. Each task's `generationId` (a path) or `interactionId` (a moment or collectible) is the World record to publish from the studio once approved.
 
+
+### SAM 3 video selection
+
+`sam3_video_segment_fp16` tracks one selected object across an uploaded video.
+The result is a lossless binary mask MP4 at the original dimensions, frame count
+and frame rate. White selects the object. The server verifies the upload before
+charging; omitted dimensions and timing are taken from that verified source.
+
+```javascript
+const project = await sogni.projects.create({
+  type: "video", network: "fast", modelId: "sam3_video_segment_fp16",
+  positivePrompt: "", numberOfMedia: 1, referenceVideo: videoBytes,
+  sam3VideoPrompt: { text: "unicorn horn", frameIndex: 126 }
+});
+const [maskUrl] = await project.waitForCompletion();
+```
+
+The zero-based `frameIndex` identifies the prompt frame (default 0); tracking
+runs both forward and backward from it. `objectIndex` chooses a text-detected
+candidate in confidence order (default 0). Points and boxes use normalized
+coordinates against the complete source frame. Inputs must be constant-frame-rate
+SDR video, up to 30 seconds, 900 frames, 2560 pixels on either edge and 100 MB.
+
+See `examples/workflow_sam3_video_segment.mjs` for a runnable paid request.
+
 ### SAM 3 object selection
 
 SAM 3 (`sam3_image_segment_bf16`, SDK 5.31.0+) selects objects in an existing

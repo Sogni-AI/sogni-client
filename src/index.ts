@@ -35,6 +35,7 @@ import {
   PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
   PIXAL3D_ORBIT_VIEW_SLOTS,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
+  SAM3_VIDEO_SEGMENT_MODEL_ID,
   calculateVideoFrames,
   getMinimaxH3FramesForAudioDuration,
   getPixal3dOrbitViewSlots,
@@ -47,6 +48,7 @@ import {
   isSegmentationModel,
   isVideoModel,
   isVideoUpscaleModel,
+  isVideoSegmentationModel,
   requiresStartingImage
 } from './Projects/utils/index.js';
 import { SEEDREAM_5_PRO_UNCENSORED_MODEL_ID, isSeedreamModel } from './lib/validation.js';
@@ -64,6 +66,7 @@ import {
   Pixal3dMultiViewImages,
   Pixal3dTemplateVariant,
   Sam3ImagePrompt,
+  Sam3VideoPrompt,
   Sam3PromptBox,
   Sam3PromptPoint,
   Sam3Selection,
@@ -356,6 +359,7 @@ export type {
   Pixal3dMultiViewImages,
   Pixal3dTemplateVariant,
   Sam3ImagePrompt,
+  Sam3VideoPrompt,
   Sam3PromptBox,
   Sam3PromptPoint,
   Sam3Selection,
@@ -509,6 +513,7 @@ export {
   PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
   PIXAL3D_ORBIT_VIEW_SLOTS,
   SAM3_IMAGE_SEGMENT_MODEL_ID,
+  SAM3_VIDEO_SEGMENT_MODEL_ID,
   SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
   calculateVideoFrames,
   getMinimaxH3FramesForAudioDuration,
@@ -523,6 +528,7 @@ export {
   isSeedreamModel,
   isVideoModel,
   isVideoUpscaleModel,
+  isVideoSegmentationModel,
   requiresStartingImage,
   ApiError,
   ApiKeyAuthManager,

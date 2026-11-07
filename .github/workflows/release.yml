@@ -80,6 +80,8 @@ jobs:
         run: node scripts/check-job-reassignment.cjs
       - name: Run SAM 3 image-segment checks
         run: node scripts/check-sam3-image-segment.cjs
+      - name: Run SAM 3 video-segment checks
+        run: node scripts/check-sam3-video-segment.cjs
       - name: Run image enhancement checks
         run: node scripts/check-enhancement.cjs
       - name: Run personal LoRA library checks
