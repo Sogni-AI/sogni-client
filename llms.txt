@@ -761,6 +761,30 @@ const quote = await sogni.projects.estimateVideoCost({
 
 The SDK rejects prompts, TeaCache, trimming, control nets, reference URLs, other reference media, `generateAudio: false`, and `numberOfMedia` other than 1, and it fixes steps to 1. `detailPreference` (`stable` or `sharper`) and `processingSpeed` (`stable` or `faster`) default to `stable`, and `seed` defaults to 0 (`-1` asks for a random seed); only non-default values need Comfy worker 1.0.212 or newer, and none changes the price. Until a compatible worker is connected, the server refuses FlashVSR requests with "FlashVSR video upscaling is not available yet. Please try again later." Hosted chat and durable workflows expose the same operation as the promptless `upscale_video` tool.
 
+### RelayVSR Video Upscaling (promptless, Sogni workers)
+
+`RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID` (`relayvsr_x2_lightx2v_int8_convrot`) and `RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID` (`relayvsr_x4_int8_convrot`) upscale one finished video to 1080p, 1440p, or 2160p on its short edge. The request is the same as FlashVSR's: one `referenceVideo`, `upscaleResolution`, `numberOfMedia: 1`, and an empty prompt. The output keeps every source frame, the exact frame rate, the full aspect ratio, and the original audio.
+
+X2 takes a source up to 1080x1920 pixels (either orientation) and delivers at most twice its size; X4 takes a source up to 540x960 and delivers at most four times its size. The target must be larger than the source's short edge, and the output's long edge can be at most 3840px, so 2160p needs a source short edge of exactly 1080px on X2 or 540px on X4. Frame rate, file size and format limits match FlashVSR's, and the server enforces the maximum clip length.
+
+```javascript
+import fs from 'node:fs';
+import { RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID } from '@sogni-ai/sogni-client';
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID,
+  positivePrompt: '',
+  numberOfMedia: 1,
+  referenceVideo: fs.readFileSync('./clip-1080p.mp4'),
+  upscaleResolution: 2160 // 1080 | 1440 | 2160: the output's short edge
+});
+const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the original audio
+```
+
+`isRelayVsrModel(modelId)` detects both models, and `isVideoUpscaleModel(modelId)` covers them too. The SDK refuses `detailPreference`, `processingSpeed`, and `seed` for RelayVSR. Quote it the same way as FlashVSR, with the output `width`/`height` and `sourceWidth`/`sourceHeight`; the price follows the source's size and length, not the target. In hosted chat and durable workflows, set `model: 'relayvsr'` on `upscale_video`; the server picks X2 when the target is at most twice the source's short edge and X4 otherwise. FlashVSR stays the tool's default.
+
 ---
 
 ## 6. Audio Generation (MiniMax Music 3, ACE-Step 1.5)
@@ -969,7 +993,7 @@ Canonical hosted creative-tool surface (`SogniTools.all`, 27 tools, executed ser
 
 - `generate_image`, `edit_image`, `generate_video`, `generate_music`, `generate_speech`, `sound_to_video`, `video_to_video` (generation)
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` (image-edit adapters)
-- `upscale_image`, `upscale_video` (promptless RTX VSR image and FlashVSR 1080p/1440p video upscaling; `upscale_video` takes one generated or uploaded video by `sourceVideoIndex` plus an optional `targetResolution` of 1080 or 1440, and optional `detailPreference`, `processingSpeed` and `seed`)
+- `upscale_image`, `upscale_video` (promptless RTX VSR image and FlashVSR 1080p/1440p video upscaling; `upscale_video` takes one generated or uploaded video by `sourceVideoIndex` plus an optional `targetResolution` of 1080 or 1440, and optional `detailPreference`, `processingSpeed` and `seed`; optional `model: 'relayvsr'` reaches 2160 and takes none of those three)
 - `animate_photo` (image-to-video with multi-source fan-out via `sourceImageIndices`; composed into one MP4 by default — opt out with `stitched: false`)
 - `stitch_video`, `orbit_video`, `dance_montage` (server-side composition into a single MP4)
 - `extend_video`, `replace_video_segment` (append or replace bounded windows; replacements can trim source windows with `replacementStartSeconds` / `replacementEndSeconds`)
@@ -1001,7 +1025,7 @@ Default generation models used by platform tools:
 | `generate_video` | ltx25-22b-int8_t2v_distilled / ltx25-22b-int8_i2v_distilled / LTX 2.3 rollback / Seedance selectors | Text-to-video or image-to-video |
 | `sound_to_video` | ltx25-22b-int8_a2v_distilled / ltx25-22b-int8_ia2v_distilled / LTX 2.3 rollback | Audio-driven video generation |
 | `video_to_video` | ltx25-22b-int8_v2v_distilled / ltx25-22b-int8_v2v_dev / LTX 2.3 rollback / Seedance / WAN animate | Video transformation / motion transfer |
-| `upscale_video` | flashvsr_v1.1_tiny_long_bf16 | Promptless 1080p/1440p video upscale preserving frames, frame rate, and audio |
+| `upscale_video` | flashvsr_v1.1_tiny_long_bf16; `model: 'relayvsr'`: relayvsr_x2_lightx2v_int8_convrot, relayvsr_x4_int8_convrot | Promptless video upscale preserving frames, frame rate, and audio: 1080p/1440p, or up to 2160p with RelayVSR |
 | `generate_music` | minimax_music3 | MiniMax Music 3; ACE-Step 1.5 when named |
 
 ---
@@ -1156,7 +1180,7 @@ and `referenceVideoDurationSeconds` for the assets the job will actually submit.
 MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier, FastH3 Reference included (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 MiniMax H3 bills reference-video duration at the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output
 (on the two-stage Reference ids, $0.08/s at every output class, 2K included);
-unrelated models ignore these fields. Quote MiniMax H3 two-stage output with the `_2stage` model ID and the canvas the job renders (672x384, 960x544 or 1344x768). For a FlashVSR upscale estimate, pass the output `width`/`height`, the
+unrelated models ignore these fields. Quote MiniMax H3 two-stage output with the `_2stage` model ID and the canvas the job renders (672x384, 960x544 or 1344x768). For a FlashVSR or RelayVSR upscale estimate, pass the output `width`/`height`, the
 source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the
 verified uploaded source.
 
@@ -1185,7 +1209,7 @@ interface VideoProjectParams {
   referenceImage?: File | Buffer | Blob;
   referenceAudio?: File | Buffer | Blob;
   referenceVideo?: File | Buffer | Blob;
-  upscaleResolution?: 1080 | 1440; // FlashVSR upscale only: output short edge
+  upscaleResolution?: 1080 | 1440 | 2160; // Video upscale only: output short edge; 2160 is RelayVSR only
   // ... see llms-full.txt for complete list
 }
 

@@ -455,6 +455,7 @@ export function isComfyModel(modelId: string): boolean {
     'flux3_',
     'rtx_vsr_',
     'flashvsr_',
+    'relayvsr_',
     'wan_',
     'ace_step',
     'minimax_music3',

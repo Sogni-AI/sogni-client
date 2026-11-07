@@ -111,8 +111,18 @@ export function isVideoSegmentationModel(modelId: string): boolean {
 /** Standalone, promptless enhancement of a finished video. */
 export const FLASHVSR_VIDEO_UPSCALE_MODEL_ID = 'flashvsr_v1.1_tiny_long_bf16';
 
+/** RelayVSR: promptless upscaling at a fixed 2x or 4x, up to 2160p. */
+export const RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID = 'relayvsr_x2_lightx2v_int8_convrot';
+export const RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID = 'relayvsr_x4_int8_convrot';
+
+export function isRelayVsrModel(modelId: string): boolean {
+  return (
+    modelId === RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID || modelId === RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID
+  );
+}
+
 export function isVideoUpscaleModel(modelId: string): boolean {
-  return modelId === FLASHVSR_VIDEO_UPSCALE_MODEL_ID;
+  return modelId === FLASHVSR_VIDEO_UPSCALE_MODEL_ID || isRelayVsrModel(modelId);
 }
 
 /**

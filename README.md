@@ -1367,6 +1367,7 @@ Example model IDs:
 - `minimax-h3-ref2va-fp8_r2v_2stage` / `minimax-h3-ref2va-fp8_r2v_balanced_2stage` (MiniMax H3 Two-Stage Reference-to-Video: the Standard 20-step or Balanced 8-step Ref2VA request, delivered at twice the canvas with the same length, audio and references; the same 384/544/768 px canvas choices as the FastH3 Two-Stage ids)
 - `minimax-h3-fastvideo-omni-int8_r2v_turbo` / `minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage` (MiniMax H3 FastH3 Reference: FastVideo's FastH3 Omni, the FastH3 tier's Reference-to-Video on its own distilled checkpoint, with the same references, catalog LoRAs and Personal LoRAs as the other r2v ids; omit `steps`, since it is not a four-step Turbo id despite the suffix. The `_2stage` id takes the same request and delivers twice the canvas)
 - `flashvsr_v1.1_tiny_long_bf16` (FlashVSR v1.1 promptless 1080p/1440p video upscaling of one finished video)
+- `relayvsr_x2_lightx2v_int8_convrot`, `relayvsr_x4_int8_convrot` (RelayVSR 2x and 4x promptless video upscaling up to 2160p of one finished video)
 
 The repository does not bundle sample prompts or input media for the 10Eros model. Creators
 who choose to use it must provide their own prompt and image to
@@ -1385,8 +1386,8 @@ When creating video projects, you can specify:
 - `steps` - Increase inference steps to increase quality
 - `seed` - Random seed for reproducibility
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
-- `referenceVideo` - Reference video for animate and v2v workflows, and the source video for FlashVSR upscaling
-- `upscaleResolution` - FlashVSR only: output short edge, `1080` or `1440`
+- `referenceVideo` - Reference video for animate and v2v workflows, and the source video for FlashVSR and RelayVSR upscaling
+- `upscaleResolution` - Video upscaling only: output short edge, `1080` or `1440`, or `2160` on RelayVSR
 - `referenceVideoDurations` - Optional MiniMax H3 r2v duration hints in `[referenceVideo, ...referenceVideos]` order for early client-side validation; Socket probes the uploaded files and uses measured durations for pricing and admission
 - `referenceVideoCompression` - Legacy MiniMax H3 reference-video preference (`'none'` or `'vpack'`), retained for compatibility. Current services select compression automatically; this field no longer selects compression. Leave it unset for new requests.
 - `referenceAudio` - Reference audio for sound-to-video workflows (s2v, ia2v, flfa2v, a2v)
@@ -1620,6 +1621,30 @@ const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the origina
 
 To show a price first, call `estimateVideoCost()` with the output `width`/`height` (the source scaled so its short edge equals the target, both edges rounded to even pixels), the source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the verified source. In hosted chat and durable workflows, the same operation is the promptless `upscale_video` tool.
 
+### Video Upscale Example (RelayVSR)
+
+`RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID` (`relayvsr_x2_lightx2v_int8_convrot`) and `RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID` (`relayvsr_x4_int8_convrot`) upscale one finished video to 1080p, 1440p, or 2160p on its short edge. The request is the same as FlashVSR's: one `referenceVideo`, `upscaleResolution`, `numberOfMedia: 1`, and an empty prompt. The output keeps every source frame, the exact frame rate, the full aspect ratio, and the original audio.
+
+X2 takes a source up to 1080x1920 pixels (either orientation) and delivers at most twice its size; X4 takes a source up to 540x960 and delivers at most four times its size. The target must be larger than the source's short edge, and the output's long edge can be at most 3840px, so 2160p needs a source short edge of exactly 1080px on X2 or 540px on X4. Frame rate, file size and format limits match FlashVSR's, and the server enforces the maximum clip length.
+
+```javascript
+import fs from 'node:fs';
+import { RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID } from '@sogni-ai/sogni-client';
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID,
+  positivePrompt: '',
+  numberOfMedia: 1,
+  referenceVideo: fs.readFileSync('./clip-1080p.mp4'),
+  upscaleResolution: 2160 // 1080 | 1440 | 2160: the output's short edge
+});
+const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the original audio
+```
+
+`isRelayVsrModel(modelId)` detects both models, and `isVideoUpscaleModel(modelId)` covers them too. The SDK refuses `detailPreference`, `processingSpeed`, and `seed` for RelayVSR. Quote it the same way as FlashVSR, with the output `width`/`height` and `sourceWidth`/`sourceHeight`; the price follows the source's size and length, not the target. In hosted chat and durable workflows, set `model: 'relayvsr'` on `upscale_video`; the server picks X2 when the target is at most twice the source's short edge and X4 otherwise. FlashVSR stays the tool's default.
+
 ## LLM Text Generation & Tool Calling
 
 The Sogni SDK supports LLM text generation through the Sogni Supernet, providing an OpenAI-compatible chat completions API with streaming, multi-turn conversations, and tool calling (function calling).
@@ -1692,7 +1717,7 @@ Combine LLM intelligence with Sogni's media generation capabilities. The SDK exp
 
 - **Generation** — `generate_image`, `edit_image`, `generate_video`, `sound_to_video`, `video_to_video`, `generate_music`, `generate_speech`
 - **Image adapters** — `restore_photo`, `apply_style`, `refine_result`, `change_angle`, `animate_photo` (image-to-video with multi-source fan-out)
-- **Upscaling** — `upscale_image` (promptless RTX VSR), `upscale_video` (promptless FlashVSR 1080p/1440p video upscale that keeps every frame, the frame rate, and the original audio)
+- **Upscaling** — `upscale_image` (promptless RTX VSR), `upscale_video` (promptless FlashVSR 1080p/1440p video upscale, or RelayVSR up to 2160p by `model: 'relayvsr'`, that keeps every frame, the frame rate, and the original audio)
 - **Video composition / post-production** — `stitch_video`, `orbit_video`, `dance_montage`, `extend_video`, `replace_video_segment`, `overlay_video`, `add_subtitles`
 - **Synchronous composition and planning** — `enhance_prompt`, `compose_script`, `compose_lyrics`, `compose_instrumental`, `compose_workflow`, `compose_workflow_template`
 

@@ -86,6 +86,7 @@
     "test:pixal3d-artifact": "npm run build && node scripts/check-pixal3d-artifact.cjs",
     "test:birefnet-background-removal": "npm run build && node scripts/check-birefnet-background-removal.cjs",
     "test:flashvsr-video": "npm run build && node scripts/check-flashvsr-video.cjs",
+    "test:relayvsr-video": "npm run build && node scripts/check-relayvsr-video.cjs",
     "test:capability-exports": "npm run build && node scripts/check-capability-exports.cjs",
     "test:generation-receipt-transport": "npm run build && node scripts/check-generation-receipt-transport.cjs",
     "test:prompt-expansion": "npm run build && node scripts/check-prompt-expansion-transport.cjs",

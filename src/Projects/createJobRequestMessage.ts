@@ -34,6 +34,7 @@ import {
   getVideoWorkflowType,
   getVideoAssetRequirements,
   isVideoModel,
+  isRelayVsrModel,
   isVideoUpscaleModel,
   isVideoSegmentationModel,
   calculateVideoFrames,
@@ -1688,7 +1689,7 @@ const VIDEO_UPSCALE_TIMING_ERROR =
   'Omit the source timing, or supply the source video’s exact frame count and frame rate.';
 
 /**
- * FlashVSR source timing is optional. The server probes the uploaded video and
+ * Upscale source timing is optional. The server probes the uploaded video and
  * adopts its exact frame count and frame rate when they are omitted; values a
  * caller does send must describe the source and are checked against it.
  *
@@ -1829,27 +1830,45 @@ function applyVideoParams(
   if (params.sam3VideoPrompt !== undefined)
     throw new Error('sam3VideoPrompt requires the SAM 3 video selection model.');
   if (isVideoUpscaleModel(params.modelId)) {
-    if (
-      params.detailPreference != null &&
-      !['stable', 'sharper'].includes(params.detailPreference)
-    ) {
-      throw new Error('FlashVSR detailPreference must be stable or sharper.');
-    }
-    if (params.processingSpeed != null && !['stable', 'faster'].includes(params.processingSpeed)) {
-      throw new Error('FlashVSR processingSpeed must be stable or faster.');
-    }
-    const seed = params.seed ?? 0;
-    if (!Number.isInteger(seed) || seed < -1 || seed > 4294967295) {
-      throw new Error('FlashVSR seed must be -1 (random) or an integer from 0 through 4294967295.');
+    const relayVsr = isRelayVsrModel(params.modelId);
+    const upscalerName = relayVsr ? 'RelayVSR' : 'FlashVSR';
+    if (relayVsr) {
+      if (params.detailPreference != null) throw new Error('RelayVSR has no detailPreference.');
+      if (params.processingSpeed != null) throw new Error('RelayVSR has no processingSpeed.');
+      if (params.seed != null) throw new Error('RelayVSR has no seed.');
+    } else {
+      if (
+        params.detailPreference != null &&
+        !['stable', 'sharper'].includes(params.detailPreference)
+      ) {
+        throw new Error('FlashVSR detailPreference must be stable or sharper.');
+      }
+      if (
+        params.processingSpeed != null &&
+        !['stable', 'faster'].includes(params.processingSpeed)
+      ) {
+        throw new Error('FlashVSR processingSpeed must be stable or faster.');
+      }
+      const seed = params.seed ?? 0;
+      if (!Number.isInteger(seed) || seed < -1 || seed > 4294967295) {
+        throw new Error(
+          'FlashVSR seed must be -1 (random) or an integer from 0 through 4294967295.'
+        );
+      }
     }
     const resolution =
       params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
-    if (![1080, 1440].includes(resolution))
+    if (relayVsr) {
+      if (![1080, 1440, 2160].includes(resolution))
+        throw new Error('Choose 1080p, 1440p or 2160p for RelayVSR video upscaling.');
+    } else if (![1080, 1440].includes(resolution)) {
       throw new Error('Choose 1080p or 1440p for video upscaling.');
-    if (!params.referenceVideo) throw new Error('FlashVSR requires an uploaded referenceVideo.');
+    }
+    if (!params.referenceVideo)
+      throw new Error(`${upscalerName} requires an uploaded referenceVideo.`);
     validateVideoUpscaleTiming(params);
     if (params.positivePrompt?.trim() || params.negativePrompt?.trim())
-      throw new Error('FlashVSR is promptless.');
+      throw new Error(`${upscalerName} is promptless.`);
     if (
       params.teacacheThreshold != null ||
       params.trimEndFrame ||
@@ -2016,7 +2035,7 @@ function applyVideoParams(
             : isSeedanceModel(params.modelId)
               ? 4
               : 1;
-    // FlashVSR has no client-side maximum: the server's admission check owns
+    // Video upscaling has no client-side maximum: the server's admission check owns
     // the longest source it accepts and refuses a longer one itself.
     const duration = isVideoUpscaleModel(params.modelId)
       ? validateNumber(params.duration, { min: minDuration, propertyName: 'Video duration' })
@@ -2107,8 +2126,10 @@ function applyVideoParams(
       params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
     keyFrame.steps = 1;
     keyFrame.seed = params.seed ?? 0;
-    keyFrame.detailPreference = params.detailPreference ?? 'stable';
-    keyFrame.processingSpeed = params.processingSpeed ?? 'stable';
+    if (!isRelayVsrModel(params.modelId)) {
+      keyFrame.detailPreference = params.detailPreference ?? 'stable';
+      keyFrame.processingSpeed = params.processingSpeed ?? 'stable';
+    }
     keyFrame.generateAudio = true;
     keyFrame.interpolation = 'none';
   }

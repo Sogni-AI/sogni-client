@@ -510,14 +510,15 @@ export interface VideoProjectParams extends BaseProjectParams {
   /** Track one selected object across an uploaded video, preserving every source frame. */
   sam3VideoPrompt?: Sam3VideoPrompt;
   /**
-   * FlashVSR delivery resolution on the shorter edge. Source timing and audio are preserved.
-   * With a FlashVSR `referenceVideo`, `frames`, `fps`, `width` and `height` may be omitted: the
-   * server adopts the verified source's values. Values that are sent must match the source.
+   * FlashVSR or RelayVSR delivery resolution on the shorter edge; 2160 is RelayVSR only. Source
+   * timing and audio are preserved. With an upscale `referenceVideo`, `frames`, `fps`, `width` and
+   * `height` may be omitted: the server adopts the verified source's values. Values that are sent
+   * must match the source.
    */
-  upscaleResolution?: 1080 | 1440;
-  /** FlashVSR detail preference. Defaults to stable (More Stable). */
+  upscaleResolution?: 1080 | 1440 | 2160;
+  /** FlashVSR detail preference. Defaults to stable (More Stable). RelayVSR refuses it. */
   detailPreference?: 'stable' | 'sharper';
-  /** FlashVSR processing speed. Defaults to stable (More Stable). */
+  /** FlashVSR processing speed. Defaults to stable (More Stable). RelayVSR refuses it. */
   processingSpeed?: 'stable' | 'faster';
   /**
    * Number of frames to generate. Most requests pass `duration` instead and let
@@ -525,7 +526,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * it). Pass `frames` when positions inside the clip must be exact, as with
    * MiniMax H3 `keyframes`, whose `frameIndex` values must fit the count; H3
    * takes `124 + n*17` (124, 141, 158, ... 362). When both are passed,
-   * `duration` wins, except on FlashVSR upscales.
+   * `duration` wins, except on video upscales.
    */
   frames?: number;
   /**
@@ -1599,7 +1600,7 @@ export interface VideoEstimateRequest {
   includeMonthlyFairUse?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
-  /** FlashVSR source geometry for an estimate. The server verifies the uploaded file at admission. */
+  /** Video upscale source geometry for an estimate. The server verifies the uploaded file at admission. */
   sourceWidth?: number;
   sourceHeight?: number;
   tokenType: TokenType;

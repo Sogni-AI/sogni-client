@@ -246,6 +246,11 @@ The SDK supports two families of video models with **fundamentally different FPS
 - Minimal call: `referenceVideo` + `upscaleResolution` + `numberOfMedia: 1` + empty prompt. `frames`, `fps`, `width` and `height` are optional; the server probes the upload and adopts the verified source values, and rejects only values a caller sent that conflict with the source. The SDK sets no frame-count or duration limit: the server enforces the maximum clip length and returns a clear error for a source that is too long. Estimates take the output size, the source's `frames`/`fps`, and `sourceWidth`/`sourceHeight`.
 - `isVideoUpscaleModel()` detects it; `getVideoWorkflowType()` returns `'upscale'`. Hosted chat/workflows expose it as the `upscale_video` tool.
 
+**RelayVSR** (`RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID`, `RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID`) takes the same request and adds `upscaleResolution: 2160`:
+- Opt-in by model id; FlashVSR stays the `upscale_video` default. `model: 'relayvsr'` on the hosted tool selects it.
+- X2 takes sources up to 1080x1920 and delivers at most twice their size; X4 takes sources up to 540x960 and delivers at most four times. Output long edge at most 3840px. The server checks these against the probed source.
+- The SDK refuses `detailPreference`, `processingSpeed` and `seed`, fixes seed to 0, and sends neither option on the wire. `isRelayVsrModel()` detects both; `isVideoUpscaleModel()` covers them.
+
 ### Key Files
 - `src/Projects/utils/index.ts` - `isWanModel()`, `isLtx2Model()`, `calculateVideoFrames()`
 - `src/Projects/createJobRequestMessage.ts` - Uses `calculateVideoFrames()` for duration→frames conversion
@@ -409,7 +414,7 @@ const urls = await project.waitForCompletion();
 | Audio-to-Video | `*_a2v*` (LTX-2.3, MiniMax H3 FastH3) | `referenceAudio` |
 | Animate-Move | `*_animate-move*` | `referenceImage` + `referenceVideo` |
 | Animate-Replace | `*_animate-replace*` | `referenceImage` + `referenceVideo` |
-| Video Upscale | `flashvsr_*` | exactly one `referenceVideo` (promptless) |
+| Video Upscale | `flashvsr_*`, `relayvsr_*` | exactly one `referenceVideo` (promptless) |
 
 ## LLM Chat — Thinking Models & Tool Calling
 

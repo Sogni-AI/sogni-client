@@ -1652,6 +1652,29 @@ optional `targetResolution` 1080 or 1440, and optional `detailPreference`,
 `processingSpeed` and `seed`); the server reads the source metadata
 itself, so the model never supplies frames or fps.
 
+RELAYVSR VIDEO UPSCALING:
+`RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID` (`relayvsr_x2_lightx2v_int8_convrot`) and `RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID` (`relayvsr_x4_int8_convrot`) upscale one finished video to 1080p, 1440p, or 2160p on its short edge. The request is the same as FlashVSR's: one `referenceVideo`, `upscaleResolution`, `numberOfMedia: 1`, and an empty prompt. The output keeps every source frame, the exact frame rate, the full aspect ratio, and the original audio.
+
+X2 takes a source up to 1080x1920 pixels (either orientation) and delivers at most twice its size; X4 takes a source up to 540x960 and delivers at most four times its size. The target must be larger than the source's short edge, and the output's long edge can be at most 3840px, so 2160p needs a source short edge of exactly 1080px on X2 or 540px on X4. Frame rate, file size and format limits match FlashVSR's, and the server enforces the maximum clip length.
+
+```javascript
+import fs from 'node:fs';
+import { RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID } from '@sogni-ai/sogni-client';
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID,
+  positivePrompt: '',
+  numberOfMedia: 1,
+  referenceVideo: fs.readFileSync('./clip-1080p.mp4'),
+  upscaleResolution: 2160 // 1080 | 1440 | 2160: the output's short edge
+});
+const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the original audio
+```
+
+`isRelayVsrModel(modelId)` detects both models, and `isVideoUpscaleModel(modelId)` covers them too. The SDK refuses `detailPreference`, `processingSpeed`, and `seed` for RelayVSR. Quote it the same way as FlashVSR, with the output `width`/`height` and `sourceWidth`/`sourceHeight`; the price follows the source's size and length, not the target. In hosted chat and durable workflows, set `model: 'relayvsr'` on `upscale_video`; the server picks X2 when the target is at most twice the source's short edge and X4 otherwise. FlashVSR stays the tool's default.
+
 ================================================================================ 8. AUDIO GENERATION - MINIMAX MUSIC 3 AND ACE-STEP 1.5 MODELS
 ================================================================================
 
@@ -2132,7 +2155,7 @@ The full hosted surface executes server-side via `sogni.chat.hosted.create()` / 
 - `generate_image`, `edit_image`, `generate_video`, `generate_music`, `generate_speech`, `sound_to_video`, `video_to_video` — core media-generation tools with creative-agent naming.
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` — image-edit adapters backed by the shared image-edit workflow.
 - `upscale_image` — promptless RTX VSR image enlargement.
-- `upscale_video` — promptless FlashVSR upscale of one generated or uploaded video (`sourceVideoIndex`) to 1080p or 1440p (`targetResolution`), with optional `detailPreference`, `processingSpeed` and `seed`, keeping every frame, the frame rate, and the original audio. Use it instead of `video_to_video` when the user only wants more resolution.
+- `upscale_video` — promptless FlashVSR upscale of one generated or uploaded video (`sourceVideoIndex`) to 1080p or 1440p (`targetResolution`), with optional `detailPreference`, `processingSpeed` and `seed`, or up to 2160p with `model: 'relayvsr'`, which takes none of those three, keeping every frame, the frame rate, and the original audio. Use it instead of `video_to_video` when the user only wants more resolution.
 - `animate_photo` — image-to-video, with multi-source fan-out via `sourceImageIndices`. Fan-out (>1 source image) is composed into one MP4 by default; opt out with `stitched: false` for a flat clip list.
 - `stitch_video` — concatenate selected video clips (with optional audio overlay via `audioIndex`) into one MP4.
 - `orbit_video` — generate orbit clips around a subject and stitch them into one MP4.
@@ -2435,8 +2458,8 @@ VIDEO-SPECIFIC PARAMETERS:
   lastFrameStrength?: number;   // LTX-2.3 only (0-1)
   trimEndFrame?: boolean;
   controlNet?: VideoControlNetParams;  // LTX-2.3 only
-  upscaleResolution?: 1080 | 1440;  // FlashVSR upscale only: output short edge
-  frames?: number;           // Exact frame count (MiniMax H3: 124 + n*17; pass it with keyframes); FlashVSR upscale: optional, must equal the source's count
+  upscaleResolution?: 1080 | 1440 | 2160;  // Video upscale only: output short edge; 2160 is RelayVSR only
+  frames?: number;           // Exact frame count (MiniMax H3: 124 + n*17; pass it with keyframes); video upscale: optional, must equal the source's count
   outputFormat?: 'mp4';
 }
 ```
@@ -2698,7 +2721,7 @@ MiniMax H3 keyframe pricing: the first two keyframes are included; each extra ke
 Quote MiniMax H3 two-stage output with the `_2stage` model id and the canvas
 the job renders (672x384 for 720p, 960x544 for 1080p, 1344x768 for 2K).
 
-For a FlashVSR upscale estimate, pass the output `width`/`height`, the source's
+For a FlashVSR or RelayVSR upscale estimate, pass the output `width`/`height`, the source's
 `frames` and `fps`, `steps: 1`, `numberOfMedia: 1`, and
 `sourceWidth`/`sourceHeight` (see FLASHVSR VIDEO UPSCALING). The project itself
 is charged from the verified uploaded source.
@@ -2887,7 +2910,7 @@ interface VideoProjectParams extends BaseProjectParams {
   lastFrameStrength?: number;
   outputFormat?: 'mp4';
   controlNet?: VideoControlNetParams;
-  upscaleResolution?: 1080 | 1440; // FlashVSR upscale only
+  upscaleResolution?: 1080 | 1440 | 2160; // Video upscale only; 2160 is RelayVSR only
 }
 ```
 
