@@ -9,6 +9,8 @@ export interface EstimationResponse {
    * only to a signed-in subscriber whose plan covers the project on Fast.
    */
   dailyFairUse?: { pct: number };
+  /** Optional monthly capacity share requested by the caller. */
+  monthlyFairUse?: { pct: number };
 }
 
 export interface Benchmark {

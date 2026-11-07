@@ -92,7 +92,12 @@ import {
 import { getFileContentType } from './utils/fileContentType.js';
 import { TokenType } from '../types/token.js';
 import type { JobProvenance } from './types/JobProvenance.js';
-import { getMaxContextImages, validateSampler, isGptImageModel, resolveGptImageGifSize } from '../lib/validation.js';
+import {
+  getMaxContextImages,
+  validateSampler,
+  isGptImageModel,
+  resolveGptImageGifSize
+} from '../lib/validation.js';
 import ModelTiersRaw, {
   isAudioTier,
   isComfyImageTier,
@@ -3349,7 +3354,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     gptImageComplexity,
     outputFormat,
     billingMode,
-    priorityMode
+    priorityMode,
+    includeMonthlyFairUse
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const modelOptions = await this.getModelOptions(model);
@@ -3389,12 +3395,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     const queryParams = new URLSearchParams();
     if (gptImageQuality) queryParams.set('gptImageQuality', gptImageQuality);
-    if (gptImageFrameCount !== undefined) queryParams.set('gptImageFrameCount', String(gptImageFrameCount));
-    if (gptImageFrameDurationMs !== undefined) queryParams.set('gptImageFrameDurationMs', String(gptImageFrameDurationMs));
+    if (gptImageFrameCount !== undefined)
+      queryParams.set('gptImageFrameCount', String(gptImageFrameCount));
+    if (gptImageFrameDurationMs !== undefined)
+      queryParams.set('gptImageFrameDurationMs', String(gptImageFrameDurationMs));
     if (gptImageComplexity !== undefined) queryParams.set('gptImageComplexity', gptImageComplexity);
     if (outputFormat) queryParams.set('outputFormat', outputFormat);
     if (billingMode) queryParams.set('billingMode', billingMode);
     if (priorityMode !== undefined) queryParams.set('priorityMode', String(priorityMode));
+    if (includeMonthlyFairUse === true) queryParams.set('includeMonthlyFairUse', 'true');
     const query = queryParams.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}${query ? `?${query}` : ''}`
@@ -3406,7 +3415,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
       estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
-      dailyFairUsePct: r.dailyFairUse?.pct
+      dailyFairUsePct: r.dailyFairUse?.pct,
+      ...(r.monthlyFairUse ? { monthlyFairUsePct: r.monthlyFairUse.pct } : {})
     };
   }
 
@@ -3528,6 +3538,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (network) query.set('network', network);
     if (params.billingMode) query.set('billingMode', params.billingMode);
     if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
+    if (params.includeMonthlyFairUse === true) query.set('includeMonthlyFairUse', 'true');
     if (params.seedanceDraft === true) query.set('seedanceDraft', '1');
     if (params.seedanceDraftJobId !== undefined) {
       query.set('seedanceDraftJobId', params.seedanceDraftJobId);
@@ -3543,7 +3554,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
       estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
-      dailyFairUsePct: r.dailyFairUse?.pct
+      dailyFairUsePct: r.dailyFairUse?.pct,
+      ...(r.monthlyFairUse ? { monthlyFairUsePct: r.monthlyFairUse.pct } : {})
     };
   }
 
@@ -3573,6 +3585,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (network) query.set('network', network);
     if (params.billingMode) query.set('billingMode', params.billingMode);
     if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
+    if (params.includeMonthlyFairUse === true) query.set('includeMonthlyFairUse', 'true');
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-audio/estimate/${path}${queryString ? `?${queryString}` : ''}`
@@ -3584,7 +3597,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
       estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
-      dailyFairUsePct: r.dailyFairUse?.pct
+      dailyFairUsePct: r.dailyFairUse?.pct,
+      ...(r.monthlyFairUse ? { monthlyFairUsePct: r.monthlyFairUse.pct } : {})
     };
   }
 
