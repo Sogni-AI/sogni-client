@@ -8,6 +8,12 @@ for (const modelId of ['gpt-image-2.6-sunburst', 'gpt-image-2.6-flare']) {
   const args = { model: modelId, prompt: 'A lantern gently sways in a seamless loop', outputFormat: 'gif', gptImageFrameCount: 9, gptImageFrameDurationMs: 200, gptImageComplexity: 'medium' };
   assert.equal(resolveHostedToolModelSelector('generate_image', args), modelId);
   assertHostedToolArguments(SogniTools.all, 'generate_image', args, { skipEnumProperties: [] });
+  const editArgs = { ...args, sourceImageIndex: -1 };
+  assert.equal(resolveHostedToolModelSelector('edit_image', editArgs), modelId);
+  assertHostedToolArguments(SogniTools.all, 'edit_image', editArgs, { skipEnumProperties: [] });
+  for (const gptImageFrameCount of [1, 17]) {
+    assert.throws(() => assertHostedToolArguments(SogniTools.all, 'edit_image', { ...editArgs, gptImageFrameCount }, { skipEnumProperties: [] }), /gptImageFrameCount/);
+  }
   const request = create('gif-wire', { ...args, modelId, type: 'image', positivePrompt: args.prompt, numberOfMedia: 1 }, options);
   assert.equal(request.outputFormat, 'gif');
   assert.equal(request.keyFrames[0].width, 896);
@@ -41,8 +47,12 @@ console.log('GPT Image 2.6: hosted contract, concrete GIF defaults, wire options
   for (const sdk of [require('../dist/index.js'), esm]) {
     const format = sdk.SogniTools.generateImage.function.parameters.properties.outputFormat;
     assert.equal(format.description, canonicalFormat.description);
-    assert.match(format.description, /GIF requires GPT Image 2\.6 text-to-image/);
+    assert.match(format.description, /Use edit_image when reference images guide the animation/);
     assert.ok(format.enum.includes('gif'));
+    const edit = sdk.SogniTools.editImage.function.parameters.properties;
+    assert.ok(edit.outputFormat.enum.includes('gif'));
+    assert.deepEqual(edit.gptImageFrameCount, sdk.SogniTools.generateImage.function.parameters.properties.gptImageFrameCount);
+    assert.deepEqual(edit.gptImageFrameDurationMs, sdk.SogniTools.generateImage.function.parameters.properties.gptImageFrameDurationMs);
   }
   const Projects = require('../dist/Projects/index.js').default;
   for (const input of [{}, { sizePreset: 'custom' }, { width: 320, height: 320, sizePreset: '1024x1024' }, { contextImages: 2 }]) {

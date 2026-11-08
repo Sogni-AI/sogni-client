@@ -13,7 +13,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_image",
       "sdkToolName": "generate_image",
-      "hostedSchemaSha256": "cf8abb37aa63f80a551e708848eb1da71cf66588c4550bcf80812525f1e4673e",
+      "hostedSchemaSha256": "8a7862ee2491081c3c0526e7a47d856d6fe0d3495e07d40cd9f88d02682d2d5b",
       "hostedRequired": [
         "prompt"
       ],
@@ -56,7 +56,7 @@
       "executionMode": "direct",
       "hostedToolName": "edit_image",
       "sdkToolName": "edit_image",
-      "hostedSchemaSha256": "2cedbec86cb0fa02fe3be94cdfb8a2203b9e18685a18511c66ad44d8c98f8856",
+      "hostedSchemaSha256": "75e53234c61ea54e6c2cb447ed2dae41316d28a99e813d1c82dedb8392a6b95c",
       "hostedRequired": [
         "prompt"
       ],
@@ -77,7 +77,9 @@
         "loras",
         "loraStrengths",
         "gptImageComplexity",
-        "markup_image_url"
+        "markup_image_url",
+        "gptImageFrameCount",
+        "gptImageFrameDurationMs"
       ],
       "argumentAliasTargets": [
         "prompt",
