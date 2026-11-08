@@ -342,6 +342,42 @@ async function main() {
     stopTimers(api);
   }
 
+  // 3b. A finished Seedream layer decomposition replays its layers with its
+  //     result, from the socket's persisted job result.
+  {
+    const { api, socket, client, apiEvents } = makeHarness();
+    const project = await createTracked(api);
+    const layer = {
+      url: 'https://cdn.test/layer-1.png',
+      key: 'vendor/bytedance/seedream-5-0-pro-uncensored/2026-10-22/job.layer-1.png',
+      width: 640,
+      height: 480,
+      zIndex: 1,
+      boundingBox: { absolute: [0, 0, 640, 480], normalized: [0, 0, 500, 500] },
+      name: 'Background'
+    };
+    client.emit('connected', { network: 'fast' });
+    socket.emit('authenticated', {
+      clientType: 'artist',
+      activeProjects: [],
+      unclaimedCompletedProjects: [
+        recoveredProject(project.id, {
+          status: 'completed',
+          reason: 'allJobsCompleted',
+          completedWorkerJobs: [
+            { ...completedJob(project.id, 'IMG-L'), result: { layers: [layer] } }
+          ]
+        })
+      ]
+    });
+    await sleep(30);
+    const { key, ...publicLayer } = layer;
+    assert.deepEqual(project.job('IMG-L').layers, [publicLayer]);
+    const jobCompleted = apiEvents.find((e) => e.kind === 'job' && e.type === 'completed');
+    assert.deepEqual(jobCompleted.layers, [publicLayer]);
+    stopTimers(api);
+  }
+
   // 4. An in-flight project this client never saw is rebuilt, tracked and announced.
   {
     const { api, socket, client, recoveredActive } = makeHarness();

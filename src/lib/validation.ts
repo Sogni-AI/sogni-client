@@ -156,9 +156,9 @@ const SEEDREAM_MODEL_IDS = new Set([
   SEEDREAM_5_5_UNCENSORED_MODEL_ID
 ]);
 const SEEDREAM_MAX_CONTEXT_IMAGES = 10;
-// Output limits: 921,600 (1280x720) to 4,194,304 (2048x2048) pixels, aspect
-// ratio from 1:16 to 16:1. Together they bound each edge to 240-8192 px
-// (3840x240 and 8192x512 are the extremes).
+// Output limits: 921,600 (1280x720) to 4,194,304 (2048x2048x1.1025) pixels,
+// aspect ratio from 1:16 to 16:1. Together they bound each edge to 240-8192 px
+// (3840x240 and 8192x538 are the extremes).
 const SEEDREAM_MIN_PIXELS = 921_600;
 const SEEDREAM_MAX_PIXELS = 4_194_304;
 const SEEDREAM_MAX_ASPECT_RATIO = 16;
@@ -170,10 +170,15 @@ export function isSeedreamModel(modelId?: string): boolean {
 
 /**
  * Check a Seedream request before anything is uploaded: at most 10 non-empty
- * reference images, and a custom size inside the pixel and aspect-ratio limits.
+ * reference images, a custom size inside the pixel and aspect-ratio limits,
+ * and the one-reference rule of layer decomposition.
  */
 export function validateSeedreamOptions(params: ImageProjectParams): void {
-  if (!isSeedreamModel(params.modelId)) return;
+  if (!isSeedreamModel(params.modelId)) {
+    if (params.seedreamLayerDecomposition !== undefined || params.seedreamLayerSize !== undefined)
+      throw new Error('Seedream layer options require a Seedream model');
+    return;
+  }
   if (
     params.contextImages !== undefined &&
     (!Array.isArray(params.contextImages) ||
@@ -183,6 +188,27 @@ export function validateSeedreamOptions(params: ImageProjectParams): void {
     throw new Error(
       `${params.modelId} accepts up to ${SEEDREAM_MAX_CONTEXT_IMAGES} non-empty reference images in source order`
     );
+  }
+  const contextImageCount = params.contextImages?.length ?? 0;
+  const layerDecomposition = params.seedreamLayerDecomposition;
+  if (layerDecomposition !== undefined && typeof layerDecomposition !== 'boolean') {
+    throw new Error('seedreamLayerDecomposition must be a boolean');
+  }
+  if (
+    params.seedreamLayerSize !== undefined &&
+    !['1K', '1.5K', '2K'].includes(params.seedreamLayerSize)
+  ) {
+    throw new Error('seedreamLayerSize must be 1K, 1.5K or 2K');
+  }
+  if (params.seedreamLayerSize !== undefined && !layerDecomposition)
+    throw new Error('seedreamLayerSize requires seedreamLayerDecomposition');
+  if (layerDecomposition === true) {
+    if (contextImageCount !== 1) {
+      throw new Error('Seedream layer decomposition splits exactly one reference image');
+    }
+    if ((params.numberOfMedia ?? 1) !== 1) {
+      throw new Error('Seedream layer decomposition renders one result: set numberOfMedia to 1');
+    }
   }
   const isCustomSize =
     (params.sizePreset === undefined || params.sizePreset === 'custom') &&

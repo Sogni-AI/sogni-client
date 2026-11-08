@@ -745,6 +745,27 @@ const project = await sogni.projects.create({
 
 It shares the one-time likeness and consent agreement of Seedance 2.5 Uncensored: an account that has accepted it for Seedance can use Seedream, and until it is accepted in a Sogni app every Seedream job fails with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key: 'seedance-2-5-uncensored', version, modelId: 'seedream-5-0-pro-uncensored' }` and is detected by `isModelConsentRequiredError()`. `isSeedreamModel()` and `SEEDREAM_5_PRO_UNCENSORED_MODEL_ID` are exported from the package root. Hosted chat tools (`generate_image`, `edit_image`) use it only when the call names it.
 
+Layer extraction is opt-in with `seedreamLayerDecomposition: true`, exactly one `contextImages` entry and `numberOfMedia: 1`. Choose `seedreamLayerSize: '1K' | '1.5K' | '2K'` (default `'1.5K'`); the source determines the aspect ratio. The prompt can be empty or name the parts to extract. The estimate reserves the maximum 17 returned images; the final charge uses the base image and layers actually returned.
+
+```javascript
+const split = await sogni.projects.create({
+  type: 'image', network: 'fast', tokenType: 'spark',
+  modelId: 'seedream-5-0-pro-uncensored',
+  contextImages: [sourceImage], numberOfMedia: 1,
+  positivePrompt: 'Separate the subject, lettering and background',
+  seedreamLayerDecomposition: true, seedreamLayerSize: '1.5K'
+});
+await split.waitForCompletion();
+const job = split.jobs[0];
+// job.resultUrl is the base. job.layers contains up to 16 transparent PNGs,
+// ordered by zIndex, with names, dimensions and absolute/normalized bounds.
+for (const layer of job.layers ?? []) {
+  const freshLayerUrl = await job.getLayerUrl(layer.zIndex);
+}
+```
+
+Layer metadata also appears on completed job events and recovered projects. Layer URLs expire; `job.getLayerUrl(zIndex)` refreshes a layer URL after checking ownership. Omitting the extraction options preserves ordinary generation and editing.
+
 ### Detecting available output presets
 
 You can get a list of available output presets for a specific network and model using `sogni.projects.getOutputPresets` method.

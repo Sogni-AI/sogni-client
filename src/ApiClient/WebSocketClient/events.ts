@@ -311,6 +311,8 @@ export type JobResultData = {
   artifacts?: Array<{ contentType?: string; success?: boolean }>;
   /** Allowlisted worker result receipt persisted by the socket. */
   result?: Record<string, unknown>;
+  /** Seedream layer decomposition: the layers above the base image (`resultUrl`). */
+  layers?: unknown[];
   /**
    * @deprecated Use `resultUrl`. Kept for older video worker/socket payload compatibility.
    */

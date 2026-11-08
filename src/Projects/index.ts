@@ -16,7 +16,8 @@ import {
   VideoProjectParams,
   AudioProjectParams,
   VideoEstimateRequest,
-  AudioEstimateRequest
+  AudioEstimateRequest,
+  ImageLayer
 } from './types/index.js';
 import {
   type ArtistCancelConfirmation,
@@ -103,6 +104,7 @@ import {
   usesReferenceMask
 } from './utils/index.js';
 import { getFileContentType } from './utils/fileContentType.js';
+import { imageLayersFromResult } from './utils/imageLayers.js';
 import { TokenType } from '../types/token.js';
 import type { JobProvenance } from './types/JobProvenance.js';
 import {
@@ -1067,6 +1069,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     let seed = data.lastSeed !== undefined ? Number(data.lastSeed) : undefined;
     const provenance = jobProvenanceFromResult(data);
     const seedanceDraftFields = seedanceDraftResultFields(data);
+    const layers = imageLayersFromResult(data.layers);
     if (project) {
       const job = project.job(data.imgID);
       if (job) {
@@ -1097,7 +1100,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           nsfwDetected: data.nsfwDetected === true,
           nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
           userCanceled: Boolean(data.userCanceled),
-          ...(provenance ? { provenance } : {})
+          ...(provenance ? { provenance } : {}),
+          ...(layers ? { layers } : {})
         });
       }
     }
@@ -1118,7 +1122,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       nsfwDetected: data.nsfwDetected === true,
       nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
       userCanceled: Boolean(data.userCanceled),
-      ...(provenance ? { provenance } : {})
+      ...(provenance ? { provenance } : {}),
+      ...(layers ? { layers } : {})
     });
   }
 
@@ -1490,6 +1495,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           nsfwSources: string[];
           userCanceled: boolean;
           provenance?: JobProvenance;
+          layers?: ImageLayer[];
           step?: number;
           seed?: number;
         } = {
@@ -1499,7 +1505,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           nsfwDetected: Boolean(event.nsfwDetected),
           nsfwSources: Array.isArray(event.nsfwSources) ? [...event.nsfwSources] : [],
           userCanceled: event.userCanceled,
-          ...(event.provenance ? { provenance: event.provenance } : {})
+          ...(event.provenance ? { provenance: event.provenance } : {}),
+          ...(event.layers ? { layers: event.layers } : {})
         };
         if (typeof event.steps === 'number') {
           delta.step = event.steps;
@@ -2175,6 +2182,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             : {}),
           ...(job.result && typeof job.result === 'object'
             ? jobProvenanceFromResult(job.result as Partial<JobResultData>)
+            : {}),
+          ...(job.result && typeof job.result === 'object'
+            ? { layers: (job.result as Partial<JobResultData>).layers }
             : {})
         });
         replayRevision = project._queueRevision;
@@ -3517,6 +3527,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     gptImageFrameDurationMs,
     gptImageComplexity,
     outputFormat,
+    seedreamLayerDecomposition,
+    seedreamLayerSize,
     billingMode,
     priorityMode,
     includeMonthlyFairUse
@@ -3565,6 +3577,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       queryParams.set('gptImageFrameDurationMs', String(gptImageFrameDurationMs));
     if (gptImageComplexity !== undefined) queryParams.set('gptImageComplexity', gptImageComplexity);
     if (outputFormat) queryParams.set('outputFormat', outputFormat);
+    if (seedreamLayerDecomposition) queryParams.set('seedreamLayerDecomposition', 'true');
+    if (seedreamLayerSize) queryParams.set('seedreamLayerSize', seedreamLayerSize);
     if (billingMode) queryParams.set('billingMode', billingMode);
     if (priorityMode !== undefined) queryParams.set('priorityMode', String(priorityMode));
     if (includeMonthlyFairUse === true) queryParams.set('includeMonthlyFairUse', 'true');

@@ -65,6 +65,25 @@ export type GptImageQuality =
   | 'standard'
   | 'hd';
 export type GptImageBackground = 'opaque' | 'auto' | 'transparent';
+/**
+ * One layer of a Seedream layer decomposition (`seedreamLayerDecomposition`).
+ * Layers are RGBA PNG images; the job's `resultUrl` is the base image.
+ */
+export interface ImageLayer {
+  url: string;
+  width: number;
+  height: number;
+  /** Stacking order: 1 is the lowest layer above the base (the base is 0). */
+  zIndex: number;
+  boundingBox: {
+    /** `[left, top, right, bottom]` in pixels of the base image. */
+    absolute: [number, number, number, number];
+    /** `[left, top, right, bottom]` on a 0-1000 grid over the base image. */
+    normalized: [number, number, number, number];
+  };
+  name?: string;
+  description?: string;
+}
 export type VideoOutputFormat = 'mp4' | 'mov';
 export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
 export type BillingMode = 'auto' | 'subscription' | 'tokens';
@@ -1196,6 +1215,15 @@ export interface ImageProjectParams
   gptImageMaskUrl?: string;
   /** PNG alpha mask, uploaded in the referenceMask asset slot for durable replay. */
   gptImageMask?: InputMedia;
+  /**
+   * Split exactly one context image into a base image and up to 16 RGBA PNG
+   * layers. The aspect ratio follows the input, `numberOfMedia` must be 1, and the
+   * completed job carries the layers in `job.layers`; `job.resultUrl` is the
+   * base image.
+   */
+  seedreamLayerDecomposition?: boolean;
+  /** Resolution of the base and extracted layers. Defaults to 1.5K. */
+  seedreamLayerSize?: '1K' | '1.5K' | '2K';
 }
 
 export interface AudioProjectParams extends BaseProjectParams {
@@ -1316,6 +1344,8 @@ export type VideoFormat = 'mp4' | 'mov';
  * Parameters for image asset URL requests (upload/download)
  */
 export type ImageUrlParams = {
+  /** Refresh one layer of a completed Seedream extraction. */
+  layerIndex?: number;
   imageId: string;
   jobId: string;
   type:
@@ -1444,6 +1474,14 @@ export interface EstimateRequest {
   gptImageFrameCount?: number;
   gptImageFrameDurationMs?: number;
   gptImageComplexity?: 'low' | 'medium' | 'high';
+  /**
+   * Quote a Seedream layer decomposition. Its layer count is known only after
+   * the render, so the quote is the most it can cost; the charge settles to
+   * the layers actually returned.
+   */
+  seedreamLayerDecomposition?: boolean;
+  /** Resolution of the base and extracted layers. Defaults to 1.5K. */
+  seedreamLayerSize?: '1K' | '1.5K' | '2K';
   /**
    * Billing intent of the job being quoted. 'tokens' opts out of plan coverage,
    * so the estimate carries no `dailyFairUsePct`.

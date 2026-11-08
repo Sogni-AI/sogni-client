@@ -1665,6 +1665,11 @@ function applyImageParams(
   if (params.gptImageOutputCompression !== undefined) {
     keyFrame.gptImageOutputCompression = params.gptImageOutputCompression;
   }
+  if (params.seedreamLayerDecomposition !== undefined) {
+    keyFrame.seedreamLayerDecomposition = params.seedreamLayerDecomposition;
+    if (params.seedreamLayerDecomposition && params.seedreamLayerSize)
+      keyFrame.seedreamLayerSize = params.seedreamLayerSize;
+  }
   return keyFrame;
 }
 

@@ -566,6 +566,12 @@ Uncensored one-time likeness and consent agreement: until the account accepts
 it in a Sogni app, its jobs fail with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103)
 carrying `consentRequired: { key: 'seedance-2-5-uncensored', version, modelId }`.
 Hosted chat tools use it only when the call names it.
+Opt-in layer extraction: `seedreamLayerDecomposition: true`, exactly one
+`contextImages` entry, `numberOfMedia: 1`, optional prompt and named
+`seedreamLayerSize: '1K' | '1.5K' | '2K'` (default '1.5K'). Estimate reserves
+17 images; settlement charges only the base and returned layers. `job.resultUrl`
+is the base; `job.layers` holds ordered transparent PNG layers with bounds and
+names. Use `job.getLayerUrl(zIndex)` for a fresh ownership-checked URL.
 
 RECOMMENDED MODELS:
 | Model ID | Type | Steps | Guidance | Notes |

@@ -4,10 +4,11 @@ import { RawJob, RawProject } from './types/RawProject.js';
 import ProjectsApi from './index.js';
 import { Logger } from '../lib/DefaultLogger.js';
 import getUUID from '../lib/getUUID.js';
-import { EnhancementStrength } from './types/index.js';
+import { EnhancementStrength, ImageLayer } from './types/index.js';
 import Project from './Project.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 import { getEnhacementStrength, isSegmentationModel } from './utils/index.js';
+import { imageLayersFromResult } from './utils/imageLayers.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
 import type { JobProvenance } from './types/JobProvenance.js';
@@ -198,6 +199,11 @@ export interface JobData {
   /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
   seedanceDraftJobId?: string;
   provenance?: JobProvenance;
+  /**
+   * Seedream layer decomposition: the layers above the base image, ordered by
+   * `zIndex`. `resultUrl` is the base image.
+   */
+  layers?: ImageLayer[];
   error?: ErrorData;
   positivePrompt?: string;
   negativePrompt?: string;
@@ -397,6 +403,15 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.data.resultUrl;
   }
 
+  /**
+   * Seedream layer decomposition: the RGBA PNG layers above the base image,
+   * ordered by `zIndex`, each with its box on the base image. `resultUrl` is
+   * the base image. Undefined for every other job.
+   */
+  get layers() {
+    return this.data.layers;
+  }
+
   /** Worker-attested input/output hashes for this result, when available. */
   get provenance() {
     return this.data.provenance;
@@ -502,6 +517,18 @@ class Job extends DataEntity<JobData, JobEventMap> {
     });
   }
 
+  /** Mint a fresh, ownership-checked PNG URL for an extracted layer. */
+  async getLayerUrl(zIndex: number): Promise<string> {
+    if (this.data.status !== 'completed' || !this.layers?.some((layer) => layer.zIndex === zIndex))
+      throw new Error('Layer is not available');
+    return this._api.downloadUrl({
+      jobId: this.projectId,
+      imageId: this.id,
+      type: 'complete',
+      layerIndex: zIndex
+    });
+  }
+
   /**
    * Get the result URL of the job. This method will make a request to the API to get signed URL.
    * IMPORTANT: URL expires after 30 minutes, so make sure to download the result as soon as possible.
@@ -602,6 +629,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
    */
   async _syncWithRestData(data: RawJob) {
     const directResultUrl = directResultUrlFromRawJob(data);
+    const layers = imageLayersFromResult(data.result?.layers);
     const delta: Partial<JobData> = {
       step: data.performedSteps,
       workerName: data.worker?.name,
@@ -613,7 +641,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
       lastFrameUrl: data.lastFrameUrl ?? (data.result?.lastFrameUrl as string | undefined),
       lastFrameKey: data.lastFrameKey ?? (data.result?.lastFrameKey as string | undefined),
       outputFormat: data.outputFormat ?? (data.result?.outputFormat as string | undefined),
-      ...seedanceDraftResultFields(data)
+      ...seedanceDraftResultFields(data),
+      ...(layers ? { layers } : {})
     };
     if (JOB_STATUS_MAP[data.status]) {
       delta.status = JOB_STATUS_MAP[data.status];

@@ -1,4 +1,4 @@
-import { AvailableModel } from './index.js';
+import { AvailableModel, ImageLayer } from './index.js';
 import ErrorData from '../../types/ErrorData.js';
 import type {
   JobPreparation,
@@ -133,6 +133,11 @@ export interface JobCompleted extends JobEventBase {
   userCanceled: boolean;
   /** Worker-attested input/output hashes, when the workflow emits them. */
   provenance?: JobProvenance;
+  /**
+   * Seedream layer decomposition: the layers above the base image, ordered by
+   * `zIndex`. `resultUrl` is the base image.
+   */
+  layers?: ImageLayer[];
 }
 
 export interface JobError extends JobEventBase {
