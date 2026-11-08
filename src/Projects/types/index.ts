@@ -879,7 +879,7 @@ export interface Sam3PromptBox {
 export interface Sam3VideoPrompt extends Omit<Sam3ImagePrompt, 'applyMask' | 'maxInstances'> {
   /** Zero-based source frame the selection refers to. Defaults to 0. */
   frameIndex?: number;
-  /** Zero-based candidate in confidence order. Defaults to the best match. */
+  /** Zero-based text candidate or supplied box. Point prompts require 0. Defaults to 0. */
   objectIndex?: number;
   output?: 'mask';
   edges?: 'hard';
