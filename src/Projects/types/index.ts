@@ -875,14 +875,95 @@ export interface Sam3PromptBox {
   label?: 'positive' | 'negative';
 }
 
-/** A bounded prompt for the SAM3 image-segmentation workflow. */
+/**
+ * A selection made from a region instead of clicks, boxes or text. The tracker
+ * is seeded with exactly this region on the prompt frame (SAM does not
+ * re-select it), and that frame's output is this region.
+ */
+export interface Sam3PromptMask {
+  /**
+   * 1 to 64 rings of `[x, y]` points, each 3 to 2048 points and 8192 points in
+   * total. Coordinates are normalized to the source frame (0 to 1, origin top
+   * left). Rings fill even-odd: a ring inside another ring is a hole.
+   */
+  polygons: Array<Array<[number, number]>>;
+}
+
+/**
+ * One object to select in a video: exactly one of `points` (with at most one
+ * box), `boxes`, `text` (with optional signed boxes) or `mask`.
+ */
+export interface Sam3VideoSelection extends Pick<
+  Sam3ImagePrompt,
+  'points' | 'boxes' | 'text' | 'threshold' | 'multimask'
+> {
+  /**
+   * Select exactly this region. Not combinable with `points`, `boxes`, `text`,
+   * `threshold` or `multimask`; `objectIndex` must be 0 or absent.
+   */
+  mask?: Sam3PromptMask;
+  /** Zero-based candidate in confidence order. Defaults to the best match. */
+  objectIndex?: number;
+}
+
+/** One prompted frame of `Sam3VideoPrompt.frames`: a selection plus the source frame it refers to. */
+export type Sam3VideoFramePrompt = Sam3VideoSelection & {
+  /** Zero-based source frame. Each entry names a different frame. */
+  frameIndex: number;
+};
+
+/**
+ * A bounded prompt for SAM 3 video selection. Output is one hard binary mask
+ * video. By default it selects one object (`points`, `boxes` or `text`) on one
+ * frame and tracks it through the clip.
+ *
+ * `mask`, `objects`, `frames` and `memory` are optional and absent by default;
+ * a prompt without them behaves exactly as before.
+ */
 export interface Sam3VideoPrompt extends Omit<Sam3ImagePrompt, 'applyMask' | 'maxInstances'> {
-  /** Zero-based source frame the selection refers to. Defaults to 0. */
+  /**
+   * Zero-based source frame the selection refers to. Defaults to 0. Not used
+   * with `frames`, where each entry carries its own.
+   */
   frameIndex?: number;
   /** Zero-based text candidate or supplied box. Point prompts require 0. Defaults to 0. */
   objectIndex?: number;
   output?: 'mask';
   edges?: 'hard';
+  /**
+   * Select an exact region on the prompt frame instead of `points`, `boxes` or
+   * `text`. Not combinable with them, nor with `threshold` or `multimask`;
+   * `objectIndex` must be 0 or absent.
+   */
+  mask?: Sam3PromptMask;
+  /**
+   * Track 2 to 16 objects together and merge them into one mask: a crowd, a
+   * figure plus the prop it holds, a monitor plus the webcam on it. Every
+   * object is selected on `frameIndex` and tracked jointly; every output frame
+   * is the union of their masks. Requires `combine: 'union'`. Put each object's
+   * selection inside its entry: the top-level `points`, `boxes`, `text`,
+   * `mask`, `threshold`, `multimask` and `objectIndex` are rejected alongside
+   * `objects`, and so is `frames`.
+   */
+  objects?: Sam3VideoSelection[];
+  /** How `objects` combine into the output. Required with `objects`; `'union'` is the only value. */
+  combine?: 'union';
+  /**
+   * Prompt the same object on 2 to 8 different source frames. Each output frame
+   * takes the track from the nearest prompted frame (ties go to the earlier
+   * one), so the whole clip is still tracked about once. Use it for a loop
+   * whose last frame repeats its first (prompt frame 0 and the last frame with
+   * the same selection), or to correct drift mid-clip. Rejected together with
+   * the top-level `frameIndex`, the top-level selection fields and `objects`.
+   */
+  frames?: Sam3VideoFramePrompt[];
+  /**
+   * How tracking carries from one 32-frame chunk to the next. `'chunk'` (the
+   * default, the original behaviour) seeds each chunk from the previous chunk's
+   * last mask. `'anchor'` also conditions every chunk on the prompt frame and
+   * its mask, so drift cannot compound across chunks.
+   */
+  memory?: 'chunk' | 'anchor';
 }
 
 export interface Sam3ImagePrompt {

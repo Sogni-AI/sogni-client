@@ -1697,6 +1697,21 @@ function validateVideoUpscaleTiming(params: VideoProjectParams): void {
   }
 }
 
+/** Opt-in `sam3VideoPrompt` fields; a prompt without any of them is sent exactly as before. */
+const SAM3_VIDEO_OPT_IN_KEYS = ['mask', 'objects', 'combine', 'frames', 'memory'] as const;
+
+/** Video selection adopts the verified source; values a caller sends must look like source metadata. */
+function withSam3VideoSourceMetadata<T extends Record<string, any>>(keyFrame: T, params: VideoProjectParams): T {
+  for (const name of ['width', 'height', 'frames', 'fps'] as const) {
+    const value = params[name];
+    if (value !== undefined) {
+      if (!Number.isFinite(value) || value <= 0 || (name !== 'fps' && !Number.isSafeInteger(value))) throw new Error(`Video selection ${name} must match the source video.`);
+      Object.assign(keyFrame, { [name]: value });
+    }
+  }
+  return keyFrame;
+}
+
 function applyVideoParams(
   inputKeyframe: Record<string, any>,
   params: VideoProjectParams,
@@ -1730,6 +1745,24 @@ function applyVideoParams(
     ) {
       throw new Error('Video selection accepts one complete source video and selection prompts.');
     }
+    // The opt-in selection options (mask, objects, frames, memory) are carried to
+    // the server unchanged; it validates them against the verified source. A
+    // prompt without them takes the original path below, byte for byte.
+    const sam3VideoPrompt = params.sam3VideoPrompt;
+    if (SAM3_VIDEO_OPT_IN_KEYS.some((key) => sam3VideoPrompt[key] !== undefined)) {
+      return withSam3VideoSourceMetadata(
+        {
+          ...inputKeyframe,
+          hasReferenceVideo: true,
+          sam3VideoPrompt: { ...sam3VideoPrompt },
+          steps: 1,
+          seed: 0,
+          interpolation: 'none',
+          generateAudio: false
+        },
+        params
+      );
+    }
     const {
       frameIndex = 0,
       objectIndex = 0,
@@ -1761,27 +1794,18 @@ function applyVideoParams(
     if (!prompt.text && !prompt.points?.length && objectIndex >= (prompt.boxes?.length ?? 0)) {
       throw new Error('objectIndex must refer to a supplied box.');
     }
-    const keyFrame = {
-      ...inputKeyframe,
-      hasReferenceVideo: true,
-      sam3VideoPrompt: { ...prompt, maxInstances: 1, frameIndex, objectIndex, output, edges },
-      steps: 1,
-      seed: 0,
-      interpolation: 'none',
-      generateAudio: false
-    };
-    for (const name of ['width', 'height', 'frames', 'fps'] as const) {
-      const value = params[name];
-      if (value !== undefined) {
-        if (
-          !Number.isFinite(value) ||
-          value <= 0 ||
-          (name !== 'fps' && !Number.isSafeInteger(value))
-        )
-          throw new Error(`Video selection ${name} must match the source video.`);
-        Object.assign(keyFrame, { [name]: value });
-      }
-    }
+    const keyFrame = withSam3VideoSourceMetadata(
+      {
+        ...inputKeyframe,
+        hasReferenceVideo: true,
+        sam3VideoPrompt: { ...prompt, maxInstances: 1, frameIndex, objectIndex, output, edges },
+        steps: 1,
+        seed: 0,
+        interpolation: 'none',
+        generateAudio: false
+      },
+      params
+    );
     if (params.frames !== undefined && frameIndex >= params.frames)
       throw new Error('frameIndex must refer to a source frame.');
     return keyFrame;
