@@ -884,8 +884,9 @@ export interface Sam3PromptBox {
  */
 export interface Sam3PromptMask {
   /**
-   * 1 to 64 rings of `[x, y]` points, each 3 to 2048 points and 8192 points in
-   * total. Coordinates are normalized to the source frame (0 to 1, origin top
+   * 1 to 64 rings of `[x, y]` points, each 3 to 2048 points and 4096 points in
+   * total; a whole prompt holds at most 4096 across its objects and frames.
+   * Coordinates are normalized to the source frame (0 to 1, origin top
    * left). Rings fill even-odd: a ring inside another ring is a hole.
    */
   polygons: Array<Array<[number, number]>>;

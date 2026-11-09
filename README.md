@@ -1771,7 +1771,7 @@ error 4044 and nothing is charged.
 
 `mask` selects a region you draw, instead of `text`, `points` or `boxes`.
 `polygons` holds 1 to 64 rings of normalized `[x, y]` points, 3 to 2048 points
-per ring and 8192 per region. A ring inside another ring is a hole.
+per ring and 4096 per region. A ring inside another ring is a hole.
 
 ```javascript
 sam3VideoPrompt: {
@@ -1833,8 +1833,7 @@ can shift where a chunk starts. It works with any of the other options.
 sam3VideoPrompt: { text: "unicorn horn", frameIndex: 127, memory: "anchor" }
 ```
 
-A prompt holds at most 16384 region points across all objects and frames, and
-1 MiB in all.
+A prompt holds at most 4096 region points across all its objects and frames.
 
 Each object after the first adds 8% of one selection's work, and anchor memory
 adds 1/31. `frames` and `mask` add nothing. Pass the job's own
