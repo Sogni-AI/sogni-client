@@ -42,6 +42,8 @@ jobs:
           node scripts/check-socket-receive-order.cjs
           node scripts/check-socket-reconnect-backoff.cjs
           node scripts/check-socket-keepalive.cjs
+      - name: Check id generation
+        run: node scripts/check-uuid.cjs
       - name: Check downloads and REST errors
         run: |
           node scripts/check-result-download-endpoint.cjs

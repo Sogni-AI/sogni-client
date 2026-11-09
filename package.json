@@ -98,6 +98,7 @@
     "test:project-cancellation": "npm run build && node scripts/check-project-cancellation.cjs",
     "test:project-request-session": "npm run build && node scripts/check-project-request-session.cjs",
     "test:auth-session": "npm run build && node scripts/check-auth-session.cjs",
+    "test:uuid": "npm run build && node scripts/check-uuid.cjs",
     "test:account-login": "npm run build && node scripts/check-account-login.cjs",
     "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
     "test:project-recovery": "npm run build && node scripts/check-project-recovery.cjs",
@@ -142,7 +143,6 @@
   },
   "homepage": "https://github.com/Sogni-AI/sogni-client#readme",
   "dependencies": {
-    "@lukeed/uuid": "^2.0.1",
     "@sogni-ai/sogni-protocol": "1.0.0-alpha.59",
     "@types/js-cookie": "^3.0.6",
     "@types/lodash": "^4.17.23",

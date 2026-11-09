@@ -74,6 +74,8 @@ jobs:
         run: node scripts/check-socket-receive-order.cjs
       - name: Run socket keep-alive checks
         run: node scripts/check-socket-keepalive.cjs
+      - name: Run id generation checks
+        run: node scripts/check-uuid.cjs
       - name: Run project liveness checks
         run: node scripts/check-project-liveness.cjs
       - name: Run job reassignment checks
