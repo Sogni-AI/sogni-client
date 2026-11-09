@@ -876,9 +876,11 @@ export interface Sam3PromptBox {
 }
 
 /**
- * A selection made from a region instead of clicks, boxes or text. The tracker
- * is seeded with exactly this region on the prompt frame (SAM does not
- * re-select it), and that frame's output is this region.
+ * A selection made from a drawn region instead of clicks, boxes or text. The
+ * region starts the tracker on the prompt frame, as a click does, so that
+ * frame's mask is the tracker's own shape for the region rather than the exact
+ * drawing, consistent with the frames around it. Draw it tight: background or
+ * a foreground object inside the region stays in the mask for several frames.
  */
 export interface Sam3PromptMask {
   /**
@@ -898,7 +900,7 @@ export interface Sam3VideoSelection extends Pick<
   'points' | 'boxes' | 'text' | 'threshold' | 'multimask'
 > {
   /**
-   * Select exactly this region. Not combinable with `points`, `boxes`, `text`,
+   * Select this drawn region. Not combinable with `points`, `boxes`, `text`,
    * `threshold` or `multimask`; `objectIndex` must be 0 or absent.
    */
   mask?: Sam3PromptMask;
@@ -931,7 +933,7 @@ export interface Sam3VideoPrompt extends Omit<Sam3ImagePrompt, 'applyMask' | 'ma
   output?: 'mask';
   edges?: 'hard';
   /**
-   * Select an exact region on the prompt frame instead of `points`, `boxes` or
+   * Select a drawn region on the prompt frame instead of `points`, `boxes` or
    * `text`. Not combinable with them, nor with `threshold` or `multimask`;
    * `objectIndex` must be 0 or absent.
    */
