@@ -960,8 +960,10 @@ export interface Sam3VideoPrompt extends Omit<Sam3ImagePrompt, 'applyMask' | 'ma
   /**
    * How tracking carries from one 32-frame chunk to the next. `'chunk'` (the
    * default, the original behaviour) seeds each chunk from the previous chunk's
-   * last mask. `'anchor'` also conditions every chunk on the prompt frame and
-   * its mask, so drift cannot compound across chunks.
+   * last mask; an object lost at the end of a chunk is not found again.
+   * `'anchor'` tracks every chunk from the prompt frame and its selection
+   * instead, so tracking errors do not carry from chunk to chunk and a lost
+   * object can be picked up again, but the mask can shift where a chunk starts.
    */
   memory?: 'chunk' | 'anchor';
 }
@@ -1489,6 +1491,12 @@ export interface VideoEstimateRequest {
   keyframeCount?: number;
   /** The job's `keyframes`; only their count is used, to price them. */
   keyframes?: readonly unknown[];
+  /**
+   * SAM 3 video selection: the job's own `sam3VideoPrompt`. Only the options that
+   * change its price are sent: the number of `objects` and the `memory` mode. A
+   * prompt without them quotes exactly as before.
+   */
+  sam3VideoPrompt?: Sam3VideoPrompt;
   /**
    * Combined duration of MiniMax H3 r2v reference-video input, in seconds.
    * The estimate bills it at the selected output resolution/tier rate.

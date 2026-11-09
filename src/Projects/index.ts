@@ -3465,6 +3465,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - referenceVideoDurationSeconds: Combined duration of MiniMax H3 r2v video input.
    *   - keyframeCount / keyframes: MiniMax H3 intermediate keyframes (0-8). The first two are
    *     included; each extra keyframe adds 0.75 s of output time on FastH3 and 0.3 s on other tiers.
+   *   - sam3VideoPrompt: SAM 3 video selection's prompt; its `objects` count and `memory` mode are
+   *     priced. A prompt without them quotes exactly as before.
    *   - seedanceDraft: Seedance 2.5 480p draft, priced like the same 480p job.
    *   - seedanceDraftJobId: Seedance 2.5 finalize of that draft at 1080p, priced by the server from
    *     the draft (duration, aspect ratio, input video); width, height, duration and fps do not change it.
@@ -3535,6 +3537,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       (Array.isArray(params.keyframes) ? params.keyframes.length : undefined);
     if (Number.isFinite(keyframeCount) && (keyframeCount as number) > 0) {
       query.set('keyframeCount', String(Math.floor(keyframeCount as number)));
+    }
+    // SAM 3 video options that change the price; the server holds them to the
+    // limits admission applies to the same prompt.
+    const sam3VideoPrompt = params.sam3VideoPrompt;
+    if (sam3VideoPrompt && Array.isArray(sam3VideoPrompt.objects)) {
+      query.set('sam3ObjectCount', String(sam3VideoPrompt.objects.length));
+    }
+    if (sam3VideoPrompt?.memory !== undefined) {
+      query.set('sam3Memory', String(sam3VideoPrompt.memory));
     }
     // Unpinned, the job renders on the connection's network, so quote that one.
     const network = params.network ?? this._currentNetworkType;
