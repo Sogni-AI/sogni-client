@@ -1217,3 +1217,89 @@ coordinates against the complete source frame. Inputs must be constant-frame-rat
 SDR video, up to 30 seconds, 900 frames, 2560 pixels on either edge and 100 MB.
 
 See `examples/workflow_sam3_video_segment.mjs` for a runnable paid request.
+
+#### Selection options
+
+`sam3VideoPrompt` takes four more fields. They are optional and off by default.
+A prompt without them runs and is priced exactly as before. They run on Comfy
+worker 1.0.253 or newer; if none is online, the request is refused at once with
+error 4044 and nothing is charged.
+
+`mask` selects a region you draw, instead of `text`, `points` or `boxes`.
+`polygons` holds 1 to 64 rings of normalized `[x, y]` points, 3 to 2048 points
+per ring and 8192 per region. A ring inside another ring is a hole.
+
+```javascript
+sam3VideoPrompt: {
+  frameIndex: 0,
+  mask: { polygons: [[[0.42, 0.18], [0.58, 0.18], [0.61, 0.55], [0.39, 0.55]]] }
+}
+```
+
+The region starts the tracker on its prompt frame, as a click does. That
+frame's mask is the tracker's own shape for the region, not the exact drawing,
+so a looping clip does not jump between its last and first frames. Draw the
+region tight: background, or something in front of the object, inside the
+region stays in the mask for several frames before the tracker corrects it.
+`mask` cannot be combined with `text`, `points`, `boxes`, `threshold` or
+`multimask`, and `objectIndex` must be 0 or left out. A region that covers no
+pixel of the source frame is refused and not charged.
+
+`objects` tracks 2 to 16 things together, one selection each, and requires
+`combine: "union"`. Every output frame is the union of their masks. All the
+selections refer to the top-level `frameIndex`. Use it for a crowd or several
+separate things: one selection that covers several similar things settles on
+just one of them. Top-level `text`, `points`, `boxes`, `mask`, `threshold`,
+`multimask` and `objectIndex` are refused alongside `objects`.
+
+```javascript
+sam3VideoPrompt: {
+  combine: "union",
+  objects: [
+    { points: [{ x: 0.21, y: 0.48, label: "positive" }] },
+    { points: [{ x: 0.52, y: 0.45, label: "positive" }] }
+  ]
+}
+```
+
+`frames` selects the same thing on 2 to 8 different frames, each entry with its
+own `frameIndex` and selection. Each output frame follows the nearest prompted
+frame; ties go to the earlier one. For a loop whose first and last frames are
+the same still, select the same thing on frame 0 and on the last frame. You can
+also add a middle frame to correct drift. `frames` cannot be combined with
+`objects`, a top-level `frameIndex` or a top-level selection.
+
+```javascript
+sam3VideoPrompt: {
+  frames: [
+    { frameIndex: 0, points: [{ x: 0.47, y: 0.62, label: "positive" }] },
+    { frameIndex: 120, points: [{ x: 0.47, y: 0.62, label: "positive" }] }
+  ]
+}
+```
+
+`memory` sets how tracking carries between 32-frame chunks. `"chunk"`, the
+default and the original behaviour, starts each chunk from the previous
+chunk's last mask; an object lost at the end of a chunk is not found again.
+`"anchor"` starts each chunk again from the prompt frame and its selection:
+errors do not carry over and a lost object can be found again, but the mask
+can shift where a chunk starts. It works with any of the other options.
+
+```javascript
+sam3VideoPrompt: { text: "unicorn horn", frameIndex: 127, memory: "anchor" }
+```
+
+A prompt holds at most 16384 region points across all objects and frames, and
+1 MiB in all.
+
+Each object after the first adds 8% of one selection's work, and anchor memory
+adds 1/31. `frames` and `mask` add nothing. Pass the job's own
+`sam3VideoPrompt` to `estimateVideoCost()` and the quote includes them:
+
+```javascript
+const quote = await sogni.projects.estimateVideoCost({
+  tokenType: "spark", model: "sam3_video_segment_fp16",
+  width: 1920, height: 1080, frames: 121, fps: 24, steps: 1,
+  sam3VideoPrompt
+});
+```
