@@ -1,3 +1,18 @@
+# [5.80.0](https://github.com/Sogni-AI/sogni-client/compare/v5.79.0...v5.80.0) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** pin protocol alpha.60 for reference GIF edit tools ([9d0ce71](https://github.com/Sogni-AI/sogni-client/commit/9d0ce71ed7f8da6a3c4b15e412ced45e9aa05c7d))
+* **ids:** generate ids from the runtime's secure random source ([445d7bb](https://github.com/Sogni-AI/sogni-client/commit/445d7bbfa050413e447ae9b31d301ccc5ea843b0))
+* **projects:** quote SAM 3 video objects and anchor memory ([ebd5466](https://github.com/Sogni-AI/sogni-client/commit/ebd546671147c3d6c8f3b8f8255f88057141d6f2))
+* **projects:** validate video selection object indexes ([68d26f0](https://github.com/Sogni-AI/sogni-client/commit/68d26f0967bca7e2ee3406a196aff9f3a36fb972))
+
+
+### Features
+
+* **projects:** type and send opt-in SAM 3 video selection options ([706a81b](https://github.com/Sogni-AI/sogni-client/commit/706a81be8ac028a1f6a5db55556686c5e3d70afd))
+
 # [5.79.0](https://github.com/Sogni-AI/sogni-client/compare/v5.78.0...v5.79.0) (2026-11-07)
 
 
