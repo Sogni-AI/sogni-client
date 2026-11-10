@@ -1,3 +1,10 @@
+## [5.80.1](https://github.com/Sogni-AI/sogni-client/compare/v5.80.0...v5.80.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** patch vulnerable glob and minimatch build tools ([a6398d9](https://github.com/Sogni-AI/sogni-client/commit/a6398d97adfdd0bae776e8955ac8a42807b57953))
+
 # [5.80.0](https://github.com/Sogni-AI/sogni-client/compare/v5.79.0...v5.80.0) (2026-11-10)
 
 
