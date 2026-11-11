@@ -1,3 +1,4 @@
+export { default as TwoFactorRequiredError } from './Account/TwoFactorRequiredError.js';
 // Account API
 import AccountApi from './Account/index.js';
 import CurrentAccount from './Account/CurrentAccount.js';
@@ -971,3 +972,4 @@ export {
   getGptImageGifSheet,
   resolveGptImageGifSize
 } from './lib/gptImageGif.js';
+export type { TwoFactorProof, TwoFactorStatus } from './Account/index.js';
