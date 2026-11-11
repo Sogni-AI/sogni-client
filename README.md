@@ -135,6 +135,51 @@ await sogni.account.login('your-username', 'your-password');
 const models = await sogni.projects.waitForModels();
 ```
 
+#### Two-factor sign-in
+
+When an account has enabled two-factor authentication, `login()` throws
+`TwoFactorRequiredError` without starting a session. Ask the person for an
+authenticator or backup code, then complete that challenge:
+
+```javascript
+import { TwoFactorRequiredError } from '@sogni-ai/sogni-client';
+
+try {
+  await sogni.account.login(username, password, rememberMe);
+} catch (error) {
+  if (!(error instanceof TwoFactorRequiredError)) throw error;
+  const code = await askForAuthenticatorOrBackupCode(); // Your application's input UI
+  await sogni.account.verifyTwoFactorLogin(error, code);
+}
+```
+
+Keep the challenge in memory and discard it when the person cancels. Do not log
+or persist challenge tokens, authenticator setup keys, or backup codes.
+The account API also provides `getTwoFactorStatus()`, `setupTwoFactor()`,
+`confirmTwoFactorSetup()`, `disableTwoFactor()`, and
+`regenerateTwoFactorBackupCodes()`. Setup and management require a password
+session; API keys cannot manage two-factor settings.
+
+Passkeys can complete the same pending sign-in from a browser. Trigger the device
+prompt from a user gesture, such as a button click:
+
+```typescript
+import { startAuthentication } from '@simplewebauthn/browser';
+
+const pending = await sogni.account.getTwoFactorPasskeyOptions(challenge);
+const assertion = await startAuthentication({ optionsJSON: pending.options });
+await sogni.account.verifyTwoFactorLogin(challenge, {
+  challengeId: pending.challengeId,
+  assertion
+});
+```
+
+Account security screens use `beginPasskeySetup` / `finishPasskeySetup`
+and `removePasskey`. Save the first registration's backup codes before finishing.
+Management accepts an authenticator/backup code or a passkey proof from
+`getTwoFactorPasskeyOptions()` without a login challenge. Keep pending proofs
+in memory. The existing Sogni password remains required for wallet key derivation.
+
 #### Restoring a deleted account at sign-in
 
 When someone signs in to an account they deleted and the account can be restored, `login()` throws

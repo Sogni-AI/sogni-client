@@ -1,3 +1,10 @@
+import type {
+  AuthenticationResponseJSON,
+  RegistrationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON
+} from '@simplewebauthn/browser';
+import TwoFactorRequiredError from './TwoFactorRequiredError.js';
 import {
   AccountCreateData,
   AccountCreateParams,
@@ -83,6 +90,20 @@ function parseSubscriptionVersion(version: unknown): number | null {
  * ```
  *
  */
+export type TwoFactorProof =
+  | { code: string }
+  | { assertion: AuthenticationResponseJSON; challengeId: string };
+export interface TwoFactorStatus {
+  enabled: boolean;
+  backupCodesRemaining: number;
+  canManage: boolean;
+  authenticatorEnabled: boolean;
+  passkeys: { id: string; name: string }[];
+}
+function factorProof(value: string | TwoFactorProof): TwoFactorProof {
+  return typeof value === 'string' ? { code: value.trim().toUpperCase() } : value;
+}
+
 class AccountApi extends ApiGroup {
   readonly currentAccount = new CurrentAccount();
 
@@ -114,6 +135,7 @@ class AccountApi extends ApiGroup {
    * @internal
    */
   _onWalletDerived?: (wallet: Wallet) => Promise<void>;
+  private pendingLoginWallets = new WeakMap<TwoFactorRequiredError, Wallet>();
 
   constructor(config: ApiConfig) {
     super(config);
@@ -557,22 +579,186 @@ class AccountApi extends ApiGroup {
       nonce
     });
     const resolvedAppSource = appSource?.trim() || this.client.appSource;
-    const res = await this.client.rest.post<ApiResponse<LoginData>>('/v1/account/login', {
+    const res = await this.client.rest.post<
+      ApiResponse<LoginData & { requires2FA?: boolean; tempToken?: string }>
+    >('/v1/account/login', {
       walletAddress: wallet.address,
       signature,
       ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
       rememberMe,
       ...(options?.restoreDeletedAccount ? { restoreDeletedAccount: true } : {})
     });
-    const auth = this.client.auth;
-    if (auth instanceof TokenAuthManager) {
-      await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
-    } else if (auth instanceof CookieAuthManager) {
-      auth._setSessionIdentity(wallet.address.toLowerCase());
-      await auth.authenticate();
+    if (res.data.requires2FA) {
+      if (!res.data.tempToken)
+        throw new Error('Unable to start verification. Please sign in again.');
+      const challenge = new TwoFactorRequiredError(res.data.tempToken, wallet.address, res.data.username);
+      this.pendingLoginWallets.set(challenge, wallet);
+      throw challenge;
     }
+    await this.acceptLogin(res.data, wallet.address);
     await this._onWalletDerived?.(wallet);
     return res.data;
+  }
+
+  private async acceptLogin(
+    data: Pick<LoginData, 'token' | 'refreshToken'>,
+    walletAddress: string
+  ) {
+    const auth = this.client.auth;
+    if (auth instanceof TokenAuthManager) {
+      await auth.authenticate({ refreshToken: data.refreshToken, token: data.token });
+    } else if (auth instanceof CookieAuthManager) {
+      auth._setSessionIdentity(walletAddress.toLowerCase());
+      await auth.authenticate();
+    }
+  }
+
+  /** Complete the sign-in requested by a TwoFactorRequiredError. Keep the challenge in memory. */
+  async verifyTwoFactorLogin(
+    challenge: TwoFactorRequiredError,
+    proof: string | TwoFactorProof
+  ): Promise<LoginData> {
+    const res = await this.client.rest.post<ApiResponse<Pick<LoginData, 'token' | 'refreshToken'>>>(
+      '/v1/account/2fa/verify-login',
+      { tempToken: challenge.tempToken, ...factorProof(proof) }
+    );
+    await this.acceptLogin(res.data, challenge.walletAddress);
+    const wallet = this.pendingLoginWallets.get(challenge);
+    this.pendingLoginWallets.delete(challenge);
+    if (wallet) await this._onWalletDerived?.(wallet);
+    return { ...res.data, username: challenge.username };
+  }
+
+  async getTwoFactorStatus(): Promise<TwoFactorStatus> {
+    const res = await this.client.rest.get<ApiResponse<TwoFactorStatus>>('/v1/account/2fa/status');
+    return res.data;
+  }
+
+  async getTwoFactorPasskeyOptions(challenge?: TwoFactorRequiredError): Promise<{
+    challengeId: string;
+    options: PublicKeyCredentialRequestOptionsJSON;
+  }> {
+    const res = await this.client.rest.post<
+      ApiResponse<{
+        challengeId: string;
+        options: PublicKeyCredentialRequestOptionsJSON;
+      }>
+    >(
+      challenge
+        ? '/v1/account/2fa/passkeys/login-options'
+        : '/v1/account/2fa/passkeys/authentication-options',
+      challenge ? { tempToken: challenge.tempToken } : {}
+    );
+    return res.data;
+  }
+
+  async beginPasskeySetup(
+    username: string,
+    password: string,
+    name: string,
+    proof?: TwoFactorProof
+  ): Promise<{
+    setupId: string;
+    options: PublicKeyCredentialCreationOptionsJSON;
+    backupCodes?: string[];
+  }> {
+    const signature = await this.twoFactorSignature(username, password);
+    const res = await this.client.rest.post<
+      ApiResponse<{
+        setupId: string;
+        options: PublicKeyCredentialCreationOptionsJSON;
+        backupCodes?: string[];
+      }>
+    >('/v1/account/2fa/passkeys/registration-options', {
+      signature,
+      name,
+      ...(proof ? { proof } : {})
+    });
+    return res.data;
+  }
+
+  async finishPasskeySetup(setupId: string, response: RegistrationResponseJSON): Promise<void> {
+    await this.client.rest.post('/v1/account/2fa/passkeys/register', { setupId, response });
+  }
+
+  async removePasskey(
+    username: string,
+    password: string,
+    credentialId: string,
+    proof: string | TwoFactorProof
+  ): Promise<void> {
+    const signature = await this.twoFactorSignature(username, password);
+    await this.client.rest.post('/v1/account/2fa/passkeys/remove', {
+      signature,
+      credentialId,
+      ...factorProof(proof)
+    });
+  }
+
+  private async twoFactorSignature(username: string, password: string): Promise<string> {
+    const wallet = this.getWallet(username, password);
+    if (wallet.address.toLowerCase() !== this.currentAccount.walletAddress?.toLowerCase()) {
+      throw new Error('Incorrect password. Please try again.');
+    }
+    const nonce = await this.getNonce(wallet.address);
+    return this.eip712.signTypedData(wallet, 'authentication', {
+      walletAddress: wallet.address,
+      nonce
+    });
+  }
+
+  async setupTwoFactor(
+    username: string,
+    password: string,
+    proof?: TwoFactorProof
+  ): Promise<{
+    setupId: string;
+    secret: string;
+    qrData: string;
+    backupCodes: string[];
+  }> {
+    const signature = await this.twoFactorSignature(username, password);
+    const res = await this.client.rest.post<
+      ApiResponse<{
+        setupId: string;
+        secret: string;
+        qrData: string;
+        backupCodes: string[];
+      }>
+    >('/v1/account/2fa/setup', { signature, ...(proof ? { proof } : {}) });
+    return res.data;
+  }
+
+  async confirmTwoFactorSetup(setupId: string, code: string): Promise<void> {
+    await this.client.rest.post('/v1/account/2fa/verify-setup', { setupId, code: code.trim() });
+  }
+
+  async disableTwoFactor(
+    username: string,
+    password: string,
+    proof: string | TwoFactorProof
+  ): Promise<void> {
+    const signature = await this.twoFactorSignature(username, password);
+    await this.client.rest.post('/v1/account/2fa/disable', {
+      signature,
+      ...factorProof(proof)
+    });
+  }
+
+  async regenerateTwoFactorBackupCodes(
+    username: string,
+    password: string,
+    proof: string | TwoFactorProof
+  ): Promise<string[]> {
+    const signature = await this.twoFactorSignature(username, password);
+    const res = await this.client.rest.post<ApiResponse<{ backupCodes: string[] }>>(
+      '/v1/account/2fa/backup-codes',
+      {
+        signature,
+        ...factorProof(proof)
+      }
+    );
+    return res.data.backupCodes;
   }
 
   /**

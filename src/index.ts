@@ -1,3 +1,4 @@
+export { default as TwoFactorRequiredError } from './Account/TwoFactorRequiredError.js';
 // Account API
 import AccountApi from './Account/index.js';
 import CurrentAccount from './Account/CurrentAccount.js';
@@ -726,7 +727,8 @@ export class SogniClient {
     // An API-key session learns its address from the socket's authenticated
     // frame; before that arrives, `me()` answers it.
     this.projects._setAccountAddressResolver(
-      async () => this.account.currentAccount.walletAddress || (await this.account.me()).walletAddress
+      async () =>
+        this.account.currentAccount.walletAddress || (await this.account.me()).walletAddress
     );
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
@@ -888,3 +890,5 @@ export type {
   WorldBuildWaiting,
   WorldBuildWaitingReason
 } from './Worlds/types.js';
+
+export type { TwoFactorProof, TwoFactorStatus } from './Account/index.js';
