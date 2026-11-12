@@ -14,6 +14,11 @@ import {
   type WaitingReason,
   type JobWaitingReason
 } from './types/WaitingReason.js';
+import {
+  normalizePayAsYouGoOffer,
+  type PayAsYouGoOffer,
+  type PayAsYouGoSwitchResult
+} from './types/PayAsYouGo.js';
 
 // If project is not finished and had no updates for 2 minutes, force refresh
 const PROJECT_TIMEOUT = 2 * 60 * 1000;
@@ -55,6 +60,8 @@ const PROJECT_STATUS_MAP: Record<RawProject['status'], ProjectStatus> = {
 export interface ProjectData {
   waitingReason?: WaitingReason | null;
   jobWaitingReasons?: JobWaitingReason[];
+  /** See {@link Project.payAsYouGo}. */
+  payAsYouGo?: PayAsYouGoOffer | null;
   id: string;
   startedAt: Date;
   params: ProjectParams;
@@ -238,6 +245,32 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     return this.data.jobWaitingReasons || [];
   }
 
+  /**
+   * While an Unlimited plan project waits and a card outside the plan's pool could
+   * start it now, the server offers to run it on Premium Spark at its normal price.
+   * `null` otherwise, and always on servers without the offer. Requires the
+   * default `projectQueue` socket event subscription.
+   */
+  get payAsYouGo(): PayAsYouGoOffer | null {
+    return this.data.payAsYouGo ?? null;
+  }
+
+  /**
+   * Run this waiting plan project on Premium Spark now. Charges only when the
+   * result is `switched`; see {@link ProjectsApi.switchToPremiumSpark}.
+   */
+  switchToPremiumSpark(options?: { timeoutMs?: number }): Promise<PayAsYouGoSwitchResult> {
+    return this._api.switchToPremiumSpark(this.id, options);
+  }
+
+  /** @internal Returns whether the offer changed. */
+  _setPayAsYouGo(raw: unknown) {
+    const next = this.finished ? null : normalizePayAsYouGoOffer(raw);
+    if (JSON.stringify(this.data.payAsYouGo ?? null) === JSON.stringify(next)) return false;
+    this._update({ payAsYouGo: next });
+    return true;
+  }
+
   /** @internal */
   _setQueueState(rawReason: unknown, rawJobs: unknown, expectedRevision?: number) {
     if (expectedRevision !== undefined && expectedRevision !== this._queueRevision) return false;
@@ -286,7 +319,12 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     );
     if (delta.status && ['completed', 'failed', 'canceled'].includes(delta.status)) {
       this._queueRevision += 1;
-      delta = { ...delta, waitingReason: null, jobWaitingReasons: [] };
+      delta = {
+        ...delta,
+        waitingReason: null,
+        jobWaitingReasons: [],
+        ...(this.data.payAsYouGo ? { payAsYouGo: null } : {})
+      };
       this.jobs.forEach((job) => {
         if (job.waitingReason) job._update({ waitingReason: null });
       });

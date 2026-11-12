@@ -29,6 +29,7 @@ jobs:
           node scripts/check-auth-session.cjs
           node scripts/check-project-request-session.cjs
           node scripts/check-project-cancellation.cjs
+          node scripts/check-pay-as-you-go.cjs
           node scripts/check-project-recovery.cjs
           node scripts/check-project-liveness.cjs
           node scripts/check-project-results.cjs

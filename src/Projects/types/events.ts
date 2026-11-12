@@ -7,11 +7,14 @@ import type {
 } from '../../ApiClient/WebSocketClient/events.js';
 import type { JobProvenance } from './JobProvenance.js';
 import type { WaitingReason, JobWaitingReason } from './WaitingReason.js';
+import type { PayAsYouGoOffer } from './PayAsYouGo.js';
 
 /** Current queue details; does not change project or result status. */
 export interface ProjectQueueChanged extends ProjectEventBase {
   waitingReason: WaitingReason | null;
   jobWaitingReasons: JobWaitingReason[];
+  /** See {@link Project.payAsYouGo}; `null` when not offered. */
+  payAsYouGo: PayAsYouGoOffer | null;
 }
 
 export type { JobPreparation } from '../../ApiClient/WebSocketClient/events.js';

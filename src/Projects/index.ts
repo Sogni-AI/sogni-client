@@ -34,6 +34,10 @@ import {
 } from '../ApiClient/WebSocketClient/events.js';
 import Project from './Project.js';
 import {
+  normalizePayAsYouGoSwitchResult,
+  type PayAsYouGoSwitchResult
+} from './types/PayAsYouGo.js';
+import {
   PROJECT_LOST_ERROR,
   isLLMRecoveredProject,
   isRecoveredJobFinished,
@@ -568,6 +572,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private projects: Project[] = [];
   private _preparingSessions = new Map<string, () => void>();
   private cancellationRequests = new Map<string, Promise<void>>();
+  private payAsYouGoSwitchRequests = new Map<string, Promise<PayAsYouGoSwitchResult>>();
   private transportDisconnected = false;
   private _connectedAt = 0;
   private _authenticatedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1247,7 +1252,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const project = this.projects.find((item) => item.id === data?.jobID);
     if (!project || project.finished) return;
     project._queueRevision += 1;
-    project._setQueueState(data.waitingReason, data.jobWaitingReasons);
+    // The offer first, so a queueChanged emitted by the queue state carries it.
+    const offerChanged = project._setPayAsYouGo(data.payAsYouGo);
+    const queueChanged = project._setQueueState(data.waitingReason, data.jobWaitingReasons);
+    if (offerChanged && !queueChanged) this._emitQueueChanged(project);
   }
 
   /** @internal */
@@ -1255,7 +1263,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.emit('queueChanged', {
       projectId: project.id,
       waitingReason: project.waitingReason ?? null,
-      jobWaitingReasons: project.jobWaitingReasons
+      jobWaitingReasons: project.jobWaitingReasons,
+      payAsYouGo: project.payAsYouGo
     });
   }
 
@@ -1270,11 +1279,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         row.imgID?.toUpperCase() !== jobId.toUpperCase() &&
         (jobIndex === undefined || row.jobIndex !== jobIndex)
     );
-    if (
+    // A started result ends any Premium Spark offer: the switch needs every result waiting.
+    const offerChanged = project._setPayAsYouGo(null);
+    const queueChanged =
       remaining.length !== project.jobWaitingReasons.length ||
       project.waitingReason?.reason === 'payment_pending'
-    )
-      project._setQueueState(remaining[0]?.waitingReason ?? null, remaining);
+        ? project._setQueueState(remaining[0]?.waitingReason ?? null, remaining)
+        : false;
+    if (offerChanged && !queueChanged) this._emitQueueChanged(project);
   }
 
   private handleProjectEvent(event: ProjectEvent) {
@@ -2865,6 +2877,78 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * rejects and keeps the tracked project active so callers do not hide work that is still running.
    * @param projectId
    **/
+  /**
+   * Run one waiting Unlimited plan project on Premium Spark now, at its normal
+   * price, when {@link Project.payAsYouGo} offers it. The server re-checks every
+   * condition and charges only when the result's `status` is `switched`; every
+   * refusal charges nothing. A repeated call while one is in flight shares its
+   * result. `timeout` means no answer arrived: check the project before asking
+   * again.
+   */
+  async switchToPremiumSpark(
+    projectId: string,
+    options: { timeoutMs?: number } = {}
+  ): Promise<PayAsYouGoSwitchResult> {
+    const key = projectId.toUpperCase();
+    const existing = this.payAsYouGoSwitchRequests.get(key);
+    if (existing) return existing;
+    const request = this.switchToPremiumSparkOnce(projectId, options.timeoutMs ?? 45000);
+    this.payAsYouGoSwitchRequests.set(key, request);
+    try {
+      return await request;
+    } finally {
+      if (this.payAsYouGoSwitchRequests.get(key) === request)
+        this.payAsYouGoSwitchRequests.delete(key);
+    }
+  }
+
+  private async switchToPremiumSparkOnce(
+    projectId: string,
+    timeoutMs: number
+  ): Promise<PayAsYouGoSwitchResult> {
+    let removeListener = () => {};
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const reply = new Promise<PayAsYouGoSwitchResult>((resolve) => {
+      removeListener = this.client.socket.on(
+        'projectPaymentSwitch',
+        (data: SocketEventMap['projectPaymentSwitch']) => {
+          if (String(data?.jobID || '').toUpperCase() !== projectId.toUpperCase()) return;
+          resolve(normalizePayAsYouGoSwitchResult(projectId, data));
+        }
+      );
+      timeout = setTimeout(() => {
+        resolve({
+          projectId,
+          status: 'refused',
+          reason: 'timeout',
+          message: 'No answer yet. Check this creation before trying again.'
+        });
+      }, timeoutMs);
+      timeout.unref?.();
+    });
+    try {
+      try {
+        await this.client.socket.send('switchProjectToPremiumSpark', { projectId });
+      } catch (error) {
+        // An uncertain delivery may still reach the server: wait for its reply.
+        if (!(error instanceof MessageDeliveryUncertainError)) {
+          return { projectId, status: 'refused', reason: 'unavailable' };
+        }
+      }
+      const result = await reply;
+      if (result.status === 'switched') {
+        const project = this.projects.find(
+          (item) => item.id.toUpperCase() === projectId.toUpperCase()
+        );
+        if (project?._setPayAsYouGo(null)) this._emitQueueChanged(project);
+      }
+      return result;
+    } finally {
+      removeListener();
+      if (timeout) clearTimeout(timeout);
+    }
+  }
+
   async cancel(projectId: string) {
     const existing = this.cancellationRequests.get(projectId);
     if (existing) {

@@ -88,6 +88,11 @@ import {
 } from './Projects/types/index.js';
 import type { JobProvenance } from './Projects/types/JobProvenance.js';
 export type { WaitingReason, JobWaitingReason } from './Projects/types/WaitingReason.js';
+export type {
+  PayAsYouGoOffer,
+  PayAsYouGoRefusalReason,
+  PayAsYouGoSwitchResult
+} from './Projects/types/PayAsYouGo.js';
 export type { ProjectQueueChanged } from './Projects/types/events.js';
 import type {
   AvailableLorasParams,

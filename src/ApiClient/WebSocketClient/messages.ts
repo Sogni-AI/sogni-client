@@ -16,6 +16,8 @@ export interface SocketMessageMap {
   changeNetwork: SupernetType;
   llmJobRequest: ChatRequestMessage;
   setSocketEventSubscriptions: SocketEventSubscriptionUpdate;
+  /** Owner opt-in: run one waiting plan project on Premium Spark now. */
+  switchProjectToPremiumSpark: { projectId: string };
 }
 
 export type MessageType = keyof SocketMessageMap;

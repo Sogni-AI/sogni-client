@@ -524,6 +524,19 @@ export type SocketEventMap = {
     jobID: string;
     waitingReason?: import('../../Projects/types/WaitingReason.js').WaitingReason | null;
     jobWaitingReasons?: import('../../Projects/types/WaitingReason.js').JobWaitingReason[];
+    /** Present only while the owner can switch this plan project to Premium Spark. */
+    payAsYouGo?: import('../../Projects/types/PayAsYouGo.js').PayAsYouGoOffer | null;
+  };
+  /**
+   * @event WebSocketClient#projectPaymentSwitch - The one reply to a `switchProjectToPremiumSpark` request
+   */
+  projectPaymentSwitch: {
+    jobID: string | null;
+    status: 'switched' | 'refused';
+    reason?: string;
+    message?: string;
+    costInSpark?: string;
+    paymentModel?: 'paid_spark';
   };
   /**
    * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
