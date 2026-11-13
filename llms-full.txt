@@ -310,13 +310,15 @@ when a result starts, the project ends, the connection drops, or the server stop
 sending it. Nothing is charged until the owner calls
 `sogni.projects.switchToPremiumSpark(projectId)` (or `project.switchToPremiumSpark()`),
 which resolves with `status: 'switched'` (charged once), `'refused'` (this
-request charged nothing; `reason` explains; `started` and `not_eligible` clear
+request costs nothing: a debit the server had already started is cancelled, and
+the balance can take a moment to show it, so say "won't be charged" rather than
+"weren't charged"; `reason` explains; `started` and `not_eligible` clear
 the offer, and after other refusals such as `insufficient_premium_spark` the
 server's next queue update decides), or `'unknown'` (`timeout`, `not_found`,
 `session_changed`, `unrecognized_reply`: the project may have been switched and
 charged, so treat the payment as possibly made). Asking again is safe and never
 charges twice: it answers `switched` if the earlier request switched, a refusal
-from the server if nothing was charged, or `unknown` again (including `not_found`
+from the server if it costs nothing, or `unknown` again (including `not_found`
 once the creation has finished); while it stays unknown, check the member's Spark
 history or the creation's result rather than assuming either way. A `not_sent`
 refusal comes from the SDK itself: that request never left the client and says

@@ -257,7 +257,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
 
   /**
    * Run this waiting plan project on Premium Spark now. `switched` means it was
-   * charged once, `refused` that this request charged nothing, and `unknown` that
+   * charged once, `refused` that this request costs nothing, and `unknown` that
    * it may have been charged; see {@link ProjectsApi.switchToPremiumSpark}.
    */
   switchToPremiumSpark(options?: { timeoutMs?: number }): Promise<PayAsYouGoSwitchResult> {

@@ -248,9 +248,11 @@ async function main() {
   // The timer starts once the request is sent, not while send() waits.
   {
     const { socket, api } = setup();
-    socket.sendDelayMs = 40;
-    const result = api.switchToPremiumSpark('PROJECT-1', { timeoutMs: 25 });
-    await sleep(50);
+    // A timer started before send() would fire at 200 ms, before the 250 ms reply;
+    // one started after the 300 ms send fires at 500 ms. Wide margins keep CI steady.
+    socket.sendDelayMs = 300;
+    const result = api.switchToPremiumSpark('PROJECT-1', { timeoutMs: 200 });
+    await sleep(250);
     socket.emit('projectPaymentSwitch', { jobID: 'PROJECT-1', status: 'switched' });
     assert.equal((await result).status, 'switched');
   }
@@ -269,11 +271,11 @@ async function main() {
   // A reconnect re-sends once from the new socket, and the timer restarts.
   {
     const { socket, client, api } = setup();
-    const result = api.switchToPremiumSpark('PROJECT-1', { timeoutMs: 30 });
+    const result = api.switchToPremiumSpark('PROJECT-1', { timeoutMs: 300 });
     await sleep(0);
     assert.equal(socket.sent.length, 1);
     client.emit('connecting');
-    await sleep(20);
+    await sleep(200);
     client.emit('connected');
     await sleep(0);
     assert.equal(socket.sent.length, 2);
@@ -286,8 +288,8 @@ async function main() {
     client.emit('connected');
     await sleep(0);
     assert.equal(socket.sent.length, 2);
-    // 20 ms before the drop plus 20 ms after: past the first 30 ms timer, inside the restarted one.
-    await sleep(20);
+    // 200 ms before the drop plus 200 ms after: past the first 300 ms timer, inside the restarted one.
+    await sleep(200);
     const state = settledState(result);
     await Promise.resolve();
     assert.equal(state(), 'pending');

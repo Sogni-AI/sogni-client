@@ -247,8 +247,11 @@ const result = await sogni.projects.switchToPremiumSpark(projectId); // or proje
 if (result.status === 'switched') {
   // The project now runs on Premium Spark; its price was charged once.
 } else if (result.status === 'refused') {
-  // This request charged nothing. result.reason says why. 'started' and
-  // 'not_eligible' clear the offer; after other refusals, such as
+  // This request costs nothing. If the server had already started its debit
+  // (for example 'payment_failed', 'no_idle_worker' or 'started'), that debit
+  // is cancelled, and the balance can take a moment to show it, so tell the
+  // member they won't be charged rather than that they weren't.
+  // result.reason says why. 'started' and 'not_eligible' clear the offer; after other refusals, such as
   // 'insufficient_premium_spark' (offer a Spark purchase, then ask again), the
   // server's next queue update decides whether the offer stays.
 } else {
@@ -258,7 +261,7 @@ if (result.status === 'switched') {
 }
 ```
 
-Asking again is safe and never charges twice. It answers `switched` if the earlier request switched, a refusal from the server if nothing was charged, or `unknown` again, including `not_found` once the creation has finished. While the outcome stays unknown, check the member's Spark history or the creation's result rather than assuming either way. A `not_sent` refusal comes from the SDK itself: that request never left the client, so it says nothing about the earlier one; ask again once connected.
+Asking again is safe and never charges twice. It answers `switched` if the earlier request switched, a refusal from the server if it costs nothing, or `unknown` again, including `not_found` once the creation has finished. While the outcome stays unknown, check the member's Spark history or the creation's result rather than assuming either way. A `not_sent` refusal comes from the SDK itself: that request never left the client, so it says nothing about the earlier one; ask again once connected.
 
 The server reads project ids of at most 128 characters, and API-key sessions are never offered the switch and are refused with `not_eligible`. Concurrent calls for one project share a single request. If the connection drops while a request is pending, the SDK sends it once more after reconnecting. `timeoutMs` (default 45 seconds) counts from when the request is sent. Servers without the feature never send an offer.
 

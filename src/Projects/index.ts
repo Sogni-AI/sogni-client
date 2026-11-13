@@ -2896,14 +2896,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * condition when asked. The result has one of three statuses:
    *
    * - `switched`: the project runs on Premium Spark; its price was charged once.
-   * - `refused`: this request charged nothing; `reason` says why. `started` and
+   * - `refused`: this request costs nothing; `reason` says why. A debit the server
+   *   had already started (after `payment_failed`, `no_idle_worker` or `started`)
+   *   is cancelled, and the balance can take a moment to show it. `started` and
    *   `not_eligible` clear the offer at once. After any other refusal (for example
    *   `insufficient_premium_spark`, where an app can offer a Spark purchase and ask
    *   again) the server's next queue update decides whether the offer stays.
    * - `unknown` (`timeout`, `not_found`, `session_changed`, `unrecognized_reply`):
    *   the server may have switched and charged the project. Treat the payment as
    *   possibly made. Asking again is safe and never charges twice: it answers
-   *   `switched` if the earlier request switched, a refusal if nothing was charged,
+   *   `switched` if the earlier request switched, a refusal if it costs nothing,
    *   or `unknown` again (including `not_found` once the creation has finished).
    *   While it stays unknown, check the member's Spark history or the creation's
    *   result rather than assuming either way.

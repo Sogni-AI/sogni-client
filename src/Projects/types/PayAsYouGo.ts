@@ -19,7 +19,9 @@ export interface PayAsYouGoOffer {
 
 /**
  * Why the server refused a switch to Premium Spark. A refusal means the request
- * that received it charged nothing. (`not_found` is never a refusal: see
+ * that received it costs nothing: a debit the server had already started is
+ * cancelled, and the balance can take a moment to show it. (`not_found` is never
+ * a refusal: see
  * {@link PayAsYouGoUnknownReason}.)
  */
 export type PayAsYouGoRefusalReason =
@@ -69,7 +71,7 @@ export interface PayAsYouGoSwitched extends PayAsYouGoSwitchResultBase {
   paymentModel: 'paid_spark';
 }
 
-/** The server refused the switch; this request charged nothing. */
+/** The server refused the switch; this request costs nothing (see {@link PayAsYouGoRefusalReason}). */
 export interface PayAsYouGoRefused extends PayAsYouGoSwitchResultBase {
   status: 'refused';
   /** Unknown future reasons arrive as 'not_eligible'. */
