@@ -144,4 +144,22 @@ export const SUBSCRIPTION_ERROR_CODES = {
 export type SubscriptionErrorCode =
   (typeof SUBSCRIPTION_ERROR_CODES)[keyof typeof SUBSCRIPTION_ERROR_CODES];
 
+/**
+ * Error codes for projects with encrypted media.
+ *
+ * - `UNSUPPORTED` (4098): media encryption is not available for this project.
+ *   Create it without `mediaEncryption`.
+ * - `NO_WORKER_AVAILABLE` (4096): no capacity for an encrypted project on this
+ *   model right now. Retry shortly, or create it without `mediaEncryption`.
+ * - `RESUME_FAILED` (4099): the project could not be resumed. Submit it again.
+ */
+export const MEDIA_ENCRYPTION_ERROR_CODES = {
+  UNSUPPORTED: 4098,
+  NO_WORKER_AVAILABLE: 4096,
+  RESUME_FAILED: 4099
+} as const;
+
+export type MediaEncryptionErrorCode =
+  (typeof MEDIA_ENCRYPTION_ERROR_CODES)[keyof typeof MEDIA_ENCRYPTION_ERROR_CODES];
+
 export default ErrorData;

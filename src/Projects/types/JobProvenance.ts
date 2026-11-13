@@ -8,6 +8,8 @@ import type { Sam3Selection } from './index.js';
 export interface JobProvenance {
   /** Hash of the exact bytes uploaded as the completed artifact. */
   sha256?: string;
+  /** Hash of an encrypted job's decrypted artifact. Only on encrypted jobs. */
+  plaintextSha256?: string;
   /** Hash of the original still used by an image edit or segmentation job. */
   sourceImageSha256?: string;
   /** Exact uploaded video whose frames the mask follows. */

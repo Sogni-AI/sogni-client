@@ -126,6 +126,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   private readonly _recovered: boolean;
   private _timeout: NodeJS.Timeout | null = null;
   private _failedSyncAttempts = 0;
+  private _mediaEncrypted = false;
 
   constructor(data: ProjectParams, options: ProjectOptions) {
     super({
@@ -347,6 +348,20 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    */
   get jobs() {
     return this._jobs.slice(0);
+  }
+
+  /**
+   * Whether this project was submitted with encrypted media. Read its results
+   * with {@link Job.getResultData} or {@link MediaEncryptionApi.fetchDecrypted},
+   * which return the media either way.
+   */
+  get encrypted(): boolean {
+    return this._mediaEncrypted || this.params.mediaEncryption === true;
+  }
+
+  /** @internal The project is being submitted with encrypted media. */
+  _markMediaEncrypted() {
+    this._mediaEncrypted = true;
   }
 
   /**

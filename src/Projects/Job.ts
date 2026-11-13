@@ -774,6 +774,19 @@ class Job extends DataEntity<JobData, JobEventMap> {
     this.emit('updated', ['enhancedImage']);
   }
 
+  /**
+   * Whether this job's project was submitted with encrypted media. Read its
+   * results with {@link Job.getResultData} or
+   * {@link MediaEncryptionApi.fetchDecrypted}, which return the media either way.
+   */
+  get encrypted(): boolean {
+    return this._project.encrypted;
+  }
+
+  /**
+   * Download the result. Encrypted results are returned decrypted, typed with
+   * their real MIME type.
+   */
   async getResultData() {
     if (!this.hasResultMedia) {
       throw new Error('No result media available');
@@ -783,7 +796,14 @@ class Job extends DataEntity<JobData, JobEventMap> {
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.statusText}`);
     }
-    return response.blob();
+    const blob = await response.blob();
+    if (!this.encrypted) return blob;
+    const mediaEncryption = this._api._mediaEncryption;
+    if (!mediaEncryption) {
+      throw new Error('Media encryption is not available on this client instance');
+    }
+    // Judge by the bytes: only encrypted content is decrypted.
+    return mediaEncryption._openIfEncrypted(blob);
   }
 
   /**
@@ -854,7 +874,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
       seed: this.seed ?? this._project.params.seed,
       startingImage: imageData,
       startingImageStrength: 1 - getEnhacementStrength(strength),
-      ...(size ? { sizePreset: 'custom', width: size.width, height: size.height } : {})
+      ...(size ? { sizePreset: 'custom', width: size.width, height: size.height } : {}),
+      ...(parentProjectParams.mediaEncryption ? { mediaEncryption: true } : {})
     });
     this._enhancementProject = project;
     this._enhancementProject.on('updated', this.handleEnhancementUpdate);

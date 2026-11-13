@@ -126,6 +126,10 @@ jobs:
         run: node scripts/check-reference-content-types.cjs
       - name: Run Seedance 2.5 draft checks
         run: node scripts/check-seedance-draft.cjs
+      - name: Run media encryption checks
+        run: node scripts/check-media-encryption.cjs && node scripts/check-media-encryption-streams.cjs && node scripts/check-media-encryption-playback.cjs
+      - name: Run media encryption client checks
+        run: node scripts/check-media-encryption-auto.cjs && node scripts/check-browser-media-encryption.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -4,6 +4,7 @@ import { JSONValue } from '../types/json.js';
 import { Logger } from './DefaultLogger.js';
 import { AuthManager } from './AuthManager/index.js';
 import { captureRequestSession } from './requestSession.js';
+import { MEDIA_CAPABILITY, MEDIA_CAPABILITY_HEADER } from './mediaEncryption/capability.js';
 
 interface RestRequestInit extends RequestInit {
   timeoutMs?: number;
@@ -41,6 +42,7 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
   readonly baseUrl: string;
   protected _auth: AuthManager;
   protected _logger: Logger;
+  private _mediaCapabilityDeclared?: () => boolean;
 
   constructor(baseUrl: string, auth: AuthManager, logger: Logger) {
     super();
@@ -51,6 +53,14 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
 
   get auth(): AuthManager {
     return this._auth;
+  }
+
+  /**
+   * Declare the media capability on requests while `declared()` says so.
+   * @internal
+   */
+  _setMediaCapability(declared: () => boolean) {
+    this._mediaCapabilityDeclared = declared;
   }
 
   private formatUrl(relativeUrl: string, query: Record<string, unknown> = {}): string {
@@ -70,6 +80,9 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     const { timeoutMs = 30000, ...requestOptions } = options;
     const init = await this.auth.authenticateRequest(requestOptions);
     assertSession();
+    if (this._mediaCapabilityDeclared?.()) {
+      init.headers = { ...init.headers, [MEDIA_CAPABILITY_HEADER]: MEDIA_CAPABILITY };
+    }
 
     // Add a timeout to detect hanging requests
     const controller = new AbortController();

@@ -1063,6 +1063,67 @@ clients that manage project IDs and input slots directly.
 Project history may include `byolUsed`, `personalLoras` public-source snapshots,
 and `reusedAssetCount`. Missing fields on older projects mean unknown, not zero.
 
+### Media encryption
+
+The SDK offers optional encryption of project media for the signed-in account.
+Turn it on when creating the client:
+
+```javascript
+const sogni = await SogniClient.createInstance({ appId, mediaEncryption: 'auto' });
+await sogni.account.login('username', 'password');
+
+const project = await sogni.projects.create(params);
+await project.waitForCompletion();
+const blob = await project.jobs[0].getResultData(); // the media, with its real MIME type
+```
+
+- Once media encryption is available for the account
+  (`sogni.mediaEncryption.available`), every eligible new project is encrypted.
+  Until then, and without the option, the client works exactly as before.
+- Read results with `job.getResultData()`, or
+  `sogni.mediaEncryption.fetchDecrypted(url)` for result and preview URLs, rather
+  than loading the URL in an `<img>` or `<video>` directly. Both return the
+  media whether or not it was encrypted.
+- A project is sent unencrypted when encryption is not available for it: for the
+  account at that moment, for its model (`projects.supportsMediaEncryption(modelId)`),
+  or for its network (Fast only, for now), or when an input is `true` ("already
+  uploaded"). `job.encrypted` and `project.encrypted` say which projects were
+  sent encrypted.
+- Set `mediaEncryption` on a project to override the client: `false` sends it
+  unencrypted, and `true` encrypts it or throws `MediaEncryptionError` before
+  anything is uploaded. Saved uploads work for encrypted projects too.
+- Services that pass result links on to others can add
+  `declareMediaCapability: false`: projects are still encrypted, and result,
+  preview and download URLs serve the media itself.
+- `availabilityChanged` fires when `sogni.mediaEncryption.available` changes.
+  Client-side failures throw `MediaEncryptionError` with a `code` such as
+  `locked`, `unsupported`, `wrong_account_key` or `authentication_failed`.
+
+For encrypted video and audio, `openDecrypted()` reads byte ranges without
+downloading the entire file. Offsets refer to the media itself and the end offset
+is exclusive. Use `stream()` for large reads and close the reader when finished;
+locking or changing accounts also aborts its outstanding requests.
+
+```javascript
+const media = await sogni.mediaEncryption.openDecrypted(resultUrl);
+try {
+  const header = await media.read(0, Math.min(1024, media.size));
+  // media.contentType is the media's MIME type; media.stream() reads with backpressure.
+} finally {
+  media.close();
+}
+```
+
+Browser apps can import `createEncryptedPlayback` and `serveEncryptedMedia` from
+`@sogni-ai/sogni-client/media-encryption-playback` to play encrypted video and
+audio through their own service worker. The worker must route
+`ENCRYPTED_MEDIA_PATH` requests with the requesting client's ID, and answer
+`SOGNI_ENCRYPTED_MEDIA_CLIENT` messages through their transferred port with
+`{ clientId: event.source.id }`. Pass the opened reader to
+`createEncryptedPlayback()`, use its returned `url` as the media element's
+source, and call `dispose()` when removing the element. The URL belongs to that
+tab. This requires an active service worker controlling the page.
+
 ### ControlNets
 
 **EXPERIMENTAL FEATURE:** This feature is still in development and may not work as expected. Use at your own risk.

@@ -123,6 +123,10 @@ export function projectParamsFromRecoveredProject(project: RecoveredProject): Pr
   if (billingMode) base.billingMode = billingMode;
   if (project.priorityMode !== undefined) base.priorityMode = project.priorityMode;
   if (request.disableSafety === true) base.disableNSFWFilter = true;
+  // Only marks the recovered project as encrypted.
+  if (request.mediaEncryption && typeof request.mediaEncryption === 'object') {
+    base.mediaEncryption = true;
+  }
   if (typeof request.outputFormat === 'string' && request.outputFormat) {
     base.outputFormat = request.outputFormat;
   }

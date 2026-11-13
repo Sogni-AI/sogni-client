@@ -29,6 +29,7 @@ Current public API anchors:
 - Project cost helpers are `sogni.projects.estimateCost()`, `estimateVideoCost()`, and `estimateAudioCost()`.
 - `sogni.projects.assets` manages private subscriber uploads (`upload`, `list`, `remove`, `bind`). Supported servers automatically reuse matching files passed to `projects.create()`; saved IDs do not replace file parameters.
 - `checkAuth()` is only for cookie-auth browser flows. API-key auth auto-authenticates during `createInstance()`, and token auth uses `login()` or `setTokens()`.
+- Optional media encryption: `createInstance({ mediaEncryption: 'auto' })` encrypts eligible new projects once encryption is available for the account (`sogni.mediaEncryption.available`). Unset, nothing changes. Read results through `job.getResultData()` or `sogni.mediaEncryption.fetchDecrypted()`, which return the media either way. `declareMediaCapability: false` keeps encrypting but has result links serve the media itself.
 - `ChatCompletionResult` is SDK-shaped (`content`, `role`, `finishReason`, `tool_calls`, `usage`, `cost`). Streaming chunks expose `chunk.content` and optional `chunk.tool_calls`.
 
 ## Public Release Security

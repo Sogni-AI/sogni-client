@@ -168,6 +168,10 @@ Keep `appSource` as the stable product/integration ID. Agent wrappers may additi
 - `fast` - High-end GPUs, faster, more expensive. **Required for video.**
 - `relaxed` - Mac devices, cheaper. Image only.
 
+### Media Encryption (optional)
+
+`SogniClient.createInstance({ appId, mediaEncryption: 'auto' })` turns on optional media encryption. Once it is available for the account (`sogni.mediaEncryption.available`), eligible new projects are encrypted; until then, and without the option, nothing changes. Read results with `job.getResultData()` or `sogni.mediaEncryption.fetchDecrypted(url)` (both return the media whether or not it was encrypted), not by loading result URLs directly. A project's `mediaEncryption: false` opts out; `true` encrypts or throws `MediaEncryptionError` before uploading. Encryption is Fast-network only for now. `declareMediaCapability: false` keeps encrypting but has result links serve the media itself, for services that pass links on.
+
 ---
 
 ## 2. Image Generation

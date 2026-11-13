@@ -25,6 +25,13 @@ export interface SupportedModel {
    * Media type produced by this model: image, video, audio, or a 3D model artifact.
    */
   media: 'image' | 'video' | 'audio' | 'model';
+  /** Whether projects for this model can be created with `mediaEncryption`. */
+  supportsMediaEncryption?: boolean;
+  /**
+   * `false` when an encrypted project on this model takes its inputs as they
+   * are: the project is encrypted and its inputs are uploaded unencrypted.
+   */
+  mediaEncryptionInputs?: boolean;
 }
 
 export interface AvailableModel {
@@ -199,6 +206,23 @@ export interface BaseProjectParams {
    * @default false
    */
   priorityMode?: boolean;
+  /**
+   * Encrypt this project's media. Read results with
+   * {@link Job.getResultData} or {@link MediaEncryptionApi.fetchDecrypted},
+   * which return the media; for seekable video/audio playback,
+   * {@link MediaEncryptionApi.openDecrypted} reads byte ranges without
+   * downloading the entire file.
+   *
+   * - unset: follow the client. A client created with `mediaEncryption: 'auto'`
+   *   encrypts every project it can and sends the rest unencrypted; any other
+   *   client encrypts nothing.
+   * - `true`: encrypt, or fail before anything is uploaded. Needs the account's
+   *   media key ({@link MediaEncryptionApi.isUnlocked}), a model that supports it
+   *   ({@link ProjectsApi.supportsMediaEncryption}), the Fast network and the
+   *   media itself for every input (not `true`).
+   * - `false`: never encrypt this project.
+   */
+  mediaEncryption?: boolean;
   /**
    * Optional client app/source label to attach to the project request for server-side attribution.
    */

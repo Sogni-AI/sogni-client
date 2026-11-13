@@ -277,6 +277,8 @@ import StatsApi from './Stats/index.js';
 import ReplayApi from './Replay/index.js';
 import WorldsApi from './Worlds/index.js';
 import AnnouncementsApi from './Announcements/index.js';
+import MediaEncryptionApi from './MediaEncryption/index.js';
+import { MediaEncryptionError } from './lib/mediaEncryption/index.js';
 import {
   GetReplayRecordResult,
   ListReplayRecordsOptions,
@@ -289,11 +291,16 @@ import {
 // Base Types
 import ErrorData, {
   ACCOUNT_RESTORABLE_ERROR_CODE,
+  MEDIA_ENCRYPTION_ERROR_CODES,
   MODEL_CONSENT_REQUIRED_ERROR_CODE,
   MODEL_NOT_YET_AVAILABLE_ERROR_CODE,
   SUBSCRIPTION_ERROR_CODES
 } from './types/ErrorData.js';
-import type { ModelConsentRequirement, SubscriptionErrorCode } from './types/ErrorData.js';
+import type {
+  MediaEncryptionErrorCode,
+  ModelConsentRequirement,
+  SubscriptionErrorCode
+} from './types/ErrorData.js';
 import isModelConsentRequiredError from './lib/isModelConsentRequiredError.js';
 import isSubscriptionLimitError from './lib/isSubscriptionLimitError.js';
 import { TokenType } from './types/token.js';
@@ -476,6 +483,7 @@ export type {
   SubscriptionPlanInterval,
   SubscriptionPlan,
   SubscriptionErrorCode,
+  MediaEncryptionErrorCode,
   SubscriptionPortalSession,
   SubscriptionRedirectType,
   SubscriptionStatus,
@@ -536,6 +544,9 @@ export type {
   ImportPersonalLoraParams
 } from './Projects/PersonalLoras.js';
 export type { Pixal3dOrbitView } from './Projects/utils/index.js';
+export type { MediaEncryptionApiEvents } from './MediaEncryption/index.js';
+export type { DecryptedMediaReader } from './lib/mediaEncryption/remote.js';
+export type { MediaEncryptionHeader } from './lib/mediaEncryption/index.js';
 
 export {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
@@ -578,6 +589,9 @@ export {
   ReplayApi,
   CurrentAccount,
   Job,
+  MediaEncryptionApi,
+  MediaEncryptionError,
+  MEDIA_ENCRYPTION_ERROR_CODES,
   Project,
   PROJECT_LOST_ORIGINAL_CODE,
   SogniTools,
@@ -686,6 +700,33 @@ export interface SogniClientConfig {
    * @experimental
    */
   multiInstance?: boolean;
+  /**
+   * `'auto'` turns on optional media encryption: once it is available for the
+   * account ({@link MediaEncryptionApi.available}), every eligible new project
+   * is encrypted. Until then the client works exactly as without this option.
+   *
+   * Result, preview and download URLs of encrypted projects may then serve
+   * encrypted media. Read them with {@link Job.getResultData},
+   * {@link MediaEncryptionApi.fetchDecrypted} or
+   * {@link MediaEncryptionApi.openDecrypted}; do not hand them to an `<img>` or
+   * `<video>` directly.
+   *
+   * A project is sent unencrypted when encryption is not available for it: for
+   * the account at that moment, for its model, or for its network (Fast only,
+   * for now), or when an input is `true` (uploaded outside the SDK). Set
+   * `mediaEncryption` on a project to override.
+   *
+   * Leave unset for the behaviour of earlier versions.
+   */
+  mediaEncryption?: 'auto';
+  /**
+   * With `mediaEncryption: 'auto'`, `false` keeps encrypting new projects but
+   * has result, preview and download URLs serve the media itself, as for a
+   * client without `mediaEncryption`. For services that pass those links on.
+   * Result readers such as {@link Job.getResultData} return either kind.
+   * @default true
+   */
+  declareMediaCapability?: boolean;
 }
 
 /** Configuration for a client that uses only REST APIs and never opens an artist WebSocket. */
@@ -737,12 +778,19 @@ export class SogniClient {
    * announcement per account so it stays dismissed on every device.
    */
   announcements: AnnouncementsApi;
+  /**
+   * Optional media encryption: read encrypted results, video and
+   * audio. Create the client with `mediaEncryption: 'auto'` to encrypt every
+   * eligible project.
+   */
+  mediaEncryption: MediaEncryptionApi;
 
   apiClient: ApiClient;
 
   private constructor(config: ApiConfig) {
     this.account = new AccountApi(config);
-    this.projects = new ProjectsApi(config);
+    this.mediaEncryption = new MediaEncryptionApi(config);
+    this.projects = new ProjectsApi(config, this.mediaEncryption);
     // An API-key session learns its address from the socket's authenticated
     // frame; before that arrives, `me()` answers it.
     this.projects._setAccountAddressResolver(
@@ -859,6 +907,11 @@ export class SogniClient {
     if (!appId && !config.disableSocket) {
       throw new Error('appId is required when WebSocket connections are enabled');
     }
+    // Anything but 'auto' leaves encryption off, as it always was.
+    const mediaEncryption = config.mediaEncryption === 'auto' ? 'auto' : undefined;
+    if (config.mediaEncryption !== undefined && !mediaEncryption) {
+      logger.warn("mediaEncryption accepts only 'auto'; media encryption stays off");
+    }
 
     const client = new ApiClient({
       baseUrl: restEndpoint,
@@ -871,7 +924,9 @@ export class SogniClient {
       logger,
       authType,
       disableSocket: config.disableSocket,
-      multiInstance: config.multiInstance
+      multiInstance: config.multiInstance,
+      mediaEncryption,
+      declareMediaCapability: config.declareMediaCapability !== false
     });
     const eip712 = new EIP712Helper({
       name: isTestnet ? 'Sogni-testnet' : 'Sogni AI',

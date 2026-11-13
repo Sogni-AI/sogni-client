@@ -381,6 +381,21 @@ NETWORK TYPES:
 - 'fast': High-end GPU workers. Faster, higher cost. REQUIRED for video.
 - 'relaxed': Mac device workers. Slower, lower cost. Image only.
 
+MEDIA ENCRYPTION (OPTIONAL):
+
+```javascript
+const sogni = await SogniClient.createInstance({ appId, mediaEncryption: 'auto' });
+await sogni.account.login(username, password);
+const project = await sogni.projects.create(params); // encrypted when available
+await project.waitForCompletion();
+const media = await project.jobs[0].getResultData(); // the media, with its MIME type
+```
+
+- Eligible new projects are encrypted once encryption is available for the account (`sogni.mediaEncryption.available`, event `availabilityChanged`). Without the option, or until then, nothing changes.
+- Read results with `job.getResultData()` or `sogni.mediaEncryption.fetchDecrypted(url)`, which return the media whether or not it was encrypted. For seekable video/audio use `sogni.mediaEncryption.openDecrypted(url)`; browsers can play it through `@sogni-ai/sogni-client/media-encryption-playback`.
+- Projects are sent unencrypted when encryption is not available for the account, model (`projects.supportsMediaEncryption(modelId)`) or network (Fast only for now), or when an input is `true`. Per project, `mediaEncryption: false` opts out and `true` encrypts or throws `MediaEncryptionError` before uploading.
+- `declareMediaCapability: false` keeps encrypting new projects but has result, preview and download URLs serve the media itself, for services that pass links on.
+
 CONNECTION EVENTS:
 
 ```javascript
