@@ -130,6 +130,8 @@ jobs:
         run: node scripts/check-media-encryption.cjs && node scripts/check-media-encryption-streams.cjs && node scripts/check-media-encryption-playback.cjs
       - name: Run media encryption client checks
         run: node scripts/check-media-encryption-auto.cjs && node scripts/check-browser-media-encryption.cjs
+      - name: Run two-factor sign-in checks
+        run: node scripts/check-two-factor.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
