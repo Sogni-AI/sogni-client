@@ -330,6 +330,97 @@ assert.throws(
     }),
   /1K, 1.5K or 2K/
 );
+// Layer options without the decomposition they configure, and on other models.
+assert.throws(
+  () =>
+    validateSeedreamOptions({ modelId: SEEDREAM, contextImages: ['a'], seedreamLayerSize: '2K' }),
+  /seedreamLayerSize requires seedreamLayerDecomposition/
+);
+assert.throws(
+  () =>
+    validateSeedreamOptions({
+      modelId: SEEDREAM,
+      seedreamLayerDecomposition: true,
+      contextImages: ['a'],
+      numberOfMedia: 2
+    }),
+  /set numberOfMedia to 1/
+);
+for (const field of [
+  ['seedreamLayerDecomposition', true],
+  ['seedreamLayerSize', '1K'],
+  ['seedreamLayerMaxImages', 17],
+  ['seedreamLayerTextRecognition', false]
+]) {
+  for (const modelId of ['gpt-image-2', 'z_image_turbo_bf16']) {
+    assert.throws(
+      () => validateSeedreamOptions({ modelId, contextImages: ['a'], [field[0]]: field[1] }),
+      /Seedream layer options require a Seedream model/,
+      `${field[0]} on ${modelId}`
+    );
+  }
+}
+
+// Seedream 5.5 Uncensored's options are refused on 5.0 Pro, whatever their
+// value and even alongside a valid decomposition; transparency is not offered.
+for (const [option, values] of [
+  ['seedreamBackground', ['opaque', 'transparent', 'auto']],
+  ['seedreamLayerMaxImages', [2, 17, 100]],
+  ['seedreamLayerTextRecognition', [true, false]]
+]) {
+  for (const value of values) {
+    for (const extra of [{}, { contextImages: ['a'], seedreamLayerDecomposition: true }]) {
+      assert.throws(
+        () => request({ ...extra, [option]: value }),
+        new RegExp(`${option} requires seedream-5-5-uncensored`),
+        `${option}=${value} on 5.0 Pro`
+      );
+    }
+  }
+}
+// seedreamBackground is refused on every non-Seedream model too.
+for (const modelId of ['gpt-image-2.5-sunburst', 'z_image_turbo_bf16']) {
+  assert.throws(
+    () => validateSeedreamOptions({ modelId, seedreamBackground: 'opaque' }),
+    /seedreamBackground requires seedream-5-5-uncensored/,
+    modelId
+  );
+}
+// 5.0 Pro keeps its 4,194,304-pixel and 8192-px limits: 5.5's larger sizes are refused.
+for (const [width, height] of [
+  [2830, 1634], // exactly 4,624,220: Seedream 5.5's ceiling
+  [2816, 1584] // 4,460,544: a native Seedream 5.5 2K size
+]) {
+  assert.throws(
+    () => request({ sizePreset: 'custom', width, height }),
+    /renders 921,600 to 4,194,304 pixels/,
+    `${width}x${height} on 5.0 Pro`
+  );
+}
+assert.throws(() => validateCustomImageSize(8595, { modelId: SEEDREAM }), /less or equal 8192/);
+
+// Byte-for-byte compatibility: requests and quotes without any seedream*
+// option serialize exactly as SDK 5.80.1 (6b91f63) sent them, for 5.0 Pro and
+// for the GPT Image and Z-Image requests beside it.
+const baseline = require('./fixtures/seedream-request-baseline-5.80.1.json');
+{
+  for (const [name, { params, message }] of Object.entries(baseline.requests)) {
+    const current = createJobRequestMessage(`baseline-${name}`, params, baseline.options);
+    assert.equal(JSON.stringify(current), JSON.stringify(message), `request ${name} is unchanged`);
+    assert.equal(
+      Object.keys(current.keyFrames[0]).some((key) => key.startsWith('seedream')),
+      false,
+      `request ${name} carries no seedream field`
+    );
+  }
+  // Explicit opt-outs stay opt-in: only an explicitly sent field is written.
+  const plain = request({}).keyFrames[0];
+  assert.equal('seedreamBackground' in plain, false);
+  assert.equal('seedreamLayerDecomposition' in plain, false);
+  assert.equal('seedreamLayerMaxImages' in plain, false);
+  assert.equal('seedreamLayerTextRecognition' in plain, false);
+}
+
 // A completed layer decomposition: the base is resultUrl, the layers ride on
 // the jobResult and land on the Job and its completed event, ordered by zIndex.
 async function checkLayerResults() {
@@ -481,6 +572,15 @@ async function checkLayerResults() {
   await projects.estimateCost({ ...base, seedreamLayerDecomposition: true });
   assert.equal(estimatePaths[0].includes('seedreamLayerDecomposition'), false);
   assert.match(estimatePaths[1], /[?&]seedreamLayerDecomposition=true(&|$)/);
+  assert.equal(estimatePaths[1].includes('seedreamLayerMaxImages'), false);
+
+  // Quotes without any seedream* option ask for exactly what SDK 5.80.1 asked.
+  projects.getModelOptions = async () => baseline.options;
+  for (const [name, { request: estimate, path }] of Object.entries(baseline.estimates)) {
+    estimatePaths.length = 0;
+    await projects.estimateCost(estimate);
+    assert.deepEqual(estimatePaths, [path], `estimate ${name} is unchanged`);
+  }
 
   project._update({ status: 'failed', error: { code: 0, message: 'test cleanup' } });
   plainProject._update({ status: 'failed', error: { code: 0, message: 'test cleanup' } });

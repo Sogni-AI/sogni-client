@@ -378,6 +378,64 @@ async function main() {
     stopTimers(api);
   }
 
+  // 3c. A Seedream 5.5 decomposition replays its highest layers and the text
+  //     recognition of its text layers.
+  {
+    const { api, socket, client } = makeHarness();
+    const project = await createTracked(api);
+    const box = { absolute: [40, 60, 600, 140], normalized: [62, 125, 937, 291] };
+    const textLayer = {
+      url: 'https://cdn.test/layer-99.png',
+      key: 'vendor/bytedance/seedream-5-5-uncensored/2026-11-13/job.layer-99.png',
+      width: 1536,
+      height: 220,
+      zIndex: 99,
+      boundingBox: box,
+      name: 'Headline',
+      textRecognition: {
+        text: 'OPEN LATE',
+        lines: [
+          {
+            boundingBox: box,
+            runs: [
+              {
+                text: 'OPEN LATE',
+                style: {
+                  similarFontFamily: 'unknown',
+                  foregroundColor: '#FF0044',
+                  bold: true,
+                  italic: false,
+                  underline: false,
+                  strikethrough: false,
+                  shadow: false,
+                  translucent: false
+                }
+              }
+            ]
+          }
+        ]
+      }
+    };
+    client.emit('connected', { network: 'fast' });
+    socket.emit('authenticated', {
+      clientType: 'artist',
+      activeProjects: [],
+      unclaimedCompletedProjects: [
+        recoveredProject(project.id, {
+          status: 'completed',
+          reason: 'allJobsCompleted',
+          completedWorkerJobs: [
+            { ...completedJob(project.id, 'IMG-T'), result: { layers: [textLayer] } }
+          ]
+        })
+      ]
+    });
+    await sleep(30);
+    const { key, ...publicTextLayer } = textLayer;
+    assert.deepEqual(project.job('IMG-T').layers, [publicTextLayer]);
+    stopTimers(api);
+  }
+
   // 4. An in-flight project this client never saw is rebuilt, tracked and announced.
   {
     const { api, socket, client, recoveredActive } = makeHarness();

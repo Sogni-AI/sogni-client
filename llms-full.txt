@@ -570,8 +570,33 @@ Opt-in layer extraction: `seedreamLayerDecomposition: true`, exactly one
 `contextImages` entry, `numberOfMedia: 1`, optional prompt and named
 `seedreamLayerSize: '1K' | '1.5K' | '2K'` (default '1.5K'). Estimate reserves
 17 images; settlement charges only the base and returned layers. `job.resultUrl`
-is the base; `job.layers` holds ordered transparent PNG layers with bounds and
-names. Use `job.getLayerUrl(zIndex)` for a fresh ownership-checked URL.
+is the base; `job.layers` holds up to 16 ordered transparent PNG layers with
+bounds and names. Use `job.getLayerUrl(zIndex)` for a fresh ownership-checked URL.
+
+Seedream 5.5 Uncensored uses `modelId: 'seedream-5-5-uncensored'` (exported as
+`SEEDREAM_5_5_UNCENSORED_MODEL_ID`). It takes the same requests and agreement as
+5.0 Pro and is chosen only by name; `seedream-uncensored` still selects 5.0 Pro.
+Custom sizes run from 921,600 to 4,624,220 pixels at 1:16 to 16:1. Native sizes:
+1K 1024x1024, 1152x864, 864x1152, 1424x800, 800x1424, 1248x832, 832x1248, 1568x672;
+1.5K 1536x1536, 1792x1344, 1344x1792, 2048x1152, 1152x2048, 1872x1248, 1248x1872,
+2352x1008; 2K 2048x2048, 2368x1776, 1776x2368, 2816x1584, 1584x2816, 2496x1664,
+1664x2496, 3136x1344.
+`seedreamBackground: 'opaque' | 'transparent' | 'auto'` (5.5 only, default
+'opaque'): transparent returns RGBA for text-to-image and for edits from up to 10
+references; auto lets the model decide. Transparent and auto need PNG or WebP
+output (`outputFormat: 'jpg'` is refused) and cannot combine with layers.
+5.5 layer extraction returns up to 99 layers. `seedreamLayerMaxImages` (integer
+2-100, base included, default 17) caps the images and sets the estimate's
+reservation; `seedreamLayerTextRecognition: true` adds `layer.textRecognition`
+on layers the model classes as regular text (absent on every other layer):
+`{ text, lines: [{ boundingBox: { absolute, normalized }, runs: [{ text, style:
+{ similarFontFamily, foregroundColor, bold, italic, underline, strikethrough,
+shadow, translucent } }] }] }`. Both options require `seedreamLayerDecomposition`
+and are refused on 5.0 Pro. Layers are ordered by `zIndex` (1-99; the base is 0);
+`boundingBox.absolute` is `[left, top, right, bottom]` in base-image pixels and
+`normalized` the same on a 0-1000 grid. A layer image can be larger than its box,
+so scale it to the box before placing it. Pass the same layer options to
+`estimateCost()`.
 
 RECOMMENDED MODELS:
 | Model ID | Type | Steps | Guidance | Notes |

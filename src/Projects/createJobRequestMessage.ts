@@ -1665,10 +1665,21 @@ function applyImageParams(
   if (params.gptImageOutputCompression !== undefined) {
     keyFrame.gptImageOutputCompression = params.gptImageOutputCompression;
   }
+  // Seedream options are written only when set, so requests without them keep
+  // their exact shape. validateSeedreamOptions has refused every invalid mix.
+  if (params.seedreamBackground !== undefined) {
+    keyFrame.seedreamBackground = params.seedreamBackground;
+  }
   if (params.seedreamLayerDecomposition !== undefined) {
     keyFrame.seedreamLayerDecomposition = params.seedreamLayerDecomposition;
     if (params.seedreamLayerDecomposition && params.seedreamLayerSize)
       keyFrame.seedreamLayerSize = params.seedreamLayerSize;
+  }
+  if (params.seedreamLayerMaxImages !== undefined) {
+    keyFrame.seedreamLayerMaxImages = params.seedreamLayerMaxImages;
+  }
+  if (params.seedreamLayerTextRecognition !== undefined) {
+    keyFrame.seedreamLayerTextRecognition = params.seedreamLayerTextRecognition;
   }
   return keyFrame;
 }

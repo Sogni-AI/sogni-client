@@ -639,7 +639,7 @@ Here is a full list of project parameters that you can use:
 - `negativePrompt` - text prompt that describes what you don't want to see in the image. Can be an empty string.
 - `stylePrompt` - text prompt that describes the style of the image. Can be an empty string.
 - `numberOfImages` - number of images to generate.
-- `tokenType` - select token type to pay for render. Can be either `sogni` or `spark`. External API-backed models such as GPT Image 2, Seedream 5.0 Pro Uncensored, and Seedance are Spark-only.
+- `tokenType` - select token type to pay for render. Can be either `sogni` or `spark`. External API-backed models such as GPT Image 2, Seedream 5.0 Pro Uncensored, Seedream 5.5 Uncensored, and Seedance are Spark-only.
 - `sizePreset` - optionally pass the ID of a size preset to use. If not passed, the default output is a square at
   either 512x512, 768x768 or 1024x1024 (SDXL and Flux) based on the default resolution of the selected model.
   See **Detecting available output presets** section below for available presets for your model. The token cost and
@@ -743,26 +743,59 @@ const project = await sogni.projects.create({
 });
 ```
 
-It shares the one-time likeness and consent agreement of Seedance 2.5 Uncensored: an account that has accepted it for Seedance can use Seedream, and until it is accepted in a Sogni app every Seedream job fails with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key: 'seedance-2-5-uncensored', version, modelId: 'seedream-5-0-pro-uncensored' }` and is detected by `isModelConsentRequiredError()`. `isSeedreamModel()` and `SEEDREAM_5_PRO_UNCENSORED_MODEL_ID` are exported from the package root. Hosted chat tools (`generate_image`, `edit_image`) use it only when the call names it.
+It shares the one-time likeness and consent agreement of Seedance 2.5 Uncensored: an account that has accepted it for Seedance can use Seedream, and until it is accepted in a Sogni app every Seedream job fails with `MODEL_CONSENT_REQUIRED_ERROR_CODE` (4103), whose error carries `consentRequired: { key: 'seedance-2-5-uncensored', version, modelId: 'seedream-5-0-pro-uncensored' }` and is detected by `isModelConsentRequiredError()`. `isSeedreamModel()`, `SEEDREAM_5_PRO_UNCENSORED_MODEL_ID` and `SEEDREAM_5_5_UNCENSORED_MODEL_ID` are exported from the package root. Hosted chat tools (`generate_image`, `edit_image`) use it only when the call names it.
 
-Layer extraction is opt-in with `seedreamLayerDecomposition: true`, exactly one `contextImages` entry and `numberOfMedia: 1`. Choose `seedreamLayerSize: '1K' | '1.5K' | '2K'` (default `'1.5K'`); the source determines the aspect ratio. The prompt can be empty or name the parts to extract. The estimate reserves the maximum 17 returned images; the final charge uses the base image and layers actually returned.
+### Seedream 5.5 Uncensored
+
+Seedream 5.5 Uncensored (`seedream-5-5-uncensored`) takes the same requests as 5.0 Pro: text-to-image or edits from 1-10 `contextImages`, Spark-only, no negative prompt, seed or steps, and the same one-time agreement. It is chosen only by name; `seedream-uncensored` and the other unversioned names still select 5.0 Pro. Custom sizes run from 921,600 to 4,624,220 pixels at an aspect ratio from 1:16 to 16:1. Its native sizes are:
+
+- 1K: 1024x1024, 1152x864, 864x1152, 1424x800, 800x1424, 1248x832, 832x1248, 1568x672
+- 1.5K: 1536x1536, 1792x1344, 1344x1792, 2048x1152, 1152x2048, 1872x1248, 1248x1872, 2352x1008
+- 2K: 2048x2048, 2368x1776, 1776x2368, 2816x1584, 1584x2816, 2496x1664, 1664x2496, 3136x1344
+
+`seedreamBackground` sets transparency on 5.5 only: `'opaque'` (the default) returns an RGB image, `'transparent'` an RGBA image, and `'auto'` lets the model decide from the prompt. Transparency works for text-to-image and for edits from up to 10 references, which need no alpha channel of their own. It needs PNG (the default) or WebP output, so `'transparent'` and `'auto'` refuse `outputFormat: 'jpg'`, and it cannot combine with layer extraction.
+
+```javascript
+const sticker = await sogni.projects.create({
+  type: 'image', network: 'fast', tokenType: 'spark',
+  modelId: 'seedream-5-5-uncensored',
+  positivePrompt: 'A glossy cherry sticker with a white die-cut border',
+  numberOfMedia: 1, width: 1536, height: 1536,
+  seedreamBackground: 'transparent'
+});
+```
+
+### Seedream layer extraction
+
+Both Seedream models can split one image into a base image and transparent PNG layers. Layer extraction is opt-in with `seedreamLayerDecomposition: true`, exactly one `contextImages` entry and `numberOfMedia: 1`. Choose `seedreamLayerSize: '1K' | '1.5K' | '2K'` (default `'1.5K'`); the source determines the aspect ratio. The prompt can be empty, which splits every major element, or name the parts to extract.
+
+- Seedream 5.0 Pro Uncensored returns up to 16 layers. Its estimate reserves the maximum 17 returned images.
+- Seedream 5.5 Uncensored returns up to 99 layers. `seedreamLayerMaxImages` caps the images returned, base included, at an integer from 2 to 100 (default 17), and its estimate reserves that many. `seedreamLayerTextRecognition: true` also reads the text of regular text layers.
+
+The final charge uses the base image and layers actually returned. Pass the same layer options to `sogni.projects.estimateCost()` to quote a request. Both 5.5 options require `seedreamLayerDecomposition`, and 5.0 Pro refuses them.
 
 ```javascript
 const split = await sogni.projects.create({
   type: 'image', network: 'fast', tokenType: 'spark',
-  modelId: 'seedream-5-0-pro-uncensored',
+  modelId: 'seedream-5-5-uncensored',
   contextImages: [sourceImage], numberOfMedia: 1,
-  positivePrompt: 'Separate the subject, lettering and background',
-  seedreamLayerDecomposition: true, seedreamLayerSize: '1.5K'
+  positivePrompt: '',
+  seedreamLayerDecomposition: true, seedreamLayerSize: '1.5K',
+  seedreamLayerMaxImages: 8, seedreamLayerTextRecognition: true
 });
 await split.waitForCompletion();
 const job = split.jobs[0];
-// job.resultUrl is the base. job.layers contains up to 16 transparent PNGs,
+// job.resultUrl is the base. job.layers holds the transparent PNG layers,
 // ordered by zIndex, with names, dimensions and absolute/normalized bounds.
 for (const layer of job.layers ?? []) {
   const freshLayerUrl = await job.getLayerUrl(layer.zIndex);
+  if (layer.textRecognition) console.log(layer.textRecognition.text);
 }
 ```
+
+Each `ImageLayer` has `url`, `width`, `height`, `zIndex` (1-99; the base is 0), `boundingBox: { absolute, normalized }` (`[left, top, right, bottom]` in base-image pixels and on a 0-1000 grid), and optional `name` and `description`. A layer image is rendered near the size tier, so it can be larger than its box: scale it to `right - left` by `bottom - top` before placing it at `left, top` on the base, stacking layers in `zIndex` order.
+
+`layer.textRecognition` is present only on Seedream 5.5 layers the model classes as regular text, and only when text recognition was requested; artistic text, handwriting and other layers have none. Its shape is `{ text, lines: [{ boundingBox: { absolute, normalized }, runs: [{ text, style: { similarFontFamily, foregroundColor, bold, italic, underline, strikethrough, shadow, translucent } }] }] }`, where `text` is the layer's full text with lines separated by `\n`, `foregroundColor` is `#RRGGBB`, and `similarFontFamily` is the closest matching font or `'unknown'`.
 
 Layer metadata also appears on completed job events and recovered projects. Layer URLs expire; `job.getLayerUrl(zIndex)` refreshes a layer URL after checking ownership. Omitting the extraction options preserves ordinary generation and editing.
 
@@ -2056,6 +2089,7 @@ scheduler and dimension bounds. Both presets accept compatible Personal LoRAs.
 | `qwen_image_edit_2511_fp8_lightning`  | **Qwen Image Edit Lightning** - Fast 4-step editing      | Rapid reference-based image generation                                                                       |
 | `qwen_image_edit_2511_fp8`            | **Qwen Image Edit** - High quality 20-step editing       | Professional image editing with context awareness                                                            |
 | `seedream-5-0-pro-uncensored`         | **Seedream 5.0 Pro Uncensored** - ByteDance, external API | Text-to-image and edits from 1-10 reference images; accept the Seedance 2.5 Uncensored agreement first (error 4103 until then) |
+| `seedream-5-5-uncensored`             | **Seedream 5.5 Uncensored** - ByteDance, external API     | Text-to-image and edits from 1-10 reference images up to 4,624,220 pixels, transparent backgrounds, up to 99 layers; same agreement |
 | `wan_v2.2-14b-fp8_t2v_lightx2v`       | **Wan 2.2 T2V** - Text-to-video                          | Generate videos from text prompts                                                                            |
 | `seedance-2-0`                        | **Seedance 2.0** - 4K external API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-mini`                   | **Seedance 2.0 Mini** - 720p external API video          | Fastest, lower-cost 24fps Seedance video generation                                                          |

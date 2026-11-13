@@ -145,9 +145,11 @@ export function validateGptImageOptions(params: ImageProjectParams): void {
 export const SEEDREAM_5_PRO_UNCENSORED_MODEL_ID = 'seedream-5-0-pro-uncensored';
 
 /**
- * Seedream 5.5 Uncensored: ByteDance's Seedream 5.5 with the same contract as
- * Seedream 5.0 Pro Uncensored (text-to-image, 1-10 reference edits, the same
- * sizes and the same one-time agreement). Chosen only by name.
+ * Seedream 5.5 Uncensored: ByteDance's Seedream 5.5 with the contract of
+ * Seedream 5.0 Pro Uncensored (text-to-image, 1-10 reference edits and the
+ * same one-time agreement), plus sizes up to 4,624,220 pixels, transparent
+ * backgrounds (`seedreamBackground`) and up to 99 decomposition layers with
+ * optional text recognition. Chosen only by name.
  */
 export const SEEDREAM_5_5_UNCENSORED_MODEL_ID = 'seedream-5-5-uncensored';
 
@@ -156,12 +158,24 @@ const SEEDREAM_MODEL_IDS = new Set([
   SEEDREAM_5_5_UNCENSORED_MODEL_ID
 ]);
 const SEEDREAM_MAX_CONTEXT_IMAGES = 10;
-// Output limits: 921,600 (1280x720) to 4,194,304 (2048x2048x1.1025) pixels,
-// aspect ratio from 1:16 to 16:1. Together they bound each edge to 240-8192 px
-// (3840x240 and 8192x538 are the extremes).
+// Output limits: 921,600 (1280x720) pixels up to 4,194,304 (2048x2048) on 5.0
+// Pro and 4,624,220 (2048x2048x1.1025) on 5.5, at an aspect ratio from 1:16 to
+// 16:1. Together they bound each edge to 240-8192 px on 5.0 Pro (3840x240 and
+// 8192x512 are the extremes) and 240-8595 px on 5.5 (8595x538).
 const SEEDREAM_MIN_PIXELS = 921_600;
 const SEEDREAM_MAX_PIXELS = 4_194_304;
+const SEEDREAM_5_5_MAX_PIXELS = 4_624_220;
+const SEEDREAM_5_5_MAX_EDGE = 8595;
 const SEEDREAM_MAX_ASPECT_RATIO = 16;
+const SEEDREAM_LAYER_SIZES = ['1K', '1.5K', '2K'];
+const SEEDREAM_BACKGROUNDS = ['opaque', 'transparent', 'auto'];
+const SEEDREAM_LAYER_MAX_IMAGES_MIN = 2;
+const SEEDREAM_LAYER_MAX_IMAGES_MAX = 100;
+const SEEDREAM_5_5_ONLY_OPTIONS = [
+  'seedreamBackground',
+  'seedreamLayerMaxImages',
+  'seedreamLayerTextRecognition'
+] as const;
 
 /** Whether `modelId` is a Seedream image model (Seedream 5.0 Pro Uncensored or Seedream 5.5 Uncensored). */
 export function isSeedreamModel(modelId?: string): boolean {
@@ -170,14 +184,29 @@ export function isSeedreamModel(modelId?: string): boolean {
 
 /**
  * Check a Seedream request before anything is uploaded: at most 10 non-empty
- * reference images, a custom size inside the pixel and aspect-ratio limits,
- * and the one-reference rule of layer decomposition.
+ * reference images, a custom size inside the model's pixel and aspect-ratio
+ * limits, the one-reference rule of layer decomposition, and the Seedream 5.5
+ * Uncensored background and layer options.
  */
 export function validateSeedreamOptions(params: ImageProjectParams): void {
   if (!isSeedreamModel(params.modelId)) {
-    if (params.seedreamLayerDecomposition !== undefined || params.seedreamLayerSize !== undefined)
+    if (
+      params.seedreamLayerDecomposition !== undefined ||
+      params.seedreamLayerSize !== undefined ||
+      params.seedreamLayerMaxImages !== undefined ||
+      params.seedreamLayerTextRecognition !== undefined
+    )
       throw new Error('Seedream layer options require a Seedream model');
+    if (params.seedreamBackground !== undefined)
+      throw new Error(`seedreamBackground requires ${SEEDREAM_5_5_UNCENSORED_MODEL_ID}`);
     return;
+  }
+  const isSeedream55 = params.modelId === SEEDREAM_5_5_UNCENSORED_MODEL_ID;
+  if (!isSeedream55) {
+    for (const option of SEEDREAM_5_5_ONLY_OPTIONS) {
+      if (params[option] !== undefined)
+        throw new Error(`${option} requires ${SEEDREAM_5_5_UNCENSORED_MODEL_ID}`);
+    }
   }
   if (
     params.contextImages !== undefined &&
@@ -196,12 +225,30 @@ export function validateSeedreamOptions(params: ImageProjectParams): void {
   }
   if (
     params.seedreamLayerSize !== undefined &&
-    !['1K', '1.5K', '2K'].includes(params.seedreamLayerSize)
+    !SEEDREAM_LAYER_SIZES.includes(params.seedreamLayerSize)
   ) {
     throw new Error('seedreamLayerSize must be 1K, 1.5K or 2K');
   }
   if (params.seedreamLayerSize !== undefined && !layerDecomposition)
     throw new Error('seedreamLayerSize requires seedreamLayerDecomposition');
+  const layerMaxImages = params.seedreamLayerMaxImages;
+  if (layerMaxImages !== undefined) {
+    if (
+      !Number.isInteger(layerMaxImages) ||
+      layerMaxImages < SEEDREAM_LAYER_MAX_IMAGES_MIN ||
+      layerMaxImages > SEEDREAM_LAYER_MAX_IMAGES_MAX
+    )
+      throw new Error('seedreamLayerMaxImages must be an integer from 2 to 100');
+    if (!layerDecomposition)
+      throw new Error('seedreamLayerMaxImages requires seedreamLayerDecomposition');
+  }
+  const textRecognition = params.seedreamLayerTextRecognition;
+  if (textRecognition !== undefined) {
+    if (typeof textRecognition !== 'boolean')
+      throw new Error('seedreamLayerTextRecognition must be a boolean');
+    if (!layerDecomposition)
+      throw new Error('seedreamLayerTextRecognition requires seedreamLayerDecomposition');
+  }
   if (layerDecomposition === true) {
     if (contextImageCount !== 1) {
       throw new Error('Seedream layer decomposition splits exactly one reference image');
@@ -209,6 +256,15 @@ export function validateSeedreamOptions(params: ImageProjectParams): void {
     if ((params.numberOfMedia ?? 1) !== 1) {
       throw new Error('Seedream layer decomposition renders one result: set numberOfMedia to 1');
     }
+  }
+  const background = params.seedreamBackground;
+  if (background !== undefined) {
+    if (!SEEDREAM_BACKGROUNDS.includes(background))
+      throw new Error('seedreamBackground must be opaque, transparent or auto');
+    if (layerDecomposition)
+      throw new Error('seedreamBackground cannot combine with seedreamLayerDecomposition');
+    if (background !== 'opaque' && params.outputFormat === 'jpg')
+      throw new Error('Transparent or auto Seedream background requires PNG or WebP output');
   }
   const isCustomSize =
     (params.sizePreset === undefined || params.sizePreset === 'custom') &&
@@ -219,13 +275,15 @@ export function validateSeedreamOptions(params: ImageProjectParams): void {
   const height = Number(params.height);
   const pixels = width * height;
   const aspectRatio = Math.max(width, height) / Math.min(width, height);
+  const maxPixels = isSeedream55 ? SEEDREAM_5_5_MAX_PIXELS : SEEDREAM_MAX_PIXELS;
+  const maxPixelsLabel = isSeedream55 ? '4,624,220' : '4,194,304';
   if (
     pixels < SEEDREAM_MIN_PIXELS ||
-    pixels > SEEDREAM_MAX_PIXELS ||
+    pixels > maxPixels ||
     aspectRatio > SEEDREAM_MAX_ASPECT_RATIO
   ) {
     throw new Error(
-      `${params.modelId} renders 921,600 to 4,194,304 pixels at an aspect ratio from 1:16 to 16:1; got ${width}x${height}`
+      `${params.modelId} renders 921,600 to ${maxPixelsLabel} pixels at an aspect ratio from 1:16 to 16:1; got ${width}x${height}`
     );
   }
 }
@@ -291,6 +349,9 @@ function getCustomImageSizeBounds(modelId?: string): { min: number; max: number 
   }
   if (isGptImageModel(modelId)) {
     return { min: 256, max: 3840 };
+  }
+  if (modelId === SEEDREAM_5_5_UNCENSORED_MODEL_ID) {
+    return { min: 240, max: SEEDREAM_5_5_MAX_EDGE };
   }
   if (isSeedreamModel(modelId)) {
     return { min: 240, max: 8192 };

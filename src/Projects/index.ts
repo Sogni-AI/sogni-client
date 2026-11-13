@@ -3529,6 +3529,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     outputFormat,
     seedreamLayerDecomposition,
     seedreamLayerSize,
+    seedreamLayerMaxImages,
     billingMode,
     priorityMode,
     includeMonthlyFairUse
@@ -3579,6 +3580,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (outputFormat) queryParams.set('outputFormat', outputFormat);
     if (seedreamLayerDecomposition) queryParams.set('seedreamLayerDecomposition', 'true');
     if (seedreamLayerSize) queryParams.set('seedreamLayerSize', seedreamLayerSize);
+    if (seedreamLayerMaxImages !== undefined)
+      queryParams.set('seedreamLayerMaxImages', String(seedreamLayerMaxImages));
     if (billingMode) queryParams.set('billingMode', billingMode);
     if (priorityMode !== undefined) queryParams.set('priorityMode', String(priorityMode));
     if (includeMonthlyFairUse === true) queryParams.set('includeMonthlyFairUse', 'true');

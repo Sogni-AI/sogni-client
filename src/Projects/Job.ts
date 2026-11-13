@@ -517,7 +517,10 @@ class Job extends DataEntity<JobData, JobEventMap> {
     });
   }
 
-  /** Mint a fresh, ownership-checked PNG URL for an extracted layer. */
+  /**
+   * Mint a fresh, ownership-checked PNG URL for an extracted layer, by its
+   * `zIndex` (1-99) in `job.layers`.
+   */
   async getLayerUrl(zIndex: number): Promise<string> {
     if (this.data.status !== 'completed' || !this.layers?.some((layer) => layer.zIndex === zIndex))
       throw new Error('Layer is not available');

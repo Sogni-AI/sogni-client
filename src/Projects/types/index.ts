@@ -66,6 +66,54 @@ export type GptImageQuality =
   | 'hd';
 export type GptImageBackground = 'opaque' | 'auto' | 'transparent';
 /**
+ * Seedream 5.5 Uncensored background mode (`seedreamBackground`). `'opaque'`
+ * is the default; `'transparent'` returns an RGBA image and `'auto'` lets the
+ * model decide from the prompt.
+ */
+export type SeedreamBackground = 'opaque' | 'transparent' | 'auto';
+/** Resolution tier of a Seedream layer decomposition's base and layers. */
+export type SeedreamLayerSize = '1K' | '1.5K' | '2K';
+/** A box on the base image of a Seedream layer decomposition. */
+export interface ImageLayerBoundingBox {
+  /** `[left, top, right, bottom]` in pixels of the base image. */
+  absolute: [number, number, number, number];
+  /** `[left, top, right, bottom]` on a 0-1000 grid over the base image. */
+  normalized: [number, number, number, number];
+}
+/** The approximate visual style of one run of recognised text. */
+export interface ImageLayerTextStyle {
+  /** The closest matching font family, or `'unknown'`. */
+  similarFontFamily: string;
+  /** Text color as `#RRGGBB`. */
+  foregroundColor: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+  shadow: boolean;
+  translucent: boolean;
+}
+/** One stretch of a text line that shares a single style. */
+export interface ImageLayerTextRun {
+  text: string;
+  style: ImageLayerTextStyle;
+}
+/** One line of recognised text, in base-image coordinates. */
+export interface ImageLayerTextLine {
+  boundingBox: ImageLayerBoundingBox;
+  runs: ImageLayerTextRun[];
+}
+/**
+ * Rich-text recognition of a regular text layer (Seedream 5.5 Uncensored with
+ * `seedreamLayerTextRecognition`). Present only on layers the model classes as
+ * regular text; artistic text, handwriting and non-text layers have none.
+ */
+export interface ImageLayerTextRecognition {
+  /** The layer's full text, top to bottom and left to right, lines separated by `\n`. */
+  text: string;
+  lines: ImageLayerTextLine[];
+}
+/**
  * One layer of a Seedream layer decomposition (`seedreamLayerDecomposition`).
  * Layers are RGBA PNG images; the job's `resultUrl` is the base image.
  */
@@ -73,16 +121,14 @@ export interface ImageLayer {
   url: string;
   width: number;
   height: number;
-  /** Stacking order: 1 is the lowest layer above the base (the base is 0). */
+  /** Stacking order, 1-99: 1 is the lowest layer above the base (the base is 0). */
   zIndex: number;
-  boundingBox: {
-    /** `[left, top, right, bottom]` in pixels of the base image. */
-    absolute: [number, number, number, number];
-    /** `[left, top, right, bottom]` on a 0-1000 grid over the base image. */
-    normalized: [number, number, number, number];
-  };
+  /** Where the layer sits on the base image. A layer image can be larger than its box. */
+  boundingBox: ImageLayerBoundingBox;
   name?: string;
   description?: string;
+  /** Seedream 5.5 Uncensored text recognition, when asked for and the layer is regular text. */
+  textRecognition?: ImageLayerTextRecognition;
 }
 export type VideoOutputFormat = 'mp4' | 'mov';
 export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
@@ -1148,7 +1194,7 @@ export interface ImageProjectParams
   /**
    * Context images for multi-reference image generation.
    * GPT Image 2 supports up to 16 context images.
-   * Seedream 5.0 Pro Uncensored supports up to 10 context images.
+   * Seedream 5.0 Pro Uncensored and Seedream 5.5 Uncensored support up to 10 context images.
    * Qwen Image Edit supports up to 3 context images.
    * Krea 2 Identity Edit supports up to 2 context images.
    * Legacy Flux Kontext matching supports up to 2 context images.
@@ -1216,14 +1262,33 @@ export interface ImageProjectParams
   /** PNG alpha mask, uploaded in the referenceMask asset slot for durable replay. */
   gptImageMask?: InputMedia;
   /**
-   * Split exactly one context image into a base image and up to 16 RGBA PNG
-   * layers. The aspect ratio follows the input, `numberOfMedia` must be 1, and the
-   * completed job carries the layers in `job.layers`; `job.resultUrl` is the
-   * base image.
+   * Seedream 5.5 Uncensored only: `'transparent'` returns an RGBA image,
+   * `'auto'` lets the model decide, `'opaque'` (the default) returns RGB.
+   * Transparent and auto need PNG or WebP output and cannot combine with
+   * layer decomposition.
+   */
+  seedreamBackground?: SeedreamBackground;
+  /**
+   * Split exactly one context image into a base image and RGBA PNG layers:
+   * up to 16 layers on Seedream 5.0 Pro Uncensored, up to 99 on Seedream 5.5
+   * Uncensored. The aspect ratio follows the input, `numberOfMedia` must be 1,
+   * and the completed job carries the layers in `job.layers`; `job.resultUrl`
+   * is the base image.
    */
   seedreamLayerDecomposition?: boolean;
   /** Resolution of the base and extracted layers. Defaults to 1.5K. */
-  seedreamLayerSize?: '1K' | '1.5K' | '2K';
+  seedreamLayerSize?: SeedreamLayerSize;
+  /**
+   * Seedream 5.5 Uncensored layer decomposition only: the most images to
+   * return, base included, an integer from 2 to 100. Defaults to 17.
+   */
+  seedreamLayerMaxImages?: number;
+  /**
+   * Seedream 5.5 Uncensored layer decomposition only: also return rich-text
+   * recognition (`layer.textRecognition`) for layers of regular text.
+   * Defaults to false.
+   */
+  seedreamLayerTextRecognition?: boolean;
 }
 
 export interface AudioProjectParams extends BaseProjectParams {
@@ -1344,7 +1409,7 @@ export type VideoFormat = 'mp4' | 'mov';
  * Parameters for image asset URL requests (upload/download)
  */
 export type ImageUrlParams = {
-  /** Refresh one layer of a completed Seedream extraction. */
+  /** Refresh one layer (`zIndex` 1-99) of a completed Seedream extraction. */
   layerIndex?: number;
   imageId: string;
   jobId: string;
@@ -1481,7 +1546,22 @@ export interface EstimateRequest {
    */
   seedreamLayerDecomposition?: boolean;
   /** Resolution of the base and extracted layers. Defaults to 1.5K. */
-  seedreamLayerSize?: '1K' | '1.5K' | '2K';
+  seedreamLayerSize?: SeedreamLayerSize;
+  /**
+   * Seedream 5.5 Uncensored layer decomposition: the most images the job may
+   * return, base included (2-100, default 17). The quote reserves this many.
+   */
+  seedreamLayerMaxImages?: number;
+  /**
+   * Seedream 5.5 Uncensored background mode. Accepted so a project's own
+   * parameters can be quoted; it does not change the price and is not sent.
+   */
+  seedreamBackground?: SeedreamBackground;
+  /**
+   * Seedream 5.5 Uncensored text recognition. Accepted so a project's own
+   * parameters can be quoted; it does not change the price and is not sent.
+   */
+  seedreamLayerTextRecognition?: boolean;
   /**
    * Billing intent of the job being quoted. 'tokens' opts out of plan coverage,
    * so the estimate carries no `dailyFairUsePct`.
