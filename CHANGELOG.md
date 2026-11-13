@@ -1,3 +1,20 @@
+# [5.81.0](https://github.com/Sogni-AI/sogni-client/compare/v5.80.1...v5.81.0) (2026-11-13)
+
+
+### Bug Fixes
+
+* **projects:** name a switch request that never left the client ([6b85108](https://github.com/Sogni-AI/sogni-client/commit/6b8510839d6f6501db5fb6e8b2ead59cb7cfb21d))
+* **projects:** report unknown switch outcomes instead of fake refusals ([736b0ad](https://github.com/Sogni-AI/sogni-client/commit/736b0ad56ddd46eb78d1941a67471ad255d662a8))
+* **projects:** treat a not_found switch reply as an unknown outcome ([c1688f5](https://github.com/Sogni-AI/sogni-client/commit/c1688f5e89e2db9e5fd850825c81aacb2ce15f66))
+
+
+### Features
+
+* **projects:** expose the pay-as-you-go offer and Premium Spark switch ([672376b](https://github.com/Sogni-AI/sogni-client/commit/672376b92070d15935d030e7360ca2ce4597d271))
+* **projects:** support seedream layer extraction ([a575eb9](https://github.com/Sogni-AI/sogni-client/commit/a575eb9d028bbda2f46a2f04b01e790f75fc3bd7))
+* **seedream:** add Seedream 5.5 transparency, layer options and larger sizes ([0977330](https://github.com/Sogni-AI/sogni-client/commit/0977330bcdf38985b604b971346286ddf8f428bd))
+* **seedream:** recognise Seedream 5.5 Uncensored as a Seedream model ([5f6235f](https://github.com/Sogni-AI/sogni-client/commit/5f6235f932fb3af4569314fe718c8c1617db55a1))
+
 ## [5.80.1](https://github.com/Sogni-AI/sogni-client/compare/v5.80.0...v5.80.1) (2026-11-10)
 
 
