@@ -1,3 +1,11 @@
+# [5.82.0](https://github.com/Sogni-AI/sogni-client/compare/v5.81.0...v5.82.0) (2026-11-13)
+
+
+### Features
+
+* **account:** add authenticator and passkey sign-in ([4420bb3](https://github.com/Sogni-AI/sogni-client/commit/4420bb3ef8c9f3669ade0480bb5cedbb2572d492))
+* **media:** add optional media encryption ([ea7a618](https://github.com/Sogni-AI/sogni-client/commit/ea7a61882f2edc854a712b112ff30f91def701c0))
+
 # [5.81.0](https://github.com/Sogni-AI/sogni-client/compare/v5.80.1...v5.81.0) (2026-11-13)
 
 
