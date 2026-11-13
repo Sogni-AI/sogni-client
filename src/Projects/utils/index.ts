@@ -693,7 +693,7 @@ export function getMinimaxH3FramesForAudioDuration(audioDurationSeconds: number)
  * - LTX 2.x specific: Frame count must follow the pattern: 1 + n*8
  *
  * ## MiniMax H3
- * - Fixed 24fps generation; the fps argument is ignored
+ * - The fps argument is ignored
  * - `duration * 24`, rounded, then snapped to the nearest `124 + n*17` value
  *   and clamped to 124-362 (124, 141, 158, ... 362)
  * - Note there is no `+1` here: 124 frames is exactly 5.167s, not 5.125s
@@ -706,7 +706,7 @@ export function getMinimaxH3FramesForAudioDuration(audioDurationSeconds: number)
  * @param modelId - The video model ID
  * @param duration - Duration in seconds
  * @param fps - Frames per second (ignored for WAN models which always use 16fps
- *   and for MiniMax H3 which always uses 24fps)
+ *   and for MiniMax H3)
  * @param minFrames - Optional lower bound on the returned frame count
  * @param maxFrames - Optional upper bound on the returned frame count (MiniMax H3
  *   keeps its bounds on the frame grid)

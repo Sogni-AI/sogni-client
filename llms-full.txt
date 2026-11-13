@@ -1211,17 +1211,15 @@ const project = await sogni.projects.create({
 MINIMAX H3 STANDARD, CONTROL, BALANCED, LIGHTX2V TURBO, AND FASTH3 TURBO (Sogni workers, native video + audio):
 
 MiniMax H3 generates video and 32kHz stereo audio jointly in one pass on Sogni's
-own GPUs. Standard H3 uses 20-step res_multistep/simple sampling and Balanced
-uses eight steps. Existing fl2va/ref2va Turbo IDs use LightX2V; the
-fastvideo-int8 IDs use the separate FastVideo VSA FastH3 four-step engine,
-fixed to Euler/simple. FastH3 adds the audio guide driven by an uploaded audio
+own GPUs. Balanced and Turbo are faster tiers than Standard. Existing
+fl2va/ref2va Turbo IDs use LightX2V; the fastvideo-int8 IDs use the separate
+FastVideo VSA FastH3 engine. FastH3 adds the audio guide driven by an uploaded audio
 (IA2V first frame + audio, FLFA2V first and last frame + audio, A2V audio only).
 FastH3 Reference (minimax-h3-fastvideo-omni-int8_r2v_turbo) is the FastH3 tier's
 R2V: FastVideo's FastH3 Omni on its own distilled checkpoint, with a Two-Stage
-id. Despite the `_turbo` suffix it is not a four-step Turbo id, so omit `steps`
-for it. All use fixed 24fps,
-guidance 1, no negative prompt, the `124 + n*17` frame grid
-from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
+id. Despite the `_turbo` suffix it is not one of the Turbo ids, so omit
+`steps` for it. All take no negative prompt and share the `124 + n*17` frame
+grid from 124 to 362 and a 32px canvas grid capped at 1,032,192 pixels.
 
 | Model ID | Mode | References |
 |----------|------|------------|
@@ -1256,8 +1254,7 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 | minimax-h3-ref2va-fp8_r2v_balanced | Balanced reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | minimax-h3-ref2va-fp8_v2v_controlnet | MiniMax H3 Control: video guided by maps of a source, and masked editing | referenceVideo and/or a prepared controlVideo; at most one mask; optional referenceImage |
 
-Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544.
-Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
+Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 LoRA and defaults to 960x544.
 
 All 30 current workflow ids are available through the Sogni projects API: four
 Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with
@@ -1275,8 +1272,8 @@ it unless you name it), needs a worker GPU with at least 32 GB of VRAM, and runs
 on both the `fast` and `relaxed` networks. It is for paid plans: an Unlimited
 subscription covers it, Premium Spark or SOGNI also pay for it, and free Spark
 credits can't run it. Sizes are 480-1344 px per side on a 32 px grid, up to
-1,032,192 pixels (default 1344x768). Length is 124-362 frames in steps of 17 at
-24 fps (5.17-15.08 s). Generated audio is on by default.
+1,032,192 pixels (default 1344x768). Length is 124-362 frames in steps of 17
+(5.17-15.08 s). Generated audio is on by default.
 
 - `controlNet.name` is canny (edges), depth, pose, hed (soft edges), mlsd
   (straight lines) or inpaint. Without `controlNet` the server uses depth.
@@ -1293,7 +1290,8 @@ credits can't run it. Sizes are 480-1344 px per side on a 32 px grid, up to
 - `referenceImage` (optional) guides how the subject looks; it does not set the
   first frame.
 - `videoStart` trims every input video from the same point; the worker
-  resamples inputs to 24 fps and scales and center-crops them to the output size.
+  resamples inputs to the output frame rate and scales and center-crops them to
+  the output size.
 - `controlNet.strength` is 0-10 (default 1). `controlNet.guidanceStart` and
   `controlNet.guidanceEnd` are the fractions of sampling where the guide applies,
   0-1 (defaults 0 and 1).
@@ -1320,15 +1318,14 @@ For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
 `referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids
 still require both anchors.
 
-INTERMEDIATE KEYFRAMES (every H3 workflow except T2V, 24 ids;
+INTERMEDIATE KEYFRAMES (every H3 workflow except T2V and MiniMax H3 Control, 24 ids;
 `isMinimaxH3KeyframeModel()`): I2V and FLF2V on every tier (Standard, Balanced,
 LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage), the six FastH3 Sound to
 Video ids (IA2V, FLFA2V, A2V, one- and two-stage) and the eight R2V ids.
 `keyframes: [{ image, frameIndex }]` pins up to `MINIMAX_H3_MAX_KEYFRAMES` (8)
 still images between the first and last frame, alongside the workflow's own
-uploads. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds *
-24)`), an integer from 1 to `frames - 2` of the job's frame count, each frame
-used once. Pass `frames` from the H3 grid (124, 141, 158, 175, 192, ... 362;
+uploads. `frameIndex` is the 0-based frame (`Math.round(seconds * 24)`), an
+integer from 1 to `frames - 2` of the job's frame count, each frame used once. Pass `frames` from the H3 grid (124, 141, 158, 175, 192, ... 362;
 `124 + n*17`) so that count is exact. `duration` also works but snaps to the
 grid (`duration: 6` renders 141 frames, not 144); `calculateVideoFrames(modelId,
 seconds, 24)` returns the count a duration resolves to. Frame 0 and the last
@@ -1406,7 +1403,6 @@ const project = await sogni.projects.create({
   width: 1344,
   height: 768,
   steps: 4,
-  guidance: 1,
   tokenType: 'spark'
 });
 ```
@@ -1418,16 +1414,16 @@ model id, not a request option. `minimax-h3-fastvideo-int8_t2v_turbo_2stage`,
 `minimax-h3-fastvideo-int8_ia2v_turbo_2stage`,
 `minimax-h3-fastvideo-int8_flfa2v_turbo_2stage` and
 `minimax-h3-fastvideo-int8_a2v_turbo_2stage` each take exactly the request of
-their FastH3 Turbo id (canvas, frames, 4 steps, Euler/simple, inputs, LoRAs);
-`minimax-h3-ref2va-fp8_r2v_2stage` (Standard, 20 steps) and
-`minimax-h3-ref2va-fp8_r2v_balanced_2stage` (Balanced, 8 steps) each take
+their FastH3 Turbo id (canvas, frames, inputs, LoRAs);
+`minimax-h3-ref2va-fp8_r2v_2stage` (Standard) and
+`minimax-h3-ref2va-fp8_r2v_balanced_2stage` (Balanced) each take
 exactly the request of their one-stage R2V id (canvas, frames, steps,
 sampling, references, LoRAs), and
 `minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage` (FastH3 Reference) the
 request of `minimax-h3-fastvideo-omni-int8_r2v_turbo`.
 The tier renders the canvas, then the worker enlarges it 2x and refines it, so the
 clip is delivered at exactly twice the canvas width and height with the same
-frame count, 24 fps timing and audio. Keep `width`/`height` on the normal H3
+frame count, timing and audio. Keep `width`/`height` on the normal H3
 grid and pick the canvas for the delivery you want:
 
 | Choice | Canvas to send | Delivered |
@@ -1488,9 +1484,6 @@ const project = await sogni.projects.create({
   height: 384,
   duration: 8,
   steps: 4,
-  guidance: 1,
-  sampler: 'euler',
-  scheduler: 'simple',
   generateAudio: true,
   tokenType: 'spark'
 });
@@ -1507,9 +1500,6 @@ const project = await sogni.projects.create({
     'non_diegetic_music: A low electronic pulse at a moderate tempo.',
   duration: 8,
   steps: 4,
-  guidance: 1,
-  sampler: 'euler',
-  scheduler: 'simple',
   generateAudio: true,
   tokenType: 'spark'
 });

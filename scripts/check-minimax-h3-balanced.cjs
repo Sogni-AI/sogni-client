@@ -45,7 +45,8 @@ const repoRoot = path.resolve(__dirname, '..');
     { cwd: repoRoot, encoding: 'utf8' }
   );
   assert.equal(help.status, 0, help.stderr || help.stdout);
-  assert.match(help.stdout, /Balanced: fps 24, steps 8, guidance 1, sampler Euler/);
+  assert.match(help.stdout, /Balanced: faster \(LightX2V 768p for FL2VA; Larry v4 step-600 EMA for Ref2VA\)/);
+  assert.doesNotMatch(help.stdout, /guidance 1|fps 24|steps 8/);
   assert.match(help.stdout, /default: matching -balanced key/);
   assert.match(help.stdout, /https:\/\/huggingface\.co\/lightx2v\/Minimax-h3-Turbo\/tree\//);
   assert.match(help.stdout, /https:\/\/huggingface\.co\/larryvrh\/MiniMax-H3-Turbo-Lora\/tree\//);

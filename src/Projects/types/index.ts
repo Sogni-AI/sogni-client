@@ -282,7 +282,7 @@ export interface MinimaxH3Keyframe {
    */
   image: InputMedia;
   /**
-   * 0-based pixel frame at 24 fps where `image` is pinned; convert seconds with
+   * 0-based pixel frame where `image` is pinned; convert seconds with
    * `Math.round(seconds * 24)`. An integer from 1 to `frames - 2` of the job's
    * frame count (pass `frames` so that count is exact). Frame 0 and the last
    * frame are never keyframes: where a workflow can set them, they are
@@ -339,15 +339,12 @@ export interface MinimaxH3Keyframe {
  *   (`minimax-h3-ref2va-fp8_r2v`).
  * - Turbo adds `_turbo` to the FL2VA t2v/i2v/flf2v IDs and to Ref2VA r2v.
  *   Ref2VA Turbo is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses its dedicated
- *   LightX2V v0.1 four-step LoRA with Euler/simple, not the FL2VA Turbo LoRA.
+ *   LightX2V v0.1 LoRA, not the FL2VA Turbo LoRA.
  * - Balanced adds `_balanced` to the same four workflow IDs and uses the
- *   qualified LightX2V FL2VA or Larry v4 Ref2VA 8-step adapter with Euler/simple.
+ *   qualified LightX2V FL2VA or Larry v4 Ref2VA adapter.
  * - Video and 32kHz stereo audio are generated jointly. Audio is included by
  *   default; set `generateAudio: false` to return a video without an audio track.
- * - Generation is fixed at 24fps and guidance 1, with no separate
- *   negative-prompt input. Standard H3 uses 20 steps and
- *   `res_multistep`/`simple`; Balanced uses fixed 8-step Euler/simple; Turbo
- *   uses its fixed 4-step sampling path.
+ * - There is no separate negative-prompt input.
  * - Frames follow `124 + n*17` from 124 through 362. Dimensions use a 32px
  *   grid, with a 1344px per-axis limit and a 1032192-pixel canvas limit.
  * - FastH3 Two-Stage
@@ -389,7 +386,7 @@ export interface MinimaxH3Keyframe {
  *   `a2v`, one- and two-stage) and the eight `r2v` ids. Text-to-video and
  *   every other model reject a non-empty list.
  * - Each entry is `{ image, frameIndex }`. `frameIndex` is the 0-based pixel
- *   frame at 24 fps (`Math.round(seconds * 24)`): an integer from 1 to
+ *   frame (`Math.round(seconds * 24)`): an integer from 1 to
  *   `frames - 2` of the job's frame count, with no frame used twice.
  * - Pass `frames` from the grid (124, 141, 158, ... 362) so that count is
  *   exact. `duration` also works but snaps to the grid (`duration: 6` renders
@@ -442,16 +439,16 @@ export interface MinimaxH3Keyframe {
  * - The output always carries the uploaded audio, so `generateAudio: false` is
  *   rejected. `audioStart` (seconds, 0 or greater) offsets the audio window; the
  *   window length is always the video length, so `audioDuration` is rejected.
- * - Fixed 4-step FastH3 sampling on the same frame and canvas grids as the other
- *   H3 ids. LoRAs are not supported: `loras` / `loraStrengths` are rejected.
+ * - The same frame and canvas grids as the other H3 ids. LoRAs are not
+ *   supported: `loras` / `loraStrengths` are rejected.
  * - Size a request to its audio with `getMinimaxH3FramesForAudioDuration()`.
  * - Every other H3 id rejects `referenceAudio` except `r2v`, where it is a
  *   labelled reference rather than a driving track, and rejects `audioStart`.
  *
  * #### MiniMax H3 `r2v` (Ref2VA) multi-reference video
  * - `minimax-h3-ref2va-fp8_r2v` (standard) and
- *   `minimax-h3-ref2va-fp8_r2v_turbo` (four-step Turbo), and
- *   `minimax-h3-ref2va-fp8_r2v_balanced` (eight-step Larry v4 Balanced) condition on labelled reference material
+ *   `minimax-h3-ref2va-fp8_r2v_turbo` (Turbo), and
+ *   `minimax-h3-ref2va-fp8_r2v_balanced` (Larry v4 Balanced) condition on labelled reference material
  *   rather than on frame anchors, as do FastH3 Reference
  *   (`minimax-h3-fastvideo-omni-int8_r2v_turbo`) and Prism
  *   (`minimax-h3-prism-int8_r2v`). The checkpoint accepts up to 9 reference
@@ -540,7 +537,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Duration of the video in seconds. Supported range 1 to 10 (WAN), 2 to 20 (LTX 2.5), 4 to 20 (LTX 2.3),
    * 4 to 15 (Seedance 2.0), 4 to 30 (Seedance 2.5), 3 to 15 (HappyHorse),
    * 2 to 30 (Wan 3),
-   * or 124/24 to 362/24 seconds (MiniMax H3).
+   * or 5.17 to 15.08 seconds (MiniMax H3; 124 to 362 frames).
    *
    * The SDK automatically calculates the correct frame count based on the model:
    * - WAN 2.2: `duration * 16 + 1` (always 16fps generation)
@@ -549,7 +546,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * - HappyHorse: `duration * 24 + 1`
    * - Wan 3: `duration * 30 + 1`
    * - MiniMax H3: `duration * 24` snapped to the `124 + n*17` grid and clamped
-   *   to 124-362 frames (always 24fps generation, and no `+1` term), so
+   *   to 124-362 frames (no `+1` term), so
    *   `duration: 6` renders 141 frames. Pass `frames` instead when MiniMax H3
    *   `keyframes` need an exact count.
    */
@@ -578,7 +575,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    *
    * **Wan 3:** Fixed 30fps external API output.
    *
-   * **MiniMax H3 Models:** Fixed 24fps. Omit this field or pass 24.
+   * **MiniMax H3 Models:** Omit this field.
    */
   fps?: number;
   /**
@@ -717,7 +714,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * `flfa2v`, `a2v`) and Reference to Video (`r2v`). Any other model rejects a
    * non-empty list, and an empty list is the same as omitting the field.
    *
-   * `frameIndex` is the 0-based pixel frame at 24 fps (`Math.round(seconds * 24)`),
+   * `frameIndex` is the 0-based pixel frame (`Math.round(seconds * 24)`),
    * an integer from 1 to `frames - 2` of the job's frame count, and every entry
    * needs its own frame and an image. Pass `frames` from the H3 grid (124, 141,
    * 158, ... 362) so that count is exact: `duration` snaps to the grid

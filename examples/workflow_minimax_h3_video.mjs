@@ -5,12 +5,10 @@
  * MiniMax H3 generates video and 32kHz stereo audio jointly in a single pass on
  * Sogni. t2v, i2v, and flf2v share the FL2VA checkpoint; r2v is a separate
  * Ref2VA checkpoint that conditions on labelled reference material rather than
- * on frame anchors. Standard H3 uses fixed 24fps, 20 steps, guidance 1, and
- * res_multistep/simple. The existing FL2VA Turbo selectors use the LightX2V
- * four-step engine and its validated sampler set with the simple scheduler.
- * FastH3 Turbo is a separate FastVideo VSA four-step T2V/I2V/FLF2V engine,
- * fixed to Euler/simple; it has no R2V mode. Ref2VA Turbo
- * uses its dedicated four-step LoRA with Euler/simple and a 960x544 default. Frames sit on the
+ * on frame anchors. The existing FL2VA Turbo selectors use the LightX2V
+ * engine. FastH3 Turbo is a separate FastVideo VSA T2V/I2V/FLF2V engine; it
+ * has no R2V mode. Ref2VA Turbo uses its dedicated LoRA and a 960x544
+ * default. Frames sit on the
  * 124 + n*17 grid (124-362 frames, 5.167s to 15.083s) and the canvas uses a
  * 32px grid capped at 1032192 pixels, which is why 1344x768 and 768x1344 are
  * the two shipped presets. Availability depends on current compatible
@@ -1106,18 +1104,16 @@ Modes:
   flf2v  First-and-last-frame video        (minimax-h3-fl2va-fp8_flf2v, needs --image and --end-image)
   r2v    Multi-reference video             (minimax-h3-ref2va-fp8_r2v, needs an image or video)
 
-Fixed model parameters (not configurable):
-  Standard: fps 24, steps 20, guidance 1, sampler res_multistep, scheduler simple
-  Balanced: fps 24, steps 8, guidance 1, sampler Euler, scheduler simple
-            (LightX2V 8-step 768p for FL2VA; Larry v4 step-600 EMA for Ref2VA)
-  LightX2V FL2VA Turbo: fps 24, steps 4, guidance 1, server-selected sampler, scheduler simple
-  FastH3 Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
-                (FastVideo VSA T2V/I2V/FLF2V)
+Tiers:
+  Standard: the full H3 recipe
+  Balanced: faster (LightX2V 768p for FL2VA; Larry v4 step-600 EMA for Ref2VA)
+  LightX2V FL2VA Turbo: the LightX2V Turbo LoRA on FL2VA
+  FastH3 Turbo: FastVideo VSA T2V/I2V/FLF2V
   FastH3 Two-Stage: the same FastH3 T2V/I2V/FLF2V request on its -2stage key,
                 delivered at twice the canvas (1344x768 -> 2688x1536)
-  Ref2VA Turbo: fps 24, steps 4, guidance 1, sampler Euler, scheduler simple
-  Ref2VA Two-Stage: the Standard (minimax-h3-r2v-2stage, 20 steps) or Balanced
-                (minimax-h3-r2v-balanced-2stage, 8 steps) R2V recipe on its own id;
+  Ref2VA Turbo: the dedicated Ref2VA Turbo LoRA
+  Ref2VA Two-Stage: the Standard (minimax-h3-r2v-2stage) or Balanced
+                (minimax-h3-r2v-balanced-2stage) R2V recipe on its own id;
                 send the half canvas (384/544/768 px short edge) and receive twice it
                 (720p/1080p/2K)
   FastH3 Reference: the FastH3 tier's R2V (minimax-h3-fasth3-r2v-turbo, FastVideo's

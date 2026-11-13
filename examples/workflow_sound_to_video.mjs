@@ -234,10 +234,10 @@ Available Models:
   ltx23-ia2v-dev       - LTX-2.3 22B Image+Audio to Video (quality, 30-step, requires image)
   ltx23-a2v-distilled  - LTX-2.3 22B Audio to Video (fast, 8-step, no image needed)
   ltx23-a2v-dev        - LTX-2.3 22B Audio to Video (quality, 30-step, no image needed)
-  minimax-h3-fasth3-ia2v-turbo   - MiniMax H3 FastH3 image + uploaded audio (4-step, requires --image)
+  minimax-h3-fasth3-ia2v-turbo   - MiniMax H3 FastH3 image + uploaded audio (requires --image)
   minimax-h3-fasth3-flfa2v-turbo - MiniMax H3 FastH3 first + last frame + uploaded audio
-                                   (4-step, requires --image and --image-end)
-  minimax-h3-fasth3-a2v-turbo    - MiniMax H3 FastH3 uploaded audio only (4-step, no image)
+                                   (requires --image and --image-end)
+  minimax-h3-fasth3-a2v-turbo    - MiniMax H3 FastH3 uploaded audio only (no image)
   minimax-h3-fasth3-*-turbo-2stage - The same three modes delivered at twice the canvas
                          MiniMax H3 audio guide: output keeps your audio; length follows the audio,
                          124-362 frames at 24fps; canvas fitted to the first image on a 32px grid
