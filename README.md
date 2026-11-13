@@ -1362,6 +1362,7 @@ Example model IDs:
 - `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
 - `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
 - `wan3.0-video` (Wan 3 unified multimodal video, external API, 2-30s, 480P/720P/1080P, fixed 30fps)
+- `minimax-h3-ref2va-fp8_v2v_controlnet` (MiniMax H3 Control: a new video guided by depth, pose, edges or other maps of a source video, with optional masked editing; see [MiniMax H3 Control](#minimax-h3-control))
 - `minimax-h3-fastvideo-int8_ia2v_turbo` / `minimax-h3-fastvideo-int8_flfa2v_turbo` / `minimax-h3-fastvideo-int8_a2v_turbo` (MiniMax H3 FastH3 audio guide: an uploaded `referenceAudio` drives the video and is kept in the output, with a first frame, first and last frames, or no image; 124-362 frames, size with `getMinimaxH3FramesForAudioDuration()`; catalog and Personal H3 LoRAs are accepted as on the frame modes; no `generateAudio: false` or `audioDuration`)
 - `minimax-h3-fastvideo-int8_t2v_turbo_2stage` / `minimax-h3-fastvideo-int8_i2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flf2v_turbo_2stage` / `minimax-h3-fastvideo-int8_ia2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flfa2v_turbo_2stage` / `minimax-h3-fastvideo-int8_a2v_turbo_2stage` (MiniMax H3 FastH3 Two-Stage: the FastH3 Turbo request, delivered at twice the canvas with the same length and audio. 720p: the chosen aspect at a 384 px short edge, 672×384 → 1344×768. 1080p: a 544 px short edge, 960×544 → 1920×1088. 2K: the 768p canvas, 1344×768 → 2688×1536)
 - `minimax-h3-ref2va-fp8_r2v_2stage` / `minimax-h3-ref2va-fp8_r2v_balanced_2stage` (MiniMax H3 Two-Stage Reference-to-Video: the Standard 20-step or Balanced 8-step Ref2VA request, delivered at twice the canvas with the same length, audio and references; the same 384/544/768 px canvas choices as the FastH3 Two-Stage ids)
@@ -1376,6 +1377,64 @@ who choose to use it must provide their own prompt and image to
 `examples/workflow_minimax_h3_video.mjs` (`--model minimax-h3-r2v-prism`), which also requires
 `--disable-safe-content-filter`.
 
+### MiniMax H3 Control
+
+`minimax-h3-ref2va-fp8_v2v_controlnet` makes a new video that follows the
+structure of a source video (its depth, pose, edges, line segments, scribbles,
+layout or grayscale), and can regenerate a masked part of the source. It is an
+opt-in model: nothing routes to it unless you name it. It needs a worker GPU
+with at least 32 GB of VRAM and runs on both the `fast` and `relaxed` networks.
+
+- Size: 1344×768 by default. Each side is 480-1344 px on a 32 px grid, up to
+  1,032,192 pixels in total.
+- Length: 124-362 frames in steps of 17 at 24 fps (5.17-15.08 s). Set `frames`
+  or `duration`.
+- Sampling is fixed at 40 steps, Euler/simple and guidance 1, with no negative
+  prompt. Omit those fields or send the fixed values.
+- The clip has generated audio by default.
+
+`controlNet.name` picks the guide: `canny`, `depth`, `pose`, `hed`, `mlsd`,
+`scribble`, `layout`, `gray` or `inpaint`. Without `controlNet` the server uses
+`depth`.
+
+- `referenceVideo` is the source video. For canny, depth, pose, hed and mlsd the
+  worker extracts the map from it.
+- `controlVideo` is a map video you prepared, used as it is. Scribble, layout and
+  gray always need prepared maps: pass `controlVideo`, or pass the maps as
+  `referenceVideo` with `controlNet.preprocess: false`. Without a mask,
+  `controlVideo` can be the only video.
+- `referenceMask` (an image) or `referenceMaskVideo` (a moving mask), not both:
+  white areas are regenerated and black areas are kept as context. A mask needs
+  the source `referenceVideo` and works with every control type; `inpaint`
+  requires one. The kept areas are regenerated to match the source, not copied
+  pixel for pixel.
+- `referenceImage` is optional and guides how the subject looks. It does not set
+  the first frame.
+- `videoStart` trims every input video from the same point. The worker resamples
+  the inputs to 24 fps and scales and center-crops them to the output size.
+
+`controlNet.strength` runs from 0 to 10 (default 1). `controlNet.guidanceStart`
+and `controlNet.guidanceEnd` set the part of sampling where the guide applies, as
+fractions from 0 to 1 (defaults 0 and 1). The model does not take `referenceImageEnd`,
+extra references, uploaded audio, a voice reference or `keyframes`. Other models
+ignore `controlVideo`, `referenceMaskVideo`, `preprocess`, `guidanceStart` and
+`guidanceEnd`.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-ref2va-fp8_v2v_controlnet',
+  positivePrompt: 'The dancer turns beneath warm stage lights, now in a red coat.',
+  numberOfMedia: 1,
+  referenceVideo: sourceVideo,
+  controlNet: { name: 'depth', strength: 1 },
+  width: 1344,
+  height: 768,
+  frames: 124
+});
+```
+
 ### Video Parameters
 
 When creating video projects, you can specify:
@@ -1389,12 +1448,14 @@ When creating video projects, you can specify:
 - `seed` - Random seed for reproducibility
 - `referenceImage` - Reference image for workflows that require it (i2v, s2v, animate-move, animate-replace)
 - `referenceVideo` - Reference video for animate and v2v workflows, and the source video for FlashVSR and RelayVSR upscaling
+- `referenceMask` - Mask image for LTX v2v `inpaint` and MiniMax H3 Control; white marks the area to regenerate
+- `referenceMaskVideo` / `controlVideo` - MiniMax H3 Control only: a moving mask, and a prepared map video (see [MiniMax H3 Control](#minimax-h3-control))
 - `upscaleResolution` - Video upscaling only: output short edge, `1080` or `1440`, or `2160` on RelayVSR
 - `referenceVideoDurations` - Optional MiniMax H3 r2v duration hints in `[referenceVideo, ...referenceVideos]` order for early client-side validation; Socket probes the uploaded files and uses measured durations for pricing and admission
 - `referenceVideoCompression` - Legacy MiniMax H3 reference-video preference (`'none'` or `'vpack'`), retained for compatibility. Current services select compression automatically; this field no longer selects compression. Leave it unset for new requests.
 - `referenceAudio` - Reference audio for sound-to-video workflows (s2v, ia2v, flfa2v, a2v)
 - `referenceImageEnd` - Last frame for i2v, flf2v and the MiniMax H3 FastH3 flfa2v audio-guide workflow
-- `keyframes` - Every MiniMax H3 workflow except t2v (24 ids, `isMinimaxH3KeyframeModel()`: i2v and flf2v on every tier, Sound to Video ia2v/flfa2v/a2v, and r2v): up to `MINIMAX_H3_MAX_KEYFRAMES` (8) `{ image, frameIndex }` stills pinned between the first and last frame. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2`, each frame used once. Pass `frames` from the H3 grid (124, 141, 158, … 362) so the count is exact: `duration` snaps to the grid (`duration: 6` renders 141 frames, not 144). Frame 0 and the last frame are never keyframes: i2v, flf2v and flfa2v set them with `referenceImage` / `referenceImageEnd`, ia2v sets frame 0 with `referenceImage`, and a2v and r2v cannot pin them. The prompt names each keyframe `<Picture N>` (MiniMax's keyframe format), numbered in time order after the workflow's own pictures: after the first frame on i2v and ia2v (after the last frame on a last-frame-only i2v job), after the first and last frames on flf2v and flfa2v, from `<Picture 1>` on a2v, and after the reference images on r2v; keyframes still never count as references. i2v, flf2v and Sound to Video prompts open with one alignment line listing every picture at its mark (`How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot 2) aligns with the 2.88-second mark of the target video.`), the shot where a keyframe lands says "the shot's keyframe corresponds to `<Picture N>`", and r2v adds a `<Picture N> is the keyframe of [Shot M], showing ...` entry, `keyframe completion` in the summary tasks and a `<Picture N> ([Shot M] keyframe): fully_preserved - ...` retention entry. H3's text encoder never sees the keyframe images, so the prompt must still describe what each keyframe shows at its time. On Sound to Video the audio drives the performance and keyframes pin how it looks at their times. When a keyframe changes the framing, camera angle, location or light, start a new shot (a hard cut) in the prompt at its time: two differently framed or lit stills inside one continuous shot cross-fade, and a shot described differently from its still can flash the still for a single frame. Images upload to their own `keyframeImage1..N` slots in array order, so r2v sends its references (`referenceImage`, `contextImages`) and keyframes together. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100` MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier, FastH3 Reference included (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
+- `keyframes` - Every MiniMax H3 workflow except t2v and Control (24 ids, `isMinimaxH3KeyframeModel()`: i2v and flf2v on every tier, Sound to Video ia2v/flfa2v/a2v, and r2v): up to `MINIMAX_H3_MAX_KEYFRAMES` (8) `{ image, frameIndex }` stills pinned between the first and last frame. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2`, each frame used once. Pass `frames` from the H3 grid (124, 141, 158, … 362) so the count is exact: `duration` snaps to the grid (`duration: 6` renders 141 frames, not 144). Frame 0 and the last frame are never keyframes: i2v, flf2v and flfa2v set them with `referenceImage` / `referenceImageEnd`, ia2v sets frame 0 with `referenceImage`, and a2v and r2v cannot pin them. The prompt names each keyframe `<Picture N>` (MiniMax's keyframe format), numbered in time order after the workflow's own pictures: after the first frame on i2v and ia2v (after the last frame on a last-frame-only i2v job), after the first and last frames on flf2v and flfa2v, from `<Picture 1>` on a2v, and after the reference images on r2v; keyframes still never count as references. i2v, flf2v and Sound to Video prompts open with one alignment line listing every picture at its mark (`How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot 2) aligns with the 2.88-second mark of the target video.`), the shot where a keyframe lands says "the shot's keyframe corresponds to `<Picture N>`", and r2v adds a `<Picture N> is the keyframe of [Shot M], showing ...` entry, `keyframe completion` in the summary tasks and a `<Picture N> ([Shot M] keyframe): fully_preserved - ...` retention entry. H3's text encoder never sees the keyframe images, so the prompt must still describe what each keyframe shows at its time. On Sound to Video the audio drives the performance and keyframes pin how it looks at their times. When a keyframe changes the framing, camera angle, location or light, start a new shot (a hard cut) in the prompt at its time: two differently framed or lit stills inside one continuous shot cross-fade, and a shot described differently from its still can flash the still for a single frame. Images upload to their own `keyframeImage1..N` slots in array order, so r2v sends its references (`referenceImage`, `contextImages`) and keyframes together. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100` MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier, FastH3 Reference included (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 - `referenceImageUrls` - Loose image context URLs for Seedance, Happy Horse, and Wan 3; Wan 3 accepts up to 10
 - `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `referenceAudioUrls` - Loose audio context URLs for Seedance and Wan 3; Wan 3 accepts up to 5

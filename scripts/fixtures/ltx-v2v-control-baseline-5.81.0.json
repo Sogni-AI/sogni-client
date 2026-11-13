@@ -1,0 +1,888 @@
+{
+  "_note": "LTX 2.5/2.3 v2v job requests produced by @sogni-ai/sogni-client 5.81.0 (2f5ed9b), before MiniMax H3 Control. The same requests, with or without the H3 Control-only fields in `extras`, must reproduce these bytes exactly. Do not regenerate from a newer build.",
+  "options": {
+    "type": "video",
+    "sampler": {
+      "allowed": [
+        "euler"
+      ],
+      "default": "euler"
+    },
+    "scheduler": {
+      "allowed": [
+        "simple"
+      ],
+      "default": "simple"
+    }
+  },
+  "extras": {
+    "referenceMaskVideo": true,
+    "controlVideo": true,
+    "controlNet": {
+      "preprocess": false,
+      "guidanceStart": 0.1,
+      "guidanceEnd": 0.9
+    }
+  },
+  "requests": {
+    "ltx25-depth": {
+      "params": {
+        "type": "video",
+        "positivePrompt": "A dancer turns under warm stage lights.",
+        "numberOfMedia": 1,
+        "width": 1280,
+        "height": 704,
+        "duration": 5,
+        "seed": 42,
+        "referenceVideo": true,
+        "modelId": "ltx25-22b-int8_v2v_distilled",
+        "controlNet": {
+          "name": "depth",
+          "strength": 0.5
+        }
+      },
+      "message": {
+        "selectedUpscalingModel": "OFF",
+        "cnVideoFramesSketch": [],
+        "cnVideoFramesSegmentedSubject": [],
+        "cnVideoFramesFace": [],
+        "doCanvasBlending": false,
+        "animationIsOn": false,
+        "cnVideoFramesBoth": [],
+        "cnVideoFramesDepth": [],
+        "keyFrames": [
+          {
+            "stepsIsEnabled": true,
+            "siRotation": 0,
+            "siDragOffsetIsEnabled": true,
+            "strength": 0.5,
+            "siZoomScaleIsEnabled": true,
+            "isEnabled": true,
+            "processing": "CPU, GPU",
+            "useLastImageAsGuideImageInAnimation": true,
+            "guidanceScaleIsEnabled": true,
+            "siImageBackgroundColor": "black",
+            "cnDragOffset": [
+              0,
+              0
+            ],
+            "scheduler": null,
+            "timeStepSpacing": null,
+            "cnRotation": 0,
+            "siZoomScale": 1,
+            "modelID": "ltx25-22b-int8_v2v_distilled",
+            "cnRotationIsEnabled": true,
+            "negativePrompt": "",
+            "startingImageZoomPanIsOn": false,
+            "seed": 42,
+            "siRotationIsEnabled": true,
+            "cnImageBackgroundColor": "clear",
+            "strengthIsEnabled": true,
+            "siDragOffset": [
+              0,
+              0
+            ],
+            "useLastImageAsCNImageInAnimation": false,
+            "positivePrompt": "A dancer turns under warm stage lights.",
+            "controlNetZoomPanIsOn": false,
+            "cnZoomScaleIsEnabled": true,
+            "currentControlNets": null,
+            "stylePrompt": "",
+            "cnDragOffsetIsEnabled": true,
+            "frameIndex": 0,
+            "startingImage": null,
+            "cnZoomScale": 1,
+            "hasReferenceVideo": true,
+            "frames": 121,
+            "currentControlNetsJob": [
+              {
+                "name": "depth",
+                "controlStrength": 0.5
+              }
+            ],
+            "width": 1280,
+            "height": 704,
+            "comfySampler": null,
+            "comfyScheduler": null
+          }
+        ],
+        "previews": 0,
+        "frameRate": 24,
+        "generatedVideoSeconds": 10,
+        "canvasIsOn": false,
+        "cnVideoFrames": [],
+        "disableSafety": false,
+        "cnVideoFramesSegmentedBackground": [],
+        "cnVideoFramesSegmented": [],
+        "numberOfImages": 1,
+        "cnVideoFramesPose": [],
+        "jobID": "baseline-ltx25-depth",
+        "siVideoFrames": [],
+        "outputFormat": "mp4"
+      }
+    },
+    "ltx25-canny-default-strength": {
+      "params": {
+        "type": "video",
+        "positivePrompt": "A dancer turns under warm stage lights.",
+        "numberOfMedia": 1,
+        "width": 1280,
+        "height": 704,
+        "duration": 5,
+        "seed": 42,
+        "referenceVideo": true,
+        "modelId": "ltx25-22b-int8_v2v_distilled",
+        "controlNet": {
+          "name": "canny"
+        }
+      },
+      "message": {
+        "selectedUpscalingModel": "OFF",
+        "cnVideoFramesSketch": [],
+        "cnVideoFramesSegmentedSubject": [],
+        "cnVideoFramesFace": [],
+        "doCanvasBlending": false,
+        "animationIsOn": false,
+        "cnVideoFramesBoth": [],
+        "cnVideoFramesDepth": [],
+        "keyFrames": [
+          {
+            "stepsIsEnabled": true,
+            "siRotation": 0,
+            "siDragOffsetIsEnabled": true,
+            "strength": 0.5,
+            "siZoomScaleIsEnabled": true,
+            "isEnabled": true,
+            "processing": "CPU, GPU",
+            "useLastImageAsGuideImageInAnimation": true,
+            "guidanceScaleIsEnabled": true,
+            "siImageBackgroundColor": "black",
+            "cnDragOffset": [
+              0,
+              0
+            ],
+            "scheduler": null,
+            "timeStepSpacing": null,
+            "cnRotation": 0,
+            "siZoomScale": 1,
+            "modelID": "ltx25-22b-int8_v2v_distilled",
+            "cnRotationIsEnabled": true,
+            "negativePrompt": "",
+            "startingImageZoomPanIsOn": false,
+            "seed": 42,
+            "siRotationIsEnabled": true,
+            "cnImageBackgroundColor": "clear",
+            "strengthIsEnabled": true,
+            "siDragOffset": [
+              0,
+              0
+            ],
+            "useLastImageAsCNImageInAnimation": false,
+            "positivePrompt": "A dancer turns under warm stage lights.",
+            "controlNetZoomPanIsOn": false,
+            "cnZoomScaleIsEnabled": true,
+            "currentControlNets": null,
+            "stylePrompt": "",
+            "cnDragOffsetIsEnabled": true,
+            "frameIndex": 0,
+            "startingImage": null,
+            "cnZoomScale": 1,
+            "hasReferenceVideo": true,
+            "frames": 121,
+            "currentControlNetsJob": [
+              {
+                "name": "canny"
+              }
+            ],
+            "width": 1280,
+            "height": 704,
+            "comfySampler": null,
+            "comfyScheduler": null
+          }
+        ],
+        "previews": 0,
+        "frameRate": 24,
+        "generatedVideoSeconds": 10,
+        "canvasIsOn": false,
+        "cnVideoFrames": [],
+        "disableSafety": false,
+        "cnVideoFramesSegmentedBackground": [],
+        "cnVideoFramesSegmented": [],
+        "numberOfImages": 1,
+        "cnVideoFramesPose": [],
+        "jobID": "baseline-ltx25-canny-default-strength",
+        "siVideoFrames": [],
+        "outputFormat": "mp4"
+      }
+    },
+    "ltx25-pose-reference-image": {
+      "params": {
+        "type": "video",
+        "positivePrompt": "A dancer turns under warm stage lights.",
+        "numberOfMedia": 1,
+        "width": 1280,
+        "height": 704,
+        "duration": 5,
+        "seed": 42,
+        "referenceVideo": true,
+        "modelId": "ltx25-22b-int8_v2v_distilled",
+        "referenceImage": true,
+        "controlNet": {
+          "name": "pose",
+          "strength": 0.85
+        }
+      },
+      "message": {
+        "selectedUpscalingModel": "OFF",
+        "cnVideoFramesSketch": [],
+        "cnVideoFramesSegmentedSubject": [],
+        "cnVideoFramesFace": [],
+        "doCanvasBlending": false,
+        "animationIsOn": false,
+        "cnVideoFramesBoth": [],
+        "cnVideoFramesDepth": [],
+        "keyFrames": [
+          {
+            "stepsIsEnabled": true,
+            "siRotation": 0,
+            "siDragOffsetIsEnabled": true,
+            "strength": 0.5,
+            "siZoomScaleIsEnabled": true,
+            "isEnabled": true,
+            "processing": "CPU, GPU",
+            "useLastImageAsGuideImageInAnimation": true,
+            "guidanceScaleIsEnabled": true,
+            "siImageBackgroundColor": "black",
+            "cnDragOffset": [
+              0,
+              0
+            ],
+            "scheduler": null,
+            "timeStepSpacing": null,
+            "cnRotation": 0,
+            "siZoomScale": 1,
+            "modelID": "ltx25-22b-int8_v2v_distilled",
+            "cnRotationIsEnabled": true,
+            "negativePrompt": "",
+            "startingImageZoomPanIsOn": false,
+            "seed": 42,
+            "siRotationIsEnabled": true,
+            "cnImageBackgroundColor": "clear",
+            "strengthIsEnabled": true,
+            "siDragOffset": [
+              0,
+              0
+            ],
+            "useLastImageAsCNImageInAnimation": false,
+            "positivePrompt": "A dancer turns under warm stage lights.",
+            "controlNetZoomPanIsOn": false,
+            "cnZoomScaleIsEnabled": true,
+            "currentControlNets": null,
+            "stylePrompt": "",
+            "cnDragOffsetIsEnabled": true,
+            "frameIndex": 0,
+            "startingImage": null,
+            "cnZoomScale": 1,
+            "hasReferenceImage": true,
+            "hasReferenceVideo": true,
+            "frames": 121,
+            "currentControlNetsJob": [
+              {
+                "name": "pose",
+                "controlStrength": 0.85
+              }
+            ],
+            "width": 1280,
+            "height": 704,
+            "comfySampler": null,
+            "comfyScheduler": null
+          }
+        ],
+        "previews": 0,
+        "frameRate": 24,
+        "generatedVideoSeconds": 10,
+        "canvasIsOn": false,
+        "cnVideoFrames": [],
+        "disableSafety": false,
+        "cnVideoFramesSegmentedBackground": [],
+        "cnVideoFramesSegmented": [],
+        "numberOfImages": 1,
+        "cnVideoFramesPose": [],
+        "jobID": "baseline-ltx25-pose-reference-image",
+        "siVideoFrames": [],
+        "outputFormat": "mp4"
+      }
+    },
+    "ltx25-inpaint-mask": {
+      "params": {
+        "type": "video",
+        "positivePrompt": "A dancer turns under warm stage lights.",
+        "numberOfMedia": 1,
+        "width": 1280,
+        "height": 704,
+        "duration": 5,
+        "seed": 42,
+        "referenceVideo": true,
+        "modelId": "ltx25-22b-int8_v2v_distilled",
+        "referenceMask": true,
+        "controlNet": {
+          "name": "inpaint",
+          "strength": 0.85
+        }
+      },
+      "message": {
+        "selectedUpscalingModel": "OFF",
+        "cnVideoFramesSketch": [],
+        "cnVideoFramesSegmentedSubject": [],
+        "cnVideoFramesFace": [],
+        "doCanvasBlending": false,
+        "animationIsOn": false,
+        "cnVideoFramesBoth": [],
+        "cnVideoFramesDepth": [],
+        "keyFrames": [
+          {
+            "stepsIsEnabled": true,
+            "siRotation": 0,
+            "siDragOffsetIsEnabled": true,
+            "strength": 0.5,
+            "siZoomScaleIsEnabled": true,
+            "isEnabled": true,
+            "processing": "CPU, GPU",
+            "useLastImageAsGuideImageInAnimation": true,
+            "guidanceScaleIsEnabled": true,
+            "siImageBackgroundColor": "black",
+            "cnDragOffset": [
+              0,
+              0
+            ],
+            "scheduler": null,
+            "timeStepSpacing": null,
+            "cnRotation": 0,
+            "siZoomScale": 1,
+            "modelID": "ltx25-22b-int8_v2v_distilled",
+            "cnRotationIsEnabled": true,
+            "negativePrompt": "",
+            "startingImageZoomPanIsOn": false,
+            "seed": 42,
+            "siRotationIsEnabled": true,
+            "cnImageBackgroundColor": "clear",
+            "strengthIsEnabled": true,
+            "siDragOffset": [
+              0,
+              0
+            ],
+            "useLastImageAsCNImageInAnimation": false,
+            "positivePrompt": "A dancer turns under warm stage lights.",
+            "controlNetZoomPanIsOn": false,
+            "cnZoomScaleIsEnabled": true,
+            "currentControlNets": null,
+            "stylePrompt": "",
+            "cnDragOffsetIsEnabled": true,
+            "frameIndex": 0,
+            "startingImage": null,
+            "cnZoomScale": 1,
+            "hasReferenceVideo": true,
+            "hasReferenceMask": true,
+            "frames": 121,
+            "currentControlNetsJob": [
+              {
+                "name": "inpaint",
+                "controlStrength": 0.85
+              }
+            ],
+            "width": 1280,
+            "height": 704,
+            "comfySampler": null,
+            "comfyScheduler": null
+          }
+        ],
+        "previews": 0,
+        "frameRate": 24,
+        "generatedVideoSeconds": 10,
+        "canvasIsOn": false,
+        "cnVideoFrames": [],
+        "disableSafety": false,
+        "cnVideoFramesSegmentedBackground": [],
+        "cnVideoFramesSegmented": [],
+        "numberOfImages": 1,
+        "cnVideoFramesPose": [],
+        "jobID": "baseline-ltx25-inpaint-mask",
+        "siVideoFrames": [],
+        "outputFormat": "mp4"
+      }
+    },
+    "ltx25-depth-mask-ignored": {
+      "params": {
+        "type": "video",
+        "positivePrompt": "A dancer turns under warm stage lights.",
+        "numberOfMedia": 1,
+        "width": 1280,
+        "height": 704,
+        "duration": 5,
+        "seed": 42,
+        "referenceVideo": true,
+        "modelId": "ltx25-22b-int8_v2v_distilled",
+        "referenceMask": true,
+        "controlNet": {
+          "name": "depth",
+          "strength": 0.85
+        }
+      },
+      "message": {
+        "selectedUpscalingModel": "OFF",
+        "cnVideoFramesSketch": [],
+        "cnVideoFramesSegmentedSubject": [],
+        "cnVideoFramesFace": [],
+        "doCanvasBlending": false,
+        "animationIsOn": false,
+        "cnVideoFramesBoth": [],
+        "cnVideoFramesDepth": [],
+        "keyFrames": [
+          {
+            "stepsIsEnabled": true,
+            "siRotation": 0,
+            "siDragOffsetIsEnabled": true,
+            "strength": 0.5,
+            "siZoomScaleIsEnabled": true,
+            "isEnabled": true,
+            "processing": "CPU, GPU",
+            "useLastImageAsGuideImageInAnimation": true,
+            "guidanceScaleIsEnabled": true,
+            "siImageBackgroundColor": "black",
+            "cnDragOffset": [
+              0,
+              0
+            ],
+            "scheduler": null,
+            "timeStepSpacing": null,
+            "cnRotation": 0,
+            "siZoomScale": 1,
+            "modelID": "ltx25-22b-int8_v2v_distilled",
+            "cnRotationIsEnabled": true,
+            "negativePrompt": "",
+            "startingImageZoomPanIsOn": false,
+            "seed": 42,
+            "siRotationIsEnabled": true,
+            "cnImageBackgroundColor": "clear",
+            "strengthIsEnabled": true,
+            "siDragOffset": [
+              0,
+              0
+            ],
+            "useLastImageAsCNImageInAnimation": false,
+            "positivePrompt": "A dancer turns under warm stage lights.",
+            "controlNetZoomPanIsOn": false,
+            "cnZoomScaleIsEnabled": true,
+            "currentControlNets": null,
+            "stylePrompt": "",
+            "cnDragOffsetIsEnabled": true,
+            "frameIndex": 0,
+            "startingImage": null,
+            "cnZoomScale": 1,
+            "hasReferenceVideo": true,
+            "frames": 121,
+            "currentControlNetsJob": [
+              {
+                "name": "depth",
+                "controlStrength": 0.85
+              }
+            ],
+            "width": 1280,
+            "height": 704,
+            "comfySampler": null,
+            "comfyScheduler": null
+          }
+        ],
+        "previews": 0,
+        "frameRate": 24,
+        "generatedVideoSeconds": 10,
+        "canvasIsOn": false,
+        "cnVideoFrames": [],
+        "disableSafety": false,
+        "cnVideoFramesSegmentedBackground": [],
+        "cnVideoFramesSegmented": [],
+        "numberOfImages": 1,
+        "cnVideoFramesPose": [],
+        "jobID": "baseline-ltx25-depth-mask-ignored",
+        "siVideoFrames": [],
+        "outputFormat": "mp4"
+      }
+    },
+    "ltx25-detailer": {
+      "params": {
+        "type": "video",
+        "positivePrompt": "A dancer turns under warm stage lights.",
+        "numberOfMedia": 1,
+        "width": 1280,
+        "height": 704,
+        "duration": 5,
+        "seed": 42,
+        "referenceVideo": true,
+        "modelId": "ltx25-22b-int8_v2v_distilled",
+        "controlNet": {
+          "name": "detailer",
+          "strength": 1
+        },
+        "detailerStrength": 0.5
+      },
+      "message": {
+        "selectedUpscalingModel": "OFF",
+        "cnVideoFramesSketch": [],
+        "cnVideoFramesSegmentedSubject": [],
+        "cnVideoFramesFace": [],
+        "doCanvasBlending": false,
+        "animationIsOn": false,
+        "cnVideoFramesBoth": [],
+        "cnVideoFramesDepth": [],
+        "keyFrames": [
+          {
+            "stepsIsEnabled": true,
+            "siRotation": 0,
+            "siDragOffsetIsEnabled": true,
+            "strength": 0.5,
+            "siZoomScaleIsEnabled": true,
+            "isEnabled": true,
+            "processing": "CPU, GPU",
+            "useLastImageAsGuideImageInAnimation": true,
+            "guidanceScaleIsEnabled": true,
+            "siImageBackgroundColor": "black",
+            "cnDragOffset": [
+              0,
+              0
+            ],
+            "scheduler": null,
+            "timeStepSpacing": null,
+            "cnRotation": 0,
+            "siZoomScale": 1,
+            "modelID": "ltx25-22b-int8_v2v_distilled",
+            "cnRotationIsEnabled": true,
+            "negativePrompt": "",
+            "startingImageZoomPanIsOn": false,
+            "seed": 42,
+            "siRotationIsEnabled": true,
+            "cnImageBackgroundColor": "clear",
+            "strengthIsEnabled": true,
+            "siDragOffset": [
+              0,
+              0
+            ],
+            "useLastImageAsCNImageInAnimation": false,
+            "positivePrompt": "A dancer turns under warm stage lights.",
+            "controlNetZoomPanIsOn": false,
+            "cnZoomScaleIsEnabled": true,
+            "currentControlNets": null,
+            "stylePrompt": "",
+            "cnDragOffsetIsEnabled": true,
+            "frameIndex": 0,
+            "startingImage": null,
+            "cnZoomScale": 1,
+            "hasReferenceVideo": true,
+            "frames": 121,
+            "currentControlNetsJob": [
+              {
+                "name": "detailer",
+                "controlStrength": 1
+              }
+            ],
+            "detailerStrength": 0.5,
+            "width": 1280,
+            "height": 704,
+            "comfySampler": null,
+            "comfyScheduler": null
+          }
+        ],
+        "previews": 0,
+        "frameRate": 24,
+        "generatedVideoSeconds": 10,
+        "canvasIsOn": false,
+        "cnVideoFrames": [],
+        "disableSafety": false,
+        "cnVideoFramesSegmentedBackground": [],
+        "cnVideoFramesSegmented": [],
+        "numberOfImages": 1,
+        "cnVideoFramesPose": [],
+        "jobID": "baseline-ltx25-detailer",
+        "siVideoFrames": [],
+        "outputFormat": "mp4"
+      }
+    },
+    "ltx25-no-control": {
+      "params": {
+        "type": "video",
+        "positivePrompt": "A dancer turns under warm stage lights.",
+        "numberOfMedia": 1,
+        "width": 1280,
+        "height": 704,
+        "duration": 5,
+        "seed": 42,
+        "referenceVideo": true,
+        "modelId": "ltx25-22b-int8_v2v_distilled"
+      },
+      "message": {
+        "selectedUpscalingModel": "OFF",
+        "cnVideoFramesSketch": [],
+        "cnVideoFramesSegmentedSubject": [],
+        "cnVideoFramesFace": [],
+        "doCanvasBlending": false,
+        "animationIsOn": false,
+        "cnVideoFramesBoth": [],
+        "cnVideoFramesDepth": [],
+        "keyFrames": [
+          {
+            "stepsIsEnabled": true,
+            "siRotation": 0,
+            "siDragOffsetIsEnabled": true,
+            "strength": 0.5,
+            "siZoomScaleIsEnabled": true,
+            "isEnabled": true,
+            "processing": "CPU, GPU",
+            "useLastImageAsGuideImageInAnimation": true,
+            "guidanceScaleIsEnabled": true,
+            "siImageBackgroundColor": "black",
+            "cnDragOffset": [
+              0,
+              0
+            ],
+            "scheduler": null,
+            "timeStepSpacing": null,
+            "cnRotation": 0,
+            "siZoomScale": 1,
+            "modelID": "ltx25-22b-int8_v2v_distilled",
+            "cnRotationIsEnabled": true,
+            "negativePrompt": "",
+            "startingImageZoomPanIsOn": false,
+            "seed": 42,
+            "siRotationIsEnabled": true,
+            "cnImageBackgroundColor": "clear",
+            "strengthIsEnabled": true,
+            "siDragOffset": [
+              0,
+              0
+            ],
+            "useLastImageAsCNImageInAnimation": false,
+            "positivePrompt": "A dancer turns under warm stage lights.",
+            "controlNetZoomPanIsOn": false,
+            "cnZoomScaleIsEnabled": true,
+            "currentControlNets": null,
+            "stylePrompt": "",
+            "cnDragOffsetIsEnabled": true,
+            "frameIndex": 0,
+            "startingImage": null,
+            "cnZoomScale": 1,
+            "hasReferenceVideo": true,
+            "frames": 121,
+            "width": 1280,
+            "height": 704,
+            "comfySampler": null,
+            "comfyScheduler": null
+          }
+        ],
+        "previews": 0,
+        "frameRate": 24,
+        "generatedVideoSeconds": 10,
+        "canvasIsOn": false,
+        "cnVideoFrames": [],
+        "disableSafety": false,
+        "cnVideoFramesSegmentedBackground": [],
+        "cnVideoFramesSegmented": [],
+        "numberOfImages": 1,
+        "cnVideoFramesPose": [],
+        "jobID": "baseline-ltx25-no-control",
+        "siVideoFrames": [],
+        "outputFormat": "mp4"
+      }
+    },
+    "ltx25-hed-name": {
+      "params": {
+        "type": "video",
+        "positivePrompt": "A dancer turns under warm stage lights.",
+        "numberOfMedia": 1,
+        "width": 1280,
+        "height": 704,
+        "duration": 5,
+        "seed": 42,
+        "referenceVideo": true,
+        "modelId": "ltx25-22b-int8_v2v_distilled",
+        "controlNet": {
+          "name": "hed",
+          "strength": 0.85
+        }
+      },
+      "message": {
+        "selectedUpscalingModel": "OFF",
+        "cnVideoFramesSketch": [],
+        "cnVideoFramesSegmentedSubject": [],
+        "cnVideoFramesFace": [],
+        "doCanvasBlending": false,
+        "animationIsOn": false,
+        "cnVideoFramesBoth": [],
+        "cnVideoFramesDepth": [],
+        "keyFrames": [
+          {
+            "stepsIsEnabled": true,
+            "siRotation": 0,
+            "siDragOffsetIsEnabled": true,
+            "strength": 0.5,
+            "siZoomScaleIsEnabled": true,
+            "isEnabled": true,
+            "processing": "CPU, GPU",
+            "useLastImageAsGuideImageInAnimation": true,
+            "guidanceScaleIsEnabled": true,
+            "siImageBackgroundColor": "black",
+            "cnDragOffset": [
+              0,
+              0
+            ],
+            "scheduler": null,
+            "timeStepSpacing": null,
+            "cnRotation": 0,
+            "siZoomScale": 1,
+            "modelID": "ltx25-22b-int8_v2v_distilled",
+            "cnRotationIsEnabled": true,
+            "negativePrompt": "",
+            "startingImageZoomPanIsOn": false,
+            "seed": 42,
+            "siRotationIsEnabled": true,
+            "cnImageBackgroundColor": "clear",
+            "strengthIsEnabled": true,
+            "siDragOffset": [
+              0,
+              0
+            ],
+            "useLastImageAsCNImageInAnimation": false,
+            "positivePrompt": "A dancer turns under warm stage lights.",
+            "controlNetZoomPanIsOn": false,
+            "cnZoomScaleIsEnabled": true,
+            "currentControlNets": null,
+            "stylePrompt": "",
+            "cnDragOffsetIsEnabled": true,
+            "frameIndex": 0,
+            "startingImage": null,
+            "cnZoomScale": 1,
+            "hasReferenceVideo": true,
+            "frames": 121,
+            "currentControlNetsJob": [
+              {
+                "name": "hed",
+                "controlStrength": 0.85
+              }
+            ],
+            "width": 1280,
+            "height": 704,
+            "comfySampler": null,
+            "comfyScheduler": null
+          }
+        ],
+        "previews": 0,
+        "frameRate": 24,
+        "generatedVideoSeconds": 10,
+        "canvasIsOn": false,
+        "cnVideoFrames": [],
+        "disableSafety": false,
+        "cnVideoFramesSegmentedBackground": [],
+        "cnVideoFramesSegmented": [],
+        "numberOfImages": 1,
+        "cnVideoFramesPose": [],
+        "jobID": "baseline-ltx25-hed-name",
+        "siVideoFrames": [],
+        "outputFormat": "mp4"
+      }
+    },
+    "ltx23-depth": {
+      "params": {
+        "type": "video",
+        "positivePrompt": "A dancer turns under warm stage lights.",
+        "numberOfMedia": 1,
+        "width": 1280,
+        "height": 704,
+        "duration": 5,
+        "seed": 42,
+        "referenceVideo": true,
+        "modelId": "ltx23-22b-fp8_v2v_distilled",
+        "controlNet": {
+          "name": "depth",
+          "strength": 0.85
+        }
+      },
+      "message": {
+        "selectedUpscalingModel": "OFF",
+        "cnVideoFramesSketch": [],
+        "cnVideoFramesSegmentedSubject": [],
+        "cnVideoFramesFace": [],
+        "doCanvasBlending": false,
+        "animationIsOn": false,
+        "cnVideoFramesBoth": [],
+        "cnVideoFramesDepth": [],
+        "keyFrames": [
+          {
+            "stepsIsEnabled": true,
+            "siRotation": 0,
+            "siDragOffsetIsEnabled": true,
+            "strength": 0.5,
+            "siZoomScaleIsEnabled": true,
+            "isEnabled": true,
+            "processing": "CPU, GPU",
+            "useLastImageAsGuideImageInAnimation": true,
+            "guidanceScaleIsEnabled": true,
+            "siImageBackgroundColor": "black",
+            "cnDragOffset": [
+              0,
+              0
+            ],
+            "scheduler": null,
+            "timeStepSpacing": null,
+            "cnRotation": 0,
+            "siZoomScale": 1,
+            "modelID": "ltx23-22b-fp8_v2v_distilled",
+            "cnRotationIsEnabled": true,
+            "negativePrompt": "",
+            "startingImageZoomPanIsOn": false,
+            "seed": 42,
+            "siRotationIsEnabled": true,
+            "cnImageBackgroundColor": "clear",
+            "strengthIsEnabled": true,
+            "siDragOffset": [
+              0,
+              0
+            ],
+            "useLastImageAsCNImageInAnimation": false,
+            "positivePrompt": "A dancer turns under warm stage lights.",
+            "controlNetZoomPanIsOn": false,
+            "cnZoomScaleIsEnabled": true,
+            "currentControlNets": null,
+            "stylePrompt": "",
+            "cnDragOffsetIsEnabled": true,
+            "frameIndex": 0,
+            "startingImage": null,
+            "cnZoomScale": 1,
+            "hasReferenceVideo": true,
+            "frames": 121,
+            "currentControlNetsJob": [
+              {
+                "name": "depth",
+                "controlStrength": 0.85
+              }
+            ],
+            "width": 1280,
+            "height": 704,
+            "comfySampler": null,
+            "comfyScheduler": null
+          }
+        ],
+        "previews": 0,
+        "frameRate": 24,
+        "generatedVideoSeconds": 10,
+        "canvasIsOn": false,
+        "cnVideoFrames": [],
+        "disableSafety": false,
+        "cnVideoFramesSegmentedBackground": [],
+        "cnVideoFramesSegmented": [],
+        "numberOfImages": 1,
+        "cnVideoFramesPose": [],
+        "jobID": "baseline-ltx23-depth",
+        "siVideoFrames": [],
+        "outputFormat": "mp4"
+      }
+    }
+  }
+}

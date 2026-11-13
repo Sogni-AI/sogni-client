@@ -6,6 +6,7 @@ import {
   VideoProjectParams,
   VideoWorkflowType
 } from '../types/index.js';
+import { isMinimaxH3ControlModel, MINIMAX_H3_CONTROL_MODEL_ID } from '../minimaxH3Control.js';
 
 const LTX_WORKFLOWS = ['t2v', 'i2v', 'a2v', 'ia2v', 'v2v'] as const;
 const LTX_VIDEO_MODEL_IDS = new Set([
@@ -44,6 +45,7 @@ const HAPPYHORSE_VIDEO_MODEL_IDS = new Set([
 ]);
 const WAN3_VIDEO_MODEL_IDS = new Set(['wan3.0-video', 'wan3.0-spicy-video']);
 const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
+  MINIMAX_H3_CONTROL_MODEL_ID,
   'minimax-h3-fl2va-fp8_t2v',
   'minimax-h3-fl2va-fp8_i2v',
   'minimax-h3-fl2va-fp8_flf2v',
@@ -775,6 +777,7 @@ export function calculateVideoFrames(
  */
 export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   if (!modelId) return null;
+  if (isMinimaxH3ControlModel(modelId)) return 'v2v';
   if (isVideoSegmentationModel(modelId)) return 'v2v';
   if (isVideoUpscaleModel(modelId)) return 'upscale';
 
@@ -1197,6 +1200,15 @@ export function getVideoAssetRequirements(
 ): Record<VideoAssetKey, AssetRequirement> | null {
   const workflowType = getVideoWorkflowType(modelId);
   if (!workflowType) return null;
+  // MiniMax H3 Control: a prepared controlVideo can stand in for the source, and
+  // the server refuses a voice reference.
+  if (isMinimaxH3ControlModel(modelId)) {
+    return {
+      ...VIDEO_WORKFLOW_ASSETS.v2v,
+      referenceVideo: 'optional',
+      referenceAudioIdentity: 'forbidden'
+    };
+  }
   if (workflowType === 'r2v' && isMinimaxH3Model(modelId)) {
     return MINIMAX_H3_R2V_ASSETS;
   }
@@ -1211,8 +1223,9 @@ export function getVideoAssetRequirements(
 
 /**
  * Whether a `referenceMask` should be honored for the given video params.
- * Only LTX 2.5/2.3 v2v 'inpaint' control consumes a mask.
+ * LTX 2.5/2.3 v2v reads a mask only for 'inpaint' control; MiniMax H3 Control
+ * reads one with any control type.
  */
 export function usesReferenceMask(params: VideoProjectParams): boolean {
-  return params.controlNet?.name === 'inpaint';
+  return params.controlNet?.name === 'inpaint' || isMinimaxH3ControlModel(params.modelId);
 }

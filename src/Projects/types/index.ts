@@ -868,9 +868,22 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * Inpaint mask IMAGE for distilled LTX 2.5 or LTX 2.3 v2v inpaint workflows.
    * White pixels mark the region to regenerate. Maps to jobKey 'referenceMask'.
-   * Used by the 'inpaint' control type.
+   * Used by the 'inpaint' control type. MiniMax H3 Control reads it with any
+   * control type, as a still mask over the source `referenceVideo`.
    */
   referenceMask?: InputMedia;
+  /**
+   * MiniMax H3 Control only; other models ignore it. A moving black-and-white mask
+   * video: white regenerates, black is kept as context. Use it or `referenceMask`,
+   * not both, together with the source `referenceVideo`.
+   */
+  referenceMaskVideo?: InputMedia;
+  /**
+   * MiniMax H3 Control only; other models ignore it. A prepared control-map video
+   * (depth, pose, edges, scribble, layout or grayscale). The worker skips map
+   * extraction for it. It can replace `referenceVideo` when no mask is used.
+   */
+  controlVideo?: InputMedia;
   /**
    * Video context references for Seedance. These must be
    * publicly accessible HTTPS URLs, and map to Seedance reference_video assets.

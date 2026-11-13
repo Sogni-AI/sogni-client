@@ -15,6 +15,7 @@ import {
   VideoControlNetParams,
   VideoControlNetParamsRaw
 } from './types/ControlNetParams.js';
+import { isMinimaxH3ControlModel, validateMinimaxH3Control } from './minimaxH3Control.js';
 import {
   validateNumber,
   validateCustomImageSize,
@@ -716,7 +717,15 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
   const isPrism = isMinimaxH3PrismModel(params.modelId);
   const isTurbo = isMinimaxH3TurboModel(params.modelId);
   const isBalanced = isMinimaxH3BalancedModel(params.modelId);
-  const expectedSteps = isFastH3Reference || isPrism ? 8 : isTurbo ? 4 : isBalanced ? 8 : 20;
+  const expectedSteps = isMinimaxH3ControlModel(params.modelId)
+    ? 40
+    : isFastH3Reference || isPrism
+      ? 8
+      : isTurbo
+        ? 4
+        : isBalanced
+          ? 8
+          : 20;
   if (params.steps !== undefined && params.steps !== expectedSteps) {
     const tier = isFastH3Reference
       ? ' FastH3 Reference'
@@ -1309,16 +1318,29 @@ function getControlNet(params: ControlNetParams): ControlNetParamsRaw[] {
   return [cn];
 }
 
-function getVideoControlNet(params: VideoControlNetParams): VideoControlNetParamsRaw[] {
+/**
+ * LTX 2.5/2.3 sends the name and a 0-1 strength. MiniMax H3 Control takes a 0-10
+ * strength plus preprocess and the guidance window, which only it reads, so they
+ * are sent only for that model.
+ */
+function getVideoControlNet(
+  params: VideoControlNetParams,
+  isMinimaxH3Control: boolean
+): VideoControlNetParamsRaw[] {
   const cn: VideoControlNetParamsRaw = {
     name: params.name
   };
   if (params.strength !== undefined) {
     cn.controlStrength = validateNumber(params.strength, {
       min: 0,
-      max: 1,
+      max: isMinimaxH3Control ? 10 : 1,
       propertyName: 'strength'
     });
+  }
+  if (isMinimaxH3Control) {
+    if (params.preprocess !== undefined) cn.preprocess = params.preprocess;
+    if (params.guidanceStart !== undefined) cn.controlGuidanceStart = params.guidanceStart;
+    if (params.guidanceEnd !== undefined) cn.controlGuidanceEnd = params.guidanceEnd;
   }
   return [cn];
 }
@@ -1904,6 +1926,7 @@ function applyVideoParams(
     if (params.numberOfMedia !== 1) throw new Error('Upscale one source video per project.');
   }
   rejectRetiredOutputScale(params);
+  validateMinimaxH3Control(params);
   validateMinimaxH3Params(params);
   const keyFrame: Record<string, any> = { ...inputKeyframe };
   if (params.referenceVideoCompression !== undefined) {
@@ -1962,6 +1985,10 @@ function applyVideoParams(
   }
   if (params.referenceMask && usesReferenceMask(params)) {
     keyFrame.hasReferenceMask = true;
+  }
+  if (isMinimaxH3ControlModel(params.modelId)) {
+    if (params.referenceMaskVideo) keyFrame.hasReferenceVideo2 = true;
+    if (params.controlVideo) keyFrame.hasReferenceVideo3 = true;
   }
   const referenceVideoUrls = asReferenceUrlArray(params.referenceVideoUrls);
   if (referenceVideoUrls.length) {
@@ -2114,9 +2141,13 @@ function applyVideoParams(
     keyFrame.lastFrameStrength = params.lastFrameStrength;
   }
 
-  // Control parameters for LTX 2.5/2.3 v2v workflows
+  // Control parameters for LTX 2.5/2.3 v2v and MiniMax H3 Control. Without a
+  // controlNet, the server runs H3 Control with depth.
   if (params.controlNet) {
-    keyFrame.currentControlNetsJob = getVideoControlNet(params.controlNet);
+    keyFrame.currentControlNetsJob = getVideoControlNet(
+      params.controlNet,
+      isMinimaxH3ControlModel(params.modelId)
+    );
   }
 
   // Detailer LoRA strength for LTX 2.5/2.3 v2v IC-Control workflows

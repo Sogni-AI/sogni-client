@@ -110,6 +110,7 @@ import {
 import { getFileContentType } from './utils/fileContentType.js';
 import { assertImageUploadBody } from './utils/imageUploadBody.js';
 import { imageLayersFromResult } from './utils/imageLayers.js';
+import { getMinimaxH3ControlUploads, isMinimaxH3ControlModel } from './minimaxH3Control.js';
 import { TokenType } from '../types/token.js';
 import type { JobProvenance } from './types/JobProvenance.js';
 import {
@@ -2775,6 +2776,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     if (data?.referenceMask && data.referenceMask !== true && usesReferenceMask(data)) {
       await this.uploadReferenceMask(project.id, data.referenceMask);
+    }
+    if (isMinimaxH3ControlModel(data.modelId)) {
+      await Promise.all(
+        getMinimaxH3ControlUploads(data).map(({ id, media }) =>
+          typeof media === 'boolean' ? undefined : this.uploadReferenceVideo(project.id, media, id)
+        )
+      );
     }
   }
 

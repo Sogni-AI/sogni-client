@@ -20,10 +20,22 @@ export type ControlNetName =
   | 'instantid';
 
 /**
- * Video control model names for LTX 2.5/2.3 v2v workflows
+ * Video control model names for LTX 2.5/2.3 and MiniMax H3 Control workflows.
+ * Each workflow accepts its own subset of these names.
  * @inline
  */
-export type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer' | 'outpaint' | 'inpaint';
+export type VideoControlNetName =
+  | 'canny'
+  | 'pose'
+  | 'depth'
+  | 'detailer'
+  | 'outpaint'
+  | 'inpaint'
+  | 'hed'
+  | 'mlsd'
+  | 'scribble'
+  | 'layout'
+  | 'gray';
 
 /**
  * Raw ControlNet parameters passed to the API
@@ -114,11 +126,14 @@ export interface ControlNetParams {
 export interface VideoControlNetParamsRaw {
   name: VideoControlNetName;
   controlStrength?: number;
+  preprocess?: boolean;
+  controlGuidanceStart?: number;
+  controlGuidanceEnd?: number;
 }
 
 /**
- * Video control parameters for LTX 2.5/2.3 v2v workflows.
- * The control input is provided via `referenceVideo` in VideoProjectParams.
+ * Video control parameters for LTX 2.5/2.3 and MiniMax H3 Control workflows.
+ * MiniMax H3 Control also accepts prepared maps via `controlVideo`.
  */
 export interface VideoControlNetParams {
   /**
@@ -131,14 +146,29 @@ export interface VideoControlNetParams {
    * - 'outpaint': Extend the reference video's canvas. Positional, driven by
    *   `outpaintPosition` (plus width/height).
    * - 'inpaint': Regenerate a masked region of the reference video (requires `referenceMask`)
+   *
+   * MiniMax H3 Control accepts canny, depth, pose, hed, mlsd, scribble, layout,
+   * gray and inpaint, and runs depth when `controlNet` is omitted. Any of them can
+   * take a mask (`referenceMask` or `referenceMaskVideo`); inpaint requires one.
    */
   name: VideoControlNetName;
   /**
    * Control strength. Higher values follow the control signal more strictly.
-   * Range: 0.0-1.0, default 0.85.
+   * LTX range: 0.0-1.0, default 0.85. MiniMax H3 Control range: 0.0-10.0, default 1.
    * For canny/depth: controls how strongly the preprocessor output (edges/depth maps)
    * is injected into the generation. For pose: controls pose adherence.
    * For detailer: controls appearance preservation.
    */
   strength?: number;
+  /**
+   * MiniMax H3 Control only; other models ignore it. Whether the worker extracts
+   * the map from `referenceVideo` (canny, depth, pose, hed and mlsd). Omitted, it
+   * extracts unless `controlVideo` is set; `false` reads `referenceVideo` as a
+   * prepared map.
+   */
+  preprocess?: boolean;
+  /** MiniMax H3 Control only; other models ignore it. Fraction of sampling where guidance starts, 0-1 (default 0). */
+  guidanceStart?: number;
+  /** MiniMax H3 Control only; other models ignore it. Fraction of sampling where guidance ends, 0-1 (default 1). */
+  guidanceEnd?: number;
 }

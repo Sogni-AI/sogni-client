@@ -1208,7 +1208,7 @@ const project = await sogni.projects.create({
 });
 ```
 
-MINIMAX H3 STANDARD, BALANCED, LIGHTX2V TURBO, AND FASTH3 TURBO (Sogni workers, native video + audio):
+MINIMAX H3 STANDARD, CONTROL, BALANCED, LIGHTX2V TURBO, AND FASTH3 TURBO (Sogni workers, native video + audio):
 
 MiniMax H3 generates video and 32kHz stereo audio jointly in one pass on Sogni's
 own GPUs. Standard H3 uses 20-step res_multistep/simple sampling and Balanced
@@ -1254,18 +1254,66 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 | minimax-h3-fl2va-fp8_i2v_balanced | Balanced endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fl2va-fp8_flf2v_balanced | Balanced first-and-last-frame video | both anchor images required |
 | minimax-h3-ref2va-fp8_r2v_balanced | Balanced reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+| minimax-h3-ref2va-fp8_v2v_controlnet | Control: video guided by maps of a source, and masked editing | referenceVideo and/or a prepared controlVideo; at most one mask; optional referenceImage |
 
 Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544.
 Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 
-All 29 current workflow ids are available through the Sogni projects API: four
+All 30 current workflow ids are available through the Sogni projects API: four
 Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with
 generated audio, three audio-guide), six FastH3 Two-Stage modes, two Ref2VA
 Two-Stage modes (Standard and Balanced), FastH3 Reference (one-stage and
-Two-Stage), and Prism (`minimax-h3-prism-int8_r2v`), an optional
+Two-Stage), Control, and Prism (`minimax-h3-prism-int8_r2v`), an optional
 reference-to-video model for mature themes that needs `disableNSFWFilter: true`.
 Prism's recipe is fixed at 8 Euler steps (omit `steps` or send 8; the schedule
 is not a request option) and it has no two-stage id.
+
+MiniMax H3 Control (`minimax-h3-ref2va-fp8_v2v_controlnet`) makes a new video
+that follows the structure of a source video, and can regenerate a masked part
+of it. It is opt-in (nothing routes to it unless you name it), needs a worker GPU
+with at least 32 GB of VRAM, and runs on both the `fast` and `relaxed` networks.
+Sizes are 480-1344 px per side on a 32 px grid, up to 1,032,192 pixels (default
+1344x768). Length is 124-362 frames in steps of 17 at 24 fps (5.17-15.08 s).
+Sampling is fixed at 40 steps, Euler/simple, guidance 1, with no negative
+prompt. Generated audio is on by default.
+
+- `controlNet.name` is canny, depth, pose, hed, mlsd, scribble, layout, gray or
+  inpaint. Without `controlNet` the server uses depth.
+- `referenceVideo` is the source. For canny, depth, pose, hed and mlsd the
+  worker extracts the map from it.
+- `controlVideo` is a prepared map video, used as it is. Scribble, layout and
+  gray always need prepared maps: pass `controlVideo`, or pass the maps as
+  `referenceVideo` with `controlNet.preprocess: false`. Without a mask,
+  `controlVideo` can be the only video.
+- `referenceMask` (image) or `referenceMaskVideo` (moving mask), not both: white
+  is regenerated, black is kept as context. A mask needs the source
+  `referenceVideo` and works with every control type; inpaint requires one. Kept
+  areas are regenerated to match, not copied pixel for pixel.
+- `referenceImage` (optional) guides how the subject looks; it does not set the
+  first frame.
+- `videoStart` trims every input video from the same point; the worker
+  resamples inputs to 24 fps and scales and center-crops them to the output size.
+- `controlNet.strength` is 0-10 (default 1). `controlNet.guidanceStart` and
+  `controlNet.guidanceEnd` are the fractions of sampling where the guide applies,
+  0-1 (defaults 0 and 1).
+- It does not take `referenceImageEnd`, extra references, uploaded audio, a
+  voice reference or `keyframes`. Other models ignore `controlVideo`,
+  `referenceMaskVideo`, `preprocess`, `guidanceStart` and `guidanceEnd`.
+
+```javascript
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: 'minimax-h3-ref2va-fp8_v2v_controlnet',
+  positivePrompt: 'The dancer turns beneath warm stage lights, now in a red coat.',
+  numberOfMedia: 1,
+  referenceVideo: sourceVideo,
+  controlNet: { name: 'depth', strength: 1 },
+  width: 1344,
+  height: 768,
+  frames: 124
+});
+```
 
 For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
 `referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids
@@ -2448,10 +2496,13 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceAudio?: File | Buffer | Blob;
   referenceAudios?: (File | Buffer | Blob)[];  // MiniMax H3 r2v audio references 2-3
   referenceVideo?: File | Buffer | Blob;
+  referenceMask?: File | Buffer | Blob;  // LTX inpaint or MiniMax H3 Control mask image; white regenerates
+  referenceMaskVideo?: File | Buffer | Blob;  // MiniMax H3 Control only: moving mask
+  controlVideo?: File | Buffer | Blob;  // MiniMax H3 Control only: prepared map video
   referenceVideos?: (File | Buffer | Blob)[];  // MiniMax H3 r2v video references 2-3
   referenceVideoDurations?: number[];  // Optional H3 r2v preflight hints; Socket measures uploaded videos authoritatively
   contextImages?: (File | Buffer | Blob)[];  // MiniMax H3 r2v reference images 2-9
-  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v: up to 8 stills at 0-based frames 1..frames-2; pass frames
+  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v and Control: up to 8 stills at 0-based frames 1..frames-2; pass frames
   referenceImageUrls?: string[];  // Seedance and HappyHorse only
   referenceVideoUrls?: string[];  // Seedance only
   referenceAudioUrls?: string[];  // Seedance only
@@ -2465,7 +2516,7 @@ VIDEO-SPECIFIC PARAMETERS:
   firstFrameStrength?: number;  // LTX-2.3 only (0-1)
   lastFrameStrength?: number;   // LTX-2.3 only (0-1)
   trimEndFrame?: boolean;
-  controlNet?: VideoControlNetParams;  // LTX-2.3 only
+  controlNet?: VideoControlNetParams;  // LTX 2.5/2.3 or MiniMax H3 Control; accepted names depend on the model
   upscaleResolution?: 1080 | 1440 | 2160;  // Video upscale only: output short edge; 2160 is RelayVSR only
   frames?: number;           // Exact frame count (MiniMax H3: 124 + n*17; pass it with keyframes); video upscale: optional, must equal the source's count
   outputFormat?: 'mp4';
@@ -2903,9 +2954,12 @@ interface VideoProjectParams extends BaseProjectParams {
   teacacheThreshold?: number;
   referenceImage?: File | Buffer | Blob;
   referenceImageEnd?: File | Buffer | Blob;
-  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v
+  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v and Control
   referenceAudio?: File | Buffer | Blob;
   referenceVideo?: File | Buffer | Blob;
+  referenceMask?: File | Buffer | Blob;  // LTX inpaint or MiniMax H3 Control mask image; white regenerates
+  referenceMaskVideo?: File | Buffer | Blob;  // MiniMax H3 Control only: moving mask
+  controlVideo?: File | Buffer | Blob;  // MiniMax H3 Control only: prepared map video
   audioStart?: number;
   audioDuration?: number;
   videoStart?: number;
@@ -2954,11 +3008,15 @@ interface ControlNetParams {
   preprocess?: boolean; // true = worker makes the control map from a photo; default false = image is the map
 }
 
-type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer';
+type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer' | 'outpaint'
+  | 'inpaint' | 'hed' | 'mlsd' | 'scribble' | 'layout' | 'gray';
 
 interface VideoControlNetParams {
   name: VideoControlNetName;
-  strength?: number;
+  strength?: number;  // H3 Control: 0–10, default 1; LTX: 0–1, default 0.85
+  preprocess?: boolean;  // H3 Control only
+  guidanceStart?: number;  // H3 Control only: 0–1, default 0
+  guidanceEnd?: number;    // H3 Control only: 0–1, default 1, >= guidanceStart
 }
 ```
 
