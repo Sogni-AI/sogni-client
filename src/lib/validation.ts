@@ -144,7 +144,17 @@ export function validateGptImageOptions(params: ImageProjectParams): void {
  */
 export const SEEDREAM_5_PRO_UNCENSORED_MODEL_ID = 'seedream-5-0-pro-uncensored';
 
-const SEEDREAM_MODEL_IDS = new Set([SEEDREAM_5_PRO_UNCENSORED_MODEL_ID]);
+/**
+ * Seedream 5.5 Uncensored: ByteDance's Seedream 5.5 with the same contract as
+ * Seedream 5.0 Pro Uncensored (text-to-image, 1-10 reference edits, the same
+ * sizes and the same one-time agreement). Chosen only by name.
+ */
+export const SEEDREAM_5_5_UNCENSORED_MODEL_ID = 'seedream-5-5-uncensored';
+
+const SEEDREAM_MODEL_IDS = new Set([
+  SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  SEEDREAM_5_5_UNCENSORED_MODEL_ID
+]);
 const SEEDREAM_MAX_CONTEXT_IMAGES = 10;
 // Output limits: 921,600 (1280x720) to 4,194,304 (2048x2048) pixels, aspect
 // ratio from 1:16 to 16:1. Together they bound each edge to 240-8192 px
@@ -153,7 +163,7 @@ const SEEDREAM_MIN_PIXELS = 921_600;
 const SEEDREAM_MAX_PIXELS = 4_194_304;
 const SEEDREAM_MAX_ASPECT_RATIO = 16;
 
-/** Whether `modelId` is a Seedream image model (today only Seedream 5.0 Pro Uncensored). */
+/** Whether `modelId` is a Seedream image model (Seedream 5.0 Pro Uncensored or Seedream 5.5 Uncensored). */
 export function isSeedreamModel(modelId?: string): boolean {
   return modelId !== undefined && SEEDREAM_MODEL_IDS.has(modelId);
 }

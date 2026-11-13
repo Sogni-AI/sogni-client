@@ -51,7 +51,11 @@ import {
   isVideoSegmentationModel,
   requiresStartingImage
 } from './Projects/utils/index.js';
-import { SEEDREAM_5_PRO_UNCENSORED_MODEL_ID, isSeedreamModel } from './lib/validation.js';
+import {
+  SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  SEEDREAM_5_5_UNCENSORED_MODEL_ID,
+  isSeedreamModel
+} from './lib/validation.js';
 import ProjectsApi from './Projects/index.js';
 import Job, { JobStatus } from './Projects/Job.js';
 import Project, { ProjectStatus } from './Projects/Project.js';
@@ -530,6 +534,7 @@ export {
   SAM3_IMAGE_SEGMENT_MODEL_ID,
   SAM3_VIDEO_SEGMENT_MODEL_ID,
   SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  SEEDREAM_5_5_UNCENSORED_MODEL_ID,
   calculateVideoFrames,
   getMinimaxH3FramesForAudioDuration,
   getPixal3dOrbitViewSlots,
