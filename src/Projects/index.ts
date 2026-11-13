@@ -35,7 +35,7 @@ import {
 import Project from './Project.js';
 import {
   normalizePayAsYouGoSwitchResult,
-  PAY_AS_YOU_GO_REFUSALS_KEEPING_OFFER,
+  PAY_AS_YOU_GO_REFUSALS_CLEARING_OFFER,
   type PayAsYouGoSwitchResult
 } from './types/PayAsYouGo.js';
 
@@ -2893,16 +2893,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   /**
    * Run one waiting Unlimited plan project on Premium Spark now, at its normal
    * price, when {@link Project.payAsYouGo} offers it. The server re-checks every
-   * condition and charges only when the result's `status` is `switched`.
+   * condition when asked. The result has one of three statuses:
    *
    * - `switched`: the project runs on Premium Spark; its price was charged once.
-   * - `refused`: this request charged nothing. After `insufficient_premium_spark`
-   *   or `insufficient_funds` the offer stays, so an app can offer a Spark purchase
-   *   and ask again; other refusals clear the offer.
-   * - `unknown`: no usable answer arrived (`timeout`, `session_changed`,
-   *   `unrecognized_reply`), so the payment state is unknown. Asking again is safe:
-   *   the server answers `switched` without a second charge when the earlier
-   *   request went through, or a refusal when it did not.
+   * - `refused`: this request charged nothing; `reason` says why. `started` and
+   *   `not_eligible` clear the offer at once. After any other refusal (for example
+   *   `insufficient_premium_spark`, where an app can offer a Spark purchase and ask
+   *   again) the server's next queue update decides whether the offer stays.
+   * - `unknown` (`timeout`, `not_found`, `session_changed`, `unrecognized_reply`):
+   *   the server may have switched and charged the project. Treat the payment as
+   *   possibly made. Asking again is safe and never charges twice: it answers
+   *   `switched` if the earlier request switched, a refusal if nothing was charged,
+   *   or `unknown` again (including `not_found` once the creation has finished).
+   *   While it stays unknown, check the member's Spark history or the creation's
+   *   result rather than assuming either way.
    *
    * A repeated call while one is pending shares its result. If the connection
    * drops while the request is pending, the SDK sends it once more after
@@ -2999,10 +3003,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       armTimer();
     })();
     const promise = outcome.then((result) => {
-      const keepsOffer =
-        result.status === 'unknown' ||
-        (result.status === 'refused' && PAY_AS_YOU_GO_REFUSALS_KEEPING_OFFER.has(result.reason));
-      if (!keepsOffer) {
+      // Clear the offer only when the outcome ends it for good; the server's next
+      // projectQueue update decides every other case.
+      const clearsOffer =
+        result.status === 'switched' ||
+        (result.status === 'refused' && PAY_AS_YOU_GO_REFUSALS_CLEARING_OFFER.has(result.reason));
+      if (clearsOffer) {
         const project = this.projects.find((item) => item.id.toUpperCase() === upperId);
         if (project?._setPayAsYouGo(null)) this._emitQueueChanged(project);
       }

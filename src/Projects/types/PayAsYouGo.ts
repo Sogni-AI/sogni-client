@@ -19,10 +19,10 @@ export interface PayAsYouGoOffer {
 
 /**
  * Why the server refused a switch to Premium Spark. A refusal means the request
- * that received it charged nothing.
+ * that received it charged nothing. (`not_found` is never a refusal: see
+ * {@link PayAsYouGoUnknownReason}.)
  */
 export type PayAsYouGoRefusalReason =
-  | 'not_found'
   | 'not_eligible'
   | 'started'
   | 'no_idle_worker'
@@ -36,10 +36,18 @@ export type PayAsYouGoRefusalReason =
 /**
  * Why the outcome of a switch request is not known.
  * - `timeout`: no reply arrived in time.
+ * - `not_found`: the server no longer has this project waiting, for example because
+ *   it already finished. An earlier request (or the re-send after a reconnect) may
+ *   have switched and charged it before it finished, so this proves nothing about
+ *   payment.
  * - `session_changed`: the account session ended while the request was pending.
  * - `unrecognized_reply`: the server replied with a status this SDK does not know.
  */
-export type PayAsYouGoUnknownReason = 'timeout' | 'session_changed' | 'unrecognized_reply';
+export type PayAsYouGoUnknownReason =
+  | 'timeout'
+  | 'not_found'
+  | 'session_changed'
+  | 'unrecognized_reply';
 
 interface PayAsYouGoSwitchResultBase {
   projectId: string;
@@ -63,12 +71,13 @@ export interface PayAsYouGoRefused extends PayAsYouGoSwitchResultBase {
 }
 
 /**
- * The payment state is unknown: the server may or may not have switched the
- * project. Asking again with `switchToPremiumSpark` is safe. It answers
- * `switched` without a second charge when the earlier request went through, or
- * a refusal when it did not. A `not_found` refusal at that point means the
- * project already left the server's active list; the earlier request's outcome
- * then shows in the account's billing history.
+ * The payment state is unknown: the server may or may not have switched and
+ * charged the project. Treat the payment as possibly made. Asking again with
+ * `switchToPremiumSpark` is safe and never charges twice: it answers `switched`
+ * if the earlier request switched, a refusal if nothing was charged, or
+ * `unknown` again (including `not_found` once the creation has finished). While
+ * it stays unknown, check the member's Spark history or the creation's result
+ * rather than assuming either way.
  */
 export interface PayAsYouGoUnknown extends PayAsYouGoSwitchResultBase {
   status: 'unknown';
@@ -78,7 +87,6 @@ export interface PayAsYouGoUnknown extends PayAsYouGoSwitchResultBase {
 export type PayAsYouGoSwitchResult = PayAsYouGoSwitched | PayAsYouGoRefused | PayAsYouGoUnknown;
 
 const REFUSAL_REASONS = new Set<PayAsYouGoRefusalReason>([
-  'not_found',
   'not_eligible',
   'started',
   'no_idle_worker',
@@ -91,13 +99,13 @@ const REFUSAL_REASONS = new Set<PayAsYouGoRefusalReason>([
 ]);
 
 /**
- * Refusals after which the server keeps offering the switch: the offer stays,
- * so an app can offer a Spark purchase and ask again.
+ * Refusals that end the offer for good, so the SDK clears it at once. Every other
+ * outcome leaves the offer to the server's next `projectQueue` update.
  * @internal
  */
-export const PAY_AS_YOU_GO_REFUSALS_KEEPING_OFFER: ReadonlySet<PayAsYouGoRefusalReason> = new Set([
-  'insufficient_premium_spark',
-  'insufficient_funds'
+export const PAY_AS_YOU_GO_REFUSALS_CLEARING_OFFER: ReadonlySet<PayAsYouGoRefusalReason> = new Set([
+  'started',
+  'not_eligible'
 ]);
 
 const isDecimalString = (value: unknown): value is string =>
@@ -127,6 +135,10 @@ export function normalizePayAsYouGoSwitchResult(
   if (isDecimalString(value.costInSpark)) extra.costInSpark = value.costInSpark;
   if (value.status === 'switched')
     return { projectId, status: 'switched', paymentModel: 'paid_spark', ...extra };
+  // not_found can follow a request that did switch (its reply went to a dropped
+  // socket and the project then finished), so it never proves nothing was charged.
+  if (value.status === 'refused' && value.reason === 'not_found')
+    return { projectId, status: 'unknown', reason: 'not_found', ...extra };
   if (value.status === 'refused')
     return {
       projectId,

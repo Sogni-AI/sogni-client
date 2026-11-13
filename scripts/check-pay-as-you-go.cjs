@@ -338,28 +338,87 @@ async function main() {
     assert.equal(queueEvents.at(-1).payAsYouGo, null);
   }
 
-  // Refusals clear the offer, except the ones an app answers with a Spark purchase.
-  {
+  // Only 'started' and 'not_eligible' clear the offer locally; the server's next
+  // projectQueue update decides every other refusal.
+  for (const reason of [
+    'no_idle_worker',
+    'concurrency_limit',
+    'staff_only',
+    'unavailable',
+    'insufficient_premium_spark',
+    'insufficient_funds',
+    'payment_failed'
+  ]) {
     const { socket, api, project } = setup();
     withOffer(socket);
-    const short = api.switchToPremiumSpark('PROJECT-1');
+    const result = api.switchToPremiumSpark('PROJECT-1');
+    await Promise.resolve();
+    socket.emit('projectPaymentSwitch', { jobID: 'PROJECT-1', status: 'refused', reason });
+    assert.equal((await result).reason, reason);
+    assert.deepEqual(project.payAsYouGo, offer, `${reason} must keep the offer`);
+  }
+  for (const reason of ['started', 'not_eligible']) {
+    const { socket, api, project, queueEvents } = setup();
+    withOffer(socket);
+    const before = queueEvents.length;
+    const result = api.switchToPremiumSpark('PROJECT-1');
+    await Promise.resolve();
+    socket.emit('projectPaymentSwitch', { jobID: 'PROJECT-1', status: 'refused', reason });
+    assert.equal((await result).reason, reason);
+    assert.equal(project.payAsYouGo, null, `${reason} must clear the offer`);
+    assert.equal(queueEvents.length, before + 1);
+  }
+
+  // not_found never proves nothing was charged: it is always unknown.
+  {
+    assert.deepEqual(
+      normalizePayAsYouGoSwitchResult('P', {
+        status: 'refused',
+        reason: 'not_found',
+        message: 'This creation is no longer waiting.'
+      }),
+      {
+        projectId: 'P',
+        status: 'unknown',
+        reason: 'not_found',
+        message: 'This creation is no longer waiting.'
+      }
+    );
+    const { socket, api, project } = setup();
+    withOffer(socket);
+    const direct = api.switchToPremiumSpark('PROJECT-1');
     await Promise.resolve();
     socket.emit('projectPaymentSwitch', {
       jobID: 'PROJECT-1',
       status: 'refused',
-      reason: 'insufficient_premium_spark'
+      reason: 'not_found'
     });
-    await short;
+    const result = await direct;
+    assert.equal(result.status, 'unknown');
+    assert.equal(result.reason, 'not_found');
+    // Unknown leaves the offer to the server.
     assert.deepEqual(project.payAsYouGo, offer);
-    const gone = api.switchToPremiumSpark('PROJECT-1');
-    await Promise.resolve();
+  }
+
+  // The first send switched, its reply went to the dropped socket, the project
+  // finished, and the re-send after the reconnect finds nothing: unknown, not refused.
+  {
+    const { socket, client, api } = setup();
+    const result = api.switchToPremiumSpark('PROJECT-1', { timeoutMs: 1000 });
+    await sleep(2);
+    client.emit('connecting');
+    client.emit('connected');
+    await sleep(2);
+    assert.equal(socket.sent.length, 2);
     socket.emit('projectPaymentSwitch', {
       jobID: 'PROJECT-1',
       status: 'refused',
-      reason: 'no_idle_worker'
+      reason: 'not_found',
+      message: 'This creation is no longer waiting.'
     });
-    await gone;
-    assert.equal(project.payAsYouGo, null);
+    const outcome = await result;
+    assert.equal(outcome.status, 'unknown');
+    assert.equal(outcome.reason, 'not_found');
   }
 
   // A session change settles a pending switch as unknown, never as a refusal.
