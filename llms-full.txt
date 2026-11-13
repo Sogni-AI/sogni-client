@@ -1274,8 +1274,7 @@ of it. It is opt-in (nothing routes to it unless you name it), needs a worker GP
 with at least 32 GB of VRAM, and runs on both the `fast` and `relaxed` networks.
 Sizes are 480-1344 px per side on a 32 px grid, up to 1,032,192 pixels (default
 1344x768). Length is 124-362 frames in steps of 17 at 24 fps (5.17-15.08 s).
-Sampling is fixed at 40 steps, Euler/simple, guidance 1, with no negative
-prompt. Generated audio is on by default.
+Generated audio is on by default.
 
 - `controlNet.name` is canny, depth, pose, hed, mlsd, scribble, layout, gray or
   inpaint. Without `controlNet` the server uses depth.

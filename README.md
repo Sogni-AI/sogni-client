@@ -1389,8 +1389,6 @@ with at least 32 GB of VRAM and runs on both the `fast` and `relaxed` networks.
   1,032,192 pixels in total.
 - Length: 124-362 frames in steps of 17 at 24 fps (5.17-15.08 s). Set `frames`
   or `duration`.
-- Sampling is fixed at 40 steps, Euler/simple and guidance 1, with no negative
-  prompt. Omit those fields or send the fixed values.
 - The clip has generated audio by default.
 
 `controlNet.name` picks the guide: `canny`, `depth`, `pose`, `hed`, `mlsd`,
