@@ -32,10 +32,7 @@ export type VideoControlNetName =
   | 'outpaint'
   | 'inpaint'
   | 'hed'
-  | 'mlsd'
-  | 'scribble'
-  | 'layout'
-  | 'gray';
+  | 'mlsd';
 
 /**
  * Raw ControlNet parameters passed to the API
@@ -147,9 +144,9 @@ export interface VideoControlNetParams {
    *   `outpaintPosition` (plus width/height).
    * - 'inpaint': Regenerate a masked region of the reference video (requires `referenceMask`)
    *
-   * MiniMax H3 Control accepts canny, depth, pose, hed, mlsd, scribble, layout,
-   * gray and inpaint, and runs depth when `controlNet` is omitted. Any of them can
-   * take a mask (`referenceMask` or `referenceMaskVideo`); inpaint requires one.
+   * MiniMax H3 Control accepts canny, depth, pose, hed, mlsd and inpaint, and runs
+   * depth when `controlNet` is omitted. Any of them can take a mask
+   * (`referenceMask` or `referenceMaskVideo`); inpaint requires one.
    */
   name: VideoControlNetName;
   /**

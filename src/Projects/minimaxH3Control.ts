@@ -1,18 +1,16 @@
 import type { VideoProjectParams } from './types/index.js';
 
 export const MINIMAX_H3_CONTROL_MODEL_ID = 'minimax-h3-ref2va-fp8_v2v_controlnet';
+/** The guide types MiniMax H3 Control takes at launch; the Socket refuses any other. */
 export const MINIMAX_H3_CONTROL_TYPES = [
   'canny',
   'depth',
   'pose',
   'hed',
   'mlsd',
-  'scribble',
-  'layout',
-  'gray',
   'inpaint'
 ] as const;
-/** Control types the worker can extract from the source video itself. */
+/** Guide types the worker can extract from the source video itself (every type but inpaint). */
 const MINIMAX_H3_AUTOMATIC_CONTROL_TYPES = ['canny', 'depth', 'pose', 'hed', 'mlsd'];
 
 export function isMinimaxH3ControlModel(modelId: string): boolean {
@@ -83,7 +81,8 @@ export function validateMinimaxH3Control(params: VideoProjectParams): void {
   if (params.controlVideo && control?.preprocess === true) {
     throw new Error('controlVideo is a prepared map; omit preprocess or set it to false.');
   }
+  // Inpaint has no map to extract; the Socket and worker refuse preprocess for it.
   if (control?.preprocess && !MINIMAX_H3_AUTOMATIC_CONTROL_TYPES.includes(name)) {
-    throw new Error(`${name} requires prepared control maps.`);
+    throw new Error(`${name} has no map to extract; omit preprocess or set it to false.`);
   }
 }

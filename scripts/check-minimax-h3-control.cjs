@@ -63,8 +63,24 @@ for (const name of MINIMAX_H3_CONTROL_TYPES) {
   assert.equal(f.hasReferenceMask, name === 'inpaint' ? true : undefined);
   assert.equal(f.steps, 40);
   assert.deepEqual(f.currentControlNetsJob, [
-    { name, controlStrength: 0.8, preprocess: false, controlGuidanceStart: 0.1, controlGuidanceEnd: 0.9 }
+    {
+      name,
+      controlStrength: 0.8,
+      preprocess: false,
+      controlGuidanceStart: 0.1,
+      controlGuidanceEnd: 0.9
+    }
   ]);
+}
+// Six guide types at launch; a prepared controlVideo works with extraction off.
+assert.deepEqual(
+  [...MINIMAX_H3_CONTROL_TYPES],
+  ['canny', 'depth', 'pose', 'hed', 'mlsd', 'inpaint']
+);
+for (const name of ['canny', 'depth', 'pose', 'hed', 'mlsd']) {
+  const f = frame({ controlVideo: video, controlNet: { name, preprocess: false } });
+  assert.equal(f.hasReferenceVideo3, true);
+  assert.deepEqual(f.currentControlNetsJob, [{ name, preprocess: false }]);
 }
 // A mask can accompany a structural guide.
 assert.equal(frame({ controlNet: { name: 'pose' }, referenceMask: image }).hasReferenceMask, true);
@@ -91,7 +107,10 @@ for (const changes of [
   { referenceVideo: undefined, controlVideo: video, referenceMask: image },
   { referenceVideo: undefined, controlVideo: video, referenceMaskVideo: video },
   { controlVideo: video, controlNet: { name: 'pose', preprocess: true } },
-  { controlNet: { name: 'layout', preprocess: true } },
+  { referenceMask: image, controlNet: { name: 'inpaint', preprocess: true } },
+  { controlVideo: video, controlNet: { name: 'scribble', preprocess: false } },
+  { controlVideo: video, controlNet: { name: 'layout', preprocess: false } },
+  { controlVideo: video, controlNet: { name: 'gray', preprocess: false } },
   { controlNet: { name: 'depth', preprocess: 'yes' } },
   { controlNet: { name: 'depth', guidanceStart: 0.9, guidanceEnd: 0.1 } },
   { controlNet: { name: 'depth', guidanceStart: '0.1' } },
@@ -117,8 +136,8 @@ for (const changes of [
 }
 
 // LTX 2.5/2.3 v2v requests are byte-identical to SDK 5.81.0, with or without the
-// H3 Control-only fields, and hed/mlsd/scribble/layout/gray names pass through as
-// before.
+// MiniMax H3 Control-only fields. At runtime LTX passes any controlNet name through,
+// as 5.81.0 did, including names it has no workflow for.
 const withExtras = (request) => ({
   ...request,
   referenceMaskVideo: baseline.extras.referenceMaskVideo,
@@ -130,11 +149,15 @@ const withExtras = (request) => ({
 for (const [name, { params: request, message }] of Object.entries(baseline.requests)) {
   const expected = JSON.stringify(message);
   const id = `baseline-${name}`;
-  assert.equal(JSON.stringify(create(id, request, baseline.options)), expected, `${name} unchanged`);
+  assert.equal(
+    JSON.stringify(create(id, request, baseline.options)),
+    expected,
+    `${name} unchanged`
+  );
   assert.equal(
     JSON.stringify(create(id, withExtras(request), baseline.options)),
     expected,
-    `${name} ignores the H3 Control-only fields`
+    `${name} ignores the MiniMax H3 Control-only fields`
   );
 }
 const ltx = baseline.requests['ltx25-depth'].params;
@@ -165,7 +188,12 @@ async function checkUploads() {
     ['project', video, 'referenceVideo3']
   ]);
   uploads.length = 0;
-  await processAssets({ ...params, referenceVideo: true, referenceMask: image, controlVideo: true });
+  await processAssets({
+    ...params,
+    referenceVideo: true,
+    referenceMask: image,
+    controlVideo: true
+  });
   assert.deepEqual(
     uploads,
     [['mask', 'project', image]],
@@ -175,14 +203,30 @@ async function checkUploads() {
   // LTX uploads only what it uploaded before: the source, plus the mask for inpaint.
   const maskVideo = new Blob(['mask-video'], { type: 'video/mp4' });
   const controlVideo = new Blob(['control'], { type: 'video/mp4' });
-  const ltxUpload = { type: 'video', modelId: 'ltx25-22b-int8_v2v_distilled', referenceVideo: video };
+  const ltxUpload = {
+    type: 'video',
+    modelId: 'ltx25-22b-int8_v2v_distilled',
+    referenceVideo: video
+  };
   const extraMedia = { referenceMaskVideo: maskVideo, controlVideo };
   uploads.length = 0;
-  await processAssets({ ...ltxUpload, ...extraMedia, controlNet: { name: 'depth', preprocess: false } });
+  await processAssets({
+    ...ltxUpload,
+    ...extraMedia,
+    controlNet: { name: 'depth', preprocess: false }
+  });
   assert.deepEqual(uploads, [['project', video]]);
   uploads.length = 0;
-  await processAssets({ ...ltxUpload, ...extraMedia, referenceMask: image, controlNet: { name: 'inpaint' } });
-  assert.deepEqual(uploads, [['project', video], ['mask', 'project', image]]);
+  await processAssets({
+    ...ltxUpload,
+    ...extraMedia,
+    referenceMask: image,
+    controlNet: { name: 'inpaint' }
+  });
+  assert.deepEqual(uploads, [
+    ['project', video],
+    ['mask', 'project', image]
+  ]);
   console.log(
     `MiniMax H3 Control SDK: ${MINIMAX_H3_CONTROL_TYPES.length} control types, uploads and refusals passed; ` +
       `${Object.keys(baseline.requests).length} LTX v2v requests match SDK 5.81.0 with and without the new fields`

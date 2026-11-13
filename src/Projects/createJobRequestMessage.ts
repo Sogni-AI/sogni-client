@@ -2142,7 +2142,7 @@ function applyVideoParams(
   }
 
   // Control parameters for LTX 2.5/2.3 v2v and MiniMax H3 Control. Without a
-  // controlNet, the server runs H3 Control with depth.
+  // controlNet, the server runs MiniMax H3 Control with depth.
   if (params.controlNet) {
     keyFrame.currentControlNetsJob = getVideoControlNet(
       params.controlNet,

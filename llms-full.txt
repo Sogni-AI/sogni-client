@@ -1254,7 +1254,7 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 | minimax-h3-fl2va-fp8_i2v_balanced | Balanced endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fl2va-fp8_flf2v_balanced | Balanced first-and-last-frame video | both anchor images required |
 | minimax-h3-ref2va-fp8_r2v_balanced | Balanced reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
-| minimax-h3-ref2va-fp8_v2v_controlnet | Control: video guided by maps of a source, and masked editing | referenceVideo and/or a prepared controlVideo; at most one mask; optional referenceImage |
+| minimax-h3-ref2va-fp8_v2v_controlnet | MiniMax H3 Control: video guided by maps of a source, and masked editing | referenceVideo and/or a prepared controlVideo; at most one mask; optional referenceImage |
 
 Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544.
 Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
@@ -1263,27 +1263,29 @@ All 30 current workflow ids are available through the Sogni projects API: four
 Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with
 generated audio, three audio-guide), six FastH3 Two-Stage modes, two Ref2VA
 Two-Stage modes (Standard and Balanced), FastH3 Reference (one-stage and
-Two-Stage), Control, and Prism (`minimax-h3-prism-int8_r2v`), an optional
-reference-to-video model for mature themes that needs `disableNSFWFilter: true`.
+Two-Stage), MiniMax H3 Control, and Prism (`minimax-h3-prism-int8_r2v`), an
+optional reference-to-video model for mature themes that needs `disableNSFWFilter: true`.
 Prism's recipe is fixed at 8 Euler steps (omit `steps` or send 8; the schedule
 is not a request option) and it has no two-stage id.
 
 MiniMax H3 Control (`minimax-h3-ref2va-fp8_v2v_controlnet`) makes a new video
-that follows the structure of a source video, and can regenerate a masked part
-of it. It is opt-in (nothing routes to it unless you name it), needs a worker GPU
-with at least 32 GB of VRAM, and runs on both the `fast` and `relaxed` networks.
-Sizes are 480-1344 px per side on a 32 px grid, up to 1,032,192 pixels (default
-1344x768). Length is 124-362 frames in steps of 17 at 24 fps (5.17-15.08 s).
-Generated audio is on by default.
+that follows the structure of a source video (its depth, pose, edges or straight
+lines), and can regenerate a masked part of it. It is opt-in (nothing routes to
+it unless you name it), needs a worker GPU with at least 32 GB of VRAM, and runs
+on both the `fast` and `relaxed` networks. It is for paid plans: an Unlimited
+subscription covers it, Premium Spark or SOGNI also pay for it, and free Spark
+credits can't run it. Sizes are 480-1344 px per side on a 32 px grid, up to
+1,032,192 pixels (default 1344x768). Length is 124-362 frames in steps of 17 at
+24 fps (5.17-15.08 s). Generated audio is on by default.
 
-- `controlNet.name` is canny, depth, pose, hed, mlsd, scribble, layout, gray or
-  inpaint. Without `controlNet` the server uses depth.
+- `controlNet.name` is canny (edges), depth, pose, hed (soft edges), mlsd
+  (straight lines) or inpaint. Without `controlNet` the server uses depth.
 - `referenceVideo` is the source. For canny, depth, pose, hed and mlsd the
   worker extracts the map from it.
-- `controlVideo` is a prepared map video, used as it is. Scribble, layout and
-  gray always need prepared maps: pass `controlVideo`, or pass the maps as
-  `referenceVideo` with `controlNet.preprocess: false`. Without a mask,
-  `controlVideo` can be the only video.
+- `controlVideo` is a map video you prepared for the chosen guide, such as a
+  depth or pose clip, used as it is without extraction. You can also pass
+  prepared maps as `referenceVideo` with `controlNet.preprocess: false`. Without
+  a mask, `controlVideo` can be the only video.
 - `referenceMask` (image) or `referenceMaskVideo` (moving mask), not both: white
   is regenerated, black is kept as context. A mask needs the source
   `referenceVideo` and works with every control type; inpaint requires one. Kept
@@ -2501,7 +2503,7 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceVideos?: (File | Buffer | Blob)[];  // MiniMax H3 r2v video references 2-3
   referenceVideoDurations?: number[];  // Optional H3 r2v preflight hints; Socket measures uploaded videos authoritatively
   contextImages?: (File | Buffer | Blob)[];  // MiniMax H3 r2v reference images 2-9
-  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v and Control: up to 8 stills at 0-based frames 1..frames-2; pass frames
+  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v and MiniMax H3 Control: up to 8 stills at 0-based frames 1..frames-2; pass frames
   referenceImageUrls?: string[];  // Seedance and HappyHorse only
   referenceVideoUrls?: string[];  // Seedance only
   referenceAudioUrls?: string[];  // Seedance only
@@ -2953,7 +2955,7 @@ interface VideoProjectParams extends BaseProjectParams {
   teacacheThreshold?: number;
   referenceImage?: File | Buffer | Blob;
   referenceImageEnd?: File | Buffer | Blob;
-  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v and Control
+  keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v and MiniMax H3 Control
   referenceAudio?: File | Buffer | Blob;
   referenceVideo?: File | Buffer | Blob;
   referenceMask?: File | Buffer | Blob;  // LTX inpaint or MiniMax H3 Control mask image; white regenerates
@@ -3008,14 +3010,14 @@ interface ControlNetParams {
 }
 
 type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer' | 'outpaint'
-  | 'inpaint' | 'hed' | 'mlsd' | 'scribble' | 'layout' | 'gray';
+  | 'inpaint' | 'hed' | 'mlsd';
 
 interface VideoControlNetParams {
   name: VideoControlNetName;
-  strength?: number;  // H3 Control: 0–10, default 1; LTX: 0–1, default 0.85
-  preprocess?: boolean;  // H3 Control only
-  guidanceStart?: number;  // H3 Control only: 0–1, default 0
-  guidanceEnd?: number;    // H3 Control only: 0–1, default 1, >= guidanceStart
+  strength?: number;  // MiniMax H3 Control: 0–10, default 1; LTX: 0–1, default 0.85
+  preprocess?: boolean;  // MiniMax H3 Control only
+  guidanceStart?: number;  // MiniMax H3 Control only: 0–1, default 0
+  guidanceEnd?: number;    // MiniMax H3 Control only: 0–1, default 1, >= guidanceStart
 }
 ```
 

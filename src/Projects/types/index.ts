@@ -880,8 +880,8 @@ export interface VideoProjectParams extends BaseProjectParams {
   referenceMaskVideo?: InputMedia;
   /**
    * MiniMax H3 Control only; other models ignore it. A prepared control-map video
-   * (depth, pose, edges, scribble, layout or grayscale). The worker skips map
-   * extraction for it. It can replace `referenceVideo` when no mask is used.
+   * (depth, pose or edges) for the chosen type. The worker skips map extraction
+   * for it. It can replace `referenceVideo` when no mask is used.
    */
   controlVideo?: InputMedia;
   /**
