@@ -315,10 +315,12 @@ the offer, and after other refusals such as `insufficient_premium_spark` the
 server's next queue update decides), or `'unknown'` (`timeout`, `not_found`,
 `session_changed`, `unrecognized_reply`: the project may have been switched and
 charged, so treat the payment as possibly made). Asking again is safe and never
-charges twice: it answers `switched` if the earlier request switched, a refusal if
-nothing was charged, or `unknown` again (including `not_found` once the creation
-has finished); while it stays unknown, check the member's Spark history or the
-creation's result rather than assuming either way. The server reads project ids
+charges twice: it answers `switched` if the earlier request switched, a refusal
+from the server if nothing was charged, or `unknown` again (including `not_found`
+once the creation has finished); while it stays unknown, check the member's Spark
+history or the creation's result rather than assuming either way. A `not_sent`
+refusal comes from the SDK itself: that request never left the client and says
+nothing about the earlier one. The server reads project ids
 of at most 128 characters; API-key sessions are never offered the switch and are
 refused with `not_eligible`. Concurrent calls share one request; after a
 reconnect the SDK re-sends a pending request once. `timeoutMs` defaults to 45 s,

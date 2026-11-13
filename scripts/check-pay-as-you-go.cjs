@@ -436,6 +436,23 @@ async function main() {
     assert.equal(socket.listenerCount('projectPaymentSwitch'), 0);
   }
 
+  // A request that certainly never left the client is the SDK's own `not_sent`
+  // refusal, never the server's `unavailable`, and it keeps the offer.
+  {
+    const { socket, api, project } = setup();
+    withOffer(socket);
+    socket.send = async () => {
+      throw new Error('socket closed');
+    };
+    assert.deepEqual(await api.switchToPremiumSpark('PROJECT-1'), {
+      projectId: 'PROJECT-1',
+      status: 'refused',
+      reason: 'not_sent'
+    });
+    assert.deepEqual(project.payAsYouGo, offer);
+    assert.equal(socket.listenerCount('projectPaymentSwitch'), 0);
+  }
+
   console.log('pay-as-you-go checks passed');
 }
 

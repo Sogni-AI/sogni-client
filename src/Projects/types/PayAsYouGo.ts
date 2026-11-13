@@ -31,7 +31,13 @@ export type PayAsYouGoRefusalReason =
   | 'insufficient_funds'
   | 'payment_failed'
   | 'staff_only'
-  | 'unavailable';
+  | 'unavailable'
+  /**
+   * Set by the SDK, never by the server: this request never left the client,
+   * so it charged nothing. It says nothing about an earlier request; ask again
+   * once connected.
+   */
+  | 'not_sent';
 
 /**
  * Why the outcome of a switch request is not known.
@@ -74,7 +80,9 @@ export interface PayAsYouGoRefused extends PayAsYouGoSwitchResultBase {
  * The payment state is unknown: the server may or may not have switched and
  * charged the project. Treat the payment as possibly made. Asking again with
  * `switchToPremiumSpark` is safe and never charges twice: it answers `switched`
- * if the earlier request switched, a refusal if nothing was charged, or
+ * if the earlier request switched, a refusal from the server if nothing was
+ * charged (a `not_sent` refusal means the new request never reached the server
+ * and says nothing about the earlier one), or
  * `unknown` again (including `not_found` once the creation has finished). While
  * it stays unknown, check the member's Spark history or the creation's result
  * rather than assuming either way.

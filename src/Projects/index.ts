@@ -2988,7 +2988,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       const delivered = await send();
       if (settled) return;
       if (!delivered) {
-        finish({ projectId, status: 'refused', reason: 'unavailable' });
+        finish({ projectId, status: 'refused', reason: 'not_sent' });
         return;
       }
       const sentGeneration = this._transportGeneration;

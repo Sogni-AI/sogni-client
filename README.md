@@ -258,7 +258,7 @@ if (result.status === 'switched') {
 }
 ```
 
-Asking again is safe and never charges twice. It answers `switched` if the earlier request switched, a refusal if nothing was charged, or `unknown` again, including `not_found` once the creation has finished. While the outcome stays unknown, check the member's Spark history or the creation's result rather than assuming either way.
+Asking again is safe and never charges twice. It answers `switched` if the earlier request switched, a refusal from the server if nothing was charged, or `unknown` again, including `not_found` once the creation has finished. While the outcome stays unknown, check the member's Spark history or the creation's result rather than assuming either way. A `not_sent` refusal comes from the SDK itself: that request never left the client, so it says nothing about the earlier one; ask again once connected.
 
 The server reads project ids of at most 128 characters, and API-key sessions are never offered the switch and are refused with `not_eligible`. Concurrent calls for one project share a single request. If the connection drops while a request is pending, the SDK sends it once more after reconnecting. `timeoutMs` (default 45 seconds) counts from when the request is sent. Servers without the feature never send an offer.
 
