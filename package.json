@@ -141,7 +141,8 @@
     "test:large-data-uri": "npm run build && node scripts/check-large-data-uri.cjs",
     "test:world-builds": "npm run build && node scripts/check-world-builds.cjs",
     "test:gpt-image-26": "npm run build && node scripts/check-gpt-image-26.cjs",
-    "test:two-factor": "npm run build && node scripts/check-two-factor.cjs"
+    "test:two-factor": "npm run build && node scripts/check-two-factor.cjs",
+    "test:changelog": "npm run build && node scripts/check-changelog-api.cjs"
   },
   "repository": {
     "type": "git",

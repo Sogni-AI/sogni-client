@@ -278,6 +278,7 @@ import StatsApi from './Stats/index.js';
 import ReplayApi from './Replay/index.js';
 import WorldsApi from './Worlds/index.js';
 import AnnouncementsApi from './Announcements/index.js';
+import ChangelogApi from './Changelog/index.js';
 import MediaEncryptionApi from './MediaEncryption/index.js';
 import { MediaEncryptionError } from './lib/mediaEncryption/index.js';
 import {
@@ -780,6 +781,13 @@ export class SogniClient {
    */
   announcements: AnnouncementsApi;
   /**
+   * The public Sogni changelog (`/v1/changelog`): what changed for artists,
+   * developers and worker operators. `changelog.list(options)` reads one page
+   * of entries with filters and a cursor, `changelog.get(id)` one entry, and
+   * `changelog.products()` the products entries can name. No sign-in needed.
+   */
+  changelog: ChangelogApi;
+  /**
    * Optional media encryption: read encrypted results, video and
    * audio. Create the client with `mediaEncryption: 'auto'` to encrypt every
    * eligible project.
@@ -804,6 +812,7 @@ export class SogniClient {
     this.worlds = new WorldsApi(config);
     this.replay = new ReplayApi(config);
     this.announcements = new AnnouncementsApi(config);
+    this.changelog = new ChangelogApi(config);
 
     this.apiClient = config.client;
   }
@@ -965,6 +974,15 @@ export type {
   WorldBuildWaiting,
   WorldBuildWaitingReason
 } from './Worlds/types.js';
+export type {
+  ChangelogAudience,
+  ChangelogEntry,
+  ChangelogEntryType,
+  ChangelogLink,
+  ChangelogProduct,
+  ListChangelogOptions,
+  ListChangelogResult
+} from './Changelog/types.js';
 
 export {
   getGptImageGifLayouts,

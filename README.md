@@ -228,7 +228,8 @@ const sogni = await SogniClient.createInstance({
 ```
 
 Socket-backed project generation and chat completions are unavailable in REST-only mode. Hosted
-chat, durable workflows, replay records, announcements, and account REST APIs remain available.
+chat, durable workflows, replay records, announcements, the platform changelog, and account REST
+APIs remain available.
 
 ### Connection metadata and event subscriptions
 
@@ -1910,6 +1911,30 @@ async function startWithRetry(params, attempts = 5) {
 ```
 
 See `examples/workflow_creative_agent_workflows.mjs` for start/list/get/events/stream/cancel coverage. The underlying REST endpoints remain documented in the [LLM API durable workflows reference](https://github.com/Sogni-AI/sogni-api/blob/main/docs/llm-api.md#durable-creative-agent-workflows).
+
+## Platform changelog
+
+`sogni.changelog` reads Sogni's public changelog: what changed for artists, developers and worker operators. These reads need no sign-in, so a REST-only client without an API key can make them:
+
+```javascript
+const sogni = await SogniClient.createInstance({ disableSocket: true });
+
+const filters = { audience: 'developer', since: '2026-11-01' };
+const { entries, nextCursor } = await sogni.changelog.list(filters);
+for (const entry of entries) console.log(entry.publishedAt, entry.title, entry.url);
+
+// The next page takes the same filters plus the cursor; nextCursor is null on the last page.
+const older = nextCursor ? await sogni.changelog.list({ ...filters, cursor: nextCursor }) : null;
+
+const entry = await sogni.changelog.get(entries[0].id);
+const products = await sogni.changelog.products(); // [{ id, label, audiences }]
+```
+
+- `list(options)` returns `{ entries, nextCursor }`, newest first. `audience` (`artist`, `developer`, `worker`), `product` (ids from `products()`) and `type` (`new`, `improved`, `fixed`, `release`, `deprecated`, `removed`, `notice`) take one value or an array. `since` (inclusive) and `until` (exclusive) take an ISO 8601 date or a date-time with a zone. `actionRequired: true` lists only entries you need to act on. `limit` defaults to 50; the API returns at most 100.
+- `get(id)` returns one entry. An id with no published entry throws `ApiError` with `status` 404 and `payload.errorCode` 204.
+- For a deprecation or removal, `effectiveAt` is the day the old behavior stops working.
+
+Responses can be up to five minutes old, so poll no more often than that. The [Changelog API reference](https://docs.sogni.ai/api-reference/changelog/) has the full contract, including the JSON Feed and Atom feeds.
 
 ## Code Examples
 

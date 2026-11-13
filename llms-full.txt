@@ -64,7 +64,7 @@ PACKAGE SHAPE:
 - ESM: `dist-esm/index.js`
 - TypeScript declarations: `dist/index.d.ts`
 - Public root class: `SogniClient`
-- Public namespaces: `account`, `projects`, `chat`, `workflows`, `replay`, `stats`, `apiClient`
+- Public namespaces: `account`, `projects`, `chat`, `workflows`, `replay`, `stats`, `changelog`, `apiClient`
 - Commonly used methods: `sogni.chat.completions.create()`, `sogni.projects.estimateCost()`, `sogni.projects.estimateVideoCost()`, `sogni.projects.estimateAudioCost()`, `sogni.workflows.start()`
 
 ================================================================================ 2. QUICK START EXAMPLES
@@ -197,6 +197,42 @@ Generate an `appId` once per application installation and persist it across proc
 reloads. Calling `randomUUID()` every time the process starts creates a new application identity on
 every run. For REST-only usage, pass `disableSocket: true`; `appId` is optional and the client opens
 no artist WebSocket.
+
+PLATFORM CHANGELOG (NO SIGN-IN):
+
+`sogni.changelog` reads Sogni's public changelog: what changed for artists, developers and worker
+operators. It works on a client that is not signed in.
+
+```javascript
+const sogni = await SogniClient.createInstance({ disableSocket: true });
+
+// One page, newest first: { entries, nextCursor }.
+const filters = { audience: 'developer', type: ['release', 'deprecated'], since: '2026-11-01' };
+const page = await sogni.changelog.list(filters);
+// The next page takes the same filters plus the cursor; nextCursor is null on the last page.
+const older = page.nextCursor
+  ? await sogni.changelog.list({ ...filters, cursor: page.nextCursor })
+  : null;
+
+const entry = await sogni.changelog.get(page.entries[0].id);
+const products = await sogni.changelog.products(); // [{ id, label, audiences }]
+```
+
+- `list()` filters: `audience` (`artist` | `developer` | `worker`), `product` (ids from
+  `products()`), `type` (`new` | `improved` | `fixed` | `release` | `deprecated` | `removed` |
+  `notice`), each one value or an array (an entry matches any of them, and must match every filter
+  given); `since` (inclusive) and `until` (exclusive) as an ISO 8601 date (`2026-11-01`, midnight
+  UTC) or a date-time with a zone; `actionRequired: true` for only the entries you need to act on;
+  `limit` (default 50, at most 100); `cursor`.
+- Entry fields: `id`, `url`, `title`, `summary`, `bodyMarkdown`, `type`, `audiences`, `products`,
+  `version`, `links` (`{ label, url }`), `actionRequired`, `effectiveAt`, `publishedAt`,
+  `updatedAt`. Times are ISO 8601 UTC strings. For a deprecation or removal, `effectiveAt` is the
+  day the old behavior stops working.
+- `get(id)` with an id that has no published entry throws `ApiError` with `status` 404 and
+  `payload.errorCode` 204. Invalid filters throw `ApiError` 400 with the API's message.
+- Responses can be up to five minutes old; poll no more often than that.
+- Types: `ChangelogEntry`, `ChangelogEntryType`, `ChangelogAudience`, `ChangelogLink`,
+  `ChangelogProduct`, `ListChangelogOptions`, `ListChangelogResult`.
 
 API KEY VS USERNAME/PASSWORD:
 

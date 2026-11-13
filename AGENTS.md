@@ -135,6 +135,8 @@ Generated artifacts:
   - `workflows.{start, list, get, events, streamEvents, resume, reseed, cancel}`
   - `workflows.templates.{list, get, create, update, delete, fork}`
 - `replay: ReplayApi` - RunRecord write/list/get via `/v1/replay/records`
+- `changelog: ChangelogApi` - Public platform changelog via `/v1/changelog`, no sign-in needed
+  - `changelog.{list, get, products}`
 - `apiClient: ApiClient` - Internal REST + WebSocket communication
 
 ### Core Entity Hierarchy

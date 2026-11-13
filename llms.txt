@@ -119,11 +119,25 @@ await sogni.account.login(username, password);
 - **API key**: Pass `apiKey` to `createInstance()`. Auto-authenticates via WebSocket. No `login()` call needed. Most REST API calls (balance, profile, etc.) available. Sensitive operations (withdrawals, staking, 2FA) not available.
 - **Username/password**: Call `sogni.account.login()` after creating instance. Full REST API access.
 - **Restoring a deleted account at sign-in**: when the account can be restored, `login()` throws an `ApiError` with `payload.errorCode === ACCOUNT_RESTORABLE_ERROR_CODE` (196) and `details.deletedAt` (Unix seconds). After the person confirms, call `login()` again with the same arguments plus the option, e.g. `login(username, password, rememberMe, appSource, { restoreDeletedAccount: true })`, to restore it and sign in.
-- **REST-only**: Pass `disableSocket: true`; `appId` is then optional and no artist WebSocket is opened. Use this for hosted chat, durable workflows, replay, announcements, and account REST APIs.
+- **REST-only**: Pass `disableSocket: true`; `appId` is then optional and no artist WebSocket is opened. Use this for hosted chat, durable workflows, replay, announcements, the platform changelog, and account REST APIs.
 
 Generate an `appId` once per application installation and persist it across restarts or page
 reloads. Calling `randomUUID()` each time the process starts creates a different application
 identity on every run.
+
+### Platform Changelog (no sign-in)
+
+`sogni.changelog` reads the public changelog of what changed for artists, developers and worker operators. It works on a client that is not signed in.
+
+```javascript
+const sogni = await SogniClient.createInstance({ disableSocket: true });
+const { entries, nextCursor } = await sogni.changelog.list({ audience: 'developer', limit: 20 });
+// Next page: the same filters plus { cursor: nextCursor }; nextCursor is null on the last page.
+const entry = await sogni.changelog.get(entries[0].id); // unknown id: ApiError, status 404, payload.errorCode 204
+const products = await sogni.changelog.products(); // [{ id, label, audiences }]
+```
+
+`list()` filters: `audience` (`artist` | `developer` | `worker`), `product` (ids from `products()`), `type` (`new` | `improved` | `fixed` | `release` | `deprecated` | `removed` | `notice`), each one value or an array; `since` (inclusive) / `until` (exclusive) as ISO 8601 dates or date-times with a zone; `actionRequired: true`; `limit` (default 50, max 100); `cursor`. Entries: `id`, `url`, `title`, `summary`, `bodyMarkdown`, `type`, `audiences`, `products`, `version`, `links`, `actionRequired`, `effectiveAt`, `publishedAt`, `updatedAt` (times are ISO strings). Poll no more often than every five minutes.
 
 ### Subscription Entitlements
 
