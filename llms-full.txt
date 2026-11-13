@@ -301,6 +301,22 @@ project status change. Prefer these details over the legacy worker-only
 Older servers provide no explanation. Set `{ projectQueue: false }` to opt out;
 a runtime subscription reset disables this optional stream until re-enabled.
 
+On supported servers the same stream can carry a pay-as-you-go offer for a
+waiting Unlimited plan project on Fast: `Project.payAsYouGo` and the
+`payAsYouGo` field of `queueChanged` hold `{ available: true, costInSpark,
+coveredByPremiumSpark }` or `null`. `costInSpark` is the normal Premium Spark
+price as a decimal string; `coveredByPremiumSpark` is advisory. The offer clears
+when a result starts, the project ends, the connection drops, or the server stops
+sending it. Nothing is charged until the owner calls
+`sogni.projects.switchToPremiumSpark(projectId)` (or `project.switchToPremiumSpark()`),
+which resolves with `status: 'switched'` (charged once), `'refused'` (this
+request charged nothing; `reason` explains; after `insufficient_premium_spark` or
+`insufficient_funds` the offer stays so the app can offer a Spark purchase), or
+`'unknown'` (`timeout`, `session_changed`, `unrecognized_reply`: asking again is
+safe and never charges twice). Concurrent calls share one request; after a
+reconnect the SDK re-sends a pending request once. `timeoutMs` defaults to 45 s,
+counted from when the request is sent.
+
 Plan pricing, included features and models, usage allowances, fair-use
 thresholds, and other limits are subject to change at Sogni AI's discretion,
 subject to applicable law. Treat `getSubscriptionPlans()` and the checkout

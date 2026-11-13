@@ -236,6 +236,29 @@ The same current fields are available on `Project.waitingReason`, `Project.jobWa
 
 Set `socketEventSubscriptions: { projectQueue: false }` to opt out. A runtime subscription reset disables this optional stream; subscribe again with `{ projectQueue: true }` if needed.
 
+#### Running a waiting plan project on Premium Spark
+
+When an Unlimited plan project has waited a while on Fast and a card outside the plan's worker pool could start it now, supported servers add an optional offer to the same queue stream. `Project.payAsYouGo` and the `payAsYouGo` field of `queueChanged` hold `{ available: true, costInSpark, coveredByPremiumSpark }`, or `null` when nothing is offered. `costInSpark` is the project's normal Premium Spark price as a decimal string. `coveredByPremiumSpark` is advisory; the server decides when you ask. The offer clears when a result starts, the project ends, the connection drops, or the server stops sending it.
+
+Nothing is charged until the owner asks:
+
+```typescript
+const result = await sogni.projects.switchToPremiumSpark(projectId); // or project.switchToPremiumSpark()
+if (result.status === 'switched') {
+  // The project now runs on Premium Spark; its price was charged once.
+} else if (result.status === 'refused') {
+  // This request charged nothing. result.reason says why, e.g.
+  // 'insufficient_premium_spark' (offer stays: offer a Spark purchase, then ask again),
+  // 'started' or 'no_idle_worker' (offer cleared).
+} else {
+  // 'unknown': no usable answer (result.reason: 'timeout', 'session_changed' or
+  // 'unrecognized_reply'). Asking again is safe: it answers 'switched' without a
+  // second charge, or a refusal when the earlier request did not go through.
+}
+```
+
+Concurrent calls for one project share a single request. If the connection drops while a request is pending, the SDK sends it once more after reconnecting. `timeoutMs` (default 45 seconds) counts from when the request is sent. Servers without the feature never send an offer.
+
 User-facing subscription limit notices are opt-in. Enable the event when a client needs live queue, concurrency, or fair-use messaging:
 
 ```typescript

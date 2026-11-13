@@ -315,7 +315,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     const clearingQueue = Boolean(
       delta.status &&
       ['completed', 'failed', 'canceled'].includes(delta.status) &&
-      (this.waitingReason || this.jobWaitingReasons.length)
+      (this.waitingReason || this.jobWaitingReasons.length || this.data.payAsYouGo)
     );
     if (delta.status && ['completed', 'failed', 'canceled'].includes(delta.status)) {
       this._queueRevision += 1;

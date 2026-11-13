@@ -13,8 +13,8 @@ import type { PayAsYouGoOffer } from './PayAsYouGo.js';
 export interface ProjectQueueChanged extends ProjectEventBase {
   waitingReason: WaitingReason | null;
   jobWaitingReasons: JobWaitingReason[];
-  /** See {@link Project.payAsYouGo}; `null` when not offered. */
-  payAsYouGo: PayAsYouGoOffer | null;
+  /** See {@link Project.payAsYouGo}; `null` when not offered. Always set by this SDK. */
+  payAsYouGo?: PayAsYouGoOffer | null;
 }
 
 export type { JobPreparation } from '../../ApiClient/WebSocketClient/events.js';

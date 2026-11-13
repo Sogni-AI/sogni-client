@@ -37,6 +37,7 @@ class SocketStub {
 
   async send(type, data) {
     this.sent.push({ type, data });
+    if (this.sendDelayMs) await new Promise((resolve) => setTimeout(resolve, this.sendDelayMs));
   }
 
   listenerCount(event) {
@@ -44,12 +45,22 @@ class SocketStub {
   }
 }
 
+/** The client and auth objects only need on/emit for these checks. */
+class EmitterStub extends SocketStub {}
+
 const logger = { info() {}, warn() {}, error() {}, debug() {} };
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function setup() {
   const socket = new SocketStub();
-  const client = { socket, on: () => () => {}, logger };
+  const client = new EmitterStub();
+  client.socket = socket;
+  client.logger = logger;
+  client.auth = new EmitterStub();
+  client.auth.sessionVersion = 1;
   const api = new ProjectsApi({ client, eip712: {} });
+  // Keep reconnect recovery quiet in these checks; it is covered elsewhere.
+  api.sync = async () => {};
   const project = new Project(
     { type: 'image', numberOfMedia: 1, steps: 4 },
     { id: 'PROJECT-1', logger, api }
@@ -57,7 +68,25 @@ function setup() {
   api.projects.push(project);
   const queueEvents = [];
   api.on('queueChanged', (event) => queueEvents.push(event));
-  return { socket, api, project, queueEvents };
+  return { socket, client, api, project, queueEvents };
+}
+
+function withOffer(socket, rows = [{ jobIndex: 0, waitingReason: queued }]) {
+  socket.emit('projectQueue', {
+    jobID: 'PROJECT-1',
+    waitingReason: rows[0]?.waitingReason ?? null,
+    jobWaitingReasons: rows,
+    payAsYouGo: offer
+  });
+}
+
+function settledState(promise) {
+  let state = 'pending';
+  promise.then(
+    () => (state = 'settled'),
+    () => (state = 'rejected')
+  );
+  return () => state;
 }
 
 const offer = { available: true, costInSpark: '12.5', coveredByPremiumSpark: true };
@@ -183,8 +212,168 @@ async function main() {
     });
 
     const silent = await api.switchToPremiumSpark('PROJECT-1', { timeoutMs: 10 });
-    assert.equal(silent.status, 'refused');
+    assert.equal(silent.status, 'unknown');
     assert.equal(silent.reason, 'timeout');
+    assert.equal(socket.listenerCount('projectPaymentSwitch'), 0);
+    // A late reply after the timeout is ignored, and asking again is a new request.
+    socket.emit('projectPaymentSwitch', { jobID: 'PROJECT-1', status: 'switched' });
+    const again = api.switchToPremiumSpark('PROJECT-1');
+    await Promise.resolve();
+    assert.equal(socket.sent.length, 3);
+    socket.emit('projectPaymentSwitch', { jobID: 'PROJECT-1', status: 'switched' });
+    assert.equal((await again).status, 'switched');
+  }
+
+  // An unknown server status is an unknown outcome, never a refusal.
+  {
+    assert.deepEqual(normalizePayAsYouGoSwitchResult('P', { status: 'pending_review' }), {
+      projectId: 'P',
+      status: 'unknown',
+      reason: 'unrecognized_reply'
+    });
+    const { socket, api, project } = setup();
+    withOffer(socket);
+    const result = api.switchToPremiumSpark('PROJECT-1');
+    await Promise.resolve();
+    socket.emit('projectPaymentSwitch', { jobID: 'PROJECT-1', status: 'pending_review' });
+    assert.deepEqual(await result, {
+      projectId: 'PROJECT-1',
+      status: 'unknown',
+      reason: 'unrecognized_reply'
+    });
+    // The outcome is unknown, so the offer is left to the server's next update.
+    assert.deepEqual(project.payAsYouGo, offer);
+  }
+
+  // The timer starts once the request is sent, not while send() waits.
+  {
+    const { socket, api } = setup();
+    socket.sendDelayMs = 40;
+    const result = api.switchToPremiumSpark('PROJECT-1', { timeoutMs: 25 });
+    await sleep(50);
+    socket.emit('projectPaymentSwitch', { jobID: 'PROJECT-1', status: 'switched' });
+    assert.equal((await result).status, 'switched');
+  }
+
+  // An invalid timeoutMs falls back to the default instead of timing out at once.
+  for (const timeoutMs of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const { socket, api } = setup();
+    const result = api.switchToPremiumSpark('PROJECT-1', { timeoutMs });
+    const state = settledState(result);
+    await sleep(15);
+    assert.equal(state(), 'pending', `timeoutMs ${timeoutMs} must not settle at once`);
+    socket.emit('projectPaymentSwitch', { jobID: 'PROJECT-1', status: 'switched' });
+    assert.equal((await result).status, 'switched');
+  }
+
+  // A reconnect re-sends once from the new socket, and the timer restarts.
+  {
+    const { socket, client, api } = setup();
+    const result = api.switchToPremiumSpark('PROJECT-1', { timeoutMs: 30 });
+    await sleep(0);
+    assert.equal(socket.sent.length, 1);
+    client.emit('connecting');
+    await sleep(20);
+    client.emit('connected');
+    await sleep(0);
+    assert.equal(socket.sent.length, 2);
+    assert.deepEqual(socket.sent[1], {
+      type: 'switchProjectToPremiumSpark',
+      data: { projectId: 'PROJECT-1' }
+    });
+    // Only one re-send.
+    client.emit('connecting');
+    client.emit('connected');
+    await sleep(0);
+    assert.equal(socket.sent.length, 2);
+    // 20 ms before the drop plus 20 ms after: past the first 30 ms timer, inside the restarted one.
+    await sleep(20);
+    const state = settledState(result);
+    await Promise.resolve();
+    assert.equal(state(), 'pending');
+    socket.emit('projectPaymentSwitch', { jobID: 'PROJECT-1', status: 'switched' });
+    assert.equal((await result).status, 'switched');
+    assert.equal(client.listenerCount('connected'), 1); // only the API's own handler remains
+  }
+
+  // A connect that completes the first send is not a reconnect: no duplicate request.
+  {
+    const { socket, client, api } = setup();
+    const result = api.switchToPremiumSpark('PROJECT-1');
+    client.emit('connected');
+    await sleep(0);
+    assert.equal(socket.sent.length, 1);
+    socket.emit('projectPaymentSwitch', {
+      jobID: 'PROJECT-1',
+      status: 'refused',
+      reason: 'started'
+    });
+    assert.equal((await result).reason, 'started');
+  }
+
+  // A dropped connection clears the offer and says so in queueChanged.
+  {
+    const { socket, client, project, queueEvents } = setup();
+    withOffer(socket);
+    assert.deepEqual(project.payAsYouGo, offer);
+    client.emit('connecting');
+    assert.equal(project.payAsYouGo, null);
+    assert.equal(queueEvents.at(-1).payAsYouGo, null);
+    // Offer-only state (no reasons) still emits when the transport drops.
+    withOffer(socket, []);
+    const before = queueEvents.length;
+    client.emit('disconnected');
+    assert.equal(project.payAsYouGo, null);
+    assert.equal(queueEvents.length, before + 1);
+  }
+
+  // A project finishing with only an offer still emits queueChanged.
+  {
+    const { socket, project, queueEvents } = setup();
+    withOffer(socket, []);
+    const before = queueEvents.length;
+    project._update({ status: 'completed' });
+    assert.equal(project.payAsYouGo, null);
+    assert.equal(queueEvents.length, before + 1);
+    assert.equal(queueEvents.at(-1).payAsYouGo, null);
+  }
+
+  // Refusals clear the offer, except the ones an app answers with a Spark purchase.
+  {
+    const { socket, api, project } = setup();
+    withOffer(socket);
+    const short = api.switchToPremiumSpark('PROJECT-1');
+    await Promise.resolve();
+    socket.emit('projectPaymentSwitch', {
+      jobID: 'PROJECT-1',
+      status: 'refused',
+      reason: 'insufficient_premium_spark'
+    });
+    await short;
+    assert.deepEqual(project.payAsYouGo, offer);
+    const gone = api.switchToPremiumSpark('PROJECT-1');
+    await Promise.resolve();
+    socket.emit('projectPaymentSwitch', {
+      jobID: 'PROJECT-1',
+      status: 'refused',
+      reason: 'no_idle_worker'
+    });
+    await gone;
+    assert.equal(project.payAsYouGo, null);
+  }
+
+  // A session change settles a pending switch as unknown, never as a refusal.
+  {
+    const { client, api, socket } = setup();
+    const result = api.switchToPremiumSpark('project-1');
+    await sleep(0);
+    client.auth.sessionVersion = 2;
+    client.auth.emit('sessionChanged');
+    assert.deepEqual(await result, {
+      projectId: 'project-1',
+      status: 'unknown',
+      reason: 'session_changed'
+    });
     assert.equal(socket.listenerCount('projectPaymentSwitch'), 0);
   }
 

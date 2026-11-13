@@ -35,8 +35,17 @@ import {
 import Project from './Project.js';
 import {
   normalizePayAsYouGoSwitchResult,
+  PAY_AS_YOU_GO_REFUSALS_KEEPING_OFFER,
   type PayAsYouGoSwitchResult
 } from './types/PayAsYouGo.js';
+
+const PAY_AS_YOU_GO_SWITCH_TIMEOUT_MS = 45000;
+
+interface PendingPremiumSparkSwitch {
+  projectId: string;
+  promise: Promise<PayAsYouGoSwitchResult>;
+  settle: (result: PayAsYouGoSwitchResult) => void;
+}
 import {
   PROJECT_LOST_ERROR,
   isLLMRecoveredProject,
@@ -572,7 +581,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private projects: Project[] = [];
   private _preparingSessions = new Map<string, () => void>();
   private cancellationRequests = new Map<string, Promise<void>>();
-  private payAsYouGoSwitchRequests = new Map<string, Promise<PayAsYouGoSwitchResult>>();
+  private payAsYouGoSwitchRequests = new Map<string, PendingPremiumSparkSwitch>();
   private transportDisconnected = false;
   private _connectedAt = 0;
   private _authenticatedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -823,6 +832,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._recoveredCompletedIds.clear();
       this._syncChain = Promise.resolve();
       this.cancellationRequests.clear();
+      // A pending switch may already have been charged: its state is unknown, never refused.
+      for (const pending of this.payAsYouGoSwitchRequests.values())
+        pending.settle({
+          projectId: pending.projectId,
+          status: 'unknown',
+          reason: 'session_changed'
+        });
+      this.payAsYouGoSwitchRequests.clear();
       this._clearAuthenticatedTimer();
       if (this._recheckTimer) clearTimeout(this._recheckTimer);
       this._recheckTimer = null;
@@ -1529,7 +1546,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.projects.forEach((p) => {
       if (!p.finished) {
         p._queueRevision += 1;
-        p._setQueueState(null, []);
+        // The offer first, so a queueChanged emitted by the queue state carries it.
+        const offerChanged = p._setPayAsYouGo(null);
+        const queueChanged = p._setQueueState(null, []);
+        if (offerChanged && !queueChanged) this._emitQueueChanged(p);
         p._keepAlive();
       }
     });
@@ -2871,19 +2891,24 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
-   * Cancel a project by id after the server confirms that cancellation succeeded.
-   *
-   * Paid external providers may reject cancellation after work starts. In that case this method
-   * rejects and keeps the tracked project active so callers do not hide work that is still running.
-   * @param projectId
-   **/
-  /**
    * Run one waiting Unlimited plan project on Premium Spark now, at its normal
    * price, when {@link Project.payAsYouGo} offers it. The server re-checks every
-   * condition and charges only when the result's `status` is `switched`; every
-   * refusal charges nothing. A repeated call while one is in flight shares its
-   * result. `timeout` means no answer arrived: check the project before asking
-   * again.
+   * condition and charges only when the result's `status` is `switched`.
+   *
+   * - `switched`: the project runs on Premium Spark; its price was charged once.
+   * - `refused`: this request charged nothing. After `insufficient_premium_spark`
+   *   or `insufficient_funds` the offer stays, so an app can offer a Spark purchase
+   *   and ask again; other refusals clear the offer.
+   * - `unknown`: no usable answer arrived (`timeout`, `session_changed`,
+   *   `unrecognized_reply`), so the payment state is unknown. Asking again is safe:
+   *   the server answers `switched` without a second charge when the earlier
+   *   request went through, or a refusal when it did not.
+   *
+   * A repeated call while one is pending shares its result. If the connection
+   * drops while the request is pending, the SDK sends it once more after
+   * reconnecting, because the server replies only on the socket that asked.
+   * `timeoutMs` (default 45 s) counts from when the request is sent, and restarts
+   * after that one re-send.
    */
   async switchToPremiumSpark(
     projectId: string,
@@ -2891,64 +2916,108 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   ): Promise<PayAsYouGoSwitchResult> {
     const key = projectId.toUpperCase();
     const existing = this.payAsYouGoSwitchRequests.get(key);
-    if (existing) return existing;
-    const request = this.switchToPremiumSparkOnce(projectId, options.timeoutMs ?? 45000);
-    this.payAsYouGoSwitchRequests.set(key, request);
+    if (existing) return existing.promise;
+    const requested = options.timeoutMs;
+    const timeoutMs =
+      typeof requested === 'number' && Number.isFinite(requested) && requested > 0
+        ? requested
+        : PAY_AS_YOU_GO_SWITCH_TIMEOUT_MS;
+    const pending = this.startPremiumSparkSwitch(projectId, timeoutMs);
+    this.payAsYouGoSwitchRequests.set(key, pending);
     try {
-      return await request;
+      return await pending.promise;
     } finally {
-      if (this.payAsYouGoSwitchRequests.get(key) === request)
+      if (this.payAsYouGoSwitchRequests.get(key) === pending)
         this.payAsYouGoSwitchRequests.delete(key);
     }
   }
 
-  private async switchToPremiumSparkOnce(
-    projectId: string,
-    timeoutMs: number
-  ): Promise<PayAsYouGoSwitchResult> {
-    let removeListener = () => {};
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const reply = new Promise<PayAsYouGoSwitchResult>((resolve) => {
-      removeListener = this.client.socket.on(
-        'projectPaymentSwitch',
-        (data: SocketEventMap['projectPaymentSwitch']) => {
-          if (String(data?.jobID || '').toUpperCase() !== projectId.toUpperCase()) return;
-          resolve(normalizePayAsYouGoSwitchResult(projectId, data));
-        }
-      );
-      timeout = setTimeout(() => {
-        resolve({
-          projectId,
-          status: 'refused',
-          reason: 'timeout',
-          message: 'No answer yet. Check this creation before trying again.'
-        });
-      }, timeoutMs);
-      timeout.unref?.();
+  private startPremiumSparkSwitch(projectId: string, timeoutMs: number): PendingPremiumSparkSwitch {
+    const upperId = projectId.toUpperCase();
+    let resolveOutcome!: (result: PayAsYouGoSwitchResult) => void;
+    const outcome = new Promise<PayAsYouGoSwitchResult>((resolve) => {
+      resolveOutcome = resolve;
     });
-    try {
+    let settled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let removeConnectedListener = () => {};
+    const removeReplyListener = this.client.socket.on(
+      'projectPaymentSwitch',
+      (data: SocketEventMap['projectPaymentSwitch']) => {
+        if (String(data?.jobID || '').toUpperCase() !== upperId) return;
+        finish(normalizePayAsYouGoSwitchResult(projectId, data));
+      }
+    );
+    const finish = (result: PayAsYouGoSwitchResult) => {
+      if (settled) return;
+      settled = true;
+      removeReplyListener();
+      removeConnectedListener();
+      if (timeout) clearTimeout(timeout);
+      resolveOutcome(result);
+    };
+    const armTimer = () => {
+      if (settled) return;
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(
+        () =>
+          finish({
+            projectId,
+            status: 'unknown',
+            reason: 'timeout',
+            message: 'No reply arrived, so the payment state is unknown. Asking again is safe.'
+          }),
+        timeoutMs
+      );
+      timeout.unref?.();
+    };
+    // Resolves false only when the request certainly never left this client.
+    const send = async () => {
       try {
         await this.client.socket.send('switchProjectToPremiumSpark', { projectId });
+        return true;
       } catch (error) {
-        // An uncertain delivery may still reach the server: wait for its reply.
-        if (!(error instanceof MessageDeliveryUncertainError)) {
-          return { projectId, status: 'refused', reason: 'unavailable' };
-        }
+        return error instanceof MessageDeliveryUncertainError;
       }
-      const result = await reply;
-      if (result.status === 'switched') {
-        const project = this.projects.find(
-          (item) => item.id.toUpperCase() === projectId.toUpperCase()
-        );
+    };
+    void (async () => {
+      const delivered = await send();
+      if (settled) return;
+      if (!delivered) {
+        finish({ projectId, status: 'refused', reason: 'unavailable' });
+        return;
+      }
+      const sentGeneration = this._transportGeneration;
+      // The server replies only on the socket that asked: after a reconnect,
+      // ask once more from the new socket. Repeats never charge twice.
+      removeConnectedListener = this.client.on('connected', () => {
+        if (settled || this._transportGeneration === sentGeneration) return;
+        removeConnectedListener();
+        if (timeout) clearTimeout(timeout);
+        void send().then(armTimer);
+      });
+      armTimer();
+    })();
+    const promise = outcome.then((result) => {
+      const keepsOffer =
+        result.status === 'unknown' ||
+        (result.status === 'refused' && PAY_AS_YOU_GO_REFUSALS_KEEPING_OFFER.has(result.reason));
+      if (!keepsOffer) {
+        const project = this.projects.find((item) => item.id.toUpperCase() === upperId);
         if (project?._setPayAsYouGo(null)) this._emitQueueChanged(project);
       }
       return result;
-    } finally {
-      removeListener();
-      if (timeout) clearTimeout(timeout);
-    }
+    });
+    return { projectId, promise, settle: finish };
   }
 
+  /**
+   * Cancel a project by id after the server confirms that cancellation succeeded.
+   *
+   * Paid external providers may reject cancellation after work starts. In that case this method
+   * rejects and keeps the tracked project active so callers do not hide work that is still running.
+   * @param projectId
+   **/
   async cancel(projectId: string) {
     const existing = this.cancellationRequests.get(projectId);
     if (existing) {

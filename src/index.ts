@@ -91,6 +91,10 @@ export type { WaitingReason, JobWaitingReason } from './Projects/types/WaitingRe
 export type {
   PayAsYouGoOffer,
   PayAsYouGoRefusalReason,
+  PayAsYouGoUnknownReason,
+  PayAsYouGoSwitched,
+  PayAsYouGoRefused,
+  PayAsYouGoUnknown,
   PayAsYouGoSwitchResult
 } from './Projects/types/PayAsYouGo.js';
 export type { ProjectQueueChanged } from './Projects/types/events.js';
