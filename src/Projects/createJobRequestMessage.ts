@@ -49,6 +49,7 @@ import {
   isMinimaxH3TurboModel,
   isMinimaxH3BalancedModel,
   isMinimaxH3FastH3ReferenceModel,
+  isMinimaxH3PrismModel,
   isMinimaxH3ReferenceModel,
   isMinimaxH3AudioGuideModel,
   isMinimaxH3KeyframeModel,
@@ -701,19 +702,22 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
     invalid('MiniMax H3 fps is fixed at 24. Omit fps or set it to 24.');
   }
   // FastH3 Reference ends in `_turbo` but is distilled to 8 steps, so it is
-  // neither a 4-step Turbo id nor a Balanced one.
+  // neither a 4-step Turbo id nor a Balanced one. Prism's recipe is 8 steps too.
   const isFastH3Reference = isMinimaxH3FastH3ReferenceModel(params.modelId);
+  const isPrism = isMinimaxH3PrismModel(params.modelId);
   const isTurbo = isMinimaxH3TurboModel(params.modelId);
   const isBalanced = isMinimaxH3BalancedModel(params.modelId);
-  const expectedSteps = isFastH3Reference ? 8 : isTurbo ? 4 : isBalanced ? 8 : 20;
+  const expectedSteps = isFastH3Reference || isPrism ? 8 : isTurbo ? 4 : isBalanced ? 8 : 20;
   if (params.steps !== undefined && params.steps !== expectedSteps) {
     const tier = isFastH3Reference
       ? ' FastH3 Reference'
-      : isTurbo
-        ? ' Turbo'
-        : isBalanced
-          ? ' Balanced'
-          : '';
+      : isPrism
+        ? ' Prism'
+        : isTurbo
+          ? ' Turbo'
+          : isBalanced
+            ? ' Balanced'
+            : '';
     invalid(`MiniMax H3${tier} steps are fixed at ${expectedSteps}.`);
   }
   if (params.guidance !== undefined && params.guidance !== 1) {

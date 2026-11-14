@@ -167,6 +167,21 @@ async function main() {
     '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage/960/544/141/24/8/1',
     '1080p FastH3 Reference two-stage pricing must be requested with the two-stage model id and the 544 canvas'
   );
+  // Prism is priced by the server from its own id at its fixed 8 steps, with the
+  // reference counts on the query like every other r2v id.
+  await estimate(projects, {
+    model: 'minimax-h3-prism-int8_r2v',
+    steps: 8,
+    referenceImageCount: 2,
+    keyframeCount: 1
+  });
+  assert.equal(
+    new URL(`https://socket.test${client.socket.paths.at(-1)}`).pathname,
+    '/api/v1/job-video/estimate/spark/minimax-h3-prism-int8_r2v/1344/768/141/24/8/1',
+    'Prism pricing must be requested with its exact model id and fixed step count'
+  );
+  assert.equal(query0().get('referenceImageCount'), '2');
+  assert.equal(query0().get('keyframeCount'), '1');
   // outputScale is retired: an untyped caller that still passes it (any value)
   // is refused with the socket's wording before any estimate request is made.
   const requestsBefore = client.socket.paths.length;

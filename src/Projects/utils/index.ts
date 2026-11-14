@@ -71,7 +71,8 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-ref2va-fp8_r2v_2stage',
   'minimax-h3-ref2va-fp8_r2v_balanced_2stage',
   'minimax-h3-fastvideo-omni-int8_r2v_turbo',
-  'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage'
+  'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage',
+  'minimax-h3-prism-int8_r2v'
 ]);
 
 export function getEnhacementStrength(strength: EnhancementStrength): number {
@@ -449,13 +450,20 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  *   `minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage` takes the same request
  *   and delivers the clip at exactly twice the canvas, like the Ref2VA
  *   two-stage ids.
+ * - Prism: `minimax-h3-prism-int8_r2v`, an optional reference-to-video model
+ *   for mature themes (a community merge of two Ref2VA finetunes) with its
+ *   recipe fixed at 8 Euler steps (see `isMinimaxH3PrismModel`). It takes the
+ *   same references, keyframes, catalog LoRAs and limits as the other one-stage
+ *   r2v ids at the 768p class only: it has no two-stage id. Server
+ *   authorization applies, and the Sensitive Content Filter must be off
+ *   (`disableNSFWFilter: true`).
  *
  * All H3 paths share fixed 24fps, guidance 1, and the `124 + n*17` frame grid.
  * Every path except the FastH3 audio guide generates 32kHz stereo audio
  * jointly; audio-guide output carries the uploaded audio instead. Standard H3 uses 20 steps;
  * Balanced uses qualified fixed 8-step acceleration: LightX2V for FL2VA and
  * Larry v4 for Ref2VA; each Turbo family uses its own 4-step distillation LoRA;
- * FastH3 Reference is distilled to a fixed 8 steps.
+ * FastH3 Reference is distilled to a fixed 8 steps, and so is Prism.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
   return MINIMAX_H3_VIDEO_MODEL_IDS.has(modelId);
@@ -512,6 +520,15 @@ export function isMinimaxH3AudioGuideModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model ID is MiniMax H3 Prism (`minimax-h3-prism-int8_r2v`): a
+ * one-stage reference-to-video id (`isMinimaxH3ReferenceModel`) whose steps are
+ * fixed at 8. It is not a Balanced id: it carries no Larry v4 adapter.
+ */
+export function isMinimaxH3PrismModel(modelId: string): boolean {
+  return modelId === 'minimax-h3-prism-int8_r2v';
+}
+
+/**
  * Check if a model ID is one of the 8-step MiniMax H3 Balanced workflows.
  * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching Larry v4 adapter for
  * r2v, on its one-stage and two-stage (`..._r2v_balanced_2stage`) ids alike.
@@ -527,8 +544,9 @@ export function isMinimaxH3BalancedModel(modelId: string): boolean {
 /**
  * Check if a model ID is the MiniMax H3 Ref2VA multi-reference workflow
  * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, `..._r2v_balanced`, the
- * two-stage `..._r2v_2stage` and `..._r2v_balanced_2stage`, or FastH3
- * Reference `minimax-h3-fastvideo-omni-int8_r2v_turbo` and its `_2stage` id).
+ * two-stage `..._r2v_2stage` and `..._r2v_balanced_2stage`, FastH3
+ * Reference `minimax-h3-fastvideo-omni-int8_r2v_turbo` and its `_2stage` id,
+ * or Prism `minimax-h3-prism-int8_r2v`).
  *
  * This is the only MiniMax H3 workflow that conditions on more than two input
  * files, and the only video workflow of any family that carries reference
@@ -551,13 +569,13 @@ export const MINIMAX_H3_MAX_KEYFRAMES = 8;
  * the worker pins (ComfyUI `MiniMaxH3AddGuide`) at chosen frames between the
  * first and last frame.
  *
- * Every MiniMax H3 workflow except text-to-video accepts them, 23 ids in all:
+ * Every MiniMax H3 workflow except text-to-video accepts them, 24 ids in all:
  * - image-to-video (`i2v`) and first/last-frame (`flf2v`) on every tier
  *   (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage);
  * - the FastH3 Sound to Video audio guide (`ia2v`, `flfa2v`, `a2v`, one-stage
  *   and two-stage; `isMinimaxH3AudioGuideModel`);
- * - Reference to Video (`r2v`: Standard, Turbo, Balanced, FastH3 Reference
- *   and their three two-stage ids; `isMinimaxH3ReferenceModel`).
+ * - Reference to Video (`r2v`: Standard, Turbo, Balanced, FastH3 Reference,
+ *   Prism and the three two-stage ids; `isMinimaxH3ReferenceModel`).
  */
 export function isMinimaxH3KeyframeModel(modelId: string): boolean {
   if (!isMinimaxH3Model(modelId)) return false;

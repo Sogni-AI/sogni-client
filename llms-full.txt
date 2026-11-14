@@ -1246,6 +1246,7 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 | minimax-h3-ref2va-fp8_r2v_balanced_2stage | Two-Stage reference-to-video, Balanced 8 steps (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | minimax-h3-fastvideo-omni-int8_r2v_turbo | FastH3 Reference reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage | FastH3 Reference Two-Stage reference-to-video (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+| minimax-h3-prism-int8_r2v | Prism reference-to-video: optional model for mature themes, 8 steps, 768p class only; Sensitive Content Filter off, subject to server authorization | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | minimax-h3-fl2va-fp8_t2v_balanced | Balanced text-to-video | none |
 | minimax-h3-fl2va-fp8_i2v_balanced | Balanced endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | minimax-h3-fl2va-fp8_flf2v_balanced | Balanced first-and-last-frame video | both anchor images required |
@@ -1254,20 +1255,23 @@ from 124 to 362, and a 32px canvas grid capped at 1,032,192 pixels.
 Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544.
 Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 
-All 28 current workflow ids are available through the Sogni projects API: four
+All 29 current workflow ids are available through the Sogni projects API: four
 Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with
 generated audio, three audio-guide), six FastH3 Two-Stage modes, two Ref2VA
-Two-Stage modes (Standard and Balanced), and FastH3 Reference (one-stage and
-Two-Stage).
+Two-Stage modes (Standard and Balanced), FastH3 Reference (one-stage and
+Two-Stage), and Prism (`minimax-h3-prism-int8_r2v`), an optional
+reference-to-video model for mature themes that needs `disableNSFWFilter: true`.
+Prism's recipe is fixed at 8 Euler steps (omit `steps` or send 8; the schedule
+is not a request option) and it has no two-stage id.
 
 For direct `projects.create()` calls, both H3 I2V ids accept `referenceImage`,
 `referenceImageEnd`, or both, with at least one required. The explicit FLF2V ids
 still require both anchors.
 
-INTERMEDIATE KEYFRAMES (every H3 workflow except T2V, 23 ids;
+INTERMEDIATE KEYFRAMES (every H3 workflow except T2V, 24 ids;
 `isMinimaxH3KeyframeModel()`): I2V and FLF2V on every tier (Standard, Balanced,
 LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage), the six FastH3 Sound to
-Video ids (IA2V, FLFA2V, A2V, one- and two-stage) and the seven R2V ids.
+Video ids (IA2V, FLFA2V, A2V, one- and two-stage) and the eight R2V ids.
 `keyframes: [{ image, frameIndex }]` pins up to `MINIMAX_H3_MAX_KEYFRAMES` (8)
 still images between the first and last frame, alongside the workflow's own
 uploads. `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds *

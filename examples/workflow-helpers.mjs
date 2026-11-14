@@ -576,6 +576,62 @@ function createMinimaxH3FastH3ReferenceModel({ twoStage = false } = {}) {
 }
 
 /**
+ * MiniMax H3 Prism example config: an optional reference-to-video model for
+ * mature themes, with its recipe fixed on the worker (8 Euler steps, no
+ * scheduler or shift choice). 768p class only: there is no two-stage id. It is
+ * subject to server authorization and needs the Sensitive Content Filter off,
+ * so the example requires --disable-safe-content-filter and a prompt of the
+ * creator's own.
+ */
+function createMinimaxH3PrismModel() {
+  return {
+    id: 'minimax-h3-prism-int8_r2v',
+    name: 'MiniMax H3 Prism R2V',
+    description:
+      'Optional model for mature themes: eight-step multi-reference video with jointly generated stereo audio; at least one image or video reference; requires explicit safety-filter disablement',
+    workflowType: 'r2v',
+    defaultWidth: 1344,
+    defaultHeight: 768,
+    minWidth: 32,
+    maxWidth: 1344,
+    minHeight: 32,
+    maxHeight: 1344,
+    dimensionStep: 32,
+    maxPixels: 1032192,
+    defaultSteps: 8,
+    minSteps: 8,
+    maxSteps: 8,
+    defaultGuidance: 1.0,
+    minGuidance: 1.0,
+    maxGuidance: 1.0,
+    defaultComfySampler: 'euler',
+    allowedComfySamplers: ['euler'],
+    // The worker fixes the schedule; no scheduler is sent.
+    defaultComfyScheduler: undefined,
+    allowedComfySchedulers: [],
+    minFrames: MINIMAX_H3_MIN_FRAMES,
+    maxFrames: MINIMAX_H3_MAX_FRAMES,
+    defaultFrames: MINIMAX_H3_BASE_FRAMES,
+    frameStep: MINIMAX_H3_FRAME_STEP,
+    frameBase: MINIMAX_H3_BASE_FRAMES,
+    defaultFps: MINIMAX_H3_FPS,
+    allowedFps: [MINIMAX_H3_FPS],
+    minDuration: MINIMAX_H3_MIN_DURATION,
+    maxDuration: MINIMAX_H3_MAX_DURATION,
+    isLightning: true,
+    isComfyModel: true,
+    hasAudio: true,
+    supportsNegativePrompt: false,
+    requiresDisabledSafetyFilter: true,
+    requiresVisualReference: true,
+    maxReferenceImages: MINIMAX_H3_MAX_REFERENCE_IMAGES,
+    maxReferenceVideos: MINIMAX_H3_MAX_REFERENCE_VIDEOS,
+    maxReferenceAudios: MINIMAX_H3_MAX_REFERENCE_AUDIOS,
+    maxReferenceFiles: MINIMAX_H3_MAX_REFERENCE_FILES
+  };
+}
+
+/**
  * MiniMax H3 FastH3 Turbo example config. `twoStage` selects the matching
  * `_turbo_2stage` id: the same request, delivered at twice the canvas.
  */
@@ -2190,6 +2246,7 @@ export const MODELS = {
     'minimax-h3-r2v-balanced-2stage': createMinimaxH3R2vTwoStageModel('balanced'),
     'minimax-h3-fasth3-r2v-turbo': createMinimaxH3FastH3ReferenceModel(),
     'minimax-h3-fasth3-r2v-turbo-2stage': createMinimaxH3FastH3ReferenceModel({ twoStage: true }),
+    'minimax-h3-r2v-prism': createMinimaxH3PrismModel(),
     'minimax-h3-r2v-turbo': {
       id: 'minimax-h3-ref2va-fp8_r2v_turbo',
       name: 'MiniMax H3 Ref2VA FP8 Turbo R2V',

@@ -1098,6 +1098,7 @@ Usage:
   node workflow_minimax_h3_video.mjs --mode r2v --ref-video camera-move.mp4
   node workflow_minimax_h3_video.mjs --mode r2v --model minimax-h3-r2v-2stage --ref-video camera-move.mp4
   node workflow_minimax_h3_video.mjs --mode r2v --model minimax-h3-fasth3-r2v-turbo --ref-image face.jpg
+  node workflow_minimax_h3_video.mjs --mode r2v --model minimax-h3-r2v-prism --ref-image face.jpg --prompt-file my_prompt.txt --disable-safe-content-filter
 
 Modes:
   t2v    Text-to-video                     (minimax-h3-fl2va-fp8_t2v)
@@ -1122,6 +1123,10 @@ Fixed model parameters (not configurable):
   FastH3 Reference: the FastH3 tier's R2V (minimax-h3-fasth3-r2v-turbo, FastVideo's
                 FastH3 Omni); minimax-h3-fasth3-r2v-turbo-2stage takes the same
                 request and delivers twice the canvas like Ref2VA Two-Stage
+  Prism: an optional R2V model for mature themes (minimax-h3-r2v-prism): fps 24,
+                steps 8, guidance 1, sampler Euler, schedule fixed by the model;
+                768p class only (no two-stage key); needs
+                --disable-safe-content-filter and your own --prompt-file
   Native 32kHz stereo audio is generated jointly and included by default;
   --no-audio returns a video without an audio track
   Frames follow 124 + n*17 in the range 124-362 (${MINIMAX_H3_MIN_DURATION}s to ${MINIMAX_H3_MAX_DURATION}s)
@@ -1353,6 +1358,17 @@ async function main() {
 
   log('🎬', `Selected model: ${modelConfig.name} (${modelConfig.id})`);
   console.log();
+  // Prism is an opt-in model for mature themes, like LTX-2.3 10Eros in
+  // workflow_image_to_video.mjs: it needs the Sensitive Content Filter off, and
+  // this repository bundles no sample prompt or media for it.
+  const requiresUserProvidedInputs = modelConfig.requiresDisabledSafetyFilter === true;
+  if (requiresUserProvidedInputs && !OPTIONS.disableSafeContentFilter) {
+    console.error(
+      `Error: ${modelConfig.name} is a sensitive-content model and requires the explicit ` +
+        '--disable-safe-content-filter option.'
+    );
+    process.exit(1);
+  }
 
   // Reference assets. --image/--end-image are frame anchors (i2v, flf2v);
   // --ref-image/--ref-video/--ref-audio are labelled r2v references. Mixing the
@@ -1604,6 +1620,13 @@ async function main() {
   // Prompt
   if (OPTIONS.promptFile) {
     OPTIONS.prompt = fs.readFileSync(OPTIONS.promptFile, 'utf8').trim();
+  }
+  if (!OPTIONS.prompt && requiresUserProvidedInputs) {
+    console.error(
+      `Error: A prompt must be supplied with --prompt-file for ${modelConfig.name}. This ` +
+        'repository does not bundle sample prompts or input media for it.'
+    );
+    process.exit(1);
   }
   if (!OPTIONS.prompt && OPTIONS.interactive && process.stdin.isTTY) {
     console.log(
@@ -1932,7 +1955,7 @@ async function main() {
       Steps: `${OPTIONS.steps} (fixed)`,
       Guidance: `${OPTIONS.guidance} (fixed, distilled)`,
       'Comfy Sampler': OPTIONS.sampler,
-      'Comfy Scheduler': OPTIONS.scheduler,
+      'Comfy Scheduler': OPTIONS.scheduler ?? 'fixed by the model',
       Audio: OPTIONS.generateAudio ? 'included' : 'not included in the returned video',
       'Source-audio policy': OPTIONS.sourceAudioPolicy || 'no source audio',
       'Audio source': OPTIONS.sourceAudioPolicy === 'reuse'

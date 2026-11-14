@@ -372,15 +372,20 @@ export interface MinimaxH3Keyframe {
  *   two-stage ID (`minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage`) takes the
  *   same request and delivers twice the canvas, with the same 384/544/768 px
  *   canvas choices as the other Two-Stage IDs.
+ * - Prism (`minimax-h3-prism-int8_r2v`) is an optional `r2v` model for mature
+ *   themes with its recipe fixed at 8 Euler steps. It takes the same
+ *   references, keyframes, catalog LoRAs, frame grid and canvas as the other
+ *   one-stage `r2v` IDs, at the 768p class only (no two-stage ID). It is
+ *   subject to server authorization and needs `disableNSFWFilter: true`.
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
  *   requires at least one of them. The `flf2v` model requires both.
  *
  * #### MiniMax H3 intermediate keyframes (every workflow except `t2v`)
  * - `keyframes` pins up to 8 still images at chosen frames between the first
- *   and last frame. 23 ids accept it (`isMinimaxH3KeyframeModel()`): `i2v` and
+ *   and last frame. 24 ids accept it (`isMinimaxH3KeyframeModel()`): `i2v` and
  *   `flf2v` on every tier (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and
  *   FastH3 Two-Stage), the six FastH3 Sound to Video ids (`ia2v`, `flfa2v`,
- *   `a2v`, one- and two-stage) and the seven `r2v` ids. Text-to-video and
+ *   `a2v`, one- and two-stage) and the eight `r2v` ids. Text-to-video and
  *   every other model reject a non-empty list.
  * - Each entry is `{ image, frameIndex }`. `frameIndex` is the 0-based pixel
  *   frame at 24 fps (`Math.round(seconds * 24)`): an integer from 1 to
@@ -446,8 +451,9 @@ export interface MinimaxH3Keyframe {
  * - `minimax-h3-ref2va-fp8_r2v` (standard) and
  *   `minimax-h3-ref2va-fp8_r2v_turbo` (four-step Turbo), and
  *   `minimax-h3-ref2va-fp8_r2v_balanced` (eight-step Larry v4 Balanced) condition on labelled reference material
- *   rather than on frame anchors, as does FastH3 Reference
- *   (`minimax-h3-fastvideo-omni-int8_r2v_turbo`). The checkpoint accepts up to 9 reference
+ *   rather than on frame anchors, as do FastH3 Reference
+ *   (`minimax-h3-fastvideo-omni-int8_r2v_turbo`) and Prism
+ *   (`minimax-h3-prism-int8_r2v`). The checkpoint accepts up to 9 reference
  *   images, 3 reference videos (24fps, 2-15 seconds each), and 3 reference
  *   audio clips, with at most 12 reference files in total.
  * - All of those ceilings apply, and at least one visual reference (image or
@@ -698,7 +704,7 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * MiniMax H3 intermediate keyframes: up to 8 still images, each pinned at a
    * chosen frame between the first and last frame. Accepted by every MiniMax H3
-   * workflow except text-to-video, 23 ids (`isMinimaxH3KeyframeModel()`):
+   * workflow except text-to-video, 24 ids (`isMinimaxH3KeyframeModel()`):
    * image-to-video (`i2v`), first/last-frame (`flf2v`), Sound to Video (`ia2v`,
    * `flfa2v`, `a2v`) and Reference to Video (`r2v`). Any other model rejects a
    * non-empty list, and an empty list is the same as omitting the field.
