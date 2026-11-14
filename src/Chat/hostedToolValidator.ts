@@ -450,6 +450,19 @@ export function validateAndNormalizeHostedToolArguments(
   };
   const cleaned = validateValueAgainstSchema('', args, normalizedSchema, context).value;
 
+  // upscale_video: 2160 is RelayVSR only. FlashVSR (model omitted or anything but
+  // relayvsr) keeps the 1080/1440 refusal it had before the enum gained 2160.
+  if (toolName === 'upscale_video' && isRecord(cleaned)) {
+    const flashVsr2160Error = `Argument "targetResolution" must be one of ${formatEnum([1080, 1440])}`;
+    if (
+      cleaned.model !== 'relayvsr' &&
+      cleaned.targetResolution === 2160 &&
+      !context.errors.includes(flashVsr2160Error)
+    ) {
+      context.errors.push(flashVsr2160Error);
+    }
+  }
+
   return {
     ok: context.errors.length === 0,
     errors: context.errors,

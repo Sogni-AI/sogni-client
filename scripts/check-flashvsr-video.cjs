@@ -51,6 +51,27 @@ for (const changes of [{ upscaleResolution: 2160 }, { upscaleResolution: 2160, w
     (error) => error.message === 'Choose 1080p or 1440p for video upscaling.'
   );
 }
+// Hosted tool validation keeps protocol alpha.61's FlashVSR answer at 2160 under the
+// installed manifest and under a 1080/1440-only manifest like alpha.61's.
+{
+  const { validateAndNormalizeHostedToolArguments } = require('../dist/Chat/hostedToolValidator.js');
+  const alpha61UpscaleVideo = {
+    type: 'function',
+    function: {
+      name: 'upscale_video',
+      parameters: { type: 'object', properties: { targetResolution: { type: 'number', enum: [1080, 1440] } }, required: [] }
+    }
+  };
+  for (const tools of [sdk.SogniTools.all, [alpha61UpscaleVideo]]) {
+    for (const args of [{ targetResolution: 2160 }, { model: 'flashvsr', targetResolution: 2160 }]) {
+      for (const options of [{}, { coercePrimitives: true }, { stripUnknownProperties: true }]) {
+        const result = validateAndNormalizeHostedToolArguments(tools, 'upscale_video', { ...args }, options);
+        assert.equal(result.ok, false);
+        assert.deepEqual(result.errors, ['Argument "targetResolution" must be one of 1080, 1440']);
+      }
+    }
+  }
+}
 assert.throws(() => request({ referenceVideo: undefined }), /requires referenceVideo/);
 assert.throws(() => request({ referenceImage: new Blob(['image']) }), /does not support referenceImage/);
 assert.throws(() => request({ positivePrompt: 'replace the face' }), /promptless/);
