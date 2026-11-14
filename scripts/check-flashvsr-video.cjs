@@ -44,6 +44,13 @@ assert.equal(key.upscaleResolution, 1440);
 assert.equal(request({ width: 1890, height: 1080 }).keyFrames[0].upscaleResolution, 1080);
 assert.equal(request({ fps: 24000 / 1001 }).keyFrames[0].fps, 24000 / 1001);
 assert.throws(() => request({ width: 3780, height: 2160 }), /1080p or 1440p/);
+// FlashVSR at 2160 keeps 5.83.0's exact refusal; only RelayVSR offers 2160.
+for (const changes of [{ upscaleResolution: 2160 }, { upscaleResolution: 2160, width: 3780, height: 2160 }]) {
+  assert.throws(
+    () => request(changes),
+    (error) => error.message === 'Choose 1080p or 1440p for video upscaling.'
+  );
+}
 assert.throws(() => request({ referenceVideo: undefined }), /requires referenceVideo/);
 assert.throws(() => request({ referenceImage: new Blob(['image']) }), /does not support referenceImage/);
 assert.throws(() => request({ positivePrompt: 'replace the face' }), /promptless/);
