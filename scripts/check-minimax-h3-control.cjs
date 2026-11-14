@@ -72,6 +72,15 @@ for (const name of MINIMAX_H3_CONTROL_TYPES) {
     }
   ]);
 }
+// Keep the original outside a still mask: sent only when true; absent or false sends nothing new.
+assert.deepEqual(frame({ controlNet: { name: 'inpaint', preserveUnmasked: true }, referenceMask: image }).currentControlNetsJob, [
+  { name: 'inpaint', preserveUnmasked: true }
+]);
+assert.deepEqual(frame({ controlNet: { name: 'inpaint', preserveUnmasked: false }, referenceMask: image }).currentControlNetsJob, [
+  { name: 'inpaint' }
+]);
+assert.deepEqual(frame({ controlNet: { name: 'inpaint' }, referenceMask: image }).currentControlNetsJob, [{ name: 'inpaint' }]);
+assert.throws(() => frame({ controlNet: { name: 'inpaint', preserveUnmasked: 'yes' }, referenceMask: image }));
 // Six guide types at launch; a prepared controlVideo works with extraction off.
 assert.deepEqual(
   [...MINIMAX_H3_CONTROL_TYPES],

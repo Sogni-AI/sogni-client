@@ -126,6 +126,7 @@ export interface VideoControlNetParamsRaw {
   preprocess?: boolean;
   controlGuidanceStart?: number;
   controlGuidanceEnd?: number;
+  preserveUnmasked?: boolean;
 }
 
 /**
@@ -168,4 +169,11 @@ export interface VideoControlNetParams {
   guidanceStart?: number;
   /** MiniMax H3 Control only; other models ignore it. Fraction of sampling where guidance ends, 0-1 (default 1). */
   guidanceEnd?: number;
+  /**
+   * MiniMax H3 Control only; other models ignore it. With a still `referenceMask`, keep the
+   * source video's own pixels outside the mask: the generated frames show only inside it, blended
+   * across a soft edge. Omitted or `false`, the whole clip is redrawn following the source, so areas
+   * outside the mask can differ slightly. The server refuses it with a moving mask or no mask.
+   */
+  preserveUnmasked?: boolean;
 }

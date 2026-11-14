@@ -1292,7 +1292,9 @@ credits can't run it. Sizes are 480-1344 px per side on a 32 px grid, up to
 - `videoStart` trims every input video from the same point; the worker
   resamples inputs to the output frame rate and scales and center-crops them to
   the output size.
-- `controlNet.strength` is 0-1 (default 1). `controlNet.guidanceStart` and
+- `controlNet.strength` is 0-1 (default 1). With a still `referenceMask`,
+  `controlNet.preserveUnmasked: true` keeps the source's own pixels outside the mask (soft edge);
+  without it the whole clip is redrawn following the source. `controlNet.guidanceStart` and
   `controlNet.guidanceEnd` are the fractions of sampling where the guide applies,
   0-1 (defaults 0 and 1).
 - It does not take `referenceImageEnd`, extra references, uploaded audio, a
@@ -3006,6 +3008,7 @@ interface VideoControlNetParams {
   name: VideoControlNetName;
   strength?: number;  // MiniMax H3 Control: 0–1, default 1; LTX: 0–1, default 0.85
   preprocess?: boolean;  // MiniMax H3 Control only
+  preserveUnmasked?: boolean;  // MiniMax H3 Control only, with a still referenceMask
   guidanceStart?: number;  // MiniMax H3 Control only: 0–1, default 0
   guidanceEnd?: number;    // MiniMax H3 Control only: 0–1, default 1, >= guidanceStart
 }

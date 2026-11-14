@@ -1342,6 +1342,12 @@ function getVideoControlNet(
     if (params.preprocess !== undefined) cn.preprocess = params.preprocess;
     if (params.guidanceStart !== undefined) cn.controlGuidanceStart = params.guidanceStart;
     if (params.guidanceEnd !== undefined) cn.controlGuidanceEnd = params.guidanceEnd;
+    if (params.preserveUnmasked !== undefined) {
+      if (typeof params.preserveUnmasked !== 'boolean') {
+        throw new Error('controlNet.preserveUnmasked must be a boolean');
+      }
+      if (params.preserveUnmasked) cn.preserveUnmasked = true;
+    }
   }
   return [cn];
 }
