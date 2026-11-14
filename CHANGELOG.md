@@ -1,3 +1,10 @@
+# [5.83.0](https://github.com/Sogni-AI/sogni-client/compare/v5.82.0...v5.83.0) (2026-11-14)
+
+
+### Features
+
+* **changelog:** add sogni.changelog to read the public Sogni changelog ([68a264a](https://github.com/Sogni-AI/sogni-client/commit/68a264a2255e13af7b554b13eddea49b9bb223d3))
+
 # [5.82.0](https://github.com/Sogni-AI/sogni-client/compare/v5.81.0...v5.82.0) (2026-11-13)
 
 
