@@ -71,6 +71,31 @@ for (const changes of [{ upscaleResolution: 2160 }, { upscaleResolution: 2160, w
       }
     }
   }
+  // A model other than flashvsr or relayvsr gets 5.83.0's answer, from before
+  // upscale_video had a model argument: kept, or stripped with the same warning.
+  const flash2160 = 'Argument "targetResolution" must be one of 1080, 1440';
+  const stripped = 'Stripped unknown argument "model"';
+  const answers = [
+    [{ model: 'seedvr', targetResolution: 1440 }, {},
+      { ok: true, errors: [], cleaned: { model: 'seedvr', targetResolution: 1440 }, warnings: [] }],
+    [{ model: 'seedvr', detailPreference: 'sharper', seed: 7 }, {},
+      { ok: true, errors: [], cleaned: { model: 'seedvr', detailPreference: 'sharper', seed: 7 }, warnings: [] }],
+    [{ model: 'seedvr', targetResolution: 2160 }, {},
+      { ok: false, errors: [flash2160], cleaned: { model: 'seedvr', targetResolution: 2160 }, warnings: [] }],
+    [{ model: 'seedvr', targetResolution: 1440 }, { stripUnknownProperties: true },
+      { ok: true, errors: [], cleaned: { targetResolution: 1440 }, warnings: [stripped] }],
+    [{ model: 'seedvr', targetResolution: 2160 }, { stripUnknownProperties: true },
+      { ok: false, errors: [flash2160], cleaned: { targetResolution: 2160 }, warnings: [stripped] }],
+    [{ model: 123, targetResolution: 1440 }, { stripUnknownProperties: true },
+      { ok: true, errors: [], cleaned: { targetResolution: 1440 }, warnings: [stripped] }],
+    [{ model: null, targetResolution: 1440 }, { stripUnknownProperties: true },
+      { ok: true, errors: [], cleaned: { targetResolution: 1440 }, warnings: [] }]
+  ];
+  for (const tools of [sdk.SogniTools.all, [alpha61UpscaleVideo]]) {
+    for (const [args, options, answer] of answers) {
+      assert.deepEqual(validateAndNormalizeHostedToolArguments(tools, 'upscale_video', { ...args }, options), answer);
+    }
+  }
 }
 assert.throws(() => request({ referenceVideo: undefined }), /requires referenceVideo/);
 assert.throws(() => request({ referenceImage: new Blob(['image']) }), /does not support referenceImage/);
