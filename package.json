@@ -156,7 +156,7 @@
   "homepage": "https://github.com/Sogni-AI/sogni-client#readme",
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",
-    "@sogni-ai/sogni-protocol": "1.0.0-alpha.60",
+    "@sogni-ai/sogni-protocol": "1.0.0-alpha.61",
     "@types/js-cookie": "^3.0.6",
     "@types/lodash": "^4.17.23",
     "@types/ws": "^8.5.13",
