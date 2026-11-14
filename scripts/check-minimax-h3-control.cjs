@@ -48,7 +48,7 @@ assert.equal(getVideoAssetRequirements(modelId).referenceAudioIdentity, 'forbidd
 // Without controlNet nothing is sent; the server runs depth.
 assert.equal('currentControlNetsJob' in frame({}), false);
 assert.equal(frame({}).fps, 24);
-for (const strength of [0, 1, 2.5, 10]) {
+for (const strength of [0, 0.5, 1]) {
   assert.deepEqual(frame({ controlNet: { name: 'depth', strength } }).currentControlNetsJob, [
     { name: 'depth', controlStrength: strength }
   ]);
@@ -116,7 +116,8 @@ for (const changes of [
   { controlNet: { name: 'depth', guidanceStart: '0.1' } },
   { controlNet: { name: 'depth', guidanceEnd: 2 } },
   { controlNet: { name: 'depth', strength: NaN } },
-  { controlNet: { name: 'depth', strength: 10.01 } },
+  { controlNet: { name: 'depth', strength: 1.01 } },
+  { controlNet: { name: 'depth', strength: 4 } },
   { controlNet: { name: 'depth', strength: -0.1 } },
   { referenceVideos: [video] },
   { referenceAudios: [video] },

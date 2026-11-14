@@ -1414,7 +1414,7 @@ uses `depth`.
   the inputs to the output frame rate and scales and center-crops them to the
   output size.
 
-`controlNet.strength` runs from 0 to 10 (default 1). `controlNet.guidanceStart`
+`controlNet.strength` runs from 0 to 1 (default 1). `controlNet.guidanceStart`
 and `controlNet.guidanceEnd` set the part of sampling where the guide applies, as
 fractions from 0 to 1 (defaults 0 and 1). The model does not take `referenceImageEnd`,
 extra references, uploaded audio, a voice reference or `keyframes`. Other models

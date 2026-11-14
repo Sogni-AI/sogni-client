@@ -1319,9 +1319,10 @@ function getControlNet(params: ControlNetParams): ControlNetParamsRaw[] {
 }
 
 /**
- * LTX 2.5/2.3 sends the name and a 0-1 strength. MiniMax H3 Control takes a 0-10
- * strength plus preprocess and the guidance window, which only it reads, so they
- * are sent only for that model.
+ * LTX 2.5/2.3 sends the name and a 0-1 strength. MiniMax H3 Control also takes a 0-1
+ * strength (the model author's documented range; higher values break the video), plus
+ * preprocess and the guidance window, which only it reads, so they are sent only for
+ * that model.
  */
 function getVideoControlNet(
   params: VideoControlNetParams,
@@ -1333,7 +1334,7 @@ function getVideoControlNet(
   if (params.strength !== undefined) {
     cn.controlStrength = validateNumber(params.strength, {
       min: 0,
-      max: isMinimaxH3Control ? 10 : 1,
+      max: 1,
       propertyName: 'strength'
     });
   }

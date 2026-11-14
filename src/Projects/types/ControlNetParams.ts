@@ -151,7 +151,7 @@ export interface VideoControlNetParams {
   name: VideoControlNetName;
   /**
    * Control strength. Higher values follow the control signal more strictly.
-   * LTX range: 0.0-1.0, default 0.85. MiniMax H3 Control range: 0.0-10.0, default 1.
+   * LTX range: 0.0-1.0, default 0.85. MiniMax H3 Control range: 0.0-1.0, default 1.
    * For canny/depth: controls how strongly the preprocessor output (edges/depth maps)
    * is injected into the generation. For pose: controls pose adherence.
    * For detailer: controls appearance preservation.

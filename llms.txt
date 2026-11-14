@@ -597,7 +597,7 @@ MiniMax H3 Control (`minimax-h3-ref2va-fp8_v2v_controlnet`) makes a new video th
 - `referenceMask` (image) or `referenceMaskVideo` (moving mask), not both: white is regenerated, black is kept as context. A mask needs the source `referenceVideo` and works with every control type; `inpaint` requires one. Kept areas are regenerated to match, not copied pixel for pixel.
 - `referenceImage` (optional) guides how the subject looks; it does not set the first frame.
 - `videoStart` trims every input video from the same point; the worker resamples inputs to the output frame rate and scales and center-crops them to the output size.
-- `controlNet.strength` is 0-10 (default 1). `controlNet.guidanceStart` / `controlNet.guidanceEnd` are the fractions of sampling where the guide applies, 0-1 (defaults 0 and 1).
+- `controlNet.strength` is 0-1 (default 1). `controlNet.guidanceStart` / `controlNet.guidanceEnd` are the fractions of sampling where the guide applies, 0-1 (defaults 0 and 1).
 - It does not take `referenceImageEnd`, extra references, uploaded audio, a voice reference or `keyframes`. Other models ignore `controlVideo`, `referenceMaskVideo`, `preprocess`, `guidanceStart` and `guidanceEnd`.
 
 ```javascript

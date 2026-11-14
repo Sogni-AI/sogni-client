@@ -1292,7 +1292,7 @@ credits can't run it. Sizes are 480-1344 px per side on a 32 px grid, up to
 - `videoStart` trims every input video from the same point; the worker
   resamples inputs to the output frame rate and scales and center-crops them to
   the output size.
-- `controlNet.strength` is 0-10 (default 1). `controlNet.guidanceStart` and
+- `controlNet.strength` is 0-1 (default 1). `controlNet.guidanceStart` and
   `controlNet.guidanceEnd` are the fractions of sampling where the guide applies,
   0-1 (defaults 0 and 1).
 - It does not take `referenceImageEnd`, extra references, uploaded audio, a
@@ -3004,7 +3004,7 @@ type VideoControlNetName = 'canny' | 'pose' | 'depth' | 'detailer' | 'outpaint'
 
 interface VideoControlNetParams {
   name: VideoControlNetName;
-  strength?: number;  // MiniMax H3 Control: 0–10, default 1; LTX: 0–1, default 0.85
+  strength?: number;  // MiniMax H3 Control: 0–1, default 1; LTX: 0–1, default 0.85
   preprocess?: boolean;  // MiniMax H3 Control only
   guidanceStart?: number;  // MiniMax H3 Control only: 0–1, default 0
   guidanceEnd?: number;    // MiniMax H3 Control only: 0–1, default 1, >= guidanceStart
