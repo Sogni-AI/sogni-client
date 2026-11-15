@@ -1,3 +1,18 @@
+# [5.84.0](https://github.com/Sogni-AI/sogni-client/compare/v5.83.0...v5.84.0) (2026-11-15)
+
+
+### Bug Fixes
+
+* **chat:** keep FlashVSR's 2160 refusal in hosted tool validation ([e65764b](https://github.com/Sogni-AI/sogni-client/commit/e65764b71aee32607339b357fe37d509d1db4007))
+* **chat:** validate an unknown upscale_video model as 5.83.0 did ([a00f0e7](https://github.com/Sogni-AI/sogni-client/commit/a00f0e70f3a35989fbdce69d0f2e090cbf46a69c))
+
+
+### Features
+
+* **minimax-h3:** add the MiniMax H3 Prism reference-to-video model id ([cda5219](https://github.com/Sogni-AI/sogni-client/commit/cda521925bde3eb95a6548b20b03ceea35f1d422))
+* **video:** add RelayVSR video upscaling models ([a613f03](https://github.com/Sogni-AI/sogni-client/commit/a613f03ae0b76198e6e6c4c8fa19f3411f3d0f9a))
+* **video:** refuse a RelayVSR output past 3840 on the long edge ([77261b9](https://github.com/Sogni-AI/sogni-client/commit/77261b9c0e0734ec020c58a6a79a073ebaf3a1d7))
+
 # [5.83.0](https://github.com/Sogni-AI/sogni-client/compare/v5.82.0...v5.83.0) (2026-11-14)
 
 
