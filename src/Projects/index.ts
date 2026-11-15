@@ -108,6 +108,7 @@ import {
   usesReferenceMask
 } from './utils/index.js';
 import { getFileContentType } from './utils/fileContentType.js';
+import { assertImageUploadBody } from './utils/imageUploadBody.js';
 import { imageLayersFromResult } from './utils/imageLayers.js';
 import { TokenType } from '../types/token.js';
 import type { JobProvenance } from './types/JobProvenance.js';
@@ -3315,6 +3316,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, 'Guide image');
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type: 'startingImage' }))
       return imageId;
@@ -3349,6 +3351,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, 'ControlNet image');
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type: 'cnImage' }))
       return imageId;
@@ -3404,6 +3407,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, `Context image ${imageIndex}`);
     const contentType = getFileContentType(file);
     if (
       await this._bindSavedUpload(file, contentType, {
@@ -3454,6 +3458,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, `Keyframe image ${slot}`);
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type })) return imageId;
     assertSession();
@@ -3490,6 +3495,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, 'Reference image');
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceImage' }))
       return imageId;
@@ -3528,6 +3534,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, 'Reference mask');
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceMask' }))
       return imageId;
@@ -3566,6 +3573,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, 'End reference image');
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceImageEnd' }))
       return imageId;
