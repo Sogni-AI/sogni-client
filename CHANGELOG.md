@@ -1,3 +1,10 @@
+## [5.84.1](https://github.com/Sogni-AI/sogni-client/compare/v5.84.0...v5.84.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **deps:** take sogni-protocol 1.0.0-alpha.63 for RelayVSR 1088 sources ([397eec3](https://github.com/Sogni-AI/sogni-client/commit/397eec3ac95026f16379e4fe6a6085d62e8e552f))
+
 # [5.84.0](https://github.com/Sogni-AI/sogni-client/compare/v5.83.0...v5.84.0) (2026-11-15)
 
 
