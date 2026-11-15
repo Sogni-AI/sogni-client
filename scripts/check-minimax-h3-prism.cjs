@@ -5,7 +5,7 @@
  * compiled output.
  *
  * - it is a MiniMax H3 video id on the r2v workflow, with the same reference
- *   rules, keyframes and frame grid as Balanced R2V, and no two-stage id;
+ *   rules, keyframes and frame grid as Balanced R2V, including its two-stage id;
  * - its steps are fixed at 8, and it is neither a Balanced nor a Turbo id;
  * - the H3 example lists it under its own key and, like LTX-2.3 10Eros, refuses
  *   to run it without --disable-safe-content-filter and a prompt of the
@@ -46,10 +46,15 @@ assert.equal(isMinimaxH3PrismModel(PRISM), true);
 assert.equal(isMinimaxH3BalancedModel(PRISM), false, 'Prism carries no Larry v4 adapter');
 assert.equal(isMinimaxH3TurboModel(PRISM), false);
 assert.equal(sdk.isMinimaxH3AudioGuideModel(PRISM), false);
-for (const other of [BALANCED_R2V, 'minimax-h3-ref2va-fp8_r2v', 'minimax-h3-prism-int8_r2v_2stage']) {
+for (const other of [
+  BALANCED_R2V,
+  'minimax-h3-ref2va-fp8_r2v',
+  'minimax-h3-prism-int8_r2v_2stage_unknown'
+]) {
   assert.equal(isMinimaxH3PrismModel(other), false, other);
 }
-assert.equal(isMinimaxH3Model('minimax-h3-prism-int8_r2v_2stage'), false, 'Prism has no two-stage id');
+assert.equal(isMinimaxH3Model('minimax-h3-prism-int8_r2v_2stage'), true);
+assert.equal(isMinimaxH3PrismModel('minimax-h3-prism-int8_r2v_2stage'), true);
 assert.deepEqual(getVideoAssetRequirements(PRISM), getVideoAssetRequirements(BALANCED_R2V));
 assert.equal(calculateVideoFrames(PRISM, 6, 24), calculateVideoFrames(BALANCED_R2V, 6, 24));
 assert.equal(calculateVideoFrames(PRISM, 15, 24), 362);
@@ -81,6 +86,16 @@ const request = (changes = {}) =>
   createJobRequestMessage('h3-prism', { ...base, ...changes }, options).keyFrames[0];
 
 const plain = request();
+const enlarged = request({ modelId: 'minimax-h3-prism-int8_r2v_2stage' });
+assert.deepEqual(
+  enlarged,
+  { ...plain, modelID: 'minimax-h3-prism-int8_r2v_2stage' },
+  'the optional two-stage id sends the same fixed recipe and canvas'
+);
+assert.throws(
+  () => request({ modelId: 'minimax-h3-prism-int8_r2v_2stage', steps: 4 }),
+  /steps are fixed at 8/
+);
 assert.equal(plain.frames, 141);
 assert.equal(plain.steps, 8);
 assert.equal(plain.hasReferenceImage, true);
@@ -129,7 +144,8 @@ assert.deepEqual(withLora.loraStrengths, [0.8]);
   assert.equal(config.requiresVisualReference, true);
   assert.equal(config.maxReferenceImages, 9);
   assert.equal(
-    Object.values(helpers.MODELS.h3).filter((model) => model.id.startsWith('minimax-h3-prism')).length,
+    Object.values(helpers.MODELS.h3).filter((model) => model.id.startsWith('minimax-h3-prism'))
+      .length,
     1,
     'Prism has one example key: no two-stage key'
   );
@@ -162,7 +178,10 @@ assert.deepEqual(withLora.loraStrengths, [0.8]);
     '--no-interactive'
   ]);
   assert.equal(noPrompt.status, 1, noPrompt.stdout);
-  assert.match(noPrompt.stderr, /A prompt must be supplied with --prompt-file for MiniMax H3 Prism R2V/);
+  assert.match(
+    noPrompt.stderr,
+    /A prompt must be supplied with --prompt-file for MiniMax H3 Prism R2V/
+  );
 
   console.log('MiniMax H3 Prism SDK checks passed.');
 })().catch((error) => {
