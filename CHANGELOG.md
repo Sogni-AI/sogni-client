@@ -1,3 +1,10 @@
+## [5.84.2](https://github.com/Sogni-AI/sogni-client/compare/v5.84.1...v5.84.2) (2026-11-15)
+
+
+### Bug Fixes
+
+* **projects:** refuse text in place of image bytes before uploading an image slot ([3c0d411](https://github.com/Sogni-AI/sogni-client/commit/3c0d411a2f92567048450a346c94df6feb0f544f))
+
 ## [5.84.1](https://github.com/Sogni-AI/sogni-client/compare/v5.84.0...v5.84.1) (2026-11-15)
 
 
