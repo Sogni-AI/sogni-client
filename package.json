@@ -92,6 +92,7 @@
     "test:prompt-expansion": "npm run build && node scripts/check-prompt-expansion-transport.cjs",
     "test:priority-mode": "npm run build && node scripts/check-priority-mode.cjs && node scripts/check-priority-capability.cjs",
     "test:reference-content-types": "npm run build && node scripts/check-reference-content-types.cjs",
+    "test:image-upload-body": "npm run build && node scripts/check-image-upload-body.cjs",
     "test:minimax-h3-audio-policy": "node scripts/check-minimax-h3-source-audio-policy.cjs",
     "test:minimax-h3-balanced": "npm run build && node scripts/check-minimax-h3-balanced.cjs",
     "test:minimax-h3-two-stage": "npm run build && node scripts/check-minimax-h3-two-stage.cjs",
