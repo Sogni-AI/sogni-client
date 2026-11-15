@@ -1374,8 +1374,7 @@ The repository does not bundle sample prompts or input media for the 10Eros mode
 who choose to use it must provide their own prompt and image to
 `examples/workflow_image_to_video.mjs`. The same applies to MiniMax H3 Prism in
 `examples/workflow_minimax_h3_video.mjs` (`--model minimax-h3-r2v-prism`), which also requires
-`--disable-safe-content-filter`. Optional test prompts and images are available from the
-[model author's sample gallery](https://civitai.red/models/2447875/ltx23-10eros).
+`--disable-safe-content-filter`.
 
 ### Video Parameters
 
