@@ -1,3 +1,16 @@
+# [5.86.0](https://github.com/Sogni-AI/sogni-client/compare/v5.85.0...v5.86.0) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** take sogni-protocol 1.0.0-alpha.64 for Seedance 2.5 4K finals ([d863f90](https://github.com/Sogni-AI/sogni-client/commit/d863f9052c5392e5355849b4534be07d6a9c2d10))
+* document that LTX pose control requires a reference image ([d63b641](https://github.com/Sogni-AI/sogni-client/commit/d63b641048f7baf9514efaf7d56b86a54ff05ea5))
+
+
+### Features
+
+* **video:** support explicit seedance 2.5 4k finals ([9fe0827](https://github.com/Sogni-AI/sogni-client/commit/9fe0827cabd5596560a6a4202dc6d41e9c9fe5aa))
+
 # [5.85.0](https://github.com/Sogni-AI/sogni-client/compare/v5.84.2...v5.85.0) (2026-11-17)
 
 
