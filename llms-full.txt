@@ -1018,8 +1018,8 @@ SEEDANCE MODEL IDS:
 |----------|----------------|-------|
 | seedance-2-0 | Optional image, video, and audio refs | 24fps, 4-15s, 4K |
 | seedance-2-0-mini | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
-| seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 50 total; audio-only allowed) | 24fps, 4-30s, 1080p cap, first+last frame |
-| seedance-2-5-uncensored | Same as seedance-2-5 (Seedance 2.5 Uncensored; one-time agreement required, error 4103 until accepted) | 24fps, 4-30s, 1080p cap, first+last frame |
+| seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 50 total; audio-only allowed) | 24fps, 4-30s, 4K cap, first+last frame |
+| seedance-2-5-uncensored | Same as seedance-2-5 (Seedance 2.5 Uncensored; one-time agreement required, error 4103 until accepted) | 24fps, 4-30s, 4K cap, first+last frame |
 | seedance-2-0-mini-uncensored | Same as seedance-2-0-mini (Seedance 2.0 Mini Uncensored; the same one-time agreement, error 4103 until accepted) | 24fps, 4-15s, 720p cap |
 
 SEEDANCE TEXT-TO-VIDEO:
@@ -1088,6 +1088,9 @@ priced at 1080p for the draft's duration (video-input rate when the draft had
 one); each finalize bills again. The final reports `job.seedanceDraftJobId`.
 `estimateVideoCost` accepts both fields; for a finalize the server prices from
 the draft, so width, height, duration and fps do not change the quote.
+For an explicitly requested 4K final, pass `seedanceDraftFinalResolution: "4k"`
+on both create and estimate calls. Omit it to retain the 1080p final. Only the
+output resolution changes; the draft supplies its original inputs and aspect ratio.
 
 ```javascript
 const draft = await sogni.projects.create({
@@ -2454,7 +2457,8 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceAudioUrls?: string[];  // Seedance only
   seedanceTaskType?: 'reference' | 'edit' | 'extend';  // Seedance 2.5 loose-reference operation
   seedanceDraft?: boolean;   // Seedance 2.5: 480p draft that can be finalized at 1080p
-  seedanceDraftJobId?: string;  // Seedance 2.5: finalize that draft (its job id) at 1080p; inherits its inputs
+  seedanceDraftJobId?: string;  // Seedance 2.5: finalize that draft (its job id); inherits its inputs
+  seedanceDraftFinalResolution?: "1080p" | "4k"; // With seedanceDraftJobId; omitted keeps 1080p
   audioStart?: number;       // Seconds into audio
   audioDuration?: number;    // Seconds of audio
   videoStart?: number;       // Seconds into video

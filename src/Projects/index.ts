@@ -3917,6 +3917,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (params.seedanceDraftJobId !== undefined) {
       query.set('seedanceDraftJobId', params.seedanceDraftJobId);
     }
+    if (params.seedanceDraftFinalResolution !== undefined) {
+      query.set('seedanceDraftFinalResolution', params.seedanceDraftFinalResolution);
+    }
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-video/estimate/${path}${queryString ? `?${queryString}` : ''}`

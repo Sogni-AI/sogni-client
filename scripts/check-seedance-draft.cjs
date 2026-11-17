@@ -1,6 +1,6 @@
 /**
  * Seedance 2.5 draft mode: `seedanceDraft` creates a 480p draft and
- * `seedanceDraftJobId` finalizes it at 1080p. Checks the keyFrame wire fields,
+ * `seedanceDraftJobId` finalizes it at 1080p, or explicitly at 4K. Checks the keyFrame wire fields,
  * the client-side model and exclusivity checks, the estimate query, and the
  * draft result fields on jobs and completion events.
  *
@@ -119,6 +119,7 @@ for (const modelId of SEEDANCE_25_MODELS) {
   assert.equal(frame.seedanceDraftJobId, DRAFT_JOB_ID);
   assert.equal(frame.modelID, modelId);
   assert.equal(frame.seedanceDraft, undefined);
+  assert.equal(frame.seedanceDraftFinalResolution, undefined, 'legacy finals add no new field');
   assert.ok(frame.positivePrompt.trim(), 'a finalize sends a non-empty placeholder prompt');
   for (const inherited of [
     'frames',
@@ -141,7 +142,41 @@ for (const modelId of SEEDANCE_25_MODELS) {
   assert.equal(request.outputFormat, 'mov');
   assert.equal(frame.returnLastFrame, true);
   assert.equal(request.numberOfImages, 1);
+
+  for (const resolution of ['1080p', '4k']) {
+    const final = finalizeRequest({ modelId, seedanceDraftFinalResolution: resolution })
+      .keyFrames[0];
+    assert.equal(final.seedanceDraftFinalResolution, resolution);
+    assert.equal(final.seedanceDraftJobId, DRAFT_JOB_ID);
+    assert.equal(final.frames, undefined, 'choosing a final size must not override draft timing');
+    assert.equal(final.ratio, undefined, 'choosing a final size must not override draft framing');
+    assert.equal(
+      final.positivePrompt,
+      `Finalize the Seedance 2.5 draft at ${resolution === '4k' ? '4K' : '1080p'}.`
+    );
+  }
+
+  const direct4k = draftRequest({ modelId, seedanceDraft: undefined, width: 3840, height: 2160 })
+    .keyFrames[0];
+  assert.equal(direct4k.width, 3840);
+  assert.equal(direct4k.height, 2160);
+  assert.equal(direct4k.seedanceDraftFinalResolution, undefined);
 }
+
+for (const invalid of [null, 720, '2160p', '4K', true, {}, []]) {
+  assert.throws(
+    () => finalizeRequest({ seedanceDraftFinalResolution: invalid }),
+    /must be 1080p or 4k/
+  );
+}
+assert.throws(
+  () => draftRequest({ seedanceDraftFinalResolution: '4k' }),
+  /requires seedanceDraftJobId/
+);
+assert.throws(
+  () => draftRequest({ seedanceDraft: undefined, seedanceDraftFinalResolution: '1080p' }),
+  /requires seedanceDraftJobId/
+);
 
 // The caller's prompt never travels: the final uses the draft's.
 assert.equal(
@@ -263,8 +298,7 @@ async function checkEstimates() {
     fps: 24,
     numberOfMedia: 1
   };
-  const lastQuery = () =>
-    new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
+  const lastQuery = () => new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
 
   await projects.estimateVideoCost(base);
   const legacyPath = client.socket.paths.at(-1);
@@ -285,7 +319,18 @@ async function checkEstimates() {
   });
   assert.equal(lastQuery().get('seedanceDraftJobId'), DRAFT_JOB_ID);
   assert.equal(lastQuery().has('seedanceDraft'), false);
+  assert.equal(lastQuery().has('seedanceDraftFinalResolution'), false);
   assert.equal(quote.spark, '2');
+
+  for (const resolution of ['1080p', '4k']) {
+    await projects.estimateVideoCost({
+      ...base,
+      seedanceDraftJobId: DRAFT_JOB_ID,
+      seedanceDraftFinalResolution: resolution
+    });
+    assert.equal(lastQuery().get('seedanceDraftJobId'), DRAFT_JOB_ID);
+    assert.equal(lastQuery().get('seedanceDraftFinalResolution'), resolution);
+  }
 
   const before = client.socket.paths.length;
   await assert.rejects(
@@ -303,12 +348,28 @@ async function checkEstimates() {
     /supported only by Seedance 2.5/
   );
   await assert.rejects(
-    projects.estimateVideoCost({ ...base, model: 'seedance-2-0-mini', seedanceDraftJobId: DRAFT_JOB_ID }),
+    projects.estimateVideoCost({
+      ...base,
+      model: 'seedance-2-0-mini',
+      seedanceDraftJobId: DRAFT_JOB_ID
+    }),
     /supported only by Seedance 2.5/
   );
   await assert.rejects(
     projects.estimateVideoCost({ ...base, seedanceDraftJobId: '' }),
     /must be the Sogni job id/
+  );
+  await assert.rejects(
+    projects.estimateVideoCost({ ...base, seedanceDraftFinalResolution: '4k' }),
+    /requires seedanceDraftJobId/
+  );
+  await assert.rejects(
+    projects.estimateVideoCost({
+      ...base,
+      seedanceDraftJobId: DRAFT_JOB_ID,
+      seedanceDraftFinalResolution: '720p'
+    }),
+    /must be 1080p or 4k/
   );
   assert.equal(client.socket.paths.length, before, 'refused estimates send no request');
   console.log('Seedance draft estimate checks passed');
@@ -415,14 +476,22 @@ async function checkResultFields() {
   {
     const { api, socket, completed } = makeResultHarness();
     const project = trackVideo(api, { positivePrompt: '', seedanceDraftJobId: DRAFT_JOB_ID });
-    socket.emit('jobResult', resultFrame(project.id, 'FINAL-1', { seedanceDraftJobId: DRAFT_JOB_ID }));
+    socket.emit(
+      'jobResult',
+      resultFrame(project.id, 'FINAL-1', {
+        seedanceDraftJobId: DRAFT_JOB_ID,
+        seedanceDraftFinalResolution: '4k'
+      })
+    );
     await sleep(10);
     const job = project.job('FINAL-1');
     assert.ok(job, 'the completion adds the job');
     assert.equal(job.status, 'completed');
     assert.equal(job.seedanceDraftJobId, DRAFT_JOB_ID);
+    assert.equal(job.seedanceDraftFinalResolution, '4k');
     assert.equal(job.seedanceDraft, undefined);
     assert.equal(completed[0].seedanceDraftJobId, DRAFT_JOB_ID);
+    assert.equal(completed[0].seedanceDraftFinalResolution, '4k');
     stopTimers(api);
   }
 
@@ -436,12 +505,18 @@ async function checkResultFields() {
       resultFrame(project.id, 'ODD-1', {
         seedanceDraft: 'yes',
         seedanceDraftExpiresAt: 1763409600000,
-        seedanceDraftJobId: ''
+        seedanceDraftJobId: '',
+        seedanceDraftFinalResolution: '720p'
       })
     );
     await sleep(10);
     for (const event of completed) {
-      for (const key of ['seedanceDraft', 'seedanceDraftExpiresAt', 'seedanceDraftJobId']) {
+      for (const key of [
+        'seedanceDraft',
+        'seedanceDraftExpiresAt',
+        'seedanceDraftJobId',
+        'seedanceDraftFinalResolution'
+      ]) {
         assert.equal(key in event, false, `${event.jobId} must not report ${key}`);
         assert.equal(project.job(event.jobId)[key], undefined);
       }
@@ -476,10 +551,11 @@ async function checkResultFields() {
     assert.equal(top.seedanceDraftExpiresAt, EXPIRES_AT);
     const nested = Job.fromRaw(
       { id: project.id, stepCount: 1 },
-      { ...raw, result: { seedanceDraftJobId: DRAFT_JOB_ID } },
+      { ...raw, result: { seedanceDraftJobId: DRAFT_JOB_ID, seedanceDraftFinalResolution: '4k' } },
       options
     );
     assert.equal(nested.seedanceDraftJobId, DRAFT_JOB_ID);
+    assert.equal(nested.seedanceDraftFinalResolution, '4k');
     await top._syncWithRestData(raw);
     assert.equal(top.seedanceDraft, true, 'a record without the fields keeps them');
     assert.equal(top.seedanceDraftExpiresAt, EXPIRES_AT);

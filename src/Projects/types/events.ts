@@ -118,6 +118,7 @@ export interface JobCompleted extends JobEventBase {
   seedanceDraftExpiresAt?: string;
   /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
   seedanceDraftJobId?: string;
+  seedanceDraftFinalResolution?: '1080p' | '4k';
   /**
    * A safety signal fired. Either the media was withheld (filter on, no
    * `resultUrl`) or it was delivered and merely labelled - see `nsfwDetected`.

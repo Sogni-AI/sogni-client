@@ -276,6 +276,7 @@ export function validateSeedanceDraftFields(params: {
   model?: string;
   seedanceDraft?: unknown;
   seedanceDraftJobId?: unknown;
+  seedanceDraftFinalResolution?: unknown;
 }): void {
   const { seedanceDraft, seedanceDraftJobId } = params;
   if (seedanceDraft !== undefined && typeof seedanceDraft !== 'boolean') {
@@ -286,6 +287,14 @@ export function validateSeedanceDraftFields(params: {
     (typeof seedanceDraftJobId !== 'string' || !seedanceDraftJobId.trim())
   ) {
     seedanceDraftError('seedanceDraftJobId must be the Sogni job id of a Seedance 2.5 draft.');
+  }
+  if (params.seedanceDraftFinalResolution !== undefined) {
+    if (!['1080p', '4k'].includes(params.seedanceDraftFinalResolution as string)) {
+      seedanceDraftError('seedanceDraftFinalResolution must be 1080p or 4k.');
+    }
+    if (seedanceDraftJobId === undefined) {
+      seedanceDraftError('seedanceDraftFinalResolution requires seedanceDraftJobId.');
+    }
   }
   if (seedanceDraft !== true && seedanceDraftJobId === undefined) return;
   if (!isSeedance25Model(String(params.modelId ?? params.model ?? ''))) {
@@ -2005,7 +2014,13 @@ function applyVideoParams(
     keyFrame.seedanceDraftJobId = params.seedanceDraftJobId;
     // The final inherits the draft's prompt. The request still carries a
     // non-empty prompt, which the server ignores for a finalize.
-    keyFrame.positivePrompt = SEEDANCE_DRAFT_FINALIZE_PROMPT;
+    keyFrame.positivePrompt =
+      params.seedanceDraftFinalResolution === '4k'
+        ? 'Finalize the Seedance 2.5 draft at 4K.'
+        : SEEDANCE_DRAFT_FINALIZE_PROMPT;
+    if (params.seedanceDraftFinalResolution !== undefined) {
+      keyFrame.seedanceDraftFinalResolution = params.seedanceDraftFinalResolution;
+    }
   }
   if (params.audioIdentityStrength !== undefined) {
     keyFrame.identityGuidanceScale = params.audioIdentityStrength;

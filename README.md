@@ -1355,7 +1355,7 @@ Example model IDs:
 - `ltx23-22b-fp8_v2v_distilled` (LTX-2.3 Video-to-Video ControlNet, fast)
 - `seedance-2-0` (Seedance 2.0 multimodal video, external API, 4K capable)
 - `seedance-2-0-mini` (Seedance 2.0 Mini multimodal video, external API, 720p cap)
-- `seedance-2-5` (Seedance 2.5 multimodal video, external API, 480p/720p/1080p, 4-30s, first+last frame)
+- `seedance-2-5` (Seedance 2.5 multimodal video, external API, 480p/720p/1080p/4K, 4-30s, first+last frame)
 - `seedance-2-5-uncensored` (Seedance 2.5 Uncensored: the same model, limits, and options as `seedance-2-5`; requires a one-time agreement in a Sogni app)
 - `seedance-2-0-mini-uncensored` (Seedance 2.0 Mini Uncensored: the same model, limits, and options as `seedance-2-0-mini`; requires the same one-time agreement)
 - `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
@@ -1399,8 +1399,9 @@ When creating video projects, you can specify:
 - `referenceVideoUrls` - Loose video context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `referenceAudioUrls` - Loose audio context URLs for Seedance and Wan 3; Wan 3 accepts up to 5
 - `seedanceTaskType` - Seedance 2.5 loose-reference operation: `reference`, `edit`, or `extend`. Edit and extend require a reference video.
-- `seedanceDraft` - Seedance 2.5 only: render a 480p draft that can be finalized at 1080p later, priced like the same 480p job. See the draft example below.
-- `seedanceDraftJobId` - Seedance 2.5 only: finalize that draft (its `job.id`) at 1080p. The final reuses the draft's prompt, media, duration, aspect ratio, seed and audio setting. Mutually exclusive with `seedanceDraft`; also accepted by `estimateVideoCost` to quote the final
+- `seedanceDraft` - Seedance 2.5 only: render a 480p draft that can be finalized at 1080p or 4K later, priced like the same 480p job. See the draft example below.
+- `seedanceDraftJobId` - Seedance 2.5 only: finalize that draft (its `job.id`) at 1080p by default. The final reuses the draft's prompt, media, duration, aspect ratio, seed and audio setting. Mutually exclusive with `seedanceDraft`; also accepted by `estimateVideoCost` to quote the final
+- `seedanceDraftFinalResolution` - With `seedanceDraftJobId`, explicitly choose `"1080p"` or `"4k"` for both `projects.create` and `estimateVideoCost`. Omit it to keep the 1080p final; the draft’s aspect ratio and inputs stay in use.
 - `hasVideoInput` - Estimate-only flag for `estimateVideoCost`; set this when estimating a canonical Seedance video-input job without passing `referenceVideo`/`referenceVideoUrls`
 - `referenceImageCount` - Optional estimate-only count of image references the video job will submit; models whose pricing does not use it ignore it
 - `keyframeCount` / `keyframes` - Estimate-only count of MiniMax H3 intermediate keyframes (0-8). The first two are included; each extra keyframe adds output time at the job's per-second rate: 0.75 s on FastH3, 0.3 s on every other tier, FastH3 Reference included
@@ -2251,7 +2252,7 @@ scheduler and dimension bounds. Both presets accept compatible Personal LoRAs.
 | `wan_v2.2-14b-fp8_t2v_lightx2v`       | **Wan 2.2 T2V** - Text-to-video                          | Generate videos from text prompts                                                                            |
 | `seedance-2-0`                        | **Seedance 2.0** - 4K external API multimodal video      | Full Seedance 2.0 24fps video generation with optional image, video, and audio context                       |
 | `seedance-2-0-mini`                   | **Seedance 2.0 Mini** - 720p external API video          | Fastest, lower-cost 24fps Seedance video generation                                                          |
-| `seedance-2-5`                        | **Seedance 2.5** - up to 1080p external API video         | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs |
+| `seedance-2-5`                        | **Seedance 2.5** - up to 4K external API video         | Newest Seedance: 4-30s single-call clips, first+last frame conditioning, 30 image / 10 video / 10 audio refs |
 | `seedance-2-5-uncensored`             | **Seedance 2.5 Uncensored** - Seedance 2.5, uncensored    | Same as Seedance 2.5; accept the one-time agreement in a Sogni app first (error 4103 until then)             |
 | `seedance-2-0-mini-uncensored`        | **Seedance 2.0 Mini Uncensored** - Seedance 2.0 Mini, uncensored | Same as Seedance 2.0 Mini; accept the same one-time agreement in a Sogni app first (error 4103 until then) |
 | `dark_beast_z_image_turbo_v9_bf16`    | **Dark Beast Z-Image Turbo v9** - Community (uncensored) | Uncensored, fast Z-Image fine-tune (2K output needs a 24GB+ VRAM worker)                                     |

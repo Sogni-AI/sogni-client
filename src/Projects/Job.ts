@@ -120,21 +120,26 @@ function directResultUrlFromRawJob(rawJob: RawJob): string | null {
 
 type SeedanceDraftResultFields = Pick<
   JobData,
-  'seedanceDraft' | 'seedanceDraftExpiresAt' | 'seedanceDraftJobId'
+  'seedanceDraft' | 'seedanceDraftExpiresAt' | 'seedanceDraftJobId' | 'seedanceDraftFinalResolution'
 >;
 
 function pickSeedanceDraftFields(source: unknown): SeedanceDraftResultFields {
   if (!source || typeof source !== 'object') return {};
-  const { seedanceDraft, seedanceDraftExpiresAt, seedanceDraftJobId } = source as Record<
-    string,
-    unknown
-  >;
+  const {
+    seedanceDraft,
+    seedanceDraftExpiresAt,
+    seedanceDraftJobId,
+    seedanceDraftFinalResolution
+  } = source as Record<string, unknown>;
   return {
     ...(seedanceDraft === true ? { seedanceDraft } : {}),
     ...(typeof seedanceDraftExpiresAt === 'string' && seedanceDraftExpiresAt
       ? { seedanceDraftExpiresAt }
       : {}),
-    ...(typeof seedanceDraftJobId === 'string' && seedanceDraftJobId ? { seedanceDraftJobId } : {})
+    ...(typeof seedanceDraftJobId === 'string' && seedanceDraftJobId ? { seedanceDraftJobId } : {}),
+    ...(seedanceDraftFinalResolution === '1080p' || seedanceDraftFinalResolution === '4k'
+      ? { seedanceDraftFinalResolution }
+      : {})
   };
 }
 
@@ -198,6 +203,8 @@ export interface JobData {
   seedanceDraftExpiresAt?: string;
   /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
   seedanceDraftJobId?: string;
+  /** Explicit finalization resolution, present only when the server reports it. */
+  seedanceDraftFinalResolution?: '1080p' | '4k';
   provenance?: JobProvenance;
   /**
    * Seedream layer decomposition: the layers above the base image, ordered by
@@ -381,6 +388,11 @@ class Job extends DataEntity<JobData, JobEventMap> {
   /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
   get seedanceDraftJobId() {
     return this.data.seedanceDraftJobId;
+  }
+
+  /** Explicit finalization resolution reported by the server, when available. */
+  get seedanceDraftFinalResolution() {
+    return this.data.seedanceDraftFinalResolution;
   }
 
   /** Refresh the signed URL for an exported final frame. */

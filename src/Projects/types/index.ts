@@ -592,7 +592,7 @@ export interface VideoProjectParams extends BaseProjectParams {
   seedanceTaskType?: SeedanceTaskType;
   /**
    * Seedance 2.5 only: render this job as a 480p draft that can later be
-   * finalized at 1080p with `seedanceDraftJobId`. Every normal Seedance 2.5
+   * finalized at 1080p or 4K with `seedanceDraftJobId`. Every normal Seedance 2.5
    * input is accepted (prompt, references, frames, duration, seed, audio,
    * `seedanceTaskType`), the size must be the 480p class, and the price is the
    * same as the same 480p job. A normal job can never be finalized, so choose
@@ -604,7 +604,8 @@ export interface VideoProjectParams extends BaseProjectParams {
    */
   seedanceDraft?: boolean;
   /**
-   * Seedance 2.5 only: finalize a completed draft at 1080p. This is the draft's
+   * Seedance 2.5 only: finalize a completed draft at 1080p by default, or 4K
+   * with `seedanceDraftFinalResolution`. This is the draft's
    * Sogni job id (`job.id` of a job created with `seedanceDraft: true`), on the
    * same `modelId`, by the account that created the draft, before
    * `seedanceDraftExpiresAt`.
@@ -613,12 +614,18 @@ export interface VideoProjectParams extends BaseProjectParams {
    * and audio setting: omit references, first/last frames, audio, `duration`,
    * `frames`, `ratio`, `seed`, `generateAudio` and `seedanceTaskType`, and pass
    * an empty `positivePrompt` (it is not used). `numberOfMedia` must be 1. The
-   * output is the draft's aspect ratio at 1080p, priced at 1080p for the draft's
-   * duration. `outputFormat` and `returnLastFrame` may still be set. The
-   * completed final reports the draft it came from as `job.seedanceDraftJobId`.
+   * output keeps the draft's aspect ratio and is priced at the selected final
+   * resolution for its duration. `outputFormat` and `returnLastFrame` may still
+   * be set. The completed final reports the draft it came from as `job.seedanceDraftJobId`.
    * Mutually exclusive with `seedanceDraft`.
    */
   seedanceDraftJobId?: string;
+  /**
+   * Seedance 2.5 draft finalization only: explicitly choose 1080p or 4K.
+   * Requires `seedanceDraftJobId`. Omit to keep the existing 1080p final.
+   * The server retains the draft's aspect ratio and prices the requested class.
+   */
+  seedanceDraftFinalResolution?: '1080p' | '4k';
   /**
    * @deprecated Ignored. Alibaba's Wan 3 API does not expose edit or extend
    * task modes. Pass `referenceVideo`/`referenceVideoUrls` for loose reference
@@ -1665,12 +1672,15 @@ export interface VideoEstimateRequest {
   /** Seedance 2.5: quote a 480p draft. It is priced the same as the same 480p job. */
   seedanceDraft?: boolean;
   /**
-   * Seedance 2.5: quote finalizing this draft (its Sogni job id) at 1080p. The
+   * Seedance 2.5: quote finalizing this draft (its Sogni job id) at 1080p by
+   * default, or the explicit `seedanceDraftFinalResolution`. The
    * server prices the final from the draft itself (its duration, aspect ratio and
    * any input video) for the account that owns it, so `width`, `height`,
    * `duration` and `fps` do not change the quote; pass the draft's values.
    */
   seedanceDraftJobId?: string;
+  /** Finalize quote resolution; requires `seedanceDraftJobId`. Omitted means 1080p. */
+  seedanceDraftFinalResolution?: '1080p' | '4k';
   /**
    * Network the job will render on. A Relaxed render never draws on the plan's
    * daily fair-use capacity, so its estimate carries no `dailyFairUsePct`.
