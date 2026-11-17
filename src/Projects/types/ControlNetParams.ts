@@ -137,7 +137,7 @@ export interface VideoControlNetParams {
   /**
    * ControlNet type specifying which control signal to extract from the reference video.
    * - 'canny': Edge detection-based control
-   * - 'pose': Body pose detection. Requires `referenceImage` as well as `referenceVideo`:
+   * - 'pose': Body pose detection. On LTX it requires `referenceImage` as well as `referenceVideo`:
    *   the image supplies the subject's appearance and the video supplies the motion.
    * - 'depth': Depth estimation
    * - 'detailer': Quality enhancement
@@ -147,7 +147,8 @@ export interface VideoControlNetParams {
    *
    * MiniMax H3 Control accepts canny, depth, pose, hed, mlsd and inpaint, and runs
    * depth when `controlNet` is omitted. Any of them can take a mask
-   * (`referenceMask` or `referenceMaskVideo`); inpaint requires one.
+   * (`referenceMask` or `referenceMaskVideo`); inpaint requires one. `referenceImage`
+   * is optional for every one of them, pose included.
    */
   name: VideoControlNetName;
   /**
