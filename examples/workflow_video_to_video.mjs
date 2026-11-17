@@ -10,7 +10,7 @@
  *
  * LTX 2.5/2.3 V2V ControlNet Models (with control type selection):
  * - canny: Edge detection-based control (video only)
- * - pose: Skeleton/pose-based control (optional image for appearance + video for motion)
+ * - pose: Skeleton/pose-based control (requires image for appearance + video for motion)
  * - depth: Depth map control (video only)
  * - detailer: Quality enhancement (video only)
  * - outpaint: Extend the canvas around the source video (positional, requires --outpaint-position)
@@ -27,12 +27,12 @@
  *
  *   # LTX 2.5/2.3 V2V ControlNet
  *   node workflow_video_to_video.mjs --video source.mp4 --model ltx25-v2v-distilled --control-type canny
- *   node workflow_video_to_video.mjs "A dancing figure" --video dance.mp4 --control-type pose
+ *   node workflow_video_to_video.mjs "A dancing figure" --image figure.jpg --video dance.mp4 --control-type pose
  *   node workflow_video_to_video.mjs --video clip.mp4 --control-type outpaint --outpaint-position right
  *   node workflow_video_to_video.mjs "glowing blue eyes" --video face.mp4 --control-type inpaint --mask mask.png
  *
  * Options:
- *   --image       Reference image path (required for WAN animate, optional for pose)
+ *   --image       Reference image path (required for WAN animate and pose)
  *   --video       Source video path (required)
  *   --model       Model to use (see available models below)
  *   --control-type Control type for LTX 2.5/2.3 V2V: canny, pose, depth, detailer, outpaint, inpaint
@@ -266,7 +266,7 @@ Available Models:
 
 Control Types (LTX 2.5/2.3 V2V):
     canny    - Edge detection (preserves outlines, video only)
-    pose     - Skeleton control (optional image for appearance + video for motion)
+    pose     - Skeleton control (requires --image for appearance + video for motion)
     depth    - Depth map control (preserves spatial relationships, video only)
     detailer - Quality enhancement (no preprocessing, video only)
     outpaint - Extend the canvas around the source video (positional, requires --outpaint-position)
@@ -274,7 +274,7 @@ Control Types (LTX 2.5/2.3 V2V):
 
 Options:
   --video         Source video path (required)
-  --image         Reference image path (required for WAN animate, optional for pose)
+  --image         Reference image path (required for WAN animate and pose)
   --model         Model key (see available models above)
   --control-type  Control type for LTX V2V: canny, pose, depth, detailer, outpaint, inpaint
   --mask          Mask IMAGE for inpaint (white pixels = region to regenerate)
@@ -495,31 +495,20 @@ async function main() {
 
   // Determine if this model requires a reference image
   // WAN animate models always require a reference image
-  // LTX 2.5/2.3 V2V control types (canny, depth, pose) - image is optional for pose
+  // LTX 2.5/2.3 V2V: canny, depth, detailer and outpaint are video only;
+  // pose requires a reference image (inpaint takes --mask instead)
   let requiresImage = modelConfig.requiresReferenceImage !== false;
-  let imageOptional = false;
 
-  // For LTX 2.5/2.3 V2V with pose control, reference image is optional
-  // If provided: appearance comes from reference image
-  // If not provided: generates from prompt with only pose control
+  // LTX 2.5/2.3 V2V pose control renders the subject in the reference image
+  // with the motion of the source video, so the image is required.
   if (modelConfig.supportsControlNet && OPTIONS.controlNetType === 'pose') {
-    requiresImage = false;
-    imageOptional = true;
-    log('📸', 'Pose control: reference image is optional (provides appearance if specified)');
+    requiresImage = true;
+    log('📸', 'Pose control: reference image required (the subject to animate)');
   }
 
-  // Interactive mode: get image path if required, or offer if optional
-  if (requiresImage) {
-    if (OPTIONS.interactive && !OPTIONS.image) {
-      OPTIONS.image = await pickImageFile(null, 'reference image (appearance)');
-    }
-  } else if (imageOptional && OPTIONS.interactive && !OPTIONS.image) {
-    const useImage = await askQuestion(
-      'Would you like to provide a reference image for appearance? [y/N]: '
-    );
-    if (useImage.toLowerCase() === 'y' || useImage.toLowerCase() === 'yes') {
-      OPTIONS.image = await pickImageFile(null, 'reference image (optional - for appearance)');
-    }
+  // Interactive mode: get image path if required
+  if (requiresImage && OPTIONS.interactive && !OPTIONS.image) {
+    OPTIONS.image = await pickImageFile(null, 'reference image (appearance)');
   }
 
   // Interactive mode: get video path if not provided
@@ -1199,7 +1188,7 @@ async function main() {
       billingMode: OPTIONS.billingMode
     };
 
-    // Add reference image if provided (handles both required and optional cases like pose control)
+    // Add the reference image when one was given (required for WAN animate and pose control)
     if (OPTIONS.image) {
       const referenceImageBuffer = readFileAsBuffer(OPTIONS.image);
       projectParams.referenceImage = referenceImageBuffer;

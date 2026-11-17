@@ -1808,7 +1808,7 @@ export const MODELS = {
       ...makeLtx25VideoConfig('v2v', 'dev'),
       controlNetTypes: ['canny', 'pose', 'depth', 'detailer']
     },
-    // LTX-2.3 V2V ControlNet Models (video-only, no reference image needed)
+    // LTX-2.3 V2V ControlNet Models (video only, except pose, which also needs a reference image)
     'ltx23-v2v-distilled': {
       id: 'ltx23-22b-fp8_v2v_distilled',
       name: 'LTX-2.3 V2V ControlNet (Fast)',
