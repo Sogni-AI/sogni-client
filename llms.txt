@@ -578,7 +578,7 @@ MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. B
 | `minimax-h3-ref2va-fp8_r2v_balanced_2stage` | Two-Stage reference-to-video, Balanced 8 steps (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | `minimax-h3-fastvideo-omni-int8_r2v_turbo` | FastH3 Reference reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | `minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage` | FastH3 Reference Two-Stage reference-to-video (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
-| `minimax-h3-prism-int8_r2v` | Prism reference-to-video: optional model for mature themes, 8 steps, 768p class only; Sensitive Content Filter off, subject to server authorization | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+| `minimax-h3-prism-int8_r2v` | Prism reference-to-video: optional model for mature themes, 768p class only; Sensitive Content Filter off, subject to server authorization | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | `minimax-h3-fl2va-fp8_t2v_balanced` | Balanced text-to-video | none |
 | `minimax-h3-fl2va-fp8_i2v_balanced` | Balanced endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | `minimax-h3-fl2va-fp8_flf2v_balanced` | Balanced first-and-last-frame video | both anchor images required |
@@ -587,7 +587,7 @@ MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. B
 
 Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 LoRA and defaults to 960x544.
 
-All 30 current workflow IDs are available through the Sogni projects API: four Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with generated audio, three audio-guide), six FastH3 Two-Stage modes, two Ref2VA Two-Stage modes (Standard and Balanced), FastH3 Reference (one-stage and Two-Stage), MiniMax H3 Control, and Prism (`minimax-h3-prism-int8_r2v`), an optional reference-to-video model for mature themes that needs `disableNSFWFilter: true`. Prism's recipe is fixed at 8 Euler steps (omit `steps` or send 8; the schedule is not a request option) and it has no two-stage ID.
+All 30 current workflow IDs are available through the Sogni projects API: four Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with generated audio, three audio-guide), six FastH3 Two-Stage modes, two Ref2VA Two-Stage modes (Standard and Balanced), FastH3 Reference (one-stage and Two-Stage), MiniMax H3 Control, and Prism (`minimax-h3-prism-int8_r2v`), an optional reference-to-video model for mature themes that needs `disableNSFWFilter: true`. Omit `steps` for Prism.
 
 MiniMax H3 Control (`minimax-h3-ref2va-fp8_v2v_controlnet`) makes a new video that follows the structure of a source video (its depth, pose, edges or straight lines), and can regenerate a masked part of it. It is opt-in (nothing routes to it unless you name it), needs a worker GPU with at least 32 GB of VRAM, and runs on both the `fast` and `relaxed` networks. It is for paid plans: an Unlimited subscription covers it, Premium Spark or SOGNI also pay for it, and free Spark credits can't run it. Sizes are 480-1344 px per side on a 32 px grid, up to 1,032,192 pixels (default 1344x768); length is 124-362 frames in steps of 17 (5.17-15.08 s); generated audio is on by default.
 

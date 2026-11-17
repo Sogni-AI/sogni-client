@@ -1119,8 +1119,7 @@ Tiers:
   FastH3 Reference: the FastH3 tier's R2V (minimax-h3-fasth3-r2v-turbo, FastVideo's
                 FastH3 Omni); minimax-h3-fasth3-r2v-turbo-2stage takes the same
                 request and delivers twice the canvas like Ref2VA Two-Stage
-  Prism: an optional R2V model for mature themes (minimax-h3-r2v-prism): fps 24,
-                steps 8, guidance 1, sampler Euler, schedule fixed by the model;
+  Prism: an optional R2V model for mature themes (minimax-h3-r2v-prism);
                 768p class only (no two-stage key); needs
                 --disable-safe-content-filter and your own --prompt-file
   Native 32kHz stereo audio is generated jointly and included by default;
