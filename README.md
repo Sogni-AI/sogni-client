@@ -1403,22 +1403,24 @@ uses `depth`.
   depth or pose clip. The worker uses it as it is, without extraction. You can
   also pass prepared maps as `referenceVideo` with `controlNet.preprocess: false`.
   Without a mask, `controlVideo` can be the only video.
-- `referenceMask` (an image) or `referenceMaskVideo` (a moving mask), not both:
-  white areas are regenerated and black areas are kept as context. A mask needs
-  the source `referenceVideo` and works with every control type; `inpaint`
-  requires one. The kept areas are regenerated to match the source, not copied
-  pixel for pixel.
+- `referenceMask` (an image) or `referenceMaskVideo` (a moving mask), not both.
+  Paint white over what you want to replace. With `preserveUnmasked: true`
+  (still masks only) everything outside the mask is kept exactly as it was in
+  the source; without it the whole clip is redrawn with the same layout and
+  motion, so faces and lettering outside the mask can change. A mask needs the
+  source `referenceVideo` and works with every control type; `inpaint` requires
+  one.
 - `referenceImage` is optional and guides how the subject looks. It does not set
   the first frame.
 - `videoStart` trims every input video from the same point. The worker resamples
   the inputs to the output frame rate and scales and center-crops them to the
   output size.
 
-`controlNet.strength` runs from 0 to 1 (default 1). With a still `referenceMask`,
-`controlNet.preserveUnmasked: true` keeps the source video's own pixels outside the mask, blended
-across a soft edge; without it the whole clip is redrawn following the source. `controlNet.guidanceStart`
-and `controlNet.guidanceEnd` set the part of sampling where the guide applies, as
-fractions from 0 to 1 (defaults 0 and 1). The model does not take `referenceImageEnd`,
+`controlNet.strength` runs from 0 to 1 (default 1). `controlNet.preserveUnmasked`
+is off unless you set it to `true`, and is refused with `referenceMaskVideo` or
+without a mask. `controlNet.guidanceStart` and `controlNet.guidanceEnd` set the
+part of sampling where the guide applies, as fractions from 0 to 1 (defaults 0
+and 1). The model does not take `referenceImageEnd`,
 extra references, uploaded audio, a voice reference or `keyframes`. Other models
 ignore `controlVideo`, `referenceMaskVideo`, `preprocess`, `guidanceStart` and
 `guidanceEnd`.

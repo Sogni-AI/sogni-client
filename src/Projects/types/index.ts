@@ -871,8 +871,10 @@ export interface VideoProjectParams extends BaseProjectParams {
   referenceMask?: InputMedia;
   /**
    * MiniMax H3 Control only; other models ignore it. A moving black-and-white mask
-   * video: white regenerates, black is kept as context. Use it or `referenceMask`,
-   * not both, together with the source `referenceVideo`.
+   * video: paint white over what you want to replace. Use it or `referenceMask`,
+   * not both, together with the source `referenceVideo`. The whole clip is redrawn
+   * with the same layout and motion, so faces and lettering outside the mask can
+   * change; `controlNet.preserveUnmasked` needs a still `referenceMask`.
    */
   referenceMaskVideo?: InputMedia;
   /**

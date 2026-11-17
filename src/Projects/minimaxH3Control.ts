@@ -61,6 +61,14 @@ export function validateMinimaxH3Control(params: VideoProjectParams): void {
   if (name === 'inpaint' && !masked) {
     throw new Error('MiniMax H3 inpaint requires referenceMask or referenceMaskVideo.');
   }
+  // Keeping the source outside the mask works only with a still mask image.
+  if (control?.preserveUnmasked === true && !params.referenceMask) {
+    throw new Error(
+      params.referenceMaskVideo
+        ? 'controlNet.preserveUnmasked needs a still referenceMask, not referenceMaskVideo.'
+        : 'controlNet.preserveUnmasked needs a still referenceMask.'
+    );
+  }
   for (const [key, value] of [
     ['guidanceStart', control?.guidanceStart],
     ['guidanceEnd', control?.guidanceEnd]

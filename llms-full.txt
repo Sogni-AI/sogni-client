@@ -1283,20 +1283,21 @@ credits can't run it. Sizes are 480-1344 px per side on a 32 px grid, up to
   depth or pose clip, used as it is without extraction. You can also pass
   prepared maps as `referenceVideo` with `controlNet.preprocess: false`. Without
   a mask, `controlVideo` can be the only video.
-- `referenceMask` (image) or `referenceMaskVideo` (moving mask), not both: white
-  is regenerated, black is kept as context. A mask needs the source
-  `referenceVideo` and works with every control type; inpaint requires one. Kept
-  areas are regenerated to match, not copied pixel for pixel.
+- `referenceMask` (image) or `referenceMaskVideo` (moving mask), not both. Paint
+  white over what you want to replace. With `preserveUnmasked: true` (still masks
+  only) everything outside the mask is kept exactly as it was in the source;
+  without it the whole clip is redrawn with the same layout and motion, so faces
+  and lettering outside the mask can change. A mask needs the source
+  `referenceVideo` and works with every control type; inpaint requires one.
 - `referenceImage` (optional) guides how the subject looks; it does not set the
   first frame.
 - `videoStart` trims every input video from the same point; the worker
   resamples inputs to the output frame rate and scales and center-crops them to
   the output size.
-- `controlNet.strength` is 0-1 (default 1). With a still `referenceMask`,
-  `controlNet.preserveUnmasked: true` keeps the source's own pixels outside the mask (soft edge);
-  without it the whole clip is redrawn following the source. `controlNet.guidanceStart` and
-  `controlNet.guidanceEnd` are the fractions of sampling where the guide applies,
-  0-1 (defaults 0 and 1).
+- `controlNet.strength` is 0-1 (default 1). `controlNet.preserveUnmasked` is off
+  unless set to `true`, and is refused with `referenceMaskVideo` or without a
+  mask. `controlNet.guidanceStart` and `controlNet.guidanceEnd` are the fractions
+  of sampling where the guide applies, 0-1 (defaults 0 and 1).
 - It does not take `referenceImageEnd`, extra references, uploaded audio, a
   voice reference or `keyframes`. Other models ignore `controlVideo`,
   `referenceMaskVideo`, `preprocess`, `guidanceStart` and `guidanceEnd`.
@@ -3008,7 +3009,7 @@ interface VideoControlNetParams {
   name: VideoControlNetName;
   strength?: number;  // MiniMax H3 Control: 0–1, default 1; LTX: 0–1, default 0.85
   preprocess?: boolean;  // MiniMax H3 Control only
-  preserveUnmasked?: boolean;  // MiniMax H3 Control only, with a still referenceMask
+  preserveUnmasked?: boolean;  // MiniMax H3 Control only, opt-in; needs a still referenceMask
   guidanceStart?: number;  // MiniMax H3 Control only: 0–1, default 0
   guidanceEnd?: number;    // MiniMax H3 Control only: 0–1, default 1, >= guidanceStart
 }

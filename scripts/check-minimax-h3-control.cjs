@@ -144,6 +144,15 @@ for (const changes of [
 ]) {
   assert.throws(() => frame(changes), undefined, JSON.stringify(Object.keys(changes)));
 }
+// Keeping the original outside the mask needs a still mask image, as the Socket requires.
+assert.throws(
+  () => frame({ referenceMaskVideo: video, controlNet: { name: 'inpaint', preserveUnmasked: true } }),
+  /preserveUnmasked needs a still referenceMask, not referenceMaskVideo/
+);
+assert.throws(
+  () => frame({ controlNet: { name: 'depth', preserveUnmasked: true } }),
+  /preserveUnmasked needs a still referenceMask\.$/
+);
 
 // LTX 2.5/2.3 v2v requests are byte-identical to SDK 5.81.0, with or without the
 // MiniMax H3 Control-only fields. At runtime LTX passes any controlNet name through,
