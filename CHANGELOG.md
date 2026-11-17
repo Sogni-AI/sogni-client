@@ -1,3 +1,10 @@
+# [5.85.0](https://github.com/Sogni-AI/sogni-client/compare/v5.84.2...v5.85.0) (2026-11-17)
+
+
+### Features
+
+* **video:** add optional Prism two-stage output ([80ba229](https://github.com/Sogni-AI/sogni-client/commit/80ba22955363fc8fe77a13dde17f6897b9f64ff6))
+
 ## [5.84.2](https://github.com/Sogni-AI/sogni-client/compare/v5.84.1...v5.84.2) (2026-11-15)
 
 

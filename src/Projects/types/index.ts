@@ -375,7 +375,8 @@ export interface MinimaxH3Keyframe {
  * - Prism (`minimax-h3-prism-int8_r2v`) is an optional `r2v` model for mature
  *   themes with its recipe fixed at 8 Euler steps. It takes the same
  *   references, keyframes, catalog LoRAs, frame grid and canvas as the other
- *   one-stage `r2v` IDs, at the 768p class only (no two-stage ID). It is
+ *   `r2v` IDs. Its optional `minimax-h3-prism-int8_r2v_2stage` ID delivers
+ *   twice the canvas, using the same size choices as the other two-stage IDs. It is
  *   subject to server authorization and needs `disableNSFWFilter: true`.
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
  *   requires at least one of them. The `flf2v` model requires both.

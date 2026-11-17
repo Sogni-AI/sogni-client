@@ -72,7 +72,8 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-ref2va-fp8_r2v_balanced_2stage',
   'minimax-h3-fastvideo-omni-int8_r2v_turbo',
   'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage',
-  'minimax-h3-prism-int8_r2v'
+  'minimax-h3-prism-int8_r2v',
+  'minimax-h3-prism-int8_r2v_2stage'
 ]);
 
 export function getEnhacementStrength(strength: EnhancementStrength): number {
@@ -99,7 +100,8 @@ export function isVideoModel(modelId: string): boolean {
     isHappyhorseModel(modelId) ||
     isWan3Model(modelId) ||
     isMinimaxH3Model(modelId) ||
-    isVideoUpscaleModel(modelId) || isVideoSegmentationModel(modelId)
+    isVideoUpscaleModel(modelId) ||
+    isVideoSegmentationModel(modelId)
   );
 }
 
@@ -454,7 +456,7 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  *   for mature themes (a community merge of two Ref2VA finetunes) with its
  *   recipe fixed at 8 Euler steps (see `isMinimaxH3PrismModel`). It takes the
  *   same references, keyframes, catalog LoRAs and limits as the other one-stage
- *   r2v ids at the 768p class only: it has no two-stage id. Server
+ *   r2v ids. Its `minimax-h3-prism-int8_r2v_2stage` id delivers twice the canvas. Server
  *   authorization applies, and the Sensitive Content Filter must be off
  *   (`disableNSFWFilter: true`).
  *
@@ -525,7 +527,7 @@ export function isMinimaxH3AudioGuideModel(modelId: string): boolean {
  * fixed at 8. It is not a Balanced id: it carries no Larry v4 adapter.
  */
 export function isMinimaxH3PrismModel(modelId: string): boolean {
-  return modelId === 'minimax-h3-prism-int8_r2v';
+  return modelId === 'minimax-h3-prism-int8_r2v' || modelId === 'minimax-h3-prism-int8_r2v_2stage';
 }
 
 /**
