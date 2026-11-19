@@ -1,3 +1,10 @@
+## [5.86.1](https://github.com/Sogni-AI/sogni-client/compare/v5.86.0...v5.86.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **video:** let seedance canvases below 480px through to the server ([c20227e](https://github.com/Sogni-AI/sogni-client/commit/c20227ef39ee65db287a5ca27d90e9cb0c49b414))
+
 # [5.86.0](https://github.com/Sogni-AI/sogni-client/compare/v5.85.0...v5.86.0) (2026-11-17)
 
 
