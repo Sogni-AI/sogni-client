@@ -2124,9 +2124,11 @@ function applyVideoParams(
     keyFrame.detailerStrength = params.detailerStrength;
   }
 
-  // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
+  // Validate and set video dimensions (minimum 480px for Wan 2.2 models).
+  // Seedance is exempt: the server reads only a ratio and a resolution band
+  // (by area) from its canvas, and Seedance's own 21:9 480p size is 992x432.
   if (params.width && params.height) {
-    if (isMinimaxH3Model(params.modelId)) {
+    if (isMinimaxH3Model(params.modelId) || isSeedanceModel(params.modelId)) {
       keyFrame.width = Number(params.width);
       keyFrame.height = Number(params.height);
     } else {

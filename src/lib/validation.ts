@@ -379,7 +379,8 @@ export function validateCustomImageSize(
 
 /**
  * Validate video dimensions for Wan 2.2 models.
- * Minimum dimension is 480px for both width and height.
+ * Minimum dimension is 480px for both width and height. Not applied to
+ * MiniMax H3 or Seedance, whose sizes the server resolves itself.
  */
 export function validateVideoSize(value: any, propertyName: 'width' | 'height'): number {
   return validateNumber(value, { min: 480, propertyName: `Video ${propertyName}` });
