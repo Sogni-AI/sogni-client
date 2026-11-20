@@ -471,6 +471,23 @@ export type ArtistCancelConfirmation = {
   didCancel: boolean;
   error_message?: string;
   jobID: string;
+  /**
+   * `'vendorCannotCancel'`: a third-party provider refused to stop work it had
+   * already started. Sent with `finishingImgIDs`.
+   */
+  code?: string;
+  /**
+   * Every other job was cancelled, but the jobs in `finishingImgIDs` keep
+   * running: the provider could not stop them, so they finish, deliver and are
+   * charged like any completed render. The server sends this only to clients
+   * that opt in with `socketEventSubscriptions: { partialCancel: true }`;
+   * without it, a provider refusal refuses the whole cancellation.
+   */
+  partial?: boolean;
+  /** Jobs (imgIDs) the provider refused to stop. */
+  finishingImgIDs?: string[];
+  /** Plain-language explanation of a partial cancellation, ready to show. */
+  message?: string;
 };
 
 export type JobTokensData = {

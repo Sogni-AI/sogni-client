@@ -1,4 +1,5 @@
 export { default as TwoFactorRequiredError } from './Account/TwoFactorRequiredError.js';
+export { default as ProjectCancellationRefusedError } from './Projects/ProjectCancellationRefusedError.js';
 // Account API
 import AccountApi from './Account/index.js';
 import CurrentAccount from './Account/CurrentAccount.js';
@@ -114,6 +115,7 @@ export type {
   PayAsYouGoSwitchResult
 } from './Projects/types/PayAsYouGo.js';
 export type { ProjectQueueChanged } from './Projects/types/events.js';
+export type { ProjectCancellation } from './Projects/index.js';
 import type {
   AvailableLorasParams,
   LoraCatalog,

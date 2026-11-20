@@ -6,6 +6,8 @@ const assert = require('node:assert/strict');
 
 const ProjectsApi = require('../dist/Projects/index.js').default;
 const Project = require('../dist/Projects/Project.js').default;
+const ProjectCancellationRefusedError =
+  require('../dist/Projects/ProjectCancellationRefusedError.js').default;
 
 class EventTargetStub {
   constructor() {
@@ -158,6 +160,90 @@ async function main() {
       'provider refusal must reject instead of reporting local cancellation'
     );
     assert.equal(socket.listenerCount('artistCancelConfirmation'), 0);
+  }
+
+  {
+    const { api, socket } = makeProjectsApi();
+    const cancellation = api.cancel('vendor-refused-project');
+    await Promise.resolve();
+    socket.emit('artistCancelConfirmation', {
+      didCancel: false,
+      error_message:
+        "Generation has already started and can't be stopped. Your results will finish and be charged like any completed render.",
+      jobID: 'vendor-refused-project',
+      code: 'vendorCannotCancel',
+      finishingImgIDs: ['IMG-RUNNING']
+    });
+
+    await assert.rejects(
+      cancellation,
+      (error) =>
+        error instanceof ProjectCancellationRefusedError &&
+        error instanceof Error &&
+        error.code === 'vendorCannotCancel' &&
+        error.finishingJobIds.join() === 'IMG-RUNNING' &&
+        /already started/.test(error.message),
+      'a provider refusal names its code and the jobs that keep running'
+    );
+  }
+
+  {
+    const { api, socket } = makeProjectsApi();
+    const logger = { error() {}, warn() {} };
+    const project = new Project(
+      { type: 'image', numberOfMedia: 3, steps: 4 },
+      { id: 'partial-project', api: {}, logger }
+    );
+    const job = (id) =>
+      project._addJob({
+        id,
+        projectId: 'partial-project',
+        status: 'processing',
+        step: 0,
+        stepCount: 4
+      });
+    const finishing = job('IMG-RUNNING');
+    const stopped = job('IMG-STOPPED');
+    api.projects.push(project);
+
+    const cancellation = api.cancel('partial-project');
+    await Promise.resolve();
+    socket.emit('artistCancelConfirmation', {
+      didCancel: true,
+      jobID: 'partial-project',
+      partial: true,
+      code: 'vendorCannotCancel',
+      finishingImgIDs: ['IMG-RUNNING'],
+      message: "One was already being made and can't be stopped."
+    });
+    assert.deepEqual(await cancellation, {
+      partial: true,
+      finishingJobIds: ['IMG-RUNNING'],
+      message: "One was already being made and can't be stopped."
+    });
+    assert.equal(stopped.status, 'canceled');
+    assert.equal(
+      finishing.status,
+      'processing',
+      'the job the provider could not stop keeps running'
+    );
+    assert.equal(project.finished, false);
+    assert.ok(api.projects.includes(project), 'a partially cancelled project stays tracked');
+
+    // The server's notice for a job it stopped is a cancellation, not a failure.
+    const late = job('IMG-LATE');
+    socket.emit('jobError', {
+      jobID: 'partial-project',
+      imgID: 'IMG-LATE',
+      error: 'artistCanceled',
+      error_message: 'Cancelled by artist request.',
+      isFromWorker: false
+    });
+    assert.equal(late.status, 'canceled');
+    assert.equal(project.finished, false);
+    // Finish the fixture so its staleness and runtime timers stop.
+    finishing._update({ status: 'completed' });
+    project._update({ status: 'completed' });
   }
 
   {

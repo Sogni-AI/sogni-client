@@ -86,6 +86,7 @@ import ErrorData, { MEDIA_ENCRYPTION_ERROR_CODES } from '../types/ErrorData.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 import Cache from '../lib/Cache.js';
 import Job, { enhancementDefaults, seedanceDraftResultFields } from './Job.js';
+import ProjectCancellationRefusedError from './ProjectCancellationRefusedError.js';
 import {
   calculateVideoFrames,
   getEnhacementStrength,
@@ -428,6 +429,16 @@ const MISSING_PROJECT_RETRY_MS = 2500;
  * - `unknown`: a transport error prevented a verdict, or a successful completion
  *   is waiting for its full result record; nothing was changed.
  */
+/** Outcome of {@link ProjectsApi.cancel}. */
+export interface ProjectCancellation {
+  /** True when some jobs keep running because their provider could not stop them. */
+  partial: boolean;
+  /** Jobs that finish, deliver and are charged like any completed render. */
+  finishingJobIds: string[];
+  /** The server's plain-language explanation of a partial cancellation, ready to show. */
+  message?: string;
+}
+
 export type ProjectResolution =
   | { state: 'finished'; project: RawProject }
   | {
@@ -631,7 +642,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private _currentNetworkType: SupernetType | null = null;
   private projects: Project[] = [];
   private _preparingSessions = new Map<string, () => void>();
-  private cancellationRequests = new Map<string, Promise<void>>();
+  private cancellationRequests = new Map<string, Promise<ProjectCancellation>>();
+  /** Projects partially cancelled by the server: id -> jobs still finishing. */
+  private partialCancellations = new Map<string, Set<string>>();
   private payAsYouGoSwitchRequests = new Map<string, PendingPremiumSparkSwitch>();
   private transportDisconnected = false;
   private _connectedAt = 0;
@@ -1411,6 +1424,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     if (project.finished) {
       this._unadmittedRequests.delete(project.id);
+      this.partialCancellations.delete(project.id);
       this._submittedAt.delete(project.id);
       this._resubmittedAt.delete(project.id);
       this._sentOnGeneration.delete(project.id);
@@ -1588,6 +1602,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         // Terminal jobs cannot be failed again by a delayed worker frame or
         // by the API notification of a cancellation already applied locally.
         if (job.finished) break;
+        // A job the server stopped in a cancellation is canceled, not failed,
+        // even when its notice arrives before the confirmation.
+        if (
+          event.error?.code === 5004 &&
+          (this.cancellationRequests.has(project.id) || this.partialCancellations.has(project.id))
+        ) {
+          job._update({ status: 'canceled' });
+          break;
+        }
         job._update({ status: 'failed', error: event.error });
         // Check if project should also fail when a job fails
         // For video jobs (single image) or when all jobs have failed, propagate to project
@@ -3208,20 +3231,23 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * Cancel a project by id after the server confirms that cancellation succeeded.
    *
    * Paid external providers may reject cancellation after work starts. In that case this method
-   * rejects and keeps the tracked project active so callers do not hide work that is still running.
+   * rejects with a {@link ProjectCancellationRefusedError} and keeps the tracked project active so
+   * callers do not hide work that is still running.
+   *
+   * A client that opts in with `socketEventSubscriptions: { partialCancel: true }` instead gets a
+   * partial cancellation: the server stops every job it can and only the jobs the provider refused
+   * to stop keep running. The result lists them in `finishingJobIds`; the project stays tracked,
+   * its other jobs become `canceled`, and it completes when the finishing jobs do.
    * @param projectId
    **/
-  async cancel(projectId: string) {
+  async cancel(projectId: string): Promise<ProjectCancellation> {
     const existing = this.cancellationRequests.get(projectId);
-    if (existing) {
-      await existing;
-      return;
-    }
+    if (existing) return existing;
 
     const cancellation = this.cancelOnce(projectId);
     this.cancellationRequests.set(projectId, cancellation);
     try {
-      await cancellation;
+      return await cancellation;
     } finally {
       if (this.cancellationRequests.get(projectId) === cancellation) {
         this.cancellationRequests.delete(projectId);
@@ -3229,27 +3255,29 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
   }
 
-  private async cancelOnce(projectId: string) {
+  private async cancelOnce(projectId: string): Promise<ProjectCancellation> {
     const project = this.projects.find((p) => p.id === projectId);
     if (project?.finished) {
-      return;
+      return { partial: false, finishingJobIds: [] };
     }
 
     let removeConfirmationListener = () => {};
     let confirmationTimeout: ReturnType<typeof setTimeout> | undefined;
-    const confirmation = new Promise<void>((resolve, reject) => {
+    const confirmation = new Promise<ArtistCancelConfirmation>((resolve, reject) => {
       removeConfirmationListener = this.client.socket.on(
         'artistCancelConfirmation',
         (data: ArtistCancelConfirmation) => {
           if (data.jobID !== projectId) return;
           if (data.didCancel) {
-            resolve();
+            resolve(data);
             return;
           }
           reject(
-            new Error(
+            new ProjectCancellationRefusedError(
               data.error_message ||
-                'Cancellation could not be confirmed. The job is still running; please try again.'
+                'Cancellation could not be confirmed. The job is still running; please try again.',
+              data.code,
+              Array.isArray(data.finishingImgIDs) ? data.finishingImgIDs : []
             )
           );
         }
@@ -3264,8 +3292,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       confirmationTimeout.unref?.();
     });
 
+    let confirmed: ArtistCancelConfirmation;
     try {
-      await Promise.all([
+      [, confirmed] = await Promise.all([
         this.client.socket.send('jobError', {
           jobID: projectId,
           error: 'artistCanceled',
@@ -3279,8 +3308,28 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       if (confirmationTimeout) clearTimeout(confirmationTimeout);
     }
 
+    const finishingJobIds =
+      confirmed.partial === true && Array.isArray(confirmed.finishingImgIDs)
+        ? confirmed.finishingImgIDs
+        : [];
+    if (finishingJobIds.length) {
+      // The project keeps running for the jobs the provider could not stop.
+      const finishing = new Set(finishingJobIds);
+      this.partialCancellations.set(projectId, finishing);
+      project?.jobs.forEach((job) => {
+        if (!job.finished && !finishing.has(job.id)) job._update({ status: 'canceled' });
+      });
+      return {
+        partial: true,
+        finishingJobIds,
+        ...(typeof confirmed.message === 'string' && confirmed.message
+          ? { message: confirmed.message }
+          : {})
+      };
+    }
+
     if (!project) {
-      return;
+      return { partial: false, finishingJobIds: [] };
     }
     // Remove project from the list to stop tracking it
     this.projects = this.projects.filter((p) => p.id !== projectId);
@@ -3294,6 +3343,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (!project.finished) {
       project._update({ status: 'canceled' });
     }
+    return { partial: false, finishingJobIds: [] };
   }
 
   /**
