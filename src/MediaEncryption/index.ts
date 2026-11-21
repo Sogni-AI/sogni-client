@@ -293,7 +293,7 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
    * @internal
    */
   async _createProjectEncryption(): Promise<ProjectMediaEncryption> {
-    const accountKey = (await this.requireAccountKeys())[0];
+    const accountKey = (await this.requireAccountKeys('create'))[0];
     const projectKey = randomBytes(MEDIA_KEY_BYTES);
     const recipient = await wrapProjectKey(accountKey, projectKey);
     // One entry per distinct input.
@@ -345,13 +345,13 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
   }
 
   /**
-   * For `mediaEncryption: 'auto'`: get the signed-in account's key once media
-   * encryption is available for it. Resolves `false`, and never throws, when
-   * there is no key to use.
+   * Fetch the signed-in account's key on demand. Opening existing media can
+   * fetch the key independently of availability for new projects.
    */
-  private ensureAccountKey(): Promise<boolean> {
+  private ensureAccountKey(purpose: 'create' | 'open' = 'create'): Promise<boolean> {
     if (this.holdsKey()) return Promise.resolve(true);
-    if (!this.automatic || !this.client.auth.isAuthenticated || !this.serverAvailable) {
+    if (!this.automatic || !this.client.auth.isAuthenticated) return Promise.resolve(false);
+    if (purpose === 'create' && !this.serverAvailable) {
       return Promise.resolve(false);
     }
     const session = this.client.auth.sessionVersion;
@@ -406,11 +406,11 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     options: { key?: Uint8Array }
   ): Promise<Uint8Array> {
     if (options.key) return options.key;
-    return unwrapProjectKey(await this.requireAccountKeys(), header.recipient);
+    return unwrapProjectKey(await this.requireAccountKeys('open'), header.recipient);
   }
 
-  private async requireAccountKeys(): Promise<AccountMediaKey[]> {
-    if (this.automatic) await this.ensureAccountKey();
+  private async requireAccountKeys(purpose: 'create' | 'open'): Promise<AccountMediaKey[]> {
+    if (this.automatic) await this.ensureAccountKey(purpose);
     if (!this.holdsKey()) {
       throw new MediaEncryptionError(
         'locked',

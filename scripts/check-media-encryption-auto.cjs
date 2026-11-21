@@ -8,8 +8,7 @@
  *   header or handshake parameter, no `mediaEncryption` on jobs, plaintext
  *   uploads.
  * - 'auto' changes nothing either until a connection reports
- *   `mediaEncryptionAvailable: true`: no key request, no header, no handshake
- *   parameter, no in-band message.
+ *   `mediaEncryptionAvailable: true` or it opens existing encrypted media.
  * - Once available it fetches the key, declares `ciphertext-v1` on REST and
  *   in-band on the open socket (and at the handshake of later connections),
  *   and encrypts eligible jobs; the recipient record opens with an
@@ -513,6 +512,44 @@ async function checkAutoWaitsForAvailability(defaultQuery) {
   }
 }
 
+async function checkFreshSessionOpensExistingMedia() {
+  const accountKey = randomBytes(32);
+  const projectKey = randomBytes(32);
+  const plaintext = pattern(503, 7);
+  const sealed = await lib.encryptMedia(plaintext, {
+    key: projectKey,
+    contentType: 'image/png',
+    recipient: await lib.wrapProjectKey(await lib.importAccountKey(accountKey), projectKey)
+  });
+  const session = await startSession({
+    mode: 'auto',
+    available: false,
+    mediaKey: () => keyResponse(accountKey)
+  });
+  try {
+    const { mediaEncryption } = session.sogni;
+    assert.equal(await mediaEncryption.isUnlocked(), false);
+    assert.equal(session.keyRequests().length, 0);
+
+    const [opened, alsoOpened] = await Promise.all([
+      mediaEncryption.decrypt(sealed),
+      mediaEncryption.decrypt(sealed)
+    ]);
+    assert.equal(opened.type, 'image/png');
+    assert.deepEqual(await bytesOf(opened), plaintext);
+    assert.deepEqual(await bytesOf(alsoOpened), plaintext);
+    assert.equal(session.keyRequests().length, 1, 'concurrent reads share one key request');
+    assert.equal(mediaEncryption.available, false);
+
+    const { request, project } = await session.create();
+    assert.equal('mediaEncryption' in request, false);
+    assert.equal(project.encrypted, false);
+    assert.deepEqual(await bytesOf(session.uploads()[0].body), pattern(3000));
+  } finally {
+    await session.close();
+  }
+}
+
 async function checkKeyUnavailable() {
   const accountKey = randomBytes(32);
   let serve = unavailable;
@@ -776,6 +813,7 @@ async function run() {
   await checkOtherValuesStayOff();
   await checkAutoEncrypts(defaultQuery);
   await checkAutoWaitsForAvailability(defaultQuery);
+  await checkFreshSessionOpensExistingMedia();
   await checkRelaxedConnection();
   await checkRestOnlyClient();
   await checkUnknownKeyFormat();
