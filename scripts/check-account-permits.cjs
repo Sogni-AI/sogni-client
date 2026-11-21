@@ -38,14 +38,20 @@ async function run(
         };
         data.domain.name = testnet ? 'Sogni-testnet' : 'Sogni AI';
         data.domain.chainId = String(
-          testnet ? (provider === 'base' ? 84532 : 11155111) : provider === 'base' ? 8453 : 42793
+          testnet
+            ? provider === 'etherlink'
+              ? 11155111
+              : 84532
+            : provider === 'etherlink'
+              ? 42793
+              : 8453
         );
         if (approve) {
           data.domain.verifyingContract = testnet
             ? wallet.address
-            : provider === 'base'
-              ? '0xE014d2A4da6E450f21b5050120D291e63c8940FD'
-              : '0x2767Fc1048cd0ae4fd952eeF09853301c9DC7173';
+            : provider === 'etherlink'
+              ? '0x2767Fc1048cd0ae4fd952eeF09853301c9DC7173'
+              : '0xE014d2A4da6E450f21b5050120D291e63c8940FD';
           data.types = {
             Permit: [
               { name: 'owner', type: 'address' },
@@ -87,7 +93,7 @@ async function run(
   if (rejected) {
     await assert.rejects(action, /Unexpected signing request; nothing was signed/);
     assert.equal(signed, 0);
-    assert.equal(calls.length, ['base', 'etherlink'].includes(provider) ? 1 : 0);
+    assert.equal(calls.length, 1);
   } else {
     await action();
     assert.equal(signed, 1);
@@ -157,10 +163,10 @@ async function run(
                 d.message.owner = '0x0000000000000000000000000000000000000001';
               },
               (d) => {
-                d.message.deadline = Math.floor(Date.now() / 1000) + 9 * 86400;
+                d.message.deadline = Math.floor(Date.now() / 1000) + 366 * 86400;
               },
               (d) => {
-                d.message.deadline = Math.floor(Date.now() / 1000);
+                d.message.deadline = (2n ** 256n - 1n).toString();
               },
               (d) => {
                 d.message.deadline = Date.now() / 1000 + 0.12345;
@@ -191,15 +197,23 @@ async function run(
             ];
         for (const mutate of mutations) await run(mutate, true, options);
         if (approve)
-          await run(
+          for (const mutate of [
             (d) => {
               d.message.deadline = String(d.message.deadline);
             },
-            false,
-            options
-          );
-        for (const unknown of ['other', '', '__proto__'])
-          await run(undefined, true, { ...options, provider: unknown });
+            // A client clock far behind or ahead of the API does not block a permit.
+            (d) => {
+              d.message.deadline = Math.floor(Date.now() / 1000) + 300 * 86400;
+            },
+            (d) => {
+              d.message.deadline = Math.floor(Date.now() / 1000) - 30 * 86400;
+            }
+          ])
+            await run(mutate, false, options);
+        // The API issues Base permits for every provider other than exactly 'etherlink'.
+        if (provider === 'base')
+          for (const other of ['Base', 'ETHERLINK', 'other', '', '__proto__'])
+            await run(undefined, false, { ...options, provider: other });
       }
   await run((d) => {
     d.domain.chainId = [8453];

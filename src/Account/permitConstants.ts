@@ -32,6 +32,10 @@ export const WITHDRAW_FIELDS = [
   { name: 'nonce', type: 'string' }
 ];
 
+// sogni-api issues approval permits that expire 7 days after they are requested. Accepting up
+// to 365 days ahead leaves room for a client clock that is far behind the API's clock.
+export const APPROVE_MAX_DEADLINE_SECONDS = 365 * 86400;
+
 export const APPROVE_FIELDS = [
   { name: 'owner', type: 'address' },
   { name: 'spender', type: 'address' },
