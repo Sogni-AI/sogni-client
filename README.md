@@ -101,6 +101,7 @@ once per application installation and persist it across process restarts or page
 ### Option 1: API Key Authentication (Recommended)
 
 API key authentication is the simplest way to connect. The client auto-authenticates via the WebSocket connection — no separate `login()` call is needed.
+API key authentication is intended for server-side use.
 
 > **Get your API key:** Log in to [dashboard.sogni.ai](https://dashboard.sogni.ai) and click your **Username** dropdown in the top-right corner to provision your key.
 

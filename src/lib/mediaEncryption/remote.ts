@@ -1,4 +1,5 @@
 import { aesGcmDecrypt, deriveFileKey } from './crypto.js';
+import { fetchWithCredentials } from '../fetchWithCredentials.js';
 import {
   MAX_HEADER_BYTES,
   MediaEncryptionError,
@@ -86,7 +87,7 @@ export async function openRemoteEncryptedMedia(
     try {
       const headers = new Headers(options.init?.headers);
       headers.set('Range', `bytes=${start}-${end - 1}`);
-      const response = await fetch(url, {
+      const response = await fetchWithCredentials(url, {
         ...options.init,
         method: 'GET',
         body: undefined,

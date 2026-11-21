@@ -1,6 +1,7 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import type { ApiResponse } from '../ApiClient/index.js';
 import { captureRequestSession, RequestSessionError } from '../lib/requestSession.js';
+import { fetchWithCredentials } from '../lib/fetchWithCredentials.js';
 import {
   openRemoteEncryptedMedia,
   type DecryptedMediaReader
@@ -247,7 +248,7 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     options: { init?: RequestInit; requireEncrypted?: boolean } = {}
   ): Promise<Blob> {
     const assertCurrent = this.captureMediaSession();
-    const response = await fetch(url, options.init);
+    const response = await fetchWithCredentials(url, options.init);
     if (!response.ok) {
       throw new Error(`Failed to download media: ${response.status} ${response.statusText}`);
     }

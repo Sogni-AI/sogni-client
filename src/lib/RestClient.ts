@@ -4,6 +4,7 @@ import { JSONValue } from '../types/json.js';
 import { Logger } from './DefaultLogger.js';
 import { AuthManager } from './AuthManager/index.js';
 import { captureRequestSession } from './requestSession.js';
+import { fetchWithCredentials } from './fetchWithCredentials.js';
 import { MEDIA_CAPABILITY, MEDIA_CAPABILITY_HEADER } from './mediaEncryption/capability.js';
 
 interface RestRequestInit extends RequestInit {
@@ -91,7 +92,7 @@ class RestClient<E extends EventMap = never> extends TypedEventEmitter<E> {
     }, timeoutMs);
 
     try {
-      const response = await fetch(url, { ...init, signal: controller.signal });
+      const response = await fetchWithCredentials(url, { ...init, signal: controller.signal });
       clearTimeout(timeoutId);
       assertSession();
       // Clear a rejected sign-in before parsing, including non-JSON 401 pages.
