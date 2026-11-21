@@ -949,7 +949,7 @@ export class SogniClient {
       version: '1',
       chainId: isTestnet ? '84532' : '8453'
     });
-    const sogniClient = new SogniClient({ client, eip712 });
+    const sogniClient = new SogniClient({ client, eip712, testnet: isTestnet });
 
     // Auto-authenticate with API key if provided
     if (config.apiKey) {

@@ -7,6 +7,7 @@ import type { WorkloadAttributionInput } from './types/attribution.js';
 export interface ApiConfig {
   client: ApiClient;
   eip712: EIP712Helper;
+  testnet?: boolean;
 }
 
 abstract class ApiGroup<E extends EventMap = {}> extends TypedEventEmitter<E> {

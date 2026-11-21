@@ -6,6 +6,12 @@ import type {
 } from '@simplewebauthn/browser';
 import TwoFactorRequiredError from './TwoFactorRequiredError.js';
 import {
+  PERMIT_NETWORKS,
+  WITHDRAW_DOMAINS,
+  WITHDRAW_FIELDS,
+  APPROVE_FIELDS
+} from './permitConstants.js';
+import {
   AccountCreateData,
   AccountCreateParams,
   Balances,
@@ -106,6 +112,7 @@ function factorProof(value: string | TwoFactorProof): TwoFactorProof {
 
 class AccountApi extends ApiGroup {
   readonly currentAccount = new CurrentAccount();
+  private readonly permitNetwork: 'mainnet' | 'testnet';
 
   /**
    * Highest entitlement `version` applied to `currentAccount.subscription`.
@@ -131,6 +138,7 @@ class AccountApi extends ApiGroup {
 
   constructor(config: ApiConfig) {
     super(config);
+    this.permitNetwork = config.testnet ? 'testnet' : 'mainnet';
     this.accountSessionVersion = this.client.auth.sessionVersion;
     this.currentAccount._update({
       networkStatus: this.client.socket.isConnected ? 'connected' : 'disconnected',
@@ -1032,6 +1040,7 @@ class AccountApi extends ApiGroup {
     amount: number | string,
     provider: string = 'base'
   ): Promise<void> {
+    const expected = this.permitProvider(provider);
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const walletAddress = wallet.address;
     //const nonce = await this.getNonce(walletAddress);
@@ -1051,12 +1060,67 @@ class AccountApi extends ApiGroup {
       '/v1/account/token/withdraw/permit',
       payload
     );
-    const { domain, types, message } = permitR.data;
+    const { domain, types, message } = permitR.data ?? {};
+    const expectedDomain = WITHDRAW_DOMAINS[this.permitNetwork];
+    this.checkPermit(
+      'domain',
+      !!domain &&
+        Object.keys(domain).length === 4 &&
+        domain.name === expectedDomain.name &&
+        domain.version === expectedDomain.version &&
+        (typeof domain.chainId === 'string' || typeof domain.chainId === 'number') &&
+        Number(domain.chainId) === expected.chainId &&
+        typeof domain.verifyingContract === 'string' &&
+        domain.verifyingContract.toLowerCase() === expectedDomain.verifyingContract.toLowerCase()
+    );
+    this.checkPermitTypes(types, 'WithdrawTokenV2', WITHDRAW_FIELDS);
+    this.checkPermit(
+      'message',
+      !!message &&
+        message.walletAddress === walletAddress &&
+        message.amount === payload.amount &&
+        message.provider === provider &&
+        typeof message.nonce === 'string'
+    );
     const signature = await wallet.signTypedData(domain, types, message);
     await this.client.rest.post('/v2/account/token/withdraw', {
       ...payload,
       signature
     });
+  }
+
+  private checkPermit(field: string, matches: boolean): asserts matches {
+    if (matches) return;
+    this.client.logger.debug('Unexpected signing request field:', field);
+    throw new ApiError(400, {
+      status: 'error',
+      message: 'Unexpected signing request; nothing was signed',
+      errorCode: 0
+    });
+  }
+
+  private permitProvider(provider: string) {
+    this.checkPermit('provider', provider === 'base' || provider === 'etherlink');
+    return PERMIT_NETWORKS[this.permitNetwork][provider];
+  }
+
+  private checkPermitTypes(types: any, name: string, fields: { name: string; type: string }[]) {
+    this.checkPermit(
+      'types',
+      !!types &&
+        Object.keys(types).length === 1 &&
+        Array.isArray(types[name]) &&
+        types[name].length === fields.length &&
+        fields.every((field, index) => {
+          const actual = types[name][index];
+          return (
+            !!actual &&
+            Object.keys(actual).length === 2 &&
+            actual.name === field.name &&
+            actual.type === field.type
+          );
+        })
+    );
   }
 
   /**
@@ -1132,6 +1196,7 @@ class AccountApi extends ApiGroup {
     spender: 'account' | 'staker',
     provider: string = 'base'
   ): Promise<void> {
+    const expected = this.permitProvider(provider);
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const permitR = await this.client.rest.post<{ data: Record<string, any> }>(
       '/v1/contract/token/approve/permit',
@@ -1141,7 +1206,29 @@ class AccountApi extends ApiGroup {
         provider: provider
       }
     );
-    const { domain, types, message } = permitR.data;
+    const { domain, types, message } = permitR.data ?? {};
+    this.checkPermit(
+      'domain',
+      !!domain &&
+        (typeof domain.chainId === 'string' || typeof domain.chainId === 'number') &&
+        Number(domain.chainId) === expected.chainId &&
+        (!expected.token ||
+          (typeof domain.verifyingContract === 'string' &&
+            domain.verifyingContract.toLowerCase() === expected.token.toLowerCase()))
+    );
+    this.checkPermitTypes(types, 'Permit', APPROVE_FIELDS);
+    const now = Math.floor(Date.now() / 1000);
+    const deadline = Number(message?.deadline);
+    this.checkPermit(
+      'message',
+      !!message &&
+        message.owner === wallet.address &&
+        (typeof message.deadline === 'string' || typeof message.deadline === 'number') &&
+        Number.isInteger(deadline) &&
+        deadline > now &&
+        deadline <= now + 8 * 86400
+    );
+    // TODO: Pin the spender when the provider's configured contract addresses are available.
     const signature = await wallet.signTypedData(domain, types, message);
     await this.client.rest.post('/v1/contract/token/approve', {
       walletAddress: wallet.address,
