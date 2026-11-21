@@ -51,6 +51,7 @@ jobs:
           node scripts/check-remote-media-hosts.cjs
           node scripts/check-rest-error-messages.cjs
           node scripts/check-rest-error-retry-after.cjs
+          node scripts/check-rest-redirects.cjs
           node scripts/check-account-login.cjs
           node scripts/check-account-permits.cjs
       - name: Check image upload bodies

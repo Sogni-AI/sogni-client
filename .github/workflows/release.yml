@@ -54,6 +54,8 @@ jobs:
         run: node scripts/check-rest-error-messages.cjs
       - name: Run REST error retry-after checks
         run: node scripts/check-rest-error-retry-after.cjs
+      - name: Run REST redirect checks
+        run: node scripts/check-rest-redirects.cjs
       - name: Run project cancellation checks
         run: npm run test:project-cancellation
       - name: Run account and project request session checks

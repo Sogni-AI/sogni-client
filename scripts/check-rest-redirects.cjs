@@ -29,7 +29,7 @@ const logger = { info() {}, warn() {}, error() {}, debug() {} };
       return;
     }
     let location = url.searchParams.get('target') || `${secondOrigin}/end`;
-    if (url.pathname === '/v1/account/refresh-token') location = '/hops?count=5';
+    if (url.pathname === '/v1/account/refresh-token') location = '/hops?count=20';
     if (url.pathname === '/hops') {
       const count = Number(url.searchParams.get('count'));
       location = count > 1 ? `/hops?count=${count - 1}` : '/end';
@@ -64,6 +64,7 @@ const logger = { info() {}, warn() {}, error() {}, debug() {} };
   };
   const rest = new RestClient(firstOrigin, auth, logger);
   const last = () => received.at(-1);
+  const CREDENTIALS = ['api-key', 'authorization', 'cookie'];
   const assertNoCredentials = () => {
     for (const request of received.filter((r) => r.origin === secondOrigin)) {
       for (const name of ['api-key', 'authorization', 'cookie'])
@@ -89,12 +90,32 @@ const logger = { info() {}, warn() {}, error() {}, debug() {} };
       assertNoCredentials();
       assert.equal(last().headers['x-keep'], 'yes');
     }
+    // Authenticated requests follow as many redirects as fetch does and fail the same way.
+    const fetchFailed = (cause) => (error) => {
+      assert.equal(error.name, 'TypeError');
+      assert.equal(error.message, 'fetch failed');
+      assert.match(String(error.cause?.message), cause);
+      return true;
+    };
     received.length = 0;
-    await rest.get('/hops?count=5');
-    assert.equal(received.length, 6);
+    await rest.get('/hops?count=20');
+    assert.equal(received.length, 21);
     received.length = 0;
-    await assert.rejects(() => rest.get('/hops?count=6'), /Too many redirects/);
-    assert.equal(received.length, 6);
+    await assert.rejects(() => rest.get('/hops?count=21'), fetchFailed(/redirect count exceeded/));
+    assert.equal(received.length, 21);
+    for (const [target, cause] of [
+      ['data:application/json,{}', /HTTP\(S\) scheme/],
+      ['ftp://127.0.0.1/end', /HTTP\(S\) scheme/],
+      [`${firstOrigin.replace('http://', 'http://user:pass@')}/end`, /cross origin/],
+      ['http://[::1', /Invalid URL/]
+    ]) {
+      received.length = 0;
+      await assert.rejects(
+        () => rest.get(`/redirect?target=${encodeURIComponent(target)}`),
+        fetchFailed(cause)
+      );
+      assert.equal(received.length, 1);
+    }
     // Returning through the original origin does not restore stripped headers.
     received.length = 0;
     const back = `${secondOrigin}/redirect?target=${encodeURIComponent(firstOrigin + '/redirect')}`;
@@ -138,7 +159,7 @@ const logger = { info() {}, warn() {}, error() {}, debug() {} };
     const tokens = new TokenAuthManager(firstOrigin, logger);
     tokens._refreshToken = 'local-placeholder';
     tokens._refreshTokenExpiresAt = new Date(Date.now() + 60000);
-    await assert.rejects(() => tokens._renewToken(), /Too many redirects/);
+    await assert.rejects(() => tokens._renewToken(), fetchFailed(/redirect count exceeded/));
     const { fetchWithCredentials } = require('../dist/lib/fetchWithCredentials.js');
     for (const headers of [new Headers(credentials), Object.entries(credentials)]) {
       received.length = 0;
@@ -158,7 +179,72 @@ const logger = { info() {}, warn() {}, error() {}, debug() {} };
       },
       logger
     );
-    await anonymous.get('/hops?count=6');
+    await anonymous.get('/hops?count=20');
+    // An explicit redirect mode is passed to fetch unchanged.
+    received.length = 0;
+    const manual = await fetchWithCredentials(firstOrigin + '/redirect', {
+      headers: credentials,
+      redirect: 'manual'
+    });
+    await manual.body?.cancel();
+    assert.equal(manual.status, 302);
+    assert.equal(received.length, 1);
+    received.length = 0;
+    await assert.rejects(
+      () =>
+        fetchWithCredentials(firstOrigin + '/redirect', {
+          headers: credentials,
+          redirect: 'error'
+        }),
+      fetchFailed(/unexpected redirect/)
+    );
+    assert.equal(received.length, 1);
+    // http to https on the same host keeps credentials, as fetch kept api-key before.
+    const realFetch = globalThis.fetch;
+    const hops = [];
+    const chains = {
+      'http://api.example.test/start': 'https://api.example.test/next',
+      'https://api.example.test/next': 'https://api.example.test/end',
+      'http://api.example.test:8080/start': 'https://api.example.test:8080/end',
+      'http://api.example.test/port': 'https://api.example.test:8443/end',
+      'http://api.example.test:8080/port': 'https://api.example.test/end',
+      'http://api.example.test/host': 'https://cdn.example.test/end',
+      'http://api.example.test/down': 'https://api.example.test/back',
+      'https://api.example.test/back': 'http://api.example.test/end'
+    };
+    globalThis.fetch = async (url, init) => {
+      const headers = new Headers(init?.headers);
+      hops.push({ url, keys: CREDENTIALS.map((name) => headers.get(name)) });
+      const to = chains[url];
+      if (to) return new Response(null, { status: 301, headers: { Location: to } });
+      return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
+    };
+    const kept = ['local-placeholder', 'local-placeholder', 'local=placeholder'];
+    const dropped = [null, null, null];
+    try {
+      for (const [start, expected] of [
+        ['http://api.example.test/start', [kept, kept, kept]],
+        ['http://api.example.test:8080/start', [kept, kept]],
+        ['http://api.example.test/port', [kept, dropped]],
+        ['http://api.example.test:8080/port', [kept, dropped]],
+        ['http://api.example.test/host', [kept, dropped]],
+        ['http://api.example.test/down', [kept, kept, dropped]]
+      ]) {
+        hops.length = 0;
+        await fetchWithCredentials(start, { headers: credentials });
+        assert.deepEqual(
+          hops.map((hop) => hop.keys),
+          expected,
+          start
+        );
+      }
+      hops.length = 0;
+      const upgraded = new RestClient('http://api.example.test', auth, logger);
+      assert.deepEqual(await upgraded.get('/start'), {});
+      assert.deepEqual(hops.at(-1).keys, kept);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
     for (const method of ['HEAD', 'PUT']) {
       received.length = 0;
       const response = await fetchWithCredentials(
