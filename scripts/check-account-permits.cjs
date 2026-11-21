@@ -146,6 +146,19 @@ async function run(
           },
           (d) => {
             d.types = null;
+          },
+          // Chain IDs are non-negative integers written as numbers or ASCII digits.
+          (d) => {
+            d.domain.chainId = ` ${d.domain.chainId}`;
+          },
+          (d) => {
+            d.domain.chainId = `${d.domain.chainId}.0`;
+          },
+          (d) => {
+            d.domain.chainId = '0x' + Number(d.domain.chainId).toString(16);
+          },
+          (d) => {
+            d.domain.chainId = -Number(d.domain.chainId);
           }
         ])
           await run(mutate, true, options);
@@ -163,7 +176,19 @@ async function run(
                 d.message.owner = '0x0000000000000000000000000000000000000001';
               },
               (d) => {
-                d.message.deadline = Math.floor(Date.now() / 1000) + 366 * 86400;
+                d.message.deadline = Math.floor(Date.now() / 1000) + 31 * 86400;
+              },
+              (d) => {
+                d.message.deadline = -1;
+              },
+              (d) => {
+                d.message.deadline = '-1';
+              },
+              (d) => {
+                d.message.deadline = ` ${d.message.deadline}`;
+              },
+              (d) => {
+                d.message.deadline = '0x10';
               },
               (d) => {
                 d.message.deadline = (2n ** 256n - 1n).toString();
@@ -203,7 +228,10 @@ async function run(
             },
             // A client clock far behind or ahead of the API does not block a permit.
             (d) => {
-              d.message.deadline = Math.floor(Date.now() / 1000) + 300 * 86400;
+              d.message.deadline = Math.floor(Date.now() / 1000) + 29 * 86400;
+            },
+            (d) => {
+              d.message.deadline = 0;
             },
             (d) => {
               d.message.deadline = Math.floor(Date.now() / 1000) - 30 * 86400;
