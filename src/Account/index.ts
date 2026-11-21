@@ -107,6 +107,12 @@ export interface TwoFactorStatus {
   authenticatorEnabled: boolean;
   passkeys: { id: string; name: string }[];
 }
+/** A non-negative integer given as a number or a string of ASCII digits, as permit fields use. */
+function permitInteger(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isInteger(value) && value >= 0 ? value : undefined;
+  return typeof value === 'string' && /^[0-9]+$/.test(value) ? Number(value) : undefined;
+}
+
 function factorProof(value: string | TwoFactorProof): TwoFactorProof {
   return typeof value === 'string' ? { code: value.trim().toUpperCase() } : value;
 }
@@ -1069,8 +1075,7 @@ class AccountApi extends ApiGroup {
         Object.keys(domain).length === 4 &&
         domain.name === expectedDomain.name &&
         domain.version === expectedDomain.version &&
-        (typeof domain.chainId === 'string' || typeof domain.chainId === 'number') &&
-        Number(domain.chainId) === expected.chainId &&
+        permitInteger(domain.chainId) === expected.chainId &&
         typeof domain.verifyingContract === 'string' &&
         domain.verifyingContract.toLowerCase() === expectedDomain.verifyingContract.toLowerCase()
     );
@@ -1211,20 +1216,18 @@ class AccountApi extends ApiGroup {
     this.checkPermit(
       'domain',
       !!domain &&
-        (typeof domain.chainId === 'string' || typeof domain.chainId === 'number') &&
-        Number(domain.chainId) === expected.chainId &&
+        permitInteger(domain.chainId) === expected.chainId &&
         (!expected.token ||
           (typeof domain.verifyingContract === 'string' &&
             domain.verifyingContract.toLowerCase() === expected.token.toLowerCase()))
     );
     this.checkPermitTypes(types, 'Permit', APPROVE_FIELDS);
-    const deadline = Number(message?.deadline);
+    const deadline = permitInteger(message?.deadline);
     this.checkPermit(
       'message',
       !!message &&
         message.owner === wallet.address &&
-        (typeof message.deadline === 'string' || typeof message.deadline === 'number') &&
-        Number.isInteger(deadline) &&
+        deadline !== undefined &&
         deadline <= Math.floor(Date.now() / 1000) + APPROVE_MAX_DEADLINE_SECONDS
     );
     // The spender is not pinned yet, so SDK releases are not tied to contract migrations.
