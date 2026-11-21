@@ -1,3 +1,14 @@
+## [5.86.2](https://github.com/Sogni-AI/sogni-client/compare/v5.86.1...v5.86.2) (2026-11-21)
+
+
+### Bug Fixes
+
+* **account:** check permit fields before signing ([b891160](https://github.com/Sogni-AI/sogni-client/commit/b8911606045e8abc88b21f48720f5812aa515bce))
+* **account:** read permit chain ids and approval deadlines as plain integers ([9681912](https://github.com/Sogni-AI/sogni-client/commit/9681912d0c8e33587209445efbf52f76618e9d60))
+* **account:** read permit providers and approval deadlines as the API issues them ([f1b641b](https://github.com/Sogni-AI/sogni-client/commit/f1b641b8321513a7fdbd95ed2edad9c5a191141c))
+* **rest:** follow authenticated Node redirects the way fetch does ([3c8b087](https://github.com/Sogni-AI/sogni-client/commit/3c8b0876f9b0dd10b2ebbe39306710ea44599c28))
+* **rest:** keep credentials on the original origin across redirects ([09fab32](https://github.com/Sogni-AI/sogni-client/commit/09fab32f5c3f485194b8727a98dfd4258c61f5a9))
+
 ## [5.86.1](https://github.com/Sogni-AI/sogni-client/compare/v5.86.0...v5.86.1) (2026-11-19)
 
 
