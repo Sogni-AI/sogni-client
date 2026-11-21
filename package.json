@@ -109,6 +109,7 @@
     "test:project-request-session": "npm run build && node scripts/check-project-request-session.cjs",
     "test:auth-session": "npm run build && node scripts/check-auth-session.cjs",
     "test:uuid": "npm run build && node scripts/check-uuid.cjs",
+    "test:account-permits": "npm run build && node scripts/check-account-permits.cjs",
     "test:account-login": "npm run build && node scripts/check-account-login.cjs",
     "test:project-timeouts": "npm run build && node scripts/check-project-timeouts.cjs",
     "test:project-recovery": "npm run build && node scripts/check-project-recovery.cjs",
