@@ -52,6 +52,7 @@ jobs:
           node scripts/check-rest-error-messages.cjs
           node scripts/check-rest-error-retry-after.cjs
           node scripts/check-account-login.cjs
+          node scripts/check-account-permits.cjs
       - name: Check image upload bodies
         run: node scripts/check-image-upload-body.cjs
       - name: Check Seedance 2.5 draft mode

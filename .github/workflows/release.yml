@@ -134,6 +134,8 @@ jobs:
         run: node scripts/check-media-encryption-auto.cjs && node scripts/check-browser-media-encryption.cjs
       - name: Run two-factor sign-in checks
         run: node scripts/check-two-factor.cjs
+      - name: Run account permit checks
+        run: node scripts/check-account-permits.cjs
       - name: Run changelog API checks
         run: node scripts/check-changelog-api.cjs
       - name: Release

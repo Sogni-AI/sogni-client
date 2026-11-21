@@ -9,7 +9,8 @@ import {
   PERMIT_NETWORKS,
   WITHDRAW_DOMAINS,
   WITHDRAW_FIELDS,
-  APPROVE_FIELDS
+  APPROVE_FIELDS,
+  APPROVE_MAX_DEADLINE_SECONDS
 } from './permitConstants.js';
 import {
   AccountCreateData,
@@ -1100,8 +1101,8 @@ class AccountApi extends ApiGroup {
   }
 
   private permitProvider(provider: string) {
-    this.checkPermit('provider', provider === 'base' || provider === 'etherlink');
-    return PERMIT_NETWORKS[this.permitNetwork][provider];
+    // The API issues Etherlink permits for exactly 'etherlink' and Base permits for any other value.
+    return PERMIT_NETWORKS[this.permitNetwork][provider === 'etherlink' ? 'etherlink' : 'base'];
   }
 
   private checkPermitTypes(types: any, name: string, fields: { name: string; type: string }[]) {
@@ -1217,7 +1218,6 @@ class AccountApi extends ApiGroup {
             domain.verifyingContract.toLowerCase() === expected.token.toLowerCase()))
     );
     this.checkPermitTypes(types, 'Permit', APPROVE_FIELDS);
-    const now = Math.floor(Date.now() / 1000);
     const deadline = Number(message?.deadline);
     this.checkPermit(
       'message',
@@ -1225,10 +1225,9 @@ class AccountApi extends ApiGroup {
         message.owner === wallet.address &&
         (typeof message.deadline === 'string' || typeof message.deadline === 'number') &&
         Number.isInteger(deadline) &&
-        deadline > now &&
-        deadline <= now + 8 * 86400
+        deadline <= Math.floor(Date.now() / 1000) + APPROVE_MAX_DEADLINE_SECONDS
     );
-    // TODO: Pin the spender when the provider's configured contract addresses are available.
+    // The spender is not pinned yet, so SDK releases are not tied to contract migrations.
     const signature = await wallet.signTypedData(domain, types, message);
     await this.client.rest.post('/v1/contract/token/approve', {
       walletAddress: wallet.address,
