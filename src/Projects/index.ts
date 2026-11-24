@@ -60,6 +60,7 @@ import {
 import createJobRequestMessage, {
   type JobRequestRaw,
   rejectRetiredOutputScale,
+  validateSeedanceFlashSize,
   validateSeedanceDraftFields
 } from './createJobRequestMessage.js';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
@@ -225,8 +226,10 @@ function jobProvenanceFromResult(data: Partial<JobResultData>): JobProvenance | 
   if (Number.isSafeInteger(data.maskHeight) && Number(data.maskHeight) > 0) {
     result.maskHeight = Number(data.maskHeight);
   }
-  if (Number.isSafeInteger(data.maskFrames) && Number(data.maskFrames) > 0) result.maskFrames = Number(data.maskFrames);
-  if (typeof data.maskFps === 'number' && Number.isFinite(data.maskFps) && data.maskFps > 0) result.maskFps = data.maskFps;
+  if (Number.isSafeInteger(data.maskFrames) && Number(data.maskFrames) > 0)
+    result.maskFrames = Number(data.maskFrames);
+  if (typeof data.maskFps === 'number' && Number.isFinite(data.maskFps) && data.maskFps > 0)
+    result.maskFps = data.maskFps;
   if (
     typeof data.samVersion === 'string' &&
     /^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,79}$/.test(data.samVersion)
@@ -3839,6 +3842,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   async estimateVideoCost(params: VideoEstimateRequest) {
     rejectRetiredOutputScale(params);
     validateSeedanceDraftFields(params);
+    validateSeedanceFlashSize(params.model, params.width, params.height);
     const frames = params.frames
       ? params.frames
       : calculateVideoFrames(params.model, params.duration, params.fps);
