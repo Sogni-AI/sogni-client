@@ -1,3 +1,10 @@
+# [5.87.0](https://github.com/Sogni-AI/sogni-client/compare/v5.86.2...v5.87.0) (2026-11-24)
+
+
+### Features
+
+* **video:** support Seedance 2.5 Flash generation ([02310b6](https://github.com/Sogni-AI/sogni-client/commit/02310b6da5303363d7b384be46d56d63aba12c35))
+
 ## [5.86.2](https://github.com/Sogni-AI/sogni-client/compare/v5.86.1...v5.86.2) (2026-11-21)
 
 
