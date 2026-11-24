@@ -35,6 +35,7 @@ const SEEDANCE_VIDEO_MODEL_IDS = new Set([
   'seedance-2-0-mini-uncensored',
   'seedance-2-0-fast',
   'seedance-2-5',
+  'seedance-2-5-flash',
   'seedance-2-5-uncensored'
 ]);
 const HAPPYHORSE_VIDEO_MODEL_IDS = new Set([
@@ -361,29 +362,20 @@ export function isLtx2Model(modelId: string): boolean {
  * - `seedance-2-0` / `-mini`: 4-15 second clips; the full model goes up to 4K
  *   while Mini caps at 720p. `seedance-2-0-mini-uncensored` (Seedance 2.0 Mini
  *   Uncensored) is Mini under its own id, with Mini's limits.
- * - `seedance-2-5` and `seedance-2-5-uncensored` (Seedance 2.5 Uncensored): 4-30
- *   second clips at 480p/720p/1080p (no 4K).
+ * - Seedance 2.5 and 2.5 Uncensored support 4–30 seconds up to 4K.
+ * - Seedance 2.5 Flash supports 4–30 seconds at 480p and 720p.
  */
 export function isSeedanceModel(modelId: string): boolean {
   return SEEDANCE_VIDEO_MODEL_IDS.has(modelId);
 }
 
-/**
- * Check if a model ID is a Seedance 2.5 video model.
- *
- * Seedance 2.5 is the only Seedance generation that renders up to 30 seconds in
- * a single call, supports first-and-last-frame conditioning, and accepts the
- * larger 30 image / 10 video / 10 audio reference budget. It renders
- * 480p/720p/1080p but not 4K.
- *
- * Seedance 2.5 Uncensored (`seedance-2-5-uncensored`) is the same model with every
- * Seedance 2.5 capability and limit, so it answers `true` here. It is a
- * distinct model id: never rewrite it to `seedance-2-5`. Each account must
- * accept its one-time likeness and consent agreement in a Sogni app first;
- * until then jobs fail with error code 4103 (`MODEL_CONSENT_REQUIRED_ERROR_CODE`).
- */
+/** Seedance 2.5 models share the 30-second ceiling, task types and output formats. */
 export function isSeedance25Model(modelId: string): boolean {
-  return modelId === 'seedance-2-5' || modelId === 'seedance-2-5-uncensored';
+  return (
+    modelId === 'seedance-2-5' ||
+    modelId === 'seedance-2-5-uncensored' ||
+    modelId === 'seedance-2-5-flash'
+  );
 }
 
 /**

@@ -187,6 +187,7 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
     return;
   }
   if (isSeedanceModel(params.modelId)) {
+    validateSeedanceFlashSize(params.modelId, params.width, params.height);
     validateSeedanceTaskType(params);
     validateSeedanceReferenceAssets(params);
     return;
@@ -297,7 +298,8 @@ export function validateSeedanceDraftFields(params: {
     }
   }
   if (seedanceDraft !== true && seedanceDraftJobId === undefined) return;
-  if (!isSeedance25Model(String(params.modelId ?? params.model ?? ''))) {
+  const draftModel = String(params.modelId ?? params.model ?? '');
+  if (!isSeedance25Model(draftModel) || draftModel === 'seedance-2-5-flash') {
     seedanceDraftError('Seedance draft mode is supported only by Seedance 2.5.');
   }
   if (seedanceDraft === true && seedanceDraftJobId !== undefined) {
@@ -338,6 +340,18 @@ function validateSeedanceDraftFinalize(params: VideoProjectParams): void {
   }
   if ((params.numberOfMedia ?? 1) !== 1) {
     seedanceDraftError('A Seedance 2.5 finalize renders its draft once; numberOfMedia must be 1.');
+  }
+}
+
+export function validateSeedanceFlashSize(modelId: string, width?: number, height?: number): void {
+  // Seedance uses pixel-area bands across aspect ratios, including square and 21:9.
+  if (
+    modelId === 'seedance-2-5-flash' &&
+    width &&
+    height &&
+    width * height >= (1280 * 720 + 1920 * 1080) / 2
+  ) {
+    throw new Error('Seedance 2.5 Flash supports 480p and 720p.');
   }
 }
 
@@ -840,6 +854,7 @@ const SEEDANCE_REFERENCE_LIMITS_BY_MODEL: Record<
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance-2-0-fast': { images: 9, videos: 3, audios: 3, assets: 12 },
   'seedance-2-5': { images: 30, videos: 10, audios: 10, assets: 50 },
+  'seedance-2-5-flash': { images: 10, videos: 5, audios: 5, assets: 20 },
   // Seedance 2.5 Uncensored: the same model and limits as Seedance 2.5.
   'seedance-2-5-uncensored': { images: 30, videos: 10, audios: 10, assets: 50 }
 };
@@ -1731,11 +1746,15 @@ function validateVideoUpscaleTiming(params: VideoProjectParams): void {
 const SAM3_VIDEO_OPT_IN_KEYS = ['mask', 'objects', 'combine', 'frames', 'memory'] as const;
 
 /** Video selection adopts the verified source; values a caller sends must look like source metadata. */
-function withSam3VideoSourceMetadata<T extends Record<string, any>>(keyFrame: T, params: VideoProjectParams): T {
+function withSam3VideoSourceMetadata<T extends Record<string, any>>(
+  keyFrame: T,
+  params: VideoProjectParams
+): T {
   for (const name of ['width', 'height', 'frames', 'fps'] as const) {
     const value = params[name];
     if (value !== undefined) {
-      if (!Number.isFinite(value) || value <= 0 || (name !== 'fps' && !Number.isSafeInteger(value))) throw new Error(`Video selection ${name} must match the source video.`);
+      if (!Number.isFinite(value) || value <= 0 || (name !== 'fps' && !Number.isSafeInteger(value)))
+        throw new Error(`Video selection ${name} must match the source video.`);
       Object.assign(keyFrame, { [name]: value });
     }
   }
