@@ -117,9 +117,11 @@ async function main() {
   const walletAddress = account.getWallet(USERNAME, PASSWORD).address;
   const success = () => jsonResponse(200, LOGGED_IN);
 
-  // Existing call shapes send the same bytes as before the option existed.
+  // Existing call shapes send the same bytes as before the option existed. The username rides
+  // along since the Google/Apple sign-in work: the API (LoginDto, optional) uses it only to
+  // answer 189 when a password login names a Google/Apple-only account.
   const legacyBody =
-    `{"walletAddress":"${walletAddress}","signature":"${SIGNATURE}",` +
+    `{"walletAddress":"${walletAddress}","signature":"${SIGNATURE}","username":"${USERNAME}",` +
     '"appSource":"sdk-test","rememberMe":false}';
   let result = await runLogin(success, () => account.login(USERNAME, PASSWORD));
   assert.equal(result.error, undefined);
@@ -129,7 +131,7 @@ async function main() {
   result = await runLogin(success, () => account.login(USERNAME, PASSWORD, true, 'web-app'));
   assert.equal(
     result.body,
-    `{"walletAddress":"${walletAddress}","signature":"${SIGNATURE}",` +
+    `{"walletAddress":"${walletAddress}","signature":"${SIGNATURE}","username":"${USERNAME}",` +
       '"appSource":"web-app","rememberMe":true}',
     'four-argument login() body is unchanged'
   );
@@ -138,7 +140,7 @@ async function main() {
   result = await runLogin(success, () => noAppSource.login(USERNAME, PASSWORD));
   assert.equal(
     result.body,
-    `{"walletAddress":"${walletAddress}","signature":"${SIGNATURE}","rememberMe":false}`,
+    `{"walletAddress":"${walletAddress}","signature":"${SIGNATURE}","username":"${USERNAME}","rememberMe":false}`,
     'login() without an appSource still omits it'
   );
 
@@ -157,7 +159,7 @@ async function main() {
   assert.deepEqual(result.value, LOGGED_IN.data, 'a restoring login signs in as usual');
   assert.equal(
     result.body,
-    `{"walletAddress":"${walletAddress}","signature":"${SIGNATURE}",` +
+    `{"walletAddress":"${walletAddress}","signature":"${SIGNATURE}","username":"${USERNAME}",` +
       '"appSource":"sdk-test","rememberMe":false,"restoreDeletedAccount":true}',
     'restoreDeletedAccount: true is sent after the existing fields'
   );
