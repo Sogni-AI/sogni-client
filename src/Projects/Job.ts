@@ -4,10 +4,11 @@ import { RawJob, RawProject } from './types/RawProject.js';
 import ProjectsApi from './index.js';
 import { Logger } from '../lib/DefaultLogger.js';
 import getUUID from '../lib/getUUID.js';
-import { EnhancementStrength } from './types/index.js';
+import { EnhancementStrength, ImageLayer } from './types/index.js';
 import Project from './Project.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 import { getEnhacementStrength, isSegmentationModel } from './utils/index.js';
+import { imageLayersFromResult } from './utils/imageLayers.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
 import type { JobProvenance } from './types/JobProvenance.js';
@@ -117,6 +118,46 @@ function directResultUrlFromRawJob(rawJob: RawJob): string | null {
   );
 }
 
+type SeedanceDraftResultFields = Pick<
+  JobData,
+  'seedanceDraft' | 'seedanceDraftExpiresAt' | 'seedanceDraftJobId' | 'seedanceDraftFinalResolution'
+>;
+
+function pickSeedanceDraftFields(source: unknown): SeedanceDraftResultFields {
+  if (!source || typeof source !== 'object') return {};
+  const {
+    seedanceDraft,
+    seedanceDraftExpiresAt,
+    seedanceDraftJobId,
+    seedanceDraftFinalResolution
+  } = source as Record<string, unknown>;
+  return {
+    ...(seedanceDraft === true ? { seedanceDraft } : {}),
+    ...(typeof seedanceDraftExpiresAt === 'string' && seedanceDraftExpiresAt
+      ? { seedanceDraftExpiresAt }
+      : {}),
+    ...(typeof seedanceDraftJobId === 'string' && seedanceDraftJobId ? { seedanceDraftJobId } : {}),
+    ...(seedanceDraftFinalResolution === '1080p' || seedanceDraftFinalResolution === '4k'
+      ? { seedanceDraftFinalResolution }
+      : {})
+  };
+}
+
+/**
+ * Seedance 2.5 draft result fields from a socket result or a REST job record,
+ * read from the record itself or its allowlisted `result` receipt (the record
+ * wins). Only well-formed fields are returned, so a record without them never
+ * clears values a job already holds.
+ * @internal
+ */
+export function seedanceDraftResultFields(record: unknown): SeedanceDraftResultFields {
+  if (!record || typeof record !== 'object') return {};
+  return {
+    ...pickSeedanceDraftFields((record as { result?: unknown }).result),
+    ...pickSeedanceDraftFields(record)
+  };
+}
+
 function etaProgressPercent(
   startedAt: Date | undefined,
   eta: Date | undefined
@@ -156,7 +197,20 @@ export interface JobData {
   lastFrameUrl?: string;
   lastFrameKey?: string;
   outputFormat?: string;
+  /** Seedance 2.5: this job is a draft that can be finalized at 1080p. */
+  seedanceDraft?: boolean;
+  /** Seedance 2.5 draft: ISO 8601 time after which it can no longer be finalized. */
+  seedanceDraftExpiresAt?: string;
+  /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
+  seedanceDraftJobId?: string;
+  /** Explicit finalization resolution, present only when the server reports it. */
+  seedanceDraftFinalResolution?: '1080p' | '4k';
   provenance?: JobProvenance;
+  /**
+   * Seedream layer decomposition: the layers above the base image, ordered by
+   * `zIndex`. `resultUrl` is the base image.
+   */
+  layers?: ImageLayer[];
   error?: ErrorData;
   positivePrompt?: string;
   negativePrompt?: string;
@@ -220,6 +274,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
         lastFrameUrl: rawJob.lastFrameUrl ?? (rawJob.result?.lastFrameUrl as string | undefined),
         lastFrameKey: rawJob.lastFrameKey ?? (rawJob.result?.lastFrameKey as string | undefined),
         outputFormat: rawJob.outputFormat ?? (rawJob.result?.outputFormat as string | undefined),
+        ...seedanceDraftResultFields(rawJob),
         provenance: rawJob.result
       },
       options
@@ -317,6 +372,29 @@ class Job extends DataEntity<JobData, JobEventMap> {
     return this.data.lastFrameUrl;
   }
 
+  /**
+   * Seedance 2.5: `true` on a completed draft, which can be finalized at 1080p by
+   * passing this job's `id` as `seedanceDraftJobId`. Reported to the owner only.
+   */
+  get seedanceDraft() {
+    return this.data.seedanceDraft;
+  }
+
+  /** Seedance 2.5 draft: ISO 8601 time after which it can no longer be finalized. */
+  get seedanceDraftExpiresAt() {
+    return this.data.seedanceDraftExpiresAt;
+  }
+
+  /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
+  get seedanceDraftJobId() {
+    return this.data.seedanceDraftJobId;
+  }
+
+  /** Explicit finalization resolution reported by the server, when available. */
+  get seedanceDraftFinalResolution() {
+    return this.data.seedanceDraftFinalResolution;
+  }
+
   /** Refresh the signed URL for an exported final frame. */
   async getLastFrameUrl(): Promise<string> {
     const url = await this._api.mediaDownloadUrl({
@@ -335,6 +413,15 @@ class Job extends DataEntity<JobData, JobEventMap> {
    */
   get resultUrl() {
     return this.data.resultUrl;
+  }
+
+  /**
+   * Seedream layer decomposition: the RGBA PNG layers above the base image,
+   * ordered by `zIndex`, each with its box on the base image. `resultUrl` is
+   * the base image. Undefined for every other job.
+   */
+  get layers() {
+    return this.data.layers;
   }
 
   /** Worker-attested input/output hashes for this result, when available. */
@@ -443,6 +530,21 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
+   * Mint a fresh, ownership-checked PNG URL for an extracted layer, by its
+   * `zIndex` (1-99) in `job.layers`.
+   */
+  async getLayerUrl(zIndex: number): Promise<string> {
+    if (this.data.status !== 'completed' || !this.layers?.some((layer) => layer.zIndex === zIndex))
+      throw new Error('Layer is not available');
+    return this._api.downloadUrl({
+      jobId: this.projectId,
+      imageId: this.id,
+      type: 'complete',
+      layerIndex: zIndex
+    });
+  }
+
+  /**
    * Get the result URL of the job. This method will make a request to the API to get signed URL.
    * IMPORTANT: URL expires after 30 minutes, so make sure to download the result as soon as possible.
    * For video jobs, this returns a video URL. For image jobs, this returns an image URL.
@@ -542,6 +644,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
    */
   async _syncWithRestData(data: RawJob) {
     const directResultUrl = directResultUrlFromRawJob(data);
+    const layers = imageLayersFromResult(data.result?.layers);
     const delta: Partial<JobData> = {
       step: data.performedSteps,
       workerName: data.worker?.name,
@@ -552,7 +655,9 @@ class Job extends DataEntity<JobData, JobEventMap> {
       ...(data.result ? { provenance: data.result } : {}),
       lastFrameUrl: data.lastFrameUrl ?? (data.result?.lastFrameUrl as string | undefined),
       lastFrameKey: data.lastFrameKey ?? (data.result?.lastFrameKey as string | undefined),
-      outputFormat: data.outputFormat ?? (data.result?.outputFormat as string | undefined)
+      outputFormat: data.outputFormat ?? (data.result?.outputFormat as string | undefined),
+      ...seedanceDraftResultFields(data),
+      ...(layers ? { layers } : {})
     };
     if (JOB_STATUS_MAP[data.status]) {
       delta.status = JOB_STATUS_MAP[data.status];
@@ -681,6 +786,19 @@ class Job extends DataEntity<JobData, JobEventMap> {
     this.emit('updated', ['enhancedImage']);
   }
 
+  /**
+   * Whether this job's project was submitted with encrypted media. Read its
+   * results with {@link Job.getResultData} or
+   * {@link MediaEncryptionApi.fetchDecrypted}, which return the media either way.
+   */
+  get encrypted(): boolean {
+    return this._project.encrypted;
+  }
+
+  /**
+   * Download the result. Encrypted results are returned decrypted, typed with
+   * their real MIME type.
+   */
   async getResultData() {
     if (!this.hasResultMedia) {
       throw new Error('No result media available');
@@ -690,7 +808,14 @@ class Job extends DataEntity<JobData, JobEventMap> {
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.statusText}`);
     }
-    return response.blob();
+    const blob = await response.blob();
+    if (!this.encrypted) return blob;
+    const mediaEncryption = this._api._mediaEncryption;
+    if (!mediaEncryption) {
+      throw new Error('Media encryption is not available on this client instance');
+    }
+    // Judge by the bytes: only encrypted content is decrypted.
+    return mediaEncryption._openIfEncrypted(blob);
   }
 
   /**
@@ -761,7 +886,8 @@ class Job extends DataEntity<JobData, JobEventMap> {
       seed: this.seed ?? this._project.params.seed,
       startingImage: imageData,
       startingImageStrength: 1 - getEnhacementStrength(strength),
-      ...(size ? { sizePreset: 'custom', width: size.width, height: size.height } : {})
+      ...(size ? { sizePreset: 'custom', width: size.width, height: size.height } : {}),
+      ...(parentProjectParams.mediaEncryption ? { mediaEncryption: true } : {})
     });
     this._enhancementProject = project;
     this._enhancementProject.on('updated', this.handleEnhancementUpdate);

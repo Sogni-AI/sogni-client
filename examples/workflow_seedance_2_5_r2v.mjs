@@ -29,7 +29,7 @@ const MODEL_CONFIG = {
   'seedance-2-5': {
     hostedSelector: 'seedance2-5',
     maxDuration: 30,
-    resolutions: ['480p', '720p', '1080p'],
+    resolutions: ['480p', '720p', '1080p', '4k'],
     defaultResolution: '1080p',
     limits: { images: 30, videos: 10, audios: 10, total: 50 },
     supportsTaskType: true,
@@ -39,7 +39,7 @@ const MODEL_CONFIG = {
   'seedance-2-5-uncensored': {
     hostedSelector: 'seedance2-5-uncensored',
     maxDuration: 30,
-    resolutions: ['480p', '720p', '1080p'],
+    resolutions: ['480p', '720p', '1080p', '4k'],
     defaultResolution: '1080p',
     limits: { images: 30, videos: 10, audios: 10, total: 50 },
     supportsTaskType: true,
@@ -322,7 +322,7 @@ export function buildCreativeAgentRequest(options, urls) {
       ...common,
       expandPrompt: true,
       duration: options.duration,
-      targetResolution: Number.parseInt(options.resolution, 10),
+      targetResolution: resolutionDimensions(options.resolution).height,
       numberOfVariations: options.numberOfMedia,
       ...(urls.images.length ? { referenceImageIndices: negativeIndices(urls.images.length) } : {}),
       ...(urls.videos.length ? { referenceVideoIndices: negativeIndices(urls.videos.length) } : {}),
@@ -335,7 +335,7 @@ export function buildCreativeAgentRequest(options, urls) {
       expandPrompt: true,
       videoSourceIndex: -1,
       controlMode: 'seedance-v2v',
-      targetResolution: Number.parseInt(options.resolution, 10),
+      targetResolution: resolutionDimensions(options.resolution).height,
       ...(urls.images.length ? { sourceImageIndex: -1 } : {})
     };
   } else {
@@ -464,8 +464,8 @@ Options:
   --duration <seconds>     4-30 for 2.5; 4-15 for the 2.0 family (default: 5)
                            Required for direct edit and must equal @Video1's source duration.
                            For extend, this is the new continuation duration.
-  --resolution <tier>     480p, 720p, or 1080p for 2.5 (default: 1080p)
-                          Seedance 2.0 also supports 4k.
+  --resolution <tier>     480p, 720p, 1080p, or 4k for 2.5 (default: 1080p)
+                          Seedance 2.0 also supports 4k; Mini stays at 720p.
   --image <path|https>     Loose image reference; repeatable as @Image1, @Image2, ...
   --video <path|https>     Video reference; repeatable as @Video1, @Video2, ...
   --audio <path|https>     Loose audio reference; repeatable as @Audio1, @Audio2, ...

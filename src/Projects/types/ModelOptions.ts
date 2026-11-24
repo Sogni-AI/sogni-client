@@ -36,7 +36,7 @@ export interface ImageModelOptions {
 
 export interface VideoModelOptions {
   type: 'video';
-  task?: 'video-upscale';
+  task?: 'video-upscale' | 'video-segmentation';
   outputResolutions?: number[];
   preservesSourceTiming?: boolean;
   requiresReferenceVideo?: boolean;

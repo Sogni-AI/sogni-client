@@ -60,7 +60,7 @@ assert.equal(sdk.SogniTools.upscaleImage.function.name, 'upscale_image');
 assert.equal(sdk.SogniTools.upscaleVideo.function.name, 'upscale_video');
 assert.deepEqual(
   sdk.SogniTools.upscaleVideo.function.parameters.properties.targetResolution.enum,
-  [1080, 1440]
+  [1080, 1440, 2160]
 );
 assert.equal(sdk.SogniTools.all.length, 30);
 

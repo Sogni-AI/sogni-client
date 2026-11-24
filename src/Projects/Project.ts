@@ -14,6 +14,11 @@ import {
   type WaitingReason,
   type JobWaitingReason
 } from './types/WaitingReason.js';
+import {
+  normalizePayAsYouGoOffer,
+  type PayAsYouGoOffer,
+  type PayAsYouGoSwitchResult
+} from './types/PayAsYouGo.js';
 
 // If project is not finished and had no updates for 2 minutes, force refresh
 const PROJECT_TIMEOUT = 2 * 60 * 1000;
@@ -55,6 +60,8 @@ const PROJECT_STATUS_MAP: Record<RawProject['status'], ProjectStatus> = {
 export interface ProjectData {
   waitingReason?: WaitingReason | null;
   jobWaitingReasons?: JobWaitingReason[];
+  /** See {@link Project.payAsYouGo}. */
+  payAsYouGo?: PayAsYouGoOffer | null;
   id: string;
   startedAt: Date;
   params: ProjectParams;
@@ -119,6 +126,7 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
   private readonly _recovered: boolean;
   private _timeout: NodeJS.Timeout | null = null;
   private _failedSyncAttempts = 0;
+  private _mediaEncrypted = false;
 
   constructor(data: ProjectParams, options: ProjectOptions) {
     super({
@@ -238,6 +246,33 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     return this.data.jobWaitingReasons || [];
   }
 
+  /**
+   * While an Unlimited plan project waits and a card outside the plan's pool could
+   * start it now, the server offers to run it on Premium Spark at its normal price.
+   * `null` otherwise, and always on servers without the offer. Requires the
+   * default `projectQueue` socket event subscription.
+   */
+  get payAsYouGo(): PayAsYouGoOffer | null {
+    return this.data.payAsYouGo ?? null;
+  }
+
+  /**
+   * Run this waiting plan project on Premium Spark now. `switched` means it was
+   * charged once, `refused` that this request costs nothing, and `unknown` that
+   * it may have been charged; see {@link ProjectsApi.switchToPremiumSpark}.
+   */
+  switchToPremiumSpark(options?: { timeoutMs?: number }): Promise<PayAsYouGoSwitchResult> {
+    return this._api.switchToPremiumSpark(this.id, options);
+  }
+
+  /** @internal Returns whether the offer changed. */
+  _setPayAsYouGo(raw: unknown) {
+    const next = this.finished ? null : normalizePayAsYouGoOffer(raw);
+    if (JSON.stringify(this.data.payAsYouGo ?? null) === JSON.stringify(next)) return false;
+    this._update({ payAsYouGo: next });
+    return true;
+  }
+
   /** @internal */
   _setQueueState(rawReason: unknown, rawJobs: unknown, expectedRevision?: number) {
     if (expectedRevision !== undefined && expectedRevision !== this._queueRevision) return false;
@@ -282,11 +317,16 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
     const clearingQueue = Boolean(
       delta.status &&
       ['completed', 'failed', 'canceled'].includes(delta.status) &&
-      (this.waitingReason || this.jobWaitingReasons.length)
+      (this.waitingReason || this.jobWaitingReasons.length || this.data.payAsYouGo)
     );
     if (delta.status && ['completed', 'failed', 'canceled'].includes(delta.status)) {
       this._queueRevision += 1;
-      delta = { ...delta, waitingReason: null, jobWaitingReasons: [] };
+      delta = {
+        ...delta,
+        waitingReason: null,
+        jobWaitingReasons: [],
+        ...(this.data.payAsYouGo ? { payAsYouGo: null } : {})
+      };
       this.jobs.forEach((job) => {
         if (job.waitingReason) job._update({ waitingReason: null });
       });
@@ -308,6 +348,20 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
    */
   get jobs() {
     return this._jobs.slice(0);
+  }
+
+  /**
+   * Whether this project was submitted with encrypted media. Read its results
+   * with {@link Job.getResultData} or {@link MediaEncryptionApi.fetchDecrypted},
+   * which return the media either way.
+   */
+  get encrypted(): boolean {
+    return this._mediaEncrypted || this.params.mediaEncryption === true;
+  }
+
+  /** @internal The project is being submitted with encrypted media. */
+  _markMediaEncrypted() {
+    this._mediaEncrypted = true;
   }
 
   /**

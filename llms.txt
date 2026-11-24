@@ -118,15 +118,30 @@ await sogni.account.login(username, password);
 
 - **API key**: Pass `apiKey` to `createInstance()`. Auto-authenticates via WebSocket. No `login()` call needed. Most REST API calls (balance, profile, etc.) available. Sensitive operations (withdrawals, staking, 2FA) not available.
 - **Username/password**: Call `sogni.account.login()` after creating instance. Full REST API access.
-- **REST-only**: Pass `disableSocket: true`; `appId` is then optional and no artist WebSocket is opened. Use this for hosted chat, durable workflows, replay, announcements, and account REST APIs.
+- **Restoring a deleted account at sign-in**: when the account can be restored, `login()` throws an `ApiError` with `payload.errorCode === ACCOUNT_RESTORABLE_ERROR_CODE` (196) and `details.deletedAt` (Unix seconds). After the person confirms, call `login()` again with the same arguments plus the option, e.g. `login(username, password, rememberMe, appSource, { restoreDeletedAccount: true })`, to restore it and sign in.
+- **REST-only**: Pass `disableSocket: true`; `appId` is then optional and no artist WebSocket is opened. Use this for hosted chat, durable workflows, replay, announcements, the platform changelog, and account REST APIs.
 
 Generate an `appId` once per application installation and persist it across restarts or page
 reloads. Calling `randomUUID()` each time the process starts creates a different application
 identity on every run.
 
+### Platform Changelog (no sign-in)
+
+`sogni.changelog` reads the public changelog of what changed for artists, developers and worker operators. It works on a client that is not signed in.
+
+```javascript
+const sogni = await SogniClient.createInstance({ disableSocket: true });
+const { entries, nextCursor } = await sogni.changelog.list({ audience: 'developer', limit: 20 });
+// Next page: the same filters plus { cursor: nextCursor }; nextCursor is null on the last page.
+const entry = await sogni.changelog.get(entries[0].id); // unknown id: ApiError, status 404, payload.errorCode 204
+const products = await sogni.changelog.products(); // [{ id, label, audiences }]
+```
+
+`list()` filters: `audience` (`artist` | `developer` | `worker`), `product` (ids from `products()`), `type` (`new` | `improved` | `fixed` | `release` | `deprecated` | `removed` | `notice`), each one value or an array; `since` (inclusive) / `until` (exclusive) as ISO 8601 dates or date-times with a zone; `actionRequired: true`; `limit` (default 50, max 100); `cursor`. Entries: `id`, `url`, `title`, `summary`, `bodyMarkdown`, `type`, `audiences`, `products`, `version`, `links`, `actionRequired`, `effectiveAt`, `publishedAt`, `updatedAt` (times are ISO strings). Poll no more often than every five minutes.
+
 ### Subscription Entitlements
 
-Current queue explanations arrive through `sogni.projects.on('queueChanged', ({ projectId, waitingReason, jobWaitingReasons }) => ...)` and the same `Project` getters. Display `waitingReason.message` as plain text. The complete per-result list uses zero-based `jobIndex`, with optional `imgID` assigned later; removed entries clear old reasons. Prefer these current server details to the legacy worker-only `queueStatus` estimate. A partially running batch can still have queued results. Supported servers stream these details automatically; `{ projectQueue: false }` opts out, and a subscription reset disables the stream. Older servers provide no explanation.
+Current queue explanations arrive through `sogni.projects.on('queueChanged', ({ projectId, waitingReason, jobWaitingReasons }) => ...)` and the same `Project` getters. Display `waitingReason.message` as plain text. The complete per-result list uses zero-based `jobIndex`, with optional `imgID` assigned later; removed entries clear old reasons. Prefer these current server details to the legacy worker-only `queueStatus` estimate. A partially running batch can still have queued results. Supported servers stream these details automatically; `{ projectQueue: false }` opts out, and a subscription reset disables the stream. Older servers provide no explanation. A waiting Unlimited plan project on Fast can also carry `Project.payAsYouGo` (`{ available: true, costInSpark, coveredByPremiumSpark }` or `null`, also on `queueChanged`); nothing is charged until the owner calls `sogni.projects.switchToPremiumSpark(projectId)`, which resolves `switched` (charged once), `refused` (this request costs nothing: a debit the server had already started is cancelled, and the balance can take a moment to show it, so say "won't be charged" rather than "weren't charged"; `reason` explains) or `unknown` (`timeout`, `not_found`, `session_changed`, `unrecognized_reply`: the payment may have been made). Asking again is safe and never charges twice: it answers `switched` if the earlier request switched, a refusal from the server if it costs nothing, or `unknown` again; while it stays unknown, check the member's Spark history or the creation's result rather than assuming either way. A `not_sent` refusal comes from the SDK itself: that request never left the client and says nothing about the earlier one.
 
 ```javascript
 const plans = await sogni.account.getSubscriptionPlans(); // [{ planId, tier, term, interval, priceUsd, displayName }]
@@ -166,6 +181,10 @@ Keep `appSource` as the stable product/integration ID. Agent wrappers may additi
 
 - `fast` - High-end GPUs, faster, more expensive. **Required for video.**
 - `relaxed` - Mac devices, cheaper. Image only.
+
+### Media Encryption (optional)
+
+`SogniClient.createInstance({ appId, mediaEncryption: 'auto' })` turns on optional media encryption. Once it is available for the account (`sogni.mediaEncryption.available`), eligible new projects are encrypted; until then, and without the option, nothing changes. Read results with `job.getResultData()` or `sogni.mediaEncryption.fetchDecrypted(url)` (both return the media whether or not it was encrypted), not by loading result URLs directly. A project's `mediaEncryption: false` opts out; `true` encrypts or throws `MediaEncryptionError` before uploading. Encryption is Fast-network only for now. `declareMediaCapability: false` keeps encrypting but has result links serve the media itself, for services that pass links on.
 
 ---
 
@@ -257,7 +276,8 @@ The full catalog is dynamic — enumerate it at runtime with
 | `dark_beast_krea2_identity_edit_v1_2` | Dark Beast Krea 2 Identity Edit — community identity edit LoRA with 1-2 reference images |
 | `qwen_image_2512_fp8` / `_lightning` | Qwen Image 2512 — text rendering |
 | `gpt-image-2` | GPT Image 2 — OpenAI partner (premium, Spark-only) |
-| `seedream-5-0-pro-uncensored` | Seedream 5.0 Pro Uncensored — ByteDance partner (premium, Spark-only); text-to-image and edits from 1-10 `contextImages`; 921,600-4,194,304 pixels at 1:16 to 16:1; no negative prompt, seed, or steps; shares the Seedance 2.5 Uncensored one-time agreement (error 4103 until accepted) |
+| `seedream-5-0-pro-uncensored` | Seedream 5.0 Pro Uncensored — ByteDance partner (premium, Spark-only); text-to-image and edits from 1-10 `contextImages`; 921,600-4,194,304 pixels at 1:16 to 16:1; no negative prompt, seed, or steps; shares the Seedance 2.5 Uncensored one-time agreement (error 4103 until accepted). Opt-in layers: `seedreamLayerDecomposition: true`, one source and one result, optional prompt, `seedreamLayerSize: '1K' | '1.5K' | '2K'` (default '1.5K'); base in `job.resultUrl`, up to 16 ordered transparent PNGs in `job.layers`, fresh URL via `job.getLayerUrl(zIndex)`; estimate reserves 17 images and settlement uses returned images |
+| `seedream-5-5-uncensored` | Seedream 5.5 Uncensored — ByteDance partner (premium, Spark-only); same requests and agreement as 5.0 Pro, chosen only by name; 921,600-4,624,220 pixels at 1:16 to 16:1 (native sizes include 1536x1536, 2048x2048 and 2816x1584). `seedreamBackground: 'opaque' | 'transparent' | 'auto'` (default 'opaque'; transparent/auto need PNG or WebP, not with layers). Layers as on 5.0 Pro, up to 99, plus `seedreamLayerMaxImages` (2-100 images including the base, default 17; the estimate reserves that many) and `seedreamLayerTextRecognition: true` for `layer.textRecognition` on regular text layers |
 
 Community fine-tunes (uncensored; pass the id directly):
 `dark_beast_z_image_turbo_v9_bf16` (fast Z-Image fine-tune, 2K needs 24GB VRAM),
@@ -459,8 +479,8 @@ Seedance models are external API-backed Spark-only video models at fixed 24fps. 
 | --------------------- | -------------------------------------- | -------------------- |
 | `seedance-2-0`        | Optional image, video, and audio refs  | 24fps, 4-15s, 4K     |
 | `seedance-2-0-mini`   | Optional image, video, and audio refs  | 24fps, 4-15s, 720p   |
-| `seedance-2-5`        | Optional image, video, and audio refs  | 24fps, 4-30s, 1080p  |
-| `seedance-2-5-uncensored` | Same as `seedance-2-5` (Uncensored)    | 24fps, 4-30s, 1080p  |
+| `seedance-2-5`        | Optional image, video, and audio refs  | 24fps, 4-30s, 4K     |
+| `seedance-2-5-uncensored` | Same as `seedance-2-5` (Uncensored)    | 24fps, 4-30s, 4K     |
 | `seedance-2-0-mini-uncensored` | Same as `seedance-2-0-mini` (Uncensored) | 24fps, 4-15s, 720p |
 
 ```javascript
@@ -480,6 +500,9 @@ const project = await sogni.projects.create({
 Use `referenceImageUrls`, `referenceVideoUrls`, and `referenceAudioUrls` for Seedance HTTPS context URLs. Use `referenceImage`/`referenceImageEnd`, `referenceVideo`, and `referenceAudio` for single local file references. Example prompt: `Use @Image1 for product identity, @Video1 for camera movement, and @Audio1 for music rhythm. Keep the product silhouette and logo placement consistent.`
 
 For Seedance 2.5 loose-reference video operations, set `seedanceTaskType` to `reference`, `edit`, or `extend`. Edit/extend require a reference video. The server applies adaptive source aspect ratio to first/last-frame, edit, and extend requests and provider-selected duration to edit requests. Loose-reference requests require an explicit task type.
+
+Seedance 2.5 draft mode: send `seedanceDraft: true` with a 480p size for a draft priced like the same 480p job (choose it at submission; a normal job cannot be finalized). The completed job reports `job.seedanceDraft` and `job.seedanceDraftExpiresAt` (ISO 8601). Finalize it at 1080p with `seedanceDraftJobId: draftJob.id` on the same model, `numberOfMedia: 1` and an empty `positivePrompt`: the final reuses the draft's prompt, media, duration, aspect ratio, seed and audio setting, so omit references, frames, audio, `duration`, `frames`, `ratio`, `seed`, `generateAudio` and `seedanceTaskType`. The final reports `job.seedanceDraftJobId`. `estimateVideoCost` accepts both fields; the server prices a finalize from the draft. The two fields are mutually exclusive.
+For a 4K final, add `seedanceDraftFinalResolution: "4k"` alongside `seedanceDraftJobId` on both the create request and the estimate. It accepts `"1080p"` or `"4k"`; omitted, finalization stays at 1080p and sends no new field.
 
 Aliases used by chat tools and examples: `seedance2`, `seedance2-mini`, `seedance2-5`, `seedance2-5-uncensored`, and `seedance2-mini-uncensored`. V2V uses `seedance2` or `seedance2-mini` as the model selector and `seedance-v2v` as the control mode. Seedance Mini is the preferred lower-cost 720p tier. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
 
@@ -555,6 +578,7 @@ MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. S
 | `minimax-h3-ref2va-fp8_r2v_balanced_2stage` | Two-Stage reference-to-video, Balanced 8 steps (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | `minimax-h3-fastvideo-omni-int8_r2v_turbo` | FastH3 Reference reference-to-video | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | `minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage` | FastH3 Reference Two-Stage reference-to-video (2x canvas delivery) | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
+| `minimax-h3-prism-int8_r2v` | Prism reference-to-video: optional model for mature themes, 8 steps, 768p class only; Sensitive Content Filter off, subject to server authorization | 0-9 images, 0-3 videos (at least one visual), 0-3 audios, 12 total |
 | `minimax-h3-fl2va-fp8_t2v_balanced` | Balanced text-to-video | none |
 | `minimax-h3-fl2va-fp8_i2v_balanced` | Balanced endpoint-conditioned image-to-video | first frame, last frame, or both (at least one) |
 | `minimax-h3-fl2va-fp8_flf2v_balanced` | Balanced first-and-last-frame video | both anchor images required |
@@ -562,11 +586,13 @@ MiniMax H3 generates video and 32kHz stereo audio jointly on Sogni's own GPUs. S
 
 Turbo covers the three FL2VA workflows plus Ref2VA R2V. The dedicated Ref2VA Turbo ID is `minimax-h3-ref2va-fp8_r2v_turbo`; it uses the LightX2V v0.1 four-step LoRA with Euler/simple and defaults to 960x544. Turbo is fixed at 4 steps; standard H3 is fixed at 20 steps.
 
-All 28 current workflow IDs are available through the Sogni projects API: four Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with generated audio, three audio-guide), six FastH3 Two-Stage modes, two Ref2VA Two-Stage modes (Standard and Balanced), and FastH3 Reference (one-stage and Two-Stage).
+All 29 current workflow IDs are available through the Sogni projects API: four Standard, four Balanced, four LightX2V Turbo, six FastH3 Turbo (three with generated audio, three audio-guide), six FastH3 Two-Stage modes, two Ref2VA Two-Stage modes (Standard and Balanced), FastH3 Reference (one-stage and Two-Stage), and Prism (`minimax-h3-prism-int8_r2v`), an optional reference-to-video model for mature themes that needs `disableNSFWFilter: true`. Prism's recipe is fixed at 8 Euler steps (omit `steps` or send 8; the schedule is not a request option) and it has no two-stage ID.
 
 For direct `projects.create()` calls, H3 I2V IDs accept `referenceImage`, `referenceImageEnd`, or both, with at least one required. Explicit FLF2V IDs require both anchors.
 
-Intermediate keyframes: every H3 workflow except text-to-video accepts `keyframes`, 23 IDs in all (`isMinimaxH3KeyframeModel(modelId)`): I2V and FLF2V on every tier (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage), the six FastH3 Sound to Video IDs (IA2V, FLFA2V, A2V, one- and two-stage) and the seven R2V IDs. Each request takes up to `MINIMAX_H3_MAX_KEYFRAMES` (8) still images pinned between the first and last frame, alongside the workflow's own uploads. Each entry is `{ image, frameIndex }`: `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2` of the job's frame count, with no frame used twice. Pass `frames` from the H3 grid (124, 141, 158, 175, 192, … 362; `124 + n*17`) so that count is exact. `duration` also works but snaps to the grid (`duration: 6` renders 141 frames, not 144); `calculateVideoFrames(modelId, seconds, 24)` returns the count a duration resolves to. Frame 0 and the last frame are never keyframes: I2V, FLF2V and FLFA2V set them with `referenceImage` / `referenceImageEnd` under the rules above, IA2V sets frame 0 with `referenceImage`, and A2V and R2V cannot pin them. `contextImages` stays R2V-only, and t2v and every non-H3 model reject a non-empty `keyframes`; an empty list is ignored. The SDK uploads `keyframes[i].image` to its own `keyframeImage<i+1>` slot in array order and sends the indices as `keyframeFrameIndices`, so an R2V request carries its references (`referenceImage`, `contextImages`, which keep their slots) and its keyframes together. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100`. MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier, FastH3 Reference included (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
+`referenceVideoCompression` is a legacy MiniMax H3 reference-video preference, retained for compatibility. Current services select compression automatically; this field no longer selects compression. Leave it unset for new requests.
+
+Intermediate keyframes: every H3 workflow except text-to-video accepts `keyframes`, 24 IDs in all (`isMinimaxH3KeyframeModel(modelId)`): I2V and FLF2V on every tier (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage), the six FastH3 Sound to Video IDs (IA2V, FLFA2V, A2V, one- and two-stage) and the eight R2V IDs. Each request takes up to `MINIMAX_H3_MAX_KEYFRAMES` (8) still images pinned between the first and last frame, alongside the workflow's own uploads. Each entry is `{ image, frameIndex }`: `frameIndex` is the 0-based frame at 24 fps (`Math.round(seconds * 24)`), an integer from 1 to `frames - 2` of the job's frame count, with no frame used twice. Pass `frames` from the H3 grid (124, 141, 158, 175, 192, … 362; `124 + n*17`) so that count is exact. `duration` also works but snaps to the grid (`duration: 6` renders 141 frames, not 144); `calculateVideoFrames(modelId, seconds, 24)` returns the count a duration resolves to. Frame 0 and the last frame are never keyframes: I2V, FLF2V and FLFA2V set them with `referenceImage` / `referenceImageEnd` under the rules above, IA2V sets frame 0 with `referenceImage`, and A2V and R2V cannot pin them. `contextImages` stays R2V-only, and t2v and every non-H3 model reject a non-empty `keyframes`; an empty list is ignored. The SDK uploads `keyframes[i].image` to its own `keyframeImage<i+1>` slot in array order and sends the indices as `keyframeFrameIndices`, so an R2V request carries its references (`referenceImage`, `contextImages`, which keep their slots) and its keyframes together. If no worker serving the model can pin keyframes yet, the job is refused with error code `4100`. MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier, FastH3 Reference included (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 
 Writing the prompt for keyframes:
 
@@ -736,6 +762,30 @@ const quote = await sogni.projects.estimateVideoCost({
 ```
 
 The SDK rejects prompts, TeaCache, trimming, control nets, reference URLs, other reference media, `generateAudio: false`, and `numberOfMedia` other than 1, and it fixes steps to 1. `detailPreference` (`stable` or `sharper`) and `processingSpeed` (`stable` or `faster`) default to `stable`, and `seed` defaults to 0 (`-1` asks for a random seed); only non-default values need Comfy worker 1.0.212 or newer, and none changes the price. Until a compatible worker is connected, the server refuses FlashVSR requests with "FlashVSR video upscaling is not available yet. Please try again later." Hosted chat and durable workflows expose the same operation as the promptless `upscale_video` tool.
+
+### RelayVSR Video Upscaling (promptless, Sogni workers)
+
+`RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID` (`relayvsr_x2_lightx2v_int8_convrot`) and `RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID` (`relayvsr_x4_int8_convrot`) upscale one finished video to 1080p, 1440p, or 2160p on its short edge. The request is the same as FlashVSR's: one `referenceVideo`, `upscaleResolution`, `numberOfMedia: 1`, and an empty prompt. The output keeps every source frame, the exact frame rate, the full aspect ratio, and the original audio.
+
+X2 takes a source up to 1088x1920 pixels (either orientation) and delivers at most twice its size; X4 takes a source up to 768x1344 and delivers at most four times its size. The target must be larger than the source's short edge, and the output's long edge can be at most 3840px, so 2160p needs a source short edge of 1080px to 1088px on X2 or 540px to 768px on X4. Sources must be 1-60 fps, SDR, and 100 MB or less, and the server enforces the maximum clip length. Variable-frame-rate, rotated and non-square-pixel clips need no re-export for RelayVSR: the server conforms them, and every limit applies to the clip as it plays.
+
+```javascript
+import fs from 'node:fs';
+import { RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID } from '@sogni-ai/sogni-client';
+
+const project = await sogni.projects.create({
+  type: 'video',
+  network: 'fast',
+  modelId: RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID,
+  positivePrompt: '',
+  numberOfMedia: 1,
+  referenceVideo: fs.readFileSync('./clip-1080p.mp4'),
+  upscaleResolution: 2160 // 1080 | 1440 | 2160: the output's short edge
+});
+const [upscaledUrl] = await project.waitForCompletion(); // MP4 with the original audio
+```
+
+`isRelayVsrModel(modelId)` detects both models, and `isVideoUpscaleModel(modelId)` covers them too. The SDK refuses `detailPreference`, `processingSpeed`, and `seed` for RelayVSR. Quote it the same way as FlashVSR, with the output `width`/`height` and `sourceWidth`/`sourceHeight`; the price follows the source's size and length, not the target. In hosted chat and durable workflows, set `model: 'relayvsr'` on `upscale_video`; the server picks X2 when the target is at most twice the source's short edge and X4 otherwise. FlashVSR stays the tool's default.
 
 ---
 
@@ -945,7 +995,7 @@ Canonical hosted creative-tool surface (`SogniTools.all`, 27 tools, executed ser
 
 - `generate_image`, `edit_image`, `generate_video`, `generate_music`, `generate_speech`, `sound_to_video`, `video_to_video` (generation)
 - `restore_photo`, `apply_style`, `refine_result`, `change_angle` (image-edit adapters)
-- `upscale_image`, `upscale_video` (promptless RTX VSR image and FlashVSR 1080p/1440p video upscaling; `upscale_video` takes one generated or uploaded video by `sourceVideoIndex` plus an optional `targetResolution` of 1080 or 1440, and optional `detailPreference`, `processingSpeed` and `seed`)
+- `upscale_image`, `upscale_video` (promptless RTX VSR image and FlashVSR 1080p/1440p video upscaling; `upscale_video` takes one generated or uploaded video by `sourceVideoIndex` plus an optional `targetResolution` of 1080 or 1440, and optional `detailPreference`, `processingSpeed` and `seed`; optional `model: 'relayvsr'` reaches 2160 and takes none of those three)
 - `animate_photo` (image-to-video with multi-source fan-out via `sourceImageIndices`; composed into one MP4 by default — opt out with `stitched: false`)
 - `stitch_video`, `orbit_video`, `dance_montage` (server-side composition into a single MP4)
 - `extend_video`, `replace_video_segment` (append or replace bounded windows; replacements can trim source windows with `replacementStartSeconds` / `replacementEndSeconds`)
@@ -977,7 +1027,7 @@ Default generation models used by platform tools:
 | `generate_video` | ltx25-22b-int8_t2v_distilled / ltx25-22b-int8_i2v_distilled / LTX 2.3 rollback / Seedance selectors | Text-to-video or image-to-video |
 | `sound_to_video` | ltx25-22b-int8_a2v_distilled / ltx25-22b-int8_ia2v_distilled / LTX 2.3 rollback | Audio-driven video generation |
 | `video_to_video` | ltx25-22b-int8_v2v_distilled / ltx25-22b-int8_v2v_dev / LTX 2.3 rollback / Seedance / WAN animate | Video transformation / motion transfer |
-| `upscale_video` | flashvsr_v1.1_tiny_long_bf16 | Promptless 1080p/1440p video upscale preserving frames, frame rate, and audio |
+| `upscale_video` | flashvsr_v1.1_tiny_long_bf16; `model: 'relayvsr'`: relayvsr_x2_lightx2v_int8_convrot, relayvsr_x4_int8_convrot | Promptless video upscale preserving frames, frame rate, and audio: 1080p/1440p, or up to 2160p with RelayVSR |
 | `generate_music` | minimax_music3 | MiniMax Music 3; ACE-Step 1.5 when named |
 
 ---
@@ -1131,8 +1181,8 @@ For reference-to-video estimates, supply `referenceImageCount`, `referenceVideoC
 and `referenceVideoDurationSeconds` for the assets the job will actually submit.
 MiniMax H3 keyframe pricing: the first two keyframes are included; each extra keyframe adds output time at the job's per-second rate, 0.75 s on FastH3 and 0.3 s on every other tier, FastH3 Reference included (an 8 s FastH3 clip with 8 keyframes: 32 + 18 = 50 Spark). Pass `keyframeCount` (or the job's `keyframes`) to `estimateVideoCost` to quote it.
 MiniMax H3 bills reference-video duration at the full resolution-tier input rate ($0.05/s at 480p or $0.08/s at 544/768p), even with Turbo output
-(on the two-stage Reference ids, reference video with 2K output is $0.13/s);
-unrelated models ignore these fields. Quote MiniMax H3 two-stage output with the `_2stage` model ID and the canvas the job renders (672x384, 960x544 or 1344x768). For a FlashVSR upscale estimate, pass the output `width`/`height`, the
+(on the two-stage Reference ids, $0.08/s at every output class, 2K included);
+unrelated models ignore these fields. Quote MiniMax H3 two-stage output with the `_2stage` model ID and the canvas the job renders (672x384, 960x544 or 1344x768). For a FlashVSR or RelayVSR upscale estimate, pass the output `width`/`height`, the
 source's `frames` and `fps`, `steps: 1`, and `sourceWidth`/`sourceHeight`; the job itself is charged from the
 verified uploaded source.
 
@@ -1161,7 +1211,7 @@ interface VideoProjectParams {
   referenceImage?: File | Buffer | Blob;
   referenceAudio?: File | Buffer | Blob;
   referenceVideo?: File | Buffer | Blob;
-  upscaleResolution?: 1080 | 1440; // FlashVSR upscale only: output short edge
+  upscaleResolution?: 1080 | 1440 | 2160; // Video upscale only: output short edge; 2160 is RelayVSR only
   // ... see llms-full.txt for complete list
 }
 
@@ -1187,3 +1237,113 @@ For complete API reference, all parameters, and advanced usage:
 - **llms-full.txt** - Comprehensive guide in this repository
 - **https://sdk-docs.sogni.ai** - TypeDoc API documentation
 - **https://github.com/Sogni-AI/sogni-client/tree/main/examples** - Working examples
+
+
+### SAM 3 video selection
+
+`sam3_video_segment_fp16` tracks one selected object across an uploaded video.
+The result is a lossless binary mask MP4 at the original dimensions, frame count
+and frame rate. White selects the object. The server verifies the upload before
+charging; omitted dimensions and timing are taken from that verified source.
+
+```javascript
+const project = await sogni.projects.create({
+  type: "video", network: "fast", modelId: "sam3_video_segment_fp16",
+  positivePrompt: "", numberOfMedia: 1, referenceVideo: videoBytes,
+  sam3VideoPrompt: { text: "unicorn horn", frameIndex: 126 }
+});
+const [maskUrl] = await project.waitForCompletion();
+```
+
+The zero-based `frameIndex` identifies the prompt frame (default 0); tracking
+runs both forward and backward from it. `objectIndex` chooses a text-detected
+candidate in confidence order (default 0). Points and boxes use normalized
+coordinates against the complete source frame. Inputs must be constant-frame-rate
+SDR video, up to 30 seconds, 900 frames, 2560 pixels on either edge and 100 MB.
+
+See `examples/workflow_sam3_video_segment.mjs` for a runnable paid request.
+
+#### Selection options
+
+`sam3VideoPrompt` takes four more fields. They are optional and off by default.
+A prompt without them runs and is priced exactly as before. They run on Comfy
+worker 1.0.253 or newer; if none is online, the request is refused at once with
+error 4044 and nothing is charged.
+
+`mask` selects a region you draw, instead of `text`, `points` or `boxes`.
+`polygons` holds 1 to 64 rings of normalized `[x, y]` points, 3 to 2048 points
+per ring and 4096 per region. A ring inside another ring is a hole.
+
+```javascript
+sam3VideoPrompt: {
+  frameIndex: 0,
+  mask: { polygons: [[[0.42, 0.18], [0.58, 0.18], [0.61, 0.55], [0.39, 0.55]]] }
+}
+```
+
+The region starts the tracker on its prompt frame, as a click does. That
+frame's mask is the tracker's own shape for the region, not the exact drawing,
+so a looping clip does not jump between its last and first frames. Draw the
+region tight: background, or something in front of the object, inside the
+region stays in the mask for several frames before the tracker corrects it.
+`mask` cannot be combined with `text`, `points`, `boxes`, `threshold` or
+`multimask`, and `objectIndex` must be 0 or left out. A region that covers no
+pixel of the source frame is refused and not charged.
+
+`objects` tracks 2 to 16 things together, one selection each, and requires
+`combine: "union"`. Every output frame is the union of their masks. All the
+selections refer to the top-level `frameIndex`. Use it for a crowd or several
+separate things: one selection that covers several similar things settles on
+just one of them. Top-level `text`, `points`, `boxes`, `mask`, `threshold`,
+`multimask` and `objectIndex` are refused alongside `objects`.
+
+```javascript
+sam3VideoPrompt: {
+  combine: "union",
+  objects: [
+    { points: [{ x: 0.21, y: 0.48, label: "positive" }] },
+    { points: [{ x: 0.52, y: 0.45, label: "positive" }] }
+  ]
+}
+```
+
+`frames` selects the same thing on 2 to 8 different frames, each entry with its
+own `frameIndex` and selection. Each output frame follows the nearest prompted
+frame; ties go to the earlier one. For a loop whose first and last frames are
+the same still, select the same thing on frame 0 and on the last frame. You can
+also add a middle frame to correct drift. `frames` cannot be combined with
+`objects`, a top-level `frameIndex` or a top-level selection.
+
+```javascript
+sam3VideoPrompt: {
+  frames: [
+    { frameIndex: 0, points: [{ x: 0.47, y: 0.62, label: "positive" }] },
+    { frameIndex: 120, points: [{ x: 0.47, y: 0.62, label: "positive" }] }
+  ]
+}
+```
+
+`memory` sets how tracking carries between 32-frame chunks. `"chunk"`, the
+default and the original behaviour, starts each chunk from the previous
+chunk's last mask; an object lost at the end of a chunk is not found again.
+`"anchor"` starts each chunk again from the prompt frame and its selection:
+errors do not carry over and a lost object can be found again, but the mask
+can shift where a chunk starts. It works with any of the other options.
+
+```javascript
+sam3VideoPrompt: { text: "unicorn horn", frameIndex: 127, memory: "anchor" }
+```
+
+A prompt holds at most 4096 region points across all its objects and frames.
+
+Each object after the first adds 8% of one selection's work, and anchor memory
+adds 1/31. `frames` and `mask` add nothing. Pass the job's own
+`sam3VideoPrompt` to `estimateVideoCost()` and the quote includes them:
+
+```javascript
+const quote = await sogni.projects.estimateVideoCost({
+  tokenType: "spark", model: "sam3_video_segment_fp16",
+  width: 1920, height: 1080, frames: 121, fps: 24, steps: 1,
+  sam3VideoPrompt
+});
+```

@@ -354,7 +354,7 @@ async function main() {
     // Get image dimensions for display
     let imageDimensions = { width: 1024, height: 1024 };
     try {
-      const dimensions = imageSize(OPTIONS.contextImage);
+      const dimensions = imageSize(fs.readFileSync(OPTIONS.contextImage));
       if (dimensions.width && dimensions.height) {
         imageDimensions = { width: dimensions.width, height: dimensions.height };
       }

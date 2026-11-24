@@ -5,9 +5,12 @@ import type { WaitingReason, JobWaitingReason } from './WaitingReason.js';
 export interface RawProject {
   /** Missing on older projects or clients that do not report prompt preparation. */
   promptExpanded?: boolean;
+  priorityMode?: boolean;
   waitingReason?: WaitingReason | null;
   jobWaitingReasons?: JobWaitingReason[];
   id: string;
+  /** True when the project's input and result media are encrypted. */
+  mediaEncrypted?: boolean;
   SID: number;
   artist: Account;
   model: ProjectModel;
@@ -96,6 +99,13 @@ export interface RawJob {
   lastFrameUrl?: string;
   lastFrameKey?: string;
   outputFormat?: string;
+  /** Seedance 2.5: this job is a draft that can be finalized at 1080p. */
+  seedanceDraft?: boolean;
+  /** Seedance 2.5 draft: ISO 8601 time after which it can no longer be finalized. */
+  seedanceDraftExpiresAt?: string;
+  /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
+  seedanceDraftJobId?: string;
+  seedanceDraftFinalResolution?: '1080p' | '4k';
   result?: JobProvenance & Record<string, unknown>;
 }
 

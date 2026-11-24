@@ -1,0 +1,60 @@
+name: Pull request checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Check GPT Image 2.6 animation contracts
+        run: node scripts/check-gpt-image-26.cjs
+      - name: Check generation recovery and cancellation
+        run: |
+          node scripts/check-auth-session.cjs
+          node scripts/check-project-request-session.cjs
+          node scripts/check-project-cancellation.cjs
+          node scripts/check-pay-as-you-go.cjs
+          node scripts/check-project-recovery.cjs
+          node scripts/check-project-liveness.cjs
+          node scripts/check-project-results.cjs
+          node scripts/check-chat-transport-recovery.cjs
+          node scripts/generate-hosted-tool-alias-parity.mjs --check
+          node scripts/check-chat-model-routing.cjs
+      - name: Check socket handoff and reconnects
+        run: |
+          node scripts/check-browser-request-handoff.cjs
+          node scripts/check-socket-send-readiness.cjs
+          node scripts/check-socket-receive-order.cjs
+          node scripts/check-socket-reconnect-backoff.cjs
+          node scripts/check-socket-keepalive.cjs
+      - name: Check id generation
+        run: node scripts/check-uuid.cjs
+      - name: Check downloads and REST errors
+        run: |
+          node scripts/check-result-download-endpoint.cjs
+          node scripts/check-remote-media-hosts.cjs
+          node scripts/check-rest-error-messages.cjs
+          node scripts/check-rest-error-retry-after.cjs
+          node scripts/check-rest-redirects.cjs
+          node scripts/check-account-login.cjs
+          node scripts/check-account-permits.cjs
+      - name: Check image upload bodies
+        run: node scripts/check-image-upload-body.cjs
+      - name: Check Seedance 2.5 draft mode
+        run: node scripts/check-seedance-draft.cjs

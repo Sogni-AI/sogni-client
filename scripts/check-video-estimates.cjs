@@ -167,6 +167,21 @@ async function main() {
     '/api/v1/job-video/estimate/spark/minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage/960/544/141/24/8/1',
     '1080p FastH3 Reference two-stage pricing must be requested with the two-stage model id and the 544 canvas'
   );
+  // Prism is priced by the server from its own id at its fixed 8 steps, with the
+  // reference counts on the query like every other r2v id.
+  await estimate(projects, {
+    model: 'minimax-h3-prism-int8_r2v',
+    steps: 8,
+    referenceImageCount: 2,
+    keyframeCount: 1
+  });
+  assert.equal(
+    new URL(`https://socket.test${client.socket.paths.at(-1)}`).pathname,
+    '/api/v1/job-video/estimate/spark/minimax-h3-prism-int8_r2v/1344/768/141/24/8/1',
+    'Prism pricing must be requested with its exact model id and fixed step count'
+  );
+  assert.equal(query0().get('referenceImageCount'), '2');
+  assert.equal(query0().get('keyframeCount'), '1');
   // outputScale is retired: an untyped caller that still passes it (any value)
   // is refused with the socket's wording before any estimate request is made.
   const requestsBefore = client.socket.paths.length;
@@ -244,6 +259,92 @@ async function main() {
   assert.equal((await estimate(projects)).dailyFairUsePct, 0.4);
   client.socket.get = shareSocket;
   assert.equal((await estimate(projects)).dailyFairUsePct, undefined);
+
+  // SAM 3 video selection: only the options that change the price ride the query,
+  // and a prompt without them requests exactly the legacy quote.
+  const samEstimate = (sam3VideoPrompt) => {
+    const params = {
+      model: 'sam3_video_segment_fp16',
+      width: 1920,
+      height: 1080,
+      frames: 121,
+      fps: 24,
+      steps: undefined
+    };
+    return estimate(
+      projects,
+      sam3VideoPrompt === undefined ? params : { ...params, sam3VideoPrompt }
+    );
+  };
+  const samPath = '/api/v1/job-video/estimate/spark/sam3_video_segment_fp16/1920/1080/121/24';
+  projects._currentNetworkType = undefined;
+  await samEstimate();
+  assert.equal(
+    client.socket.paths.at(-1),
+    samPath,
+    'a SAM 3 video quote without a prompt is unchanged'
+  );
+  for (const legacy of [
+    { text: 'horn' },
+    {
+      points: [{ x: 0.5, y: 0.5, label: 'positive' }],
+      boxes: [{ x0: 0.1, y0: 0.1, x1: 0.9, y1: 0.9 }],
+      frameIndex: 7
+    },
+    {
+      mask: {
+        polygons: [
+          [
+            [0.1, 0.1],
+            [0.9, 0.1],
+            [0.5, 0.9]
+          ]
+        ]
+      }
+    },
+    {
+      frames: [
+        { frameIndex: 0, text: 'horn' },
+        { frameIndex: 120, text: 'horn' }
+      ]
+    }
+  ]) {
+    await samEstimate(legacy);
+    assert.equal(
+      client.socket.paths.at(-1),
+      samPath,
+      `${JSON.stringify(legacy)} adds nothing to the quote request`
+    );
+  }
+  const twoObjects = {
+    objects: [{ text: 'monitor' }, { points: [{ x: 0.4, y: 0.3, label: 'positive' }] }],
+    combine: 'union'
+  };
+  const sent = JSON.stringify(twoObjects);
+  await samEstimate(twoObjects);
+  assert.equal(client.socket.paths.at(-1), `${samPath}?sam3ObjectCount=2`);
+  assert.equal(JSON.stringify(twoObjects), sent, 'the caller prompt is not modified');
+  await samEstimate({ text: 'horn', memory: 'anchor' });
+  assert.equal(client.socket.paths.at(-1), `${samPath}?sam3Memory=anchor`);
+  await samEstimate({ text: 'horn', memory: 'chunk' });
+  assert.equal(client.socket.paths.at(-1), `${samPath}?sam3Memory=chunk`);
+  await samEstimate({
+    ...twoObjects,
+    objects: [...twoObjects.objects, { text: 'desk' }],
+    memory: 'anchor'
+  });
+  assert.equal(client.socket.paths.at(-1), `${samPath}?sam3ObjectCount=3&sam3Memory=anchor`);
+  // An invalid count is sent as it is, so the quote refuses it as admission refuses the job.
+  await samEstimate({ objects: [{ text: 'monitor' }], combine: 'union' });
+  assert.equal(client.socket.paths.at(-1), `${samPath}?sam3ObjectCount=1`);
+  await samEstimate({ ...twoObjects, memory: 'anchor' });
+  assert.equal(client.socket.paths.at(-1), `${samPath}?sam3ObjectCount=2&sam3Memory=anchor`);
+  projects._currentNetworkType = 'fast';
+  await samEstimate({ ...twoObjects, memory: 'anchor' });
+  assert.equal(
+    client.socket.paths.at(-1),
+    `${samPath}?sam3ObjectCount=2&sam3Memory=anchor&network=fast`
+  );
 
   console.log('Video estimate request checks passed');
 }

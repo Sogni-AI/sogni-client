@@ -108,9 +108,23 @@ assert.equal(exported.outputFormat, 'mov');
 assert.equal(exported.keyFrames[0].returnLastFrame, true);
 assert.equal(request({}).outputFormat, 'mp4');
 assert.equal(request({}).keyFrames[0].returnLastFrame, undefined);
+const minimaxExport = request({
+  modelId: 'minimax-h3-fl2va-fp8_t2v_balanced',
+  width: 1344,
+  height: 768,
+  duration: 124 / 24,
+  returnLastFrame: true
+});
+assert.equal(minimaxExport.keyFrames[0].returnLastFrame, true);
 assert.throws(() => request({ outputFormat: 'avi' }), /must be mp4 or mov/);
-assert.throws(() => request({ modelId: 'seedance-2-0', outputFormat: 'mov' }), /only by Seedance 2.5/);
-assert.throws(() => request({ modelId: 'seedance-2-0', returnLastFrame: true }), /only by Seedance 2.5/);
+assert.throws(
+  () => request({ modelId: 'seedance-2-0', outputFormat: 'mov' }),
+  /only by Seedance 2.5/
+);
+assert.throws(
+  () => request({ modelId: 'seedance-2-0', returnLastFrame: true }),
+  /only by Seedance 2.5/
+);
 assert.throws(() => request({ returnLastFrame: 'true' }), /must be a boolean/);
 console.log('Seedance export transport checks passed');
 
@@ -242,3 +256,16 @@ for (const modelId of ['seedance-2-0-mini', 'seedance-2-0-mini-uncensored']) {
   assert.throws(() => mini({ returnLastFrame: true }), /only by Seedance 2.5/);
 }
 console.log('Seedance 2.0 Mini Uncensored transport checks passed');
+
+// Seedance sizes are the server's to resolve (a ratio and a band by area), so
+// the 480px video minimum does not apply: Seedance's 21:9 480p size is 992x432.
+for (const modelId of ['seedance-2-5', 'seedance-2-5-uncensored', 'seedance-2-0', 'seedance-2-0-mini']) {
+  const ultrawide = request({ modelId, width: 992, height: 432 }).keyFrames[0];
+  assert.equal(ultrawide.width, 992);
+  assert.equal(ultrawide.height, 432);
+}
+assert.throws(
+  () => request({ modelId: 'wan_v2.2-14b-fp8_t2v_lightx2v', width: 992, height: 432 }),
+  /Video height must greater or equal 480, got 432/
+);
+console.log('Seedance video size checks passed');

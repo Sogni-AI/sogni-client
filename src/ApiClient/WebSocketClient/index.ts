@@ -25,6 +25,8 @@ import {
   normalizeConnectionAttribution,
   type NormalizedConnectionAttribution
 } from '../../lib/attribution.js';
+import { redactMediaKey } from '../../lib/mediaEncryption/redact.js';
+import { MEDIA_CAPABILITY, MEDIA_CAPABILITY_QUERY } from '../../lib/mediaEncryption/capability.js';
 
 const PROTOCOL_VERSION = '3.0.0';
 
@@ -46,6 +48,8 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   socketEventSubscriptions?: SocketEventSubscriptions;
   private projectQueueSubscription = true;
   private socket: WebSocket | null = null;
+  /** Blob decoding must preserve wire order, independently for each connection. */
+  private readonly messageQueues = new WeakMap<WebSocket, Promise<void>>();
   private _supernetType: SupernetType;
   private _pingInterval: NodeJS.Timeout | null = null;
   /** The socket the server has sent `authenticated` on, i.e. one that accepts work. */
@@ -62,6 +66,9 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
    * the reconnect backoff on every failed attempt).
    */
   private _reconnectExpected = false;
+  private _mediaConnectionCapability?: () => boolean;
+  /** Whether the current connection declared the media capability. */
+  private _connectionMediaDeclared = false;
 
   constructor(
     baseUrl: string,
@@ -110,6 +117,28 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
 
   get supernetType(): SupernetType {
     return this._supernetType;
+  }
+
+  /**
+   * Whether new connections declare the media capability.
+   * @internal
+   */
+  _setMediaConnectionCapability(declared: () => boolean) {
+    this._mediaConnectionCapability = declared;
+  }
+
+  /**
+   * Declare the media capability on the open connection.
+   * @internal
+   */
+  _declareMediaCapability() {
+    if (this._disposed || !this._mediaConnectionCapability?.()) return;
+    // Not connected: the next connection declares it at its handshake.
+    if (this._connectionMediaDeclared || (!this.socket && !this._connectPromise)) return;
+    this._connectionMediaDeclared = true;
+    this.send('mediaCapability', { sogniMedia: MEDIA_CAPABILITY }).catch((error) => {
+      this._logger.debug('Media capability declaration did not reach the server', error);
+    });
   }
 
   /** @internal */
@@ -177,6 +206,10 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     url.searchParams.set('clientType', 'artist');
     //At this point 'relaxed' does not work as expected, so we use 'fast' or empty
     url.searchParams.set('forceWorkerId', this._supernetType === 'fast' ? 'fast' : '');
+    this._connectionMediaDeclared = !!this._mediaConnectionCapability?.();
+    if (this._connectionMediaDeclared) {
+      url.searchParams.set(MEDIA_CAPABILITY_QUERY, MEDIA_CAPABILITY);
+    }
     const params = await this.auth.socketOptions();
     assertSession();
     if (generation !== this._connectGeneration) throw new Error('WebSocket connection cancelled');
@@ -355,19 +388,26 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
   }
 
   private handleMessage(e: MessageEvent) {
-    const source = e.target;
-    let dataPromise: Promise<string>;
-    // In Node.js, e.data is a Buffer, while in browser it's a Blob
-    if (isNodejs) {
-      dataPromise = Promise.resolve(e.data.toString());
-    } else {
-      const data = e.data as unknown as Blob;
-      dataPromise = data.text();
-    }
-    dataPromise
-      .then((str: string) => {
+    const source = this.socket;
+    if (!source || e.target !== source || !this.isConnected) return;
+    // Decode concurrently, but capture rejection immediately: this frame may
+    // have to wait behind an earlier read before its result can be delivered.
+    const decoded = Promise.resolve()
+      .then(() => (isNodejs ? e.data.toString() : (e.data as unknown as Blob).text()))
+      .then(
+        (text: string) => ({ ok: true as const, text }),
+        (error: unknown) => ({ ok: false as const, error })
+      );
+    const previous = this.messageQueues.get(source) ?? Promise.resolve();
+    const next = previous
+      .then(async () => {
         if (source !== this.socket || !this.isConnected) return;
-        const data = JSON.parse(str);
+        // Independent Blob.text() promises can finish out of order, including
+        // a terminal frame overtaking earlier tokens. Emit in arrival order.
+        const result = await decoded;
+        if (source !== this.socket || !this.isConnected) return;
+        if (!result.ok) throw result.error;
+        const data = JSON.parse(result.text);
         let payload = null;
         if (data.data) {
           payload = JSON.parse(base64Decode(data.data));
@@ -387,6 +427,9 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
       .catch((err: any) => {
         this._logger.error('Failed to parse WebSocket message:', err);
       });
+    // A failed frame must not poison later frames. A new socket has its own
+    // queue, so a pending decode on an old connection cannot stall reconnect.
+    this.messageQueues.set(source, next);
   }
 
   async send<T extends MessageType>(
@@ -410,7 +453,7 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     // A suspended tab can resume after its timers' deadlines. Check the wall
     // clock again immediately before sending, even if authentication succeeded.
     remaining();
-    this._logger.debug('WebSocket send:', messageType, data);
+    this._logger.debug('WebSocket send:', messageType, redactMediaKey(data));
     this.socket!.send(
       JSON.stringify({ type: messageType, data: base64Encode(JSON.stringify(data)) })
     );

@@ -6,6 +6,7 @@ import Cookie from 'js-cookie';
 import AuthManagerBase from './AuthManagerBase.js';
 import { ClientOptions } from 'ws';
 import { captureRequestSession } from '../requestSession.js';
+import { fetchWithCredentials } from '../fetchWithCredentials.js';
 
 /**
  * Token object, containing the token and refresh token
@@ -176,13 +177,17 @@ class TokenAuthManager extends AuthManagerBase<TokenAuthData | null> {
       throw new Error('Refresh token expired');
     }
     const url = new URL('/v1/account/refresh-token', this._baseUrl).toString();
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
+    const response = await fetchWithCredentials(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ refreshToken: this._refreshToken })
       },
-      body: JSON.stringify({ refreshToken: this._refreshToken })
-    });
+      true
+    );
     // Mirror RestClient.processResponse: read body once as text, attempt JSON
     // parse, prefer surfacing real HTTP status when an upstream gateway returns
     // an HTML error page instead of the generic "Failed to parse response".

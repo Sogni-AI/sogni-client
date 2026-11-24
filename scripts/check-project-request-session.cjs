@@ -517,6 +517,7 @@ function browserStub(auth, primary) {
     _sessionVersion: auth.sessionVersion,
     _sessionId: 'shared-session',
     _staleSessionIds: new Set(),
+    _lastMediaEncryptionAvailable: null,
     coordinator: { isPrimary: primary, isReady: async () => {}, notify() {} },
     socketClient: { send: async () => {}, isConnected: true }
   });

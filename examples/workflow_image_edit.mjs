@@ -277,7 +277,7 @@ async function main() {
   const firstImage = OPTIONS.contextImages[0];
   if (firstImage) {
     try {
-      const dimensions = imageSize(firstImage);
+      const dimensions = imageSize(fs.readFileSync(firstImage));
       if (dimensions.width && dimensions.height) {
         imageDimensions = { width: dimensions.width, height: dimensions.height };
       }
@@ -319,7 +319,7 @@ async function main() {
 
       // Re-detect dimensions from the selected context image
       try {
-        const dimensions = imageSize(firstContextImage);
+        const dimensions = imageSize(fs.readFileSync(firstContextImage));
         if (dimensions.width && dimensions.height) {
           imageDimensions = { width: dimensions.width, height: dimensions.height };
         }
@@ -439,7 +439,7 @@ async function main() {
   const firstContextImage = OPTIONS.contextImages[0];
   if (firstContextImage) {
     try {
-      const dimensions = imageSize(firstContextImage);
+      const dimensions = imageSize(fs.readFileSync(firstContextImage));
       if (dimensions.width && dimensions.height) {
         imageDimensions = { width: dimensions.width, height: dimensions.height };
       }
@@ -1000,7 +1000,7 @@ async function getImageJobEstimate(tokenType, modelId, steps, inputImagePath, im
   let height = 1024;
   if (inputImagePath) {
     try {
-      const dimensions = imageSize(inputImagePath);
+      const dimensions = imageSize(fs.readFileSync(inputImagePath));
       if (dimensions.width && dimensions.height) {
         width = dimensions.width;
         height = dimensions.height;

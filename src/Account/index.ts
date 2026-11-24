@@ -1,3 +1,17 @@
+import type {
+  AuthenticationResponseJSON,
+  RegistrationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON
+} from '@simplewebauthn/browser';
+import TwoFactorRequiredError from './TwoFactorRequiredError.js';
+import {
+  PERMIT_NETWORKS,
+  WITHDRAW_DOMAINS,
+  WITHDRAW_FIELDS,
+  APPROVE_FIELDS,
+  APPROVE_MAX_DEADLINE_SECONDS
+} from './permitConstants.js';
 import {
   AccountCreateData,
   AccountCreateParams,
@@ -5,6 +19,7 @@ import {
   ClaimOptions,
   FullBalances,
   LoginData,
+  LoginOptions,
   MeData,
   Nonce,
   Reward,
@@ -88,8 +103,29 @@ function parseSubscriptionVersion(version: unknown): number | null {
  * ```
  *
  */
+export type TwoFactorProof =
+  | { code: string }
+  | { assertion: AuthenticationResponseJSON; challengeId: string };
+export interface TwoFactorStatus {
+  enabled: boolean;
+  backupCodesRemaining: number;
+  canManage: boolean;
+  authenticatorEnabled: boolean;
+  passkeys: { id: string; name: string }[];
+}
+/** A non-negative integer given as a number or a string of ASCII digits, as permit fields use. */
+function permitInteger(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isInteger(value) && value >= 0 ? value : undefined;
+  return typeof value === 'string' && /^[0-9]+$/.test(value) ? Number(value) : undefined;
+}
+
+function factorProof(value: string | TwoFactorProof): TwoFactorProof {
+  return typeof value === 'string' ? { code: value.trim().toUpperCase() } : value;
+}
+
 class AccountApi extends ApiGroup {
   readonly currentAccount = new CurrentAccount();
+  private readonly permitNetwork: 'mainnet' | 'testnet';
 
   /**
    * Highest entitlement `version` applied to `currentAccount.subscription`.
@@ -107,9 +143,15 @@ class AccountApi extends ApiGroup {
    */
   private appliedSubscriptionSocketWrites = 0;
   private accountSessionVersion?: number;
+  /** Priority availability belongs to the current authenticated connection. */
+  private socketPriorityAvailability: {
+    sessionVersion: number;
+    available: boolean;
+  } | null = null;
 
   constructor(config: ApiConfig) {
     super(config);
+    this.permitNetwork = config.testnet ? 'testnet' : 'mainnet';
     this.accountSessionVersion = this.client.auth.sessionVersion;
     this.currentAccount._update({
       networkStatus: this.client.socket.isConnected ? 'connected' : 'disconnected',
@@ -138,6 +180,7 @@ class AccountApi extends ApiGroup {
   }
 
   private handleServerConnected({ network }: { network: SupernetType }) {
+    this.clearSocketPriorityAvailability();
     this.currentAccount._update({
       networkStatus: 'connected',
       network
@@ -145,6 +188,7 @@ class AccountApi extends ApiGroup {
   }
 
   private handleServerConnecting({ network }: { network: SupernetType }) {
+    this.clearSocketPriorityAvailability();
     this.currentAccount._update({
       networkStatus: 'connecting',
       network
@@ -152,10 +196,39 @@ class AccountApi extends ApiGroup {
   }
 
   private handleServerDisconnected() {
+    this.clearSocketPriorityAvailability();
     this.currentAccount._update({
       networkStatus: 'disconnected',
       network: null
     });
+  }
+
+  private clearSocketPriorityAvailability() {
+    this.socketPriorityAvailability = null;
+    const subscription = this.currentAccount.subscription;
+    if (!subscription?.capabilities?.priorityMode) return;
+    const capabilities = { ...subscription.capabilities };
+    delete capabilities.priorityMode;
+    this.currentAccount._update({ subscription: { ...subscription, capabilities } });
+  }
+
+  /** Plan refreshes retain the current connection's coarse Priority availability. */
+  private withSocketPriorityAvailability(
+    subscription: SubscriptionEntitlementSnapshot
+  ): SubscriptionEntitlementSnapshot {
+    const available = Boolean(
+      this.socketPriorityAvailability?.available &&
+      this.socketPriorityAvailability.sessionVersion === this.client.auth.sessionVersion &&
+      this.client.socket.isConnected &&
+      subscription.active &&
+      subscription.status !== 'trialing' &&
+      (subscription.tier === 'unlimited' || subscription.tier === 'unlimited_pro')
+    );
+    if (available === (subscription.capabilities?.priorityMode === true)) return subscription;
+    const capabilities = { ...subscription.capabilities };
+    if (available) capabilities.priorityMode = true;
+    else delete capabilities.priorityMode;
+    return { ...subscription, capabilities };
   }
 
   private mapSocketSubscriptionEntitlement(
@@ -229,6 +302,9 @@ class AccountApi extends ApiGroup {
         ? { scheduledChangeAt: new Date(sub.scheduledChangeAt).toISOString() }
         : {}),
       ...(sub.paymentPending ? { paymentPending: true } : {}),
+      ...(data.active && Number(sub.vendorDiscountBps) > 0
+        ? { frontierDiscountBps: Number(sub.vendorDiscountBps) }
+        : {}),
       ...(sub.fairUse?.limited && Number(sub.fairUse.resetAt) > Date.now()
         ? {
             fairUse: {
@@ -294,12 +370,17 @@ class AccountApi extends ApiGroup {
     }
     if (source === 'socket') {
       this.appliedSubscriptionSocketWrites += 1;
+      this.socketPriorityAvailability = {
+        sessionVersion: this.client.auth.sessionVersion,
+        available: subscription.capabilities?.priorityMode === true
+      };
     }
+    const normalizedSubscription = this.withSocketPriorityAvailability(subscription);
     const current = this.currentAccount.subscription;
-    if (current && JSON.stringify(current) === JSON.stringify(subscription)) {
+    if (current && JSON.stringify(current) === JSON.stringify(normalizedSubscription)) {
       return true;
     }
-    this.currentAccount._update({ subscription });
+    this.currentAccount._update({ subscription: normalizedSubscription });
     return true;
   }
 
@@ -360,6 +441,7 @@ class AccountApi extends ApiGroup {
     this.accountSessionVersion = this.client.auth.sessionVersion;
     this.lastAppliedSubscriptionVersion = null;
     this.appliedSubscriptionSocketWrites = 0;
+    this.socketPriorityAvailability = null;
     this.currentAccount._clear();
   }
 
@@ -369,6 +451,7 @@ class AccountApi extends ApiGroup {
       // the next login starts from a clean slate.
       this.lastAppliedSubscriptionVersion = null;
       this.appliedSubscriptionSocketWrites = 0;
+      this.socketPriorityAvailability = null;
       this.currentAccount._clear();
     } else {
       this.clearChangedAccountSession();
@@ -465,18 +548,44 @@ class AccountApi extends ApiGroup {
    * console.log('Logged in');
    * ```
    *
+   * @example Offer to restore a deleted account at sign-in
+   * ```typescript
+   * import { ApiError, ACCOUNT_RESTORABLE_ERROR_CODE } from '@sogni-ai/sogni-client';
+   *
+   * try {
+   *   await sogni.account.login(username, password, rememberMe, appSource);
+   * } catch (error) {
+   *   if (!(error instanceof ApiError) || error.payload.errorCode !== ACCOUNT_RESTORABLE_ERROR_CODE) {
+   *     throw error;
+   *   }
+   *   const deletedAt = new Date(Number(error.details?.deletedAt) * 1000);
+   *   // Ask the person whether to restore the account deleted on `deletedAt`. If they agree,
+   *   // repeat the original arguments and add the option:
+   *   await sogni.account.login(username, password, rememberMe, appSource, {
+   *     restoreDeletedAccount: true
+   *   });
+   * }
+   * ```
+   *
    * @param username
    * @param password
    * @param rememberMe - Whether to establish a long-lived session. Default is false. Only
    * applicable for cookie-based authentication.
    * @param appSource - Optional client app/source label for login attribution. Defaults to the
    * SogniClient connection appSource when configured.
+   * @param options - Optional sign-in settings. Set `restoreDeletedAccount: true` to restore a
+   * deleted account and sign in, after the person confirms; repeat the original `rememberMe` and
+   * `appSource` on that call so the session lasts as long as first requested. A deleted account
+   * that can be restored makes `login()` throw an `ApiError` with
+   * `payload.errorCode === ACCOUNT_RESTORABLE_ERROR_CODE` (196) and `details.deletedAt` (Unix
+   * seconds).
    */
   async login(
     username: string,
     password: string,
     rememberMe = false,
-    appSource?: string
+    appSource?: string,
+    options?: LoginOptions
   ): Promise<LoginData> {
     const wallet = this.getWallet(username, password);
     const nonce = await this.getNonce(wallet.address);
@@ -485,7 +594,9 @@ class AccountApi extends ApiGroup {
       nonce
     });
     const resolvedAppSource = appSource?.trim() || this.client.appSource;
-    const res = await this.client.rest.post<ApiResponse<LoginData>>('/v1/account/login', {
+    const res = await this.client.rest.post<
+      ApiResponse<LoginData & { requires2FA?: boolean; tempToken?: string }>
+    >('/v1/account/login', {
       walletAddress: wallet.address,
       signature,
       // Lets the server tell "this username is an SSO-native account" (189, with
@@ -494,16 +605,174 @@ class AccountApi extends ApiGroup {
       // fields, so deploy sogni-api before shipping this client version.
       username,
       ...(resolvedAppSource ? { appSource: resolvedAppSource } : {}),
-      rememberMe
+      rememberMe,
+      ...(options?.restoreDeletedAccount ? { restoreDeletedAccount: true } : {})
     });
+    if (res.data.requires2FA) {
+      if (!res.data.tempToken)
+        throw new Error('Unable to start verification. Please sign in again.');
+      throw new TwoFactorRequiredError(res.data.tempToken, wallet.address, res.data.username);
+    }
+    await this.acceptLogin(res.data, wallet.address);
+    return res.data;
+  }
+
+  private async acceptLogin(
+    data: Pick<LoginData, 'token' | 'refreshToken'>,
+    walletAddress: string
+  ) {
     const auth = this.client.auth;
     if (auth instanceof TokenAuthManager) {
-      await auth.authenticate({ refreshToken: res.data.refreshToken, token: res.data.token });
+      await auth.authenticate({ refreshToken: data.refreshToken, token: data.token });
     } else if (auth instanceof CookieAuthManager) {
-      auth._setSessionIdentity(wallet.address.toLowerCase());
+      auth._setSessionIdentity(walletAddress.toLowerCase());
       await auth.authenticate();
     }
+  }
+
+  /** Complete the sign-in requested by a TwoFactorRequiredError. Keep the challenge in memory. */
+  async verifyTwoFactorLogin(
+    challenge: TwoFactorRequiredError,
+    proof: string | TwoFactorProof
+  ): Promise<LoginData> {
+    const res = await this.client.rest.post<ApiResponse<Pick<LoginData, 'token' | 'refreshToken'>>>(
+      '/v1/account/2fa/verify-login',
+      { tempToken: challenge.tempToken, ...factorProof(proof) }
+    );
+    await this.acceptLogin(res.data, challenge.walletAddress);
+    return { ...res.data, username: challenge.username };
+  }
+
+  async getTwoFactorStatus(): Promise<TwoFactorStatus> {
+    const res = await this.client.rest.get<ApiResponse<TwoFactorStatus>>('/v1/account/2fa/status');
     return res.data;
+  }
+
+  async getTwoFactorPasskeyOptions(challenge?: TwoFactorRequiredError): Promise<{
+    challengeId: string;
+    options: PublicKeyCredentialRequestOptionsJSON;
+  }> {
+    const res = await this.client.rest.post<
+      ApiResponse<{
+        challengeId: string;
+        options: PublicKeyCredentialRequestOptionsJSON;
+      }>
+    >(
+      challenge
+        ? '/v1/account/2fa/passkeys/login-options'
+        : '/v1/account/2fa/passkeys/authentication-options',
+      challenge ? { tempToken: challenge.tempToken } : {}
+    );
+    return res.data;
+  }
+
+  async beginPasskeySetup(
+    username: string,
+    password: string,
+    name: string,
+    proof?: TwoFactorProof
+  ): Promise<{
+    setupId: string;
+    options: PublicKeyCredentialCreationOptionsJSON;
+    backupCodes?: string[];
+  }> {
+    const signature = await this.twoFactorSignature(username, password);
+    const res = await this.client.rest.post<
+      ApiResponse<{
+        setupId: string;
+        options: PublicKeyCredentialCreationOptionsJSON;
+        backupCodes?: string[];
+      }>
+    >('/v1/account/2fa/passkeys/registration-options', {
+      signature,
+      name,
+      ...(proof ? { proof } : {})
+    });
+    return res.data;
+  }
+
+  async finishPasskeySetup(setupId: string, response: RegistrationResponseJSON): Promise<void> {
+    await this.client.rest.post('/v1/account/2fa/passkeys/register', { setupId, response });
+  }
+
+  async removePasskey(
+    username: string,
+    password: string,
+    credentialId: string,
+    proof: string | TwoFactorProof
+  ): Promise<void> {
+    const signature = await this.twoFactorSignature(username, password);
+    await this.client.rest.post('/v1/account/2fa/passkeys/remove', {
+      signature,
+      credentialId,
+      ...factorProof(proof)
+    });
+  }
+
+  private async twoFactorSignature(username: string, password: string): Promise<string> {
+    const wallet = this.getWallet(username, password);
+    if (wallet.address.toLowerCase() !== this.currentAccount.walletAddress?.toLowerCase()) {
+      throw new Error('Incorrect password. Please try again.');
+    }
+    const nonce = await this.getNonce(wallet.address);
+    return this.eip712.signTypedData(wallet, 'authentication', {
+      walletAddress: wallet.address,
+      nonce
+    });
+  }
+
+  async setupTwoFactor(
+    username: string,
+    password: string,
+    proof?: TwoFactorProof
+  ): Promise<{
+    setupId: string;
+    secret: string;
+    qrData: string;
+    backupCodes: string[];
+  }> {
+    const signature = await this.twoFactorSignature(username, password);
+    const res = await this.client.rest.post<
+      ApiResponse<{
+        setupId: string;
+        secret: string;
+        qrData: string;
+        backupCodes: string[];
+      }>
+    >('/v1/account/2fa/setup', { signature, ...(proof ? { proof } : {}) });
+    return res.data;
+  }
+
+  async confirmTwoFactorSetup(setupId: string, code: string): Promise<void> {
+    await this.client.rest.post('/v1/account/2fa/verify-setup', { setupId, code: code.trim() });
+  }
+
+  async disableTwoFactor(
+    username: string,
+    password: string,
+    proof: string | TwoFactorProof
+  ): Promise<void> {
+    const signature = await this.twoFactorSignature(username, password);
+    await this.client.rest.post('/v1/account/2fa/disable', {
+      signature,
+      ...factorProof(proof)
+    });
+  }
+
+  async regenerateTwoFactorBackupCodes(
+    username: string,
+    password: string,
+    proof: string | TwoFactorProof
+  ): Promise<string[]> {
+    const signature = await this.twoFactorSignature(username, password);
+    const res = await this.client.rest.post<ApiResponse<{ backupCodes: string[] }>>(
+      '/v1/account/2fa/backup-codes',
+      {
+        signature,
+        ...factorProof(proof)
+      }
+    );
+    return res.data.backupCodes;
   }
 
   /**
@@ -570,7 +839,7 @@ class AccountApi extends ApiGroup {
    * this provider's sign-in enabled from the start, and the session returned is a
    * password session. This choice exists only at signup. The server ships it dark:
    * unless its SSO_SIGNUP_PASSWORD_ENABLED switch is on, a request with `password`
-   * fails with a 400 and errorCode 196 (SSO_FEATURE_DISABLED).
+   * fails with a 400 and errorCode 200 (SSO_FEATURE_DISABLED).
    *
    * @example Signup after a 105 login miss
    * ```typescript
@@ -648,7 +917,7 @@ class AccountApi extends ApiGroup {
    * account, permanent — no unlink. The current session is unchanged; the new
    * sign-in method applies from the next login. The server ships linking dark:
    * unless its SSO_LINKING_ENABLED switch is on, the call fails with a 403 and
-   * errorCode 196 (SSO_FEATURE_DISABLED).
+   * errorCode 200 (SSO_FEATURE_DISABLED).
    *
    * @example Enable Google sign-in from settings
    * ```typescript
@@ -845,6 +1114,7 @@ class AccountApi extends ApiGroup {
     if (params.provider) {
       query.provider = params.provider;
     }
+    if (params.includePriorityAccounting === true) query.includePriorityAccounting = 'true';
     const res = await this.client.rest.get<ApiResponse<TxHistoryData>>(
       '/v1/transactions/list',
       query
@@ -869,7 +1139,10 @@ class AccountApi extends ApiGroup {
           paymentModel: tx.paymentModel,
           subscriptionTier: tx.subscriptionTier,
           subscriptionTrialing: tx.subscriptionTrialing,
-          subscriptionThrottled: tx.subscriptionThrottled
+          subscriptionThrottled: tx.subscriptionThrottled,
+          ...(params.includePriorityAccounting === true && tx.priorityUsage
+            ? { priorityUsage: tx.priorityUsage }
+            : {})
         })
       ),
       next: {
@@ -948,6 +1221,7 @@ class AccountApi extends ApiGroup {
     amount: number | string,
     provider: string = 'base'
   ): Promise<void> {
+    const expected = this.permitProvider(provider);
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const walletAddress = wallet.address;
     //const nonce = await this.getNonce(walletAddress);
@@ -967,12 +1241,66 @@ class AccountApi extends ApiGroup {
       '/v1/account/token/withdraw/permit',
       payload
     );
-    const { domain, types, message } = permitR.data;
+    const { domain, types, message } = permitR.data ?? {};
+    const expectedDomain = WITHDRAW_DOMAINS[this.permitNetwork];
+    this.checkPermit(
+      'domain',
+      !!domain &&
+        Object.keys(domain).length === 4 &&
+        domain.name === expectedDomain.name &&
+        domain.version === expectedDomain.version &&
+        permitInteger(domain.chainId) === expected.chainId &&
+        typeof domain.verifyingContract === 'string' &&
+        domain.verifyingContract.toLowerCase() === expectedDomain.verifyingContract.toLowerCase()
+    );
+    this.checkPermitTypes(types, 'WithdrawTokenV2', WITHDRAW_FIELDS);
+    this.checkPermit(
+      'message',
+      !!message &&
+        message.walletAddress === walletAddress &&
+        message.amount === payload.amount &&
+        message.provider === provider &&
+        typeof message.nonce === 'string'
+    );
     const signature = await wallet.signTypedData(domain, types, message);
     await this.client.rest.post('/v2/account/token/withdraw', {
       ...payload,
       signature
     });
+  }
+
+  private checkPermit(field: string, matches: boolean): asserts matches {
+    if (matches) return;
+    this.client.logger.debug('Unexpected signing request field:', field);
+    throw new ApiError(400, {
+      status: 'error',
+      message: 'Unexpected signing request; nothing was signed',
+      errorCode: 0
+    });
+  }
+
+  private permitProvider(provider: string) {
+    // The API issues Etherlink permits for exactly 'etherlink' and Base permits for any other value.
+    return PERMIT_NETWORKS[this.permitNetwork][provider === 'etherlink' ? 'etherlink' : 'base'];
+  }
+
+  private checkPermitTypes(types: any, name: string, fields: { name: string; type: string }[]) {
+    this.checkPermit(
+      'types',
+      !!types &&
+        Object.keys(types).length === 1 &&
+        Array.isArray(types[name]) &&
+        types[name].length === fields.length &&
+        fields.every((field, index) => {
+          const actual = types[name][index];
+          return (
+            !!actual &&
+            Object.keys(actual).length === 2 &&
+            actual.name === field.name &&
+            actual.type === field.type
+          );
+        })
+    );
   }
 
   /**
@@ -1048,6 +1376,7 @@ class AccountApi extends ApiGroup {
     spender: 'account' | 'staker',
     provider: string = 'base'
   ): Promise<void> {
+    const expected = this.permitProvider(provider);
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const permitR = await this.client.rest.post<{ data: Record<string, any> }>(
       '/v1/contract/token/approve/permit',
@@ -1057,7 +1386,25 @@ class AccountApi extends ApiGroup {
         provider: provider
       }
     );
-    const { domain, types, message } = permitR.data;
+    const { domain, types, message } = permitR.data ?? {};
+    this.checkPermit(
+      'domain',
+      !!domain &&
+        permitInteger(domain.chainId) === expected.chainId &&
+        (!expected.token ||
+          (typeof domain.verifyingContract === 'string' &&
+            domain.verifyingContract.toLowerCase() === expected.token.toLowerCase()))
+    );
+    this.checkPermitTypes(types, 'Permit', APPROVE_FIELDS);
+    const deadline = permitInteger(message?.deadline);
+    this.checkPermit(
+      'message',
+      !!message &&
+        message.owner === wallet.address &&
+        deadline !== undefined &&
+        deadline <= Math.floor(Date.now() / 1000) + APPROVE_MAX_DEADLINE_SECONDS
+    );
+    // The spender is not pinned yet, so SDK releases are not tied to contract migrations.
     const signature = await wallet.signTypedData(domain, types, message);
     await this.client.rest.post('/v1/contract/token/approve', {
       walletAddress: wallet.address,
@@ -1111,7 +1458,7 @@ class AccountApi extends ApiGroup {
       // currentAccount.subscription.
       return this.currentAccount.subscription;
     }
-    return subscription;
+    return this.currentAccount.subscription ?? subscription;
   }
 
   /**

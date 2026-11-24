@@ -88,10 +88,49 @@ async function main() {
       ])
     )
   );
-  assert.throws(
-    () => validateOptions(parsed(parseArgs, ['--task-type', 'reference', '--image', 'https://cdn.example.com/frame.jpg', '--resolution', '4k'])),
-    /seedance-2-5 supports 480p\/720p\/1080p output/
-  );
+  for (const model of ['seedance-2-5', 'seedance-2-5-uncensored']) {
+    const options = parsed(parseArgs, [
+      '--model',
+      model,
+      '--task-type',
+      'reference',
+      '--image',
+      'https://cdn.example.com/frame.jpg',
+      '--resolution',
+      '4k'
+    ]);
+    assert.doesNotThrow(() => validateOptions(options));
+    const direct = buildDirectProjectParams(options, {
+      images: options.images,
+      videos: [],
+      audios: []
+    });
+    assert.equal(direct.modelId, model);
+    assert.deepEqual(
+      { width: direct.width, height: direct.height, fps: direct.fps },
+      { width: 3840, height: 2160, fps: 24 }
+    );
+    const hosted = buildCreativeAgentRequest(options, {
+      images: options.images,
+      videos: [],
+      audios: []
+    });
+    assert.equal(hosted.input.steps[0].arguments.targetResolution, 2160);
+    assert.equal(
+      hosted.input.steps[0].arguments.videoModel,
+      model === 'seedance-2-5' ? 'seedance2-5' : 'seedance2-5-uncensored'
+    );
+    const edit = buildCreativeAgentRequest(
+      { ...options, taskType: 'edit' },
+      { images: [], videos: ['https://cdn.example.com/source.mp4'], audios: [] }
+    );
+    assert.equal(edit.input.steps[0].toolName, 'video_to_video');
+    assert.equal(edit.input.steps[0].arguments.targetResolution, 2160);
+    assert.equal(
+      edit.input.steps[0].arguments.videoModel,
+      hosted.input.steps[0].arguments.videoModel
+    );
+  }
 
   const maximum25 = parsed(parseArgs, [
     '--task-type',

@@ -84,7 +84,7 @@ export const refineResultTool: ToolDefinition = getHostedTool('refine_result');
 export const changeAngleTool: ToolDefinition = getHostedTool('change_angle');
 export const animatePhotoTool: ToolDefinition = getHostedTool('animate_photo');
 
-// Promptless upscalers (RTX VSR image enlargement, FlashVSR 1080p/1440p video).
+// Promptless upscalers (RTX VSR image enlargement, FlashVSR and RelayVSR video).
 export const upscaleImageTool: ToolDefinition = getHostedTool('upscale_image');
 export const upscaleVideoTool: ToolDefinition = getHostedTool('upscale_video');
 

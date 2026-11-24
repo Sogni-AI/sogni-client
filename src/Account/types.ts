@@ -49,7 +49,7 @@ export interface SsoSignupParams {
    * the account is created as a username & password account with this provider's
    * sign-in enabled from the start — instead of a Google/Apple-only account with a
    * custodial wallet. The first session is a password session. Ships dark on the
-   * server: rejected with errorCode 196 unless SSO_SIGNUP_PASSWORD_ENABLED is on there.
+   * server: rejected with errorCode 200 unless SSO_SIGNUP_PASSWORD_ENABLED is on there.
    */
   password?: string;
   subscribe?: boolean;
@@ -98,7 +98,7 @@ export const SSO_ERROR_CODES = {
   /** Password login named a username owned by an SSO-native account — use `details.provider` sign-in. */
   SSO_LOGIN_REQUIRED: 189,
   /** The server ships this feature dark: ssoSignup with `password` (400) or ssoLink (403) while its switch is off. */
-  SSO_FEATURE_DISABLED: 196,
+  SSO_FEATURE_DISABLED: 200,
   /** Password signup used an email owned by an SSO account (`details.provider`). */
   EMAIL_REGISTERED_VIA_SSO: 190
 } as const;
@@ -114,6 +114,17 @@ export interface LoginData {
   token: string;
   refreshToken: string;
   username: string;
+}
+
+/** Optional settings for `sogni.account.login()`. */
+export interface LoginOptions {
+  /**
+   * Restore the account, then sign in, when the account was deleted. Set it
+   * after the person confirms they want the account back, usually in answer to
+   * an `ACCOUNT_RESTORABLE_ERROR_CODE` error from an earlier `login()` call.
+   * It changes nothing for an account that has not been deleted.
+   */
+  restoreDeletedAccount?: boolean;
 }
 
 export interface MeData {
@@ -178,6 +189,14 @@ export interface TxHistoryParams {
   limit: number;
   provider?: string;
   offset?: number;
+  /** Include saved Priority labels on plan usage entries. */
+  includePriorityAccounting?: boolean;
+}
+
+export interface PriorityUsageSummary {
+  outputCount: number;
+  rate: 1.5;
+  coverage: 'complete' | 'partial';
 }
 
 export interface TxHistoryData {
@@ -186,6 +205,7 @@ export interface TxHistoryData {
 }
 
 export interface TxRaw {
+  priorityUsage?: PriorityUsageSummary;
   _id: string;
   id: string;
   SID: number;
@@ -211,6 +231,7 @@ export interface TxRaw {
 }
 
 export interface TxHistoryEntry {
+  priorityUsage?: PriorityUsageSummary;
   id: string;
   address: string;
   createTime: Date;

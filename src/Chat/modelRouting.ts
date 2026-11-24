@@ -14,7 +14,8 @@ import {
   isKreaIdentityEditModel,
   isQwenImageEditModel,
   isSeedreamModel,
-  SEEDREAM_5_PRO_UNCENSORED_MODEL_ID
+  SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  SEEDREAM_5_5_UNCENSORED_MODEL_ID
 } from '../lib/validation.js';
 
 export {
@@ -100,9 +101,13 @@ export const PREFERRED_MODEL_IDS = {
     gptImage2: 'gpt-image-2',
     gptImage25Sunburst: 'gpt-image-2.5-sunburst',
     gptImage25Flare: 'gpt-image-2.5-flare',
+    gptImage26Flare: 'gpt-image-2.6-flare',
+    gptImage26Sunburst: 'gpt-image-2.6-sunburst',
     // Seedream 5.0 Pro Uncensored: requires the one-time agreement Seedance 2.5
     // Uncensored uses, and is only ever chosen by name.
     seedream5ProUncensored: 'seedream-5-0-pro-uncensored',
+    // Seedream 5.5 Uncensored: the same agreement, also chosen only by name.
+    seedream55Uncensored: 'seedream-5-5-uncensored',
     flux1Schnell: 'flux1-schnell-fp8',
     chromaFlash: 'chroma-v.46-flash_fp8',
     zTurbo: 'z_image_turbo_bf16',
@@ -278,7 +283,11 @@ const SEEDREAM_SELECTORS: Record<string, string> = {
   'seedream-5.0-pro-uncensored': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
   'seedream-uncensored': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
   'seedream-5-pro-spicy': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
-  'seedream-5.0-pro-spicy': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID
+  'seedream-5.0-pro-spicy': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  // Seedream 5.5 Uncensored. "seedream-uncensored" keeps naming 5.0 Pro.
+  'seedream-5.5-uncensored': SEEDREAM_5_5_UNCENSORED_MODEL_ID,
+  'seedream-5.5-spicy': SEEDREAM_5_5_UNCENSORED_MODEL_ID,
+  'seedream-5-5-spicy': SEEDREAM_5_5_UNCENSORED_MODEL_ID
 };
 
 const IMAGE_MODEL_SELECTORS: Record<string, string> = {

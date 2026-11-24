@@ -16,6 +16,10 @@ export interface SocketMessageMap {
   changeNetwork: SupernetType;
   llmJobRequest: ChatRequestMessage;
   setSocketEventSubscriptions: SocketEventSubscriptionUpdate;
+  /** Media capability declaration on an open connection. */
+  mediaCapability: { sogniMedia: 'ciphertext-v1' };
+  /** Owner opt-in: run one waiting plan project on Premium Spark now. */
+  switchProjectToPremiumSpark: { projectId: string };
 }
 
 export type MessageType = keyof SocketMessageMap;

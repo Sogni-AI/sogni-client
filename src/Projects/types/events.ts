@@ -1,4 +1,4 @@
-import { AvailableModel } from './index.js';
+import { AvailableModel, ImageLayer } from './index.js';
 import ErrorData from '../../types/ErrorData.js';
 import type {
   JobPreparation,
@@ -7,11 +7,14 @@ import type {
 } from '../../ApiClient/WebSocketClient/events.js';
 import type { JobProvenance } from './JobProvenance.js';
 import type { WaitingReason, JobWaitingReason } from './WaitingReason.js';
+import type { PayAsYouGoOffer } from './PayAsYouGo.js';
 
 /** Current queue details; does not change project or result status. */
 export interface ProjectQueueChanged extends ProjectEventBase {
   waitingReason: WaitingReason | null;
   jobWaitingReasons: JobWaitingReason[];
+  /** See {@link Project.payAsYouGo}; `null` when not offered. Always set by this SDK. */
+  payAsYouGo?: PayAsYouGoOffer | null;
 }
 
 export type { JobPreparation } from '../../ApiClient/WebSocketClient/events.js';
@@ -107,7 +110,15 @@ export interface JobCompleted extends JobEventBase {
    */
   resultUrl: string | null;
   lastFrameUrl?: string;
+  lastFrameKey?: string;
   outputFormat?: string;
+  /** Seedance 2.5: this job is a draft that can be finalized at 1080p. */
+  seedanceDraft?: boolean;
+  /** Seedance 2.5 draft: ISO 8601 time after which it can no longer be finalized. */
+  seedanceDraftExpiresAt?: string;
+  /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
+  seedanceDraftJobId?: string;
+  seedanceDraftFinalResolution?: '1080p' | '4k';
   /**
    * A safety signal fired. Either the media was withheld (filter on, no
    * `resultUrl`) or it was delivered and merely labelled - see `nsfwDetected`.
@@ -123,6 +134,11 @@ export interface JobCompleted extends JobEventBase {
   userCanceled: boolean;
   /** Worker-attested input/output hashes, when the workflow emits them. */
   provenance?: JobProvenance;
+  /**
+   * Seedream layer decomposition: the layers above the base image, ordered by
+   * `zIndex`. `resultUrl` is the base image.
+   */
+  layers?: ImageLayer[];
 }
 
 export interface JobError extends JobEventBase {

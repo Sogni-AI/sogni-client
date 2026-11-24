@@ -141,6 +141,40 @@ function apiResponse(data) {
 async function run() {
   {
     const { api, client } = makeApi();
+    const priorityUsage = { outputCount: 1, rate: 1.5, coverage: 'complete' };
+    client.rest._nextPayload = {
+      data: {
+        transactions: [
+          {
+            id: 'usage-1',
+            address: '0xartist',
+            createTime: 1,
+            updateTime: 1,
+            endTime: 1,
+            status: 'completed',
+            role: 'artist',
+            amount: 0,
+            tokenType: 'spark',
+            description: 'Unlimited plan',
+            source: 'subscription',
+            type: 'debit',
+            priorityUsage
+          }
+        ],
+        next: null
+      }
+    };
+    const params = { status: 'completed', address: '0xartist', limit: 20, provider: 'all' };
+    const ordinary = await api.transactionHistory(params);
+    assert.equal(client.rest._lastCall.query.includePriorityAccounting, undefined);
+    assert.equal(ordinary.entries[0].priorityUsage, undefined);
+    const opted = await api.transactionHistory({ ...params, includePriorityAccounting: true });
+    assert.equal(client.rest._lastCall.query.includePriorityAccounting, 'true');
+    assert.deepEqual(opted.entries[0].priorityUsage, priorityUsage);
+    assert.equal(opted.entries[0].amount, 0);
+  }
+  {
+    const { api, client } = makeApi();
     const snapshot = {
       active: true,
       status: 'active',
@@ -800,6 +834,41 @@ async function run() {
       ).fairUse,
       undefined,
       'expired fair-use state must not remain in the mapped entitlement snapshot'
+    );
+  }
+
+  {
+    // The member discount rides on the socket payload as vendorDiscountBps and
+    // must map to the same frontierDiscountBps REST reports, or a plan update
+    // or reconnect erases the rate REST just set. Mirror REST: only while the
+    // entitlement is active and only when there is a discount.
+    const { api, client } = makeApi();
+    const map = (data) => api.mapSocketSubscriptionEntitlement(data);
+
+    assert.equal(
+      map(socketEntitlement({}, { vendorDiscountBps: 1000 })).frontierDiscountBps,
+      1000,
+      'an active socket entitlement must carry the member discount'
+    );
+    assert.equal(
+      'frontierDiscountBps' in map(socketEntitlement({}, { vendorDiscountBps: 0 })),
+      false,
+      'a zero discount must stay absent, as it does on REST'
+    );
+    assert.equal(
+      'frontierDiscountBps' in map(socketEntitlement({ active: false }, { vendorDiscountBps: 1000 })),
+      false,
+      'an inactive entitlement must not show a discount, as on REST'
+    );
+
+    client.socket.emit(
+      'subscriptionEntitlementUpdated',
+      socketEntitlement({}, { version: '3', vendorDiscountBps: 500 })
+    );
+    assert.equal(
+      api.currentAccount.subscription?.frontierDiscountBps,
+      500,
+      'a socket plan update must keep the discount on currentAccount'
     );
   }
 

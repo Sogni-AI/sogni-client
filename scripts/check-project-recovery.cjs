@@ -342,6 +342,100 @@ async function main() {
     stopTimers(api);
   }
 
+  // 3b. A finished Seedream layer decomposition replays its layers with its
+  //     result, from the socket's persisted job result.
+  {
+    const { api, socket, client, apiEvents } = makeHarness();
+    const project = await createTracked(api);
+    const layer = {
+      url: 'https://cdn.test/layer-1.png',
+      key: 'vendor/bytedance/seedream-5-0-pro-uncensored/2026-10-22/job.layer-1.png',
+      width: 640,
+      height: 480,
+      zIndex: 1,
+      boundingBox: { absolute: [0, 0, 640, 480], normalized: [0, 0, 500, 500] },
+      name: 'Background'
+    };
+    client.emit('connected', { network: 'fast' });
+    socket.emit('authenticated', {
+      clientType: 'artist',
+      activeProjects: [],
+      unclaimedCompletedProjects: [
+        recoveredProject(project.id, {
+          status: 'completed',
+          reason: 'allJobsCompleted',
+          completedWorkerJobs: [
+            { ...completedJob(project.id, 'IMG-L'), result: { layers: [layer] } }
+          ]
+        })
+      ]
+    });
+    await sleep(30);
+    const { key, ...publicLayer } = layer;
+    assert.deepEqual(project.job('IMG-L').layers, [publicLayer]);
+    const jobCompleted = apiEvents.find((e) => e.kind === 'job' && e.type === 'completed');
+    assert.deepEqual(jobCompleted.layers, [publicLayer]);
+    stopTimers(api);
+  }
+
+  // 3c. A Seedream 5.5 decomposition replays its highest layers and the text
+  //     recognition of its text layers.
+  {
+    const { api, socket, client } = makeHarness();
+    const project = await createTracked(api);
+    const box = { absolute: [40, 60, 600, 140], normalized: [62, 125, 937, 291] };
+    const textLayer = {
+      url: 'https://cdn.test/layer-99.png',
+      key: 'vendor/bytedance/seedream-5-5-uncensored/2026-11-13/job.layer-99.png',
+      width: 1536,
+      height: 220,
+      zIndex: 99,
+      boundingBox: box,
+      name: 'Headline',
+      textRecognition: {
+        text: 'OPEN LATE',
+        lines: [
+          {
+            boundingBox: box,
+            runs: [
+              {
+                text: 'OPEN LATE',
+                style: {
+                  similarFontFamily: 'unknown',
+                  foregroundColor: '#FF0044',
+                  bold: true,
+                  italic: false,
+                  underline: false,
+                  strikethrough: false,
+                  shadow: false,
+                  translucent: false
+                }
+              }
+            ]
+          }
+        ]
+      }
+    };
+    client.emit('connected', { network: 'fast' });
+    socket.emit('authenticated', {
+      clientType: 'artist',
+      activeProjects: [],
+      unclaimedCompletedProjects: [
+        recoveredProject(project.id, {
+          status: 'completed',
+          reason: 'allJobsCompleted',
+          completedWorkerJobs: [
+            { ...completedJob(project.id, 'IMG-T'), result: { layers: [textLayer] } }
+          ]
+        })
+      ]
+    });
+    await sleep(30);
+    const { key, ...publicTextLayer } = textLayer;
+    assert.deepEqual(project.job('IMG-T').layers, [publicTextLayer]);
+    stopTimers(api);
+  }
+
   // 4. An in-flight project this client never saw is rebuilt, tracked and announced.
   {
     const { api, socket, client, recoveredActive } = makeHarness();
