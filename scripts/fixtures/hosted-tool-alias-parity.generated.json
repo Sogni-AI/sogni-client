@@ -99,7 +99,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_video",
       "sdkToolName": "generate_video",
-      "hostedSchemaSha256": "6a3533e57f23350a6bd3bd10771cf6bd4e654fb66181fe75beaa993723827d21",
+      "hostedSchemaSha256": "6a06d1803ef91ee4351f439f887a6faacbfce3ffa992a479c501c7eae8935ab9",
       "hostedRequired": [
         "prompt"
       ],
@@ -109,7 +109,6 @@
         "skipPromptProcessing",
         "duration",
         "ratio",
-        "watermark",
         "referenceFileUrl",
         "referenceLinkUrl",
         "negativePrompt",
@@ -151,7 +150,7 @@
       "executionMode": "direct",
       "hostedToolName": "animate_photo",
       "sdkToolName": "animate_photo",
-      "hostedSchemaSha256": "ff281f0df5f9638e9e3b940f2cbe6d934203fe142bbdcd27f671d7d928e2a286",
+      "hostedSchemaSha256": "fc716e8b686464dafef856b7b9d03a5805309462177843dc5ee7786d8288ceef",
       "hostedRequired": [
         "prompt"
       ],
@@ -164,7 +163,6 @@
         "generateAudio",
         "duration",
         "ratio",
-        "watermark",
         "targetResolution",
         "sourceImageIndex",
         "sourceImageIndices",
@@ -200,7 +198,7 @@
       "executionMode": "direct",
       "hostedToolName": "sound_to_video",
       "sdkToolName": "sound_to_video",
-      "hostedSchemaSha256": "dc91d5e035fabefaeada9f6368cbeb8390738e1d24d51d8335b7a1aff666a0ed",
+      "hostedSchemaSha256": "50d6325d149afad69e2e35db62fdd46cdee559d05205fc9d14295e3d5b59a70f",
       "hostedRequired": [
         "prompt"
       ],
@@ -214,7 +212,6 @@
         "audioStart",
         "duration",
         "ratio",
-        "watermark",
         "referenceFileUrl",
         "referenceLinkUrl",
         "videoModel",
@@ -246,7 +243,7 @@
       "executionMode": "direct",
       "hostedToolName": "video_to_video",
       "sdkToolName": "video_to_video",
-      "hostedSchemaSha256": "8d67f4d24c5ce90f5a191f0a582c6477b669d8e605830a4f1ef0bfba5ec5edf8",
+      "hostedSchemaSha256": "403569d335f302ec6848df2bb31f9be241eb7404ab1d0cfec8fab0a4de42d2a1",
       "hostedRequired": [
         "prompt"
       ],

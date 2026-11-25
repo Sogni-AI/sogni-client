@@ -792,7 +792,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * the prompt, avoiding a second rewrite.
    */
   promptExtend?: boolean;
-  /** Add Alibaba's visible Wan 3 watermark. Defaults to false. */
+  /** @deprecated Ignored by Wan 3. */
   watermark?: boolean;
   /**
    * Include the model's generated/native audio track when supported. Audio is

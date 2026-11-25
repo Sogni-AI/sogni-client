@@ -996,20 +996,6 @@ function validateWan3ReferenceAssets(params: VideoProjectParams): void {
       message: 'Wan 3 promptExtend must be a boolean.'
     });
   }
-  if (params.watermark !== undefined && typeof params.watermark !== 'boolean') {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: 'Wan 3 watermark must be a boolean.'
-    });
-  }
-  if (isEnhanced && params.watermark !== undefined) {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: 'Wan 3.0 Enhanced does not expose a watermark option.'
-    });
-  }
   // smartDuration is retired. It let Wan 3 choose 2-30s AFTER admission, so the
   // quote had to reserve the 30-second maximum for a render that usually came
   // back far shorter — and the Wan 3 Enhanced launch credit settled against that
@@ -1943,7 +1929,7 @@ function applyVideoParams(
   if (params.promptExtend !== undefined) {
     keyFrame.promptExtend = params.promptExtend;
   }
-  if (params.watermark !== undefined) {
+  if (params.watermark !== undefined && !isWan3Model(params.modelId)) {
     keyFrame.watermark = params.watermark;
   }
   if (params.ratio !== undefined) {
