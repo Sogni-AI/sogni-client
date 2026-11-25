@@ -1041,11 +1041,13 @@ class AccountApi extends ApiGroup {
    * @param password - account password
    * @param amount - amount of tokens to withdraw from account to wallet
    * @param provider - blockchain provider, 'base' or 'etherlink' defaults to 'base'
+   * @param proof - optional step-up two-factor proof (`{ code }` or `{ challengeId, assertion }`)
    */
   async withdraw(
     password: string,
     amount: number | string,
-    provider: string = 'base'
+    provider: string = 'base',
+    proof?: TwoFactorProof
   ): Promise<void> {
     const expected = this.permitProvider(provider);
     const wallet = this.getWallet(this.currentAccount.username!, password);
@@ -1091,7 +1093,8 @@ class AccountApi extends ApiGroup {
     const signature = await wallet.signTypedData(domain, types, message);
     await this.client.rest.post('/v2/account/token/withdraw', {
       ...payload,
-      signature
+      signature,
+      ...(proof ? { proof } : {})
     });
   }
 
