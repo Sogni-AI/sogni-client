@@ -1,3 +1,18 @@
+# [5.89.0](https://github.com/Sogni-AI/sogni-client/compare/v5.88.0...v5.89.0) (2026-11-25)
+
+
+### Bug Fixes
+
+* **deps:** pin protocol alpha.66 for the November 25 train ([c8fb7cd](https://github.com/Sogni-AI/sogni-client/commit/c8fb7cda870d872d52d98cc2b7c81b56ec8569da))
+* **projects:** recover opted-in subscription refusal messages ([8f447ac](https://github.com/Sogni-AI/sogni-client/commit/8f447ac29e99f454951804bbca3e68d6a7d947c8))
+* **sdk:** repair workflow cancellation and recover subscription refusals ([006e9a5](https://github.com/Sogni-AI/sogni-client/commit/006e9a599f43acde0fffcb919daa5fea329a4a45))
+* **workflows:** send the JSON header when canceling a workflow ([d4fbe40](https://github.com/Sogni-AI/sogni-client/commit/d4fbe40bf31b73ef2807d1146256c9eaeb76c1a9))
+
+
+### Features
+
+* **video:** retire HappyHorse project and tool routing ([d0bf6ff](https://github.com/Sogni-AI/sogni-client/commit/d0bf6ffced345182023e42285f3dff1368f368f5))
+
 # [5.88.0](https://github.com/Sogni-AI/sogni-client/compare/v5.87.0...v5.88.0) (2026-11-25)
 
 
