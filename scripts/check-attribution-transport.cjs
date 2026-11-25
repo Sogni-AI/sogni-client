@@ -520,6 +520,13 @@ async function checkRestHeaders() {
     assert.equal(headers['X-Sogni-Agent-Framework'], 'codex');
     assert.equal(headers['X-Sogni-Operation-Scope'], 'top_level');
 
+    const canceled = await workflows.cancel('workflow-test');
+    fetchCall = fetchCalls.at(-1);
+    assert.ok(fetchCall.url.endsWith('/v1/creative-agent/workflows/workflow-test/cancel'));
+    assert.equal(fetchCall.init.method, 'POST');
+    assert.equal(new Headers(fetchCall.init.headers).get('Content-Type'), 'application/json');
+    assert.deepEqual(canceled, { workflowId: 'workflow-test' });
+
     await workflows.resume('workflow-test', {
       attribution: {
         operationScope: 'child',

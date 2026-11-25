@@ -329,7 +329,8 @@ class CreativeWorkflowsApi extends ApiGroup {
     const response = await this.request<CreativeWorkflowEnvelope>(
       `/v1/creative-agent/workflows/${encodeURIComponent(workflowId)}/cancel`,
       {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       }
     );
     return parseEnvelope<CreativeWorkflowRecord>(response, 'workflow');
