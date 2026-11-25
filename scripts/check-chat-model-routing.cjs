@@ -1255,7 +1255,7 @@ assert.throws(
       { ...minimaxH3Params, referenceImageUrls: ['https://example.com/a.jpg'] },
       minimaxH3Options
     ),
-  /supported only by Seedance, HappyHorse, and Wan 3 models/
+  /supported only by Seedance and Wan 3 models/
 );
 
 // contextImages is the r2v transport and nothing else's.
@@ -1638,18 +1638,11 @@ assert.equal(
   }),
   PREFERRED_MODEL_IDS.video.seedance25I2v
 );
-assert.equal(
-  resolveHostedToolModelSelector('generate_video', { videoModel: 'happyhorse' }),
-  PREFERRED_MODEL_IDS.video.happyhorseT2v
-);
-assert.equal(
-  resolveHostedToolModelSelector('generate_video', { videoModel: 'happyhorse1.1' }),
-  PREFERRED_MODEL_IDS.video.happyhorseT2v
-);
-assert.equal(
-  resolveHostedToolModelSelector('generate_video', { videoModel: 'HappyHorse' }),
-  PREFERRED_MODEL_IDS.video.happyhorseT2v
-);
+for (const tool of ['generate_video', 'animate_photo']) {
+  for (const videoModel of ['HappyHorse', 'happyhorse1.1', 'happyhorse-1.1-t2v', 'happyhorse-1.1-i2v', 'happyhorse-1.1-r2v']) {
+    assert.throws(() => resolveHostedToolModelSelector(tool, { videoModel }), /retired/);
+  }
+}
 assert.equal(
   resolveHostedToolModelSelector('generate_video', { videoModel: 'wan3' }),
   PREFERRED_MODEL_IDS.video.wan3
@@ -1668,20 +1661,6 @@ assert.equal(
 assert.equal(
   resolveHostedToolModelSelector('sound_to_video', { videoModel: 'wan3' }),
   PREFERRED_MODEL_IDS.video.wan3
-);
-assert.equal(
-  resolveHostedToolModelSelector('generate_video', {
-    videoModel: 'happyhorse',
-    referenceImageIndices: [-1]
-  }),
-  PREFERRED_MODEL_IDS.video.happyhorseI2v
-);
-assert.equal(
-  resolveHostedToolModelSelector('generate_video', {
-    videoModel: 'happyhorse1.1',
-    referenceImageIndices: [-1]
-  }),
-  PREFERRED_MODEL_IDS.video.happyhorseI2v
 );
 assert.equal(
   resolveHostedToolModelSelector('video_to_video', { videoModel: 'ltx25-v2v' }),
@@ -2001,12 +1980,8 @@ async function checkCanonicalDirectVideoExecution() {
       ]
     }
   });
-  assert.equal(happyhorseResult.success, true);
-  assert.equal(capturedParams.modelId, PREFERRED_MODEL_IDS.video.happyhorseR2v);
-  assert.deepEqual(capturedParams.referenceImageUrls, [
-    'https://cdn.sogni.ai/reference-a.png',
-    'https://cdn.sogni.ai/reference-b.png'
-  ]);
+  assert.equal(happyhorseResult.success, false);
+  assert.match(JSON.stringify(happyhorseResult), /retired|videoModel/);
 
   const invalidH3Call = {
     ...toolCall,

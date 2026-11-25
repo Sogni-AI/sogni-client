@@ -160,7 +160,7 @@ assert.equal(
 const plain = keyFrame({});
 assert.equal(plain.hasReferenceVideo, undefined, 'without a source it is ordinary text-to-video');
 assert.throws(() => keyFrame({ referenceVideoUrls: ['https://example.com/source.mp4'] }), {
-  message: 'External reference URLs are supported only by Seedance, HappyHorse, and Wan 3 models.'
+  message: 'External reference URLs are supported only by Seedance and Wan 3 models.'
 });
 assert.throws(
   () =>

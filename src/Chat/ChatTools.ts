@@ -651,7 +651,7 @@ class ChatToolsApi {
       requestedWorkflow === 'flf2v'
         ? [PREFERRED_MODEL_IDS.video.minimaxH3Flf2v]
         : requestedWorkflow === 'r2v'
-          ? [PREFERRED_MODEL_IDS.video.happyhorseR2v]
+          ? [PREFERRED_MODEL_IDS.video.minimaxH3R2v]
           : hasReferenceImages
             ? [PREFERRED_MODEL_IDS.video.i2v]
             : [PREFERRED_MODEL_IDS.video.t2v];

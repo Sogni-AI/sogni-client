@@ -1155,35 +1155,6 @@ For focused endpoint coverage with server-side Seedance prompt expansion, see
 `examples/workflow_partner_seedance_video.mjs`. It covers Seedance T2V, I2V,
 IA2V, V2V, and multimodal context through the hosted Sogni tools and hosted workflow endpoint.
 
-HAPPY HORSE 1.1 (external API):
-
-Happy Horse 1.1 (Alibaba) is a second external-API, Spark-only video partner.
-It has native always-on audio, runs at fixed 24fps, and accepts image-only
-references (no video or audio reference assets). One canonical model ID per mode:
-
-| Model ID | Mode | References |
-|----------|------|------------|
-| happyhorse-1.1-t2v | Text-to-video | none |
-| happyhorse-1.1-i2v | Image-to-video | one first-frame image |
-| happyhorse-1.1-r2v | Reference-to-video | 1-9 reference images |
-
-Chat/tool aliases: `happyhorse`, `happyhorse1.1` (resolve to t2v, or i2v when a
-reference image is present).
-
-```javascript
-const project = await sogni.projects.create({
-  type: 'video',
-  network: 'fast',
-  modelId: 'happyhorse-1.1-r2v',
-  positivePrompt: 'A galloping horse kicking up dust at golden hour',
-  duration: 5,
-  width: 1920,
-  height: 1080,
-  referenceImageUrls: [ /* 1-9 HTTPS image URLs, or upload local files first */ ],
-  tokenType: 'spark'
-});
-```
-
 WAN 3 (external API):
 
 Wan 3 is a unified Alibaba external-API model, Premium Spark-only, under the
@@ -2453,7 +2424,7 @@ VIDEO-SPECIFIC PARAMETERS:
   referenceVideoDurations?: number[];  // Optional H3 r2v preflight hints; Socket measures uploaded videos authoritatively
   contextImages?: (File | Buffer | Blob)[];  // MiniMax H3 r2v reference images 2-9
   keyframes?: { image: File | Buffer | Blob; frameIndex: number }[];  // MiniMax H3, every mode but t2v: up to 8 stills at 0-based frames 1..frames-2; pass frames
-  referenceImageUrls?: string[];  // Seedance and HappyHorse only
+  referenceImageUrls?: string[];  // Seedance, Wan 3 and MiniMax H3 reference video
   referenceVideoUrls?: string[];  // Seedance only
   referenceAudioUrls?: string[];  // Seedance only
   seedanceTaskType?: 'reference' | 'edit' | 'extend';  // Seedance 2.5 loose-reference operation
