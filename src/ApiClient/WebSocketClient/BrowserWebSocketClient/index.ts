@@ -99,6 +99,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   // actually rebinds its WebSocket (`handleRoleChange(true)`).
   private _wantConnected = false;
   private _disposed = false;
+  private _applyingPeerAuth = false;
   private _unsubscribeAuth: () => void;
   private _sessionVersion?: number;
   private _sessionId: string | null = null;
@@ -487,17 +488,25 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         return;
       }
       case 'auth-state-changed': {
-        // A cold tab may still be discovering a cookie session. Even when its
-        // local boolean is false, a peer sign-out invalidates that pending /me.
-        if (notification.sessionChanged || (!notification.payload && !this.auth.isAuthenticated)) {
-          this.auth._invalidateSession();
-          this.syncSessionContext();
-          if (notification.payload && this.auth instanceof CookieAuthManager) {
-            // Refresh the account even when both sessions are authenticated.
-            this.auth.authenticate();
+        // Auth listeners run synchronously. Apply this notification locally once.
+        this._applyingPeerAuth = true;
+        try {
+          // Even a signed-out tab may still be discovering its cookie session.
+          if (
+            notification.sessionChanged ||
+            (!notification.payload && !this.auth.isAuthenticated)
+          ) {
+            this.auth._invalidateSession();
+            this.syncSessionContext();
+            if (notification.payload && this.auth instanceof CookieAuthManager) {
+              // Refresh the account even when both sessions are authenticated.
+              this.auth.authenticate();
+            }
           }
+          this.handleAuthChanged(notification.payload);
+        } finally {
+          this._applyingPeerAuth = false;
         }
-        this.handleAuthChanged(notification.payload);
         return;
       }
       default: {
@@ -551,6 +560,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
 
   private handleAuthUpdated(isAuthenticated: boolean) {
     this.syncSessionContext();
+    if (this._applyingPeerAuth) return;
     this.coordinator.notify({
       type: 'auth-state-changed',
       payload: isAuthenticated
