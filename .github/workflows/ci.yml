@@ -54,6 +54,7 @@ jobs:
           node scripts/check-rest-redirects.cjs
           node scripts/check-account-login.cjs
           node scripts/check-account-permits.cjs
+          node scripts/check-two-factor.cjs
       - name: Check image upload bodies
         run: node scripts/check-image-upload-body.cjs
       - name: Check Seedance 2.5 draft mode

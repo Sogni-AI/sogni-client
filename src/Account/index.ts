@@ -640,11 +640,13 @@ class AccountApi extends ApiGroup {
   async getTwoFactorPasskeyOptions(challenge?: TwoFactorRequiredError): Promise<{
     challengeId: string;
     options: PublicKeyCredentialRequestOptionsJSON;
+    originVerified?: boolean;
   }> {
     const res = await this.client.rest.post<
       ApiResponse<{
         challengeId: string;
         options: PublicKeyCredentialRequestOptionsJSON;
+        originVerified?: boolean;
       }>
     >(
       challenge
@@ -664,6 +666,7 @@ class AccountApi extends ApiGroup {
     setupId: string;
     options: PublicKeyCredentialCreationOptionsJSON;
     backupCodes?: string[];
+    originVerified?: boolean;
   }> {
     const signature = await this.twoFactorSignature(username, password);
     const res = await this.client.rest.post<
@@ -671,6 +674,7 @@ class AccountApi extends ApiGroup {
         setupId: string;
         options: PublicKeyCredentialCreationOptionsJSON;
         backupCodes?: string[];
+        originVerified?: boolean;
       }>
     >('/v1/account/2fa/passkeys/registration-options', {
       signature,
@@ -1041,11 +1045,13 @@ class AccountApi extends ApiGroup {
    * @param password - account password
    * @param amount - amount of tokens to withdraw from account to wallet
    * @param provider - blockchain provider, 'base' or 'etherlink' defaults to 'base'
+   * @param proof - optional step-up two-factor proof (`{ code }` or `{ challengeId, assertion }`)
    */
   async withdraw(
     password: string,
     amount: number | string,
-    provider: string = 'base'
+    provider: string = 'base',
+    proof?: TwoFactorProof
   ): Promise<void> {
     const expected = this.permitProvider(provider);
     const wallet = this.getWallet(this.currentAccount.username!, password);
@@ -1091,7 +1097,8 @@ class AccountApi extends ApiGroup {
     const signature = await wallet.signTypedData(domain, types, message);
     await this.client.rest.post('/v2/account/token/withdraw', {
       ...payload,
-      signature
+      signature,
+      ...(proof ? { proof } : {})
     });
   }
 
