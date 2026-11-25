@@ -3980,6 +3980,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     ];
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
     const query = new URLSearchParams();
+    if (params.characters !== undefined) query.set('characters', String(params.characters));
     // Unpinned, the job renders on the connection's network, so quote that one.
     const network = params.network ?? this._currentNetworkType;
     if (network) query.set('network', network);

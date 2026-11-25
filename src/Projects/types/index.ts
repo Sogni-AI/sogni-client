@@ -1507,7 +1507,7 @@ export type MediaUrlParams = {
 export interface EstimateRequest {
   /** Request the optional monthly capacity share alongside the daily estimate. */
   includeMonthlyFairUse?: boolean;
-  /** Request this account’s payable price for Premium Spark models. */
+  /** Request this account’s payable project price for the chosen settings and billing mode. */
   includeAccountPrice?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
@@ -1618,7 +1618,7 @@ export interface EstimateRequest {
 export interface VideoEstimateRequest {
   /** Request the optional monthly capacity share alongside the daily estimate. */
   includeMonthlyFairUse?: boolean;
-  /** Request this account’s payable price for Premium Spark models. */
+  /** Request this account’s payable project price for the chosen settings and billing mode. */
   includeAccountPrice?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
@@ -1705,9 +1705,11 @@ export interface VideoEstimateRequest {
 }
 
 export interface AudioEstimateRequest {
+  /** Script length for speech tiers priced per character. */
+  characters?: number;
   /** Request the optional monthly capacity share alongside the daily estimate. */
   includeMonthlyFairUse?: boolean;
-  /** Request this account’s payable price for Premium Spark models. */
+  /** Request this account’s payable project price for the chosen settings and billing mode. */
   includeAccountPrice?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
@@ -1739,10 +1741,11 @@ export interface AccountProjectPrice {
   spark: string;
   sogni: string;
   discountBps: number;
+  billingMethod?: 'premium_spark' | 'subscription' | 'spark' | 'sogni';
 }
 
 export interface CostEstimation {
-  /** Personal project total. Pass its exact spark value as maxProjectSpark when creating the project. */
+  /** Personal project total in the settlement currency. For a Spark or plan-covered project, pass spark as maxProjectSpark on submission. SOGNI payments use their own currency. */
   accountPrice?: AccountProjectPrice;
   /** Cost in selected token type */
   token: string;

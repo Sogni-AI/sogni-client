@@ -68,6 +68,10 @@ async function main() {
   assert.equal(personal.spark, '2');
   assert.equal(personal.accountPrice.spark, '1.8');
   assert.equal((await estimate(projects)).accountPrice, undefined);
+  await projects.estimateAudioCost({ tokenType: 'spark', model: 'speech', duration: 30, steps: 1, numberOfMedia: 1, characters: 137, includeAccountPrice: true });
+  const speechQuery = new URL('https://socket.test' + client.socket.paths.at(-1)).searchParams;
+  assert.equal(speechQuery.get('characters'), '137');
+  assert.equal(speechQuery.get('includeAccountPrice'), 'true');
   const query0 = () => new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
 
   await estimate(projects);
