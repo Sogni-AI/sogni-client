@@ -52,6 +52,7 @@ const SEEDANCE_MODELS = {
       name: 'Seedance 2.0 Mini Uncensored'
     },
     'seedance2-5-flash': { id: 'seedance-2-5-flash', name: 'Seedance 2.5 Flash' },
+    'seedance2-5-flash-uncensored': { id: 'seedance-2-5-flash-uncensored', name: 'Seedance 2.5 Flash Uncensored' },
     'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
     'seedance2-5-uncensored': { id: 'seedance-2-5-uncensored', name: 'Seedance 2.5 Uncensored' }
   },
@@ -63,6 +64,7 @@ const SEEDANCE_MODELS = {
       name: 'Seedance 2.0 Mini Uncensored'
     },
     'seedance2-5-flash': { id: 'seedance-2-5-flash', name: 'Seedance 2.5 Flash' },
+    'seedance2-5-flash-uncensored': { id: 'seedance-2-5-flash-uncensored', name: 'Seedance 2.5 Flash Uncensored' },
     'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
     'seedance2-5-uncensored': { id: 'seedance-2-5-uncensored', name: 'Seedance 2.5 Uncensored' }
   },
@@ -74,6 +76,7 @@ const SEEDANCE_MODELS = {
       name: 'Seedance 2.0 Mini Uncensored'
     },
     'seedance2-5-flash': { id: 'seedance-2-5-flash', name: 'Seedance 2.5 Flash' },
+    'seedance2-5-flash-uncensored': { id: 'seedance-2-5-flash-uncensored', name: 'Seedance 2.5 Flash Uncensored' },
     'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
     'seedance2-5-uncensored': { id: 'seedance-2-5-uncensored', name: 'Seedance 2.5 Uncensored' }
   },
@@ -85,6 +88,7 @@ const SEEDANCE_MODELS = {
       name: 'Seedance 2.0 Mini Uncensored'
     },
     'seedance2-5-flash': { id: 'seedance-2-5-flash', name: 'Seedance 2.5 Flash' },
+    'seedance2-5-flash-uncensored': { id: 'seedance-2-5-flash-uncensored', name: 'Seedance 2.5 Flash Uncensored' },
     'seedance2-5': { id: 'seedance-2-5', name: 'Seedance 2.5' },
     'seedance2-5-uncensored': { id: 'seedance-2-5-uncensored', name: 'Seedance 2.5 Uncensored' }
   }
@@ -92,7 +96,7 @@ const SEEDANCE_MODELS = {
 
 // Seedance 2.5 Uncensored is Seedance 2.5 under its own model id: same limits.
 function isSeedance25(modelId) {
-  return modelId === 'seedance-2-5' || modelId === 'seedance-2-5-uncensored' || modelId === 'seedance-2-5-flash';
+  return modelId === 'seedance-2-5' || modelId === 'seedance-2-5-uncensored' || modelId === 'seedance-2-5-flash' || modelId === 'seedance-2-5-flash-uncensored';
 }
 
 const TOOL_ARGUMENT_KEYS = {
@@ -293,6 +297,7 @@ function supportsMiniTier(mode) {
 function selectedTierLabel(options) {
   const modelId = selectedModelId(options);
   if (modelId === 'seedance-2-5-flash') return 'Seedance 2.5 Flash';
+  if (modelId === 'seedance-2-5-flash-uncensored') return 'Seedance 2.5 Flash Uncensored';
   if (modelId === 'seedance-2-5-uncensored') return 'Seedance 2.5 Uncensored';
   if (modelId === 'seedance-2-0-mini-uncensored') return 'Seedance 2.0 Mini Uncensored';
   if (modelId === 'seedance-2-5') return 'Seedance 2.5';
@@ -908,6 +913,7 @@ Seedance models:
   seedance-2-0            seedance-2-0-mini
   seedance-2-5            (480p/720p/1080p, 4-30s clips, first+last frame)
   seedance-2-5-flash (Seedance 2.5 Flash; 480p/720p, 4–30 seconds)
+  seedance-2-5-flash-uncensored (Seedance 2.5 Flash Uncensored; 480p/720p, 4–30 seconds)
   seedance-2-5-uncensored (Seedance 2.5 Uncensored; same limits as seedance-2-5)
   seedance-2-0-mini-uncensored (Seedance 2.0 Mini Uncensored; same limits as seedance-2-0-mini)
 
@@ -1022,7 +1028,7 @@ function validateMediaOptions(options, modelId) {
   const videoAssetCount = options.videos.length;
   const audioAssetCount = options.audios.length + (options.audioIdentity ? 1 : 0);
   const totalAssetCount = imageAssetCount + videoAssetCount + audioAssetCount;
-  const limits = modelId === 'seedance-2-5-flash'
+  const limits = modelId === 'seedance-2-5-flash' || modelId === 'seedance-2-5-flash-uncensored'
     ? { images: 10, videos: 5, audios: 5, total: 20 }
     : isSeedance25(modelId)
     ? { images: 30, videos: 10, audios: 10, total: 50 }
