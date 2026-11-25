@@ -351,6 +351,7 @@ async function main() {
           ? {
               status: 200,
               ok: true,
+              headers: new Headers(),
               text: () => {
                 readingBody.resolve();
                 return body.promise;
@@ -446,6 +447,7 @@ async function main() {
       global.fetch = async () => ({
         status: 200,
         ok: true,
+        headers: new Headers(),
         text: () => {
           readingBody.resolve();
           return body.promise;
@@ -846,6 +848,7 @@ async function main() {
         const reading = deferred();
         global.fetch = async () => ({
           ok: true,
+          headers: new Headers(),
           json: () => {
             reading.resolve();
             return body.promise;
@@ -1143,6 +1146,71 @@ async function main() {
       }
     );
 
+    await check('a peer applies queued cookie updates once after a 401', async () => {
+      const firstAuth = new CookieAuthManager(LOGGER);
+      const peerAuth = new CookieAuthManager(LOGGER);
+      const first = new BrowserWebSocketClient(
+        BASE_URL,
+        firstAuth,
+        'cookie-updates',
+        'fast',
+        LOGGER
+      );
+      const peer = new BrowserWebSocketClient(BASE_URL, peerAuth, 'cookie-updates', 'fast', LOGGER);
+      try {
+        // Hold the original messages at the tab boundary until the account read has settled.
+        const sent = [];
+        const replies = [];
+        first.coordinator.notify = (message) => sent.push(message);
+        peer.coordinator.notify = (message) => replies.push(message);
+        await firstAuth.authenticate();
+        global.fetch = async () => response({}, 401);
+        const rest = new RestClient(BASE_URL, firstAuth, LOGGER);
+        await assert.rejects(rest.get('/v1/account/me'), (error) => error.status === 401);
+        assert.equal(firstAuth.isAuthenticated, false);
+        assert.deepEqual(sent, [
+          { type: 'auth-state-changed', payload: true },
+          { type: 'auth-state-changed', payload: false }
+        ]);
+
+        await peer.handleNotification(sent[0]);
+        assert.equal(peerAuth.isAuthenticated, true);
+        await peer.handleNotification(sent[1]);
+        assert.equal(peerAuth.isAuthenticated, false);
+        assert.deepEqual(replies, [], 'neither peer update starts another broadcast');
+
+        await peerAuth.authenticate();
+        assert.deepEqual(replies, [{ type: 'auth-state-changed', payload: true }]);
+        await first.handleNotification(replies[0]);
+        assert.equal(firstAuth.isAuthenticated, true);
+        assert.equal(sent.length, 2, 'a later sign-in still propagates exactly once');
+      } finally {
+        peer.dispose();
+        first.dispose();
+      }
+    });
+    await check('a peer account replacement refreshes local listeners once', async () => {
+      const auth = new CookieAuthManager(LOGGER);
+      await auth.authenticate();
+      const client = new BrowserWebSocketClient(BASE_URL, auth, 'account-switch', 'fast', LOGGER);
+      try {
+        const sent = [];
+        const updates = [];
+        client.coordinator.notify = (message) => sent.push(message);
+        auth.on('updated', (value) => updates.push(value));
+        const previousVersion = auth.sessionVersion;
+        await client.handleNotification({
+          type: 'auth-state-changed',
+          payload: true,
+          sessionChanged: true
+        });
+        assert.ok(auth.sessionVersion > previousVersion);
+        assert.deepEqual(updates, [true]);
+        assert.deepEqual(sent, []);
+      } finally {
+        client.dispose();
+      }
+    });
     await check('cold cookie tabs both finish their initial account check', async () => {
       const clients = [];
       try {
@@ -1206,6 +1274,7 @@ async function main() {
           global.fetch = async () => ({
             status: 200,
             ok: true,
+            headers: new Headers(),
             text: () => {
               readingBody.resolve();
               return body.promise;
@@ -1245,9 +1314,11 @@ async function main() {
   }
 
   console.log(`Auth session checks: ${passed} passed, ${failed} failed.`);
-  if (failed) process.exitCode = 1;
+  process.exitCode = failed ? 1 : 0;
 }
 
+// An unresolved fixture can exhaust the event loop before the suite finishes.
+process.exitCode = 1;
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
