@@ -5,6 +5,7 @@ import { captureRequestSession, RequestSessionError } from '../lib/requestSessio
 import type MediaEncryptionApi from '../MediaEncryption/index.js';
 import type { ProjectMediaEncryption } from '../MediaEncryption/index.js';
 import { MediaEncryptionError } from '../lib/mediaEncryption/index.js';
+import { networkServesMediaEncryption } from '../lib/mediaEncryption/networks.js';
 import {
   AvailableModel,
   EnhancementStrength,
@@ -19,7 +20,8 @@ import {
   VideoProjectParams,
   AudioProjectParams,
   VideoEstimateRequest,
-  AudioEstimateRequest
+  AudioEstimateRequest,
+  ImageLayer
 } from './types/index.js';
 import {
   type ArtistCancelConfirmation,
@@ -37,6 +39,19 @@ import {
 } from '../ApiClient/WebSocketClient/events.js';
 import Project from './Project.js';
 import {
+  normalizePayAsYouGoSwitchResult,
+  PAY_AS_YOU_GO_REFUSALS_CLEARING_OFFER,
+  type PayAsYouGoSwitchResult
+} from './types/PayAsYouGo.js';
+
+const PAY_AS_YOU_GO_SWITCH_TIMEOUT_MS = 45000;
+
+interface PendingPremiumSparkSwitch {
+  projectId: string;
+  promise: Promise<PayAsYouGoSwitchResult>;
+  settle: (result: PayAsYouGoSwitchResult) => void;
+}
+import {
   PROJECT_LOST_ERROR,
   isLLMRecoveredProject,
   isRecoveredJobFinished,
@@ -44,7 +59,9 @@ import {
 } from './recovery.js';
 import createJobRequestMessage, {
   type JobRequestRaw,
-  rejectRetiredOutputScale
+  rejectRetiredOutputScale,
+  validateSeedanceFlashSize,
+  validateSeedanceDraftFields
 } from './createJobRequestMessage.js';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import { EstimationResponse } from './types/EstimationResponse.js';
@@ -69,7 +86,7 @@ import type { WaitingReason } from './types/WaitingReason.js';
 import ErrorData, { MEDIA_ENCRYPTION_ERROR_CODES } from '../types/ErrorData.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
 import Cache from '../lib/Cache.js';
-import Job, { enhancementDefaults } from './Job.js';
+import Job, { enhancementDefaults, seedanceDraftResultFields } from './Job.js';
 import {
   calculateVideoFrames,
   getEnhacementStrength,
@@ -92,9 +109,16 @@ import {
   usesReferenceMask
 } from './utils/index.js';
 import { getFileContentType } from './utils/fileContentType.js';
+import { assertImageUploadBody } from './utils/imageUploadBody.js';
+import { imageLayersFromResult } from './utils/imageLayers.js';
 import { TokenType } from '../types/token.js';
 import type { JobProvenance } from './types/JobProvenance.js';
-import { getMaxContextImages, validateSampler, isGptImageModel } from '../lib/validation.js';
+import {
+  getMaxContextImages,
+  validateSampler,
+  isGptImageModel,
+  resolveGptImageGifSize
+} from '../lib/validation.js';
 import ModelTiersRaw, {
   isAudioTier,
   isComfyImageTier,
@@ -167,6 +191,7 @@ function isMediaResultRefusal(error: unknown): boolean {
 const JOB_PROVENANCE_HASH_FIELDS = [
   'sha256',
   'sourceImageSha256',
+  'sourceVideoSha256',
   'samPromptSha256',
   'maskRleSha256',
   'selectionHash',
@@ -201,9 +226,13 @@ function jobProvenanceFromResult(data: Partial<JobResultData>): JobProvenance | 
   if (Number.isSafeInteger(data.maskHeight) && Number(data.maskHeight) > 0) {
     result.maskHeight = Number(data.maskHeight);
   }
+  if (Number.isSafeInteger(data.maskFrames) && Number(data.maskFrames) > 0)
+    result.maskFrames = Number(data.maskFrames);
+  if (typeof data.maskFps === 'number' && Number.isFinite(data.maskFps) && data.maskFps > 0)
+    result.maskFps = data.maskFps;
   if (
     typeof data.samVersion === 'string' &&
-    /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,79}$/.test(data.samVersion)
+    /^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,79}$/.test(data.samVersion)
   ) {
     result.samVersion = data.samVersion;
   }
@@ -244,6 +273,12 @@ function jobProvenanceFromResult(data: Partial<JobResultData>): JobProvenance | 
 const CANCELLATION_CONFIRMATION_TIMEOUT = 120000;
 const MODELS_REFRESH_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
 
+/** A project being encrypted, and whether its inputs are encrypted too. */
+interface EncryptedProject {
+  encryption: ProjectMediaEncryption;
+  encryptInputs: boolean;
+}
+
 /** Every project param that can carry uploadable media. */
 const ENCRYPTABLE_MEDIA_FIELDS = [
   'startingImage',
@@ -262,6 +297,25 @@ const ENCRYPTABLE_MEDIA_FIELDS = [
   'referenceVideo',
   'referenceVideos'
 ] as const;
+
+/**
+ * The first media field set to `true` ("uploaded outside the SDK"), which the
+ * SDK cannot encrypt, or `undefined` when every input is media it holds.
+ */
+function mediaUploadedElsewhere(data: ProjectParams): string | undefined {
+  const mediaFields = data as unknown as Record<string, unknown>;
+  const field = ENCRYPTABLE_MEDIA_FIELDS.find((name) => {
+    const value =
+      name === 'controlNet.image'
+        ? data.type === 'image' && data.controlNet?.image
+        : mediaFields[name];
+    return value === true || (Array.isArray(value) && value.includes(true));
+  });
+  if (field) return field;
+  if (data.type === 'video' && getMinimaxH3KeyframeSlots(data).some(({ media }) => media === true))
+    return 'keyframes';
+  return undefined;
+}
 
 /** Fallback for an API that does not advertise its LoRA-capable model set. */
 function deriveLoraCapableModelIds(loras: LoraCatalogEntry[]): string[] {
@@ -581,6 +635,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private projects: Project[] = [];
   private _preparingSessions = new Map<string, () => void>();
   private cancellationRequests = new Map<string, Promise<void>>();
+  private payAsYouGoSwitchRequests = new Map<string, PendingPremiumSparkSwitch>();
   private transportDisconnected = false;
   private _connectedAt = 0;
   private _authenticatedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -782,10 +837,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
   }
 
-  /**
-   * Encryption of projects whose uploads are still in progress, by project id.
-   * Holds the project key only until the request has been sent.
-   */
+  /** Encryption of projects still being prepared, by project id. */
   private _projectEncryption = new Map<string, ProjectMediaEncryption>();
 
   constructor(
@@ -841,6 +893,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._recoveredCompletedIds.clear();
       this._syncChain = Promise.resolve();
       this.cancellationRequests.clear();
+      // A pending switch may already have been charged: its state is unknown, never refused.
+      for (const pending of this.payAsYouGoSwitchRequests.values())
+        pending.settle({
+          projectId: pending.projectId,
+          status: 'unknown',
+          reason: 'session_changed'
+        });
+      this.payAsYouGoSwitchRequests.clear();
       this._clearAuthenticatedTimer();
       if (this._recheckTimer) clearTimeout(this._recheckTimer);
       this._recheckTimer = null;
@@ -1067,6 +1127,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     let performedStepCount = data.performedStepCount;
     let seed = data.lastSeed !== undefined ? Number(data.lastSeed) : undefined;
     const provenance = jobProvenanceFromResult(data);
+    const seedanceDraftFields = seedanceDraftResultFields(data);
+    const layers = imageLayersFromResult(data.layers);
     if (project) {
       const job = project.job(data.imgID);
       if (job) {
@@ -1085,6 +1147,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           lastFrameUrl: data.lastFrameUrl,
           lastFrameKey: data.lastFrameKey,
           outputFormat: data.outputFormat,
+          // Set with the status, so a `completed` listener can already read them.
+          ...seedanceDraftFields,
           // Unchanged meaning: the server withheld the media. The label for
           // media that WAS delivered is `nsfwDetected`, deliberately kept out of
           // this flag so upgrading the SDK changes no existing app's behaviour.
@@ -1095,7 +1159,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           nsfwDetected: data.nsfwDetected === true,
           nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
           userCanceled: Boolean(data.userCanceled),
-          ...(provenance ? { provenance } : {})
+          ...(provenance ? { provenance } : {}),
+          ...(layers ? { layers } : {})
         });
       }
     }
@@ -1110,11 +1175,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       resultUrl: downloadUrl,
       lastFrameUrl: data.lastFrameUrl,
       outputFormat: data.outputFormat,
+      ...seedanceDraftFields,
+      ...(data.lastFrameKey ? { lastFrameKey: data.lastFrameKey } : {}),
       isNSFW: Boolean(data.triggeredNSFWFilter),
       nsfwDetected: data.nsfwDetected === true,
       nsfwSources: Array.isArray(data.nsfwSources) ? [...data.nsfwSources] : [],
       userCanceled: Boolean(data.userCanceled),
-      ...(provenance ? { provenance } : {})
+      ...(provenance ? { provenance } : {}),
+      ...(layers ? { layers } : {})
     });
   }
 
@@ -1270,7 +1338,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const project = this.projects.find((item) => item.id === data?.jobID);
     if (!project || project.finished) return;
     project._queueRevision += 1;
-    project._setQueueState(data.waitingReason, data.jobWaitingReasons);
+    // The offer first, so a queueChanged emitted by the queue state carries it.
+    const offerChanged = project._setPayAsYouGo(data.payAsYouGo);
+    const queueChanged = project._setQueueState(data.waitingReason, data.jobWaitingReasons);
+    if (offerChanged && !queueChanged) this._emitQueueChanged(project);
   }
 
   /** @internal */
@@ -1278,7 +1349,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.emit('queueChanged', {
       projectId: project.id,
       waitingReason: project.waitingReason ?? null,
-      jobWaitingReasons: project.jobWaitingReasons
+      jobWaitingReasons: project.jobWaitingReasons,
+      payAsYouGo: project.payAsYouGo
     });
   }
 
@@ -1293,11 +1365,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         row.imgID?.toUpperCase() !== jobId.toUpperCase() &&
         (jobIndex === undefined || row.jobIndex !== jobIndex)
     );
-    if (
+    // A started result ends any Premium Spark offer: the switch needs every result waiting.
+    const offerChanged = project._setPayAsYouGo(null);
+    const queueChanged =
       remaining.length !== project.jobWaitingReasons.length ||
       project.waitingReason?.reason === 'payment_pending'
-    )
-      project._setQueueState(remaining[0]?.waitingReason ?? null, remaining);
+        ? project._setQueueState(remaining[0]?.waitingReason ?? null, remaining)
+        : false;
+    if (offerChanged && !queueChanged) this._emitQueueChanged(project);
   }
 
   private handleProjectEvent(event: ProjectEvent) {
@@ -1484,6 +1559,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           nsfwSources: string[];
           userCanceled: boolean;
           provenance?: JobProvenance;
+          layers?: ImageLayer[];
           step?: number;
           seed?: number;
         } = {
@@ -1493,7 +1569,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           nsfwDetected: Boolean(event.nsfwDetected),
           nsfwSources: Array.isArray(event.nsfwSources) ? [...event.nsfwSources] : [],
           userCanceled: event.userCanceled,
-          ...(event.provenance ? { provenance: event.provenance } : {})
+          ...(event.provenance ? { provenance: event.provenance } : {}),
+          ...(event.layers ? { layers: event.layers } : {})
         };
         if (typeof event.steps === 'number') {
           delta.step = event.steps;
@@ -1504,7 +1581,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           delta.seed = event.seed;
         }
         job._update({
-          ...delta
+          ...delta,
+          // A job first seen in its own completion still learns it is a draft.
+          ...seedanceDraftResultFields(event)
         });
         break;
       }
@@ -1538,7 +1617,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     this.projects.forEach((p) => {
       if (!p.finished) {
         p._queueRevision += 1;
-        p._setQueueState(null, []);
+        // The offer first, so a queueChanged emitted by the queue state carries it.
+        const offerChanged = p._setPayAsYouGo(null);
+        const queueChanged = p._setQueueState(null, []);
+        if (offerChanged && !queueChanged) this._emitQueueChanged(p);
         p._keepAlive();
       }
     });
@@ -2158,11 +2240,15 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             : (job.result as Record<string, unknown> | undefined)?.outputFormat) as
             | string
             | undefined,
+          ...seedanceDraftResultFields(job),
           ...(typeof job.resultUrl === 'string' && job.resultUrl
             ? { resultUrl: job.resultUrl }
             : {}),
           ...(job.result && typeof job.result === 'object'
             ? jobProvenanceFromResult(job.result as Partial<JobResultData>)
+            : {}),
+          ...(job.result && typeof job.result === 'object'
+            ? { layers: (job.result as Partial<JobResultData>).layers }
             : {})
         });
         replayRevision = project._queueRevision;
@@ -2395,8 +2481,16 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         attribution: this.resolveWorkloadAttribution(normalizedData.attribution, project.id)
       } as ProjectParams;
       const request = createJobRequestMessage(project.id, requestParams, modelOptions);
-      if (normalizedData.mediaEncryption) {
-        this._projectEncryption.set(project.id, await this._startProjectEncryption(normalizedData));
+      // No extra wait at all for a project that is not encrypted.
+      const startingEncryption = this._projectEncryptionFor(normalizedData);
+      const projectEncryption = startingEncryption && (await startingEncryption);
+      const encryption = projectEncryption?.encryption;
+      if (projectEncryption) {
+        // Some models take their inputs as they are.
+        if (projectEncryption.encryptInputs) {
+          this._projectEncryption.set(project.id, projectEncryption.encryption);
+        }
+        project._markMediaEncrypted();
       }
 
       switch (normalizedData.type) {
@@ -2412,8 +2506,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           this._annotateAudioAssetContentTypes(request, normalizedData);
           break;
       }
-      // After the uploads: each encrypted input adds its key to the field.
-      const encryption = this._projectEncryption.get(project.id);
+      // After the uploads, which add to it.
       if (encryption) request.mediaEncryption = encryption.wire();
       // Recorded before sending: a refusal can arrive as soon as the frame lands.
       assertSession();
@@ -2470,21 +2563,49 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     return tracked;
   }
 
-  /**
-   * Whether projects for this model can use `mediaEncryption`. The answer comes
-   * from the server's model list, so it reflects what the network can serve
-   * today rather than what this SDK version knows about.
-   */
+  /** Whether projects for this model can use `mediaEncryption`, from the server's model list. */
   async supportsMediaEncryption(modelId: string): Promise<boolean> {
     const models = await this.getSupportedModels();
     return models.find((model) => model.id === modelId)?.supportsMediaEncryption === true;
   }
 
-  private async _startProjectEncryption(data: ProjectParams): Promise<ProjectMediaEncryption> {
+  /** Whether an encrypted project on this model has its inputs encrypted too. */
+  private async _encryptsInputs(modelId: string): Promise<boolean> {
+    const models = await this.getSupportedModels();
+    return models.find((model) => model.id === modelId)?.mediaEncryptionInputs !== false;
+  }
+
+  /**
+   * How this project's media is encrypted, or `null` when it is not: an
+   * explicit `mediaEncryption: true` must be honoured, `false` never is, and
+   * an unset value follows the client's `mediaEncryption` mode.
+   */
+  private _projectEncryptionFor(data: ProjectParams): Promise<EncryptedProject | null> | null {
+    if (data.mediaEncryption === true) return this._requireProjectEncryption(data);
+    if (data.mediaEncryption === undefined && this._mediaEncryption?.automatic) {
+      return this._automaticProjectEncryption(data);
+    }
+    return null;
+  }
+
+  /** The network this project's request goes to. */
+  private _projectNetwork(data: ProjectParams): SupernetType {
+    return data.network ?? this._currentNetworkType ?? this.client.socket.supernetType;
+  }
+
+  /** `mediaEncryption: true`: every reason it cannot be done is an error. */
+  private async _requireProjectEncryption(data: ProjectParams): Promise<EncryptedProject> {
     if (!this._mediaEncryption) {
       throw new MediaEncryptionError(
         'unsupported',
         'Media encryption is not available on this client instance'
+      );
+    }
+    const network = this._projectNetwork(data);
+    if (!networkServesMediaEncryption(network)) {
+      throw new MediaEncryptionError(
+        'unsupported',
+        `Media encryption is not available on the ${network} network`
       );
     }
     if (!(await this.supportsMediaEncryption(data.modelId))) {
@@ -2493,34 +2614,32 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
         `Media encryption is not available for model "${data.modelId}"`
       );
     }
-    // `true` means "this media was uploaded outside the SDK", which the SDK cannot encrypt.
-    const mediaFields = data as unknown as Record<string, unknown>;
-    const uploadedElsewhere = ENCRYPTABLE_MEDIA_FIELDS.find((field) => {
-      const value =
-        field === 'controlNet.image'
-          ? data.type === 'image' && data.controlNet?.image
-          : mediaFields[field];
-      return value === true || (Array.isArray(value) && value.includes(true));
-    });
-    const keyframeUploadedElsewhere =
-      data.type === 'video' && getMinimaxH3KeyframeSlots(data).some(({ media }) => media === true);
-    if (uploadedElsewhere || keyframeUploadedElsewhere) {
-      const field = uploadedElsewhere ?? 'keyframes';
+    const encryptInputs = await this._encryptsInputs(data.modelId);
+    const field = encryptInputs && mediaUploadedElsewhere(data);
+    if (field) {
       throw new MediaEncryptionError(
         'unsupported',
         `Media encryption needs the media itself: pass a File, Blob or Buffer for "${field}" instead of true`
       );
     }
-    return this._mediaEncryption._createProjectEncryption();
+    return { encryption: await this._mediaEncryption._createProjectEncryption(), encryptInputs };
   }
 
   /**
-   * An encrypted project saves and reuses the ENCRYPTED file. An input's key is
-   * derived from its content, so the same file always encrypts to the same
-   * bytes and the upload library recognises it by their hash; it is told the
-   * media type the project slot expects, but never the file's name or the hash
-   * of its plaintext.
+   * `mediaEncryption: 'auto'`: encrypt when the network, the account and the
+   * model all support it. Anything else is sent exactly as without encryption.
    */
+  private async _automaticProjectEncryption(data: ProjectParams): Promise<EncryptedProject | null> {
+    if (!networkServesMediaEncryption(this._projectNetwork(data))) return null;
+    const mediaEncryption = this._mediaEncryption!;
+    if (!(await mediaEncryption._canEncryptAutomatically())) return null;
+    if (!(await this.supportsMediaEncryption(data.modelId))) return null;
+    const encryptInputs = await this._encryptsInputs(data.modelId);
+    if (encryptInputs && mediaUploadedElsewhere(data)) return null;
+    return { encryption: await mediaEncryption._createProjectEncryption(), encryptInputs };
+  }
+
+  /** Saved uploads work for encrypted projects too: the encrypted file is saved and reused. */
   private async _bindSavedUpload(
     file: File | Buffer | Blob,
     contentType: string | undefined,
@@ -2960,6 +3079,135 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   }
 
   /**
+   * Run one waiting Unlimited plan project on Premium Spark now, at its normal
+   * price, when {@link Project.payAsYouGo} offers it. The server re-checks every
+   * condition when asked. The result has one of three statuses:
+   *
+   * - `switched`: the project runs on Premium Spark; its price was charged once.
+   * - `refused`: this request costs nothing; `reason` says why. A debit the server
+   *   had already started (after `payment_failed`, `no_idle_worker` or `started`)
+   *   is cancelled, and the balance can take a moment to show it. `started` and
+   *   `not_eligible` clear the offer at once. After any other refusal (for example
+   *   `insufficient_premium_spark`, where an app can offer a Spark purchase and ask
+   *   again) the server's next queue update decides whether the offer stays.
+   * - `unknown` (`timeout`, `not_found`, `session_changed`, `unrecognized_reply`):
+   *   the server may have switched and charged the project. Treat the payment as
+   *   possibly made. Asking again is safe and never charges twice: it answers
+   *   `switched` if the earlier request switched, a refusal if it costs nothing,
+   *   or `unknown` again (including `not_found` once the creation has finished).
+   *   While it stays unknown, check the member's Spark history or the creation's
+   *   result rather than assuming either way.
+   *
+   * A repeated call while one is pending shares its result. If the connection
+   * drops while the request is pending, the SDK sends it once more after
+   * reconnecting, because the server replies only on the socket that asked.
+   * `timeoutMs` (default 45 s) counts from when the request is sent, and restarts
+   * after that one re-send.
+   */
+  async switchToPremiumSpark(
+    projectId: string,
+    options: { timeoutMs?: number } = {}
+  ): Promise<PayAsYouGoSwitchResult> {
+    const key = projectId.toUpperCase();
+    const existing = this.payAsYouGoSwitchRequests.get(key);
+    if (existing) return existing.promise;
+    const requested = options.timeoutMs;
+    const timeoutMs =
+      typeof requested === 'number' && Number.isFinite(requested) && requested > 0
+        ? requested
+        : PAY_AS_YOU_GO_SWITCH_TIMEOUT_MS;
+    const pending = this.startPremiumSparkSwitch(projectId, timeoutMs);
+    this.payAsYouGoSwitchRequests.set(key, pending);
+    try {
+      return await pending.promise;
+    } finally {
+      if (this.payAsYouGoSwitchRequests.get(key) === pending)
+        this.payAsYouGoSwitchRequests.delete(key);
+    }
+  }
+
+  private startPremiumSparkSwitch(projectId: string, timeoutMs: number): PendingPremiumSparkSwitch {
+    const upperId = projectId.toUpperCase();
+    let resolveOutcome!: (result: PayAsYouGoSwitchResult) => void;
+    const outcome = new Promise<PayAsYouGoSwitchResult>((resolve) => {
+      resolveOutcome = resolve;
+    });
+    let settled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let removeConnectedListener = () => {};
+    const removeReplyListener = this.client.socket.on(
+      'projectPaymentSwitch',
+      (data: SocketEventMap['projectPaymentSwitch']) => {
+        if (String(data?.jobID || '').toUpperCase() !== upperId) return;
+        finish(normalizePayAsYouGoSwitchResult(projectId, data));
+      }
+    );
+    const finish = (result: PayAsYouGoSwitchResult) => {
+      if (settled) return;
+      settled = true;
+      removeReplyListener();
+      removeConnectedListener();
+      if (timeout) clearTimeout(timeout);
+      resolveOutcome(result);
+    };
+    const armTimer = () => {
+      if (settled) return;
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(
+        () =>
+          finish({
+            projectId,
+            status: 'unknown',
+            reason: 'timeout',
+            message: 'No reply arrived, so the payment state is unknown. Asking again is safe.'
+          }),
+        timeoutMs
+      );
+      timeout.unref?.();
+    };
+    // Resolves false only when the request certainly never left this client.
+    const send = async () => {
+      try {
+        await this.client.socket.send('switchProjectToPremiumSpark', { projectId });
+        return true;
+      } catch (error) {
+        return error instanceof MessageDeliveryUncertainError;
+      }
+    };
+    void (async () => {
+      const delivered = await send();
+      if (settled) return;
+      if (!delivered) {
+        finish({ projectId, status: 'refused', reason: 'not_sent' });
+        return;
+      }
+      const sentGeneration = this._transportGeneration;
+      // The server replies only on the socket that asked: after a reconnect,
+      // ask once more from the new socket. Repeats never charge twice.
+      removeConnectedListener = this.client.on('connected', () => {
+        if (settled || this._transportGeneration === sentGeneration) return;
+        removeConnectedListener();
+        if (timeout) clearTimeout(timeout);
+        void send().then(armTimer);
+      });
+      armTimer();
+    })();
+    const promise = outcome.then((result) => {
+      // Clear the offer only when the outcome ends it for good; the server's next
+      // projectQueue update decides every other case.
+      const clearsOffer =
+        result.status === 'switched' ||
+        (result.status === 'refused' && PAY_AS_YOU_GO_REFUSALS_CLEARING_OFFER.has(result.reason));
+      if (clearsOffer) {
+        const project = this.projects.find((item) => item.id.toUpperCase() === upperId);
+        if (project?._setPayAsYouGo(null)) this._emitQueueChanged(project);
+      }
+      return result;
+    });
+    return { projectId, promise, settle: finish };
+  }
+
+  /**
    * Cancel a project by id after the server confirms that cancellation succeeded.
    *
    * Paid external providers may reject cancellation after work starts. In that case this method
@@ -3071,6 +3319,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, 'Guide image');
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type: 'startingImage' }))
       return imageId;
@@ -3105,6 +3354,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, 'ControlNet image');
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type: 'cnImage' }))
       return imageId;
@@ -3160,6 +3410,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, `Context image ${imageIndex}`);
     const contentType = getFileContentType(file);
     if (
       await this._bindSavedUpload(file, contentType, {
@@ -3210,6 +3461,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, `Keyframe image ${slot}`);
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type })) return imageId;
     assertSession();
@@ -3246,6 +3498,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, 'Reference image');
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceImage' }))
       return imageId;
@@ -3284,6 +3537,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, 'Reference mask');
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceMask' }))
       return imageId;
@@ -3322,6 +3576,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     const assertSession =
       this._preparingSessions.get(projectId) ?? captureRequestSession(this.client.auth);
     assertSession();
+    await assertImageUploadBody(file, 'End reference image');
     const contentType = getFileContentType(file);
     if (await this._bindSavedUpload(file, contentType, { projectId, type: 'referenceImageEnd' }))
       return imageId;
@@ -3453,12 +3708,25 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     sampler,
     contextImages,
     gptImageQuality,
+    gptImageFrameCount,
+    gptImageFrameDurationMs,
+    gptImageComplexity,
     outputFormat,
+    seedreamLayerDecomposition,
+    seedreamLayerSize,
+    seedreamLayerMaxImages,
     billingMode,
-    priorityMode
+    priorityMode,
+    includeMonthlyFairUse
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const modelOptions = await this.getModelOptions(model);
+    if (outputFormat === 'gif' && (!sizePreset || sizePreset === 'custom' || width || height)) {
+      const size = resolveGptImageGifSize(width, height, gptImageFrameCount);
+      width = size.width;
+      height = size.height;
+      sizePreset = undefined;
+    }
     const pathParams = [
       tokenType || 'spark',
       network,
@@ -3489,9 +3757,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     }
     const queryParams = new URLSearchParams();
     if (gptImageQuality) queryParams.set('gptImageQuality', gptImageQuality);
+    if (gptImageFrameCount !== undefined)
+      queryParams.set('gptImageFrameCount', String(gptImageFrameCount));
+    if (gptImageFrameDurationMs !== undefined)
+      queryParams.set('gptImageFrameDurationMs', String(gptImageFrameDurationMs));
+    if (gptImageComplexity !== undefined) queryParams.set('gptImageComplexity', gptImageComplexity);
     if (outputFormat) queryParams.set('outputFormat', outputFormat);
+    if (seedreamLayerDecomposition) queryParams.set('seedreamLayerDecomposition', 'true');
+    if (seedreamLayerSize) queryParams.set('seedreamLayerSize', seedreamLayerSize);
+    if (seedreamLayerMaxImages !== undefined)
+      queryParams.set('seedreamLayerMaxImages', String(seedreamLayerMaxImages));
     if (billingMode) queryParams.set('billingMode', billingMode);
     if (priorityMode !== undefined) queryParams.set('priorityMode', String(priorityMode));
+    if (includeMonthlyFairUse === true) queryParams.set('includeMonthlyFairUse', 'true');
     const query = queryParams.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}${query ? `?${query}` : ''}`
@@ -3503,7 +3781,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
       estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
-      dailyFairUsePct: r.dailyFairUse?.pct
+      dailyFairUsePct: r.dailyFairUse?.pct,
+      ...(r.monthlyFairUse ? { monthlyFairUsePct: r.monthlyFairUse.pct } : {})
     };
   }
 
@@ -3549,6 +3828,11 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    *   - referenceVideoDurationSeconds: Combined duration of MiniMax H3 r2v video input.
    *   - keyframeCount / keyframes: MiniMax H3 intermediate keyframes (0-8). The first two are
    *     included; each extra keyframe adds 0.75 s of output time on FastH3 and 0.3 s on other tiers.
+   *   - sam3VideoPrompt: SAM 3 video selection's prompt; its `objects` count and `memory` mode are
+   *     priced. A prompt without them quotes exactly as before.
+   *   - seedanceDraft: Seedance 2.5 480p draft, priced like the same 480p job.
+   *   - seedanceDraftJobId: Seedance 2.5 finalize of that draft at 1080p, priced by the server from
+   *     the draft (duration, aspect ratio, input video); width, height, duration and fps do not change it.
    * @return {Promise<Object>} Returns an object containing the estimated costs for the video in different units:
    *   - token: Cost in tokens.
    *   - usd: Cost in USD.
@@ -3557,6 +3841,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   async estimateVideoCost(params: VideoEstimateRequest) {
     rejectRetiredOutputScale(params);
+    validateSeedanceDraftFields(params);
+    validateSeedanceFlashSize(params.model, params.width, params.height);
     const frames = params.frames
       ? params.frames
       : calculateVideoFrames(params.model, params.duration, params.fps);
@@ -3616,11 +3902,28 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (Number.isFinite(keyframeCount) && (keyframeCount as number) > 0) {
       query.set('keyframeCount', String(Math.floor(keyframeCount as number)));
     }
+    // SAM 3 video options that change the price; the server holds them to the
+    // limits admission applies to the same prompt.
+    const sam3VideoPrompt = params.sam3VideoPrompt;
+    if (sam3VideoPrompt && Array.isArray(sam3VideoPrompt.objects)) {
+      query.set('sam3ObjectCount', String(sam3VideoPrompt.objects.length));
+    }
+    if (sam3VideoPrompt?.memory !== undefined) {
+      query.set('sam3Memory', String(sam3VideoPrompt.memory));
+    }
     // Unpinned, the job renders on the connection's network, so quote that one.
     const network = params.network ?? this._currentNetworkType;
     if (network) query.set('network', network);
     if (params.billingMode) query.set('billingMode', params.billingMode);
     if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
+    if (params.includeMonthlyFairUse === true) query.set('includeMonthlyFairUse', 'true');
+    if (params.seedanceDraft === true) query.set('seedanceDraft', '1');
+    if (params.seedanceDraftJobId !== undefined) {
+      query.set('seedanceDraftJobId', params.seedanceDraftJobId);
+    }
+    if (params.seedanceDraftFinalResolution !== undefined) {
+      query.set('seedanceDraftFinalResolution', params.seedanceDraftFinalResolution);
+    }
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-video/estimate/${path}${queryString ? `?${queryString}` : ''}`
@@ -3632,7 +3935,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
       estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
-      dailyFairUsePct: r.dailyFairUse?.pct
+      dailyFairUsePct: r.dailyFairUse?.pct,
+      ...(r.monthlyFairUse ? { monthlyFairUsePct: r.monthlyFairUse.pct } : {})
     };
   }
 
@@ -3662,6 +3966,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (network) query.set('network', network);
     if (params.billingMode) query.set('billingMode', params.billingMode);
     if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
+    if (params.includeMonthlyFairUse === true) query.set('includeMonthlyFairUse', 'true');
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-audio/estimate/${path}${queryString ? `?${queryString}` : ''}`
@@ -3673,7 +3978,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       sogni: r.quote.project.costInSogni,
       estimatedRenderSeconds: r.benchmark?.estimatedRenderTimeSec,
       estimatedTotalSeconds: r.benchmark?.estimatedTotalTimeSec,
-      dailyFairUsePct: r.dailyFairUse?.pct
+      dailyFairUsePct: r.dailyFairUse?.pct,
+      ...(r.monthlyFairUse ? { monthlyFairUsePct: r.monthlyFairUse.pct } : {})
     };
   }
 
@@ -3688,9 +3994,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * starting a project or workflow that references the asset.
    *
    * @param {ImageUrlParams} params - Image asset coordinates:
-   *   - imageId: Stable identifier for the asset within the job
-   *     (e.g. `"media_ref_1"`). The same id is later used to reference
-   *     the asset in workflow inputs.
+   *   - imageId: Identifier for the asset (e.g. `"media_ref_1"`). The same
+   *     id is later used to reference the asset in workflow inputs. It does
+   *     not select a storage slot: every role except `'preview'` and
+   *     `'complete'` holds one image per `jobId` and `type`, so a second
+   *     upload with the same pair replaces the first, whatever its `imageId`.
+   *     To send several images in one role, give each its own `jobId`.
    *   - jobId: Caller-generated job/correlation id (e.g.
    *     `"sogni-agent-1735000000-1-abcdef"`). Ties the asset to a
    *     specific request.
@@ -3741,8 +4050,12 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * before starting a project or workflow that references the asset.
    *
    * @param {MediaUrlParams} params - Media asset coordinates:
-   *   - id: Stable identifier for the asset within the job
-   *     (e.g. `"media_ref_1"`). Optional for some asset roles.
+   *   - id: Identifier for the asset (e.g. `"media_ref_1"`). Optional for
+   *     some asset roles. For `'referenceAudio'` and `'referenceVideo'`, only
+   *     `referenceAudio1`..`referenceAudio3` and
+   *     `referenceVideo1`..`referenceVideo3` select their own slot. Any other
+   *     id shares the role's one slot per `jobId`, so a second upload there
+   *     replaces the first.
    *   - jobId: Caller-generated job/correlation id.
    *   - type: Asset role. Supported values are `'referenceAudio'`,
    *     `'referenceVideo'`, `'preview'`, `'complete'`.

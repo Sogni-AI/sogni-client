@@ -19,6 +19,7 @@ import {
   validateNumber,
   validateCustomImageSize,
   validateGptImageOptions,
+  resolveGptImageGifSize,
   validateSeedreamOptions,
   validateVideoSize,
   validateTeacacheThreshold,
@@ -33,7 +34,9 @@ import {
   getVideoWorkflowType,
   getVideoAssetRequirements,
   isVideoModel,
+  isRelayVsrModel,
   isVideoUpscaleModel,
+  isVideoSegmentationModel,
   calculateVideoFrames,
   isLtx2Model,
   isWanAnimateModel,
@@ -46,6 +49,7 @@ import {
   isMinimaxH3TurboModel,
   isMinimaxH3BalancedModel,
   isMinimaxH3FastH3ReferenceModel,
+  isMinimaxH3PrismModel,
   isMinimaxH3ReferenceModel,
   isMinimaxH3AudioGuideModel,
   isMinimaxH3KeyframeModel,
@@ -160,12 +164,16 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
         ? 'MOV output is supported only by Seedance 2.5.'
         : params.returnLastFrame !== undefined && typeof params.returnLastFrame !== 'boolean'
           ? 'returnLastFrame must be a boolean.'
-          : params.returnLastFrame === true && !isSeedance25Model(params.modelId)
-            ? 'Last-frame export is supported only by Seedance 2.5.'
+          : params.returnLastFrame === true &&
+              !isSeedance25Model(params.modelId) &&
+              !isMinimaxH3Model(params.modelId)
+            ? 'Last-frame export is supported only by Seedance 2.5 and MiniMax H3.'
             : undefined;
   if (exportError) {
     throw new ApiError(400, { status: 'error', errorCode: 0, message: exportError });
   }
+  validateSeedanceDraftFields(params);
+  validateSeedanceDraftFinalize(params);
   validateVideoContextImages(params);
   validateVideoKeyframes(params);
   validateVideoReferenceArrays(params);
@@ -179,6 +187,7 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
     return;
   }
   if (isSeedanceModel(params.modelId)) {
+    validateSeedanceFlashSize(params.modelId, params.width, params.height);
     validateSeedanceTaskType(params);
     validateSeedanceReferenceAssets(params);
     return;
@@ -247,6 +256,102 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
         message: `${workflowType} workflow does not support ${assetKey}. Please remove this asset.`
       });
     }
+  }
+}
+
+/** Prompt a finalize request carries; the final always uses its draft's prompt. */
+const SEEDANCE_DRAFT_FINALIZE_PROMPT = 'Finalize the Seedance 2.5 draft at 1080p.';
+
+function seedanceDraftError(message: string): never {
+  throw new ApiError(400, { status: 'error', errorCode: 0, message });
+}
+
+/**
+ * Seedance 2.5 draft mode fields, shared by projects and video estimates:
+ * `seedanceDraft` creates a 480p draft and `seedanceDraftJobId` finalizes one
+ * at 1080p. The server checks ownership, expiry, model and size; this only
+ * catches requests no server would accept.
+ */
+export function validateSeedanceDraftFields(params: {
+  modelId?: string;
+  model?: string;
+  seedanceDraft?: unknown;
+  seedanceDraftJobId?: unknown;
+  seedanceDraftFinalResolution?: unknown;
+}): void {
+  const { seedanceDraft, seedanceDraftJobId } = params;
+  if (seedanceDraft !== undefined && typeof seedanceDraft !== 'boolean') {
+    seedanceDraftError('seedanceDraft must be a boolean.');
+  }
+  if (
+    seedanceDraftJobId !== undefined &&
+    (typeof seedanceDraftJobId !== 'string' || !seedanceDraftJobId.trim())
+  ) {
+    seedanceDraftError('seedanceDraftJobId must be the Sogni job id of a Seedance 2.5 draft.');
+  }
+  if (params.seedanceDraftFinalResolution !== undefined) {
+    if (!['1080p', '4k'].includes(params.seedanceDraftFinalResolution as string)) {
+      seedanceDraftError('seedanceDraftFinalResolution must be 1080p or 4k.');
+    }
+    if (seedanceDraftJobId === undefined) {
+      seedanceDraftError('seedanceDraftFinalResolution requires seedanceDraftJobId.');
+    }
+  }
+  if (seedanceDraft !== true && seedanceDraftJobId === undefined) return;
+  const draftModel = String(params.modelId ?? params.model ?? '');
+  if (!isSeedance25Model(draftModel) || draftModel === 'seedance-2-5-flash') {
+    seedanceDraftError('Seedance draft mode is supported only by Seedance 2.5.');
+  }
+  if (seedanceDraft === true && seedanceDraftJobId !== undefined) {
+    seedanceDraftError(
+      'seedanceDraft and seedanceDraftJobId are mutually exclusive: create a draft, or finalize one.'
+    );
+  }
+}
+
+/**
+ * A finalize renders an existing draft at 1080p and inherits every
+ * generation-defining input from it; the vendor refuses any of them sent again,
+ * even with identical values.
+ */
+function validateSeedanceDraftFinalize(params: VideoProjectParams): void {
+  if (params.seedanceDraftJobId === undefined) return;
+  const inherited: Array<[keyof VideoProjectParams, boolean]> = [
+    ['referenceImage', Boolean(params.referenceImage)],
+    ['referenceImageEnd', Boolean(params.referenceImageEnd)],
+    ['referenceImageUrls', asReferenceUrlArray(params.referenceImageUrls).length > 0],
+    ['referenceVideo', Boolean(params.referenceVideo)],
+    ['referenceVideoUrls', asReferenceUrlArray(params.referenceVideoUrls).length > 0],
+    ['referenceAudio', Boolean(params.referenceAudio)],
+    ['referenceAudioUrls', asReferenceUrlArray(params.referenceAudioUrls).length > 0],
+    ['referenceAudioIdentity', Boolean(params.referenceAudioIdentity)],
+    ['duration', params.duration !== undefined],
+    ['frames', params.frames !== undefined],
+    ['ratio', params.ratio !== undefined],
+    ['seed', params.seed !== undefined],
+    ['generateAudio', params.generateAudio !== undefined],
+    ['seedanceTaskType', params.seedanceTaskType !== undefined]
+  ];
+  const sent = inherited.filter(([, present]) => present).map(([name]) => name);
+  if (sent.length) {
+    seedanceDraftError(
+      `A Seedance 2.5 finalize reuses its draft's inputs and settings; remove ${sent.join(', ')}.`
+    );
+  }
+  if ((params.numberOfMedia ?? 1) !== 1) {
+    seedanceDraftError('A Seedance 2.5 finalize renders its draft once; numberOfMedia must be 1.');
+  }
+}
+
+export function validateSeedanceFlashSize(modelId: string, width?: number, height?: number): void {
+  // Seedance uses pixel-area bands across aspect ratios, including square and 21:9.
+  if (
+    modelId === 'seedance-2-5-flash' &&
+    width &&
+    height &&
+    width * height >= (1280 * 720 + 1920 * 1080) / 2
+  ) {
+    throw new Error('Seedance 2.5 Flash supports 480p and 720p.');
   }
 }
 
@@ -620,19 +725,22 @@ function validateMinimaxH3Params(params: VideoProjectParams): void {
     invalid('MiniMax H3 fps is fixed at 24. Omit fps or set it to 24.');
   }
   // FastH3 Reference ends in `_turbo` but is distilled to 8 steps, so it is
-  // neither a 4-step Turbo id nor a Balanced one.
+  // neither a 4-step Turbo id nor a Balanced one. Prism's recipe is 8 steps too.
   const isFastH3Reference = isMinimaxH3FastH3ReferenceModel(params.modelId);
+  const isPrism = isMinimaxH3PrismModel(params.modelId);
   const isTurbo = isMinimaxH3TurboModel(params.modelId);
   const isBalanced = isMinimaxH3BalancedModel(params.modelId);
-  const expectedSteps = isFastH3Reference ? 8 : isTurbo ? 4 : isBalanced ? 8 : 20;
+  const expectedSteps = isFastH3Reference || isPrism ? 8 : isTurbo ? 4 : isBalanced ? 8 : 20;
   if (params.steps !== undefined && params.steps !== expectedSteps) {
     const tier = isFastH3Reference
       ? ' FastH3 Reference'
-      : isTurbo
-        ? ' Turbo'
-        : isBalanced
-          ? ' Balanced'
-          : '';
+      : isPrism
+        ? ' Prism'
+        : isTurbo
+          ? ' Turbo'
+          : isBalanced
+            ? ' Balanced'
+            : '';
     invalid(`MiniMax H3${tier} steps are fixed at ${expectedSteps}.`);
   }
   if (params.guidance !== undefined && params.guidance !== 1) {
@@ -746,6 +854,7 @@ const SEEDANCE_REFERENCE_LIMITS_BY_MODEL: Record<
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance-2-0-fast': { images: 9, videos: 3, audios: 3, assets: 12 },
   'seedance-2-5': { images: 30, videos: 10, audios: 10, assets: 50 },
+  'seedance-2-5-flash': { images: 10, videos: 5, audios: 5, assets: 20 },
   // Seedance 2.5 Uncensored: the same model and limits as Seedance 2.5.
   'seedance-2-5-uncensored': { images: 30, videos: 10, audios: 10, assets: 50 }
 };
@@ -1537,7 +1646,19 @@ function applyImageParams(
   }
   keyFrame.sizePreset = effectiveSizePreset;
 
-  if (effectiveSizePreset === 'custom' && params.width && params.height) {
+  if (
+    params.outputFormat === 'gif' &&
+    (!effectiveSizePreset || effectiveSizePreset === 'custom' || params.width || params.height)
+  ) {
+    const dimensions = resolveGptImageGifSize(
+      params.width,
+      params.height,
+      params.gptImageFrameCount
+    );
+    keyFrame.sizePreset = 'custom';
+    keyFrame.width = dimensions.width;
+    keyFrame.height = dimensions.height;
+  } else if (effectiveSizePreset === 'custom' && params.width && params.height) {
     keyFrame.width = validateCustomImageSize(params.width, {
       modelId: params.modelId,
       propertyName: 'Width'
@@ -1548,6 +1669,14 @@ function applyImageParams(
     });
   }
   validateGptImageOptions(params);
+  for (const field of [
+    'gptImageComplexity',
+    'gptImageFrameCount',
+    'gptImageFrameDurationMs',
+    'gptImageMarkupUrl'
+  ] as const) {
+    if (params[field] !== undefined) keyFrame[field] = params[field];
+  }
   validateSeedreamOptions(params);
   if (params.gptImageMask) {
     keyFrame.hasReferenceMask = true;
@@ -1565,6 +1694,22 @@ function applyImageParams(
   if (params.gptImageOutputCompression !== undefined) {
     keyFrame.gptImageOutputCompression = params.gptImageOutputCompression;
   }
+  // Seedream options are written only when set, so requests without them keep
+  // their exact shape. validateSeedreamOptions has refused every invalid mix.
+  if (params.seedreamBackground !== undefined) {
+    keyFrame.seedreamBackground = params.seedreamBackground;
+  }
+  if (params.seedreamLayerDecomposition !== undefined) {
+    keyFrame.seedreamLayerDecomposition = params.seedreamLayerDecomposition;
+    if (params.seedreamLayerDecomposition && params.seedreamLayerSize)
+      keyFrame.seedreamLayerSize = params.seedreamLayerSize;
+  }
+  if (params.seedreamLayerMaxImages !== undefined) {
+    keyFrame.seedreamLayerMaxImages = params.seedreamLayerMaxImages;
+  }
+  if (params.seedreamLayerTextRecognition !== undefined) {
+    keyFrame.seedreamLayerTextRecognition = params.seedreamLayerTextRecognition;
+  }
   return keyFrame;
 }
 
@@ -1572,7 +1717,7 @@ const VIDEO_UPSCALE_TIMING_ERROR =
   'Omit the source timing, or supply the source video’s exact frame count and frame rate.';
 
 /**
- * FlashVSR source timing is optional. The server probes the uploaded video and
+ * Upscale source timing is optional. The server probes the uploaded video and
  * adopts its exact frame count and frame rate when they are omitted; values a
  * caller does send must describe the source and are checked against it.
  *
@@ -1597,6 +1742,25 @@ function validateVideoUpscaleTiming(params: VideoProjectParams): void {
   }
 }
 
+/** Opt-in `sam3VideoPrompt` fields; a prompt without any of them is sent exactly as before. */
+const SAM3_VIDEO_OPT_IN_KEYS = ['mask', 'objects', 'combine', 'frames', 'memory'] as const;
+
+/** Video selection adopts the verified source; values a caller sends must look like source metadata. */
+function withSam3VideoSourceMetadata<T extends Record<string, any>>(
+  keyFrame: T,
+  params: VideoProjectParams
+): T {
+  for (const name of ['width', 'height', 'frames', 'fps'] as const) {
+    const value = params[name];
+    if (value !== undefined) {
+      if (!Number.isFinite(value) || value <= 0 || (name !== 'fps' && !Number.isSafeInteger(value)))
+        throw new Error(`Video selection ${name} must match the source video.`);
+      Object.assign(keyFrame, { [name]: value });
+    }
+  }
+  return keyFrame;
+}
+
 function applyVideoParams(
   inputKeyframe: Record<string, any>,
   params: VideoProjectParams,
@@ -1610,28 +1774,136 @@ function applyVideoParams(
     });
   }
   validateVideoWorkflowAssets(params);
-  if (isVideoUpscaleModel(params.modelId)) {
+  if (isVideoSegmentationModel(params.modelId)) {
+    if (!params.referenceVideo || params.numberOfMedia !== 1)
+      throw new Error('Video selection requires one uploaded referenceVideo and numberOfMedia: 1.');
+    if (!params.sam3VideoPrompt) throw new Error('Video selection requires sam3VideoPrompt.');
     if (
-      params.detailPreference != null &&
-      !['stable', 'sharper'].includes(params.detailPreference)
+      params.positivePrompt?.trim() ||
+      params.negativePrompt?.trim() ||
+      params.stylePrompt?.trim() ||
+      params.referenceImage ||
+      params.referenceImageEnd ||
+      params.referenceAudio ||
+      params.controlNet ||
+      params.videoStart != null ||
+      params.trimEndFrame ||
+      params.teacacheThreshold != null ||
+      params.loras?.length ||
+      params.referenceAudioIdentity
     ) {
-      throw new Error('FlashVSR detailPreference must be stable or sharper.');
+      throw new Error('Video selection accepts one complete source video and selection prompts.');
     }
-    if (params.processingSpeed != null && !['stable', 'faster'].includes(params.processingSpeed)) {
-      throw new Error('FlashVSR processingSpeed must be stable or faster.');
+    // The opt-in selection options (mask, objects, frames, memory) are carried to
+    // the server unchanged; it validates them against the verified source. A
+    // prompt without them takes the original path below, byte for byte.
+    const sam3VideoPrompt = params.sam3VideoPrompt;
+    if (SAM3_VIDEO_OPT_IN_KEYS.some((key) => sam3VideoPrompt[key] !== undefined)) {
+      return withSam3VideoSourceMetadata(
+        {
+          ...inputKeyframe,
+          hasReferenceVideo: true,
+          sam3VideoPrompt: { ...sam3VideoPrompt },
+          steps: 1,
+          seed: 0,
+          interpolation: 'none',
+          generateAudio: false
+        },
+        params
+      );
     }
-    const seed = params.seed ?? 0;
-    if (!Number.isInteger(seed) || seed < -1 || seed > 4294967295) {
-      throw new Error('FlashVSR seed must be -1 (random) or an integer from 0 through 4294967295.');
+    const {
+      frameIndex = 0,
+      objectIndex = 0,
+      output = 'mask',
+      edges = 'hard',
+      ...selection
+    } = params.sam3VideoPrompt;
+    if (
+      !Number.isSafeInteger(frameIndex) ||
+      frameIndex < 0 ||
+      frameIndex >= 900 ||
+      !Number.isSafeInteger(objectIndex) ||
+      objectIndex < 0 ||
+      objectIndex > 31
+    )
+      throw new Error('Use a valid source frameIndex and objectIndex from 0 to 31.');
+    if (output !== 'mask' || edges !== 'hard')
+      throw new Error('Video selection supports hard mask output.');
+    const imageSelection: NonNullable<ImageProjectParams['sam3Prompt']> = selection;
+    if (
+      imageSelection.applyMask ||
+      (imageSelection.maxInstances !== undefined && imageSelection.maxInstances !== 1)
+    )
+      throw new Error('Video selection tracks one object; choose it with objectIndex.');
+    const prompt = normalizeSam3Prompt(selection);
+    if (!prompt.text && prompt.points?.length && objectIndex !== 0) {
+      throw new Error('Point selections require objectIndex 0.');
+    }
+    if (!prompt.text && !prompt.points?.length && objectIndex >= (prompt.boxes?.length ?? 0)) {
+      throw new Error('objectIndex must refer to a supplied box.');
+    }
+    const keyFrame = withSam3VideoSourceMetadata(
+      {
+        ...inputKeyframe,
+        hasReferenceVideo: true,
+        sam3VideoPrompt: { ...prompt, maxInstances: 1, frameIndex, objectIndex, output, edges },
+        steps: 1,
+        seed: 0,
+        interpolation: 'none',
+        generateAudio: false
+      },
+      params
+    );
+    if (params.frames !== undefined && frameIndex >= params.frames)
+      throw new Error('frameIndex must refer to a source frame.');
+    return keyFrame;
+  }
+  if (params.sam3VideoPrompt !== undefined)
+    throw new Error('sam3VideoPrompt requires the SAM 3 video selection model.');
+  if (isVideoUpscaleModel(params.modelId)) {
+    const relayVsr = isRelayVsrModel(params.modelId);
+    const upscalerName = relayVsr ? 'RelayVSR' : 'FlashVSR';
+    if (relayVsr) {
+      if (params.detailPreference != null) throw new Error('RelayVSR has no detailPreference.');
+      if (params.processingSpeed != null) throw new Error('RelayVSR has no processingSpeed.');
+      if (params.seed != null) throw new Error('RelayVSR has no seed.');
+    } else {
+      if (
+        params.detailPreference != null &&
+        !['stable', 'sharper'].includes(params.detailPreference)
+      ) {
+        throw new Error('FlashVSR detailPreference must be stable or sharper.');
+      }
+      if (
+        params.processingSpeed != null &&
+        !['stable', 'faster'].includes(params.processingSpeed)
+      ) {
+        throw new Error('FlashVSR processingSpeed must be stable or faster.');
+      }
+      const seed = params.seed ?? 0;
+      if (!Number.isInteger(seed) || seed < -1 || seed > 4294967295) {
+        throw new Error(
+          'FlashVSR seed must be -1 (random) or an integer from 0 through 4294967295.'
+        );
+      }
     }
     const resolution =
       params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
-    if (![1080, 1440].includes(resolution))
+    if (relayVsr) {
+      if (![1080, 1440, 2160].includes(resolution))
+        throw new Error('Choose 1080p, 1440p or 2160p for RelayVSR video upscaling.');
+      // The source is unknown here, so only a size the caller sends can be checked.
+      if (Math.max(Number(params.width) || 0, Number(params.height) || 0) > 3840)
+        throw new Error('RelayVSR output can be at most 3840 pixels on its long edge.');
+    } else if (![1080, 1440].includes(resolution)) {
       throw new Error('Choose 1080p or 1440p for video upscaling.');
-    if (!params.referenceVideo) throw new Error('FlashVSR requires an uploaded referenceVideo.');
+    }
+    if (!params.referenceVideo)
+      throw new Error(`${upscalerName} requires an uploaded referenceVideo.`);
     validateVideoUpscaleTiming(params);
     if (params.positivePrompt?.trim() || params.negativePrompt?.trim())
-      throw new Error('FlashVSR is promptless.');
+      throw new Error(`${upscalerName} is promptless.`);
     if (
       params.teacacheThreshold != null ||
       params.trimEndFrame ||
@@ -1754,6 +2026,21 @@ function applyVideoParams(
   if (params.seedanceTaskType !== undefined) {
     keyFrame.seedanceTaskType = params.seedanceTaskType;
   }
+  if (params.seedanceDraft === true) {
+    keyFrame.seedanceDraft = true;
+  }
+  if (params.seedanceDraftJobId !== undefined) {
+    keyFrame.seedanceDraftJobId = params.seedanceDraftJobId;
+    // The final inherits the draft's prompt. The request still carries a
+    // non-empty prompt, which the server ignores for a finalize.
+    keyFrame.positivePrompt =
+      params.seedanceDraftFinalResolution === '4k'
+        ? 'Finalize the Seedance 2.5 draft at 4K.'
+        : SEEDANCE_DRAFT_FINALIZE_PROMPT;
+    if (params.seedanceDraftFinalResolution !== undefined) {
+      keyFrame.seedanceDraftFinalResolution = params.seedanceDraftFinalResolution;
+    }
+  }
   if (params.audioIdentityStrength !== undefined) {
     keyFrame.identityGuidanceScale = params.audioIdentityStrength;
   }
@@ -1789,7 +2076,7 @@ function applyVideoParams(
             : isSeedanceModel(params.modelId)
               ? 4
               : 1;
-    // FlashVSR has no client-side maximum: the server's admission check owns
+    // Video upscaling has no client-side maximum: the server's admission check owns
     // the longest source it accepts and refuses a longer one itself.
     const duration = isVideoUpscaleModel(params.modelId)
       ? validateNumber(params.duration, { min: minDuration, propertyName: 'Video duration' })
@@ -1856,9 +2143,11 @@ function applyVideoParams(
     keyFrame.detailerStrength = params.detailerStrength;
   }
 
-  // Validate and set video dimensions (minimum 480px for Wan 2.2 models)
+  // Validate and set video dimensions (minimum 480px for Wan 2.2 models).
+  // Seedance is exempt: the server reads only a ratio and a resolution band
+  // (by area) from its canvas, and Seedance's own 21:9 480p size is 992x432.
   if (params.width && params.height) {
-    if (isMinimaxH3Model(params.modelId)) {
+    if (isMinimaxH3Model(params.modelId) || isSeedanceModel(params.modelId)) {
       keyFrame.width = Number(params.width);
       keyFrame.height = Number(params.height);
     } else {
@@ -1880,8 +2169,10 @@ function applyVideoParams(
       params.upscaleResolution ?? Math.min(Number(params.width), Number(params.height));
     keyFrame.steps = 1;
     keyFrame.seed = params.seed ?? 0;
-    keyFrame.detailPreference = params.detailPreference ?? 'stable';
-    keyFrame.processingSpeed = params.processingSpeed ?? 'stable';
+    if (!isRelayVsrModel(params.modelId)) {
+      keyFrame.detailPreference = params.detailPreference ?? 'stable';
+      keyFrame.processingSpeed = params.processingSpeed ?? 'stable';
+    }
     keyFrame.generateAudio = true;
     keyFrame.interpolation = 'none';
   }
@@ -1952,6 +2243,12 @@ function applyAudioParams(
 }
 
 function createJobRequestMessage(id: string, params: ProjectParams, options: ModelOptions) {
+  if (
+    (params as VideoProjectParams).sam3VideoPrompt !== undefined &&
+    !isVideoSegmentationModel(params.modelId)
+  ) {
+    throw new Error('sam3VideoPrompt requires the SAM 3 video selection model.');
+  }
   const template = getTemplate();
   const worldGenerationReceipt = normalizeWorldGenerationReceipt(params.worldGenerationReceipt);
   const negativePrompt =

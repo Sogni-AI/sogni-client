@@ -17,4 +17,8 @@ export interface IWebSocketClient extends RestClient<SocketEventMap> {
   send<T extends MessageType>(messageType: T, data: SocketMessageMap[T]): Promise<void>;
   setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void>;
   switchNetwork(supernetType: SupernetType): Promise<SupernetType>;
+  /** @internal */
+  _setMediaConnectionCapability?(declared: () => boolean): void;
+  /** @internal */
+  _declareMediaCapability?(): void;
 }

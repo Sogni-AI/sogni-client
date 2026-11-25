@@ -444,11 +444,39 @@ export function validateAndNormalizeHostedToolArguments(
     warnings: []
   };
 
+  // upscale_video had no model argument in 5.83.0. A model value other than flashvsr
+  // or relayvsr is validated as it was then: kept, or stripped with the same warning.
+  let toolSchema = schema;
+  if (
+    toolName === 'upscale_video' &&
+    Object.prototype.hasOwnProperty.call(args, 'model') &&
+    args.model !== 'flashvsr' &&
+    args.model !== 'relayvsr' &&
+    schema.properties?.model
+  ) {
+    const properties = { ...schema.properties };
+    delete properties.model;
+    toolSchema = { ...schema, properties };
+  }
+
   const normalizedSchema: HostedToolSchema = {
-    ...schema,
-    type: schema.type ?? 'object'
+    ...toolSchema,
+    type: toolSchema.type ?? 'object'
   };
   const cleaned = validateValueAgainstSchema('', args, normalizedSchema, context).value;
+
+  // upscale_video: 2160 is RelayVSR only. FlashVSR (model omitted or anything but
+  // relayvsr) keeps the 1080/1440 refusal it had before the enum gained 2160.
+  if (toolName === 'upscale_video' && isRecord(cleaned)) {
+    const flashVsr2160Error = `Argument "targetResolution" must be one of ${formatEnum([1080, 1440])}`;
+    if (
+      cleaned.model !== 'relayvsr' &&
+      cleaned.targetResolution === 2160 &&
+      !context.errors.includes(flashVsr2160Error)
+    ) {
+      context.errors.push(flashVsr2160Error);
+    }
+  }
 
   return {
     ok: context.errors.length === 0,

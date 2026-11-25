@@ -1740,6 +1740,7 @@ for (const [toolName, args, preferredKey] of [
     );
   }
 }
+assert.deepEqual(getVideoDefaults('seedance-2-5-flash'), { width: 1280, height: 720, fps: 24 });
 assert.deepEqual(getVideoDefaults('seedance-2-5-uncensored'), {
   width: 1920,
   height: 1080,
@@ -1757,11 +1758,10 @@ for (const workflow of ['t2v', 'i2v', 'flf2v', 'r2v', 'ia2v', 'v2v']) {
 for (const toolName of ['generate_video', 'sound_to_video', 'video_to_video']) {
   const videoModelEnum =
     sdkHostedToolsByName.get(toolName).function.parameters.properties.videoModel.enum;
-  assert.equal(
-    videoModelEnum[videoModelEnum.indexOf('seedance2-5') + 1],
-    'seedance2-5-uncensored',
-    `${toolName} must list seedance2-5-uncensored after seedance2-5`
-  );
+  const start = videoModelEnum.indexOf('seedance2-5');
+  assert.deepEqual(videoModelEnum.slice(start, start + 3), [
+    'seedance2-5', 'seedance2-5-flash', 'seedance2-5-uncensored'
+  ]);
 }
 assert.ok(
   !sdkHostedToolsByName

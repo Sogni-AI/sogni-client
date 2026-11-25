@@ -22,11 +22,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Check GPT Image 2.6 animation contracts
+        run: node scripts/check-gpt-image-26.cjs
       - name: Check generation recovery and cancellation
         run: |
           node scripts/check-auth-session.cjs
           node scripts/check-project-request-session.cjs
           node scripts/check-project-cancellation.cjs
+          node scripts/check-pay-as-you-go.cjs
           node scripts/check-project-recovery.cjs
           node scripts/check-project-liveness.cjs
           node scripts/check-project-results.cjs
@@ -40,10 +43,19 @@ jobs:
           node scripts/check-socket-receive-order.cjs
           node scripts/check-socket-reconnect-backoff.cjs
           node scripts/check-socket-keepalive.cjs
+      - name: Check id generation
+        run: node scripts/check-uuid.cjs
       - name: Check downloads and REST errors
         run: |
           node scripts/check-result-download-endpoint.cjs
           node scripts/check-remote-media-hosts.cjs
           node scripts/check-rest-error-messages.cjs
           node scripts/check-rest-error-retry-after.cjs
+          node scripts/check-rest-redirects.cjs
           node scripts/check-account-login.cjs
+          node scripts/check-account-permits.cjs
+          node scripts/check-two-factor.cjs
+      - name: Check image upload bodies
+        run: node scripts/check-image-upload-body.cjs
+      - name: Check Seedance 2.5 draft mode
+        run: node scripts/check-seedance-draft.cjs

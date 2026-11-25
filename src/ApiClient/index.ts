@@ -28,6 +28,7 @@ import type {
   WorkloadAttributionInput
 } from '../types/attribution.js';
 import { apiErrorExtras, parseRetryAfterHeader } from '../lib/apiErrorFields.js';
+import type { MediaCapabilityProvider } from '../lib/mediaEncryption/capability.js';
 
 /**
  * Reconnect backoff for recoverable socket drops. Attempts continue for as
@@ -109,6 +110,8 @@ export interface ApiClientOptions {
   authType: 'token' | 'cookies' | 'apiKey';
   disableSocket?: boolean;
   multiInstance?: boolean;
+  mediaEncryption?: 'auto';
+  declareMediaCapability?: boolean;
 }
 
 class ApiClient extends TypedEventEmitter<ApiClientEvents> {
@@ -119,6 +122,10 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     workload?: Readonly<WorkloadAttributionDefaults>;
   }>;
   readonly logger: Logger;
+  /** `'auto'` when this client encrypts eligible projects with the account's media key. */
+  readonly mediaEncryption?: 'auto';
+  /** `false` when this client never declares the media capability. */
+  readonly declareMediaCapability: boolean;
   private _rest: RestClient;
   private _socket: IWebSocketClient;
   private _auth: AuthManager;
@@ -139,10 +146,14 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
     authType,
     logger,
     disableSocket = false,
-    multiInstance = false
+    multiInstance = false,
+    mediaEncryption,
+    declareMediaCapability = true
   }: ApiClientOptions) {
     super();
     this.appId = appId;
+    this.mediaEncryption = mediaEncryption;
+    this.declareMediaCapability = declareMediaCapability;
     this.appSource = appSource?.trim() || undefined;
     const connectionAttribution = normalizeConnectionAttribution(attribution?.connection);
     this.attribution = Object.freeze({
@@ -224,6 +235,25 @@ class ApiClient extends TypedEventEmitter<ApiClientEvents> {
       connection: this.attribution.connection,
       workload: this.resolveWorkloadAttribution(override, fallbackOperationId)
     });
+  }
+
+  /**
+   * Declare the media capability on REST requests and socket connections when
+   * the provider says so.
+   * @internal
+   */
+  _setMediaCapability(provider: MediaCapabilityProvider) {
+    this._rest._setMediaCapability(provider.declared);
+    this._socket._setMediaConnectionCapability?.(provider.declared);
+  }
+
+  /**
+   * Declare the media capability on the open socket.
+   * @internal
+   */
+  _declareMediaCapability() {
+    if (this._disposed || this._disableSocket) return;
+    this._socket._declareMediaCapability?.();
   }
 
   setSocketEventSubscriptions(update: SocketEventSubscriptionInput): Promise<void> {

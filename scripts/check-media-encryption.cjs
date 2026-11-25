@@ -1,17 +1,17 @@
 'use strict';
 /**
  * Media encryption: container format, account key, and the project upload path.
+ * The managed-key client mode (`mediaEncryption: 'auto'`) is covered end to end
+ * by check-media-encryption-auto.cjs.
  *
  * The known-answer vectors in fixtures/media-encryption-vectors.json pin the
- * byte format. The Comfy worker's node:crypto implementation is tested against
- * the same file, so a change that alters these bytes breaks interoperability:
- * regenerate with `--write-fixture` only for a deliberate format change.
+ * byte format, which other components share: regenerate with `--write-fixture`
+ * only for a deliberate format change.
  */
 const assert = require('node:assert/strict');
-const { createHash } = require('node:crypto');
+const { createHash, hkdfSync } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { Wallet } = require('ethers');
 
 const lib = require('../dist/lib/mediaEncryption/index.js');
 const { redactMediaKey } = require('../dist/lib/mediaEncryption/redact.js');
@@ -32,6 +32,16 @@ function pattern(length) {
   for (let i = 0; i < length; i++) out[i] = (i * 31 + (i >>> 8) * 7 + 3) & 0xff;
   return out;
 }
+
+/** The account key the pinned vectors were generated with. */
+function accountSecretFromWallet(walletKey) {
+  return new Uint8Array(
+    hkdfSync('sha256', walletKey, 'sogni-media-encryption', 'account-key-v1', 32)
+  );
+}
+const accountKeyFromWallet = (walletKey) => lib.importAccountKey(accountSecretFromWallet(walletKey));
+/** The signed-in account's key in the client-level checks. */
+const ACCOUNT_SECRET = unhex('5a'.repeat(32));
 
 const WALLET_KEY = unhex('0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20');
 const PROJECT_KEY = unhex('a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf');
@@ -84,7 +94,7 @@ const FILE_CASES = [
 ];
 
 async function buildVectors() {
-  const account = await lib.deriveAccountKey(WALLET_KEY);
+  const account = await accountKeyFromWallet(WALLET_KEY);
   const recipient = await lib.wrapProjectKey(account, PROJECT_KEY, RECIPIENT_NONCE);
   const files = [];
   for (const spec of FILE_CASES) {
@@ -164,7 +174,7 @@ async function checkVectors() {
 
   // An input opens for the worker (its wrapped key, under the project key) and for the artist
   // (the recipient stanza), and another account derives different bytes for the same file.
-  const owner = await lib.deriveAccountKey(unhex(pinned.walletPrivateKey));
+  const owner = await accountKeyFromWallet(unhex(pinned.walletPrivateKey));
   for (const input of pinned.inputs.filter((entry) => entry.ciphertext)) {
     const inputKey = await lib.unwrapInputKey(
       unhex(pinned.projectKey),
@@ -177,7 +187,7 @@ async function checkVectors() {
       lib.unwrapProjectKey(owner, header.recipient)
     );
     assert.equal(forArtist.contentType, input.contentType);
-    const stranger = await lib.deriveAccountKey(unhex(pinned.walletPrivateKey).reverse());
+    const stranger = await accountKeyFromWallet(unhex(pinned.walletPrivateKey).reverse());
     const theirs = await lib.inputMaterialForMedia(
       stranger,
       pattern(input.plaintextLength),
@@ -197,7 +207,7 @@ async function checkVectors() {
   }
 
   // Decrypt straight from the pinned bytes, through the recipient stanza.
-  const account = await lib.deriveAccountKey(unhex(pinned.walletPrivateKey));
+  const account = await accountKeyFromWallet(unhex(pinned.walletPrivateKey));
   for (const file of pinned.files.filter((entry) => entry.ciphertext)) {
     const opened = await lib.decryptMedia(unhex(file.ciphertext), (header) =>
       file.hasRecipient ? lib.unwrapProjectKey(account, header.recipient) : unhex(pinned.projectKey)
@@ -209,7 +219,7 @@ async function checkVectors() {
 }
 
 async function checkRoundTripsAndTampering() {
-  const account = await lib.deriveAccountKey(WALLET_KEY);
+  const account = await accountKeyFromWallet(WALLET_KEY);
   const recipient = await lib.wrapProjectKey(account, PROJECT_KEY);
   const viaRecipient = (header) => lib.unwrapProjectKey(account, header.recipient);
 
@@ -336,7 +346,7 @@ async function checkRoundTripsAndTampering() {
   );
 
   // Recipient stanza: another account's key is named as such, not reported as corruption.
-  const stranger = await lib.deriveAccountKey(unhex('ff'.repeat(32)));
+  const stranger = await accountKeyFromWallet(unhex('ff'.repeat(32)));
   await assert.rejects(
     () => lib.unwrapProjectKey(stranger, recipient),
     (error) => error.code === 'wrong_account_key'
@@ -369,6 +379,16 @@ async function checkRoundTripsAndTampering() {
   for (const stanza of stanzas)
     assert.deepEqual(await lib.unwrapProjectKey(account, stanza), PROJECT_KEY);
 
+  // An account that rotated its key holds the old one too: the stanza's keyCheck picks it.
+  const rotated = await lib.importAccountKey(unhex('33'.repeat(32)));
+  assert.deepEqual(await lib.unwrapProjectKey([rotated, account], recipient), PROJECT_KEY);
+  assert.deepEqual(await lib.unwrapProjectKey([account, rotated], recipient), PROJECT_KEY);
+  await assert.rejects(
+    () => lib.unwrapProjectKey([rotated, stranger], recipient),
+    (error) => error.code === 'wrong_account_key'
+  );
+  assert.equal('deriveAccountKey' in lib, false, 'no password-derived key');
+
   assert.equal(lib.isEncryptedMedia(sealed), true);
   assert.equal(lib.isEncryptedMedia(pattern(64)), false);
   assert.equal(lib.isEncryptedMedia(new Uint8Array(3)), false);
@@ -380,17 +400,22 @@ class StubAuth {
     this.listeners = [];
     this.sessionListeners = [];
     this.isAuthenticated = true;
+    this.sessionVersion = 1;
   }
   on(event, listener) {
     if (event === 'updated') this.listeners.push(listener);
     if (event === 'sessionChanged') this.sessionListeners.push(listener);
     return () => {};
   }
+  /** Sign out (false) or in (true); each change is a new session, as in AuthManagerBase. */
   emitUpdated(value) {
+    if (value !== this.isAuthenticated) this.sessionVersion++;
+    this.isAuthenticated = value;
     this.listeners.forEach((listener) => listener(value));
   }
+  /** Another account signs in without signing out first. */
   changeSession() {
-    this.sessionVersion = (this.sessionVersion || 0) + 1;
+    this.sessionVersion++;
     this.sessionListeners.forEach((listener) => listener());
   }
   async authenticateRequest(options) {
@@ -413,6 +438,9 @@ function stubClient({ savedUploads = false } = {}) {
     library,
     appSource: 'check-media-encryption',
     attribution: {},
+    _setMediaCapability() {
+      throw new Error('only an automatic client declares the media capability');
+    },
     auth: new StubAuth(),
     logger: { debug() {}, info() {}, warn() {}, error() {} },
     on: () => () => {},
@@ -499,64 +527,37 @@ function stubClient({ savedUploads = false } = {}) {
   };
 }
 
-function stubAccount(username, password, { authMethods } = {}) {
-  const wallet = new Wallet(`0x${hex(WALLET_KEY)}`);
-  const listeners = [];
-  return {
-    wallet,
-    currentAccount: {
-      username,
-      walletAddress: wallet.address,
-      on: (event, listener) => {
-        if (event === 'updated') listeners.push(listener);
-        return () => {};
-      },
-      /** What AccountApi does on logout, before anyone else hears about it. */
-      clear() {
-        this.walletAddress = undefined;
-        this.username = undefined;
-      },
-      emitUpdated: () => listeners.forEach((listener) => listener(['walletAddress']))
-    },
-    getWallet: (name, secret) =>
-      name === username && secret === password ? wallet : Wallet.createRandom(),
-    me: async () => ({
-      username,
-      walletAddress: wallet.address,
-      ...(authMethods ? { authMethods } : {})
-    })
-  };
+/** A client-level media encryption group whose account key is set. */
+async function keyedApi(client = stubClient()) {
+  const api = new MediaEncryptionApi({ client, eip712: {} });
+  await api.setAccountKey(ACCOUNT_SECRET);
+  return api;
 }
 
 async function checkAccountKeyLifecycle() {
   const client = stubClient();
-  const account = stubAccount('artist', 'correct horse');
-  const store = new lib.MemoryAccountKeyStore();
-  const api = new MediaEncryptionApi({ client, eip712: {} }, account, store);
+  const api = new MediaEncryptionApi({ client, eip712: {} });
   const events = [];
   api.on('unlocked', () => events.push('unlocked'));
   api.on('locked', () => events.push('locked'));
 
-  assert.equal(await api.isUnlocked(), false, 'a resumed session starts locked');
+  assert.equal(api.automatic, false, 'encryption is off unless the client is created with auto');
+  assert.equal(await api.isUnlocked(), false, 'a client starts without a key');
   await assert.rejects(
     () => api._createProjectEncryption(),
     (error) => error.code === 'locked'
   );
-  await assert.rejects(
-    () => api.unlock('wrong password'),
-    (error) => error.code === 'invalid_password'
-  );
-  assert.equal(await api.isUnlocked(), false);
+  for (const removed of ['unlock', 'canUnlockWithPassword']) {
+    assert.equal(typeof api[removed], 'undefined', `${removed} is gone with the password key`);
+  }
 
-  await api.unlock('correct horse');
+  await api.setAccountKey(ACCOUNT_SECRET);
   assert.equal(await api.isUnlocked(), true);
-  assert.ok(await store.load(account.wallet.address), 'the key is remembered on the device');
+  await assert.rejects(
+    () => api.setAccountKey(new Uint8Array(31)),
+    (error) => error.code === 'malformed'
+  );
 
-  // A second client instance on the same device (a reload) needs no password.
-  const reloaded = new MediaEncryptionApi({ client: stubClient(), eip712: {} }, account, store);
-  assert.equal(await reloaded.isUnlocked(), true);
-
-  // The login hook derives the same key, so media encrypted before a reload still opens.
   const project = await api._createProjectEncryption();
   assert.equal(project.wire().version, 1);
   assert.equal(lib.base64ToBytes(project.wire().key).length, 32);
@@ -572,14 +573,9 @@ async function checkAccountKeyLifecycle() {
     await api._createProjectEncryption()
   ).encrypt(new Blob([pattern(5000)], { type: 'image/png' }), 'image/png');
   assert.deepEqual(await bytesOf(again), await bytesOf(sealed));
-  const fresh = new MediaEncryptionApi(
-    { client: stubClient(), eip712: {} },
-    account,
-    new lib.MemoryAccountKeyStore()
-  );
-  await account._onWalletDerived(account.wallet);
-  assert.equal(await fresh.isUnlocked(), true, 'login derives the key without a second prompt');
-  const opened = await fresh.decrypt(sealed);
+  // Another client holding the same account key (another device) opens it.
+  const elsewhere = await keyedApi();
+  const opened = await elsewhere.decrypt(sealed);
   assert.equal(opened.type, 'image/png');
   assert.deepEqual(await bytesOf(opened), pattern(5000));
   assert.equal(api.isEncrypted(await bytesOf(sealed)), true);
@@ -597,255 +593,68 @@ async function checkAccountKeyLifecycle() {
       await bytesOf(await api.fetchDecrypted('https://cdn.example.test/plain')),
       pattern(9)
     );
+    await assert.rejects(
+      () => api.fetchDecrypted('https://cdn.example.test/plain', { requireEncrypted: true }),
+      (error) => error.code === 'not_encrypted'
+    );
   } finally {
     globalThis.fetch = realFetch;
   }
 
-  // Signing out removes the key from memory and from the device.
-  client.auth.emitUpdated(false);
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(await store.load(account.wallet.address), null);
-  assert.equal(await api.isUnlocked(), false);
-  assert.deepEqual(events, ['unlocked', 'locked']);
-
-  // A custom secret works for headless use and is independent of the password key.
-  const headless = new MediaEncryptionApi(
-    { client: stubClient(), eip712: {} },
-    account,
-    new lib.MemoryAccountKeyStore()
-  );
-  await headless.setAccountKey(unhex('11'.repeat(32)));
-  const headlessProject = await headless._createProjectEncryption();
-  const headlessSealed = await headlessProject.encrypt(pattern(10), 'image/png');
-  assert.deepEqual(await bytesOf(await headless.decrypt(headlessSealed)), pattern(10));
-  await api.unlock('correct horse');
+  // A different account key is named as such.
+  const other = new MediaEncryptionApi({ client: stubClient(), eip712: {} });
+  await other.setAccountKey(unhex('11'.repeat(32)));
   await assert.rejects(
-    () => api.decrypt(headlessSealed),
+    () => other.decrypt(sealed),
     (error) => error.code === 'wrong_account_key'
   );
+
+  // Signing out drops the key; so does lock().
+  client.auth.emitUpdated(false);
+  assert.equal(await api.isUnlocked(), false);
+  await assert.rejects(
+    () => api.setAccountKey(ACCOUNT_SECRET),
+    (error) => error.code === 'locked' && /Sign in/.test(error.message)
+  );
+  client.auth.emitUpdated(true);
+  assert.equal(await api.isUnlocked(), false, 'a new sign-in does not bring the old key back');
+  await api.setAccountKey(ACCOUNT_SECRET);
+  await api.lock();
+  assert.equal(await api.isUnlocked(), false);
+  assert.deepEqual(events, ['unlocked', 'locked', 'unlocked', 'locked']);
+
+  // Another account signing in directly drops the key too.
+  const switching = await keyedApi();
+  switching.client.auth.changeSession();
+  assert.equal(await switching.isUnlocked(), false);
 }
 
 async function checkAsyncKeyLifecycle() {
-  const deferred = () => {
-    let resolve;
-    const promise = new Promise((done) => {
-      resolve = done;
-    });
-    return { promise, resolve };
-  };
-  const key = await lib.importAccountKey(PROJECT_KEY);
-  // Credentials can switch accounts directly, without an intervening logout.
-  const switchingAccount = stubAccount('artist', 'correct horse');
-  const switchingClient = stubClient();
-  const switchingStore = new lib.MemoryAccountKeyStore();
-  const switchingApi = new MediaEncryptionApi(
-    { client: switchingClient, eip712: {} },
-    switchingAccount,
-    switchingStore
-  );
-  await switchingApi.unlock('correct horse');
-  switchingAccount.currentAccount.clear();
-  switchingClient.auth.changeSession();
-  assert.equal(
-    await switchingApi.isUnlocked(),
-    false,
-    'a session change clears the old key before the new account loads'
-  );
-  await switchingApi.lock();
-  assert.equal(await switchingStore.load(switchingAccount.wallet.address), null);
-  // A read started by a tile must not restore a key after logout or an account switch.
-  for (const change of ['logout', 'account']) {
-    const account = stubAccount('artist', 'correct horse');
+  // Importing a key can yield to a sign-out or an account switch: it must not land afterwards.
+  for (const change of ['lock', 'sign-out', 'account']) {
     const client = stubClient();
-    const loaded = deferred();
-    const started = deferred();
-    const api = new MediaEncryptionApi({ client, eip712: {} }, account, {
-      load: () => {
-        started.resolve();
-        return loaded.promise;
-      },
-      save: async () => {},
-      remove: async () => {}
-    });
+    const api = new MediaEncryptionApi({ client, eip712: {} });
     const events = [];
     api.on('unlocked', () => events.push('unlocked'));
-    const opening = api.isUnlocked();
-    await started.promise;
-    if (change === 'logout') {
-      await api.lock();
-      account.currentAccount.clear();
-    } else {
-      account.currentAccount.walletAddress = Wallet.createRandom().address;
-    }
-    loaded.resolve(key);
-    assert.equal(await opening, false, `${change} invalidates an in-flight key load`);
-    assert.equal(api.accountKey, null);
-    assert.deepEqual(events, []);
-  }
-
-  // Derivation/import may yield to logout before setKey is reached.
-  for (const operation of ['unlock', 'custom']) {
-    const store = new lib.MemoryAccountKeyStore();
-    const account = stubAccount('artist', 'correct horse');
-    const api = new MediaEncryptionApi({ client: stubClient(), eip712: {} }, account, store);
-    const changing =
-      operation === 'unlock' ? api.unlock('correct horse') : api.setAccountKey(PROJECT_KEY);
-    const rejected = assert.rejects(changing, (error) => error.code === 'locked');
-    await api.lock();
+    const setting = api.setAccountKey(ACCOUNT_SECRET);
+    const rejected = assert.rejects(setting, (error) => error.code === 'locked');
+    if (change === 'lock') await api.lock();
+    else if (change === 'sign-out') client.auth.emitUpdated(false);
+    else client.auth.changeSession();
     await rejected;
-    assert.equal(await api.isUnlocked(), false, `${operation} cannot finish after locking`);
-    assert.equal(await store.load(account.wallet.address), null);
+    assert.equal(await api.isUnlocked(), false, `${change}: the key cannot arrive afterwards`);
+    assert.deepEqual(events, [], `${change}: and never reports unlocked`);
   }
 
-  // A save already in progress must finish before logout removes it, never afterwards.
-  const backing = new lib.MemoryAccountKeyStore();
-  const saveStarted = deferred();
-  const finishSave = deferred();
-  const account = stubAccount('artist', 'correct horse');
-  const api = new MediaEncryptionApi({ client: stubClient(), eip712: {} }, account, {
-    load: (wallet) => backing.load(wallet),
-    save: async (wallet, value) => {
-      saveStarted.resolve();
-      await finishSave.promise;
-      await backing.save(wallet, value);
-    },
-    remove: (wallet) => backing.remove(wallet)
-  });
-  const events = [];
-  api.on('unlocked', () => events.push('unlocked'));
-  const changing = api.unlock('correct horse');
-  const rejected = assert.rejects(changing, (error) => error.code === 'locked');
-  await saveStarted.promise;
-  const locking = api.lock();
-  const opening = api.isUnlocked();
-  finishSave.resolve();
-  await Promise.all([locking, rejected]);
-  assert.equal(await opening, false, 'a read during removal waits for it');
-  assert.equal(
-    await backing.load(account.wallet.address),
-    null,
-    'the late save cannot persist after logout'
-  );
-  assert.deepEqual(events, [], 'the late save cannot emit unlocked');
+  // Reading encrypted media that outlives the account fails rather than returns plaintext.
+  const sealed = await (await (await keyedApi())._createProjectEncryption()).encrypt(pattern(64));
+  const api = await keyedApi();
+  const reading = api.decrypt(sealed);
+  api.client.auth.changeSession();
+  await assert.rejects(reading, (error) => error.code === 'locked');
 }
 
-async function checkRealLoginKeyLifecycle() {
-  const { EventEmitter } = require('node:events');
-  const AccountApi = require('../dist/Account/index.js').default;
-  const CookieAuth = require('../dist/lib/AuthManager/CookieAuthManager.js').default;
-  const TokenAuth = require('../dist/lib/AuthManager/TokenAuthManager.js').default;
-  const logger = { debug() {}, info() {}, warn() {}, error() {} };
-  const jwt = (payload) => {
-    const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
-    return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.test`;
-  };
-  const tokens = (address, expired = false) => {
-    const now = Math.floor(Date.now() / 1000);
-    return {
-      token: jwt({ addr: address, env: 'test', iat: now, exp: now + (expired ? -60 : 3600) }),
-      refreshToken: jwt({ type: 'refresh', env: 'test', iat: now, exp: now + 86400 })
-    };
-  };
-  for (const mode of ['cookie', 'token']) {
-    const auth =
-      mode === 'cookie'
-        ? new CookieAuth(logger)
-        : new TokenAuth('https://auth.example.test', logger);
-    let address;
-    let sessionChanges = 0;
-    auth.on('sessionChanged', () => sessionChanges++);
-    const socket = Object.assign(new EventEmitter(), { isConnected: false, supernetType: 'fast' });
-    const client = Object.assign(new EventEmitter(), {
-      auth,
-      socket,
-      logger,
-      rest: {
-        post: async (url, body) => {
-          if (url === '/v1/account/nonce') return { data: { nonce: 'test-nonce' } };
-          if (url === '/v1/account/login') {
-            address = body.walletAddress;
-            return { data: tokens(address) };
-          }
-          if (url === '/v1/account/logout') return { data: {} };
-          throw new Error(`Unexpected auth POST ${url}`);
-        },
-        get: async (url) => {
-          assert.equal(url, '/v1/account/me');
-          return { data: { username: 'artist', walletAddress: address, currentEmail: '' } };
-        }
-      }
-    });
-    const config = { client, eip712: { signTypedData: async () => 'test-signature' } };
-    const account = new AccountApi(config);
-    const store = new lib.MemoryAccountKeyStore();
-    const api = new MediaEncryptionApi(config, account, store);
-    const firstSecret = new Uint8Array(32).fill(7);
-    await api.setAccountKey(firstSecret);
-    const firstMedia = await (
-      await api._createProjectEncryption()
-    ).encrypt(pattern(7), 'image/png');
-    await account.login('first-artist', 'test-password');
-    assert.equal(sessionChanges, 0, `${mode}: first identity does not emit sessionChanged`);
-    assert.deepEqual(await bytesOf(await api.decrypt(firstMedia)), pattern(7));
-    await account.logout();
-    await api.lock();
-
-    await api.setAccountKey(new Uint8Array(32).fill(8));
-    const secondMedia = await (
-      await api._createProjectEncryption()
-    ).encrypt(pattern(8), 'image/png');
-    await account.login('second-artist', 'test-password');
-    assert.equal(sessionChanges, 1, `${mode}: a new identity after logout emits sessionChanged`);
-    assert.deepEqual(
-      await bytesOf(await api.decrypt(secondMedia)),
-      pattern(8),
-      `${mode}: explicit pre-login key survives`
-    );
-    // Store the same key while the account is known, so refresh checks both
-    // the in-memory key and a real persisted entry.
-    await api.setAccountKey(new Uint8Array(32).fill(8));
-    const currentKey = api.accountKey;
-    const storedKey = await store.load(address);
-    assert.ok(storedKey);
-    const sessionVersion = auth.sessionVersion;
-    if (mode === 'token') {
-      const previousFetch = globalThis.fetch;
-      try {
-        globalThis.fetch = async (url) => {
-          assert.equal(new URL(url).pathname, '/v1/account/refresh-token');
-          return new Response(JSON.stringify({ status: 'success', data: tokens(address) }));
-        };
-        await auth.authenticate(tokens(address, true));
-      } finally {
-        globalThis.fetch = previousFetch;
-      }
-    } else {
-      await auth.authenticate();
-    }
-    assert.equal(
-      auth.sessionVersion,
-      sessionVersion,
-      `${mode}: same-account refresh keeps session`
-    );
-    assert.equal(sessionChanges, 1);
-    assert.equal(api.accountKey, currentKey, `${mode}: refresh keeps key`);
-    assert.equal(await store.load(address), storedKey, `${mode}: refresh does not clear storage`);
-    assert.deepEqual(await bytesOf(await api.decrypt(secondMedia)), pattern(8));
-
-    // Once the explicit key has an owner, switching directly must lock it.
-    await account.login('third-artist', 'test-password');
-    assert.equal(sessionChanges, 2);
-    await assert.rejects(
-      () => api.decrypt(secondMedia),
-      (error) => error.code === 'wrong_account_key'
-    );
-    await account.logout();
-    await api.lock();
-    assert.equal(await api.isUnlocked(), false);
-  }
-}
-
-async function checkKeyHygiene() {
+function checkKeyHygiene() {
   // Debug logs print whole socket messages; the project key must never be in them.
   const key = lib.bytesToBase64(PROJECT_KEY);
   const request = {
@@ -872,78 +681,6 @@ async function checkKeyHygiene() {
   );
   assert.equal(redactMediaKey(null), null);
   assert.equal(redactMediaKey('text'), 'text');
-
-  // Logging out after a reload, before any encrypted media was touched, still
-  // removes the stored key: currentAccount is already cleared by then.
-  const store = new lib.MemoryAccountKeyStore();
-  const account = stubAccount('artist', 'correct horse');
-  const firstLoad = new MediaEncryptionApi({ client: stubClient(), eip712: {} }, account, store);
-  await firstLoad.unlock('correct horse');
-  assert.ok(await store.load(account.wallet.address));
-  const reloadedClient = stubClient();
-  new MediaEncryptionApi({ client: reloadedClient, eip712: {} }, account, store);
-  account.currentAccount.emitUpdated(); // the session resumes; nothing loads the key
-  account.currentAccount.clear(); // AccountApi clears first on logout...
-  reloadedClient.auth.emitUpdated(false); // ...then this group hears about it
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(
-    await store.load(account.wallet.address),
-    null,
-    'logout removes a key this page never loaded'
-  );
-
-  // A key the integrator set survives a later password login; an explicit unlock replaces it.
-  const custom = stubAccount('artist', 'correct horse');
-  const headless = new MediaEncryptionApi(
-    { client: stubClient(), eip712: {} },
-    custom,
-    new lib.MemoryAccountKeyStore()
-  );
-  await headless.setAccountKey(unhex('22'.repeat(32)));
-  const sealedWithCustom = await (
-    await headless._createProjectEncryption()
-  ).encrypt(pattern(8), 'image/png');
-  await custom._onWalletDerived(custom.wallet);
-  assert.deepEqual(
-    await bytesOf(await headless.decrypt(sealedWithCustom)),
-    pattern(8),
-    'login keeps the custom key'
-  );
-  await headless.unlock('correct horse');
-  await assert.rejects(
-    () => headless.decrypt(sealedWithCustom),
-    (error) => error.code === 'wrong_account_key'
-  );
-
-  // Blocked or broken key storage reads as "locked", not as a failed submission.
-  const blocked = new MediaEncryptionApi(
-    { client: stubClient(), eip712: {} },
-    stubAccount('artist', 'correct horse'),
-    {
-      load: async () => {
-        throw new Error('storage is blocked');
-      },
-      save: async () => {},
-      remove: async () => {}
-    }
-  );
-  assert.equal(await blocked.isUnlocked(), false);
-
-  // fetchDecrypted can insist on encryption for media known to be encrypted.
-  const realFetch = globalThis.fetch;
-  try {
-    globalThis.fetch = async () => new Response(new Blob([pattern(9)]));
-    assert.deepEqual(
-      await bytesOf(await firstLoad.fetchDecrypted('https://cdn.example.test/plain')),
-      pattern(9)
-    );
-    await assert.rejects(
-      () => firstLoad.fetchDecrypted('https://cdn.example.test/plain', { requireEncrypted: true }),
-      (error) => error.code === 'not_encrypted'
-    );
-  } finally {
-    globalThis.fetch = realFetch;
-  }
 }
 
 /**
@@ -953,12 +690,8 @@ async function checkKeyHygiene() {
  */
 async function checkEncryptedUploadReuse() {
   const client = stubClient({ savedUploads: true });
-  const mediaEncryption = new MediaEncryptionApi(
-    { client, eip712: {} },
-    stubAccount('artist', 'correct horse'),
-    new lib.MemoryAccountKeyStore()
-  );
-  await mediaEncryption.unlock('correct horse');
+  const mediaEncryption = new MediaEncryptionApi({ client, eip712: {} });
+  await mediaEncryption.setAccountKey(ACCOUNT_SECRET);
   const projects = new ProjectsApi({ client, eip712: {} }, mediaEncryption);
   const transfers = [];
   const realFetch = globalThis.fetch;
@@ -1015,12 +748,7 @@ async function checkEncryptedUploadReuse() {
 
 async function checkProjectCreation() {
   const client = stubClient();
-  const account = stubAccount('artist', 'correct horse');
-  const mediaEncryption = new MediaEncryptionApi(
-    { client, eip712: {} },
-    account,
-    new lib.MemoryAccountKeyStore()
-  );
+  const mediaEncryption = new MediaEncryptionApi({ client, eip712: {} });
   const projects = new ProjectsApi({ client, eip712: {} }, mediaEncryption);
   const uploads = [];
   const realFetch = globalThis.fetch;
@@ -1051,7 +779,7 @@ async function checkProjectCreation() {
     assert.equal(uploads.length, 0);
     assert.equal(client.sent.length, 0);
 
-    await mediaEncryption.unlock('correct horse');
+    await mediaEncryption.setAccountKey(ACCOUNT_SECRET);
     await assert.rejects(
       () => projects.create({ ...params, modelId: 'plain-model', mediaEncryption: true }),
       (error) => error.code === 'unsupported'
@@ -1119,7 +847,7 @@ async function checkProjectCreation() {
     assert.equal(lib.isEncryptedMedia(await bytesOf(uploads[0].init.body)), false);
     assert.ok(client.savedUploadChecks.length > 0, 'ordinary uploads still try saved uploads');
 
-    // Results: decrypted transparently, and a plaintext result on an encrypted project is an error.
+    // Results: decrypted transparently.
     const sealedResult = await lib.encryptMedia(pattern(7000), {
       key: sentKey,
       contentType: 'image/png',
@@ -1138,11 +866,10 @@ async function checkProjectCreation() {
     const result = await job.getResultData();
     assert.equal(result.type, 'image/png');
     assert.deepEqual(await bytesOf(result), pattern(7000));
-    globalThis.fetch = async () => new Response(new Blob([pattern(7000)]));
-    await assert.rejects(
-      () => job.getResultData(),
-      (error) => error.code === 'not_encrypted'
-    );
+    // A client that did not declare the ciphertext capability is given a URL
+    // that serves the decrypted bytes: those are the result as they are.
+    globalThis.fetch = async () => new Response(new Blob([pattern(7000)], { type: 'image/png' }));
+    assert.deepEqual(await bytesOf(await job.getResultData()), pattern(7000));
   } finally {
     globalThis.fetch = realFetch;
   }
@@ -1192,13 +919,8 @@ async function checkEncryptedKeyframeUploads() {
     }
     return realGet(requestPath);
   };
-  const account = stubAccount('artist', 'correct horse');
-  const mediaEncryption = new MediaEncryptionApi(
-    { client, eip712: {} },
-    account,
-    new lib.MemoryAccountKeyStore()
-  );
-  await mediaEncryption.unlock('correct horse');
+  const mediaEncryption = new MediaEncryptionApi({ client, eip712: {} });
+  await mediaEncryption.setAccountKey(ACCOUNT_SECRET);
   const projects = new ProjectsApi({ client, eip712: {} }, mediaEncryption);
   projects.getModelOptions = async () => ({
     type: 'video',
@@ -1280,9 +1002,8 @@ async function checkEncryptedVideoAudioReferences() {
     client.socket.get = async (path) => path === '/api/v1/models/list'
       ? [{ id: spec.modelId, name: 'Test', SID: 3, tier: 'test-tier', media: spec.type, supportsMediaEncryption: true }]
       : realGet(path);
-    const encryption = new MediaEncryptionApi({ client, eip712: {} },
-      stubAccount('artist', 'correct horse'), new lib.MemoryAccountKeyStore());
-    await encryption.unlock('correct horse');
+    const encryption = new MediaEncryptionApi({ client, eip712: {} });
+    await encryption.setAccountKey(ACCOUNT_SECRET);
     const projects = new ProjectsApi({ client, eip712: {} }, encryption);
     projects.getModelOptions = async () => ({
       type: spec.type,
@@ -1343,6 +1064,28 @@ async function checkEncryptedVideoAudioReferences() {
 
 // The socket's refusal codes (sogni-socket constants/errorCodes.js). 4095 and
 // 4097 belong to ordinary input-media errors there, so they must not be reused.
+// Which networks may carry encrypted projects is decided by what their workers
+// advertise: protocol 1 or later AND a storage class for job media.
+function checkNetworkCapability() {
+  const networks = require('../dist/lib/mediaEncryption/networks.js');
+  const serves = networks.workersServeMediaEncryption;
+  assert.equal(serves({ mediaEncryptionProtocol: 1, mediaStorage: 'memory' }), true);
+  assert.equal(serves({ mediaEncryptionProtocol: 2, mediaStorage: 'host-private' }), true);
+  assert.equal(serves({ mediaEncryptionProtocol: 1 }), false, 'protocol without a storage class');
+  assert.equal(serves({ mediaStorage: 'memory' }), false, 'storage class without the protocol');
+  assert.equal(serves({ mediaEncryptionProtocol: 0, mediaStorage: 'memory' }), false);
+  assert.equal(serves(undefined), false);
+  assert.equal(networks.networkServesMediaEncryption('fast'), true);
+  assert.equal(
+    networks.networkServesMediaEncryption('relaxed'),
+    false,
+    'Relaxed (Mac workers) advertises neither yet'
+  );
+  for (const unknown of [undefined, null, 'toString', 'Relaxed']) {
+    assert.equal(networks.networkServesMediaEncryption(unknown), false, String(unknown));
+  }
+}
+
 function checkErrorCodes() {
   assert.deepEqual(
     { ...MEDIA_ENCRYPTION_ERROR_CODES },
@@ -1354,11 +1097,7 @@ function checkErrorCodes() {
 // this account; absent means no, and signing out forgets it.
 async function checkServerAvailability() {
   const client = stubClient();
-  const api = new MediaEncryptionApi(
-    { client, eip712: {} },
-    stubAccount('artist', 'correct horse'),
-    new lib.MemoryAccountKeyStore()
-  );
+  const api = new MediaEncryptionApi({ client, eip712: {} });
   const changes = [];
   api.on('availabilityChanged', (value) => changes.push(value));
   assert.equal(api.available, false, 'nothing said yet');
@@ -1370,32 +1109,6 @@ async function checkServerAvailability() {
   client.auth.emitUpdated(false);
   assert.equal(api.available, false, 'signing out forgets it');
   assert.deepEqual(changes, [true, false, true, false]);
-}
-
-// An account that signs in only with Google or Apple has no password to derive
-// its key from: unlock says so instead of calling the password wrong.
-async function checkProviderOnlyAccounts() {
-  const make = (authMethods) =>
-    new MediaEncryptionApi(
-      { client: stubClient(), eip712: {} },
-      stubAccount('artist', 'correct horse', { authMethods }),
-      new lib.MemoryAccountKeyStore()
-    );
-  const ssoOnly = make(['sso-google']);
-  assert.equal(await ssoOnly.canUnlockWithPassword(), false);
-  await assert.rejects(
-    () => ssoOnly.unlock('anything'),
-    (error) => error.code === 'password_unavailable'
-  );
-  const linked = make(['password', 'sso-apple']);
-  assert.equal(await linked.canUnlockWithPassword(), true);
-  await assert.rejects(
-    () => linked.unlock('wrong'),
-    (error) => error.code === 'invalid_password'
-  );
-  await linked.unlock('correct horse');
-  assert.equal(await linked.isUnlocked(), true);
-  assert.equal(await make(undefined).canUnlockWithPassword(), true, 'older API: assume a password');
 }
 
 // A 4098 refusal means the cached model list was wrong about this model, so the
@@ -1437,23 +1150,24 @@ function checkLoadsWithoutTextCodecs() {
 
 async function run() {
   checkErrorCodes();
+  checkNetworkCapability();
   checkLoadsWithoutTextCodecs();
   await checkVectors();
   await checkRoundTripsAndTampering();
   await checkAccountKeyLifecycle();
   await checkAsyncKeyLifecycle();
-  await checkRealLoginKeyLifecycle();
-  await checkKeyHygiene();
+  checkKeyHygiene();
   await checkProjectCreation();
   await checkEncryptedKeyframeUploads();
   await checkEncryptedVideoAudioReferences();
   await checkServerAvailability();
-  await checkProviderOnlyAccounts();
   await checkUnsupportedRefusalRefreshesModels();
   console.log('check-media-encryption: OK');
 }
 
 // ProjectsApi keeps liveness timers running, so exit explicitly.
+// A promise that never settles drains the event loop, which would otherwise exit 0 unseen.
+process.exitCode = 1;
 run()
   .then(() => process.exit(0))
   .catch((error) => {

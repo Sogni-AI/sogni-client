@@ -35,6 +35,7 @@ const SEEDANCE_VIDEO_MODEL_IDS = new Set([
   'seedance-2-0-mini-uncensored',
   'seedance-2-0-fast',
   'seedance-2-5',
+  'seedance-2-5-flash',
   'seedance-2-5-uncensored'
 ]);
 const HAPPYHORSE_VIDEO_MODEL_IDS = new Set([
@@ -71,7 +72,9 @@ const MINIMAX_H3_VIDEO_MODEL_IDS = new Set([
   'minimax-h3-ref2va-fp8_r2v_2stage',
   'minimax-h3-ref2va-fp8_r2v_balanced_2stage',
   'minimax-h3-fastvideo-omni-int8_r2v_turbo',
-  'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage'
+  'minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage',
+  'minimax-h3-prism-int8_r2v',
+  'minimax-h3-prism-int8_r2v_2stage'
 ]);
 
 export function getEnhacementStrength(strength: EnhancementStrength): number {
@@ -98,15 +101,32 @@ export function isVideoModel(modelId: string): boolean {
     isHappyhorseModel(modelId) ||
     isWan3Model(modelId) ||
     isMinimaxH3Model(modelId) ||
-    isVideoUpscaleModel(modelId)
+    isVideoUpscaleModel(modelId) ||
+    isVideoSegmentationModel(modelId)
   );
+}
+
+export const SAM3_VIDEO_SEGMENT_MODEL_ID = 'sam3_video_segment_fp16';
+
+export function isVideoSegmentationModel(modelId: string): boolean {
+  return modelId === SAM3_VIDEO_SEGMENT_MODEL_ID;
 }
 
 /** Standalone, promptless enhancement of a finished video. */
 export const FLASHVSR_VIDEO_UPSCALE_MODEL_ID = 'flashvsr_v1.1_tiny_long_bf16';
 
+/** RelayVSR: promptless upscaling at a fixed 2x or 4x, up to 2160p. */
+export const RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID = 'relayvsr_x2_lightx2v_int8_convrot';
+export const RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID = 'relayvsr_x4_int8_convrot';
+
+export function isRelayVsrModel(modelId: string): boolean {
+  return (
+    modelId === RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID || modelId === RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID
+  );
+}
+
 export function isVideoUpscaleModel(modelId: string): boolean {
-  return modelId === FLASHVSR_VIDEO_UPSCALE_MODEL_ID;
+  return modelId === FLASHVSR_VIDEO_UPSCALE_MODEL_ID || isRelayVsrModel(modelId);
 }
 
 /**
@@ -342,29 +362,20 @@ export function isLtx2Model(modelId: string): boolean {
  * - `seedance-2-0` / `-mini`: 4-15 second clips; the full model goes up to 4K
  *   while Mini caps at 720p. `seedance-2-0-mini-uncensored` (Seedance 2.0 Mini
  *   Uncensored) is Mini under its own id, with Mini's limits.
- * - `seedance-2-5` and `seedance-2-5-uncensored` (Seedance 2.5 Uncensored): 4-30
- *   second clips at 480p/720p/1080p (no 4K).
+ * - Seedance 2.5 and 2.5 Uncensored support 4–30 seconds up to 4K.
+ * - Seedance 2.5 Flash supports 4–30 seconds at 480p and 720p.
  */
 export function isSeedanceModel(modelId: string): boolean {
   return SEEDANCE_VIDEO_MODEL_IDS.has(modelId);
 }
 
-/**
- * Check if a model ID is a Seedance 2.5 video model.
- *
- * Seedance 2.5 is the only Seedance generation that renders up to 30 seconds in
- * a single call, supports first-and-last-frame conditioning, and accepts the
- * larger 30 image / 10 video / 10 audio reference budget. It renders
- * 480p/720p/1080p but not 4K.
- *
- * Seedance 2.5 Uncensored (`seedance-2-5-uncensored`) is the same model with every
- * Seedance 2.5 capability and limit, so it answers `true` here. It is a
- * distinct model id: never rewrite it to `seedance-2-5`. Each account must
- * accept its one-time likeness and consent agreement in a Sogni app first;
- * until then jobs fail with error code 4103 (`MODEL_CONSENT_REQUIRED_ERROR_CODE`).
- */
+/** Seedance 2.5 models share the 30-second ceiling, task types and output formats. */
 export function isSeedance25Model(modelId: string): boolean {
-  return modelId === 'seedance-2-5' || modelId === 'seedance-2-5-uncensored';
+  return (
+    modelId === 'seedance-2-5' ||
+    modelId === 'seedance-2-5-uncensored' ||
+    modelId === 'seedance-2-5-flash'
+  );
 }
 
 /**
@@ -433,13 +444,20 @@ export function isWan3EnhancedModel(modelId: string): boolean {
  *   `minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage` takes the same request
  *   and delivers the clip at exactly twice the canvas, like the Ref2VA
  *   two-stage ids.
+ * - Prism: `minimax-h3-prism-int8_r2v`, an optional reference-to-video model
+ *   for mature themes (a community merge of two Ref2VA finetunes) with its
+ *   recipe fixed at 8 Euler steps (see `isMinimaxH3PrismModel`). It takes the
+ *   same references, keyframes, catalog LoRAs and limits as the other one-stage
+ *   r2v ids. Its `minimax-h3-prism-int8_r2v_2stage` id delivers twice the canvas. Server
+ *   authorization applies, and the Sensitive Content Filter must be off
+ *   (`disableNSFWFilter: true`).
  *
  * All H3 paths share fixed 24fps, guidance 1, and the `124 + n*17` frame grid.
  * Every path except the FastH3 audio guide generates 32kHz stereo audio
  * jointly; audio-guide output carries the uploaded audio instead. Standard H3 uses 20 steps;
  * Balanced uses qualified fixed 8-step acceleration: LightX2V for FL2VA and
  * Larry v4 for Ref2VA; each Turbo family uses its own 4-step distillation LoRA;
- * FastH3 Reference is distilled to a fixed 8 steps.
+ * FastH3 Reference is distilled to a fixed 8 steps, and so is Prism.
  */
 export function isMinimaxH3Model(modelId: string): boolean {
   return MINIMAX_H3_VIDEO_MODEL_IDS.has(modelId);
@@ -496,6 +514,15 @@ export function isMinimaxH3AudioGuideModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model ID is MiniMax H3 Prism (`minimax-h3-prism-int8_r2v`): a
+ * one-stage reference-to-video id (`isMinimaxH3ReferenceModel`) whose steps are
+ * fixed at 8. It is not a Balanced id: it carries no Larry v4 adapter.
+ */
+export function isMinimaxH3PrismModel(modelId: string): boolean {
+  return modelId === 'minimax-h3-prism-int8_r2v' || modelId === 'minimax-h3-prism-int8_r2v_2stage';
+}
+
+/**
  * Check if a model ID is one of the 8-step MiniMax H3 Balanced workflows.
  * FL2VA covers t2v/i2v/flf2v; Ref2VA uses its matching Larry v4 adapter for
  * r2v, on its one-stage and two-stage (`..._r2v_balanced_2stage`) ids alike.
@@ -511,8 +538,9 @@ export function isMinimaxH3BalancedModel(modelId: string): boolean {
 /**
  * Check if a model ID is the MiniMax H3 Ref2VA multi-reference workflow
  * (`minimax-h3-ref2va-fp8_r2v`, `..._r2v_turbo`, `..._r2v_balanced`, the
- * two-stage `..._r2v_2stage` and `..._r2v_balanced_2stage`, or FastH3
- * Reference `minimax-h3-fastvideo-omni-int8_r2v_turbo` and its `_2stage` id).
+ * two-stage `..._r2v_2stage` and `..._r2v_balanced_2stage`, FastH3
+ * Reference `minimax-h3-fastvideo-omni-int8_r2v_turbo` and its `_2stage` id,
+ * or Prism `minimax-h3-prism-int8_r2v`).
  *
  * This is the only MiniMax H3 workflow that conditions on more than two input
  * files, and the only video workflow of any family that carries reference
@@ -535,13 +563,13 @@ export const MINIMAX_H3_MAX_KEYFRAMES = 8;
  * the worker pins (ComfyUI `MiniMaxH3AddGuide`) at chosen frames between the
  * first and last frame.
  *
- * Every MiniMax H3 workflow except text-to-video accepts them, 23 ids in all:
+ * Every MiniMax H3 workflow except text-to-video accepts them, 24 ids in all:
  * - image-to-video (`i2v`) and first/last-frame (`flf2v`) on every tier
  *   (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and FastH3 Two-Stage);
  * - the FastH3 Sound to Video audio guide (`ia2v`, `flfa2v`, `a2v`, one-stage
  *   and two-stage; `isMinimaxH3AudioGuideModel`);
- * - Reference to Video (`r2v`: Standard, Turbo, Balanced, FastH3 Reference
- *   and their three two-stage ids; `isMinimaxH3ReferenceModel`).
+ * - Reference to Video (`r2v`: Standard, Turbo, Balanced, FastH3 Reference,
+ *   Prism and the three two-stage ids; `isMinimaxH3ReferenceModel`).
  */
 export function isMinimaxH3KeyframeModel(modelId: string): boolean {
   if (!isMinimaxH3Model(modelId)) return false;
@@ -683,7 +711,7 @@ export function calculateVideoFrames(
 ): number {
   let frames: number;
 
-  if (isVideoUpscaleModel(modelId)) {
+  if (isVideoUpscaleModel(modelId) || isVideoSegmentationModel(modelId)) {
     // Upscaling preserves the source frame count; never append or snap frames.
     frames = Math.round(duration * fps);
   } else if (isWanModel(modelId)) {
@@ -739,6 +767,7 @@ export function calculateVideoFrames(
  */
 export function getVideoWorkflowType(modelId: string): VideoWorkflowType {
   if (!modelId) return null;
+  if (isVideoSegmentationModel(modelId)) return 'v2v';
   if (isVideoUpscaleModel(modelId)) return 'upscale';
 
   const isWan = isWanModel(modelId);

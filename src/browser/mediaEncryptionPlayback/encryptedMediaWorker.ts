@@ -1,4 +1,4 @@
-/** Routes a media element's range request only to the tab that owns its decryption key. */
+/** Routes a media element's range request to the tab that opened it. */
 import { ENCRYPTED_MEDIA_PATH, encryptedMediaResponse } from './encryptedMediaResponse.js';
 
 interface PlaybackClient {
@@ -28,7 +28,7 @@ export async function serveEncryptedMedia(
   } catch {
     owner = '';
   }
-  // A copied URL in another tab cannot use the original tab's media key.
+  // A URL belongs to the tab that opened it.
   if (!owner || owner !== requestingClientId || !token || extra !== undefined) {
     return new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } });
   }

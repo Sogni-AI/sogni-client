@@ -13,7 +13,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_image",
       "sdkToolName": "generate_image",
-      "hostedSchemaSha256": "1a3efa17a56a26aedba53cbf8c9052194fec152cbc9ebe62bdce31fd963f3877",
+      "hostedSchemaSha256": "f0beb0b215436922725352bd56c6b50e22c989526cf8a31d44305cee25f87306",
       "hostedRequired": [
         "prompt"
       ],
@@ -34,7 +34,10 @@
         "gptImageBackground",
         "gptImageOutputCompression",
         "loras",
-        "loraStrengths"
+        "loraStrengths",
+        "gptImageComplexity",
+        "gptImageFrameCount",
+        "gptImageFrameDurationMs"
       ],
       "argumentAliasTargets": [
         "prompt",
@@ -53,7 +56,7 @@
       "executionMode": "direct",
       "hostedToolName": "edit_image",
       "sdkToolName": "edit_image",
-      "hostedSchemaSha256": "8002a6815a22c4f3ec2a0a5cad9808ef3ca8b80ea1c9a4677f23376528360ba2",
+      "hostedSchemaSha256": "266b0b233386b5bfc8a8fafd6b144002a565bb8c4dcf2cbd0c2fe6d4d81c0afc",
       "hostedRequired": [
         "prompt"
       ],
@@ -72,7 +75,11 @@
         "gptImageOutputCompression",
         "mask_image_url",
         "loras",
-        "loraStrengths"
+        "loraStrengths",
+        "gptImageComplexity",
+        "markup_image_url",
+        "gptImageFrameCount",
+        "gptImageFrameDurationMs"
       ],
       "argumentAliasTargets": [
         "prompt",
@@ -92,7 +99,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_video",
       "sdkToolName": "generate_video",
-      "hostedSchemaSha256": "60c6e2e0c4337d8d85209e45c6a3bfb3617a2f47aebaa84c48760f75bfc94230",
+      "hostedSchemaSha256": "aead8a7497cead404f64f9cebac09fb6abe31ea2e7bb730c6e60c62aa07195d6",
       "hostedRequired": [
         "prompt"
       ],
@@ -193,7 +200,7 @@
       "executionMode": "direct",
       "hostedToolName": "sound_to_video",
       "sdkToolName": "sound_to_video",
-      "hostedSchemaSha256": "195f2b5b526271a650dded76b79002ef3dd57d8db0bb86172afdd21c3e9d6198",
+      "hostedSchemaSha256": "7a50b95252fe87668ad187c0a864209fae94e76f06e96b6d007147c9a105a8af",
       "hostedRequired": [
         "prompt"
       ],
@@ -239,7 +246,7 @@
       "executionMode": "direct",
       "hostedToolName": "video_to_video",
       "sdkToolName": "video_to_video",
-      "hostedSchemaSha256": "1a09228ba4f8a22dc217af2ec60e11cc37e13ba6b152410116d1a8334f130157",
+      "hostedSchemaSha256": "403569d335f302ec6848df2bb31f9be241eb7404ab1d0cfec8fab0a4de42d2a1",
       "hostedRequired": [
         "prompt"
       ],

@@ -14,7 +14,8 @@ import {
   isKreaIdentityEditModel,
   isQwenImageEditModel,
   isSeedreamModel,
-  SEEDREAM_5_PRO_UNCENSORED_MODEL_ID
+  SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  SEEDREAM_5_5_UNCENSORED_MODEL_ID
 } from '../lib/validation.js';
 
 export {
@@ -100,9 +101,13 @@ export const PREFERRED_MODEL_IDS = {
     gptImage2: 'gpt-image-2',
     gptImage25Sunburst: 'gpt-image-2.5-sunburst',
     gptImage25Flare: 'gpt-image-2.5-flare',
+    gptImage26Flare: 'gpt-image-2.6-flare',
+    gptImage26Sunburst: 'gpt-image-2.6-sunburst',
     // Seedream 5.0 Pro Uncensored: requires the one-time agreement Seedance 2.5
     // Uncensored uses, and is only ever chosen by name.
     seedream5ProUncensored: 'seedream-5-0-pro-uncensored',
+    // Seedream 5.5 Uncensored: the same agreement, also chosen only by name.
+    seedream55Uncensored: 'seedream-5-5-uncensored',
     flux1Schnell: 'flux1-schnell-fp8',
     chromaFlash: 'chroma-v.46-flash_fp8',
     zTurbo: 'z_image_turbo_bf16',
@@ -138,9 +143,13 @@ export const PREFERRED_MODEL_IDS = {
     seedanceMiniI2v: 'seedance-2-0-mini',
     seedanceV2v: 'seedance-2-0',
     seedance25T2v: 'seedance-2-5',
+    seedance25FlashT2v: 'seedance-2-5-flash',
     seedance25I2v: 'seedance-2-5',
+    seedance25FlashI2v: 'seedance-2-5-flash',
     seedance25Ia2v: 'seedance-2-5',
+    seedance25FlashIa2v: 'seedance-2-5-flash',
     seedance25V2v: 'seedance-2-5',
+    seedance25FlashV2v: 'seedance-2-5-flash',
     // Seedance 2.5 Uncensored: the same model as Seedance 2.5 under its own id.
     // Never route it to 'seedance-2-5'.
     seedance25UncensoredT2v: 'seedance-2-5-uncensored',
@@ -278,7 +287,11 @@ const SEEDREAM_SELECTORS: Record<string, string> = {
   'seedream-5.0-pro-uncensored': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
   'seedream-uncensored': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
   'seedream-5-pro-spicy': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
-  'seedream-5.0-pro-spicy': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID
+  'seedream-5.0-pro-spicy': SEEDREAM_5_PRO_UNCENSORED_MODEL_ID,
+  // Seedream 5.5 Uncensored. "seedream-uncensored" keeps naming 5.0 Pro.
+  'seedream-5.5-uncensored': SEEDREAM_5_5_UNCENSORED_MODEL_ID,
+  'seedream-5.5-spicy': SEEDREAM_5_5_UNCENSORED_MODEL_ID,
+  'seedream-5-5-spicy': SEEDREAM_5_5_UNCENSORED_MODEL_ID
 };
 
 const IMAGE_MODEL_SELECTORS: Record<string, string> = {
@@ -354,6 +367,7 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceMiniT2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25T2v,
+  'seedance2-5-flash': PREFERRED_MODEL_IDS.video.seedance25FlashT2v,
   'seedance2-5-uncensored': PREFERRED_MODEL_IDS.video.seedance25UncensoredT2v,
   'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
   'minimax-h3-t2v': PREFERRED_MODEL_IDS.video.minimaxH3T2v,
@@ -389,6 +403,7 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceMiniI2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25I2v,
+  'seedance2-5-flash': PREFERRED_MODEL_IDS.video.seedance25FlashI2v,
   'seedance2-5-uncensored': PREFERRED_MODEL_IDS.video.seedance25UncensoredI2v,
   'minimax-h3': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
   'minimax-h3-i2v': PREFERRED_MODEL_IDS.video.minimaxH3I2v,
@@ -429,6 +444,7 @@ const VIDEO_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   seedance2: PREFERRED_MODEL_IDS.video.seedanceV2v,
   'seedance2-mini-uncensored': PREFERRED_MODEL_IDS.video.seedanceMiniUncensoredV2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25V2v,
+  'seedance2-5-flash': PREFERRED_MODEL_IDS.video.seedance25FlashV2v,
   'seedance2-5-uncensored': PREFERRED_MODEL_IDS.video.seedance25UncensoredV2v
 };
 
@@ -439,6 +455,7 @@ const SOUND_TO_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   // legacy alias: Seedance 2.0 Fast was retired 2026-08; Mini replaced it
   'seedance2-fast': PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'seedance2-5': PREFERRED_MODEL_IDS.video.seedance25Ia2v,
+  'seedance2-5-flash': PREFERRED_MODEL_IDS.video.seedance25FlashIa2v,
   'seedance2-5-uncensored': PREFERRED_MODEL_IDS.video.seedance25UncensoredIa2v,
   seedance2: PREFERRED_MODEL_IDS.video.seedanceIa2v,
   'ltx25-ia2v': PREFERRED_MODEL_IDS.video.ltx25Ia2vDistilled,
@@ -713,9 +730,10 @@ export function getVideoDefaults(modelId: string): { width: number; height: numb
   if (workflow === 's2v' || workflow === 'animate-move' || workflow === 'animate-replace') {
     return { width: 832, height: 480, fps: 16 };
   }
-  // Seedance Mini, Mini Uncensored and the retired Fast id cap at 720p. Seedance 2.0 and 2.5
+  // Flash, Mini, Mini Uncensored and the retired Fast id cap at 720p. Seedance 2.0 and 2.5
   // default to 1080p.
   if (
+    modelId === 'seedance-2-5-flash' ||
     modelId === 'seedance-2-0-mini' ||
     modelId === 'seedance-2-0-mini-uncensored' ||
     modelId === 'seedance-2-0-fast'

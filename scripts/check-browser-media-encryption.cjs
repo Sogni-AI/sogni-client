@@ -9,7 +9,6 @@ const BrowserClient =
   require('../dist/ApiClient/WebSocketClient/BrowserWebSocketClient/index.js').default;
 const CookieAuth = require('../dist/lib/AuthManager/CookieAuthManager.js').default;
 const MediaEncryptionApi = require('../dist/MediaEncryption/index.js').default;
-const { MemoryAccountKeyStore } = require('../dist/lib/mediaEncryption/index.js');
 const logger = { info() {}, warn() {}, error() {}, debug() {} };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function until(predicate) {
@@ -53,12 +52,7 @@ async function main() {
       undefined,
       { projectQueue: false }
     );
-    const account = { currentAccount: { walletAddress: 'account-a', on: () => () => {} } };
-    const media = new MediaEncryptionApi(
-      { client: { auth, socket, logger }, eip712: {} },
-      account,
-      new MemoryAccountKeyStore()
-    );
+    const media = new MediaEncryptionApi({ client: { auth, socket, logger }, eip712: {} });
     const tab = { auth, socket, media, authenticated: 0, authUpdates: 0, snapshots: [] };
     socket.on('authenticated', () => tab.authenticated++);
     auth.on('updated', () => tab.authUpdates++);
@@ -91,6 +85,23 @@ async function main() {
     assert.equal(late.authenticated, 0);
     assert.equal(late.authUpdates, 0);
     assert.deepEqual(late.snapshots, [true], 'the replay carries only a boolean');
+
+    // Availability changes while connected: the server says so on the open socket,
+    // and a tab that joins afterwards is told the current answer, not the handshake's.
+    for (const socket of server.clients) {
+      socket.send(
+        JSON.stringify({
+          type: 'mediaEncryptionAvailabilityUpdated',
+          data: Buffer.from(JSON.stringify(false)).toString('base64')
+        })
+      );
+    }
+    await until(() => tabs.every((tab) => !tab.media.available));
+    const later = await addTab();
+    await until(() => later.snapshots.length === 1);
+    assert.deepEqual(later.snapshots, [false], 'a later tab gets the current availability');
+    assert.equal(later.media.available, false);
+    assert.equal(handshakes, 2, 'the change needed no new handshake');
     const oldSession = primary.socket._sessionId;
 
     // Logout must erase the primary snapshot and every tab's availability.
@@ -118,7 +129,7 @@ async function main() {
     assert.equal(primary.media.available, false);
     assert.equal(primary.socket._lastMediaEncryptionAvailable, null);
     console.log(
-      'Browser encryption availability: late false/true, handshake refresh, no auth replay, logout and account fencing passed.'
+      'Browser encryption availability: late false/true, handshake refresh, live availability change replayed, no auth replay, logout and account fencing passed.'
     );
   } finally {
     for (const tab of tabs) tab.socket.dispose();
@@ -126,7 +137,14 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 }
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+// A promise that never settles drains the event loop, which would otherwise exit 0 unseen.
+process.exitCode = 1;
+main().then(
+  () => {
+    process.exitCode = 0;
+  },
+  (error) => {
+    console.error(error);
+    process.exitCode = 1;
+  }
+);

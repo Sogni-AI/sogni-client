@@ -9,25 +9,10 @@ import {
 import { MEDIA_KEY_BYTES, MediaEncryptionError, ascii } from './format.js';
 
 /**
- * Account key and recipient stanza.
- *
- * The account key never leaves the artist's device. Every encrypted file
- * carries the project key wrapped under it (the "recipient stanza"), so any
- * device that can derive the account key can open any of the account's files
- * without asking a server for keys.
- *
- * Stanza v1, 69 bytes:
- *   0x01 || keyCheck(8) || nonce(12) || AES-256-GCM(accountKey, nonce, projectKey, aad)(48)
- *
- * `keyCheck` lets the holder of an account key tell "this was encrypted for a
- * different account key" from "this is corrupt". It is derived from the
- * stanza's own random nonce, so it differs for every project: workers and
- * storage see the stanza, and a value that stayed the same would let them link
- * all of an account's projects together.
+ * The account's media key, and the recipient record that lets it open a file.
  */
 
 const DERIVATION_SALT = ascii('sogni-media-encryption');
-const ACCOUNT_KEY_INFO = ascii('account-key-v1');
 const KEY_CHECK_SECRET_INFO = ascii('key-check-secret-v1');
 const INPUT_SECRET_INFO = ascii('input-secret-v1');
 const KEY_CHECK_INFO = ascii('key-check-v1');
@@ -38,17 +23,13 @@ const NONCE_BYTES = 12;
 const WRAPPED_KEY_BYTES = MEDIA_KEY_BYTES + 16;
 export const RECIPIENT_BYTES = 1 + KEY_CHECK_BYTES + NONCE_BYTES + WRAPPED_KEY_BYTES;
 
-/**
- * An account key ready for use. Every part is a non-extractable CryptoKey, so
- * they can be kept in IndexedDB and used by the page without their bytes being
- * readable.
- */
+/** An account media key ready for use. */
 export interface AccountMediaKey {
-  /** AES-256-GCM key that wraps project and input keys. */
+  /** @internal */
   key: CryptoKey;
-  /** HKDF key that derives each stanza's `keyCheck`. */
+  /** @internal */
   checkKey: CryptoKey;
-  /** HKDF key that derives the key of each input file from its content (see `inputKeys.ts`). */
+  /** @internal */
   inputKey: CryptoKey;
 }
 
@@ -66,7 +47,7 @@ async function deriveKeyCheck(account: AccountMediaKey, nonce: Uint8Array): Prom
   return new Uint8Array(bits);
 }
 
-/** Turn 32 secret bytes into an account key. The input bytes are not retained. */
+/** Turn 32 bytes into an account media key. */
 export async function importAccountKey(secret: Uint8Array): Promise<AccountMediaKey> {
   if (secret.length !== MEDIA_KEY_BYTES) {
     throw new MediaEncryptionError('malformed', 'Account media keys must be 32 bytes');
@@ -88,36 +69,10 @@ export async function importAccountKey(secret: Uint8Array): Promise<AccountMedia
   };
 }
 
-/**
- * Derive the account key from the account's wallet private key (32 bytes).
- * The wallet key is already derived from the username and password at login,
- * so this needs no extra secret from the artist.
- */
-export async function deriveAccountKey(walletPrivateKey: Uint8Array): Promise<AccountMediaKey> {
-  if (walletPrivateKey.length !== MEDIA_KEY_BYTES) {
-    throw new MediaEncryptionError('malformed', 'Wallet key must be 32 bytes');
-  }
-  const secret = await hkdfSha256(
-    walletPrivateKey,
-    DERIVATION_SALT,
-    ACCOUNT_KEY_INFO,
-    MEDIA_KEY_BYTES
-  );
-  try {
-    return await importAccountKey(secret);
-  } finally {
-    secret.fill(0);
-  }
-}
-
 export async function wrapProjectKey(
   account: AccountMediaKey,
   projectKey: Uint8Array,
-  /**
-   * @internal A fixed nonce. Only for a key that is itself derived together
-   * with this nonce (an input key, see `inputKeys.ts`), so the pair never wraps
-   * two different keys; and for known-answer tests.
-   */
+  /** @internal Fixed value, for input files and known-answer tests. */
   deterministicNonce?: Uint8Array
 ): Promise<Uint8Array> {
   if (projectKey.length !== MEDIA_KEY_BYTES) {
@@ -133,8 +88,9 @@ export async function wrapProjectKey(
   return stanza;
 }
 
+/** Open a recipient record with the account's key. */
 export async function unwrapProjectKey(
-  account: AccountMediaKey,
+  accounts: AccountMediaKey | readonly AccountMediaKey[],
   stanza: Uint8Array
 ): Promise<Uint8Array> {
   if (stanza.length === 0) {
@@ -147,16 +103,16 @@ export async function unwrapProjectKey(
     throw new MediaEncryptionError('malformed', 'Encrypted media recipient is not recognized');
   }
   const nonce = stanza.subarray(1 + KEY_CHECK_BYTES, 1 + KEY_CHECK_BYTES + NONCE_BYTES);
-  const expected = await deriveKeyCheck(account, nonce);
   const keyCheck = stanza.subarray(1, 1 + KEY_CHECK_BYTES);
-  let mismatch = 0;
-  for (let i = 0; i < KEY_CHECK_BYTES; i++) mismatch |= keyCheck[i] ^ expected[i];
-  if (mismatch !== 0) {
-    throw new MediaEncryptionError(
-      'wrong_account_key',
-      'This media was encrypted for a different account key'
-    );
-  }
   const wrapped = stanza.subarray(1 + KEY_CHECK_BYTES + NONCE_BYTES);
-  return aesGcmDecrypt(account.key, nonce, wrapped, RECIPIENT_AAD);
+  for (const account of 'key' in accounts ? [accounts] : accounts) {
+    const expected = await deriveKeyCheck(account, nonce);
+    let mismatch = 0;
+    for (let i = 0; i < KEY_CHECK_BYTES; i++) mismatch |= keyCheck[i] ^ expected[i];
+    if (mismatch === 0) return aesGcmDecrypt(account.key, nonce, wrapped, RECIPIENT_AAD);
+  }
+  throw new MediaEncryptionError(
+    'wrong_account_key',
+    'This media was encrypted for a different account key'
+  );
 }

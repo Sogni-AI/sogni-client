@@ -39,6 +39,7 @@ import {
 import { apiErrorExtras, parseRetryAfterHeader } from '../lib/apiErrorFields.js';
 import getUUID from '../lib/getUUID.js';
 import { captureRequestSession } from '../lib/requestSession.js';
+import { fetchWithCredentials } from '../lib/fetchWithCredentials.js';
 import type ProjectsApi from '../Projects/index.js';
 import { mediaInputToInlineDataUri } from '../lib/mediaValidation.js';
 import { workloadAttributionToWireFields } from '../lib/attribution.js';
@@ -702,7 +703,10 @@ class ChatApi extends ApiGroup<ChatApiEvents> {
     try {
       const authenticated = await this.client.auth.authenticateRequest(options);
       assertSession();
-      const response = await fetch(url, { ...authenticated, signal: controller.signal });
+      const response = await fetchWithCredentials(url, {
+        ...authenticated,
+        signal: controller.signal
+      });
       try {
         assertSession();
       } catch (error) {

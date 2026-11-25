@@ -129,6 +129,7 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
   // the shared socket originally connected.
   private _lastSubscriptionEntitlement: SocketEventMap['subscriptionEntitlementUpdated'] | null =
     null;
+  // The current `mediaEncryptionAvailable`, replayed to tabs that join later.
   // Only the boolean is retained: replaying authenticated would also repeat
   // account initialization and active-project recovery in existing consumers.
   private _lastMediaEncryptionAvailable: boolean | null = null;
@@ -201,6 +202,22 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
 
   get supernetType() {
     return this.coordinator.isPrimary ? this.socketClient.supernetType : this._supernetType;
+  }
+
+  /**
+   * The shared socket is opened by whichever tab is primary, with that tab's answer.
+   * @internal
+   */
+  _setMediaConnectionCapability(declared: () => boolean) {
+    this.socketClient._setMediaConnectionCapability(declared);
+  }
+
+  /**
+   * Only the primary tab holds the shared socket; it declares when its own key arrives.
+   * @internal
+   */
+  _declareMediaCapability() {
+    if (this.coordinator.isPrimary) this.socketClient._declareMediaCapability();
   }
 
   async connect(): Promise<void> {
@@ -519,6 +536,9 @@ class BrowserWebSocketClient extends RestClient<SocketEventMap> implements IWebS
         if (payload?.subscriptionEntitlement) {
           this._lastSubscriptionEntitlement = payload.subscriptionEntitlement;
         }
+      } else if (eventType === 'mediaEncryptionAvailabilityUpdated') {
+        // Availability changed while connected: later tabs get this answer.
+        this._lastMediaEncryptionAvailable = payload === true;
       }
       this.coordinator.notify({
         type: 'socket-event',

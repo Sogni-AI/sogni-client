@@ -1,27 +1,6 @@
 /**
- * `SOGNIE2E` v1 container: a streaming AEAD file format for project media.
- *
- * Same construction as Tink's AES256_GCM_HKDF_1MB: a per-file key is derived
- * from the project key and a random salt, the plaintext is split into
- * fixed-size segments, and each segment is sealed with AES-256-GCM under a
- * nonce that carries its index and a last-segment flag. Segments cannot be
- * reordered, dropped or truncated without failing authentication.
- *
- * Layout (integers big-endian):
- *
- *   0    8   magic "SOGNIE2E"
- *   8    1   version (1)
- *   9    1   segmentSizeLog2 (plaintext bytes per segment = 2^n, 16..24)
- *   10   32  salt
- *   42   7   noncePrefix
- *   49   1   contentTypeLength C
- *   50   C   contentType (UTF-8 MIME type of the plaintext)
- *   50+C 2   recipientLength R
- *   52+C R   recipient stanza (opaque here; see recipient.ts)
- *   ...      segments: AES-256-GCM ciphertext || 16-byte tag
- *
- * The Comfy worker carries a byte-identical implementation on node:crypto.
- * Change nothing here without changing both and the shared test vectors.
+ * Container for encrypted project media. Change it only together with the
+ * shared test vectors in scripts/fixtures.
  */
 
 export const MEDIA_ENCRYPTION_VERSION = 1;
@@ -36,10 +15,7 @@ export const DEFAULT_SEGMENT_SIZE_LOG2 = 20;
 export const MIN_SEGMENT_SIZE_LOG2 = 16;
 export const MAX_SEGMENT_SIZE_LOG2 = 24;
 export const MAX_CONTENT_TYPE_BYTES = 255;
-/**
- * The header is the HKDF `info`, which Node caps at 1024 bytes: 52 fixed bytes,
- * up to 255 of content type, and the recipient. 512 keeps every valid header under it.
- */
+/** Largest recipient record a header may carry. */
 export const MAX_RECIPIENT_BYTES = 512;
 /** Fixed-size part of the header, before the content type. */
 const FIXED_HEADER_BYTES = 50;
@@ -51,9 +27,9 @@ export interface MediaEncryptionHeader {
   noncePrefix: Uint8Array;
   /** MIME type of the plaintext; empty when the producer did not know it. */
   contentType: string;
-  /** Project key wrapped for the artist's account key; empty when absent. */
+  /** Recipient record; empty when absent. */
   recipient: Uint8Array;
-  /** Exact header bytes. Bound into the file key, so they are part of what is authenticated. */
+  /** Exact header bytes. */
   bytes: Uint8Array;
 }
 
@@ -63,12 +39,9 @@ export class MediaEncryptionError extends Error {
    * - `unsupported_version`: a newer container than this SDK understands.
    * - `malformed`: the header or segment framing is invalid.
    * - `authentication_failed`: wrong key, or the data was modified or truncated.
-   * - `locked`: no account key is available on this device.
+   * - `locked`: this client holds no account key for the signed-in account.
    * - `wrong_account_key`: the media was encrypted for a different account key.
-   * - `no_recipient`: the media carries no recipient stanza; an explicit key is needed.
-   * - `invalid_password`: the password does not belong to the signed-in account.
-   * - `password_unavailable`: the account signs in only with a provider (Google,
-   *   Apple) and has no password to derive its media key from.
+   * - `no_recipient`: the account key cannot open this media; its own key is needed.
    * - `unsupported`: this account, model or runtime cannot use media encryption.
    */
   code:
@@ -79,8 +52,6 @@ export class MediaEncryptionError extends Error {
     | 'locked'
     | 'wrong_account_key'
     | 'no_recipient'
-    | 'invalid_password'
-    | 'password_unavailable'
     | 'unsupported';
 
   constructor(code: MediaEncryptionError['code'], message: string) {

@@ -1,12 +1,12 @@
-import { getBytes, Wallet } from 'ethers';
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
-import type AccountApi from '../Account/index.js';
+import type { ApiResponse } from '../ApiClient/index.js';
+import { captureRequestSession, RequestSessionError } from '../lib/requestSession.js';
+import { fetchWithCredentials } from '../lib/fetchWithCredentials.js';
 import {
   openRemoteEncryptedMedia,
   type DecryptedMediaReader
 } from '../lib/mediaEncryption/remote.js';
 import {
-  AccountKeyStore,
   AccountMediaKey,
   MAX_INPUT_KEYS,
   MEDIA_ENCRYPTION_VERSION,
@@ -14,10 +14,9 @@ import {
   MediaEncryptionError,
   MediaEncryptionHeader,
   MediaSource,
+  base64ToBytes,
   bytesToBase64,
-  createDefaultAccountKeyStore,
   decryptMedia,
-  deriveAccountKey,
   encryptMedia,
   importAccountKey,
   inputMaterialForMedia,
@@ -29,9 +28,9 @@ import {
 } from '../lib/mediaEncryption/index.js';
 
 export interface MediaEncryptionApiEvents {
-  /** An account key became available on this device. */
+  /** An account key became available to this client. */
   unlocked: void;
-  /** The account key was removed from this device. */
+  /** This client let go of the account key. Encrypted media stays encrypted. */
   locked: void;
   /** The server's answer to whether this account may encrypt changed. */
   availabilityChanged: boolean;
@@ -42,9 +41,9 @@ export interface MediaEncryptionWireParams {
   version: number;
   /** Base64 project key. */
   key: string;
-  /** Base64 recipient stanza embedded in every result of the project. */
+  /** Base64 recipient record. */
   recipient: string;
-  /** Base64 keys of the project's input files, each wrapped under the project key. */
+  /** Base64 keys of the project's input files. */
   inputKeys?: string[];
 }
 
@@ -55,96 +54,71 @@ export interface MediaEncryptionWireParams {
 export interface ProjectMediaEncryption {
   /** The job request's field. Complete only once every input has been encrypted. */
   wire(): MediaEncryptionWireParams;
-  /**
-   * Encrypt one input under its own key (see `lib/mediaEncryption/inputKeys`).
-   * Asking again for the same media object returns the same encrypted file.
-   */
+  /** Encrypt one input. Asking again for the same media object returns the same file. */
   encrypt(media: MediaSource, contentType?: string): Promise<Blob>;
 }
 
+/** @internal */
+interface AccountMediaKeyResponse {
+  version: number;
+  current: { id: string; key: string; createdAt?: number };
+  previous?: { id: string; key: string; retiredAt?: number }[];
+}
+
+const ACCOUNT_MEDIA_KEY_PATH = '/v1/account/media-key';
+const ACCOUNT_MEDIA_KEY_VERSION = 1;
+/** After a failed key request, the next one waits this long, or for the next sign-in. */
+const ACCOUNT_KEY_RETRY_MS = 5 * 60 * 1000;
+/** How long a new project waits for a key request already in flight. */
+const KEY_WAIT_MS = 5000;
+
+/** The account keys held for one sign-in session: the current key first. */
+interface Keyring {
+  keys: AccountMediaKey[];
+  session: number;
+}
+
 /**
- * Encryption of project media in storage and in transit.
+ * Optional encryption of project media for the signed-in account.
  *
- * A project created with `mediaEncryption: true` has its input media encrypted
- * on this device before upload and its results encrypted by the worker before
- * they are stored, so storage and download links hold only ciphertext, and a
- * device holding the account key opens them. Each project's own key is sent
- * with the project, through Sogni's servers, so the rendering worker can use it.
+ * Create the client with `mediaEncryption: 'auto'` to encrypt every eligible
+ * project once media encryption is available for the account. Without it, the
+ * client works as before. See {@link SogniClientConfig.mediaEncryption}.
  *
- * The account key is derived from the account's login secret during
- * {@link AccountApi.login}, so a normal username/password login needs no extra
- * step. A session resumed without the password (cookies, tokens, API key) is
- * "locked" until {@link MediaEncryptionApi.unlock} is called once; in browsers
- * the key is then remembered on the device until logout.
- *
- * @example Create an encrypted project and read its result
+ * @example Encrypt every eligible project, and read a result
  * ```typescript
+ * const sogni = await SogniClient.createInstance({ appId, mediaEncryption: 'auto' });
  * await sogni.account.login('username', 'password');
- * const project = await sogni.projects.create({ ...params, mediaEncryption: true });
+ * const project = await sogni.projects.create(params);
  * await project.waitForCompletion();
  * const image = await project.jobs[0].getResultData(); // decrypted Blob
  * ```
  */
 class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
-  private account: AccountApi;
-  private store: AccountKeyStore;
-  private accountKey: AccountMediaKey | null = null;
-  /** Wallet the in-memory key belongs to; outlives `currentAccount` being cleared on logout. */
-  private keyWalletAddress: string | null = null;
-  /**
-   * Last wallet seen signed in. Logout clears `currentAccount` before this
-   * group hears about it, and the stored key has to be removed even when it
-   * was never loaded during this page load.
-   */
-  private lastWalletAddress: string | null = null;
-  /** The integrator supplied the key; a later password login must not replace it. */
-  private explicitKey = false;
-  /** Serialize saves and removals so logout cannot be overtaken by an earlier save. */
-  private persistence: Promise<void> = Promise.resolve();
-  /** Invalidates asynchronous key work when the key is changed or locked. */
+  private keyring: Keyring | null = null;
+  /** Invalidates asynchronous key work when the key is replaced or dropped. */
   private keyGeneration = 0;
-  private keySessionVersion?: number;
   private readonly mediaReaders = new Set<AbortController>();
   /** The last `mediaEncryptionAvailable` the server sent on this connection. */
   private serverAvailable = false;
+  /** The account-key request in flight, for the session that started it. */
+  private keyRequest: { session: number; promise: Promise<boolean> } | null = null;
+  /** No new account-key request before this time, unless the account signs in again. */
+  private keyRetryAt = 0;
+  /** Media encryption was turned off for the account: no key is requested again this session. */
+  private keyTurnedOff = false;
 
-  constructor(config: ApiConfig, account: AccountApi, store?: AccountKeyStore) {
+  constructor(config: ApiConfig) {
     super(config);
-    this.account = account;
-    this.store = store ?? createDefaultAccountKeyStore();
-    // Deriving the media key must never fail a login; without it the account is simply locked.
-    account._onWalletDerived = (wallet) =>
-      this.adoptWallet(wallet).catch((error) =>
-        this.client.logger.warn('Media encryption key could not be derived at login', error)
-      );
-    account.currentAccount.on('updated', () => {
-      const walletAddress = account.currentAccount.walletAddress;
-      if (walletAddress) {
-        this.lastWalletAddress = walletAddress;
-        this.bindExplicitKey(walletAddress);
-      }
-    });
     this.client.auth.on('updated', (isAuthenticated) => {
-      if (!isAuthenticated) {
-        this.setServerAvailable(false);
-        this.lock().catch((error) =>
-          this.client.logger.warn('Failed to remove the stored media key', error)
-        );
-      }
+      if (isAuthenticated) return;
+      this.setServerAvailable(false);
+      this.forgetKeys();
     });
     this.client.auth.on('sessionChanged', () => {
+      // A different account: its own connection says whether it may encrypt.
       this.setServerAvailable(false);
-      // Auth retains its previous identity after logout. A new explicit key
-      // supplied while signed out belongs to the NEXT account, even when its
-      // login changes that retained identity. Previously bound keys still lock.
-      if (this.explicitKey && this.accountKey && !this.keyWalletAddress) {
-        this.closeMediaReaders();
-        this.keyGeneration++;
-        return;
-      }
-      this.lock().catch((error) =>
-        this.client.logger.warn('Failed to remove the stored media key', error)
-      );
+      this.forgetKeys();
     });
     this.client.socket.on('authenticated', (data) => {
       this.setServerAvailable(data.mediaEncryptionAvailable === true);
@@ -152,15 +126,28 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     this.client.socket.on('mediaEncryptionAvailabilityUpdated', (available) => {
       this.setServerAvailable(available === true);
     });
+    if (this.declaresCapability) {
+      this.client._setMediaCapability({ declared: () => this.holdsKey() });
+    }
   }
 
   /**
-   * Whether the server currently accepts `mediaEncryption` projects from this
-   * account, as it said when this connection authenticated. `false` until it
-   * says so, and on servers that do not send it. Apps that turn encryption on
-   * by default should do so only while this is `true`; the server refuses an
-   * encrypted project it does not accept with
-   * {@link MEDIA_ENCRYPTION_ERROR_CODES.UNSUPPORTED}.
+   * `true` when this client was created with `mediaEncryption: 'auto'`.
+   * @internal
+   */
+  get automatic(): boolean {
+    return this.client.mediaEncryption === 'auto';
+  }
+
+  /** An 'auto' client that tells the servers it reads encrypted media. */
+  private get declaresCapability(): boolean {
+    return this.automatic && this.client.declareMediaCapability;
+  }
+
+  /**
+   * Whether media encryption is available for this account right now. A
+   * client created with `mediaEncryption: 'auto'` encrypts new projects only
+   * while this is `true`.
    */
   get available(): boolean {
     return this.serverAvailable;
@@ -170,16 +157,8 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     if (this.serverAvailable === available) return;
     this.serverAvailable = available;
     this.emit('availabilityChanged', available);
-  }
-
-  /**
-   * Whether {@link MediaEncryptionApi.unlock} can work for the signed-in
-   * account: `false` when it signs in only with a provider (Google, Apple) and
-   * has no password. `true` when the server does not say.
-   */
-  async canUnlockWithPassword(): Promise<boolean> {
-    const me = await this.account.me();
-    return !Array.isArray(me.authMethods) || me.authMethods.includes('password');
+    // Available: get the key now. No longer available: keep it for reading.
+    if (available && this.automatic) void this.ensureAccountKey();
   }
 
   /** True when this data starts with the encrypted-media signature. Needs the first 8 bytes. */
@@ -187,95 +166,39 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     return isEncryptedMedia(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
   }
 
-  /**
-   * Whether this device can encrypt and decrypt the signed-in account's media
-   * right now. `false` means {@link MediaEncryptionApi.unlock} is needed.
-   */
+  /** Whether this client can open the signed-in account's encrypted media. */
   async isUnlocked(): Promise<boolean> {
-    return (await this.loadAccountKey()) !== null;
+    if (this.automatic) await this.ensureAccountKey();
+    return this.holdsKey();
   }
 
   /**
-   * Make the signed-in account's media key available on this device, using the
-   * account password. The password is checked locally against the account's
-   * wallet address and is never sent anywhere.
-   */
-  async unlock(password: string): Promise<void> {
-    const isCurrent = this.beginKeyChange();
-    let { username, walletAddress } = this.account.currentAccount;
-    if (!username || !walletAddress) {
-      const me = await this.account.me();
-      username = me.username;
-      walletAddress = me.walletAddress;
-    }
-    if (!username || !walletAddress) {
-      throw new MediaEncryptionError('locked', 'Sign in before unlocking media encryption');
-    }
-    const wallet = this.account.getWallet(username, password);
-    if (wallet.address.toLowerCase() !== walletAddress.toLowerCase()) {
-      if (!(await this.canUnlockWithPassword())) {
-        throw new MediaEncryptionError(
-          'password_unavailable',
-          'This account signs in with Google or Apple and has no password, so its media key cannot be derived on this device'
-        );
-      }
-      throw new MediaEncryptionError(
-        'invalid_password',
-        'That password does not match the signed-in account'
-      );
-    }
-    // An explicit unlock is a deliberate choice of the password-derived key.
-    this.assertCurrentKeyChange(isCurrent);
-    this.explicitKey = false;
-    await this.adoptWallet(wallet, isCurrent);
-  }
-
-  /**
-   * Use your own 32-byte secret as the account key instead of one derived from
-   * the password. For headless integrations; every device that should open the
-   * media needs the same secret. It stays in use until {@link MediaEncryptionApi.lock}
-   * or logout: a later `account.login()` does not replace it.
+   * Use these 32 bytes as the signed-in account's media key. A client created
+   * with `mediaEncryption: 'auto'` manages the key itself. The key is dropped
+   * when the account signs out or changes.
    */
   async setAccountKey(secret: Uint8Array): Promise<void> {
+    if (!this.client.auth.isAuthenticated) {
+      throw new MediaEncryptionError('locked', 'Sign in before setting the media key');
+    }
     const isCurrent = this.beginKeyChange();
-    const walletAddress = this.account.currentAccount.walletAddress;
     const key = await importAccountKey(secret);
     this.assertCurrentKeyChange(isCurrent);
-    this.explicitKey = true;
-    await this.setKey(key, walletAddress ?? null, isCurrent);
+    this.setKeyring([key]);
   }
 
-  /** Forget the account key on this device. Encrypted media stays encrypted. */
+  /**
+   * Drop the account key from this client. With `mediaEncryption: 'auto'` it
+   * is obtained again the next time it is needed.
+   */
   async lock(): Promise<void> {
-    this.closeMediaReaders();
-    this.keyGeneration++;
-    const walletAddresses = new Set(
-      [this.keyWalletAddress, this.account.currentAccount.walletAddress, this.lastWalletAddress]
-        .filter((address): address is string => !!address)
-        .map((address) => address.toLowerCase())
-    );
-    const hadKey = this.accountKey !== null;
-    this.accountKey = null;
-    this.keyWalletAddress = null;
-    this.lastWalletAddress = null;
-    this.explicitKey = false;
-    // Logging out locks on its own, without anyone waiting for it. Chaining
-    // lets a caller that does wait (before leaving the page, say) know every
-    // earlier removal has finished too, not only its own.
-    const removal = this.persistence
-      .catch(() => undefined)
-      .then(async () => {
-        for (const walletAddress of walletAddresses) await this.store.remove(walletAddress);
-      });
-    this.persistence = removal;
-    if (hadKey) this.emit('locked', undefined);
-    await removal;
+    this.forgetKeys();
   }
 
   /**
    * Decrypt media downloaded from a result, preview or input URL. Returns a
    * Blob typed with the media's real MIME type. Pass `key` only for media that
-   * was encrypted without an account recipient.
+   * the account key cannot open.
    */
   async decrypt(media: MediaSource, options: { key?: Uint8Array } = {}): Promise<Blob> {
     const assertCurrent = this.captureMediaSession();
@@ -286,10 +209,9 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
 
   /**
    * Open encrypted video/audio for seeking without downloading the whole file.
-   * The storage URL must support HTTP byte ranges and expose Content-Range to
-   * this origin. Each returned chunk is authenticated before it leaves the SDK.
-   * No plaintext is cached. Close the reader when playback no longer needs it;
-   * locking or changing the account also closes it and aborts pending requests.
+   * The URL must support HTTP byte ranges and expose Content-Range to this
+   * origin. Close the reader when playback no longer needs it; locking or
+   * changing the account also closes it and aborts pending requests.
    *
    * Ranges use [start, end) offsets in the DECRYPTED file. Apps can serve these
    * through their service worker to a normal audio/video element. Prefer
@@ -319,38 +241,62 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
   /**
    * Download a URL and return its content decrypted. Content that is not
    * encrypted is returned as downloaded, so callers can use one path for both.
-   * Pass `requireEncrypted` for media you know belongs to an encrypted project
-   * (`job.encrypted`): unencrypted content is then an error rather than
-   * something to display.
+   * Pass `requireEncrypted` to treat unencrypted content as an error instead.
    */
   async fetchDecrypted(
     url: string,
     options: { init?: RequestInit; requireEncrypted?: boolean } = {}
   ): Promise<Blob> {
     const assertCurrent = this.captureMediaSession();
-    const response = await fetch(url, options.init);
+    const response = await fetchWithCredentials(url, options.init);
     if (!response.ok) {
       throw new Error(`Failed to download media: ${response.status} ${response.statusText}`);
     }
     const blob = await response.blob();
     assertCurrent();
+    return this._openIfEncrypted(blob, options.requireEncrypted);
+  }
+
+  /**
+   * Decrypt downloaded media when it is encrypted, and return anything else as it is.
+   * @internal
+   */
+  async _openIfEncrypted(blob: Blob, requireEncrypted = false): Promise<Blob> {
     const signature = new Uint8Array(await blob.slice(0, 8).arrayBuffer());
     if (isEncryptedMedia(signature)) return this.decrypt(blob);
-    if (options.requireEncrypted) {
+    if (requireEncrypted) {
       throw new MediaEncryptionError('not_encrypted', 'Media is not Sogni-encrypted');
     }
     return blob;
   }
 
   /**
-   * Start encrypting a new project: mint its key and wrap it for the account.
+   * For `mediaEncryption: 'auto'`: whether a project submitted now can be encrypted.
+   * @internal
+   */
+  async _canEncryptAutomatically(): Promise<boolean> {
+    if (!this.automatic || !this.serverAvailable) return false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const waited = new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), KEY_WAIT_MS);
+    });
+    try {
+      await Promise.race([this.ensureAccountKey(), waited]);
+    } finally {
+      clearTimeout(timer);
+    }
+    return this.holdsKey() && this.serverAvailable;
+  }
+
+  /**
+   * Start encrypting a new project.
    * @internal
    */
   async _createProjectEncryption(): Promise<ProjectMediaEncryption> {
-    const accountKey = await this.requireAccountKey();
+    const accountKey = (await this.requireAccountKeys())[0];
     const projectKey = randomBytes(MEDIA_KEY_BYTES);
     const recipient = await wrapProjectKey(accountKey, projectKey);
-    // Input key (base64) -> that key wrapped for the worker. Two inputs with the same content share one.
+    // One entry per distinct input.
     const inputKeys = new Map<string, string>();
     const sealedInputs = new WeakMap<object, Promise<Blob>>();
     const encryptInput = async (media: MediaSource, contentType = '') => {
@@ -390,66 +336,109 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
     };
   }
 
+  private holdsKey(): boolean {
+    return (
+      !!this.keyring &&
+      this.keyring.session === this.client.auth.sessionVersion &&
+      this.client.auth.isAuthenticated
+    );
+  }
+
+  /**
+   * For `mediaEncryption: 'auto'`: get the signed-in account's key once media
+   * encryption is available for it. Resolves `false`, and never throws, when
+   * there is no key to use.
+   */
+  private ensureAccountKey(): Promise<boolean> {
+    if (this.holdsKey()) return Promise.resolve(true);
+    if (!this.automatic || !this.client.auth.isAuthenticated || !this.serverAvailable) {
+      return Promise.resolve(false);
+    }
+    const session = this.client.auth.sessionVersion;
+    if (this.keyRequest?.session === session) return this.keyRequest.promise;
+    if (this.keyTurnedOff || Date.now() < this.keyRetryAt) return Promise.resolve(false);
+    const promise = this.fetchAccountKey().finally(() => {
+      if (this.keyRequest?.promise === promise) this.keyRequest = null;
+    });
+    this.keyRequest = { session, promise };
+    return promise;
+  }
+
+  private async fetchAccountKey(): Promise<boolean> {
+    const assertSession = captureRequestSession(this.client.auth);
+    const generation = this.keyGeneration;
+    try {
+      const response =
+        await this.client.rest.get<ApiResponse<AccountMediaKeyResponse>>(ACCOUNT_MEDIA_KEY_PATH);
+      assertSession();
+      const keys = await importAccountKeys(response?.data);
+      assertSession();
+      // Replaced or dropped while the request was out: keep what is there now.
+      if (generation !== this.keyGeneration) return this.holdsKey();
+      this.keyRetryAt = 0;
+      this.setKeyring(keys);
+      return true;
+    } catch (error) {
+      // A request that outlived its sign-in belongs to nobody; the next sign-in asks again.
+      if (error instanceof RequestSessionError) return false;
+      const { status, payload } = error as { status?: number; payload?: { errorCode?: unknown } };
+      if (status === 409) {
+        // Turned off for the account; only the account holder turns it back on.
+        this.keyTurnedOff = true;
+        this.client.logger.warn(
+          'Media encryption is turned off for this account; projects are sent unencrypted'
+        );
+        return false;
+      }
+      this.keyRetryAt = Date.now() + ACCOUNT_KEY_RETRY_MS;
+      this.client.logger.warn(
+        'Media key unavailable; projects are sent unencrypted until it can be fetched',
+        status !== undefined
+          ? { status, errorCode: payload?.errorCode }
+          : (error as Error)?.message || error
+      );
+      return false;
+    }
+  }
+
   private async resolveProjectKey(
     header: MediaEncryptionHeader,
     options: { key?: Uint8Array }
   ): Promise<Uint8Array> {
     if (options.key) return options.key;
-    return unwrapProjectKey(await this.requireAccountKey(), header.recipient);
+    return unwrapProjectKey(await this.requireAccountKeys(), header.recipient);
   }
 
-  private async requireAccountKey(): Promise<AccountMediaKey> {
-    const key = await this.loadAccountKey();
-    if (!key) {
+  private async requireAccountKeys(): Promise<AccountMediaKey[]> {
+    if (this.automatic) await this.ensureAccountKey();
+    if (!this.holdsKey()) {
       throw new MediaEncryptionError(
         'locked',
-        'Media encryption is locked on this device. Call mediaEncryption.unlock(password) first'
+        this.automatic
+          ? 'The media key for this account is not available right now'
+          : "This client has no media key for the signed-in account. Create it with mediaEncryption: 'auto'"
       );
     }
-    return key;
+    return this.keyring!.keys;
   }
 
-  private async loadAccountKey(): Promise<AccountMediaKey | null> {
-    const generation = this.keyGeneration;
-    const session = this.client.auth.sessionVersion;
-    const walletAddress = this.account.currentAccount.walletAddress;
-    if (this.accountKey) {
-      // A key set before the account was known (setAccountKey) belongs to whoever signs in.
-      if (!this.keyWalletAddress) return this.accountKey;
-      if (
-        this.keySessionVersion === session &&
-        (!walletAddress || this.keyWalletAddress.toLowerCase() === walletAddress.toLowerCase())
-      ) {
-        return this.accountKey;
-      }
-      // A different account signed in on this client; its key is not this one.
-      this.accountKey = null;
-      this.keyWalletAddress = null;
-    }
-    if (!walletAddress) return null;
-    let stored: AccountMediaKey | null;
-    try {
-      await this.persistence.catch(() => undefined);
-      if (generation !== this.keyGeneration || session !== this.client.auth.sessionVersion)
-        return null;
-      stored = await this.store.load(walletAddress);
-    } catch (error) {
-      // Storage blocked or unavailable: the same as having no stored key.
-      this.client.logger.warn('Media key storage could not be read', error);
-      return null;
-    }
-    if (
-      !stored ||
-      generation !== this.keyGeneration ||
-      session !== this.client.auth.sessionVersion ||
-      walletAddress.toLowerCase() !== this.account.currentAccount.walletAddress?.toLowerCase()
-    )
-      return null;
-    this.accountKey = stored;
-    this.keyWalletAddress = walletAddress;
-    this.keySessionVersion = session;
+  private setKeyring(keys: AccountMediaKey[]) {
+    this.keyring = { keys, session: this.client.auth.sessionVersion };
     this.emit('unlocked', undefined);
-    return stored;
+    // An open socket that connected without the capability declares it now.
+    if (this.automatic) this.client._declareMediaCapability();
+  }
+
+  private forgetKeys() {
+    this.closeMediaReaders();
+    this.keyGeneration++;
+    this.keyRequest = null;
+    // The next sign-in asks for its key at once.
+    this.keyRetryAt = 0;
+    this.keyTurnedOff = false;
+    const hadKey = this.keyring !== null;
+    this.keyring = null;
+    if (hadKey) this.emit('locked', undefined);
   }
 
   private beginKeyChange(): () => boolean {
@@ -481,55 +470,32 @@ class MediaEncryptionApi extends ApiGroup<MediaEncryptionApiEvents> {
       );
     }
   }
+}
 
-  private async adoptWallet(wallet: Wallet, isCurrent?: () => boolean): Promise<void> {
-    // Reached from login as well: a key the integrator set must survive it.
-    if (this.explicitKey) {
-      this.bindExplicitKey(wallet.address);
-      return;
+/** The account's keys, current first. */
+async function importAccountKeys(
+  data: AccountMediaKeyResponse | undefined
+): Promise<AccountMediaKey[]> {
+  if (data?.version !== ACCOUNT_MEDIA_KEY_VERSION || typeof data.current?.key !== 'string') {
+    throw new MediaEncryptionError('malformed', 'The media key response is not recognized');
+  }
+  const encoded = [
+    data.current.key,
+    ...(Array.isArray(data.previous) ? data.previous.map((entry) => entry?.key) : [])
+  ];
+  const keys: AccountMediaKey[] = [];
+  for (const value of encoded) {
+    if (typeof value !== 'string') {
+      throw new MediaEncryptionError('malformed', 'The media key response is not recognized');
     }
-    const current = isCurrent ?? this.beginKeyChange();
-    const walletKey = getBytes(wallet.privateKey);
+    const secret = base64ToBytes(value);
     try {
-      await this.setKey(await deriveAccountKey(walletKey), wallet.address, current);
+      keys.push(await importAccountKey(secret));
     } finally {
-      walletKey.fill(0);
+      secret.fill(0);
     }
   }
-
-  private bindExplicitKey(walletAddress: string): void {
-    if (this.explicitKey && this.accountKey && !this.keyWalletAddress) {
-      this.keyWalletAddress = walletAddress;
-      this.keySessionVersion = this.client.auth.sessionVersion;
-    }
-  }
-
-  private async setKey(
-    key: AccountMediaKey,
-    walletAddress: string | null,
-    isCurrent: () => boolean
-  ): Promise<void> {
-    this.assertCurrentKeyChange(isCurrent);
-    this.accountKey = key;
-    this.keyWalletAddress = walletAddress;
-    this.keySessionVersion = this.client.auth.sessionVersion;
-    if (walletAddress) {
-      try {
-        const saving = this.persistence
-          .catch(() => undefined)
-          .then(async () => {
-            if (isCurrent()) await this.store.save(walletAddress, key);
-          });
-        this.persistence = saving;
-        await saving;
-      } catch (error) {
-        // The key still works for this page load; the artist is asked again next visit.
-        this.client.logger.warn('Media key could not be stored on this device', error);
-      }
-    }
-    this.assertCurrentKeyChange(isCurrent);
-    this.emit('unlocked', undefined);
-  }
+  return keys;
 }
 
 export default MediaEncryptionApi;

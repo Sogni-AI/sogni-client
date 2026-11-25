@@ -1,4 +1,5 @@
 import { aesGcmDecrypt, deriveFileKey } from './crypto.js';
+import { fetchWithCredentials } from '../fetchWithCredentials.js';
 import {
   MAX_HEADER_BYTES,
   MediaEncryptionError,
@@ -8,13 +9,13 @@ import {
   segmentNonce
 } from './format.js';
 
-/** A seekable decrypted view; plaintext is never stored by the reader. */
+/** A seekable, decrypted view of remote media. */
 export interface DecryptedMediaReader {
   readonly contentType: string;
   readonly size: number;
   /** Read [start, end). Use stream for large ranges to avoid collecting them in memory. */
   read(start: number, end: number, signal?: AbortSignal): Promise<Uint8Array>;
-  /** Authenticate one segment at a time, with consumer backpressure. */
+  /** Stream a range with consumer backpressure. */
   stream(start?: number, end?: number, signal?: AbortSignal): ReadableStream<Uint8Array>;
   /** Abort outstanding requests and make this reader unusable. */
   close(): void;
@@ -46,7 +47,7 @@ async function boundedBody(response: Response, length: number): Promise<Uint8Arr
   }
 }
 
-/** @internal HTTP byte ranges map to independently authenticated container segments. */
+/** @internal */
 export async function openRemoteEncryptedMedia(
   url: string,
   resolveKey: (header: MediaEncryptionHeader) => Promise<Uint8Array>,
@@ -86,7 +87,7 @@ export async function openRemoteEncryptedMedia(
     try {
       const headers = new Headers(options.init?.headers);
       headers.set('Range', `bytes=${start}-${end - 1}`);
-      const response = await fetch(url, {
+      const response = await fetchWithCredentials(url, {
         ...options.init,
         method: 'GET',
         body: undefined,
@@ -169,8 +170,7 @@ export async function openRemoteEncryptedMedia(
       }
       return plaintext;
     };
-    // Authenticates MIME/header and the advertised file length before returning.
-    // A truncated/appended object must not become a playable shorter/longer file.
+    // Check the header and the length before returning.
     (await readSegment(0)).fill(0);
     if (segmentCount > 1) (await readSegment(segmentCount - 1)).fill(0);
     const validateRange = (start: number, end: number) => {

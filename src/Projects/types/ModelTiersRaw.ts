@@ -59,7 +59,7 @@ export interface Benchmark {
 }
 
 export interface VideoTier {
-  task?: 'video-upscale';
+  task?: 'video-upscale' | 'video-segmentation';
   outputResolutions?: number[];
   preservesSourceTiming?: boolean;
   requiresReferenceVideo?: boolean;

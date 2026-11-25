@@ -54,6 +54,8 @@ jobs:
         run: node scripts/check-rest-error-messages.cjs
       - name: Run REST error retry-after checks
         run: node scripts/check-rest-error-retry-after.cjs
+      - name: Run REST redirect checks
+        run: node scripts/check-rest-redirects.cjs
       - name: Run project cancellation checks
         run: npm run test:project-cancellation
       - name: Run account and project request session checks
@@ -66,6 +68,8 @@ jobs:
         run: node scripts/check-project-error-categories.cjs
       - name: Run current queue detail checks
         run: node scripts/check-queue-reasons.cjs
+      - name: Run pay-as-you-go offer checks
+        run: node scripts/check-pay-as-you-go.cjs
       - name: Run browser request handoff and socket readiness checks
         run: node scripts/check-browser-request-handoff.cjs && node scripts/check-socket-send-readiness.cjs
       - name: Run socket reconnect backoff checks
@@ -74,12 +78,16 @@ jobs:
         run: node scripts/check-socket-receive-order.cjs
       - name: Run socket keep-alive checks
         run: node scripts/check-socket-keepalive.cjs
+      - name: Run id generation checks
+        run: node scripts/check-uuid.cjs
       - name: Run project liveness checks
         run: node scripts/check-project-liveness.cjs
       - name: Run job reassignment checks
         run: node scripts/check-job-reassignment.cjs
       - name: Run SAM 3 image-segment checks
         run: node scripts/check-sam3-image-segment.cjs
+      - name: Run SAM 3 video-segment checks
+        run: node scripts/check-sam3-video-segment.cjs
       - name: Run image enhancement checks
         run: node scripts/check-enhancement.cjs
       - name: Run personal LoRA library checks
@@ -90,6 +98,8 @@ jobs:
         run: node scripts/check-birefnet-background-removal.cjs
       - name: Run FlashVSR video-upscale checks
         run: node scripts/check-flashvsr-video.cjs
+      - name: Run RelayVSR video-upscale checks
+        run: node scripts/check-relayvsr-video.cjs
       - name: Run capability export checks
         run: node scripts/check-capability-exports.cjs
       - name: Run MiniMax H3 keyframe checks
@@ -98,8 +108,12 @@ jobs:
         run: node scripts/check-minimax-h3-vpack.cjs
       - name: Run GPT Image 2.5 checks
         run: node scripts/check-gpt-image-25.cjs
+      - name: Run GPT Image 2.6 animation checks
+        run: node scripts/check-gpt-image-26.cjs
       - name: Run Seedream 5.0 Pro Uncensored checks
         run: node scripts/check-seedream-5-pro-uncensored.cjs
+      - name: Run Seedream 5.5 Uncensored checks
+        run: node scripts/check-seedream-5-5-uncensored.cjs
       - name: Run image export and strength checks
         run: node scripts/check-image-export-options.cjs
       - name: Run ControlNet preprocess checks
@@ -114,8 +128,18 @@ jobs:
         run: node scripts/check-model-consent-error.cjs
       - name: Run reference content-type checks
         run: node scripts/check-reference-content-types.cjs
+      - name: Run Seedance 2.5 draft checks
+        run: node scripts/check-seedance-draft.cjs
       - name: Run media encryption checks
-        run: node scripts/check-media-encryption.cjs
+        run: node scripts/check-media-encryption.cjs && node scripts/check-media-encryption-streams.cjs && node scripts/check-media-encryption-playback.cjs
+      - name: Run media encryption client checks
+        run: node scripts/check-media-encryption-auto.cjs && node scripts/check-browser-media-encryption.cjs
+      - name: Run two-factor sign-in checks
+        run: node scripts/check-two-factor.cjs
+      - name: Run account permit checks
+        run: node scripts/check-account-permits.cjs
+      - name: Run changelog API checks
+        run: node scripts/check-changelog-api.cjs
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

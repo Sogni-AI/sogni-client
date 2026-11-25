@@ -49,4 +49,6 @@ async function main() {
   await assert.rejects(encryptedMediaResponse(new Request(playback.url), truncated).arrayBuffer(), /Incomplete media range/);
   console.log('Encrypted playback bridge: bounded ranges, seeks, tab ownership, cancel/lock, malformed responses passed');
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+// A promise that never settles drains the event loop, which would otherwise exit 0 unseen.
+process.exitCode = 1;
+main().then(() => { process.exitCode = 0; }, error => { console.error(error); process.exitCode = 1; });

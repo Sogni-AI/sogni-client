@@ -41,9 +41,9 @@ function storage(bytes, transform = (response) => response) {
 function api() {
   const auth = new EventEmitter();
   auth.sessionVersion = 1;
+  auth.isAuthenticated = true;
   const client = { auth, socket: new EventEmitter(), logger: { warn() {} } };
-  const account = { currentAccount: Object.assign(new EventEmitter(), { walletAddress: '0x123' }) };
-  return { auth, media: new MediaEncryptionApi({ client, eip712: {} }, account, new lib.MemoryAccountKeyStore()) };
+  return { auth, media: new MediaEncryptionApi({ client, eip712: {} }) };
 }
 
 async function main() {
@@ -153,6 +153,8 @@ async function main() {
   console.log('check-media-encryption-streams: PASS (seek, backpressure, media MIME, tamper/truncation, range validation, cancellation and account changes)');
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => {
+// A promise that never settles drains the event loop, which would otherwise exit 0 unseen.
+process.exitCode = 1;
+main().then(() => { process.exitCode = 0; }, (error) => { console.error(error); process.exitCode = 1; }).finally(() => {
   globalThis.fetch = nativeFetch;
 });

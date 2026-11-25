@@ -43,22 +43,27 @@ async function main() {
   client.socket = Object.assign(new EventEmitter(), {
     get: async (path) => {
       paths.push(path);
-      return { quote: { project: {} }, dailyFairUse: { pct: 3 } };
+      return {
+        quote: { project: {} },
+        dailyFairUse: { pct: 3 },
+        ...(path.includes('includeMonthlyFairUse=true') ? { monthlyFairUse: { pct: 0.15 } } : {})
+      };
     }
   });
   client.logger = { info() {}, warn() {}, error() {}, debug() {} };
   const projects = new ProjectsApi({ client, eip712: {} });
   projects.getModelOptions = async () => options;
   const estimates = [
-    () =>
+    (includeMonthlyFairUse) =>
       projects.estimateCost({
         model: 'flux',
         imageCount: 1,
         stepCount: 10,
         previewCount: 0,
-        priorityMode: true
+        priorityMode: true,
+        includeMonthlyFairUse
       }),
-    () =>
+    (includeMonthlyFairUse) =>
       projects.estimateVideoCost({
         model: 'minimax-h3-ref2va-fp8_r2v',
         tokenType: 'spark',
@@ -68,20 +73,34 @@ async function main() {
         fps: 24,
         steps: 20,
         numberOfMedia: 1,
-        priorityMode: true
+        priorityMode: true,
+        includeMonthlyFairUse
       }),
-    () =>
+    (includeMonthlyFairUse) =>
       projects.estimateAudioCost({
         model: 'minimax_music3',
         tokenType: 'spark',
         duration: 30,
         steps: 30,
         numberOfMedia: 1,
-        priorityMode: true
+        priorityMode: true,
+        includeMonthlyFairUse
       })
   ];
   for (const estimate of estimates) {
-    assert.equal((await estimate()).dailyFairUsePct, 3);
+    const ordinary = await estimate();
+    assert.equal(ordinary.dailyFairUsePct, 3);
+    assert.equal(Object.hasOwn(ordinary, 'monthlyFairUsePct'), false);
+    assert.equal(
+      new URL('https://socket.test' + paths.at(-1)).searchParams.has('includeMonthlyFairUse'),
+      false
+    );
+    const expanded = await estimate(true);
+    assert.equal(expanded.monthlyFairUsePct, 0.15);
+    assert.equal(
+      new URL('https://socket.test' + paths.at(-1)).searchParams.get('includeMonthlyFairUse'),
+      'true'
+    );
     assert.equal(
       new URL(`https://socket.test${paths.at(-1)}`).searchParams.get('priorityMode'),
       'true'

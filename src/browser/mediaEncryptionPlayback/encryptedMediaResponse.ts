@@ -1,4 +1,4 @@
-/** Serves authenticated plaintext byte ranges without buffering a complete media file. */
+/** Serves byte ranges of encrypted media without buffering the whole file. */
 export const ENCRYPTED_MEDIA_PATH = '/__sogni_encrypted_media/';
 export const ENCRYPTED_MEDIA_CHUNK_BYTES = 1024 * 1024;
 

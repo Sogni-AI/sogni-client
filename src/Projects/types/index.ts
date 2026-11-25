@@ -27,6 +27,11 @@ export interface SupportedModel {
   media: 'image' | 'video' | 'audio' | 'model';
   /** Whether projects for this model can be created with `mediaEncryption`. */
   supportsMediaEncryption?: boolean;
+  /**
+   * `false` when an encrypted project on this model takes its inputs as they
+   * are: the project is encrypted and its inputs are uploaded unencrypted.
+   */
+  mediaEncryptionInputs?: boolean;
 }
 
 export interface AvailableModel {
@@ -48,7 +53,7 @@ export interface SizePreset {
   aspect: string;
 }
 
-export type ImageOutputFormat = 'png' | 'jpg' | 'webp';
+export type ImageOutputFormat = 'png' | 'jpg' | 'webp' | 'gif';
 /**
  * GPT Image quality preset. `xhigh` and `max` need GPT Image 2.5.
  *
@@ -67,6 +72,71 @@ export type GptImageQuality =
   | 'standard'
   | 'hd';
 export type GptImageBackground = 'opaque' | 'auto' | 'transparent';
+/**
+ * Seedream 5.5 Uncensored background mode (`seedreamBackground`). `'opaque'`
+ * is the default; `'transparent'` returns an RGBA image and `'auto'` lets the
+ * model decide from the prompt.
+ */
+export type SeedreamBackground = 'opaque' | 'transparent' | 'auto';
+/** Resolution tier of a Seedream layer decomposition's base and layers. */
+export type SeedreamLayerSize = '1K' | '1.5K' | '2K';
+/** A box on the base image of a Seedream layer decomposition. */
+export interface ImageLayerBoundingBox {
+  /** `[left, top, right, bottom]` in pixels of the base image. */
+  absolute: [number, number, number, number];
+  /** `[left, top, right, bottom]` on a 0-1000 grid over the base image. */
+  normalized: [number, number, number, number];
+}
+/** The approximate visual style of one run of recognised text. */
+export interface ImageLayerTextStyle {
+  /** The closest matching font family, or `'unknown'`. */
+  similarFontFamily: string;
+  /** Text color as `#RRGGBB`. */
+  foregroundColor: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+  shadow: boolean;
+  translucent: boolean;
+}
+/** One stretch of a text line that shares a single style. */
+export interface ImageLayerTextRun {
+  text: string;
+  style: ImageLayerTextStyle;
+}
+/** One line of recognised text, in base-image coordinates. */
+export interface ImageLayerTextLine {
+  boundingBox: ImageLayerBoundingBox;
+  runs: ImageLayerTextRun[];
+}
+/**
+ * Rich-text recognition of a regular text layer (Seedream 5.5 Uncensored with
+ * `seedreamLayerTextRecognition`). Present only on layers the model classes as
+ * regular text; artistic text, handwriting and non-text layers have none.
+ */
+export interface ImageLayerTextRecognition {
+  /** The layer's full text, top to bottom and left to right, lines separated by `\n`. */
+  text: string;
+  lines: ImageLayerTextLine[];
+}
+/**
+ * One layer of a Seedream layer decomposition (`seedreamLayerDecomposition`).
+ * Layers are RGBA PNG images; the job's `resultUrl` is the base image.
+ */
+export interface ImageLayer {
+  url: string;
+  width: number;
+  height: number;
+  /** Stacking order, 1-99: 1 is the lowest layer above the base (the base is 0). */
+  zIndex: number;
+  /** Where the layer sits on the base image. A layer image can be larger than its box. */
+  boundingBox: ImageLayerBoundingBox;
+  name?: string;
+  description?: string;
+  /** Seedream 5.5 Uncensored text recognition, when asked for and the layer is regular text. */
+  textRecognition?: ImageLayerTextRecognition;
+}
 export type VideoOutputFormat = 'mp4' | 'mov';
 export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
 export type BillingMode = 'auto' | 'subscription' | 'tokens';
@@ -137,19 +207,20 @@ export interface BaseProjectParams {
    */
   priorityMode?: boolean;
   /**
-   * Encrypt this project's media. Input media is encrypted on this device
-   * before upload, and results and previews are encrypted before they are
-   * stored, so result URLs serve ciphertext: read them with
-   * {@link Job.getResultData} or {@link MediaEncryptionApi.fetchDecrypted}
-   * rather than loading the URL directly. For seekable video/audio playback,
-   * {@link MediaEncryptionApi.openDecrypted} reads authenticated byte ranges
-   * without downloading the entire file. The rendering worker decrypts the
-   * media to work on it.
+   * Encrypt this project's media. Read results with
+   * {@link Job.getResultData} or {@link MediaEncryptionApi.fetchDecrypted},
+   * which return the media; for seekable video/audio playback,
+   * {@link MediaEncryptionApi.openDecrypted} reads byte ranges without
+   * downloading the entire file.
    *
-   * Requires an unlocked media key ({@link MediaEncryptionApi.isUnlocked}) and a
-   * model that supports it ({@link ProjectsApi.supportsMediaEncryption}). This is
-   * a paid feature; the server remains authoritative and refuses the project
-   * when the account or payment method does not qualify.
+   * - unset: follow the client. A client created with `mediaEncryption: 'auto'`
+   *   encrypts every project it can and sends the rest unencrypted; any other
+   *   client encrypts nothing.
+   * - `true`: encrypt, or fail before anything is uploaded. Needs the account's
+   *   media key ({@link MediaEncryptionApi.isUnlocked}), a model that supports it
+   *   ({@link ProjectsApi.supportsMediaEncryption}), the Fast network and the
+   *   media itself for every input (not `true`).
+   * - `false`: never encrypt this project.
    */
   mediaEncryption?: boolean;
   /**
@@ -301,15 +372,21 @@ export interface MinimaxH3Keyframe {
  *   two-stage ID (`minimax-h3-fastvideo-omni-int8_r2v_turbo_2stage`) takes the
  *   same request and delivers twice the canvas, with the same 384/544/768 px
  *   canvas choices as the other Two-Stage IDs.
+ * - Prism (`minimax-h3-prism-int8_r2v`) is an optional `r2v` model for mature
+ *   themes with its recipe fixed at 8 Euler steps. It takes the same
+ *   references, keyframes, catalog LoRAs, frame grid and canvas as the other
+ *   `r2v` IDs. Its optional `minimax-h3-prism-int8_r2v_2stage` ID delivers
+ *   twice the canvas, using the same size choices as the other two-stage IDs. It is
+ *   subject to server authorization and needs `disableNSFWFilter: true`.
  * - The `i2v` model accepts `referenceImage`, `referenceImageEnd`, or both, and
  *   requires at least one of them. The `flf2v` model requires both.
  *
  * #### MiniMax H3 intermediate keyframes (every workflow except `t2v`)
  * - `keyframes` pins up to 8 still images at chosen frames between the first
- *   and last frame. 23 ids accept it (`isMinimaxH3KeyframeModel()`): `i2v` and
+ *   and last frame. 24 ids accept it (`isMinimaxH3KeyframeModel()`): `i2v` and
  *   `flf2v` on every tier (Standard, Balanced, LightX2V Turbo, FastH3 Turbo and
  *   FastH3 Two-Stage), the six FastH3 Sound to Video ids (`ia2v`, `flfa2v`,
- *   `a2v`, one- and two-stage) and the seven `r2v` ids. Text-to-video and
+ *   `a2v`, one- and two-stage) and the eight `r2v` ids. Text-to-video and
  *   every other model reject a non-empty list.
  * - Each entry is `{ image, frameIndex }`. `frameIndex` is the 0-based pixel
  *   frame at 24 fps (`Math.round(seconds * 24)`): an integer from 1 to
@@ -375,8 +452,9 @@ export interface MinimaxH3Keyframe {
  * - `minimax-h3-ref2va-fp8_r2v` (standard) and
  *   `minimax-h3-ref2va-fp8_r2v_turbo` (four-step Turbo), and
  *   `minimax-h3-ref2va-fp8_r2v_balanced` (eight-step Larry v4 Balanced) condition on labelled reference material
- *   rather than on frame anchors, as does FastH3 Reference
- *   (`minimax-h3-fastvideo-omni-int8_r2v_turbo`). The checkpoint accepts up to 9 reference
+ *   rather than on frame anchors, as do FastH3 Reference
+ *   (`minimax-h3-fastvideo-omni-int8_r2v_turbo`) and Prism
+ *   (`minimax-h3-prism-int8_r2v`). The checkpoint accepts up to 9 reference
  *   images, 3 reference videos (24fps, 2-15 seconds each), and 3 reference
  *   audio clips, with at most 12 reference files in total.
  * - All of those ceilings apply, and at least one visual reference (image or
@@ -436,15 +514,18 @@ export type Wan3Ratio = 'adaptive' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
 
 export interface VideoProjectParams extends BaseProjectParams {
   type: 'video';
+  /** Track one selected object across an uploaded video, preserving every source frame. */
+  sam3VideoPrompt?: Sam3VideoPrompt;
   /**
-   * FlashVSR delivery resolution on the shorter edge. Source timing and audio are preserved.
-   * With a FlashVSR `referenceVideo`, `frames`, `fps`, `width` and `height` may be omitted: the
-   * server adopts the verified source's values. Values that are sent must match the source.
+   * FlashVSR or RelayVSR delivery resolution on the shorter edge; 2160 is RelayVSR only. Source
+   * timing and audio are preserved. With an upscale `referenceVideo`, `frames`, `fps`, `width` and
+   * `height` may be omitted: the server adopts the verified source's values. Values that are sent
+   * must match the source.
    */
-  upscaleResolution?: 1080 | 1440;
-  /** FlashVSR detail preference. Defaults to stable (More Stable). */
+  upscaleResolution?: 1080 | 1440 | 2160;
+  /** FlashVSR detail preference. Defaults to stable (More Stable). RelayVSR refuses it. */
   detailPreference?: 'stable' | 'sharper';
-  /** FlashVSR processing speed. Defaults to stable (More Stable). */
+  /** FlashVSR processing speed. Defaults to stable (More Stable). RelayVSR refuses it. */
   processingSpeed?: 'stable' | 'faster';
   /**
    * Number of frames to generate. Most requests pass `duration` instead and let
@@ -452,7 +533,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * it). Pass `frames` when positions inside the clip must be exact, as with
    * MiniMax H3 `keyframes`, whose `frameIndex` values must fit the count; H3
    * takes `124 + n*17` (124, 141, 158, ... 362). When both are passed,
-   * `duration` wins, except on FlashVSR upscales.
+   * `duration` wins, except on video upscales.
    */
   frames?: number;
   /**
@@ -510,6 +591,42 @@ export interface VideoProjectParams extends BaseProjectParams {
    * first/last-frame generation.
    */
   seedanceTaskType?: SeedanceTaskType;
+  /**
+   * Seedance 2.5 only: render this job as a 480p draft that can later be
+   * finalized at 1080p or 4K with `seedanceDraftJobId`. Every normal Seedance 2.5
+   * input is accepted (prompt, references, frames, duration, seed, audio,
+   * `seedanceTaskType`), the size must be the 480p class, and the price is the
+   * same as the same 480p job. A normal job can never be finalized, so choose
+   * draft mode when submitting.
+   *
+   * A completed draft job reports `job.seedanceDraft` and
+   * `job.seedanceDraftExpiresAt`, the time after which it can no longer be
+   * finalized. Mutually exclusive with `seedanceDraftJobId`.
+   */
+  seedanceDraft?: boolean;
+  /**
+   * Seedance 2.5 only: finalize a completed draft at 1080p by default, or 4K
+   * with `seedanceDraftFinalResolution`. This is the draft's
+   * Sogni job id (`job.id` of a job created with `seedanceDraft: true`), on the
+   * same `modelId`, by the account that created the draft, before
+   * `seedanceDraftExpiresAt`.
+   *
+   * The final inherits the draft's prompt, media, duration, aspect ratio, seed
+   * and audio setting: omit references, first/last frames, audio, `duration`,
+   * `frames`, `ratio`, `seed`, `generateAudio` and `seedanceTaskType`, and pass
+   * an empty `positivePrompt` (it is not used). `numberOfMedia` must be 1. The
+   * output keeps the draft's aspect ratio and is priced at the selected final
+   * resolution for its duration. `outputFormat` and `returnLastFrame` may still
+   * be set. The completed final reports the draft it came from as `job.seedanceDraftJobId`.
+   * Mutually exclusive with `seedanceDraft`.
+   */
+  seedanceDraftJobId?: string;
+  /**
+   * Seedance 2.5 draft finalization only: explicitly choose 1080p or 4K.
+   * Requires `seedanceDraftJobId`. Omit to keep the existing 1080p final.
+   * The server retains the draft's aspect ratio and prices the requested class.
+   */
+  seedanceDraftFinalResolution?: '1080p' | '4k';
   /**
    * @deprecated Ignored. Alibaba's Wan 3 API does not expose edit or extend
    * task modes. Pass `referenceVideo`/`referenceVideoUrls` for loose reference
@@ -595,7 +712,7 @@ export interface VideoProjectParams extends BaseProjectParams {
   /**
    * MiniMax H3 intermediate keyframes: up to 8 still images, each pinned at a
    * chosen frame between the first and last frame. Accepted by every MiniMax H3
-   * workflow except text-to-video, 23 ids (`isMinimaxH3KeyframeModel()`):
+   * workflow except text-to-video, 24 ids (`isMinimaxH3KeyframeModel()`):
    * image-to-video (`i2v`), first/last-frame (`flf2v`), Sound to Video (`ia2v`,
    * `flfa2v`, `a2v`) and Reference to Video (`r2v`). Any other model rejects a
    * non-empty list, and an empty list is the same as omitting the field.
@@ -818,7 +935,7 @@ export interface VideoProjectParams extends BaseProjectParams {
    * Output video format. Defaults to 'mp4'; 'mov' is supported by Seedance 2.5.
    */
   outputFormat?: VideoOutputFormat;
-  /** Seedance 2.5: export a separate final-frame image, available as job.lastFrameUrl. */
+  /** Seedance 2.5 / MiniMax H3: export a final-frame image; refresh with job.getLastFrameUrl(). */
   returnLastFrame?: boolean;
   /**
    * SAM2 click coordinates for subject detection in animate-replace workflows.
@@ -862,7 +979,102 @@ export interface Sam3PromptBox {
   label?: 'positive' | 'negative';
 }
 
-/** A bounded prompt for the SAM3 image-segmentation workflow. */
+/**
+ * A selection made from a drawn region instead of clicks, boxes or text. The
+ * region starts the tracker on the prompt frame, as a click does, so that
+ * frame's mask is the tracker's own shape for the region rather than the exact
+ * drawing, consistent with the frames around it. Draw it tight: background or
+ * a foreground object inside the region stays in the mask for several frames.
+ */
+export interface Sam3PromptMask {
+  /**
+   * 1 to 64 rings of `[x, y]` points, each 3 to 2048 points and 4096 points in
+   * total; a whole prompt holds at most 4096 across its objects and frames.
+   * Coordinates are normalized to the source frame (0 to 1, origin top
+   * left). Rings fill even-odd: a ring inside another ring is a hole.
+   */
+  polygons: Array<Array<[number, number]>>;
+}
+
+/**
+ * One object to select in a video: exactly one of `points` (with at most one
+ * box), `boxes`, `text` (with optional signed boxes) or `mask`.
+ */
+export interface Sam3VideoSelection extends Pick<
+  Sam3ImagePrompt,
+  'points' | 'boxes' | 'text' | 'threshold' | 'multimask'
+> {
+  /**
+   * Select this drawn region. Not combinable with `points`, `boxes`, `text`,
+   * `threshold` or `multimask`; `objectIndex` must be 0 or absent.
+   */
+  mask?: Sam3PromptMask;
+  /** Zero-based candidate in confidence order. Defaults to the best match. */
+  objectIndex?: number;
+}
+
+/** One prompted frame of `Sam3VideoPrompt.frames`: a selection plus the source frame it refers to. */
+export type Sam3VideoFramePrompt = Sam3VideoSelection & {
+  /** Zero-based source frame. Each entry names a different frame. */
+  frameIndex: number;
+};
+
+/**
+ * A bounded prompt for SAM 3 video selection. Output is one hard binary mask
+ * video. By default it selects one object (`points`, `boxes` or `text`) on one
+ * frame and tracks it through the clip.
+ *
+ * `mask`, `objects`, `frames` and `memory` are optional and absent by default;
+ * a prompt without them behaves exactly as before.
+ */
+export interface Sam3VideoPrompt extends Omit<Sam3ImagePrompt, 'applyMask' | 'maxInstances'> {
+  /**
+   * Zero-based source frame the selection refers to. Defaults to 0. Not used
+   * with `frames`, where each entry carries its own.
+   */
+  frameIndex?: number;
+  /** Zero-based text candidate or supplied box. Point prompts require 0. Defaults to 0. */
+  objectIndex?: number;
+  output?: 'mask';
+  edges?: 'hard';
+  /**
+   * Select a drawn region on the prompt frame instead of `points`, `boxes` or
+   * `text`. Not combinable with them, nor with `threshold` or `multimask`;
+   * `objectIndex` must be 0 or absent.
+   */
+  mask?: Sam3PromptMask;
+  /**
+   * Track 2 to 16 objects together and merge them into one mask: a crowd, a
+   * figure plus the prop it holds, a monitor plus the webcam on it. Every
+   * object is selected on `frameIndex` and tracked jointly; every output frame
+   * is the union of their masks. Requires `combine: 'union'`. Put each object's
+   * selection inside its entry: the top-level `points`, `boxes`, `text`,
+   * `mask`, `threshold`, `multimask` and `objectIndex` are rejected alongside
+   * `objects`, and so is `frames`.
+   */
+  objects?: Sam3VideoSelection[];
+  /** How `objects` combine into the output. Required with `objects`; `'union'` is the only value. */
+  combine?: 'union';
+  /**
+   * Prompt the same object on 2 to 8 different source frames. Each output frame
+   * takes the track from the nearest prompted frame (ties go to the earlier
+   * one), so the whole clip is still tracked about once. Use it for a loop
+   * whose last frame repeats its first (prompt frame 0 and the last frame with
+   * the same selection), or to correct drift mid-clip. Rejected together with
+   * the top-level `frameIndex`, the top-level selection fields and `objects`.
+   */
+  frames?: Sam3VideoFramePrompt[];
+  /**
+   * How tracking carries from one 32-frame chunk to the next. `'chunk'` (the
+   * default, the original behaviour) seeds each chunk from the previous chunk's
+   * last mask; an object lost at the end of a chunk is not found again.
+   * `'anchor'` tracks every chunk from the prompt frame and its selection
+   * instead, so tracking errors do not carry from chunk to chunk and a lost
+   * object can be picked up again, but the mask can shift where a chunk starts.
+   */
+  memory?: 'chunk' | 'anchor';
+}
+
 export interface Sam3ImagePrompt {
   points?: Sam3PromptPoint[];
   boxes?: Sam3PromptBox[];
@@ -1021,7 +1233,7 @@ export interface ImageProjectParams
   /**
    * Context images for multi-reference image generation.
    * GPT Image 2 supports up to 16 context images.
-   * Seedream 5.0 Pro Uncensored supports up to 10 context images.
+   * Seedream 5.0 Pro Uncensored and Seedream 5.5 Uncensored support up to 10 context images.
    * Qwen Image Edit supports up to 3 context images.
    * Krea 2 Identity Edit supports up to 2 context images.
    * Legacy Flux Kontext matching supports up to 2 context images.
@@ -1076,10 +1288,46 @@ export interface ImageProjectParams
   gptImageBackground?: GptImageBackground;
   /** JPEG/WebP compression (0–100). Omit for PNG. */
   gptImageOutputCompression?: number;
+  /** GPT Image 2.6 planning effort. Omitted uses the provider's high setting. */
+  gptImageComplexity?: 'low' | 'medium' | 'high';
+  /** Animated GIF only: 2–16 frames, default 9. */
+  gptImageFrameCount?: number;
+  /** Animated GIF only: 20–2000 ms per frame, rounded to 10 ms by OpenAI. */
+  gptImageFrameDurationMs?: number;
+  /** Annotation overlay for the first edit reference; cannot combine with a mask. */
+  gptImageMarkupUrl?: string;
   /** PNG alpha mask URL or data URI matching contextImages[0]. Transparent regions are edited. */
   gptImageMaskUrl?: string;
   /** PNG alpha mask, uploaded in the referenceMask asset slot for durable replay. */
   gptImageMask?: InputMedia;
+  /**
+   * Seedream 5.5 Uncensored only: `'transparent'` returns an RGBA image,
+   * `'auto'` lets the model decide, `'opaque'` (the default) returns RGB.
+   * Transparent and auto need PNG or WebP output and cannot combine with
+   * layer decomposition.
+   */
+  seedreamBackground?: SeedreamBackground;
+  /**
+   * Split exactly one context image into a base image and RGBA PNG layers:
+   * up to 16 layers on Seedream 5.0 Pro Uncensored, up to 99 on Seedream 5.5
+   * Uncensored. The aspect ratio follows the input, `numberOfMedia` must be 1,
+   * and the completed job carries the layers in `job.layers`; `job.resultUrl`
+   * is the base image.
+   */
+  seedreamLayerDecomposition?: boolean;
+  /** Resolution of the base and extracted layers. Defaults to 1.5K. */
+  seedreamLayerSize?: SeedreamLayerSize;
+  /**
+   * Seedream 5.5 Uncensored layer decomposition only: the most images to
+   * return, base included, an integer from 2 to 100. Defaults to 17.
+   */
+  seedreamLayerMaxImages?: number;
+  /**
+   * Seedream 5.5 Uncensored layer decomposition only: also return rich-text
+   * recognition (`layer.textRecognition`) for layers of regular text.
+   * Defaults to false.
+   */
+  seedreamLayerTextRecognition?: boolean;
 }
 
 export interface AudioProjectParams extends BaseProjectParams {
@@ -1205,6 +1453,8 @@ export type VideoFormat = 'mp4' | 'mov';
  * Parameters for image asset URL requests (upload/download)
  */
 export type ImageUrlParams = {
+  /** Refresh one layer (`zIndex` 1-99) of a completed Seedream extraction. */
+  layerIndex?: number;
   imageId: string;
   jobId: string;
   type:
@@ -1256,6 +1506,8 @@ export type MediaUrlParams = {
 };
 
 export interface EstimateRequest {
+  /** Request the optional monthly capacity share alongside the daily estimate. */
+  includeMonthlyFairUse?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
   /**
@@ -1327,6 +1579,33 @@ export interface EstimateRequest {
    * Output format, when estimating models with format-specific request metadata.
    */
   outputFormat?: ImageOutputFormat;
+  /** GIF frame count used by the quote; default 9. */
+  gptImageFrameCount?: number;
+  gptImageFrameDurationMs?: number;
+  gptImageComplexity?: 'low' | 'medium' | 'high';
+  /**
+   * Quote a Seedream layer decomposition. Its layer count is known only after
+   * the render, so the quote is the most it can cost; the charge settles to
+   * the layers actually returned.
+   */
+  seedreamLayerDecomposition?: boolean;
+  /** Resolution of the base and extracted layers. Defaults to 1.5K. */
+  seedreamLayerSize?: SeedreamLayerSize;
+  /**
+   * Seedream 5.5 Uncensored layer decomposition: the most images the job may
+   * return, base included (2-100, default 17). The quote reserves this many.
+   */
+  seedreamLayerMaxImages?: number;
+  /**
+   * Seedream 5.5 Uncensored background mode. Accepted so a project's own
+   * parameters can be quoted; it does not change the price and is not sent.
+   */
+  seedreamBackground?: SeedreamBackground;
+  /**
+   * Seedream 5.5 Uncensored text recognition. Accepted so a project's own
+   * parameters can be quoted; it does not change the price and is not sent.
+   */
+  seedreamLayerTextRecognition?: boolean;
   /**
    * Billing intent of the job being quoted. 'tokens' opts out of plan coverage,
    * so the estimate carries no `dailyFairUsePct`.
@@ -1336,9 +1615,11 @@ export interface EstimateRequest {
 }
 
 export interface VideoEstimateRequest {
+  /** Request the optional monthly capacity share alongside the daily estimate. */
+  includeMonthlyFairUse?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
-  /** FlashVSR source geometry for an estimate. The server verifies the uploaded file at admission. */
+  /** Video upscale source geometry for an estimate. The server verifies the uploaded file at admission. */
   sourceWidth?: number;
   sourceHeight?: number;
   tokenType: TokenType;
@@ -1376,6 +1657,12 @@ export interface VideoEstimateRequest {
   /** The job's `keyframes`; only their count is used, to price them. */
   keyframes?: readonly unknown[];
   /**
+   * SAM 3 video selection: the job's own `sam3VideoPrompt`. Only the options that
+   * change its price are sent: the number of `objects` and the `memory` mode. A
+   * prompt without them quotes exactly as before.
+   */
+  sam3VideoPrompt?: Sam3VideoPrompt;
+  /**
    * Combined duration of MiniMax H3 r2v reference-video input, in seconds.
    * The estimate bills it at the selected output resolution/tier rate.
    */
@@ -1388,6 +1675,18 @@ export interface VideoEstimateRequest {
    * Optional estimate-only signal: non-empty list implies Seedance video-input pricing.
    */
   referenceVideoUrls?: string[];
+  /** Seedance 2.5: quote a 480p draft. It is priced the same as the same 480p job. */
+  seedanceDraft?: boolean;
+  /**
+   * Seedance 2.5: quote finalizing this draft (its Sogni job id) at 1080p by
+   * default, or the explicit `seedanceDraftFinalResolution`. The
+   * server prices the final from the draft itself (its duration, aspect ratio and
+   * any input video) for the account that owns it, so `width`, `height`,
+   * `duration` and `fps` do not change the quote; pass the draft's values.
+   */
+  seedanceDraftJobId?: string;
+  /** Finalize quote resolution; requires `seedanceDraftJobId`. Omitted means 1080p. */
+  seedanceDraftFinalResolution?: '1080p' | '4k';
   /**
    * Network the job will render on. A Relaxed render never draws on the plan's
    * daily fair-use capacity, so its estimate carries no `dailyFairUsePct`.
@@ -1403,6 +1702,8 @@ export interface VideoEstimateRequest {
 }
 
 export interface AudioEstimateRequest {
+  /** Request the optional monthly capacity share alongside the daily estimate. */
+  includeMonthlyFairUse?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
   tokenType: TokenType;
@@ -1457,6 +1758,8 @@ export interface CostEstimation {
    * for guests, premium-vendor models, token billing, trials and Relaxed.
    */
   dailyFairUsePct?: number;
+  /** Estimated share of monthly Fast capacity, when requested and supplied by the server. */
+  monthlyFairUsePct?: number;
 }
 
 export type EnhancementStrength = 'light' | 'medium' | 'heavy';

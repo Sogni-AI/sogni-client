@@ -292,10 +292,305 @@ async function checkToolExecution() {
   assert.equal(captured.steps, 30);
 }
 
+// Explicit extraction is opt-in and requires exactly one source and one result.
+for (const seedreamLayerSize of ['1K', '1.5K', '2K']) {
+  const params = {
+    ...options,
+    modelId: SEEDREAM,
+    contextImages: ['ref'],
+    numberOfMedia: 1,
+    seedreamLayerDecomposition: true,
+    seedreamLayerSize
+  };
+  validateSeedreamOptions(params);
+  const key = request(params).keyFrames[0];
+  assert.equal(key.seedreamLayerSize, seedreamLayerSize);
+  assert.equal(key.seedreamLayerDecomposition, true);
+}
+assert.throws(
+  () => validateSeedreamOptions({ modelId: SEEDREAM, seedreamLayerDecomposition: true }),
+  /exactly one reference/
+);
+assert.throws(
+  () =>
+    validateSeedreamOptions({
+      modelId: SEEDREAM,
+      seedreamLayerDecomposition: true,
+      contextImages: ['a', 'b']
+    }),
+  /exactly one reference/
+);
+assert.throws(
+  () =>
+    validateSeedreamOptions({
+      modelId: SEEDREAM,
+      seedreamLayerDecomposition: true,
+      contextImages: ['a'],
+      seedreamLayerSize: 'auto'
+    }),
+  /1K, 1.5K or 2K/
+);
+// Layer options without the decomposition they configure, and on other models.
+assert.throws(
+  () =>
+    validateSeedreamOptions({ modelId: SEEDREAM, contextImages: ['a'], seedreamLayerSize: '2K' }),
+  /seedreamLayerSize requires seedreamLayerDecomposition/
+);
+assert.throws(
+  () =>
+    validateSeedreamOptions({
+      modelId: SEEDREAM,
+      seedreamLayerDecomposition: true,
+      contextImages: ['a'],
+      numberOfMedia: 2
+    }),
+  /set numberOfMedia to 1/
+);
+for (const field of [
+  ['seedreamLayerDecomposition', true],
+  ['seedreamLayerSize', '1K'],
+  ['seedreamLayerMaxImages', 17],
+  ['seedreamLayerTextRecognition', false]
+]) {
+  for (const modelId of ['gpt-image-2', 'z_image_turbo_bf16']) {
+    assert.throws(
+      () => validateSeedreamOptions({ modelId, contextImages: ['a'], [field[0]]: field[1] }),
+      /Seedream layer options require a Seedream model/,
+      `${field[0]} on ${modelId}`
+    );
+  }
+}
+
+// Seedream 5.5 Uncensored's options are refused on 5.0 Pro, whatever their
+// value and even alongside a valid decomposition; transparency is not offered.
+for (const [option, values] of [
+  ['seedreamBackground', ['opaque', 'transparent', 'auto']],
+  ['seedreamLayerMaxImages', [2, 17, 100]],
+  ['seedreamLayerTextRecognition', [true, false]]
+]) {
+  for (const value of values) {
+    for (const extra of [{}, { contextImages: ['a'], seedreamLayerDecomposition: true }]) {
+      assert.throws(
+        () => request({ ...extra, [option]: value }),
+        new RegExp(`${option} requires seedream-5-5-uncensored`),
+        `${option}=${value} on 5.0 Pro`
+      );
+    }
+  }
+}
+// seedreamBackground is refused on every non-Seedream model too.
+for (const modelId of ['gpt-image-2.5-sunburst', 'z_image_turbo_bf16']) {
+  assert.throws(
+    () => validateSeedreamOptions({ modelId, seedreamBackground: 'opaque' }),
+    /seedreamBackground requires seedream-5-5-uncensored/,
+    modelId
+  );
+}
+// 5.0 Pro keeps its 4,194,304-pixel and 8192-px limits: 5.5's larger sizes are refused.
+for (const [width, height] of [
+  [2830, 1634], // exactly 4,624,220: Seedream 5.5's ceiling
+  [2816, 1584] // 4,460,544: a native Seedream 5.5 2K size
+]) {
+  assert.throws(
+    () => request({ sizePreset: 'custom', width, height }),
+    /renders 921,600 to 4,194,304 pixels/,
+    `${width}x${height} on 5.0 Pro`
+  );
+}
+assert.throws(() => validateCustomImageSize(8595, { modelId: SEEDREAM }), /less or equal 8192/);
+
+// Byte-for-byte compatibility: requests and quotes without any seedream*
+// option serialize exactly as SDK 5.80.1 (6b91f63) sent them, for 5.0 Pro and
+// for the GPT Image and Z-Image requests beside it.
+const baseline = require('./fixtures/seedream-request-baseline-5.80.1.json');
+{
+  for (const [name, { params, message }] of Object.entries(baseline.requests)) {
+    const current = createJobRequestMessage(`baseline-${name}`, params, baseline.options);
+    assert.equal(JSON.stringify(current), JSON.stringify(message), `request ${name} is unchanged`);
+    assert.equal(
+      Object.keys(current.keyFrames[0]).some((key) => key.startsWith('seedream')),
+      false,
+      `request ${name} carries no seedream field`
+    );
+  }
+  // Explicit opt-outs stay opt-in: only an explicitly sent field is written.
+  const plain = request({}).keyFrames[0];
+  assert.equal('seedreamBackground' in plain, false);
+  assert.equal('seedreamLayerDecomposition' in plain, false);
+  assert.equal('seedreamLayerMaxImages' in plain, false);
+  assert.equal('seedreamLayerTextRecognition' in plain, false);
+}
+
+// A completed layer decomposition: the base is resultUrl, the layers ride on
+// the jobResult and land on the Job and its completed event, ordered by zIndex.
+async function checkLayerResults() {
+  const { imageLayersFromResult } = require('../dist/Projects/utils/imageLayers.js');
+  const ProjectsApi = require('../dist/Projects/index.js').default;
+  const layer = (zIndex, extra = {}) => ({
+    url: `https://cdn.sogni.ai/layer-${zIndex}.png`,
+    key: `vendor/bytedance/seedream-5-0-pro-uncensored/2026-10-22/job.layer-${zIndex}.png`,
+    width: 1000 + zIndex,
+    height: 800,
+    zIndex,
+    boundingBox: { absolute: [0, 0, 1000 + zIndex, 800], normalized: [0, 0, 596, 999] },
+    name: `Layer ${zIndex}`,
+    description: `Layer ${zIndex} description`,
+    ...extra
+  });
+  const expected = (zIndex) => {
+    const { key, ...rest } = layer(zIndex);
+    return rest;
+  };
+  assert.equal(imageLayersFromResult(undefined), undefined);
+  assert.equal(imageLayersFromResult([]), undefined);
+  assert.deepEqual(imageLayersFromResult([layer(2), layer(1)]), [expected(1), expected(2)]);
+  // A layer without its required fields is not reported as one.
+  assert.deepEqual(imageLayersFromResult([layer(1, { url: '' }), layer(2)]), [expected(2)]);
+
+  class SocketStub extends EventEmitter {
+    async send() {}
+  }
+  class ClientStub extends EventEmitter {
+    constructor() {
+      super();
+      this.socket = new SocketStub();
+      this.logger = { debug() {}, info() {}, warn() {}, error() {} };
+    }
+    resolveWorkloadAttribution() {
+      return undefined;
+    }
+  }
+  const client = new ClientStub();
+  const projects = new ProjectsApi({ client, eip712: {} });
+  projects.getModelOptions = async () => options;
+  const completedEvents = [];
+  projects.on('job', (event) => {
+    if (event.type === 'completed') completedEvents.push(event);
+  });
+  const project = await projects.create({
+    type: 'image',
+    modelId: SEEDREAM,
+    positivePrompt: 'Separate the figure and the background',
+    numberOfMedia: 1,
+    contextImages: [true],
+    seedreamLayerDecomposition: true
+  });
+  client.socket.emit('jobState', {
+    type: 'jobStarted',
+    jobID: project.id,
+    imgID: 'seedream-layers-1',
+    workerName: ''
+  });
+  client.socket.emit('jobResult', {
+    jobID: project.id,
+    imgID: 'seedream-layers-1',
+    resultUrl: 'https://cdn.sogni.ai/base.jpg',
+    outputFormat: 'jpeg',
+    performedStepCount: 1,
+    lastSeed: '-1',
+    triggeredNSFWFilter: false,
+    userCanceled: false,
+    layers: [layer(3), layer(1), layer(2)]
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  const job = project.job('seedream-layers-1');
+  assert.equal(job.resultUrl, 'https://cdn.sogni.ai/base.jpg');
+  assert.deepEqual(job.layers, [expected(1), expected(2), expected(3)]);
+  assert.equal(completedEvents.length, 1);
+  assert.deepEqual(completedEvents[0].layers, [expected(1), expected(2), expected(3)]);
+
+  const downloads = [];
+  projects.downloadUrl = async (params) => {
+    downloads.push(params);
+    return `https://cdn.sogni.ai/fresh-layer-${params.layerIndex}.png`;
+  };
+  assert.equal(await job.getLayerUrl(2), 'https://cdn.sogni.ai/fresh-layer-2.png');
+  assert.deepEqual(downloads, [
+    { jobId: project.id, imageId: job.id, type: 'complete', layerIndex: 2 }
+  ]);
+  await assert.rejects(job.getLayerUrl(16), /Layer is not available/);
+  assert.equal(downloads.length, 1);
+
+  // An ordinary result carries no layers.
+  const plainProject = await projects.create({
+    type: 'image',
+    modelId: SEEDREAM,
+    positivePrompt: 'A portrait',
+    numberOfMedia: 1
+  });
+  client.socket.emit('jobState', {
+    type: 'jobStarted',
+    jobID: plainProject.id,
+    imgID: 'seedream-plain-1',
+    workerName: ''
+  });
+  client.socket.emit('jobResult', {
+    jobID: plainProject.id,
+    imgID: 'seedream-plain-1',
+    resultUrl: 'https://cdn.sogni.ai/plain.png',
+    performedStepCount: 1,
+    lastSeed: '-1',
+    triggeredNSFWFilter: false,
+    userCanceled: false
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(plainProject.job('seedream-plain-1').layers, undefined);
+  assert.equal('layers' in completedEvents[1], false);
+
+  // A REST sync of a finished job reads the layers from its stored result.
+  const synced = project.job('seedream-layers-1');
+  synced._update({ layers: undefined });
+  await synced._syncWithRestData({
+    imgID: 'seedream-layers-1',
+    status: 'jobCompleted',
+    performedSteps: 1,
+    worker: {},
+    resultUrl: 'https://cdn.sogni.ai/base.jpg',
+    result: { layers: [layer(2), layer(1)] }
+  });
+  assert.deepEqual(synced.layers, [expected(1), expected(2)]);
+
+  // The quote asks for the layer-decomposition ceiling only when asked to.
+  const estimatePaths = [];
+  projects.getModelOptions = async () => options;
+  client.socket.get = async (path) => {
+    estimatePaths.push(path);
+    return {
+      quote: { project: { costInToken: '1', costInUSD: '1', costInSpark: '1', costInSogni: '1' } }
+    };
+  };
+  const base = {
+    model: SEEDREAM,
+    imageCount: 1,
+    stepCount: 1,
+    previewCount: 0,
+    width: 1536,
+    height: 1536,
+    contextImages: 1
+  };
+  await projects.estimateCost(base);
+  await projects.estimateCost({ ...base, seedreamLayerDecomposition: true });
+  assert.equal(estimatePaths[0].includes('seedreamLayerDecomposition'), false);
+  assert.match(estimatePaths[1], /[?&]seedreamLayerDecomposition=true(&|$)/);
+  assert.equal(estimatePaths[1].includes('seedreamLayerMaxImages'), false);
+
+  // Quotes without any seedream* option ask for exactly what SDK 5.80.1 asked.
+  projects.getModelOptions = async () => baseline.options;
+  for (const [name, { request: estimate, path }] of Object.entries(baseline.estimates)) {
+    estimatePaths.length = 0;
+    await projects.estimateCost(estimate);
+    assert.deepEqual(estimatePaths, [path], `estimate ${name} is unchanged`);
+  }
+
+  project._update({ status: 'failed', error: { code: 0, message: 'test cleanup' } });
+  plainProject._update({ status: 'failed', error: { code: 0, message: 'test cleanup' } });
+}
+
 checkToolExecution()
+  .then(checkLayerResults)
   .then(() =>
     console.log(
-      'Seedream 5.0 Pro Uncensored identity, selectors, sizes, references and tool calls passed'
+      'Seedream 5.0 Pro Uncensored identity, selectors, sizes, references, layers and tool calls passed'
     )
   )
   .catch((error) => {

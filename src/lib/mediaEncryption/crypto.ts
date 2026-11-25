@@ -14,7 +14,7 @@ import {
 
 export type MediaSource = Blob | ArrayBuffer | Uint8Array;
 
-/** The Web Crypto API, or a clear error where it does not exist (an insecure page, an old runtime). */
+/** The Web Crypto API, or a clear error where it does not exist (a page without HTTPS, an old runtime). */
 export function subtle(): SubtleCrypto {
   const api = globalThis.crypto?.subtle;
   if (!api) {
@@ -129,21 +129,14 @@ export interface EncryptMediaOptions {
   key: Uint8Array;
   /** MIME type of the plaintext, recorded in the authenticated header. */
   contentType?: string;
-  /** Recipient stanza to embed, so the artist's account key can open the file later. */
+  /** Recipient record to embed, so the account key can open the file. */
   recipient?: Uint8Array;
   segmentSizeLog2?: number;
-  /**
-   * @internal A fixed salt and nonce prefix. Only with a key that is derived
-   * from the plaintext together with them (an input key, see `inputKeys.ts`),
-   * so they never encrypt two different plaintexts; and for known-answer tests.
-   */
+  /** @internal Fixed values, for input files and known-answer tests. */
   deterministic?: { salt: Uint8Array; noncePrefix: Uint8Array };
 }
 
-/**
- * Encrypt media into a `SOGNIE2E` container. The result is a Blob of type
- * `application/octet-stream`; the plaintext MIME type travels inside it.
- */
+/** Encrypt media. The result is a Blob of type `application/octet-stream`. */
 export async function encryptMedia(
   source: MediaSource,
   options: EncryptMediaOptions
@@ -188,10 +181,7 @@ export async function readMediaHeader(source: MediaSource): Promise<MediaEncrypt
   return parseHeader(prefix);
 }
 
-/**
- * Decrypt a `SOGNIE2E` container. `resolveKey` receives the parsed header and
- * returns the 32-byte project key (typically by unwrapping `header.recipient`).
- */
+/** Decrypt media. `resolveKey` receives the parsed header and returns the file's key. */
 export async function decryptMedia(
   source: MediaSource,
   resolveKey: (header: MediaEncryptionHeader) => Promise<Uint8Array> | Uint8Array

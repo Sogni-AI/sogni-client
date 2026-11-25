@@ -1,3 +1,218 @@
+# [5.88.0](https://github.com/Sogni-AI/sogni-client/compare/v5.87.0...v5.88.0) (2026-11-25)
+
+
+### Features
+
+* **account:** accept optional two-factor proof on withdraw ([#38](https://github.com/Sogni-AI/sogni-client/issues/38)) ([bae36f8](https://github.com/Sogni-AI/sogni-client/commit/bae36f84eca9e3325102f2bd57d9edb216fa7948))
+
+# [5.87.0](https://github.com/Sogni-AI/sogni-client/compare/v5.86.2...v5.87.0) (2026-11-24)
+
+
+### Features
+
+* **video:** support Seedance 2.5 Flash generation ([02310b6](https://github.com/Sogni-AI/sogni-client/commit/02310b6da5303363d7b384be46d56d63aba12c35))
+
+## [5.86.2](https://github.com/Sogni-AI/sogni-client/compare/v5.86.1...v5.86.2) (2026-11-21)
+
+
+### Bug Fixes
+
+* **account:** check permit fields before signing ([b891160](https://github.com/Sogni-AI/sogni-client/commit/b8911606045e8abc88b21f48720f5812aa515bce))
+* **account:** read permit chain ids and approval deadlines as plain integers ([9681912](https://github.com/Sogni-AI/sogni-client/commit/9681912d0c8e33587209445efbf52f76618e9d60))
+* **account:** read permit providers and approval deadlines as the API issues them ([f1b641b](https://github.com/Sogni-AI/sogni-client/commit/f1b641b8321513a7fdbd95ed2edad9c5a191141c))
+* **rest:** follow authenticated Node redirects the way fetch does ([3c8b087](https://github.com/Sogni-AI/sogni-client/commit/3c8b0876f9b0dd10b2ebbe39306710ea44599c28))
+* **rest:** keep credentials on the original origin across redirects ([09fab32](https://github.com/Sogni-AI/sogni-client/commit/09fab32f5c3f485194b8727a98dfd4258c61f5a9))
+
+## [5.86.1](https://github.com/Sogni-AI/sogni-client/compare/v5.86.0...v5.86.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **video:** let seedance canvases below 480px through to the server ([c20227e](https://github.com/Sogni-AI/sogni-client/commit/c20227ef39ee65db287a5ca27d90e9cb0c49b414))
+
+# [5.86.0](https://github.com/Sogni-AI/sogni-client/compare/v5.85.0...v5.86.0) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** take sogni-protocol 1.0.0-alpha.64 for Seedance 2.5 4K finals ([d863f90](https://github.com/Sogni-AI/sogni-client/commit/d863f9052c5392e5355849b4534be07d6a9c2d10))
+* document that LTX pose control requires a reference image ([d63b641](https://github.com/Sogni-AI/sogni-client/commit/d63b641048f7baf9514efaf7d56b86a54ff05ea5))
+
+
+### Features
+
+* **video:** support explicit seedance 2.5 4k finals ([9fe0827](https://github.com/Sogni-AI/sogni-client/commit/9fe0827cabd5596560a6a4202dc6d41e9c9fe5aa))
+
+# [5.85.0](https://github.com/Sogni-AI/sogni-client/compare/v5.84.2...v5.85.0) (2026-11-17)
+
+
+### Features
+
+* **video:** add optional Prism two-stage output ([80ba229](https://github.com/Sogni-AI/sogni-client/commit/80ba22955363fc8fe77a13dde17f6897b9f64ff6))
+
+## [5.84.2](https://github.com/Sogni-AI/sogni-client/compare/v5.84.1...v5.84.2) (2026-11-15)
+
+
+### Bug Fixes
+
+* **projects:** refuse text in place of image bytes before uploading an image slot ([3c0d411](https://github.com/Sogni-AI/sogni-client/commit/3c0d411a2f92567048450a346c94df6feb0f544f))
+
+## [5.84.1](https://github.com/Sogni-AI/sogni-client/compare/v5.84.0...v5.84.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **deps:** take sogni-protocol 1.0.0-alpha.63 for RelayVSR 1088 sources ([397eec3](https://github.com/Sogni-AI/sogni-client/commit/397eec3ac95026f16379e4fe6a6085d62e8e552f))
+
+# [5.84.0](https://github.com/Sogni-AI/sogni-client/compare/v5.83.0...v5.84.0) (2026-11-15)
+
+
+### Bug Fixes
+
+* **chat:** keep FlashVSR's 2160 refusal in hosted tool validation ([e65764b](https://github.com/Sogni-AI/sogni-client/commit/e65764b71aee32607339b357fe37d509d1db4007))
+* **chat:** validate an unknown upscale_video model as 5.83.0 did ([a00f0e7](https://github.com/Sogni-AI/sogni-client/commit/a00f0e70f3a35989fbdce69d0f2e090cbf46a69c))
+
+
+### Features
+
+* **minimax-h3:** add the MiniMax H3 Prism reference-to-video model id ([cda5219](https://github.com/Sogni-AI/sogni-client/commit/cda521925bde3eb95a6548b20b03ceea35f1d422))
+* **video:** add RelayVSR video upscaling models ([a613f03](https://github.com/Sogni-AI/sogni-client/commit/a613f03ae0b76198e6e6c4c8fa19f3411f3d0f9a))
+* **video:** refuse a RelayVSR output past 3840 on the long edge ([77261b9](https://github.com/Sogni-AI/sogni-client/commit/77261b9c0e0734ec020c58a6a79a073ebaf3a1d7))
+
+# [5.83.0](https://github.com/Sogni-AI/sogni-client/compare/v5.82.0...v5.83.0) (2026-11-14)
+
+
+### Features
+
+* **changelog:** add sogni.changelog to read the public Sogni changelog ([68a264a](https://github.com/Sogni-AI/sogni-client/commit/68a264a2255e13af7b554b13eddea49b9bb223d3))
+
+# [5.82.0](https://github.com/Sogni-AI/sogni-client/compare/v5.81.0...v5.82.0) (2026-11-13)
+
+
+### Features
+
+* **account:** add authenticator and passkey sign-in ([4420bb3](https://github.com/Sogni-AI/sogni-client/commit/4420bb3ef8c9f3669ade0480bb5cedbb2572d492))
+* **media:** add optional media encryption ([ea7a618](https://github.com/Sogni-AI/sogni-client/commit/ea7a61882f2edc854a712b112ff30f91def701c0))
+
+# [5.81.0](https://github.com/Sogni-AI/sogni-client/compare/v5.80.1...v5.81.0) (2026-11-13)
+
+
+### Bug Fixes
+
+* **projects:** name a switch request that never left the client ([6b85108](https://github.com/Sogni-AI/sogni-client/commit/6b8510839d6f6501db5fb6e8b2ead59cb7cfb21d))
+* **projects:** report unknown switch outcomes instead of fake refusals ([736b0ad](https://github.com/Sogni-AI/sogni-client/commit/736b0ad56ddd46eb78d1941a67471ad255d662a8))
+* **projects:** treat a not_found switch reply as an unknown outcome ([c1688f5](https://github.com/Sogni-AI/sogni-client/commit/c1688f5e89e2db9e5fd850825c81aacb2ce15f66))
+
+
+### Features
+
+* **projects:** expose the pay-as-you-go offer and Premium Spark switch ([672376b](https://github.com/Sogni-AI/sogni-client/commit/672376b92070d15935d030e7360ca2ce4597d271))
+* **projects:** support seedream layer extraction ([a575eb9](https://github.com/Sogni-AI/sogni-client/commit/a575eb9d028bbda2f46a2f04b01e790f75fc3bd7))
+* **seedream:** add Seedream 5.5 transparency, layer options and larger sizes ([0977330](https://github.com/Sogni-AI/sogni-client/commit/0977330bcdf38985b604b971346286ddf8f428bd))
+* **seedream:** recognise Seedream 5.5 Uncensored as a Seedream model ([5f6235f](https://github.com/Sogni-AI/sogni-client/commit/5f6235f932fb3af4569314fe718c8c1617db55a1))
+
+## [5.80.1](https://github.com/Sogni-AI/sogni-client/compare/v5.80.0...v5.80.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** patch vulnerable glob and minimatch build tools ([a6398d9](https://github.com/Sogni-AI/sogni-client/commit/a6398d97adfdd0bae776e8955ac8a42807b57953))
+
+# [5.80.0](https://github.com/Sogni-AI/sogni-client/compare/v5.79.0...v5.80.0) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** pin protocol alpha.60 for reference GIF edit tools ([9d0ce71](https://github.com/Sogni-AI/sogni-client/commit/9d0ce71ed7f8da6a3c4b15e412ced45e9aa05c7d))
+* **ids:** generate ids from the runtime's secure random source ([445d7bb](https://github.com/Sogni-AI/sogni-client/commit/445d7bbfa050413e447ae9b31d301ccc5ea843b0))
+* **projects:** quote SAM 3 video objects and anchor memory ([ebd5466](https://github.com/Sogni-AI/sogni-client/commit/ebd546671147c3d6c8f3b8f8255f88057141d6f2))
+* **projects:** validate video selection object indexes ([68d26f0](https://github.com/Sogni-AI/sogni-client/commit/68d26f0967bca7e2ee3406a196aff9f3a36fb972))
+
+
+### Features
+
+* **projects:** type and send opt-in SAM 3 video selection options ([706a81b](https://github.com/Sogni-AI/sogni-client/commit/706a81be8ac028a1f6a5db55556686c5e3d70afd))
+
+# [5.79.0](https://github.com/Sogni-AI/sogni-client/compare/v5.78.0...v5.79.0) (2026-11-07)
+
+
+### Features
+
+* **images:** allow reference images for animated GIFs ([3dcc9ea](https://github.com/Sogni-AI/sogni-client/commit/3dcc9ea551dcc66b4b2478b59776173ff46e55a1))
+
+# [5.78.0](https://github.com/Sogni-AI/sogni-client/compare/v5.77.0...v5.78.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* **models:** type video selection options ([f096b2c](https://github.com/Sogni-AI/sogni-client/commit/f096b2c34e965f2d0d60b68790e3bd79727d4c84))
+
+
+### Features
+
+* support SAM 3 video selection masks ([d899c77](https://github.com/Sogni-AI/sogni-client/commit/d899c7728de23ef3460e312ae85bf2e6e44d51d3))
+
+# [5.77.0](https://github.com/Sogni-AI/sogni-client/compare/v5.76.0...v5.77.0) (2026-11-07)
+
+
+### Features
+
+* **estimates:** add optional monthly capacity shares ([3236f0f](https://github.com/Sogni-AI/sogni-client/commit/3236f0f309710fe902a61e0a39912130693011e6))
+
+# [5.76.0](https://github.com/Sogni-AI/sogni-client/compare/v5.75.2...v5.76.0) (2026-11-05)
+
+
+### Features
+
+* **video:** merge MiniMax H3 last-frame export ([64e64d7](https://github.com/Sogni-AI/sogni-client/commit/64e64d7cd2e384ddb377a83238903eb2e048636a))
+* **video:** support MiniMax H3 last-frame exports ([f682e60](https://github.com/Sogni-AI/sogni-client/commit/f682e606f9dddce1ddb1af221d256eaeb787174f))
+
+## [5.75.2](https://github.com/Sogni-AI/sogni-client/compare/v5.75.1...v5.75.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **account:** keep the member discount on socket plan updates ([a39a7f9](https://github.com/Sogni-AI/sogni-client/commit/a39a7f9f79a52e030d8d52cdf44220c0e867b7bd))
+
+## [5.75.1](https://github.com/Sogni-AI/sogni-client/compare/v5.75.0...v5.75.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **tools:** expose gif guidance in public image tools ([f2d03ba](https://github.com/Sogni-AI/sogni-client/commit/f2d03bad36b75bc2412ee69d11e2950f01d14ea1))
+
+# [5.75.0](https://github.com/Sogni-AI/sogni-client/compare/v5.74.1...v5.75.0) (2026-11-05)
+
+
+### Bug Fixes
+
+* **deps:** align published image generation contracts ([4031300](https://github.com/Sogni-AI/sogni-client/commit/40313009ff04ad810b527463c64558f612f900c9))
+* **images:** validate complete animated gif sheets ([557ef08](https://github.com/Sogni-AI/sogni-client/commit/557ef0809f2859e9b7dfd15a4ff46498ea649350))
+
+
+### Features
+
+* **images:** integrate gpt image 2.6 generation ([eabcb22](https://github.com/Sogni-AI/sogni-client/commit/eabcb22fdbef0a7198b63c3bfd321ca79022995e))
+
+## Unreleased
+
+- Add GPT Image 2.6 Sunburst and Flare as explicit choices, with animated GIF generation, planning complexity, and annotation-guided still-image edits. GIF settings and quoted costs stay together through submission.
+
+## [5.74.1](https://github.com/Sogni-AI/sogni-client/compare/v5.74.0...v5.74.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **deps:** align the published protocol contract ([ab079b0](https://github.com/Sogni-AI/sogni-client/commit/ab079b01b5504ca9a7009d392f296645de4ed4de))
+* **deps:** align the published protocol contract ([768814d](https://github.com/Sogni-AI/sogni-client/commit/768814d92db5e2cc90e8fa7ec420488ca41a6f4f))
+
+# [5.74.0](https://github.com/Sogni-AI/sogni-client/compare/v5.73.0...v5.74.0) (2026-11-04)
+
+
+### Features
+
+* **projects:** add Seedance 2.5 draft and 1080p finalize ([dba103b](https://github.com/Sogni-AI/sogni-client/commit/dba103b8393efe55299f580e56a72b7139b70736))
+
 # [5.73.0](https://github.com/Sogni-AI/sogni-client/compare/v5.72.1...v5.73.0) (2026-11-02)
 
 

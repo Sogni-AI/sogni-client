@@ -11,7 +11,6 @@ export { decryptMedia, encryptMedia, randomBytes, readMediaHeader } from './cryp
 export type { DecryptedMedia, EncryptMediaOptions, MediaSource } from './crypto.js';
 export {
   RECIPIENT_BYTES,
-  deriveAccountKey,
   importAccountKey,
   unwrapProjectKey,
   wrapProjectKey
@@ -27,12 +26,8 @@ export {
   wrapInputKey
 } from './inputKeys.js';
 export type { InputMediaMaterial } from './inputKeys.js';
-export {
-  IndexedDbAccountKeyStore,
-  MemoryAccountKeyStore,
-  createDefaultAccountKeyStore
-} from './keyStore.js';
-export type { AccountKeyStore } from './keyStore.js';
+export { MEDIA_CAPABILITY, MEDIA_CAPABILITY_HEADER, MEDIA_CAPABILITY_QUERY } from './capability.js';
+export type { MediaCapabilityProvider } from './capability.js';
 
 export function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';

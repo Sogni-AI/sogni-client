@@ -124,7 +124,8 @@ export interface VideoControlNetParams {
   /**
    * ControlNet type specifying which control signal to extract from the reference video.
    * - 'canny': Edge detection-based control
-   * - 'pose': Body pose detection (supports optional referenceImage for appearance)
+   * - 'pose': Body pose detection. Requires `referenceImage` as well as `referenceVideo`:
+   *   the image supplies the subject's appearance and the video supplies the motion.
    * - 'depth': Depth estimation
    * - 'detailer': Quality enhancement
    * - 'outpaint': Extend the reference video's canvas. Positional, driven by

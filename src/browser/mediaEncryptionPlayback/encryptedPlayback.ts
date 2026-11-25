@@ -1,4 +1,4 @@
-/** Makes seekable media URLs backed by authenticated SDK range reads in the owning tab. */
+/** Makes seekable media URLs for encrypted video and audio in the owning tab. */
 import { ENCRYPTED_MEDIA_CHUNK_BYTES, ENCRYPTED_MEDIA_PATH } from './encryptedMediaResponse.js';
 
 export interface EncryptedPlaybackSource {
@@ -119,7 +119,7 @@ async function ownerClientId(worker: ServiceWorker): Promise<string> {
   });
 }
 
-/** No key, plaintext, signed storage URL or registration is persisted in the service worker. */
+/** A media element URL that plays an opened encrypted reader in this tab. */
 export async function createEncryptedPlayback(source: EncryptedPlaybackSource): Promise<{
   url: string;
   dispose(): void;

@@ -18,6 +18,7 @@
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { ApiError } from '../ApiClient/index.js';
 import { apiErrorExtras } from '../lib/apiErrorFields.js';
+import { fetchWithCredentials } from '../lib/fetchWithCredentials.js';
 import {
   GetReplayRecordResult,
   ListReplayRecordsOptions,
@@ -136,7 +137,7 @@ class ReplayApi extends ApiGroup {
   private async fetch(path: string, options: RequestInit = {}): Promise<Response> {
     const url = new URL(path, this.client.rest.baseUrl).toString();
     const authenticated = await this.client.auth.authenticateRequest(options);
-    return fetch(url, authenticated);
+    return fetchWithCredentials(url, authenticated);
   }
 
   private async toApiError(response: Response): Promise<ApiError> {

@@ -26,6 +26,7 @@ import {
   type NormalizedConnectionAttribution
 } from '../../lib/attribution.js';
 import { redactMediaKey } from '../../lib/mediaEncryption/redact.js';
+import { MEDIA_CAPABILITY, MEDIA_CAPABILITY_QUERY } from '../../lib/mediaEncryption/capability.js';
 
 const PROTOCOL_VERSION = '3.0.0';
 
@@ -65,6 +66,9 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
    * the reconnect backoff on every failed attempt).
    */
   private _reconnectExpected = false;
+  private _mediaConnectionCapability?: () => boolean;
+  /** Whether the current connection declared the media capability. */
+  private _connectionMediaDeclared = false;
 
   constructor(
     baseUrl: string,
@@ -113,6 +117,28 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
 
   get supernetType(): SupernetType {
     return this._supernetType;
+  }
+
+  /**
+   * Whether new connections declare the media capability.
+   * @internal
+   */
+  _setMediaConnectionCapability(declared: () => boolean) {
+    this._mediaConnectionCapability = declared;
+  }
+
+  /**
+   * Declare the media capability on the open connection.
+   * @internal
+   */
+  _declareMediaCapability() {
+    if (this._disposed || !this._mediaConnectionCapability?.()) return;
+    // Not connected: the next connection declares it at its handshake.
+    if (this._connectionMediaDeclared || (!this.socket && !this._connectPromise)) return;
+    this._connectionMediaDeclared = true;
+    this.send('mediaCapability', { sogniMedia: MEDIA_CAPABILITY }).catch((error) => {
+      this._logger.debug('Media capability declaration did not reach the server', error);
+    });
   }
 
   /** @internal */
@@ -180,6 +206,10 @@ class WebSocketClient extends RestClient<SocketEventMap> implements IWebSocketCl
     url.searchParams.set('clientType', 'artist');
     //At this point 'relaxed' does not work as expected, so we use 'fast' or empty
     url.searchParams.set('forceWorkerId', this._supernetType === 'fast' ? 'fast' : '');
+    this._connectionMediaDeclared = !!this._mediaConnectionCapability?.();
+    if (this._connectionMediaDeclared) {
+      url.searchParams.set(MEDIA_CAPABILITY_QUERY, MEDIA_CAPABILITY);
+    }
     const params = await this.auth.socketOptions();
     assertSession();
     if (generation !== this._connectGeneration) throw new Error('WebSocket connection cancelled');

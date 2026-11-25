@@ -10,30 +10,8 @@ import { MEDIA_KEY_BYTES, MediaEncryptionError, ascii, utf8 } from './format.js'
 import type { AccountMediaKey } from './recipient.js';
 
 /**
- * Input media keys.
- *
- * A project's results are encrypted under its own random project key. Its
- * INPUTS are not: the same picture is often used for many projects, and a file
- * encrypted under a per-project key would have to be uploaded again for each.
- *
- * So every input file has a key of its own, derived on the artist's device
- * from the account key and the file's content. The salt, nonce prefix and
- * recipient nonce are derived with it, which makes the whole encrypted file a
- * pure function of (account, content, content type): the same artist uploading
- * the same file again produces the same bytes, and the upload library
- * recognises them by their hash without ever learning the hash of the
- * plaintext. Another account's copy of the same file shares nothing with it.
- *
- * Reusing the salt and nonces is safe exactly because the key is derived from
- * the content alongside them: that key never encrypts anything else.
- *
- * The worker rendering a project receives the input keys wrapped under the
- * project key (`wrapInputKey`), in the job request's `mediaEncryption.inputKeys`.
- * A wrapped key is useless without the project key, so unlike the project key
- * it needs no special handling on the way there.
- *
- * Wrapped input key, 60 bytes:
- *   nonce(12) || AES-256-GCM(projectKey, nonce, inputKey, aad)(48)
+ * Keys for a project's input files.
+ * @internal
  */
 
 const INPUT_MATERIAL_INFO_PREFIX = 'input-media-v1\0';
@@ -65,7 +43,7 @@ function split(material: Uint8Array): InputMediaMaterial {
   };
 }
 
-/** The key material of an input file, from the SHA-256 of its plaintext. */
+/** The key material of an input file, from its content. */
 export async function deriveInputMaterial(
   account: AccountMediaKey,
   plaintextSha256: Uint8Array,
@@ -87,16 +65,12 @@ export async function deriveInputMaterial(
   return split(new Uint8Array(bits));
 }
 
-/** Random material, for an input too large to be hashed in one piece (it cannot be reused anyway). */
+/** Random key material, for a large input. */
 export function randomInputMaterial(): InputMediaMaterial {
   return split(randomBytes(MATERIAL_BYTES));
 }
 
-/**
- * Web Crypto hashes a whole buffer at once, so deriving a key from the content
- * means holding the file in memory. The upload library only keeps files up to
- * this size, so nothing larger could be reused anyway.
- */
+/** Largest input whose key material comes from its content. */
 export const MAX_CONTENT_KEYED_INPUT_BYTES = 100 * 1024 * 1024;
 
 /** The key material for one input: from its content when it can be reused, random otherwise. */

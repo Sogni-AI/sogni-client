@@ -29,6 +29,7 @@ Current public API anchors:
 - Project cost helpers are `sogni.projects.estimateCost()`, `estimateVideoCost()`, and `estimateAudioCost()`.
 - `sogni.projects.assets` manages private subscriber uploads (`upload`, `list`, `remove`, `bind`). Supported servers automatically reuse matching files passed to `projects.create()`; saved IDs do not replace file parameters.
 - `checkAuth()` is only for cookie-auth browser flows. API-key auth auto-authenticates during `createInstance()`, and token auth uses `login()` or `setTokens()`.
+- Optional media encryption: `createInstance({ mediaEncryption: 'auto' })` encrypts eligible new projects once encryption is available for the account (`sogni.mediaEncryption.available`). Unset, nothing changes. Read results through `job.getResultData()` or `sogni.mediaEncryption.fetchDecrypted()`, which return the media either way. `declareMediaCapability: false` keeps encrypting but has result links serve the media itself.
 - `ChatCompletionResult` is SDK-shaped (`content`, `role`, `finishReason`, `tool_calls`, `usage`, `cost`). Streaming chunks expose `chunk.content` and optional `chunk.tool_calls`.
 
 ## Public Release Security
@@ -72,7 +73,7 @@ Public chat and workflow media rules:
 
 ## Overview
 
-This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2 and 2.5, Seedream 5.0 Pro Uncensored, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, Wan 3, LTX-2.3, Seedance 2.0 and 2.5, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), promptless video upscaling (FlashVSR v1.1), audio generation (MiniMax Music 3 by default, ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
+This is the **Sogni SDK for JavaScript/Node.js** - a TypeScript client library for the Sogni Supernet, a DePIN protocol for creative AI inference. The SDK supports image generation (Stable Diffusion, Flux, Z-Image / Z-Image Turbo, Krea 2 Turbo, Krea 2 Identity Edit, Chroma v.46 Flash / v.48 Detail / Chroma1-HD, Qwen image-edit models, GPT Image 2 and 2.5, Seedream 5.0 Pro Uncensored and Seedream 5.5 Uncensored, plus community fine-tunes such as Dark Beast Z-Image Turbo v9, Dark Beast KREA 2, Dark Beast Krea 2 Identity Edit, and One Obsession v22), video generation (WAN 2.2, Wan 3, LTX-2.3, Seedance 2.0 and 2.5, HappyHorse 1.1, MiniMax H3, and MiniMax H3 Turbo), promptless video upscaling (FlashVSR v1.1), audio generation (MiniMax Music 3 by default, ACE-Step 1.5), LLM chat with tool calling, hosted creative tools, durable creative workflows, replay records, and multimodal vision chat (Qwen3.6 35B VLM, default `qwen3.6-35b-a3b-gguf-iq4xs`). The model catalog is discovered dynamically at runtime (`sogni.projects.getAvailableModels()`); model ids listed here are illustrative.
 
 Choosing an image-edit model: pick by what the edit has to preserve, not by step count or quality tier. When a person or character must stay recognisable through the edit — style transfer, makeover, clothing or person swap, face swap, new pose or expression, character sheet — use Krea 2 Identity Edit (`krea2_identity_edit_v1_2`, or `dark_beast_krea2_identity_edit_v1_2` uncensored) with 1-2 context images. For general-purpose editing — photo transforms, in-image text, multi-person changes, combining up to 3 references — use a Qwen image-edit model. A higher-step general-purpose editor does not beat the identity model at a likeness task; it reinterprets the subject instead of preserving it. See `llms.txt` for parameters.
 
@@ -134,6 +135,8 @@ Generated artifacts:
   - `workflows.{start, list, get, events, streamEvents, resume, reseed, cancel}`
   - `workflows.templates.{list, get, create, update, delete, fork}`
 - `replay: ReplayApi` - RunRecord write/list/get via `/v1/replay/records`
+- `changelog: ChangelogApi` - Public platform changelog via `/v1/changelog`, no sign-in needed
+  - `changelog.{list, get, products}`
 - `apiClient: ApiClient` - Internal REST + WebSocket communication
 
 ### Core Entity Hierarchy
@@ -242,6 +245,11 @@ The SDK supports two families of video models with **fundamentally different FPS
 - Output short edge is `upscaleResolution` (1080 or 1440); the aspect ratio, every frame, the exact (possibly fractional) fps, and the original audio are preserved.
 - Minimal call: `referenceVideo` + `upscaleResolution` + `numberOfMedia: 1` + empty prompt. `frames`, `fps`, `width` and `height` are optional; the server probes the upload and adopts the verified source values, and rejects only values a caller sent that conflict with the source. The SDK sets no frame-count or duration limit: the server enforces the maximum clip length and returns a clear error for a source that is too long. Estimates take the output size, the source's `frames`/`fps`, and `sourceWidth`/`sourceHeight`.
 - `isVideoUpscaleModel()` detects it; `getVideoWorkflowType()` returns `'upscale'`. Hosted chat/workflows expose it as the `upscale_video` tool.
+
+**RelayVSR** (`RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID`, `RELAYVSR_X4_VIDEO_UPSCALE_MODEL_ID`) takes the same request and adds `upscaleResolution: 2160`:
+- Opt-in by model id; FlashVSR stays the `upscale_video` default. `model: 'relayvsr'` on the hosted tool selects it.
+- X2 takes sources up to 1080x1920 and delivers at most twice their size; X4 takes sources up to 768x1344 and delivers at most four times. Output long edge at most 3840px. The server checks these against the probed source.
+- The SDK refuses `detailPreference`, `processingSpeed` and `seed`, fixes seed to 0, and sends neither option on the wire. `isRelayVsrModel()` detects both; `isVideoUpscaleModel()` covers them.
 
 ### Key Files
 - `src/Projects/utils/index.ts` - `isWanModel()`, `isLtx2Model()`, `calculateVideoFrames()`
@@ -397,7 +405,7 @@ const urls = await project.waitForCompletion();
 | Text-to-Video | `*_t2v*` | None |
 | Image-to-Video | `*_i2v*` | `referenceImage` (and/or `referenceImageEnd`) |
 | First/Last-Frame Video | `*_flf2v*` (MiniMax H3) | `referenceImage` + `referenceImageEnd` |
-| MiniMax H3 intermediate keyframes | every H3 id except `*_t2v*`: `*_i2v*`, `*_flf2v*`, `*_ia2v*`, `*_flfa2v*`, `*_a2v*`, `*_r2v*` (`isMinimaxH3KeyframeModel`, 23 ids) | optional `keyframes: [{ image, frameIndex }]`, up to 8, alongside the workflow's own uploads; `frameIndex` is a 0-based 24 fps frame from 1 to `frames - 2` (pass `frames`: `duration` snaps to the 124 + n*17 grid); images upload to `keyframeImage1..N` in order (r2v references keep their `contextImage` slots); the prompt names each keyframe `<Picture N>` after the workflow's own pictures, lists it in the alignment line (r2v: keyframe entry, `keyframe completion` task, retention entry), describes what it shows, and cuts to a new shot where framing or light changes (see `llms.txt`) |
+| MiniMax H3 intermediate keyframes | every H3 id except `*_t2v*`: `*_i2v*`, `*_flf2v*`, `*_ia2v*`, `*_flfa2v*`, `*_a2v*`, `*_r2v*` (`isMinimaxH3KeyframeModel`, 24 ids) | optional `keyframes: [{ image, frameIndex }]`, up to 8, alongside the workflow's own uploads; `frameIndex` is a 0-based 24 fps frame from 1 to `frames - 2` (pass `frames`: `duration` snaps to the 124 + n*17 grid); images upload to `keyframeImage1..N` in order (r2v references keep their `contextImage` slots); the prompt names each keyframe `<Picture N>` after the workflow's own pictures, lists it in the alignment line (r2v: keyframe entry, `keyframe completion` task, retention entry), describes what it shows, and cuts to a new shot where framing or light changes (see `llms.txt`) |
 | Reference-to-Video | `*_r2v*` (Happy Horse) | 1-9 images via `referenceImage`/`referenceImageUrls` |
 | Video-to-Video | `*_v2v*` (LTX-2.3) | `referenceVideo` + `controlNet` |
 | Sound-to-Video | `*_s2v*` (WAN only) | `referenceImage` + `referenceAudio` |
@@ -406,7 +414,7 @@ const urls = await project.waitForCompletion();
 | Audio-to-Video | `*_a2v*` (LTX-2.3, MiniMax H3 FastH3) | `referenceAudio` |
 | Animate-Move | `*_animate-move*` | `referenceImage` + `referenceVideo` |
 | Animate-Replace | `*_animate-replace*` | `referenceImage` + `referenceVideo` |
-| Video Upscale | `flashvsr_*` | exactly one `referenceVideo` (promptless) |
+| Video Upscale | `flashvsr_*`, `relayvsr_*` | exactly one `referenceVideo` (promptless) |
 
 ## LLM Chat — Thinking Models & Tool Calling
 

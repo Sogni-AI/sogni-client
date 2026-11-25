@@ -1,8 +1,6 @@
 /**
- * Copy of a value that is safe to log: every `mediaEncryption.key` found in it
- * is replaced. Socket messages for encrypted projects carry the project key,
- * and debug logs print whole messages. Values without a key are returned as
- * they are, so logging anything else stays allocation-free.
+ * Copy of a value that is safe to log: every `mediaEncryption.key` in it is
+ * replaced. Values without one are returned as they are.
  */
 export function redactMediaKey<T>(value: T, depth = 0): T {
   if (!value || typeof value !== 'object' || depth > 8) return value;

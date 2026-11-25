@@ -838,6 +838,41 @@ async function run() {
   }
 
   {
+    // The member discount rides on the socket payload as vendorDiscountBps and
+    // must map to the same frontierDiscountBps REST reports, or a plan update
+    // or reconnect erases the rate REST just set. Mirror REST: only while the
+    // entitlement is active and only when there is a discount.
+    const { api, client } = makeApi();
+    const map = (data) => api.mapSocketSubscriptionEntitlement(data);
+
+    assert.equal(
+      map(socketEntitlement({}, { vendorDiscountBps: 1000 })).frontierDiscountBps,
+      1000,
+      'an active socket entitlement must carry the member discount'
+    );
+    assert.equal(
+      'frontierDiscountBps' in map(socketEntitlement({}, { vendorDiscountBps: 0 })),
+      false,
+      'a zero discount must stay absent, as it does on REST'
+    );
+    assert.equal(
+      'frontierDiscountBps' in map(socketEntitlement({ active: false }, { vendorDiscountBps: 1000 })),
+      false,
+      'an inactive entitlement must not show a discount, as on REST'
+    );
+
+    client.socket.emit(
+      'subscriptionEntitlementUpdated',
+      socketEntitlement({}, { version: '3', vendorDiscountBps: 500 })
+    );
+    assert.equal(
+      api.currentAccount.subscription?.frontierDiscountBps,
+      500,
+      'a socket plan update must keep the discount on currentAccount'
+    );
+  }
+
+  {
     // handleSubscriptionEntitlementUpdated must write the mapped snapshot into
     // currentAccount via the socket event.
     const { api, client } = makeApi();

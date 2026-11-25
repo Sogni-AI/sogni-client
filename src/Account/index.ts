@@ -6,6 +6,13 @@ import type {
 } from '@simplewebauthn/browser';
 import TwoFactorRequiredError from './TwoFactorRequiredError.js';
 import {
+  PERMIT_NETWORKS,
+  WITHDRAW_DOMAINS,
+  WITHDRAW_FIELDS,
+  APPROVE_FIELDS,
+  APPROVE_MAX_DEADLINE_SECONDS
+} from './permitConstants.js';
+import {
   AccountCreateData,
   AccountCreateParams,
   Balances,
@@ -100,12 +107,19 @@ export interface TwoFactorStatus {
   authenticatorEnabled: boolean;
   passkeys: { id: string; name: string }[];
 }
+/** A non-negative integer given as a number or a string of ASCII digits, as permit fields use. */
+function permitInteger(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isInteger(value) && value >= 0 ? value : undefined;
+  return typeof value === 'string' && /^[0-9]+$/.test(value) ? Number(value) : undefined;
+}
+
 function factorProof(value: string | TwoFactorProof): TwoFactorProof {
   return typeof value === 'string' ? { code: value.trim().toUpperCase() } : value;
 }
 
 class AccountApi extends ApiGroup {
   readonly currentAccount = new CurrentAccount();
+  private readonly permitNetwork: 'mainnet' | 'testnet';
 
   /**
    * Highest entitlement `version` applied to `currentAccount.subscription`.
@@ -129,16 +143,9 @@ class AccountApi extends ApiGroup {
     available: boolean;
   } | null = null;
 
-  /**
-   * Called with the login wallet once a password login or signup has succeeded,
-   * so the media encryption key can be derived without a second password prompt.
-   * @internal
-   */
-  _onWalletDerived?: (wallet: Wallet) => Promise<void>;
-  private pendingLoginWallets = new WeakMap<TwoFactorRequiredError, Wallet>();
-
   constructor(config: ApiConfig) {
     super(config);
+    this.permitNetwork = config.testnet ? 'testnet' : 'mainnet';
     this.accountSessionVersion = this.client.auth.sessionVersion;
     this.currentAccount._update({
       networkStatus: this.client.socket.isConnected ? 'connected' : 'disconnected',
@@ -289,6 +296,9 @@ class AccountApi extends ApiGroup {
         ? { scheduledChangeAt: new Date(sub.scheduledChangeAt).toISOString() }
         : {}),
       ...(sub.paymentPending ? { paymentPending: true } : {}),
+      ...(data.active && Number(sub.vendorDiscountBps) > 0
+        ? { frontierDiscountBps: Number(sub.vendorDiscountBps) }
+        : {}),
       ...(sub.fairUse?.limited && Number(sub.fairUse.resetAt) > Date.now()
         ? {
             fairUse: {
@@ -520,7 +530,6 @@ class AccountApi extends ApiGroup {
       auth._setSessionIdentity(wallet.address.toLowerCase());
       await auth.authenticate();
     }
-    await this._onWalletDerived?.(wallet);
     return res.data;
   }
 
@@ -591,12 +600,9 @@ class AccountApi extends ApiGroup {
     if (res.data.requires2FA) {
       if (!res.data.tempToken)
         throw new Error('Unable to start verification. Please sign in again.');
-      const challenge = new TwoFactorRequiredError(res.data.tempToken, wallet.address, res.data.username);
-      this.pendingLoginWallets.set(challenge, wallet);
-      throw challenge;
+      throw new TwoFactorRequiredError(res.data.tempToken, wallet.address, res.data.username);
     }
     await this.acceptLogin(res.data, wallet.address);
-    await this._onWalletDerived?.(wallet);
     return res.data;
   }
 
@@ -623,9 +629,6 @@ class AccountApi extends ApiGroup {
       { tempToken: challenge.tempToken, ...factorProof(proof) }
     );
     await this.acceptLogin(res.data, challenge.walletAddress);
-    const wallet = this.pendingLoginWallets.get(challenge);
-    this.pendingLoginWallets.delete(challenge);
-    if (wallet) await this._onWalletDerived?.(wallet);
     return { ...res.data, username: challenge.username };
   }
 
@@ -637,11 +640,13 @@ class AccountApi extends ApiGroup {
   async getTwoFactorPasskeyOptions(challenge?: TwoFactorRequiredError): Promise<{
     challengeId: string;
     options: PublicKeyCredentialRequestOptionsJSON;
+    originVerified?: boolean;
   }> {
     const res = await this.client.rest.post<
       ApiResponse<{
         challengeId: string;
         options: PublicKeyCredentialRequestOptionsJSON;
+        originVerified?: boolean;
       }>
     >(
       challenge
@@ -661,6 +666,7 @@ class AccountApi extends ApiGroup {
     setupId: string;
     options: PublicKeyCredentialCreationOptionsJSON;
     backupCodes?: string[];
+    originVerified?: boolean;
   }> {
     const signature = await this.twoFactorSignature(username, password);
     const res = await this.client.rest.post<
@@ -668,6 +674,7 @@ class AccountApi extends ApiGroup {
         setupId: string;
         options: PublicKeyCredentialCreationOptionsJSON;
         backupCodes?: string[];
+        originVerified?: boolean;
       }>
     >('/v1/account/2fa/passkeys/registration-options', {
       signature,
@@ -1038,12 +1045,15 @@ class AccountApi extends ApiGroup {
    * @param password - account password
    * @param amount - amount of tokens to withdraw from account to wallet
    * @param provider - blockchain provider, 'base' or 'etherlink' defaults to 'base'
+   * @param proof - optional step-up two-factor proof (`{ code }` or `{ challengeId, assertion }`)
    */
   async withdraw(
     password: string,
     amount: number | string,
-    provider: string = 'base'
+    provider: string = 'base',
+    proof?: TwoFactorProof
   ): Promise<void> {
+    const expected = this.permitProvider(provider);
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const walletAddress = wallet.address;
     //const nonce = await this.getNonce(walletAddress);
@@ -1063,12 +1073,67 @@ class AccountApi extends ApiGroup {
       '/v1/account/token/withdraw/permit',
       payload
     );
-    const { domain, types, message } = permitR.data;
+    const { domain, types, message } = permitR.data ?? {};
+    const expectedDomain = WITHDRAW_DOMAINS[this.permitNetwork];
+    this.checkPermit(
+      'domain',
+      !!domain &&
+        Object.keys(domain).length === 4 &&
+        domain.name === expectedDomain.name &&
+        domain.version === expectedDomain.version &&
+        permitInteger(domain.chainId) === expected.chainId &&
+        typeof domain.verifyingContract === 'string' &&
+        domain.verifyingContract.toLowerCase() === expectedDomain.verifyingContract.toLowerCase()
+    );
+    this.checkPermitTypes(types, 'WithdrawTokenV2', WITHDRAW_FIELDS);
+    this.checkPermit(
+      'message',
+      !!message &&
+        message.walletAddress === walletAddress &&
+        message.amount === payload.amount &&
+        message.provider === provider &&
+        typeof message.nonce === 'string'
+    );
     const signature = await wallet.signTypedData(domain, types, message);
     await this.client.rest.post('/v2/account/token/withdraw', {
       ...payload,
-      signature
+      signature,
+      ...(proof ? { proof } : {})
     });
+  }
+
+  private checkPermit(field: string, matches: boolean): asserts matches {
+    if (matches) return;
+    this.client.logger.debug('Unexpected signing request field:', field);
+    throw new ApiError(400, {
+      status: 'error',
+      message: 'Unexpected signing request; nothing was signed',
+      errorCode: 0
+    });
+  }
+
+  private permitProvider(provider: string) {
+    // The API issues Etherlink permits for exactly 'etherlink' and Base permits for any other value.
+    return PERMIT_NETWORKS[this.permitNetwork][provider === 'etherlink' ? 'etherlink' : 'base'];
+  }
+
+  private checkPermitTypes(types: any, name: string, fields: { name: string; type: string }[]) {
+    this.checkPermit(
+      'types',
+      !!types &&
+        Object.keys(types).length === 1 &&
+        Array.isArray(types[name]) &&
+        types[name].length === fields.length &&
+        fields.every((field, index) => {
+          const actual = types[name][index];
+          return (
+            !!actual &&
+            Object.keys(actual).length === 2 &&
+            actual.name === field.name &&
+            actual.type === field.type
+          );
+        })
+    );
   }
 
   /**
@@ -1144,6 +1209,7 @@ class AccountApi extends ApiGroup {
     spender: 'account' | 'staker',
     provider: string = 'base'
   ): Promise<void> {
+    const expected = this.permitProvider(provider);
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const permitR = await this.client.rest.post<{ data: Record<string, any> }>(
       '/v1/contract/token/approve/permit',
@@ -1153,7 +1219,25 @@ class AccountApi extends ApiGroup {
         provider: provider
       }
     );
-    const { domain, types, message } = permitR.data;
+    const { domain, types, message } = permitR.data ?? {};
+    this.checkPermit(
+      'domain',
+      !!domain &&
+        permitInteger(domain.chainId) === expected.chainId &&
+        (!expected.token ||
+          (typeof domain.verifyingContract === 'string' &&
+            domain.verifyingContract.toLowerCase() === expected.token.toLowerCase()))
+    );
+    this.checkPermitTypes(types, 'Permit', APPROVE_FIELDS);
+    const deadline = permitInteger(message?.deadline);
+    this.checkPermit(
+      'message',
+      !!message &&
+        message.owner === wallet.address &&
+        deadline !== undefined &&
+        deadline <= Math.floor(Date.now() / 1000) + APPROVE_MAX_DEADLINE_SECONDS
+    );
+    // The spender is not pinned yet, so SDK releases are not tied to contract migrations.
     const signature = await wallet.signTypedData(domain, types, message);
     await this.client.rest.post('/v1/contract/token/approve', {
       walletAddress: wallet.address,

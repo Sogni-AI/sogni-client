@@ -84,6 +84,11 @@ export interface SocketSubscriptionEntitlementData {
     paymentPending?: boolean | null;
     /** Monthly Fast-network fair-use state, when currently active. */
     fairUse?: SocketSubscriptionFairUseState | null;
+    /**
+     * Member discount on premium third-party vendor models, in basis points.
+     * Surfaced to consumers as `frontierDiscountBps`, the REST snapshot's name.
+     */
+    vendorDiscountBps?: number;
   } | null;
   /**
    * `true` while free Spark cannot be spent on this account. Rides on the
@@ -149,9 +154,8 @@ export interface AuthenticatedData {
   /** Which call to action to present while locked: `'trial'` or `'purchase'`. */
   freeSparkUnlockPath?: 'trial' | 'purchase';
   /**
-   * `true` when the server currently accepts `mediaEncryption` projects from
-   * this account. Carried by newer socket builds only; absent means `false`.
-   * Read it through {@link MediaEncryptionApi.available}.
+   * Whether media encryption is available for this account. Absent means
+   * `false`. Read it through {@link MediaEncryptionApi.available}.
    */
   mediaEncryptionAvailable?: boolean;
   hasUnclaimedAirdrop: boolean;
@@ -298,6 +302,12 @@ export type JobResultData = {
   lastFrameUrl?: string;
   lastFrameKey?: string;
   outputFormat?: string;
+  /** Seedance 2.5: this job is a draft that can be finalized at 1080p. */
+  seedanceDraft?: boolean;
+  /** Seedance 2.5 draft: ISO 8601 time after which it can no longer be finalized. */
+  seedanceDraftExpiresAt?: string;
+  /** Seedance 2.5 final: the Sogni job id of the draft it finalized. */
+  seedanceDraftJobId?: string;
   /**
    * Files the worker uploaded for this result, as the worker reported them.
    * The SDK reads `contentType` to pick the download endpoint for a result
@@ -306,6 +316,8 @@ export type JobResultData = {
   artifacts?: Array<{ contentType?: string; success?: boolean }>;
   /** Allowlisted worker result receipt persisted by the socket. */
   result?: Record<string, unknown>;
+  /** Seedream layer decomposition: the layers above the base image (`resultUrl`). */
+  layers?: unknown[];
   /**
    * @deprecated Use `resultUrl`. Kept for older video worker/socket payload compatibility.
    */
@@ -316,9 +328,12 @@ export type JobResultData = {
   videoFile?: string;
   /** Worker-attested completed artifact hash. */
   sha256?: string;
-  /** Worker-attested plaintext hash of an encrypted job's completed artifact. */
+  /** Hash of an encrypted job's decrypted artifact. */
   plaintextSha256?: string;
   sourceImageSha256?: string;
+  sourceVideoSha256?: string;
+  maskFrames?: number;
+  maskFps?: number;
   samPromptSha256?: string;
   maskRleSha256?: string;
   maskWidth?: number;
@@ -518,12 +533,28 @@ export type SocketEventMap = {
     jobID: string;
     waitingReason?: import('../../Projects/types/WaitingReason.js').WaitingReason | null;
     jobWaitingReasons?: import('../../Projects/types/WaitingReason.js').JobWaitingReason[];
+    /** Present only while the owner can switch this plan project to Premium Spark. */
+    payAsYouGo?: import('../../Projects/types/PayAsYouGo.js').PayAsYouGoOffer | null;
+  };
+  /**
+   * @event WebSocketClient#projectPaymentSwitch - The one reply to a `switchProjectToPremiumSpark` request
+   */
+  projectPaymentSwitch: {
+    jobID: string | null;
+    status: 'switched' | 'refused';
+    reason?: string;
+    message?: string;
+    costInSpark?: string;
+    paymentModel?: 'paid_spark';
   };
   /**
    * @event WebSocketClient#authenticated - Received after successful connection to the WebSocket server
    */
   authenticated: AuthenticatedData;
-  /** @internal Replays only the shared socket's encryption availability to a joining tab. */
+  /**
+   * @internal Media encryption availability changed for this account. Read it
+   * through {@link MediaEncryptionApi.available}.
+   */
   mediaEncryptionAvailabilityUpdated: boolean;
   /**
    * @event WebSocketClient#subscriptionEntitlementUpdated - Subscription entitlement changed while connected
