@@ -191,6 +191,8 @@ export interface BaseProjectParams {
    * If not specified, the Sogni token will be used.
    */
   tokenType?: TokenType;
+  /** Refuse the request if the project would exceed this Spark amount or use another currency. */
+  maxProjectSpark?: string;
   /**
    * Select how eligible jobs should be billed.
    * - auto: use Unlimited subscription coverage when available, otherwise use tokens.
@@ -1505,6 +1507,8 @@ export type MediaUrlParams = {
 export interface EstimateRequest {
   /** Request the optional monthly capacity share alongside the daily estimate. */
   includeMonthlyFairUse?: boolean;
+  /** Request this account’s payable price for Premium Spark models. */
+  includeAccountPrice?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
   /**
@@ -1614,6 +1618,8 @@ export interface EstimateRequest {
 export interface VideoEstimateRequest {
   /** Request the optional monthly capacity share alongside the daily estimate. */
   includeMonthlyFairUse?: boolean;
+  /** Request this account’s payable price for Premium Spark models. */
+  includeAccountPrice?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
   /** Video upscale source geometry for an estimate. The server verifies the uploaded file at admission. */
@@ -1701,6 +1707,8 @@ export interface VideoEstimateRequest {
 export interface AudioEstimateRequest {
   /** Request the optional monthly capacity share alongside the daily estimate. */
   includeMonthlyFairUse?: boolean;
+  /** Request this account’s payable price for Premium Spark models. */
+  includeAccountPrice?: boolean;
   /** Include Priority mode's 1.5× usage in the daily-capacity estimate. */
   priorityMode?: boolean;
   tokenType: TokenType;
@@ -1725,7 +1733,17 @@ export interface AudioEstimateRequest {
 /**
  * Represents estimation of project cost in different currency formats
  */
+export interface AccountProjectPrice {
+  token: string;
+  usd: string;
+  spark: string;
+  sogni: string;
+  discountBps: number;
+}
+
 export interface CostEstimation {
+  /** Personal project total. Pass its exact spark value as maxProjectSpark when creating the project. */
+  accountPrice?: AccountProjectPrice;
   /** Cost in selected token type */
   token: string;
   /** Cost in USD */

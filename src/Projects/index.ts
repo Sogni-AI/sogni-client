@@ -3731,7 +3731,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     seedreamLayerMaxImages,
     billingMode,
     priorityMode,
-    includeMonthlyFairUse
+    includeMonthlyFairUse,
+    includeAccountPrice
   }: EstimateRequest): Promise<CostEstimation> {
     let apiVersion = 2;
     const modelOptions = await this.getModelOptions(model);
@@ -3783,12 +3784,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       queryParams.set('seedreamLayerMaxImages', String(seedreamLayerMaxImages));
     if (billingMode) queryParams.set('billingMode', billingMode);
     if (priorityMode !== undefined) queryParams.set('priorityMode', String(priorityMode));
+    if (includeAccountPrice === true) queryParams.set('includeAccountPrice', 'true');
     if (includeMonthlyFairUse === true) queryParams.set('includeMonthlyFairUse', 'true');
     const query = queryParams.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v${apiVersion}/job/estimate/${pathParams.join('/')}${query ? `?${query}` : ''}`
     );
     return {
+      ...(r.accountPrice ? { accountPrice: r.accountPrice } : {}),
       token: r.quote.project.costInToken,
       usd: r.quote.project.costInUSD,
       spark: r.quote.project.costInSpark,
@@ -3930,6 +3933,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (network) query.set('network', network);
     if (params.billingMode) query.set('billingMode', params.billingMode);
     if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
+    if (params.includeAccountPrice === true) query.set('includeAccountPrice', 'true');
     if (params.includeMonthlyFairUse === true) query.set('includeMonthlyFairUse', 'true');
     if (params.seedanceDraft === true) query.set('seedanceDraft', '1');
     if (params.seedanceDraftJobId !== undefined) {
@@ -3943,6 +3947,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       `/api/v1/job-video/estimate/${path}${queryString ? `?${queryString}` : ''}`
     );
     return {
+      ...(r.accountPrice ? { accountPrice: r.accountPrice } : {}),
       token: r.quote.project.costInToken,
       usd: r.quote.project.costInUSD,
       spark: r.quote.project.costInSpark,
@@ -3980,12 +3985,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (network) query.set('network', network);
     if (params.billingMode) query.set('billingMode', params.billingMode);
     if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
+    if (params.includeAccountPrice === true) query.set('includeAccountPrice', 'true');
     if (params.includeMonthlyFairUse === true) query.set('includeMonthlyFairUse', 'true');
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-audio/estimate/${path}${queryString ? `?${queryString}` : ''}`
     );
     return {
+      ...(r.accountPrice ? { accountPrice: r.accountPrice } : {}),
       token: r.quote.project.costInToken,
       usd: r.quote.project.costInUSD,
       spark: r.quote.project.costInSpark,

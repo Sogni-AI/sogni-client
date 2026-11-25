@@ -1,4 +1,7 @@
+import type { AccountProjectPrice } from './index.js';
+
 export interface EstimationResponse {
+  accountPrice?: AccountProjectPrice;
   request: Request;
   rate: Rate;
   quote: Quote;

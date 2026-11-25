@@ -18,6 +18,7 @@ class SocketStub extends EventEmitter {
   async get(path) {
     this.paths.push(path);
     return {
+      ...(path.includes('includeAccountPrice=true') ? { accountPrice: { spark: '1.8', token: '1.8', usd: '0.009', sogni: '2.7', discountBps: 1000 } } : {}),
       quote: {
         job: {
           costInToken: '1',
@@ -63,6 +64,10 @@ async function estimate(projects, overrides = {}) {
 async function main() {
   const client = new ClientStub();
   const projects = new ProjectsApi({ client, eip712: {} });
+  const personal = await estimate(projects, { includeAccountPrice: true });
+  assert.equal(personal.spark, '2');
+  assert.equal(personal.accountPrice.spark, '1.8');
+  assert.equal((await estimate(projects)).accountPrice, undefined);
   const query0 = () => new URL(`https://socket.test${client.socket.paths.at(-1)}`).searchParams;
 
   await estimate(projects);

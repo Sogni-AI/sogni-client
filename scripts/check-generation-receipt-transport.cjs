@@ -20,6 +20,9 @@ const base = {
 const receipt = { stage: 'target_still', sourceImageSha256: source, selectionHash: selection };
 const request = params => createJobRequestMessage('receipt-transport', params, options);
 
+assert.equal(Object.hasOwn(request(base), 'maxProjectSpark'), false);
+assert.equal(request({ ...base, maxProjectSpark: '178.378200000000018' }).maxProjectSpark, '178.378200000000018');
+
 // The serializer has no application allowlist or hard-coded recipe model.
 for (const appSource of [undefined, 'receipt-transport-test']) {
   assert.deepEqual(request({ ...base, appSource, worldGenerationReceipt: receipt }).keyFrames[0].worldGenerationReceipt, {

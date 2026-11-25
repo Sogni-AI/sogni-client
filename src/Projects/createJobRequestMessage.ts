@@ -2272,6 +2272,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     disableSafety: !!params.disableNSFWFilter,
     tokenType: params.tokenType,
     billingMode: params.billingMode,
+    ...(params.maxProjectSpark !== undefined ? { maxProjectSpark: params.maxProjectSpark } : {}),
     outputFormat: isPixal3dModel(params.modelId)
       ? 'glb'
       : isSegmentationModel(params.modelId)
