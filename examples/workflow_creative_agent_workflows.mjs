@@ -256,7 +256,7 @@ async function main() {
           {
             // animate_photo starts the clip from the keyframe and keeps its
             // shape. generate_video's referenceImageIndices are loose
-            // references, which only Seedance, HappyHorse, Wan 3 and MiniMax H3
+            // references, which only Seedance, Wan 3 and MiniMax H3
             // reference-to-video accept; the API refuses them for LTX or Wan 2.2.
             id: 'clip',
             toolName: 'animate_photo',

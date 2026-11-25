@@ -1359,9 +1359,6 @@ Example model IDs:
 - `seedance-2-5` (Seedance 2.5 multimodal video, external API, 480p/720p/1080p/4K, 4-30s, first+last frame)
 - `seedance-2-5-uncensored` (Seedance 2.5 Uncensored: the same model, limits, and options as `seedance-2-5`; requires a one-time agreement in a Sogni app)
 - `seedance-2-0-mini-uncensored` (Seedance 2.0 Mini Uncensored: the same model, limits, and options as `seedance-2-0-mini`; requires the same one-time agreement)
-- `happyhorse-1.1-t2v` (Happy Horse 1.1 Text-to-Video, external API, image-only references)
-- `happyhorse-1.1-i2v` (Happy Horse 1.1 Image-to-Video, external API, one first-frame image)
-- `happyhorse-1.1-r2v` (Happy Horse 1.1 Reference-to-Video, external API, 1-9 reference images)
 - `wan3.0-video` (Wan 3 unified multimodal video, external API, 2-30s, 480P/720P/1080P, fixed 30fps)
 - `minimax-h3-fastvideo-int8_ia2v_turbo` / `minimax-h3-fastvideo-int8_flfa2v_turbo` / `minimax-h3-fastvideo-int8_a2v_turbo` (MiniMax H3 FastH3 audio guide: an uploaded `referenceAudio` drives the video and is kept in the output, with a first frame, first and last frames, or no image; 124-362 frames, size with `getMinimaxH3FramesForAudioDuration()`; catalog and Personal H3 LoRAs are accepted as on the frame modes; no `generateAudio: false` or `audioDuration`)
 - `minimax-h3-fastvideo-int8_t2v_turbo_2stage` / `minimax-h3-fastvideo-int8_i2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flf2v_turbo_2stage` / `minimax-h3-fastvideo-int8_ia2v_turbo_2stage` / `minimax-h3-fastvideo-int8_flfa2v_turbo_2stage` / `minimax-h3-fastvideo-int8_a2v_turbo_2stage` (MiniMax H3 FastH3 Two-Stage: the FastH3 Turbo request, delivered at twice the canvas with the same length and audio. 720p: the chosen aspect at a 384 px short edge, 672×384 → 1344×768. 1080p: a 544 px short edge, 960×544 → 1920×1088. 2K: the 768p canvas, 1344×768 → 2688×1536)
@@ -1886,7 +1883,7 @@ const workflow = await sogni.workflows.start({
       {
         // animate_photo starts the clip from the keyframe. generate_video's
         // referenceImageIndices are loose references, which only Seedance,
-        // HappyHorse, Wan 3 and MiniMax H3 reference-to-video accept.
+        // Wan 3 and MiniMax H3 reference-to-video accept.
         id: 'clip',
         toolName: 'animate_photo',
         arguments: {

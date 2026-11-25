@@ -179,8 +179,11 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
   validateVideoReferenceArrays(params);
 
   if (isHappyhorseModel(params.modelId)) {
-    validateHappyhorseReferenceAssets(params);
-    return;
+    throw new ApiError(400, {
+      status: 'error',
+      errorCode: 0,
+      message: 'HappyHorse has been retired. Select an available video model.'
+    });
   }
   if (isWan3Model(params.modelId)) {
     validateWan3ReferenceAssets(params);
@@ -205,7 +208,7 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
       status: 'error',
       errorCode: 0,
       message:
-        'External reference URLs are supported only by Seedance, HappyHorse, and Wan 3 models.'
+        'External reference URLs are supported only by Seedance and Wan 3 models.'
     });
   }
 
@@ -932,81 +935,6 @@ function validateSeedanceReferenceAssets(params: VideoProjectParams): void {
       status: 'error',
       errorCode: 0,
       message: 'Seedance audio references require at least one image or video reference.'
-    });
-  }
-}
-
-/**
- * HappyHorse 1.1 reference validation. HappyHorse is image-only and does not
- * reuse Seedance's reference-video / reference-audio handling:
- * - t2v: no reference images
- * - i2v: exactly one first-frame reference image
- * - r2v: between 1 and 9 reference images
- *
- * Reference images may be supplied as a single local `referenceImage` and/or
- * as `referenceImageUrls` HTTPS references. Reference video, reference audio,
- * audio identity, and a separate end-frame image are all unsupported.
- */
-function validateHappyhorseReferenceAssets(params: VideoProjectParams): void {
-  validateReferenceUrlArray(params.referenceImageUrls, 'referenceImageUrls');
-  validateReferenceUrlArray(params.referenceVideoUrls, 'referenceVideoUrls');
-  validateReferenceUrlArray(params.referenceAudioUrls, 'referenceAudioUrls');
-
-  if (params.referenceVideo || asReferenceUrlArray(params.referenceVideoUrls).length > 0) {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: 'HappyHorse models do not support reference video assets.'
-    });
-  }
-  if (
-    params.referenceAudio ||
-    params.referenceAudioIdentity ||
-    asReferenceUrlArray(params.referenceAudioUrls).length > 0
-  ) {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: 'HappyHorse models do not support reference audio assets.'
-    });
-  }
-  if (params.referenceImageEnd) {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: 'HappyHorse models do not support a separate end-frame image (referenceImageEnd).'
-    });
-  }
-
-  const workflowType = getVideoWorkflowType(params.modelId);
-  const imageCount =
-    (params.referenceImage ? 1 : 0) + asReferenceUrlArray(params.referenceImageUrls).length;
-
-  if (workflowType === 'i2v') {
-    if (imageCount !== 1) {
-      throw new ApiError(400, {
-        status: 'error',
-        errorCode: 0,
-        message: 'HappyHorse i2v requires exactly one first-frame reference image.'
-      });
-    }
-    return;
-  }
-  if (workflowType === 'r2v') {
-    if (imageCount < 1 || imageCount > 9) {
-      throw new ApiError(400, {
-        status: 'error',
-        errorCode: 0,
-        message: 'HappyHorse r2v requires between 1 and 9 reference images.'
-      });
-    }
-    return;
-  }
-  if (imageCount > 0) {
-    throw new ApiError(400, {
-      status: 'error',
-      errorCode: 0,
-      message: 'HappyHorse t2v does not support reference images.'
     });
   }
 }

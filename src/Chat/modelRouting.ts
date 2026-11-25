@@ -386,8 +386,6 @@ const TEXT_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-r2v-balanced-2stage': PREFERRED_MODEL_IDS.video.minimaxH3BalancedTwoStageR2v,
   'minimax-h3-fasth3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboR2v,
   'minimax-h3-fasth3-r2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageR2v,
-  happyhorse: PREFERRED_MODEL_IDS.video.happyhorseT2v,
-  'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseT2v,
   wan3: PREFERRED_MODEL_IDS.video.wan3,
   'wan3.0': PREFERRED_MODEL_IDS.video.wan3,
   'wan3-video': PREFERRED_MODEL_IDS.video.wan3
@@ -427,10 +425,6 @@ const IMAGE_VIDEO_MODEL_SELECTORS: Record<string, string> = {
   'minimax-h3-r2v-balanced-2stage': PREFERRED_MODEL_IDS.video.minimaxH3BalancedTwoStageR2v,
   'minimax-h3-fasth3-r2v-turbo': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TurboR2v,
   'minimax-h3-fasth3-r2v-turbo-2stage': PREFERRED_MODEL_IDS.video.minimaxH3FastH3TwoStageR2v,
-  happyhorse: PREFERRED_MODEL_IDS.video.happyhorseI2v,
-  'happyhorse1.1': PREFERRED_MODEL_IDS.video.happyhorseI2v,
-  'happyhorse-1.1-i2v': PREFERRED_MODEL_IDS.video.happyhorseI2v,
-  'happyhorse-1.1-r2v': PREFERRED_MODEL_IDS.video.happyhorseR2v,
   wan3: PREFERRED_MODEL_IDS.video.wan3,
   'wan3.0': PREFERRED_MODEL_IDS.video.wan3,
   'wan3-video': PREFERRED_MODEL_IDS.video.wan3
@@ -553,6 +547,9 @@ export function resolveHostedToolModelSelector(
   const requestedModel = isNonEmptyString(requestedModelValue) ? requestedModelValue : undefined;
   if (!requestedModel) {
     return undefined;
+  }
+  if (usesVideoModel && normalizeSelectorKey(requestedModel).startsWith('happyhorse')) {
+    throw new Error('HappyHorse has been retired. Select an available video model.');
   }
   let selectors: Record<string, string> | null = null;
   switch (toolName) {

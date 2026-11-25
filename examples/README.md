@@ -322,9 +322,6 @@ The workflow examples showcase these powerful new models:
 | `seedance-2-5`                       | Seedance 2.5      | Video        | Newest Seedance: 480p/720p, 4-30s clips, first+last frame, 30/10/10 refs at 24fps  |
 | `seedance-2-5-uncensored`            | Seedance 2.5 Uncensored | Video  | Seedance 2.5 under its own id; one-time agreement in a Sogni app first (4103)       |
 | `seedance-2-0-mini-uncensored`       | Seedance 2.0 Mini Uncensored | Video | Seedance 2.0 Mini under its own id; the same one-time agreement first (4103)   |
-| `happyhorse-1.1-t2v`                 | Happy Horse 1.1   | Video        | External API video, text-to-video (image-only references)                          |
-| `happyhorse-1.1-i2v`                 | Happy Horse 1.1   | Video        | External API video, image-to-video from one first-frame image                      |
-| `happyhorse-1.1-r2v`                 | Happy Horse 1.1   | Video        | External API video, reference-to-video from 1-9 images                             |
 | `qwen3.6-35b-a3b-gguf-iq4xs`         | Qwen3.6 35B       | LLM + Vision | Text generation, chat, reasoning, tool calling, and multimodal image understanding |
 
 **Try them out:**
@@ -608,27 +605,9 @@ node workflow_video_to_video.mjs "restyle as watercolor" --video source.mp4 --mo
 
 #### Partner Video Models (external API)
 
-**Seedance 2.0** (ByteDance) and **Happy Horse 1.1** (Alibaba) run on partner external APIs rather than Sogni GPU workers. They are **Spark-only**, generate at a fixed **24fps**, and have **native audio** (no separate audio params).
+**Seedance 2.0** (ByteDance) and **Wan 3** (Alibaba) run on partner external APIs rather than Sogni GPU workers. They are **Spark-only**, generate at a fixed **24fps**, and have **native audio** (no separate audio params).
 
 - **Seedance 2.0** (`seedance-2-0` / `-mini` / `-fast`) has a dedicated, guided example: `workflow_partner_seedance_video.mjs` (T2V/I2V/IA2V/V2V + multimodal image/video/audio references). Run `node workflow_partner_seedance_video.mjs` with no arguments for the guided picker.
-- **Happy Horse 1.1** (`happyhorse-1.1-t2v` / `-i2v` / `-r2v`) accepts **image-only** references. There is no dedicated CLI script yet; call it directly with the SDK, or via the hosted `generate_video` tool with the `happyhorse` selector:
-
-```javascript
-// Reference-to-video: 1-9 reference images (HTTPS URLs, or upload local files first)
-const project = await sogni.projects.create({
-  type: 'video',
-  network: 'fast',
-  modelId: 'happyhorse-1.1-r2v',
-  positivePrompt: 'A galloping horse kicking up dust at golden hour',
-  duration: 5,
-  width: 1920,
-  height: 1080,
-  referenceImageUrls: ['https://cdn.example.com/ref-1.jpg'],
-  tokenType: 'spark'
-});
-const urls = await project.waitForCompletion();
-```
-
 ### LLM Text Chat, Vision & Tool Calling Examples
 
 The Sogni SDK provides LLM text generation through the Supernet, with streaming, multi-turn conversations, thinking/reasoning mode, tool calling (function calling), and multimodal vision understanding.
@@ -783,7 +762,7 @@ node workflow_partner_seedance_video.mjs "turn the clip into a polished perfume 
 node workflow_partner_seedance_video.mjs "Use @Video1 as the source clip, @Video2 for edit rhythm, @Image1 for product identity, @Image2 for palette, and @Audio1 as the music guide. Preserve the product silhouette and create one launch spot." --workflow --mode v2v --video test-assets/placeholder.mp4 --video https://cdn.example.com/motion-2.mp4 --context test-assets/placeholder.jpg --context test-assets/placeholder2.jpg --audio test-assets/placeholder.m4a
 ```
 
-Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entrypoint exercises the durable workflow API first. Scripted T2V calls without media still default to `/v1/chat/completions` unless `--workflow` is passed. Media modes default to `/v1/creative-agent/workflows` with explicit `input.steps` and upload local media from `test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; Seedance 2.5 permits 30 images, 10 videos, 10 audios, and 50 files total, while the 2.0 family retains 9/3/3/12. Use Seedance-style role tags in prompts (`@Image1`, `@Video1`, `@Audio1`) counted independently by modality in attachment order, and prefer positive preservation instructions. `--expand-prompt` is enabled by default and sends `expand_prompt: true` so the API runs the shared `@sogni/creative-agent` Seedance LLM prompt shaper before dispatch; pass `--no-expand-prompt` only when you want to submit the compact prompt directly. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Seedance is billed by the vendor per render, so scripted runs that submit need `--confirm-vendor-spend` or a yes at the terminal (the guided picker's proceed prompt counts); `workflow_seedance_2_5_r2v.mjs` and `workflow_creative_agent_workflows.mjs` apply the same rule to any vendor model (GPT Image, Seedance, HappyHorse, Wan 3). Use `--no-estimate` when you only want to inspect request construction.
+Guided mode defaults text-to-video to `/v1/creative-agent/workflows` so the entrypoint exercises the durable workflow API first. Scripted T2V calls without media still default to `/v1/chat/completions` unless `--workflow` is passed. Media modes default to `/v1/creative-agent/workflows` with explicit `input.steps` and upload local media from `test-assets` automatically. Pass `--image`/`--context`, `--audio`, or `--video` repeatedly to use Seedance multimodal context; Seedance 2.5 permits 30 images, 10 videos, 10 audios, and 50 files total, while the 2.0 family retains 9/3/3/12. Use Seedance-style role tags in prompts (`@Image1`, `@Video1`, `@Audio1`) counted independently by modality in attachment order, and prefer positive preservation instructions. `--expand-prompt` is enabled by default and sends `expand_prompt: true` so the API runs the shared `@sogni/creative-agent` Seedance LLM prompt shaper before dispatch; pass `--no-expand-prompt` only when you want to submit the compact prompt directly. `--no-execute` prints the workflow request without submitting it; local media is still uploaded first so the printed request contains real HTTPS media URLs. Seedance is billed by the vendor per render, so scripted runs that submit need `--confirm-vendor-spend` or a yes at the terminal (the guided picker's proceed prompt counts); `workflow_seedance_2_5_r2v.mjs` and `workflow_creative_agent_workflows.mjs` apply the same rule to any vendor model (GPT Image, Seedance, Wan 3). Use `--no-estimate` when you only want to inspect request construction.
 
 For the Seedance 2.5 reference/edit/extend contract specifically, use the non-billable dry-run example. Its direct SDK layer sends `seedanceTaskType`; its Creative Agent layer maps the same intent to semantic workflow tools without leaking that vendor routing field:
 

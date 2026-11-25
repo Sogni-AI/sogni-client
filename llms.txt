@@ -506,31 +506,6 @@ For a 4K final, add `seedanceDraftFinalResolution: "4k"` alongside `seedanceDraf
 
 Aliases used by chat tools and examples: `seedance2`, `seedance2-mini`, `seedance2-5`, `seedance2-5-uncensored`, and `seedance2-mini-uncensored`. V2V uses `seedance2` or `seedance2-mini` as the model selector and `seedance-v2v` as the control mode. Seedance Mini is the preferred lower-cost 720p tier. See `examples/workflow_partner_seedance_video.mjs` for focused endpoint coverage across Seedance T2V/I2V/IA2V/V2V and multimodal context prompt expansion.
 
-### Happy Horse 1.1 (external API)
-
-Happy Horse 1.1 (Alibaba) is another external-API, Spark-only video partner. It has native always-on audio, runs at 24fps, and accepts **image-only** references (no video or audio reference assets). Three canonical model IDs, one per mode:
-
-| Model ID              | Mode                | References                    |
-| --------------------- | ------------------- | ----------------------------- |
-| `happyhorse-1.1-t2v`  | Text-to-video       | none                          |
-| `happyhorse-1.1-i2v`  | Image-to-video      | one first-frame image         |
-| `happyhorse-1.1-r2v`  | Reference-to-video  | 1-9 reference images          |
-
-Chat/tool aliases: `happyhorse` and `happyhorse1.1` (resolve to t2v, or i2v when a `reference_image_url` is present).
-
-```javascript
-const project = await sogni.projects.create({
-  type: 'video',
-  network: 'fast',
-  modelId: 'happyhorse-1.1-t2v',
-  positivePrompt: 'A galloping horse kicking up dust at golden hour',
-  duration: 5,
-  width: 1920,
-  height: 1080,
-  tokenType: 'spark'
-});
-```
-
 ### Wan 3 (external API)
 
 Wan 3 uses one exact model ID, `wan3.0-video`, across T2V, first-frame I2V, first+last-frame, loose image/video/audio reference, and audio-driven generation. It renders 2-30s at fixed 30fps with optional native audio, supports 480P/720P/1080P and `16:9`/`4:3`/`1:1`/`3:4`/`9:16`, and accepts up to 10 loose images, 5 videos, and 5 audios. Native frame mode and loose-reference mode are mutually exclusive. Use `Image 1`, `Video 1`, and `Audio 1` in English prompts, numbered independently by type. Video references condition a new result; they are not provider-backed edit or extend modes. No `negativePrompt`; Sogni coordinates its own expansion with Alibaba `prompt_extend` to avoid a double rewrite. Premium Spark-only.
