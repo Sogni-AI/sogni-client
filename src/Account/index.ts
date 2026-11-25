@@ -640,11 +640,13 @@ class AccountApi extends ApiGroup {
   async getTwoFactorPasskeyOptions(challenge?: TwoFactorRequiredError): Promise<{
     challengeId: string;
     options: PublicKeyCredentialRequestOptionsJSON;
+    originVerified?: boolean;
   }> {
     const res = await this.client.rest.post<
       ApiResponse<{
         challengeId: string;
         options: PublicKeyCredentialRequestOptionsJSON;
+        originVerified?: boolean;
       }>
     >(
       challenge
@@ -664,6 +666,7 @@ class AccountApi extends ApiGroup {
     setupId: string;
     options: PublicKeyCredentialCreationOptionsJSON;
     backupCodes?: string[];
+    originVerified?: boolean;
   }> {
     const signature = await this.twoFactorSignature(username, password);
     const res = await this.client.rest.post<
@@ -671,6 +674,7 @@ class AccountApi extends ApiGroup {
         setupId: string;
         options: PublicKeyCredentialCreationOptionsJSON;
         backupCodes?: string[];
+        originVerified?: boolean;
       }>
     >('/v1/account/2fa/passkeys/registration-options', {
       signature,

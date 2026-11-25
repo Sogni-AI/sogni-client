@@ -58,10 +58,17 @@ async function check(Auth) {
         if (fail) throw new Error('Invalid code');
         return { data: { token: 'access', refreshToken: 'refresh' } };
       }
+      if (path === '/v1/account/2fa/passkeys/authentication-options') {
+        return { data: { challengeId: 'c1', options: { challenge: 'abc' }, originVerified: true } };
+      }
+      if (path === '/v1/account/2fa/passkeys/registration-options') {
+        return { data: { setupId: 's1', options: { challenge: 'def' }, originVerified: true } };
+      }
       throw new Error(`Unexpected endpoint ${path}`);
     } }
   });
   const account = new AccountApi({ client, eip712: { async signTypedData() { return 'signature'; } } });
+  account.currentAccount._update({ username: 'artist', walletAddress: '0xABCD' });
   account.getWallet = () => ({ address: '0xABCD' });
   account.getNonce = async () => 'nonce';
   let challenge;
@@ -88,18 +95,22 @@ async function check(Auth) {
   await account.verifyTwoFactorLogin(challenge, proof);
   assert.deepEqual(requests.at(-1).body, { tempToken: 'pending', ...proof });
   assert.equal(sessions.length, Auth === TokenAuthManager ? 1 : 2);
+
+  // Passkey option methods preserve originVerified from the server.
+  const passkeyAuthOpts = await account.getTwoFactorPasskeyOptions();
+  assert.equal(passkeyAuthOpts.originVerified, true);
+  const passkeySetupOpts = await account.beginPasskeySetup('artist', 'password', 'Laptop');
+  assert.equal(passkeySetupOpts.originVerified, true);
 }
 
-async function runWithdraw(options) {
-  const { amount = '10', provider = 'base', proof, withdrawResponse } = options;
-  const hasProofArg = Object.hasOwn(options, 'proof');
+function createWithdrawHarness(provider = 'base') {
   const wallet = Wallet.createRandom();
   const logger = { info() {}, warn() {}, error() {}, debug() {} };
-  let authCleared = false;
+  const state = { authCleared: false, requests: [] };
   const auth = Object.assign(new EventEmitter(), {
     isAuthenticated: true,
     sessionVersion: 1,
-    clear() { authCleared = true; },
+    clear() { state.authCleared = true; },
     async authenticateRequest(init) { return init; }
   });
   const socket = Object.assign(new EventEmitter(), { isConnected: false, supernetType: 'fast' });
@@ -126,12 +137,21 @@ async function runWithdraw(options) {
     }
   };
 
-  const requests = [];
+  return { account, wallet, permitData, state };
+}
+
+async function runWithdraw(options) {
+  const { amount = '10', provider, proof, withdrawResponse } = options;
+  const hasProviderArg = Object.hasOwn(options, 'provider');
+  const hasProofArg = Object.hasOwn(options, 'proof');
+  const effectiveProvider = provider ?? 'base';
+  const { account, wallet, permitData, state } = createWithdrawHarness(effectiveProvider);
+
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     const { pathname } = new URL(url);
     const body = JSON.parse(init.body);
-    requests.push({ pathname, method: init.method, body, rawBody: init.body });
+    state.requests.push({ pathname, method: init.method, body, rawBody: init.body });
     if (pathname === '/v1/account/token/withdraw/permit') {
       return jsonResponse(200, {
         status: 'success',
@@ -140,21 +160,26 @@ async function runWithdraw(options) {
     }
     if (pathname === '/v2/account/token/withdraw') {
       return withdrawResponse
-        ? withdrawResponse()
-        : jsonResponse(200, { status: 'success', data: {} });
+        ? withdrawResponse(body)
+        : jsonResponse(200, { status: 'success' });
     }
     throw new Error(`Unexpected endpoint ${pathname}`);
   };
 
   try {
-    const outcome = await (hasProofArg
-      ? account.withdraw('secret-password', amount, provider, proof)
-      : account.withdraw('secret-password', amount, provider)
-    ).then(
+    let call;
+    if (!hasProviderArg && !hasProofArg) {
+      call = account.withdraw('secret-password', amount);
+    } else if (!hasProofArg) {
+      call = account.withdraw('secret-password', amount, provider);
+    } else {
+      call = account.withdraw('secret-password', amount, provider, proof);
+    }
+    const outcome = await call.then(
       () => ({ error: undefined }),
       (error) => ({ error })
     );
-    return { ...outcome, requests, wallet, permitData, authCleared };
+    return { ...outcome, requests: state.requests, wallet, permitData, authCleared: state.authCleared };
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -163,8 +188,13 @@ async function runWithdraw(options) {
 async function checkWithdrawStepUp() {
   const expectedAmountWei = parseEther('10').toString();
 
-  // 1. Omitting proof (and passing undefined) omits `proof` from the POST payload.
-  for (const args of [{ amount: '10', provider: 'base' }, { amount: '10', provider: 'base', proof: undefined }]) {
+  // 1. 2-arg withdraw(pw, amt), 3-arg withdraw(pw, amt, provider), and explicit undefined proof
+  //    all omit `proof` from the POST payload and default provider to 'base'.
+  for (const args of [
+    { amount: '10' },
+    { amount: '10', provider: 'base' },
+    { amount: '10', provider: 'base', proof: undefined }
+  ]) {
     const res = await runWithdraw(args);
     assert.equal(res.error, undefined);
     assert.equal(res.requests.length, 2);
@@ -189,10 +219,11 @@ async function checkWithdrawStepUp() {
     );
   }
 
-  // 2. Supplying an authenticator/backup code proof sends `{ ...payload, signature, proof: { code } }`.
-  {
+  // 2. Supplying an authenticator/backup code proof (with explicit or omitted provider) sends
+  //    `{ ...payload, signature, proof: { code } }` only on /v2/account/token/withdraw.
+  for (const providerArg of ['base', undefined]) {
     const proof = { code: '123456' };
-    const res = await runWithdraw({ amount: '10', provider: 'base', proof });
+    const res = await runWithdraw({ amount: '10', provider: providerArg, proof });
     assert.equal(res.error, undefined);
     assert.equal(res.requests.length, 2);
     assert.equal(Object.hasOwn(res.requests[0].body, 'proof'), false, 'permit request does not carry proof');
@@ -262,6 +293,64 @@ async function checkWithdrawStepUp() {
     assert.deepEqual(res.error.details, details);
     assert.deepEqual(res.error.payload.details, details);
     assert.equal(res.authCleared, false, '403 step-up refusal must not clear auth session');
+  }
+
+  // 5. Explicit 2-call retry flow on the same AccountApi instance:
+  //    initial withdraw -> 403/211 TWO_FACTOR_REQUIRED -> retry with proof -> 200 { status: 'success' }.
+  {
+    const { account, wallet, permitData, state } = createWithdrawHarness('base');
+    const message =
+      'Enter a code from your authenticator app or a backup code, or use your passkey, to withdraw tokens.';
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      const { pathname } = new URL(url);
+      const body = JSON.parse(init.body);
+      state.requests.push({ pathname, method: init.method, body });
+      if (pathname === '/v1/account/token/withdraw/permit') {
+        return jsonResponse(200, {
+          status: 'success',
+          data: { ...permitData, message: { ...body, nonce: 'nonce-retry' } }
+        });
+      }
+      if (pathname === '/v2/account/token/withdraw') {
+        if (!body.proof) {
+          return jsonResponse(403, {
+            status: 'error',
+            errorCode: 211,
+            message,
+            details: { authenticator: true, passkeys: true }
+          });
+        }
+        // Matches sogni-api's exact 200 response shape (no `data` wrapper).
+        return jsonResponse(200, { status: 'success' });
+      }
+      throw new Error(`Unexpected endpoint ${pathname}`);
+    };
+
+    try {
+      await assert.rejects(account.withdraw('secret-password', '10'), (error) => {
+        assert.ok(error instanceof ApiError);
+        assert.equal(error.status, 403);
+        assert.equal(error.payload.errorCode, 211);
+        assert.deepEqual(error.details, { authenticator: true, passkeys: true });
+        return true;
+      });
+      assert.equal(state.authCleared, false);
+      assert.equal(Object.hasOwn(state.requests[1].body, 'proof'), false);
+
+      await account.withdraw('secret-password', '10', undefined, { code: '654321' });
+      assert.equal(state.requests.length, 4);
+      assert.equal(Object.hasOwn(state.requests[2].body, 'proof'), false);
+      assert.deepEqual(state.requests[3].body, {
+        walletAddress: wallet.address,
+        amount: expectedAmountWei,
+        provider: 'base',
+        signature: state.requests[3].body.signature,
+        proof: { code: '654321' }
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   }
 }
 
