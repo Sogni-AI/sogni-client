@@ -1,3 +1,19 @@
+# [5.90.0](https://github.com/Sogni-AI/sogni-client/compare/v5.89.0...v5.90.0) (2026-11-25)
+
+
+### Bug Fixes
+
+* **browser:** apply peer account updates once ([cbc082f](https://github.com/Sogni-AI/sogni-client/commit/cbc082f23d879ed52fdc424f7bf0f46a0b85fb6d))
+* **deps:** pin protocol alpha.67 for Flash Uncensored and Wan ([a728bab](https://github.com/Sogni-AI/sogni-client/commit/a728babf9366a9afe3c00433a6a15ca8e973e013))
+* **projects:** deprecate the wan video watermark option ([245c8a5](https://github.com/Sogni-AI/sogni-client/commit/245c8a57be1d0abad5bfbf1ab0249708053d0084))
+
+
+### Features
+
+* **video:** add the optional seedance flash variant ([fa7a73b](https://github.com/Sogni-AI/sogni-client/commit/fa7a73b717bb1b57c4ea8b36bce3d18d9c6cfc7d))
+* **video:** add the optional seedance flash variant ([fc00d89](https://github.com/Sogni-AI/sogni-client/commit/fc00d89315693002fda428c8260b82e4c0fd05f3))
+* **video:** add the optional seedance flash variant ([d05f8c1](https://github.com/Sogni-AI/sogni-client/commit/d05f8c1d90148a42a8c15b5d76a0a988ca85264e))
+
 # [5.89.0](https://github.com/Sogni-AI/sogni-client/compare/v5.88.0...v5.89.0) (2026-11-25)
 
 
