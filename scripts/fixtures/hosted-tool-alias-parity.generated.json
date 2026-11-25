@@ -99,7 +99,7 @@
       "executionMode": "direct",
       "hostedToolName": "generate_video",
       "sdkToolName": "generate_video",
-      "hostedSchemaSha256": "20adb3c1c329c94ff0332b6395fee9e89f1cb32d9e9f5c2b79f2b78da97942da",
+      "hostedSchemaSha256": "6a06d1803ef91ee4351f439f887a6faacbfce3ffa992a479c501c7eae8935ab9",
       "hostedRequired": [
         "prompt"
       ],
@@ -109,7 +109,6 @@
         "skipPromptProcessing",
         "duration",
         "ratio",
-        "watermark",
         "referenceFileUrl",
         "referenceLinkUrl",
         "negativePrompt",
@@ -151,7 +150,7 @@
       "executionMode": "direct",
       "hostedToolName": "animate_photo",
       "sdkToolName": "animate_photo",
-      "hostedSchemaSha256": "ff281f0df5f9638e9e3b940f2cbe6d934203fe142bbdcd27f671d7d928e2a286",
+      "hostedSchemaSha256": "fc716e8b686464dafef856b7b9d03a5805309462177843dc5ee7786d8288ceef",
       "hostedRequired": [
         "prompt"
       ],
@@ -164,7 +163,6 @@
         "generateAudio",
         "duration",
         "ratio",
-        "watermark",
         "targetResolution",
         "sourceImageIndex",
         "sourceImageIndices",
@@ -200,7 +198,7 @@
       "executionMode": "direct",
       "hostedToolName": "sound_to_video",
       "sdkToolName": "sound_to_video",
-      "hostedSchemaSha256": "52f50b8621551c95236d78bbeeef6b561b9dedc23118e372c4b47f7f63305ff8",
+      "hostedSchemaSha256": "50d6325d149afad69e2e35db62fdd46cdee559d05205fc9d14295e3d5b59a70f",
       "hostedRequired": [
         "prompt"
       ],
@@ -214,7 +212,6 @@
         "audioStart",
         "duration",
         "ratio",
-        "watermark",
         "referenceFileUrl",
         "referenceLinkUrl",
         "videoModel",

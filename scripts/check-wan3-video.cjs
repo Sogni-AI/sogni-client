@@ -79,7 +79,7 @@ assert.equal(completeOptions.keyFrames[0].frames, 901);
 assert.equal(completeOptions.keyFrames[0].smartDuration, undefined);
 assert.equal(completeOptions.keyFrames[0].ratio, 'adaptive');
 assert.equal(completeOptions.keyFrames[0].promptExtend, false);
-assert.equal(completeOptions.keyFrames[0].watermark, true);
+assert.ok(!Object.hasOwn(completeOptions.keyFrames[0], 'watermark'));
 assert.equal(completeOptions.keyFrames[0].referenceFileURL, 'https://cdn.example.com/brief.pdf');
 
 const firstAndLast = request({
