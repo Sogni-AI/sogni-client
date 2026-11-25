@@ -710,7 +710,10 @@ class Project extends DataEntity<ProjectData, ProjectEventMap> {
       const reasonCode = /^\d+$/.test(reason) ? Number(reason) : 0;
       delta.error = this.error || {
         code: Number.isSafeInteger(reasonCode) ? reasonCode : 0,
-        message: reason || (delta.status === 'canceled' ? 'Project canceled' : 'Project failed')
+        message:
+          (reason === '4081' && data.failure?.message) ||
+          reason ||
+          (delta.status === 'canceled' ? 'Project canceled' : 'Project failed')
       };
       for (const job of this._jobs) {
         if (!job.finished) job._update({ status: delta.status, error: delta.error });

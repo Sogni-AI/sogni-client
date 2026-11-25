@@ -206,6 +206,8 @@ export interface BaseProjectParams {
    * @default false
    */
   priorityMode?: boolean;
+  /** Keep the public subscription refusal message with this project's owner-visible terminal status. */
+  retainFailureMessage?: boolean;
   /**
    * Encrypt this project's media. Read results with
    * {@link Job.getResultData} or {@link MediaEncryptionApi.fetchDecrypted},

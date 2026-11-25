@@ -2356,6 +2356,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
   if (params.network) {
     jobRequest.network = params.network;
   }
+  if (params.retainFailureMessage === true) jobRequest.retainFailureMessage = true;
   if (params.priorityMode !== undefined) {
     if (typeof params.priorityMode !== 'boolean')
       throw new Error('Priority mode must be true or false.');

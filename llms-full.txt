@@ -2541,6 +2541,8 @@ STATUS OF A PROJECT BY ID:
 const snapshot = await sogni.projects.getStatus(projectId);
 // snapshot.status: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
 // snapshot.finished: true for completed, failed and canceled
+// Pass retainFailureMessage: true to projects.create() to keep the public 4081
+// subscription refusal in snapshot.failure.message during the 24-hour status window.
 ```
 
 `sogni.projects.get(projectId)` is different: it returns the stored record of a finished
