@@ -1,4 +1,5 @@
 import { SupernetType } from '../../ApiClient/WebSocketClient/types.js';
+import type { ProjectFailure } from '../index.js';
 import type { JobProvenance } from './JobProvenance.js';
 import type { WaitingReason, JobWaitingReason } from './WaitingReason.js';
 
@@ -26,6 +27,7 @@ export interface RawProject {
   endTime: number;
   status: RawProjectStatus;
   reason: 'allJobsCompleted' | 'artistCanceled';
+  failure?: ProjectFailure;
   network: SupernetType;
   txId: string;
   workerJobs: RawJob[];

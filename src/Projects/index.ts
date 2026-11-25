@@ -647,6 +647,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * request the socket refused while restarting can be sent again unchanged.
    */
   private _unadmittedRequests = new Map<string, JobRequestRaw>();
+  // Opted-in creates can receive a refusal before their transport acknowledges the send.
+  private _submittingRefusals = new Map<string, ErrorData | null>();
   private _requestSessions = new WeakMap<JobRequestRaw, () => void>();
   /** Projects waiting for a reconnect to be resubmitted on. */
   private _awaitingResubmit = new Set<string>();
@@ -1378,6 +1380,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   private handleProjectEvent(event: ProjectEvent) {
     let project = this.projects.find((p) => p.id === event.projectId);
     if (!project) {
+      if (
+        event.type === 'error' &&
+        event.error.code === 4081 &&
+        this._submittingRefusals.has(event.projectId)
+      ) {
+        this._submittingRefusals.set(event.projectId, event.error);
+      }
       return;
     }
     switch (event.type) {
@@ -2187,9 +2196,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       Partial<
         Pick<
           RawProject,
-          'workerJobs' | 'stepCount' | 'reason' | 'waitingReason' | 'jobWaitingReasons'
+          'workerJobs' | 'stepCount' | 'failure' | 'waitingReason' | 'jobWaitingReasons'
         >
-      >,
+      > & { reason?: string },
     includeInFlightJobs: boolean,
     queueRevision = project._queueRevision
   ) {
@@ -2317,6 +2326,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           typeof raw.reason === 'string' && raw.reason && raw.reason !== 'allJobsCompleted'
             ? raw.reason
             : 'genfailure';
+        const message = reason === '4081' ? raw.failure?.message || reason : reason;
         // Compact status records omit jobs. Finish every attempt this client
         // already knows before the parent settles and stops its watchdogs.
         for (const job of project.jobs) {
@@ -2326,14 +2336,14 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             imgID: job.id,
             isFromWorker: true,
             error: reason,
-            error_message: reason
+            error_message: message
           });
         }
         this.handleJobError({
           jobID: projectId,
           isFromWorker: true,
           error: reason,
-          error_message: reason
+          error_message: message
         });
         break;
       }
@@ -2513,6 +2523,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       this._unadmittedRequests.set(project.id, request);
       this._requestSessions.set(request, assertSubmissionSession);
       submissionStarted = true;
+      if (data.retainFailureMessage === true) this._submittingRefusals.set(project.id, null);
       await this.client.socket.send('jobRequest', request);
       assertSubmissionSession();
       this._sentOnGeneration.set(project.id, this._transportGeneration);
@@ -2536,6 +2547,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
       project._dispose();
       throw failure;
     } finally {
+      this._submittingRefusals.delete(project.id);
       this._preparingSessions.delete(project.id);
       this._projectEncryption.delete(project.id);
     }
@@ -2552,15 +2564,17 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   private _trackSubmitted(project: Project): Project {
     const tracked = this.projects.find((candidate) => candidate.id === project.id);
-    if (!tracked) {
+    if (tracked) {
+      this._unadmittedRequests.delete(project.id);
+      this._sentOnGeneration.delete(project.id);
+      project._dispose();
+    } else {
       this._submittedAt.set(project.id, Date.now());
       this.projects.push(project);
-      return project;
     }
-    this._unadmittedRequests.delete(project.id);
-    this._sentOnGeneration.delete(project.id);
-    project._dispose();
-    return tracked;
+    const refusal = this._submittingRefusals.get(project.id);
+    if (refusal) this.handleProjectEvent({ type: 'error', projectId: project.id, error: refusal });
+    return tracked ?? project;
   }
 
   /** Whether projects for this model can use `mediaEncryption`, from the server's model list. */

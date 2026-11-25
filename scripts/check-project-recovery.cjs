@@ -215,7 +215,7 @@ function stopTimers(api) {
 async function main() {
   // A slow reference upload must not consume the server-admission grace.
   {
-    const { api, client, synced } = makeHarness();
+    const { api, client, socket, synced } = makeHarness();
     api._recoveryTuning.recentlyCreatedGraceMs = 5000;
     api.getModelOptions = async () => ({
       type: 'image',
@@ -235,8 +235,10 @@ async function main() {
         modelId: 'flux1-schnell-fp8',
         numberOfMedia: 1,
         positivePrompt: 'a lighthouse at dusk',
-        steps: 4
+        steps: 4,
+        retainFailureMessage: true
       });
+      assert.equal(socket.sent[0].data.retainFailureMessage, true);
       const snapshot = { activeProjects: [], unclaimedCompletedProjects: [] };
       await api._reconcile(snapshot, 'manual', Date.now());
       assert.deepEqual(synced[0].lost, [], 'a just-submitted request retains its admission grace');
@@ -607,6 +609,35 @@ async function main() {
       await sleep(80);
       return { api, projects, synced, v2Calls, apiEvents, socket, client };
     };
+    const message = 'Disabling the Sensitive Content Filter requires a subscription, Premium Spark, or SOGNI';
+    const early = makeHarness();
+    early.api.getModelOptions = async () => ({
+      type: 'image', sampler: { allowed: [], default: null }, scheduler: { allowed: [], default: null }
+    });
+    early.client.resolveWorkloadAttribution = () => undefined;
+    early.socket.send = async (_type, data) => {
+      assert.equal(data.retainFailureMessage, true);
+      early.socket.emit('jobError', { jobID: data.jobID, error: '4081', error_message: message });
+    };
+    const beforeAck = await early.api.create({
+      type: 'image', modelId: 'flux1-schnell-fp8', numberOfMedia: 1, positivePrompt: 'Clouds',
+      steps: 4, retainFailureMessage: true
+    });
+    assert.equal(beforeAck.status, 'failed');
+    assert.deepEqual(beforeAck.error, { code: 4081, message });
+    assert.equal(early.apiEvents.filter(e => e.type === 'error').length, 1);
+    stopTimers(early.api);
+    const refused = await liveLookup({ gated: {
+      status: 'failed', finished: true, statusOnly: true,
+      reason: '4081', failure: { message }, workerJobs: [], completedWorkerJobs: []
+    } });
+    assert.equal(refused.projects.gated.error.code, 4081);
+    assert.equal(refused.projects.gated.error.message, message);
+    assert.equal(refused.apiEvents.find(e => e.kind === 'project' && e.type === 'error').error.message, message);
+    const restored = await createTracked(refused.api);
+    await restored._syncToServer({ status: 'errored', reason: '4081', failure: { message }, completedWorkerJobs: [] });
+    assert.deepEqual(restored.error, { code: 4081, message });
+    stopTimers(refused.api);
     const notFound = Object.assign(new Error('Not Found'), { status: 404 });
     const unauthorized = Object.assign(new Error('Unauthorized'), { status: 401 });
     const jobs = { workerJobs: [], completedWorkerJobs: [] };
@@ -1093,6 +1124,7 @@ async function main() {
       positivePrompt: 'a lighthouse at dusk',
       steps: 4
     });
+    assert.equal(Object.hasOwn(socket.sent[0].data, 'retainFailureMessage'), false);
     assert.equal(project.id, socket.sent[0].data.jobID, 'keep the submitted ID');
     assert.equal(api.trackedProjects[0], project, 'caller and recovery share the instance');
     assert.equal(project.status, 'pending', 'a lost ACK alone is not a failure');
