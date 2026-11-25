@@ -1,3 +1,10 @@
+# [5.88.0](https://github.com/Sogni-AI/sogni-client/compare/v5.87.0...v5.88.0) (2026-11-25)
+
+
+### Features
+
+* **account:** accept optional two-factor proof on withdraw ([#38](https://github.com/Sogni-AI/sogni-client/issues/38)) ([bae36f8](https://github.com/Sogni-AI/sogni-client/commit/bae36f84eca9e3325102f2bd57d9edb216fa7948))
+
 # [5.87.0](https://github.com/Sogni-AI/sogni-client/compare/v5.86.2...v5.87.0) (2026-11-24)
 
 
