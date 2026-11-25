@@ -302,7 +302,7 @@ export function validateSeedanceDraftFields(params: {
   }
   if (seedanceDraft !== true && seedanceDraftJobId === undefined) return;
   const draftModel = String(params.modelId ?? params.model ?? '');
-  if (!isSeedance25Model(draftModel) || draftModel === 'seedance-2-5-flash') {
+  if (!isSeedance25Model(draftModel) || ['seedance-2-5-flash', 'seedance-2-5-flash-uncensored'].includes(draftModel)) {
     seedanceDraftError('Seedance draft mode is supported only by Seedance 2.5.');
   }
   if (seedanceDraft === true && seedanceDraftJobId !== undefined) {
@@ -349,7 +349,7 @@ function validateSeedanceDraftFinalize(params: VideoProjectParams): void {
 export function validateSeedanceFlashSize(modelId: string, width?: number, height?: number): void {
   // Seedance uses pixel-area bands across aspect ratios, including square and 21:9.
   if (
-    modelId === 'seedance-2-5-flash' &&
+    (modelId === 'seedance-2-5-flash' || modelId === 'seedance-2-5-flash-uncensored') &&
     width &&
     height &&
     width * height >= (1280 * 720 + 1920 * 1080) / 2
@@ -858,6 +858,7 @@ const SEEDANCE_REFERENCE_LIMITS_BY_MODEL: Record<
   'seedance-2-0-fast': { images: 9, videos: 3, audios: 3, assets: 12 },
   'seedance-2-5': { images: 30, videos: 10, audios: 10, assets: 50 },
   'seedance-2-5-flash': { images: 10, videos: 5, audios: 5, assets: 20 },
+  'seedance-2-5-flash-uncensored': { images: 10, videos: 5, audios: 5, assets: 20 },
   // Seedance 2.5 Uncensored: the same model and limits as Seedance 2.5.
   'seedance-2-5-uncensored': { images: 30, videos: 10, audios: 10, assets: 50 }
 };

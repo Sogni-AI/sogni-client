@@ -36,6 +36,7 @@ const SEEDANCE_VIDEO_MODEL_IDS = new Set([
   'seedance-2-0-fast',
   'seedance-2-5',
   'seedance-2-5-flash',
+  'seedance-2-5-flash-uncensored',
   'seedance-2-5-uncensored'
 ]);
 const HAPPYHORSE_VIDEO_MODEL_IDS = new Set([
@@ -374,7 +375,8 @@ export function isSeedance25Model(modelId: string): boolean {
   return (
     modelId === 'seedance-2-5' ||
     modelId === 'seedance-2-5-uncensored' ||
-    modelId === 'seedance-2-5-flash'
+    modelId === 'seedance-2-5-flash' ||
+    modelId === 'seedance-2-5-flash-uncensored'
   );
 }
 

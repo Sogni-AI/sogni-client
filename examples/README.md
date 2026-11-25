@@ -321,6 +321,7 @@ The workflow examples showcase these powerful new models:
 | `seedance-2-0-mini`                  | Seedance 2.0 Mini | Video        | Fastest, lower-cost 720p-capped external API multimodal video at 24fps             |
 | `seedance-2-5`                       | Seedance 2.5      | Video        | Newest Seedance: 480p/720p, 4-30s clips, first+last frame, 30/10/10 refs at 24fps  |
 | `seedance-2-5-uncensored`            | Seedance 2.5 Uncensored | Video  | Seedance 2.5 under its own id; one-time agreement in a Sogni app first (4103)       |
+| `seedance-2-5-flash-uncensored` | Seedance 2.5 Flash Uncensored | Video | Flash limits with the shared agreement |
 | `seedance-2-0-mini-uncensored`       | Seedance 2.0 Mini Uncensored | Video | Seedance 2.0 Mini under its own id; the same one-time agreement first (4103)   |
 | `qwen3.6-35b-a3b-gguf-iq4xs`         | Qwen3.6 35B       | LLM + Vision | Text generation, chat, reasoning, tool calling, and multimodal image understanding |
 

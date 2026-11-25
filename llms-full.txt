@@ -1020,6 +1020,7 @@ SEEDANCE MODEL IDS:
 | seedance-2-0-mini | Optional image, video, and audio refs | 24fps, 4-15s, 720p cap |
 | seedance-2-5 | Optional image, video, and audio refs (30 images / 10 videos / 10 audios, 50 total; audio-only allowed) | 24fps, 4-30s, 4K cap, first+last frame |
 | seedance-2-5-flash | Up to 10 images, 5 videos and 5 audio references, 20 total | 24 fps, 4–30 s, 480p or 720p, first and last frames, MP4/MOV and last-frame export. Hosted selector: `seedance2-5-flash`. |
+| seedance-2-5-flash-uncensored | Shared one-time likeness agreement. Up to 10 images, 5 videos and 5 audio references, 20 total | 24 fps, 4–30 s, 480p or 720p, first and last frames, MP4/MOV and last-frame export. Hosted selector: `seedance2-5-flash-uncensored`. |
 | seedance-2-5-uncensored | Same as seedance-2-5 (Seedance 2.5 Uncensored; one-time agreement required, error 4103 until accepted) | 24fps, 4-30s, 4K cap, first+last frame |
 | seedance-2-0-mini-uncensored | Same as seedance-2-0-mini (Seedance 2.0 Mini Uncensored; the same one-time agreement, error 4103 until accepted) | 24fps, 4-15s, 720p cap |
 

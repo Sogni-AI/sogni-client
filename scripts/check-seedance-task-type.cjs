@@ -63,20 +63,22 @@ assert.equal(maximumReferenceSet.keyFrames[0].referenceImageURLs.length, 30);
 assert.equal(maximumReferenceSet.keyFrames[0].referenceVideoURLs.length, 10);
 assert.equal(maximumReferenceSet.keyFrames[0].referenceAudioURLs.length, 10);
 
-const flash = { modelId: 'seedance-2-5-flash', seedanceTaskType: 'reference' };
-const flashMaximum = request({
-  ...flash,
-  referenceImageUrls: urls('image', 10, 'jpg'),
-  referenceVideoUrls: urls('video', 5, 'mp4'),
-  referenceAudioUrls: urls('audio', 5, 'mp3'),
-  duration: 30,
-  outputFormat: 'mov',
-  returnLastFrame: true
-});
-assert.equal(flashMaximum.keyFrames[0].referenceVideoURLs.length, 5);
-assert.throws(() => request({ ...flash, referenceImageUrls: urls('image', 11, 'jpg') }), /10/);
-assert.throws(() => request({ modelId: flash.modelId, seedanceDraft: true }), /draft/i);
-assert.throws(() => request({ modelId: flash.modelId, width: 1920, height: 1080 }), /480p and 720p/);
+for (const modelId of ['seedance-2-5-flash', 'seedance-2-5-flash-uncensored']) {
+  const flash = { modelId, seedanceTaskType: 'reference' };
+  const flashMaximum = request({
+    ...flash,
+    referenceImageUrls: urls('image', 10, 'jpg'),
+    referenceVideoUrls: urls('video', 5, 'mp4'),
+    referenceAudioUrls: urls('audio', 5, 'mp3'),
+    duration: 30,
+    outputFormat: 'mov',
+    returnLastFrame: true
+  });
+  assert.equal(flashMaximum.keyFrames[0].referenceVideoURLs.length, 5);
+  assert.throws(() => request({ ...flash, referenceImageUrls: urls('image', 11, 'jpg') }), /10/);
+  assert.throws(() => request({ modelId: flash.modelId, seedanceDraft: true }), /draft/i);
+  assert.throws(() => request({ modelId: flash.modelId, width: 1920, height: 1080 }), /480p and 720p/);
+}
 
 const frame = request({
   referenceImage: new Blob(['frame'], { type: 'image/png' })
