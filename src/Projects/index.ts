@@ -102,6 +102,7 @@ import {
   isModelArtifactModel,
   isMinimaxH3ReferenceModel,
   isSegmentationModel,
+  isSttModelId,
   isVideoModel,
   resultMediaEvidence,
   type ResultMediaEvidence,
@@ -384,12 +385,16 @@ function getImageContentType(project: Project): string | undefined {
 function getAudioContentType(project: Project): string {
   const format = (project.params as any).outputFormat;
   switch (format) {
+    case 'json':
+      return 'application/json';
     case 'flac':
       return 'audio/flac';
     case 'wav':
       return 'audio/wav';
-    default:
+    case 'mp3':
       return 'audio/mpeg';
+    default:
+      return isSttModelId(project.params.modelId) ? 'application/json' : 'audio/mpeg';
   }
 }
 
@@ -2449,6 +2454,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (normalizedData.type === 'image' && isModelArtifactModel(normalizedData.modelId)) {
       normalizedData = { ...normalizedData, numberOfPreviews: 0 } as ProjectParams;
     }
+    if (normalizedData.type === 'audio' && isSttModelId(normalizedData.modelId)) {
+      normalizedData = {
+        ...normalizedData,
+        positivePrompt: normalizedData.positivePrompt ?? '',
+        outputFormat: normalizedData.outputFormat ?? 'json'
+      } as ProjectParams;
+    }
     if (
       normalizedData.type === 'image' &&
       isGptImageModel(normalizedData.modelId) &&
@@ -2951,7 +2963,9 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
                 projectId: snapshot.id,
                 jobId: id,
                 kind,
-                audioContentType: result?.contentType
+                audioContentType:
+                  result?.contentType ??
+                  (modelId && isSttModelId(modelId) ? 'application/json' : undefined)
               });
             } catch (error) {
               this.client.logger.error(`Failed to sign a download URL for ${snapshot.id}/${id}`);
@@ -3981,6 +3995,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (params.billingMode) query.set('billingMode', params.billingMode);
     if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
     if (params.includeMonthlyFairUse === true) query.set('includeMonthlyFairUse', 'true');
+    if (
+      params.characters !== undefined &&
+      Number.isFinite(params.characters) &&
+      params.characters >= 0
+    ) {
+      query.set('characters', String(Math.floor(params.characters)));
+    }
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(
       `/api/v1/job-audio/estimate/${path}${queryString ? `?${queryString}` : ''}`

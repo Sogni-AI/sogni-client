@@ -20,7 +20,7 @@ export interface ParsedInlineMediaData {
 }
 
 type ImageFormat = 'jpeg' | 'png';
-type AudioFormat = 'mpeg' | 'wav' | 'mp4';
+type AudioFormat = 'mpeg' | 'wav' | 'mp4' | 'flac' | 'ogg' | 'webm';
 type VideoFormat = 'mp4' | 'quicktime';
 
 const BASE64_BODY_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -32,12 +32,17 @@ const IMAGE_MIME_FORMATS: Record<string, ImageFormat> = {
 };
 
 const AUDIO_MIME_FORMATS: Record<string, AudioFormat> = {
+  'audio/flac': 'flac',
   'audio/m4a': 'mp4',
   'audio/mp3': 'mpeg',
   'audio/mp4': 'mp4',
   'audio/mpeg': 'mpeg',
+  'audio/ogg': 'ogg',
+  'audio/opus': 'ogg',
   'audio/wav': 'wav',
   'audio/wave': 'wav',
+  'audio/webm': 'webm',
+  'audio/x-flac': 'flac',
   'audio/x-m4a': 'mp4',
   'audio/x-wav': 'wav'
 };
@@ -168,6 +173,15 @@ function isLikelyMp3Frame(bytes: Uint8Array): boolean {
 function detectAudioFormat(bytes: Uint8Array): AudioFormat | null {
   if (ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 4) === 'WAVE') {
     return 'wav';
+  }
+  if (ascii(bytes, 0, 4) === 'fLaC') {
+    return 'flac';
+  }
+  if (ascii(bytes, 0, 4) === 'OggS') {
+    return 'ogg';
+  }
+  if (hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3])) {
+    return 'webm';
   }
   if (ascii(bytes, 0, 3) === 'ID3' || isLikelyMp3Frame(bytes)) {
     return 'mpeg';
@@ -330,6 +344,9 @@ function mimeTypeForDetectedFormat(mediaType: MediaType, bytes: Uint8Array): str
   } else if (mediaType === 'audio') {
     const format = detectAudioFormat(bytes);
     if (format === 'wav') return 'audio/wav';
+    if (format === 'flac') return 'audio/flac';
+    if (format === 'ogg') return 'audio/ogg';
+    if (format === 'webm') return 'audio/webm';
     if (format === 'mpeg') return 'audio/mpeg';
     if (format === 'mp4') return 'audio/mp4';
   } else {

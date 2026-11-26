@@ -19,6 +19,12 @@ for (const name of [
   'requiresStartingImage',
   'isVideoModel',
   'isAudioModel',
+  'isSpeechTtsModelId',
+  'isSttModelId',
+  'FISH_DRAMA_3_TTS_MODEL_ID',
+  'PARAKEET_STT_MODEL_ID',
+  'NEMOTRON_STT_MODEL_ID',
+  'AudioApi',
   'SEEDREAM_5_PRO_UNCENSORED_MODEL_ID',
   'isSeedreamModel'
 ]) {
@@ -52,9 +58,14 @@ assert.equal(
   'birefnet_image_background_removal_fp16'
 );
 assert.equal(sdk.SogniTools.generateSpeech.function.name, 'generate_speech');
+assert.equal(sdk.SogniTools.transcribeAudio.function.name, 'transcribe_audio');
 assert.ok(
   sdk.SogniTools.all.some((tool) => tool.function.name === 'generate_speech'),
   'generate_speech is missing from the canonical tool catalog'
+);
+assert.ok(
+  sdk.SogniTools.all.some((tool) => tool.function.name === 'transcribe_audio'),
+  'transcribe_audio is missing from the canonical tool catalog'
 );
 assert.equal(sdk.SogniTools.upscaleImage.function.name, 'upscale_image');
 assert.equal(sdk.SogniTools.upscaleVideo.function.name, 'upscale_video');
@@ -62,7 +73,16 @@ assert.deepEqual(
   sdk.SogniTools.upscaleVideo.function.parameters.properties.targetResolution.enum,
   [1080, 1440, 2160]
 );
-assert.equal(sdk.SogniTools.all.length, 30);
+assert.equal(sdk.SogniTools.all.length, 31);
+
+assert.equal(sdk.isAudioModel(sdk.FISH_DRAMA_3_TTS_MODEL_ID), true);
+assert.equal(sdk.isSpeechTtsModelId(sdk.FISH_DRAMA_3_TTS_MODEL_ID), true);
+assert.equal(sdk.isSttModelId(sdk.FISH_DRAMA_3_TTS_MODEL_ID), false);
+assert.equal(sdk.isAudioModel(sdk.PARAKEET_STT_MODEL_ID), true);
+assert.equal(sdk.isSttModelId(sdk.PARAKEET_STT_MODEL_ID), true);
+assert.equal(sdk.isSpeechTtsModelId(sdk.PARAKEET_STT_MODEL_ID), false);
+assert.equal(sdk.isAudioModel(sdk.NEMOTRON_STT_MODEL_ID), true);
+assert.equal(sdk.isSttModelId(sdk.NEMOTRON_STT_MODEL_ID), true);
 
 assert.equal(sdk.isModelArtifactModel(sdk.PIXAL3D_IMAGE_TO_3D_MODEL_ID), true);
 assert.equal(sdk.isModelArtifactModel(sdk.SAM3_IMAGE_SEGMENT_MODEL_ID), false);

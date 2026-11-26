@@ -7,7 +7,7 @@ import getUUID from '../lib/getUUID.js';
 import { EnhancementStrength, ImageLayer } from './types/index.js';
 import Project from './Project.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
-import { getEnhacementStrength, isSegmentationModel } from './utils/index.js';
+import { getEnhacementStrength, isSegmentationModel, isSttModelId } from './utils/index.js';
 import { imageLayersFromResult } from './utils/imageLayers.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
@@ -491,12 +491,16 @@ class Job extends DataEntity<JobData, JobEventMap> {
   private get _audioContentType(): string {
     const format = (this._project.params as any).outputFormat;
     switch (format) {
+      case 'json':
+        return 'application/json';
       case 'flac':
         return 'audio/flac';
       case 'wav':
         return 'audio/wav';
-      default:
+      case 'mp3':
         return 'audio/mpeg';
+      default:
+        return isSttModelId(this._project.params.modelId) ? 'application/json' : 'audio/mpeg';
     }
   }
 
@@ -880,7 +884,7 @@ class Job extends DataEntity<JobData, JobEventMap> {
     const project = await this._api.create({
       type: 'image',
       ...enhancementDefaults,
-      positivePrompt: overrides.positivePrompt || this._project.params.positivePrompt,
+      positivePrompt: overrides.positivePrompt || this._project.params.positivePrompt || '',
       stylePrompt: overrides.stylePrompt || this._project.params.stylePrompt,
       tokenType: overrides.tokenType || this._project.params.tokenType,
       seed: this.seed ?? this._project.params.seed,

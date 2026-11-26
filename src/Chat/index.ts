@@ -217,7 +217,7 @@ function appendAutoToolMediaResults(
       mediaContext.images!.push(...result.resultUrls);
     } else if (videoTools.has(result.toolName)) {
       mediaContext.videos!.push(...result.resultUrls);
-    } else if (result.toolName === 'generate_music') {
+    } else if (result.toolName === 'generate_music' || result.toolName === 'generate_speech') {
       mediaContext.audio!.push(...result.resultUrls);
     }
   }

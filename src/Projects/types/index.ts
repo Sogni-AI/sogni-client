@@ -138,7 +138,8 @@ export interface ImageLayer {
   textRecognition?: ImageLayerTextRecognition;
 }
 export type VideoOutputFormat = 'mp4' | 'mov';
-export type AudioOutputFormat = 'mp3' | 'flac' | 'wav';
+export type AudioOutputFormat = 'mp3' | 'flac' | 'wav' | 'json';
+export type AudioTimestampGranularity = 'none' | 'sentence' | 'word';
 export type BillingMode = 'auto' | 'subscription' | 'tokens';
 
 export interface BaseProjectParams {
@@ -1332,8 +1333,13 @@ export interface ImageProjectParams
   seedreamLayerTextRecognition?: boolean;
 }
 
-export interface AudioProjectParams extends BaseProjectParams {
+export interface AudioProjectParams extends Omit<BaseProjectParams, 'positivePrompt'> {
   type: 'audio';
+  /**
+   * Prompt / script text for music or speech synthesis, or optional vocabulary/context
+   * hint for speech-to-text transcription (Nemotron). May be omitted on STT jobs.
+   */
+  positivePrompt?: string;
   /**
    * Duration of the audio in seconds (10-600, default: 30)
    */
@@ -1393,7 +1399,8 @@ export interface AudioProjectParams extends BaseProjectParams {
    */
   scheduler?: string;
   /**
-   * Output audio format. Can be 'mp3', 'flac', or 'wav'. Defaults to 'mp3'.
+   * Output format: 'mp3', 'flac', or 'wav' for music/speech; 'json' for STT transcription.
+   * Defaults to 'json' for STT models and 'mp3' for music/speech models.
    */
   outputFormat?: AudioOutputFormat;
   /**
@@ -1410,16 +1417,30 @@ export interface AudioProjectParams extends BaseProjectParams {
    */
   instruct?: string;
   /**
-   * Speech only. The exact transcript of `referenceAudio`. Supplying it lets a
+   * Speech only. The exact transcript of `referenceAudio` (up to 1024 chars on
+   * Qwen3-TTS Voice Clone, up to 2000 chars on Fish Drama 3). Supplying it lets a
    * voice clone condition on the recording itself rather than on the speaker
    * embedding alone, which is markedly closer to the source.
    */
   referenceText?: string;
   /**
-   * Speech only. Three to thirty seconds of the voice to clone, as one person
-   * speaking cleanly. Required by Qwen3-TTS Voice Clone and unused elsewhere.
+   * Reference audio input:
+   * - Voice cloning: 3-30s on Qwen3-TTS Voice Clone (required) or 1-30s on Fish Drama 3 (optional).
+   * - Speech-to-text transcription: source audio clip to transcribe (1-7200s on Parakeet, 1-3600s on Nemotron).
    */
   referenceAudio?: InputMedia;
+  /**
+   * STT only. Timestamp granularity for transcription segments: 'none', 'sentence' (default), or 'word'.
+   */
+  timestamps?: AudioTimestampGranularity;
+  /**
+   * STT only. Enable speaker diarization labels (S01, S02, ...) on Nemotron transcription.
+   */
+  diarize?: boolean;
+  /**
+   * STT only. Comma-separated domain names, brands, or technical vocabulary hints for Nemotron (max 1000 chars).
+   */
+  hotwords?: string;
 }
 
 export type ProjectParams = ImageProjectParams | VideoProjectParams | AudioProjectParams;
@@ -1708,6 +1729,11 @@ export interface AudioEstimateRequest {
   duration: number;
   steps: number;
   numberOfMedia: number;
+  /**
+   * Character count for character-priced TTS models (e.g. Fish Drama 3).
+   * Forwarded as `?characters=` on `/api/v1/job-audio/estimate/...`.
+   */
+  characters?: number;
   /**
    * Network the job will render on. A Relaxed render never draws on the plan's
    * daily fair-use capacity, so its estimate carries no `dailyFairUsePct`.

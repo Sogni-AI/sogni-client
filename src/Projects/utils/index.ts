@@ -130,15 +130,35 @@ export function isVideoUpscaleModel(modelId: string): boolean {
   return modelId === FLASHVSR_VIDEO_UPSCALE_MODEL_ID || isRelayVsrModel(modelId);
 }
 
+/** Canonical id of Fish Drama 3 expressive text-to-speech. */
+export const FISH_DRAMA_3_TTS_MODEL_ID = 'fish_drama_3_nvfp4';
+
+/** Canonical id of Parakeet TDT 0.6B v3 speech-to-text transcription. */
+export const PARAKEET_STT_MODEL_ID = 'parakeet_tdt_0.6b_v3_bf16';
+
+/** Canonical id of NVIDIA Nemotron 3.5 Transcribe 30B speech-to-text transcription. */
+export const NEMOTRON_STT_MODEL_ID = 'nemotron_3.5_transcribe_30b_a4b_nvfp4';
+
+/** Check if a model ID is a text-to-speech synthesis model (Qwen3-TTS or Fish Drama 3). */
+export function isSpeechTtsModelId(modelId: string): boolean {
+  return modelId.startsWith('qwen3_tts_') || modelId === FISH_DRAMA_3_TTS_MODEL_ID;
+}
+
+/** Check if a model ID is a speech-to-text transcription model (Parakeet or Nemotron). */
+export function isSttModelId(modelId: string): boolean {
+  return modelId === PARAKEET_STT_MODEL_ID || modelId === NEMOTRON_STT_MODEL_ID;
+}
+
 /**
- * Check if a model ID is for an audio workflow (e.g., ACE-Step).
- * Audio models produce MP3 output by default.
+ * Check if a model ID is for an audio workflow (music, TTS, or STT).
+ * Music/TTS models produce audio files by default; STT models produce JSON transcript artifacts.
  */
 export function isAudioModel(modelId: string): boolean {
   return (
     modelId.startsWith('ace_step') ||
-    modelId.startsWith('qwen3_tts_') ||
-    modelId === 'minimax_music3'
+    modelId === 'minimax_music3' ||
+    isSpeechTtsModelId(modelId) ||
+    isSttModelId(modelId)
   );
 }
 
@@ -247,6 +267,7 @@ const OUTPUT_FORMAT_EVIDENCE: ReadonlyMap<string, ResultMediaEvidence> = new Map
   ['mp3', { kind: 'audio', contentType: 'audio/mpeg' }],
   ['wav', { kind: 'audio', contentType: 'audio/wav' }],
   ['flac', { kind: 'audio', contentType: 'audio/flac' }],
+  ['json', { kind: 'audio', contentType: 'application/json' }],
   ['glb', { kind: 'model', contentType: 'model/gltf-binary' }],
   ['png', { kind: 'image' }],
   ['jpg', { kind: 'image' }],
@@ -268,17 +289,28 @@ export function resultMediaEvidence(data: {
   outputFormat?: unknown;
 }): ResultMediaEvidence | undefined {
   const byKind = new Map<ResultMediaKind, string>();
+  let jsonArtifactContentType: string | undefined;
   if (Array.isArray(data.artifacts)) {
     for (const artifact of data.artifacts) {
       if (!artifact || typeof artifact !== 'object') continue;
       const { contentType, success } = artifact as { contentType?: unknown; success?: unknown };
       if (success === false || typeof contentType !== 'string') continue;
       const kind = resultMediaKindFromContentType(contentType);
-      if (kind && !byKind.has(kind)) byKind.set(kind, contentType.trim());
+      if (kind) {
+        if (!byKind.has(kind)) byKind.set(kind, contentType.trim());
+      } else if (
+        jsonArtifactContentType === undefined &&
+        contentType.split(';')[0].trim().toLowerCase() === 'application/json'
+      ) {
+        jsonArtifactContentType = contentType.trim();
+      }
     }
   }
   const kind = ARTIFACT_KIND_PRECEDENCE.find((candidate) => byKind.has(candidate));
   if (kind) return { kind, contentType: byKind.get(kind) };
+  if (jsonArtifactContentType !== undefined) {
+    return { kind: 'audio', contentType: jsonArtifactContentType };
+  }
   if (typeof data.outputFormat === 'string') {
     const evidence = OUTPUT_FORMAT_EVIDENCE.get(data.outputFormat.trim().toLowerCase());
     if (evidence) return { ...evidence };

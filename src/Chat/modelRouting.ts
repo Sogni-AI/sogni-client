@@ -217,7 +217,11 @@ export const PREFERRED_MODEL_IDS = {
     // Speech, not music: the same audio media type, a different job entirely.
     qwen3TtsCustomVoice: 'qwen3_tts_1.7b_custom_voice_bf16',
     qwen3TtsVoiceClone: 'qwen3_tts_1.7b_voice_clone_bf16',
-    qwen3TtsVoiceDesign: 'qwen3_tts_1.7b_voice_design_bf16'
+    qwen3TtsVoiceDesign: 'qwen3_tts_1.7b_voice_design_bf16',
+    fishDrama3: 'fish_drama_3_nvfp4',
+    // Speech-to-text transcription (audio input -> JSON transcript artifact).
+    parakeetStt: 'parakeet_tdt_0.6b_v3_bf16',
+    nemotronStt: 'nemotron_3.5_transcribe_30b_a4b_nvfp4'
   }
 } as const;
 

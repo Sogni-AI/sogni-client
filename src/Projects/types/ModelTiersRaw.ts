@@ -110,18 +110,24 @@ export interface BooleanDefault {
 export interface AudioTier {
   benchmark: Benchmark;
   bpm?: NumericDefaults;
+  characters?: NumericDefaults;
   comfySampler?: StringDefaults;
   comfyScheduler?: StringDefaults;
   composerMode?: BooleanDefault;
   creativity?: NumericDefaults;
+  diarize?: BooleanDefault;
   duration?: NumericDefaults;
   guidance?: NumericDefaults;
+  hotwords?: { maxLength: number; description?: string };
   keyscale?: StringDefaults;
   language?: StringDefaults;
   promptStrength?: NumericDefaults;
   shift?: NumericDefaults;
-  steps: NumericDefaults;
+  speech?: boolean;
+  steps?: NumericDefaults;
+  stt?: boolean;
   timesignature?: StringDefaults;
+  timestamps?: StringDefaults;
   type: 'audio';
   /** Speech: the preset voices this model can speak in. */
   speaker?: StringDefaults;
@@ -129,9 +135,9 @@ export interface AudioTier {
   instruct?: { maxLength: number; required?: boolean; description?: string };
   /** Speech: whether the model takes a transcript of the reference recording. */
   referenceText?: { maxLength: number; description?: string };
-  /** Speech: whether a reference recording may be uploaded. */
+  /** Speech / STT: whether a reference recording may be uploaded. */
   acceptInputAudio?: boolean;
-  /** Speech: whether a reference recording is mandatory (voice cloning). */
+  /** Speech / STT: whether a reference recording is mandatory (voice cloning, transcription). */
   requiresReferenceAudio?: boolean;
 }
 

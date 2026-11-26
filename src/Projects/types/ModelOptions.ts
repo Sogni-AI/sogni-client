@@ -57,12 +57,14 @@ export interface AudioModelOptions {
   type: 'audio';
   steps: NumRange;
   guidance?: NumRange;
-  /** Music only. Speech models have no diffusion sampler. */
+  /** Music only. Speech and STT models have no diffusion sampler. */
   sampler?: Options<string>;
-  /** Music only. Speech models have no diffusion scheduler. */
+  /** Music only. Speech and STT models have no diffusion scheduler. */
   scheduler?: Options<string>;
-  /** Music only. A speech render is as long as the script takes to read. */
+  /** Music or STT audio duration range. */
   duration?: NumRange;
+  /** Character-priced TTS range (e.g. Fish Drama 3). */
+  characters?: NumRange;
   /** Music only. */
   bpm?: NumRange;
   /** Music only. */
@@ -73,16 +75,26 @@ export interface AudioModelOptions {
   promptStrength?: NumRange;
   creativity?: NumRange;
   shift?: NumRange;
+  /** True when the tier represents a text-to-speech model. */
+  speech?: boolean;
+  /** True when the tier represents a speech-to-text transcription model. */
+  stt?: boolean;
   /** Speech only. The preset voices this model can speak in. */
   speaker?: Options<string>;
   /** Speech only. Maximum length of the delivery direction, and whether it is required. */
   instruct?: { maxLength: number; required: boolean };
   /** Speech only. Maximum length of the reference recording's transcript. */
   referenceText?: { maxLength: number };
-  /** Speech only. Whether a reference recording may be uploaded. */
+  /** Speech / STT. Whether a reference recording may be uploaded. */
   acceptsReferenceAudio?: boolean;
-  /** Speech only. Whether a reference recording is mandatory (voice cloning). */
+  /** Speech / STT. Whether a reference recording is mandatory (voice cloning, transcription). */
   requiresReferenceAudio?: boolean;
+  /** STT only. Supported timestamp granularities ('none', 'sentence', 'word'). */
+  timestamps?: Options<string>;
+  /** STT only. Speaker diarization support and default. */
+  diarize?: { default: boolean };
+  /** STT only. Maximum length of comma-separated hotwords hint. */
+  hotwords?: { maxLength: number };
 }
 
 export type ModelOptions = ImageModelOptions | VideoModelOptions | AudioModelOptions;
@@ -171,14 +183,21 @@ export function mapVideoTier(tier: VideoTier): VideoModelOptions {
 }
 
 export function mapAudioTier(tier: AudioTier): AudioModelOptions {
-  // `steps` is the only control both music and speech always declare. Everything
-  // else is set below when the tier declares it, so a speech model does not
-  // advertise a tempo or a sampler it will refuse, and a music tier keeps
-  // exactly the fields it had before speech existed.
+  // Sparse speech / STT tiers may omit `steps`; fall back to a 1-step unit range
+  // so callers reading `options.steps` never crash on `undefined`.
   const options: AudioModelOptions = {
     type: 'audio',
-    steps: mapRange(tier.steps)
+    steps: tier.steps ? mapRange(tier.steps) : { min: 1, max: 1, step: 1, default: 1 }
   };
+  if (tier.speech !== undefined) {
+    options.speech = tier.speech;
+  }
+  if (tier.stt !== undefined) {
+    options.stt = tier.stt;
+  }
+  if (tier.characters) {
+    options.characters = mapRange(tier.characters);
+  }
   if (tier.comfySampler) {
     options.sampler = mapOptions(tier.comfySampler, samplerValueToAlias);
   }
@@ -212,6 +231,15 @@ export function mapAudioTier(tier: AudioTier): AudioModelOptions {
   if (tier.requiresReferenceAudio) {
     options.acceptsReferenceAudio = true;
     options.requiresReferenceAudio = true;
+  }
+  if (tier.timestamps) {
+    options.timestamps = mapOptions(tier.timestamps);
+  }
+  if (tier.diarize) {
+    options.diarize = { default: tier.diarize.default };
+  }
+  if (tier.hotwords) {
+    options.hotwords = { maxLength: tier.hotwords.maxLength };
   }
   if (tier.guidance) {
     options.guidance = mapRange(tier.guidance);

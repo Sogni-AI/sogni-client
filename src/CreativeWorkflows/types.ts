@@ -28,6 +28,7 @@ export type CreativeWorkflowHostedToolName =
   | 'remove_background'
   | 'segment_image'
   | 'generate_speech'
+  | 'transcribe_audio'
   | 'generate_image'
   | 'generate_video'
   | 'generate_music'
