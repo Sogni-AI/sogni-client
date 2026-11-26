@@ -1341,7 +1341,9 @@ export interface AudioProjectParams extends Omit<BaseProjectParams, 'positivePro
    */
   positivePrompt?: string;
   /**
-   * Duration of the audio in seconds (10-600, default: 30)
+   * Duration of the audio in seconds:
+   * - Music generation: 10–600s (default: 30s; 10–300s on MiniMax Music 3).
+   * - Speech-to-text transcription (billing driver, minimumBilled: 10s): 1–7200s on Parakeet (`parakeet_tdt_0.6b_v3_bf16`) or 1–3600s on Nemotron (`nemotron_3.5_transcribe_30b_a4b_nvfp4`).
    */
   duration?: number;
   /**

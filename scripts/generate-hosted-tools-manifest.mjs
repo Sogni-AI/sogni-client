@@ -111,9 +111,6 @@ if (generateVideoModel) {
       'minimax-h3-r2v-balanced-2stage',
       'minimax-h3-fasth3-r2v-turbo',
       'minimax-h3-fasth3-r2v-turbo-2stage',
-      'happyhorse-1.1-t2v',
-      'happyhorse-1.1-i2v',
-      'happyhorse-1.1-r2v',
       'wan3.0-video',
       'wan3.0-spicy-video'
     ])
@@ -161,9 +158,7 @@ if (animatePhotoModel) {
       'minimax-h3-fasth3-i2v-turbo',
       'minimax-h3-fasth3-flf2v-turbo',
       'minimax-h3-fasth3-i2v-turbo-2stage',
-      'minimax-h3-fasth3-flf2v-turbo-2stage',
-      'happyhorse-1.1-i2v',
-      'happyhorse-1.1-r2v'
+      'minimax-h3-fasth3-flf2v-turbo-2stage'
     ])
   ];
   animatePhotoModel.description = appendDescriptionOnce(

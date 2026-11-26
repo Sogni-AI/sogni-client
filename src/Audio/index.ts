@@ -397,15 +397,19 @@ class AudioApi extends ApiGroup {
       throw new Error('audio.speech.create requires a non-empty string input.');
     }
 
-    const model = params.model?.trim() || 'voice';
+    const responseFormat = params.response_format ?? params.responseFormat;
+    const referenceAudio = params.reference_audio ?? params.referenceAudio;
+    const referenceText = params.reference_text ?? params.referenceText;
+    const hasReferenceAudio =
+      typeof referenceAudio === 'string'
+        ? referenceAudio.trim().length > 0
+        : referenceAudio !== undefined && referenceAudio !== null;
+    const model = params.model?.trim() || (hasReferenceAudio ? 'clone' : 'voice');
     const lowerModel = model.toLowerCase();
     const isDrama3 =
       lowerModel === 'drama3' ||
       lowerModel === 'fish_drama_3_nvfp4' ||
       lowerModel === 'fish-drama-3';
-    const responseFormat = params.response_format ?? params.responseFormat;
-    const referenceAudio = params.reference_audio ?? params.referenceAudio;
-    const referenceText = params.reference_text ?? params.referenceText;
     const tokenType = params.token_type ?? params.tokenType;
     const billingMode = params.billing_mode ?? params.billingMode;
     const appSource = params.app_source ?? params.appSource ?? this.client.appSource;

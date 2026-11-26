@@ -16,7 +16,8 @@ export type AudioSpeechResponseFormat = 'mp3' | 'wav' | 'flac';
 
 export interface AudioSpeechCreateParams {
   /**
-   * Speech model selector or canonical model ID. Defaults to `'voice'`.
+   * Speech model selector or canonical model ID. Defaults to `'clone'` when
+   * `reference_audio` / `referenceAudio` is provided, otherwise `'voice'`.
    * - `'voice'` / `'clone'` / `'design'`: Qwen3-TTS 1.7B modes.
    * - `'drama3'`: Fish Drama 3 expressive acting speech (`[sighs]`, `[laughs]`, `<whisper>...</whisper>`).
    * - OpenAI aliases `'tts-1'`, `'tts-1-hd'`, `'gpt-4o-mini-tts'` are also accepted.

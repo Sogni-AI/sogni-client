@@ -3980,12 +3980,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    * @return {Promise<CostEstimation>} Returns an object containing the estimated costs in different units.
    */
   async estimateAudioCost(params: AudioEstimateRequest): Promise<CostEstimation> {
+    const token = params.tokenType === 'sogni' ? 'sogni' : 'spark';
+    const dur = Number.isFinite(params.duration) ? Math.max(0, Math.ceil(params.duration!)) : 0;
+    const steps = Number.isFinite(params.steps) && params.steps! > 0 ? Math.round(params.steps!) : 1;
+    const count =
+      Number.isFinite(params.numberOfMedia) && params.numberOfMedia! > 0
+        ? Math.round(params.numberOfMedia!)
+        : 1;
     const pathParams = [
-      params.tokenType,
+      token,
       params.model,
-      params.duration,
-      params.steps,
-      params.numberOfMedia
+      dur,
+      steps,
+      count
     ];
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
     const query = new URLSearchParams();
@@ -3995,12 +4002,8 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     if (params.billingMode) query.set('billingMode', params.billingMode);
     if (params.priorityMode !== undefined) query.set('priorityMode', String(params.priorityMode));
     if (params.includeMonthlyFairUse === true) query.set('includeMonthlyFairUse', 'true');
-    if (
-      params.characters !== undefined &&
-      Number.isFinite(params.characters) &&
-      params.characters >= 0
-    ) {
-      query.set('characters', String(Math.floor(params.characters)));
+    if (params.characters !== undefined && Number.isFinite(params.characters)) {
+      query.set('characters', String(Math.max(1, Math.round(params.characters))));
     }
     const queryString = query.toString();
     const r = await this.client.socket.get<EstimationResponse>(

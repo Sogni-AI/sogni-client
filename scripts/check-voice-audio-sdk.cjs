@@ -191,6 +191,29 @@ async function main() {
   assert.equal(estimate.spark, '0.25');
   assert.ok(capturedEstimatePath.includes('characters=512'), capturedEstimatePath);
 
+  await client.projects.estimateAudioCost({
+    tokenType: undefined,
+    model: 'qwen3_tts_1.7b_custom_voice_bf16',
+    duration: undefined,
+    steps: 0,
+    numberOfMedia: 0,
+    characters: 0
+  });
+  assert.ok(
+    capturedEstimatePath.startsWith('/api/v1/job-audio/estimate/spark/qwen3_tts_1.7b_custom_voice_bf16/0/1/1?'),
+    capturedEstimatePath
+  );
+  assert.ok(capturedEstimatePath.includes('characters=1'), capturedEstimatePath);
+  assert.ok(!capturedEstimatePath.includes('undefined'), capturedEstimatePath);
+
+  // Retired happyhorse-1.1-* selectors must not be re-injected into hosted SogniTools
+  const genVideoEnum = sdk.SogniTools.generateVideo.function.parameters.properties.videoModel.enum;
+  const animPhotoEnum = sdk.SogniTools.animatePhoto.function.parameters.properties.videoModel.enum;
+  for (const retired of ['happyhorse-1.1-t2v', 'happyhorse-1.1-i2v', 'happyhorse-1.1-r2v']) {
+    assert.ok(!genVideoEnum.includes(retired), `generateVideo must not expose ${retired}`);
+    assert.ok(!animPhotoEnum.includes(retired), `animatePhoto must not expose ${retired}`);
+  }
+
   let capturedDownloadParams = null;
   client.projects.getStatus = async () => ({
     id: 'proj-stt-1',
@@ -280,6 +303,23 @@ async function main() {
       response_format: 'srt'
     });
     assert.match(srtTranscript, /00:00:00,000 --> 00:00:01,500/);
+
+    // Omitted model defaults to 'clone' when referenceAudio is supplied, and 'voice' otherwise
+    const clonedSpeechRes = await client.audio.speech.create({
+      input: 'Read this in my cloned voice.',
+      referenceAudio: 'https://cdn.sogni.ai/voices/sample.wav'
+    });
+    await clonedSpeechRes.arrayBuffer();
+    const clonedBody = JSON.parse(fetchCalls[fetchCalls.length - 1].init.body);
+    assert.equal(clonedBody.model, 'clone');
+    assert.equal(clonedBody.reference_audio, 'https://cdn.sogni.ai/voices/sample.wav');
+
+    const defaultVoiceRes = await client.audio.speech.create({
+      input: 'Read this in the default studio voice.'
+    });
+    await defaultVoiceRes.arrayBuffer();
+    const defaultVoiceBody = JSON.parse(fetchCalls[fetchCalls.length - 1].init.body);
+    assert.equal(defaultVoiceBody.model, 'voice');
 
     // Case-insensitive Drama 3 aliases ('DRAMA3', 'fish-drama-3') also omit creativity
     for (const alias of ['DRAMA3', 'fish-drama-3', 'FISH_DRAMA_3_NVFP4']) {
