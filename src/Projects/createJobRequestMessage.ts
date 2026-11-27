@@ -76,6 +76,7 @@ import {
   MINIMAX_H3_FRAME_STEP,
   MINIMAX_H3_BASE_FRAMES,
   isSegmentationModel,
+  isSttModelId,
   isPixal3dModel,
   isPixal3dMultiViewModel,
   getPixal3dOrbitViewSlots,
@@ -207,8 +208,7 @@ function validateVideoWorkflowAssets(params: VideoProjectParams): void {
     throw new ApiError(400, {
       status: 'error',
       errorCode: 0,
-      message:
-        'External reference URLs are supported only by Seedance and Wan 3 models.'
+      message: 'External reference URLs are supported only by Seedance and Wan 3 models.'
     });
   }
 
@@ -302,7 +302,10 @@ export function validateSeedanceDraftFields(params: {
   }
   if (seedanceDraft !== true && seedanceDraftJobId === undefined) return;
   const draftModel = String(params.modelId ?? params.model ?? '');
-  if (!isSeedance25Model(draftModel) || ['seedance-2-5-flash', 'seedance-2-5-flash-uncensored'].includes(draftModel)) {
+  if (
+    !isSeedance25Model(draftModel) ||
+    ['seedance-2-5-flash', 'seedance-2-5-flash-uncensored'].includes(draftModel)
+  ) {
     seedanceDraftError('Seedance draft mode is supported only by Seedance 2.5.');
   }
   if (seedanceDraft === true && seedanceDraftJobId !== undefined) {
@@ -2147,6 +2150,18 @@ function applyAudioParams(
   if (params.referenceAudio) {
     keyFrame.hasReferenceAudio = true;
   }
+  if (params.timestamps !== undefined) {
+    keyFrame.timestamps = params.timestamps;
+  }
+  if (params.diarize !== undefined) {
+    keyFrame.diarize = params.diarize;
+  }
+  if (params.hotwords !== undefined) {
+    keyFrame.hotwords = params.hotwords;
+  }
+  if (isSttModelId(params.modelId) || options.stt === true) {
+    keyFrame.positivePrompt = params.positivePrompt ?? '';
+  }
 
   keyFrame.comfySampler = validateSampler(params.sampler, options);
   keyFrame.comfyScheduler = validateScheduler(params.scheduler, options);
@@ -2177,7 +2192,7 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
     guidanceScale: params.guidance,
     modelID: params.modelId,
     seed: params.seed,
-    positivePrompt: params.positivePrompt,
+    positivePrompt: params.positivePrompt ?? '',
     // Only include optional prompts if they have actual non-empty values
     // This allows the server to use its defaults when not specified
     ...(negativePrompt && { negativePrompt }),
@@ -2264,7 +2279,13 @@ function createJobRequestMessage(id: string, params: ProjectParams, options: Mod
       : isSegmentationModel(params.modelId)
         ? 'png'
         : params.outputFormat ||
-          (isAudioParams(params) ? 'mp3' : isVideoParams(params) ? 'mp4' : 'png'),
+          (isAudioParams(params)
+            ? isSttModelId(params.modelId) || (options as AudioModelOptions).stt === true
+              ? 'json'
+              : 'mp3'
+            : isVideoParams(params)
+              ? 'mp4'
+              : 'png'),
     ...workloadAttributionToWireFields(params.attribution)
   };
 

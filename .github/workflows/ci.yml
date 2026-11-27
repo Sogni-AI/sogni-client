@@ -59,3 +59,7 @@ jobs:
         run: node scripts/check-image-upload-body.cjs
       - name: Check Seedance 2.5 draft mode
         run: node scripts/check-seedance-draft.cjs
+      - name: Check capability exports and voice audio SDK
+        run: |
+          node scripts/check-capability-exports.cjs
+          node scripts/check-voice-audio-sdk.cjs

@@ -27,11 +27,14 @@ import EIP712Helper from './lib/EIP712Helper.js';
 // Projects API
 import {
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  FISH_DRAMA_3_TTS_MODEL_ID,
   FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
   MINIMAX_H3_FASTH3_A2V_MODEL_ID,
   MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID,
   MINIMAX_H3_FASTH3_IA2V_MODEL_ID,
   MINIMAX_H3_MAX_KEYFRAMES,
+  NEMOTRON_STT_MODEL_ID,
+  PARAKEET_STT_MODEL_ID,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
   PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
   RELAYVSR_X2_VIDEO_UPSCALE_MODEL_ID,
@@ -45,6 +48,8 @@ import {
   isMinimaxH3AudioGuideModel,
   isMinimaxH3KeyframeModel,
   isAudioModel,
+  isSpeechTtsModelId,
+  isSttModelId,
   isModelArtifactModel,
   isPixal3dModel,
   isPixal3dMultiViewModel,
@@ -64,8 +69,10 @@ import ProjectsApi from './Projects/index.js';
 import Job, { JobStatus } from './Projects/Job.js';
 import Project, { ProjectStatus } from './Projects/Project.js';
 import {
+  AudioEstimateRequest,
   AudioOutputFormat,
   AudioProjectParams,
+  AudioTimestampGranularity,
   AvailableModel,
   BillingMode,
   ImageProjectParams,
@@ -238,7 +245,28 @@ import {
   ToolHistoryEntry,
   ToolExecutionOptions
 } from './Chat/types.js';
-import { SogniTools, isSogniToolCall, parseToolCallArguments } from './Chat/tools.js';
+import {
+  SogniTools,
+  isSogniToolCall,
+  parseToolCallArguments,
+  transcribeAudioTool
+} from './Chat/tools.js';
+// Audio API (OpenAI-compatible REST speech & transcriptions)
+import AudioApi from './Audio/index.js';
+import type {
+  AudioSpeechCreateParams,
+  AudioSpeechModelSelector,
+  AudioSpeechResponseFormat,
+  AudioTranscriptionCreateParams,
+  AudioTranscriptionFileInput,
+  AudioTranscriptionJsonResult,
+  AudioTranscriptionModelSelector,
+  AudioTranscriptionResponseFormat,
+  AudioTranscriptionResult,
+  AudioTranscriptionSegment,
+  AudioTranscriptionTimestampGranularity,
+  AudioTranscriptionWord
+} from './Audio/types.js';
 // Creative Workflows API
 import CreativeWorkflowsApi, { parseCreativeWorkflowSseChunk } from './CreativeWorkflows/index.js';
 import CreativeWorkflowTemplatesApi from './CreativeWorkflows/Templates/index.js';
@@ -332,9 +360,23 @@ import type {
 } from './types/attribution.js';
 
 export type {
+  AudioEstimateRequest,
   AudioFormat,
   AudioOutputFormat,
   AudioProjectParams,
+  AudioSpeechCreateParams,
+  AudioSpeechModelSelector,
+  AudioSpeechResponseFormat,
+  AudioTimestampGranularity,
+  AudioTranscriptionCreateParams,
+  AudioTranscriptionFileInput,
+  AudioTranscriptionJsonResult,
+  AudioTranscriptionModelSelector,
+  AudioTranscriptionResponseFormat,
+  AudioTranscriptionResult,
+  AudioTranscriptionSegment,
+  AudioTranscriptionTimestampGranularity,
+  AudioTranscriptionWord,
   AvailableModel,
   BillingMode,
   ChatCompletionChunk,
@@ -554,12 +596,16 @@ export type { DecryptedMediaReader } from './lib/mediaEncryption/remote.js';
 export type { MediaEncryptionHeader } from './lib/mediaEncryption/index.js';
 
 export {
+  AudioApi,
   BIREFNET_BACKGROUND_REMOVAL_MODEL_ID,
+  FISH_DRAMA_3_TTS_MODEL_ID,
   FLASHVSR_VIDEO_UPSCALE_MODEL_ID,
   MINIMAX_H3_FASTH3_A2V_MODEL_ID,
   MINIMAX_H3_FASTH3_FLFA2V_MODEL_ID,
   MINIMAX_H3_FASTH3_IA2V_MODEL_ID,
   MINIMAX_H3_MAX_KEYFRAMES,
+  NEMOTRON_STT_MODEL_ID,
+  PARAKEET_STT_MODEL_ID,
   PIXAL3D_IMAGE_TO_3D_MODEL_ID,
   PIXAL3D_MULTIVIEW_IMAGE_TO_3D_MODEL_ID,
   PIXAL3D_ORBIT_VIEW_SLOTS,
@@ -575,6 +621,8 @@ export {
   isMinimaxH3AudioGuideModel,
   isMinimaxH3KeyframeModel,
   isAudioModel,
+  isSpeechTtsModelId,
+  isSttModelId,
   isModelArtifactModel,
   isPixal3dModel,
   isPixal3dMultiViewModel,
@@ -613,7 +661,8 @@ export {
   isSogniToolCall,
   parseCreativeWorkflowSseChunk,
   parseToolCallArguments,
-  projectParamsFromRecoveredProject
+  projectParamsFromRecoveredProject,
+  transcribeAudioTool
 };
 
 export interface SogniClientConfig {
@@ -759,6 +808,12 @@ export class SogniClient {
    */
   chat: ChatApi;
   /**
+   * OpenAI-compatible REST audio endpoints (`POST /v1/audio/speech` and
+   * `POST /v1/audio/transcriptions`). Works on REST-only clients (`disableSocket: true`)
+   * as well as socket-enabled clients.
+   */
+  audio: AudioApi;
+  /**
    * Durable creative workflows (`/v1/creative-agent/workflows`). Submit
    * an explicit step sequence and follow its progress without keeping
    * the client connected.
@@ -814,6 +869,7 @@ export class SogniClient {
     );
     this.stats = new StatsApi(config);
     this.chat = new ChatApi(config, this.projects);
+    this.audio = new AudioApi(config);
     this.workflows = new CreativeWorkflowsApi(config);
     this.worlds = new WorldsApi(config);
     this.replay = new ReplayApi(config);

@@ -12,6 +12,7 @@ export interface RawProject {
   id: string;
   /** True when the project's input and result media are encrypted. */
   mediaEncrypted?: boolean;
+  outputFormat?: string;
   SID: number;
   artist: Account;
   model: ProjectModel;

@@ -102,6 +102,8 @@ jobs:
         run: node scripts/check-relayvsr-video.cjs
       - name: Run capability export checks
         run: node scripts/check-capability-exports.cjs
+      - name: Run voice TTS/STT and OpenAI audio SDK checks
+        run: node scripts/check-voice-audio-sdk.cjs
       - name: Run MiniMax H3 keyframe checks
         run: node scripts/check-minimax-h3-keyframes.cjs
       - name: Run MiniMax H3 reference compression checks

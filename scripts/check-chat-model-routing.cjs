@@ -1740,7 +1740,10 @@ for (const toolName of ['generate_video', 'sound_to_video', 'video_to_video']) {
     sdkHostedToolsByName.get(toolName).function.parameters.properties.videoModel.enum;
   const start = videoModelEnum.indexOf('seedance2-5');
   assert.deepEqual(videoModelEnum.slice(start, start + 4), [
-    'seedance2-5', 'seedance2-5-flash', 'seedance2-5-flash-uncensored', 'seedance2-5-uncensored'
+    'seedance2-5',
+    'seedance2-5-flash',
+    'seedance2-5-flash-uncensored',
+    'seedance2-5-uncensored'
   ]);
 }
 assert.ok(

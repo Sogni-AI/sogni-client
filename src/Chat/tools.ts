@@ -21,6 +21,7 @@ export type SogniHostedToolName =
   | 'generate_video'
   | 'generate_music'
   | 'generate_speech'
+  | 'transcribe_audio'
   | 'edit_image'
   | 'apply_style'
   | 'restore_photo'
@@ -73,6 +74,7 @@ export const soundToVideoTool: ToolDefinition = getHostedTool('sound_to_video');
 export const videoToVideoTool: ToolDefinition = getHostedTool('video_to_video');
 export const generateMusicTool: ToolDefinition = getHostedTool('generate_music');
 export const generateSpeechTool: ToolDefinition = getHostedTool('generate_speech');
+export const transcribeAudioTool: ToolDefinition = getHostedTool('transcribe_audio');
 export const imageTo3dTool: ToolDefinition = getHostedTool('image_to_3d');
 export const removeBackgroundTool: ToolDefinition = getHostedTool('remove_background');
 export const segmentImageTool: ToolDefinition = getHostedTool('segment_image');
@@ -118,6 +120,7 @@ export const SogniTools = {
   videoToVideo: videoToVideoTool,
   generateMusic: generateMusicTool,
   generateSpeech: generateSpeechTool,
+  transcribeAudio: transcribeAudioTool,
   applyStyle: applyStyleTool,
   restorePhoto: restorePhotoTool,
   refineResult: refineResultTool,
