@@ -258,6 +258,26 @@ function resultMediaKindFromContentType(contentType: string): ResultMediaKind | 
   return undefined;
 }
 
+/**
+ * Map a Sogni audio `outputFormat` (`mp3`, `wav`, `flac`, `json`) to its MIME
+ * content type, or `undefined` when unset or unrecognized.
+ */
+export function audioOutputContentType(outputFormat: unknown): string | undefined {
+  if (typeof outputFormat !== 'string') return undefined;
+  switch (outputFormat.trim().toLowerCase()) {
+    case 'mp3':
+      return 'audio/mpeg';
+    case 'wav':
+      return 'audio/wav';
+    case 'flac':
+      return 'audio/flac';
+    case 'json':
+      return 'application/json';
+    default:
+      return undefined;
+  }
+}
+
 const OUTPUT_FORMAT_EVIDENCE: ReadonlyMap<string, ResultMediaEvidence> = new Map<
   string,
   ResultMediaEvidence

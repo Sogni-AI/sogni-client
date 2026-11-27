@@ -73,6 +73,9 @@ function extensionForMimeType(mimeType: string | undefined): string {
       return 'opus';
     case 'audio/webm':
       return 'webm';
+    case 'audio/aac':
+    case 'audio/x-aac':
+      return 'aac';
     case 'audio/mp4':
     case 'audio/m4a':
     case 'audio/x-m4a':
@@ -483,7 +486,11 @@ class AudioApi extends ApiGroup {
     formData.append('model', model);
     if (params.language !== undefined) formData.append('language', params.language);
     if (params.prompt !== undefined) formData.append('prompt', params.prompt);
-    if (responseFormat !== undefined) formData.append('response_format', responseFormat);
+    if (responseFormat !== undefined) {
+      formData.append('response_format', responseFormat);
+    } else if (Array.isArray(granularities) && granularities.length > 0) {
+      formData.append('response_format', 'verbose_json');
+    }
     if (Array.isArray(granularities)) {
       for (const granularity of granularities) {
         formData.append('timestamp_granularities[]', granularity);

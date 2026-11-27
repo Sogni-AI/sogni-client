@@ -20,7 +20,8 @@ export function getFileContentType(
   slot?: 'audio' | 'video'
 ): string | undefined {
   if (file instanceof Blob && 'type' in file && file.type) {
-    return file.type;
+    const normalized = file.type.split(';')[0]?.trim().toLowerCase();
+    if (normalized) return normalized;
   }
   if (typeof Buffer !== 'undefined' && Buffer.isBuffer(file)) {
     if (file.length >= 12) {
@@ -49,7 +50,9 @@ export function getFileContentType(
       }
     }
     if (file.length >= 3 && file.toString('ascii', 0, 3) === 'ID3') return 'audio/mpeg';
-    if (file.length >= 2 && file[0] === 0xff && (file[1] & 0xe0) === 0xe0) return 'audio/mpeg';
+    if (file.length >= 2 && file[0] === 0xff && (file[1] & 0xe0) === 0xe0) {
+      return (file[1] & 0x06) === 0 ? 'audio/aac' : 'audio/mpeg';
+    }
   }
   return undefined;
 }

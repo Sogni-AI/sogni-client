@@ -144,6 +144,7 @@ export interface AudioTranscriptionWord {
 }
 
 export interface AudioTranscriptionJsonResult {
+  task?: 'transcribe';
   text: string;
   rawText?: string;
   model?: string;

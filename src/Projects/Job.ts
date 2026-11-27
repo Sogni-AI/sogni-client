@@ -7,7 +7,12 @@ import getUUID from '../lib/getUUID.js';
 import { EnhancementStrength, ImageLayer } from './types/index.js';
 import Project from './Project.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
-import { getEnhacementStrength, isSegmentationModel, isSttModelId } from './utils/index.js';
+import {
+  audioOutputContentType,
+  getEnhacementStrength,
+  isSegmentationModel,
+  isSttModelId
+} from './utils/index.js';
 import { imageLayersFromResult } from './utils/imageLayers.js';
 import { TokenType } from '../types/token.js';
 import has from 'lodash/has.js';
@@ -486,22 +491,14 @@ class Job extends DataEntity<JobData, JobEventMap> {
   }
 
   /**
-   * Get the MIME content type for audio downloads based on the project's output format.
+   * Get the MIME content type for audio downloads based on the job or project output format.
    */
   private get _audioContentType(): string {
-    const format = (this._project.params as any).outputFormat;
-    switch (format) {
-      case 'json':
-        return 'application/json';
-      case 'flac':
-        return 'audio/flac';
-      case 'wav':
-        return 'audio/wav';
-      case 'mp3':
-        return 'audio/mpeg';
-      default:
-        return isSttModelId(this._project.params.modelId) ? 'application/json' : 'audio/mpeg';
-    }
+    return (
+      audioOutputContentType((this.data as { outputFormat?: string }).outputFormat) ??
+      audioOutputContentType((this._project.params as { outputFormat?: string }).outputFormat) ??
+      (isSttModelId(this._project.params.modelId) ? 'application/json' : 'audio/mpeg')
+    );
   }
 
   /**

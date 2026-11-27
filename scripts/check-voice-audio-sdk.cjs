@@ -2,10 +2,12 @@
 
 const assert = require('node:assert/strict');
 const sdk = require('../dist/index.js');
-const { resultMediaEvidence } = require('../dist/Projects/utils/index.js');
+const { audioOutputContentType, resultMediaEvidence } = require('../dist/Projects/utils/index.js');
+const { getFileContentType } = require('../dist/Projects/utils/fileContentType.js');
+const { projectParamsFromRecoveredProject } = require('../dist/Projects/recovery.js');
 const createJobRequestMessage = require('../dist/Projects/createJobRequestMessage.js').default;
 const { mapAudioTier } = require('../dist/Projects/types/ModelOptions.js');
-const { parseInlineMediaDataUri } = require('../dist/lib/mediaValidation.js');
+const { mediaInputToInlineDataUri, parseInlineMediaDataUri } = require('../dist/lib/mediaValidation.js');
 const { MUSIC_MODEL_IDS, PREFERRED_MODEL_IDS } = require('../dist/Chat/modelRouting.js');
 
 async function main() {
@@ -159,6 +161,71 @@ async function main() {
     'audio/mp3'
   );
 
+  // 4b. Parameterized Blob/File MIME normalization, raw AAC ADTS vs MP3, and video/webm parity
+  const aacMpeg4Bytes = Buffer.from([0xff, 0xf1, 0x50, 0x80, 0x02, 0x1f, 0xfc, 0x21]);
+  const aacMpeg2Bytes = Buffer.from([0xff, 0xf9, 0x50, 0x80, 0x02, 0x1f, 0xfc, 0x21]);
+  const mp3SyncBytes = Buffer.from([0xff, 0xfb, 0x90, 0x64, 0x00, 0x00, 0x00, 0x00]);
+  assert.equal(getFileContentType(aacMpeg4Bytes, 'audio'), 'audio/aac');
+  assert.equal(getFileContentType(aacMpeg2Bytes, 'audio'), 'audio/aac');
+  assert.equal(getFileContentType(mp3SyncBytes, 'audio'), 'audio/mpeg');
+  assert.equal(
+    getFileContentType(new Blob([webmBytes], { type: 'audio/webm;codecs=opus' }), 'audio'),
+    'audio/webm'
+  );
+  assert.equal(
+    getFileContentType(new Blob([oggBytes], { type: 'AUDIO/OGG; codecs=opus' }), 'audio'),
+    'audio/ogg'
+  );
+  if (typeof File !== 'undefined') {
+    assert.equal(
+      getFileContentType(
+        new File([webmBytes], 'rec.webm', { type: 'video/webm;codecs=vp9,opus' }),
+        'video'
+      ),
+      'video/webm'
+    );
+  }
+  assert.equal(
+    parseInlineMediaDataUri(`data:audio/aac;base64,${aacMpeg4Bytes.toString('base64')}`, 'audio').mimeType,
+    'audio/aac'
+  );
+  assert.equal(
+    parseInlineMediaDataUri(`data:audio/aac;base64,${aacMpeg2Bytes.toString('base64')}`, 'audio').mimeType,
+    'audio/aac'
+  );
+  assert.equal(
+    parseInlineMediaDataUri(`data:video/webm;base64,${webmBytes.toString('base64')}`, 'video').mimeType,
+    'video/webm'
+  );
+
+  // 4c. Shared audio outputFormat helper & recovery outputFormat fallback
+  assert.equal(audioOutputContentType('mp3'), 'audio/mpeg');
+  assert.equal(audioOutputContentType('WAV'), 'audio/wav');
+  assert.equal(audioOutputContentType(' flac '), 'audio/flac');
+  assert.equal(audioOutputContentType('json'), 'application/json');
+  assert.equal(audioOutputContentType('unknown'), undefined);
+
+  const encodeRecoveryReq = (obj) => Buffer.from(JSON.stringify(obj), 'utf8').toString('base64');
+  assert.equal(
+    projectParamsFromRecoveredProject({
+      id: 'rec-kf',
+      modelType: 'audio',
+      model: { id: 'fish_drama_3_nvfp4', type: 'audio' },
+      clientRequestData: encodeRecoveryReq({ keyFrames: [{ modelID: 'fish_drama_3_nvfp4', outputFormat: 'wav' }] })
+    }).outputFormat,
+    'wav'
+  );
+  assert.equal(
+    projectParamsFromRecoveredProject({
+      id: 'rec-proj',
+      modelType: 'audio',
+      outputFormat: 'flac',
+      model: { id: 'fish_drama_3_nvfp4', type: 'audio' },
+      clientRequestData: encodeRecoveryReq({ keyFrames: [{ modelID: 'fish_drama_3_nvfp4' }] })
+    }).outputFormat,
+    'flac'
+  );
+
   // 5. estimateAudioCost characters query parameter + STT getResult contentType
   const client = await sdk.SogniClient.createInstance({
     disableSocket: true,
@@ -232,6 +299,104 @@ async function main() {
   assert.equal(sttResult.jobs[0].url, 'https://cdn.sogni.ai/transcripts/job-1.json');
   assert.equal(capturedDownloadParams.contentType, 'application/json');
 
+  // getResult resolves audioContentType from snapshot.outputFormat / job.outputFormat -> result.contentType -> default
+  client.projects.getStatus = async () => ({
+    id: 'proj-tts-wav',
+    status: 'completed',
+    finished: true,
+    outputFormat: 'wav',
+    model: { id: 'fish_drama_3_nvfp4', type: 'audio' },
+    workerJobs: [],
+    completedWorkerJobs: [{ id: 'job-wav', imgID: 'job-wav', status: 'jobCompleted' }]
+  });
+  await client.projects.getResult('proj-tts-wav');
+  assert.equal(capturedDownloadParams.contentType, 'audio/wav');
+
+  client.projects.getStatus = async () => ({
+    id: 'proj-tts-default-mp3',
+    status: 'completed',
+    finished: true,
+    model: { id: 'minimax_music3', type: 'audio' },
+    workerJobs: [],
+    completedWorkerJobs: [{ id: 'job-mp3', imgID: 'job-mp3', status: 'jobCompleted' }]
+  });
+  await client.projects.getResult('proj-tts-default-mp3');
+  assert.equal(capturedDownloadParams.contentType, 'audio/mpeg');
+
+  // handleJobResult prefers explicit outputFormat, then result.contentType (e.g. audio/wav), before defaulting to audio/mpeg,
+  // and Job._audioContentType checks job.data.outputFormat ?? project.params.outputFormat.
+  // Also projects.create defaults outputFormat='json' & positivePrompt='' when modelOptions.stt === true on a custom STT id.
+  client.projects.getModelOptions = async (modelId) => {
+    if (modelId === 'custom_stt_v1') {
+      return mapAudioTier({
+        type: 'audio',
+        stt: true,
+        benchmark: { sec: 1, secCN: 0, secMaxPreviews: 0 },
+        duration: { min: 1, max: 600, default: 30 }
+      });
+    }
+    return mapAudioTier({
+      type: 'audio',
+      benchmark: { sec: 1, secCN: 0, secMaxPreviews: 0 }
+    });
+  };
+  let sentJobRequest = null;
+  client.apiClient.socket.send = async (_event, payload) => {
+    sentJobRequest = payload;
+  };
+  const customSttProject = await client.projects.create({
+    type: 'audio',
+    modelId: 'custom_stt_v1',
+    numberOfMedia: 1
+  });
+  assert.equal(sentJobRequest.outputFormat, 'json');
+  assert.equal(sentJobRequest.keyFrames[0].positivePrompt, '');
+  assert.equal(customSttProject.params.outputFormat, 'json');
+
+  const ttsProjectNoFormat = await client.projects.create({
+    type: 'audio',
+    modelId: 'fish_drama_3_nvfp4',
+    positivePrompt: 'Testing WAV artifact fallback',
+    numberOfMedia: 1
+  });
+  client.projects.handleJobState({
+    type: 'jobStarted',
+    jobID: ttsProjectNoFormat.id,
+    imgID: 'img-wav-1',
+    workerName: 'worker-1',
+    jobIndex: 0
+  });
+  // Add a pending job so job._audioContentType is also exercised on getResultUrl()
+  ttsProjectNoFormat._addJob({
+    id: 'img-wav-1',
+    projectId: ttsProjectNoFormat.id,
+    status: 'processing',
+    step: 0,
+    stepCount: 1
+  });
+  await client.projects.handleJobResult({
+    jobID: ttsProjectNoFormat.id,
+    imgID: 'img-wav-1',
+    performedStepCount: 1,
+    outputFormat: 'flac',
+    artifacts: [{ contentType: 'audio/wav', success: true }]
+  });
+  assert.equal(capturedDownloadParams.contentType, 'audio/flac');
+
+  const jobInstance = ttsProjectNoFormat.job('img-wav-1');
+  jobInstance._update({ resultUrl: null });
+  await jobInstance.getResultUrl();
+  assert.equal(capturedDownloadParams.contentType, 'audio/flac');
+
+  // When neither project.params.outputFormat nor data.outputFormat is set, handleJobResult uses result.contentType
+  await client.projects.handleJobResult({
+    jobID: ttsProjectNoFormat.id,
+    imgID: 'img-wav-2',
+    performedStepCount: 1,
+    artifacts: [{ contentType: 'audio/wav', success: true }]
+  });
+  assert.equal(capturedDownloadParams.contentType, 'audio/wav');
+
   // 6. OpenAI-compatible sogni.audio.speech.create & sogni.audio.transcriptions.create (with disableSocket: true)
   const originalFetch = globalThis.fetch;
   const fetchCalls = [];
@@ -295,7 +460,39 @@ async function main() {
     assert.equal(form.get('model'), 'nemotron');
     assert.equal(form.get('diarize'), 'true');
     assert.equal(form.get('hotwords'), 'Sogni, Spark');
+    assert.equal(form.get('response_format'), 'verbose_json');
     assert.deepEqual(form.getAll('timestamp_granularities[]'), ['segment', 'word']);
+
+    // Raw AAC buffer uploads with .aac extension, and camelCase timestampGranularities defaults response_format to verbose_json
+    await client.audio.transcriptions.create({
+      file: aacMpeg4Bytes,
+      timestampGranularities: ['word']
+    });
+    const aacForm = fetchCalls[fetchCalls.length - 1].init.body;
+    assert.equal(aacForm.get('response_format'), 'verbose_json');
+    assert.deepEqual(aacForm.getAll('timestamp_granularities[]'), ['word']);
+    assert.equal(aacForm.get('file').name, 'audio.aac');
+    assert.equal(aacForm.get('file').type, 'audio/aac');
+
+    // Remote trusted media fetch sniffs raw AAC and WebM correctly
+    const prevFetch = globalThis.fetch;
+    globalThis.fetch = async (remoteUrl) => {
+      if (String(remoteUrl).includes('clip.aac')) {
+        return new Response(aacMpeg4Bytes, {
+          status: 200,
+          headers: { 'content-type': 'application/octet-stream' }
+        });
+      }
+      return new Response(webmBytes, {
+        status: 200,
+        headers: { 'content-type': 'video/webm;codecs=vp9' }
+      });
+    };
+    const inlineAac = await mediaInputToInlineDataUri('https://cdn.sogni.ai/audio/clip.aac', 'audio');
+    assert.ok(inlineAac.startsWith('data:audio/aac;base64,'), inlineAac);
+    const inlineWebm = await mediaInputToInlineDataUri('https://cdn.sogni.ai/video/clip.webm', 'video');
+    assert.ok(inlineWebm.startsWith('data:video/webm;base64,'), inlineWebm);
+    globalThis.fetch = prevFetch;
 
     const srtTranscript = await client.audio.transcriptions.create({
       file: mp3Bytes,

@@ -98,6 +98,7 @@ import {
   getMinimaxH3ReferenceVideoSlots,
   getVideoWorkflowType,
   asResultMediaKind,
+  audioOutputContentType,
   isAudioModel,
   isModelArtifactModel,
   isMinimaxH3ReferenceModel,
@@ -380,22 +381,22 @@ function getImageContentType(project: Project): string | undefined {
 }
 
 /**
- * Get the MIME content type for audio downloads based on the project's output format.
+ * Get the MIME content type for audio downloads based on explicit job/project
+ * output format, result evidence, or the model's default.
  */
-function getAudioContentType(project: Project): string {
-  const format = (project.params as any).outputFormat;
-  switch (format) {
-    case 'json':
-      return 'application/json';
-    case 'flac':
-      return 'audio/flac';
-    case 'wav':
-      return 'audio/wav';
-    case 'mp3':
-      return 'audio/mpeg';
-    default:
-      return isSttModelId(project.params.modelId) ? 'application/json' : 'audio/mpeg';
-  }
+function getAudioContentType(
+  project: Project | undefined,
+  result?: ResultMediaEvidence,
+  jobOutputFormat?: unknown
+): string {
+  const fromFormat =
+    audioOutputContentType(jobOutputFormat) ??
+    audioOutputContentType(
+      (project?.params as { outputFormat?: unknown } | undefined)?.outputFormat
+    );
+  if (fromFormat) return fromFormat;
+  if (result?.contentType) return result.contentType;
+  return project && isSttModelId(project.params.modelId) ? 'application/json' : 'audio/mpeg';
 }
 
 /**
@@ -1119,7 +1120,10 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
             projectId: data.jobID,
             jobId: data.imgID,
             kind,
-            audioContentType: project ? getAudioContentType(project) : result?.contentType,
+            audioContentType:
+              kind === 'audio'
+                ? getAudioContentType(project, result, data.outputFormat)
+                : undefined,
             imageContentType: project ? getImageContentType(project) : undefined
           });
         } catch (error: any) {
@@ -2497,6 +2501,19 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
     try {
       const modelOptions = await this.getModelOptions(normalizedData.modelId);
       assertSession();
+      if (
+        normalizedData.type === 'audio' &&
+        modelOptions.type === 'audio' &&
+        modelOptions.stt === true &&
+        (normalizedData.outputFormat === undefined || normalizedData.positivePrompt === undefined)
+      ) {
+        normalizedData = {
+          ...normalizedData,
+          positivePrompt: normalizedData.positivePrompt ?? '',
+          outputFormat: normalizedData.outputFormat ?? 'json'
+        } as ProjectParams;
+        project._update({ params: { ...normalizedData } });
+      }
       const requestParams = {
         ...normalizedData,
         appSource: normalizedData.appSource || this.client.appSource,
@@ -2959,13 +2976,20 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
           } else {
             entry.kind = kind;
             try {
+              const explicitAudioContentType =
+                audioOutputContentType(snapshot.outputFormat) ??
+                audioOutputContentType(job.outputFormat) ??
+                audioOutputContentType(job.result?.outputFormat);
               entry.url = await this._mintResultUrl({
                 projectId: snapshot.id,
                 jobId: id,
                 kind,
                 audioContentType:
-                  result?.contentType ??
-                  (modelId && isSttModelId(modelId) ? 'application/json' : undefined)
+                  kind === 'audio'
+                    ? (explicitAudioContentType ??
+                      result?.contentType ??
+                      (modelId && isSttModelId(modelId) ? 'application/json' : 'audio/mpeg'))
+                    : undefined
               });
             } catch (error) {
               this.client.logger.error(`Failed to sign a download URL for ${snapshot.id}/${id}`);
@@ -3982,18 +4006,13 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
   async estimateAudioCost(params: AudioEstimateRequest): Promise<CostEstimation> {
     const token = params.tokenType === 'sogni' ? 'sogni' : 'spark';
     const dur = Number.isFinite(params.duration) ? Math.max(0, Math.ceil(params.duration!)) : 0;
-    const steps = Number.isFinite(params.steps) && params.steps! > 0 ? Math.round(params.steps!) : 1;
+    const steps =
+      Number.isFinite(params.steps) && params.steps! > 0 ? Math.round(params.steps!) : 1;
     const count =
       Number.isFinite(params.numberOfMedia) && params.numberOfMedia! > 0
         ? Math.round(params.numberOfMedia!)
         : 1;
-    const pathParams = [
-      token,
-      params.model,
-      dur,
-      steps,
-      count
-    ];
+    const pathParams = [token, params.model, dur, steps, count];
     const path = pathParams.map((p) => encodeURIComponent(p)).join('/');
     const query = new URLSearchParams();
     // Unpinned, the job renders on the connection's network, so quote that one.

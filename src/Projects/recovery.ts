@@ -127,8 +127,12 @@ export function projectParamsFromRecoveredProject(project: RecoveredProject): Pr
   if (request.mediaEncryption && typeof request.mediaEncryption === 'object') {
     base.mediaEncryption = true;
   }
-  if (typeof request.outputFormat === 'string' && request.outputFormat) {
-    base.outputFormat = request.outputFormat;
+  const outputFormat =
+    keyFrame.outputFormat ||
+    request.outputFormat ||
+    (project as { outputFormat?: string }).outputFormat;
+  if (typeof outputFormat === 'string' && outputFormat) {
+    base.outputFormat = outputFormat;
   }
   if (project.appSource || request.appSource)
     base.appSource = project.appSource || request.appSource;

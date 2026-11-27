@@ -20,8 +20,8 @@ export interface ParsedInlineMediaData {
 }
 
 type ImageFormat = 'jpeg' | 'png';
-type AudioFormat = 'mpeg' | 'wav' | 'mp4' | 'flac' | 'ogg' | 'webm';
-type VideoFormat = 'mp4' | 'quicktime';
+type AudioFormat = 'aac' | 'mpeg' | 'wav' | 'mp4' | 'flac' | 'ogg' | 'webm';
+type VideoFormat = 'mp4' | 'quicktime' | 'webm';
 
 const BASE64_BODY_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 
@@ -32,6 +32,7 @@ const IMAGE_MIME_FORMATS: Record<string, ImageFormat> = {
 };
 
 const AUDIO_MIME_FORMATS: Record<string, AudioFormat> = {
+  'audio/aac': 'aac',
   'audio/flac': 'flac',
   'audio/m4a': 'mp4',
   'audio/mp3': 'mpeg',
@@ -49,7 +50,8 @@ const AUDIO_MIME_FORMATS: Record<string, AudioFormat> = {
 
 const VIDEO_MIME_FORMATS: Record<string, VideoFormat> = {
   'video/mp4': 'mp4',
-  'video/quicktime': 'quicktime'
+  'video/quicktime': 'quicktime',
+  'video/webm': 'webm'
 };
 
 function getAllowedMimeTypes(mediaType: MediaType): string[] {
@@ -159,6 +161,10 @@ function detectIsoBmffFormat(bytes: Uint8Array): 'mp4' | 'quicktime' | null {
   return 'mp4';
 }
 
+function isLikelyAacAdtsFrame(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xf6) === 0xf0;
+}
+
 function isLikelyMp3Frame(bytes: Uint8Array): boolean {
   if (bytes.length < 2) {
     return false;
@@ -183,6 +189,9 @@ function detectAudioFormat(bytes: Uint8Array): AudioFormat | null {
   if (hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3])) {
     return 'webm';
   }
+  if (isLikelyAacAdtsFrame(bytes)) {
+    return 'aac';
+  }
   if (ascii(bytes, 0, 3) === 'ID3' || isLikelyMp3Frame(bytes)) {
     return 'mpeg';
   }
@@ -196,6 +205,9 @@ function detectAudioFormat(bytes: Uint8Array): AudioFormat | null {
 }
 
 function detectVideoFormat(bytes: Uint8Array): VideoFormat | null {
+  if (hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3])) {
+    return 'webm';
+  }
   const isoFormat = detectIsoBmffFormat(bytes);
   if (isoFormat === 'quicktime') {
     return 'quicktime';
@@ -347,12 +359,14 @@ function mimeTypeForDetectedFormat(mediaType: MediaType, bytes: Uint8Array): str
     if (format === 'flac') return 'audio/flac';
     if (format === 'ogg') return 'audio/ogg';
     if (format === 'webm') return 'audio/webm';
+    if (format === 'aac') return 'audio/aac';
     if (format === 'mpeg') return 'audio/mpeg';
     if (format === 'mp4') return 'audio/mp4';
   } else {
     const format = detectVideoFormat(bytes);
     if (format === 'quicktime') return 'video/quicktime';
     if (format === 'mp4') return 'video/mp4';
+    if (format === 'webm') return 'video/webm';
   }
   throw new Error(
     `Remote ${mediaType} input is not a supported format. Allowed types: ${getAllowedMimeTypes(mediaType).join(', ')}`
