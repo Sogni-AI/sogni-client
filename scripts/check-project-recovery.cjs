@@ -881,7 +881,7 @@ async function main() {
       completedWorkerJobs: []
     });
     await assert.rejects(api.get('A/B'), (error) => error.status === 404);
-    assert.deepEqual(seen, ['/v2/projects/A%2FB', '/v1/projects/A/B'], 'get() keeps its v1 path');
+    assert.deepEqual(seen, ['/v2/projects/A%2FB', '/v1/projects/A%2FB'], 'get() keeps its v1 path');
     stopTimers(api);
   }
 

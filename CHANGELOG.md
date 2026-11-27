@@ -1,3 +1,10 @@
+## [5.90.1](https://github.com/Sogni-AI/sogni-client/compare/v5.90.0...v5.90.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **client:** validate token amounts, encode project ids, and add user-asset media hosts ([375ce9d](https://github.com/Sogni-AI/sogni-client/commit/375ce9d3d1894c3c4cf66513f4a63d10d8e361a0))
+
 # [5.90.0](https://github.com/Sogni-AI/sogni-client/compare/v5.89.0...v5.90.0) (2026-11-25)
 
 

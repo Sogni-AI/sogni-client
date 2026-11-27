@@ -253,6 +253,60 @@ async function run(
     true,
     { approve: true }
   );
+
+  // Positive uint256 token amount validation on withdraw/deposit + encoded project path lookup.
+  const ProjectsApi = require('../dist/Projects/index.js').default;
+  {
+    const restCalls = [];
+    const auth = Object.assign(new EventEmitter(), { sessionVersion: 0 });
+    const socket = Object.assign(new EventEmitter(), { isConnected: false });
+    const rest = {
+      async post(path, payload) {
+        restCalls.push({ path, payload });
+        return { data: {} };
+      },
+      async get(path) {
+        restCalls.push({ path });
+        return { data: { project: { id: 'proj/extra' } } };
+      }
+    };
+    const client = Object.assign(new EventEmitter(), { auth, socket, rest, logger });
+    const account = new AccountApi({ client, eip712: {}, testnet: false });
+    account.currentAccount._update({ username: 'amount-check', walletAddress: wallet.address });
+    account.getWallet = () => ({
+      address: wallet.address,
+      async signTypedData() {
+        throw new Error('signTypedData should not be reached');
+      }
+    });
+
+    for (const invalidAmount of [0, '0', -1, '-1', '-0.0001']) {
+      await assert.rejects(
+        () => account.withdraw('unused', invalidAmount, 'base'),
+        /Token amount must be positive/
+      );
+      await assert.rejects(
+        () => account.deposit('unused', invalidAmount, 'base'),
+        /Token amount must be positive/
+      );
+    }
+    const overMaxEther = (2n ** 256n).toString();
+    await assert.rejects(
+      () => account.withdraw('unused', overMaxEther, 'base'),
+      /Token amount exceeds uint256 range/
+    );
+    await assert.rejects(
+      () => account.deposit('unused', overMaxEther, 'base'),
+      /Token amount exceeds uint256 range/
+    );
+    assert.equal(restCalls.length, 0);
+
+    const projects = new ProjectsApi({ client, eip712: {} });
+    await projects.get('proj/extra');
+    assert.equal(restCalls.length, 1);
+    assert.equal(restCalls[0].path, '/v1/projects/proj%2Fextra');
+  }
+
   console.log('Account permit checks passed');
 })().catch((error) => {
   console.error(error);

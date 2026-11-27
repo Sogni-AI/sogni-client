@@ -47,7 +47,7 @@ import {
 } from './subscription.types.js';
 import ApiGroup, { ApiConfig } from '../ApiGroup.js';
 import { captureRequestSession } from '../lib/requestSession.js';
-import { parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
+import { MaxUint256, parseEther, pbkdf2, toUtf8Bytes, Wallet } from 'ethers';
 import { ApiError, ApiResponse } from '../ApiClient/index.js';
 import CurrentAccount from './CurrentAccount.js';
 import { SupernetType } from '../ApiClient/WebSocketClient/types.js';
@@ -63,9 +63,28 @@ import {
 } from '../lib/AuthManager/index.js';
 
 const MAX_DEPOSIT_ATTEMPTS = 4;
+const MAX_ETHER_TEXT_LENGTH = 100;
 enum ErrorCode {
   INSUFFICIENT_BALANCE = 123,
   INSUFFICIENT_ALLOWANCE = 149
+}
+
+function parsePositiveTokenAmount(amount: number | string): string {
+  if (typeof amount === 'boolean') {
+    throw new Error('Invalid token amount');
+  }
+  const text = String(amount).trim();
+  if (!text || text.length > MAX_ETHER_TEXT_LENGTH) {
+    throw new Error('Invalid token amount');
+  }
+  const wei = parseEther(text);
+  if (wei <= BigInt(0)) {
+    throw new Error('Token amount must be positive');
+  }
+  if (wei > MaxUint256) {
+    throw new Error('Token amount exceeds uint256 range');
+  }
+  return wei.toString();
 }
 
 /**
@@ -1053,13 +1072,14 @@ class AccountApi extends ApiGroup {
     provider: string = 'base',
     proof?: TwoFactorProof
   ): Promise<void> {
+    const weiAmount = parsePositiveTokenAmount(amount);
     const expected = this.permitProvider(provider);
     const wallet = this.getWallet(this.currentAccount.username!, password);
     const walletAddress = wallet.address;
     //const nonce = await this.getNonce(walletAddress);
     const payload = {
       walletAddress,
-      amount: parseEther(amount.toString()).toString(),
+      amount: weiAmount,
       provider
     };
     if (walletAddress !== this.currentAccount.walletAddress) {
@@ -1161,6 +1181,7 @@ class AccountApi extends ApiGroup {
     provider: string = 'base',
     attemptCount: number = 1
   ): Promise<void> {
+    const weiAmount = parsePositiveTokenAmount(amount);
     const wallet = this.getWallet(this.currentAccount.username!, password);
     if (wallet.address !== this.currentAccount.walletAddress) {
       throw new ApiError(400, {
@@ -1172,7 +1193,7 @@ class AccountApi extends ApiGroup {
     try {
       await this.client.rest.post('/v3/account/token/deposit', {
         walletAddress: wallet.address,
-        amount: parseEther(amount.toString()).toString(),
+        amount: weiAmount,
         provider: provider
       });
     } catch (error) {

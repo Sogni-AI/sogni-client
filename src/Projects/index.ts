@@ -2872,7 +2872,7 @@ class ProjectsApi extends ApiGroup<ProjectApiEvents> {
    */
   async get(projectId: string) {
     const { data } = await this.client.rest.get<ApiResponse<{ project: RawProject }>>(
-      `/v1/projects/${projectId}`
+      `/v1/projects/${encodeURIComponent(projectId)}`
     );
     return data.project;
   }

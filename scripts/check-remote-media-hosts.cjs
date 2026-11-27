@@ -25,7 +25,9 @@ const R2_OUTPUT_HOSTS = [
 ];
 const R2_INPUT_HOSTS = [
   `generation-input-production.${R2_ACCOUNT_HOST}`,
-  `generation-input-staging.${R2_ACCOUNT_HOST}`
+  `generation-input-staging.${R2_ACCOUNT_HOST}`,
+  `sogni-user-assets-production.${R2_ACCOUNT_HOST}`,
+  `sogni-user-assets-staging.${R2_ACCOUNT_HOST}`
 ];
 const S3_ACCELERATE_HOSTS = [
   'complete-images-production.s3-accelerate.amazonaws.com',
@@ -45,6 +47,7 @@ const REFUSED_HOSTS = [
   // The same bucket name on another Cloudflare account.
   'generation-output-production.ffffffffffffffffffffffffffffffff.r2.cloudflarestorage.com',
   'generation-input-production.ffffffffffffffffffffffffffffffff.r2.cloudflarestorage.com',
+  'sogni-user-assets-production.ffffffffffffffffffffffffffffffff.r2.cloudflarestorage.com',
   // Another bucket on Sogni's account.
   `attacker-bucket.${R2_ACCOUNT_HOST}`,
   `generation-output-dev.${R2_ACCOUNT_HOST}`,
