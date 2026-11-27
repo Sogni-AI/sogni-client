@@ -414,7 +414,9 @@ const SOGNI_R2_MEDIA_HOSTS: ReadonlySet<string> = new Set([
   'generation-output-production.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com',
   'generation-output-staging.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com',
   'generation-input-production.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com',
-  'generation-input-staging.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com'
+  'generation-input-staging.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com',
+  'sogni-user-assets-production.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com',
+  'sogni-user-assets-staging.234df6a88ee221ecac622f8b1a9609e0.r2.cloudflarestorage.com'
 ]);
 
 function trustedRemoteMediaUrl(value: string): URL | null {
